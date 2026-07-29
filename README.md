@@ -170,17 +170,29 @@ dynamics at all look the most dynamic of the lot.
 If there is no audio output, or miniaudio is not installed, the player says so in
 its bar and everything else carries on working.
 
-A plain RDP or ssh session usually has no audio sink at all, which is what that
-message means. On Fedora with xrdp, sound redirection needs the xrdp pipewire
-module:
+That message means the session has no audio sink. `pactl list short sinks`
+printing nothing confirms it. On a remote desktop there are usually two separate
+things in the way:
+
+- **No access to the sound card.** systemd-logind grants the ACL on `/dev/snd/*`
+  to the active session on a seat. A remote session has no seat, so the card stays
+  unreachable and PipeWire creates no sink even though the hardware is there.
+  `getfacl /dev/snd/controlC0` shows who does have it. Adding yourself to the
+  `audio` group works around it, but then sound comes out of the remote machine's
+  speakers.
+- **No audio redirection to your client.** That is the server's job:
+  gnome-remote-desktop does it itself, while xrdp needs
+  `pipewire-module-xrdp` and only loads it when `XRDP_SESSION` is set - so that
+  package does nothing in a GNOME remote session.
+
+To check the player itself without any of that, give PipeWire somewhere to write:
 
 ```bash
-sudo dnf copr enable infinality/pipewire-module-xrdp
-sudo dnf install pipewire-module-xrdp
+pactl load-module module-null-sink sink_name=test
 ```
 
-Then reconnect. `pactl list short sinks` printing nothing is the quick way to
-confirm the session has no output.
+Playback then runs silently but for real - the position advances and seeking
+works. `pactl unload-module <id>` afterwards.
 
 ## Non-interactive use
 

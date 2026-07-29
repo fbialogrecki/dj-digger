@@ -383,6 +383,8 @@ class Player:
         chunk = next(stream)
         required = yield b""
         while True:
+            # miniaudio can send 0; asking the decoder for nothing reads as EOF.
+            required = required or 1024
             if chunk is None:
                 chunk = stream.send(required)
             if not len(chunk):
@@ -408,6 +410,9 @@ class Player:
             self._offset = self.position
             self._frames = 0
             self._generator = self._feed(self._open_stream(int(self._offset * SAMPLE_RATE)))
+            # miniaudio sends into the generator without priming it first, and
+            # its own docstring says the caller must start it.
+            next(self._generator)
         device.start(self._generator)
         self._playing = True
 

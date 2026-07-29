@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import array
+
 import pytest
 
 from dj_digger import player
@@ -265,6 +267,128 @@ def test_a_missing_miniaudio_is_reported_not_raised_raw(monkeypatch):
         player.Player().load(
             Track(title="t", permalink_url="u"), player.Stream(url="https://cdn/x.mp3"), None
         )
+
+
+# Feeding the device
+
+
+class FakeDevice:
+    def __init__(self):
+        self.started_with = None
+        self.stops = 0
+
+    def start(self, generator):
+        self.started_with = generator
+
+    def stop(self):
+        self.stops += 1
+
+    def close(self):
+        pass
+
+
+def loaded_player(monkeypatch, chunks=None):
+    """A Player wired to a fake device and a fake decoder."""
+
+    subject = player.Player()
+    device = FakeDevice()
+    subject._device = device
+    monkeypatch.setattr(subject, "_device_for", lambda rate, channels: device)
+
+    def fake_inner():
+        # Like miniaudio's stream_any, the first next() already yields audio.
+        requested = yield array.array("h", [100] * 2048)
+        while True:
+            assert requested, "asked the decoder for zero frames"
+            requested = yield array.array("h", [100] * 2048)
+
+    monkeypatch.setattr(subject, "_open_stream", lambda seek_frame: fake_inner())
+    subject._loaded = player.Loaded(
+        track=Track(title="t", permalink_url="u"),
+        stream=player.Stream(url="https://cdn/x.mp3"),
+        duration=300.0,
+    )
+    subject._miniaudio = object()
+    return subject, device
+
+
+def test_the_generator_is_primed_before_the_device_gets_it(monkeypatch):
+    """miniaudio sends into the callback without starting it; its docs say we must."""
+
+    subject, device = loaded_player(monkeypatch)
+    subject.play()
+
+    assert device.started_with is not None
+    # This is the exact call miniaudio makes; on an unprimed generator it raises
+    # TypeError: can't send non-None value to a just-started generator.
+    chunk = device.started_with.send(1024)
+    assert len(chunk) > 0
+
+
+def test_a_zero_frame_request_does_not_end_playback(monkeypatch):
+    subject, device = loaded_player(monkeypatch)
+    subject.play()
+
+    assert len(device.started_with.send(0)) > 0
+
+
+def test_frames_fed_move_the_position(monkeypatch):
+    subject, device = loaded_player(monkeypatch)
+    subject.play()
+    device.started_with.send(1024)
+
+    assert subject.position > 0
+
+
+def test_volume_scales_the_samples_that_reach_the_device(monkeypatch):
+    subject, device = loaded_player(monkeypatch)
+    subject.set_volume(0.25)
+    subject.play()
+
+    chunk = device.started_with.send(1024)
+    assert max(chunk) == 25  # the fake decoder yields 100
+
+
+def test_pausing_holds_the_position(monkeypatch):
+    subject, device = loaded_player(monkeypatch)
+    subject.play()
+    device.started_with.send(1024)
+    held = subject.position
+
+    subject.pause()
+    assert subject.playing is False
+    assert subject.position == held
+    assert device.stops == 1
+
+
+def test_resuming_reuses_the_open_socket(monkeypatch):
+    """Reopening costs a network round trip, so only a seek should do it."""
+
+    subject, device = loaded_player(monkeypatch)
+    subject.play()
+    first = device.started_with
+    subject.pause()
+    subject.play()
+
+    assert device.started_with is first
+
+
+def test_seeking_drops_the_generator_so_the_next_play_reopens(monkeypatch):
+    subject, device = loaded_player(monkeypatch)
+    subject.play()
+    first = device.started_with
+
+    subject.seek(120.0)
+    assert subject.position == pytest.approx(120.0)
+    assert device.started_with is not first
+
+
+def test_seeking_is_clamped_inside_the_track(monkeypatch):
+    subject, _device = loaded_player(monkeypatch)
+    subject.seek(9999.0)
+    assert subject.position <= subject.duration
+    subject.seek(-50.0)
+    assert subject.position == 0.0
 
 
 # Streaming source
