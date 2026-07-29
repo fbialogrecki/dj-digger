@@ -1,11 +1,11 @@
 # SoundCloud Purchase Links Scraper
 
-This repository contains a Python tool that automates the process of extracting download or store links from public SoundCloud playlists. Save the playlist page as HTML, let the tool analyse every track, and later open the discovered Bandcamp / Beatport / JunoDownload / Hypeedit links in your preferred browser.
+This repository contains a Python tool that automates the process of extracting download or store links from public SoundCloud playlists. Save the playlist page as HTML, let the tool analyse every track, and later open the discovered Bandcamp / Beatport / JunoDownload / Hypeddit links in your preferred browser.
 
 ## Features
 
 - **Offline-friendly workflow:** Works entirely on HTML files saved from your browser – no live Selenium scraping required.
-- **Smart categorisation:** Classifies store links into Bandcamp, Beatport, JunoDownload, Hypeedit, or `others` when no known store is detected.
+- **Smart categorisation:** Classifies store links into Bandcamp, Beatport, JunoDownload, Hypeddit, or `others` when no known store is detected.
 - **Progress visibility:** A terminal progress bar keeps you informed while tracks are analysed, with retries and back-off for network hiccups.
 - **Flexible output:** Export results to JSON or YAML, or reuse an existing JSON file without re-scraping.
 - **One-click opening:** Instantly open store links (per category) in Chrome, Firefox, Edge, Opera, Safari or the system default browser. Opening all at once remains the default behaviour, with a flag to disable it.
