@@ -130,20 +130,97 @@ def test_a_missing_waveform_draws_flat_lines():
     assert rows == ["\u2500" * 5, "\u2500" * 5]
 
 
+def styled_width(text, style):
+    """How many characters carry a style, whatever it took to say so."""
+
+    return sum(span.end - span.start for span in text.spans if span.style == style)
+
+
 def test_the_played_part_is_styled_differently():
     rendered = player.render_waveform([100] * 10, 10, played_fraction=0.5, rows=1)
-    played = [span for span in rendered.spans if span.style == "cyan"]
-    todo = [span for span in rendered.spans if span.style == "bright_black"]
 
-    assert len(played) == 5
-    assert len(todo) == 5
+    assert styled_width(rendered, player.PLAYED_STYLE) == 5
+    assert styled_width(rendered, player.UNPLAYED_STYLE) == 5
+    played = [span for span in rendered.spans if span.style == player.PLAYED_STYLE]
+    todo = [span for span in rendered.spans if span.style == player.UNPLAYED_STYLE]
     assert max(span.end for span in played) <= min(span.start for span in todo)
 
 
 @pytest.mark.parametrize("fraction,expected_played", [(0.0, 0), (0.5, 5), (1.0, 10)])
 def test_the_progress_boundary_follows_the_fraction(fraction, expected_played):
     rendered = player.render_waveform([100] * 10, 10, played_fraction=fraction, rows=1)
-    assert len([span for span in rendered.spans if span.style == "cyan"]) == expected_played
+    assert styled_width(rendered, player.PLAYED_STYLE) == expected_played
+
+
+def test_a_frame_costs_a_handful_of_spans_not_one_per_column():
+    """Thirty frames a second is only affordable because of this."""
+
+    rendered = player.render_waveform([100] * 400, 400, played_fraction=0.5, level=1.0)
+    assert len(rendered.spans) <= 3 * player.WAVEFORM_ROWS
+
+
+def test_the_leading_edge_brightens_with_the_level():
+    quiet = player.render_waveform([100] * 60, 60, played_fraction=0.5, rows=1, level=0.0)
+    loud = player.render_waveform([100] * 60, 60, played_fraction=0.5, rows=1, level=1.0)
+
+    assert styled_width(quiet, player.GLOW_STYLES[-1]) == 0
+    assert styled_width(loud, player.GLOW_STYLES[-1]) == player.GLOW_COLUMNS
+
+
+def test_the_played_history_does_not_flicker_with_it():
+    """Only the columns behind the playhead move; the rest is a record."""
+
+    loud = player.render_waveform([100] * 60, 60, played_fraction=0.5, rows=1, level=1.0)
+    assert styled_width(loud, player.PLAYED_STYLE) == 30 - player.GLOW_COLUMNS
+
+
+def test_the_shape_of_a_track_is_the_same_however_it_is_coloured():
+    rows = player.waveform_rows([100, 20, 140, 60], 4, rows=1)
+    for level in (0.0, 0.5, 1.0):
+        painted = player.paint_waveform(rows, 0.5, level)
+        assert str(painted) == rows[0]
+
+
+# Reading the level as a pulse
+
+
+def test_a_hit_shows_at_once_and_falls_away_afterwards():
+    meter = player.LevelMeter()
+    struck = meter.feed(1.0)
+    after = [meter.feed(0.0) for _ in range(4)]
+
+    assert struck == pytest.approx(1.0)
+    assert after == sorted(after, reverse=True)
+    assert after[-1] < struck / 4
+
+
+def test_a_track_that_is_loud_all_through_still_pulses():
+    """Measured against 1.0, a mastered master would sit at the top and stay."""
+
+    meter = player.LevelMeter()
+    for _ in range(30):
+        meter.feed(0.98)  # the kick
+        quiet = [meter.feed(0.55) for _ in range(6)]  # between kicks
+
+    assert meter.feed(0.98) - quiet[-1] > 0.5
+
+
+def test_silence_reads_as_silence_rather_than_amplified_hiss():
+    meter = player.LevelMeter()
+    assert meter.feed(0.0) == 0.0
+    assert meter.feed(0.001) < 0.01
+
+
+def test_a_new_track_starts_the_meter_again():
+    meter = player.LevelMeter()
+    meter.feed(1.0)
+    meter.reset()
+    assert meter.feed(0.0) == 0.0
+
+
+@pytest.mark.parametrize("level", [-1.0, 0.0, 0.4, 1.0, 5.0])
+def test_the_glow_never_falls_off_the_end_of_the_palette(level):
+    assert player.glow_style(level) in player.GLOW_STYLES
 
 
 def test_a_fraction_outside_the_range_is_clamped():

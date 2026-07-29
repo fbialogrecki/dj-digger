@@ -34,6 +34,7 @@ def bar_text(app, width=200):
 
 
 # Cell offsets into a table row: playing, mark, number, title, stores, genre, time.
+MARK_CELL = 1
 TITLE_CELL = 3
 STORES_CELL = 4
 GENRE_CELL = 5
@@ -1162,10 +1163,12 @@ def loading_fetch(app, started):
 
     def fetch(track):
         started.append(track.id)
+        app._player_bar().message = ""
         app.player.load(track, a_stream(), None)
         app.player.play()
         app.refresh_rows()
         app._focus_playing_track()
+        app._player_bar().refresh_bar()
 
     return fetch
 
@@ -1484,6 +1487,190 @@ def test_leaving_the_app_lets_go_of_the_prepared_track(state):
 
     run(scenario)
     assert source.closed is True
+
+
+# Showing that a keypress landed
+
+
+def styles_on(table, index):
+    return {span.style for cell in table.get_row_at(index) for span in cell.spans}
+
+
+def test_marking_a_track_lights_the_row_then_lets_it_settle(state):
+    app = make_app(synthetic_records(3), state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            table = app.query_one("#tracks", tui.TrackTable)
+            await pilot.press("g")
+            await pilot.pause()
+            lit = tui.STATUS_STYLES[GOT][1]
+            # The whole row carries it, not just the tick in the gutter.
+            assert str(table.get_row_at(0)[TITLE_CELL].spans[-1].style) == lit
+
+            await pilot.pause(tui.FLASH + 0.1)
+            assert lit not in styles_on(table, 0)
+            assert str(table.get_row_at(0)[MARK_CELL]) == "\u2713"
+
+    run(scenario)
+
+
+def test_marking_a_track_does_not_redraw_the_whole_table(state, monkeypatch):
+    """Rebuilding every row to change one glyph is the flicker you could see."""
+
+    app = make_app(synthetic_records(4), state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            table = app.query_one("#tracks", tui.TrackTable)
+            rebuilds = []
+            monkeypatch.setattr(table, "clear", lambda *a, **k: rebuilds.append(1))
+
+            await pilot.press("g")
+            await pilot.pause()
+
+            assert rebuilds == []
+            assert str(table.get_row_at(0)[MARK_CELL]) == "\u2713"
+
+    run(scenario)
+
+
+def test_a_row_that_is_about_to_be_hidden_is_not_lit(state):
+    """With handled rows hidden, the row leaves rather than flashing in place."""
+
+    app = make_app(synthetic_records(3), state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("h")  # hide handled
+            await pilot.press("g")
+            await pilot.pause()
+            assert app.query_one("#tracks", DataTable).row_count == 2
+
+    run(scenario)
+
+
+def test_the_counts_keep_up_without_a_rebuild(state):
+    app = make_app(synthetic_records(3), state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("g")
+            await pilot.pause()
+            assert "got 1" in bar_text(app)
+
+    run(scenario)
+
+
+# Drawing frames only when there are frames worth drawing
+
+
+def test_the_frame_timer_sleeps_until_something_plays(state, monkeypatch):
+    """Waking thirty times a second to watch a still list is just a warm laptop."""
+
+    app = player_app(synthetic_records(3), state)
+    monkeypatch.setattr(app, "fetch_audio", loading_fetch(app, []))
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            assert app._ticker._active.is_set() is False
+
+            await pilot.press("space")
+            await pilot.pause()
+            assert app._ticker._active.is_set() is True
+
+    run(scenario)
+
+
+def test_the_frame_timer_stops_again_when_playback_does(state, monkeypatch):
+    app = player_app(synthetic_records(3), state)
+    monkeypatch.setattr(app, "fetch_audio", loading_fetch(app, []))
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("space")
+            await pilot.pause()
+            app.player.playing = False
+            app._tick()
+            assert app._ticker._active.is_set() is False
+
+    run(scenario)
+
+
+def test_turning_animation_off_slows_the_frame_timer_down(state):
+    """The thing that repaints most cannot ignore the setting that says not to."""
+
+    app = player_app(synthetic_records(1), state)
+
+    async def scenario():
+        async with app.run_test():
+            app.animation_level = "full"
+            assert app.frame_interval == tui.TICK
+            app.animation_level = "none"
+            assert app.frame_interval == tui.CALM_TICK
+
+    run(scenario)
+
+
+def test_the_player_bar_grows_instead_of_appearing_from_nothing(state, monkeypatch):
+    app = player_app(synthetic_records(2), state)
+    monkeypatch.setattr(app, "fetch_audio", loading_fetch(app, []))
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            bar = app.query_one("#player", PlayerBar)
+            assert bar.wanted_height == 0
+
+            await pilot.press("space")
+            await pilot.pause()
+            assert bar.wanted_height == 3
+            assert bar.styles.height.value == 3
+
+    run(scenario)
+
+
+def test_the_player_bar_folds_away_when_there_is_nothing_to_say(state, monkeypatch):
+    app = player_app(synthetic_records(2), state)
+    monkeypatch.setattr(app, "fetch_audio", loading_fetch(app, []))
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            bar = app.query_one("#player", PlayerBar)
+            await pilot.press("space")
+            await pilot.pause()
+
+            app.player.loaded = None
+            bar.refresh_bar()
+            assert bar.wanted_height == 0
+
+    run(scenario)
+
+
+def test_digging_shows_something_turning(state, monkeypatch):
+    """A spinner is the difference between "working" and "hung"."""
+
+    monkeypatch.setattr("dj_digger.dig.dig", lambda target, **kwargs: crate_of(1))
+    app = make_app([], state, export_format="none")
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app._digging = True
+            app._dig_message = "Fetching tracks 3/9"
+
+            app._frame = tui.SPINNER_EVERY - 1
+            app._tick()
+            first = bar_text(app)
+            app._frame = 2 * tui.SPINNER_EVERY - 1
+            app._tick()
+
+            assert "Fetching tracks 3/9" in first
+            assert any(glyph in first for glyph in tui.SPINNER)
+            assert bar_text(app) != first
+            app._digging = False
+
+    run(scenario)
 
 
 def test_space_toggles_a_track_that_is_already_loaded(records, state, monkeypatch):

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -10,6 +11,12 @@ from dj_digger import library, state
 from dj_digger.models import Track
 
 FIXTURES = Path(__file__).parent / "fixtures"
+
+# Land animations on their final value at once rather than over 200ms. Textual
+# reads this when it is imported, so it has to be set before anything pulls it
+# in - a test that had to wait out an animation is a test that fails on a loaded
+# machine.
+os.environ.setdefault("TEXTUAL_ANIMATIONS", "none")
 
 
 @pytest.fixture(autouse=True)

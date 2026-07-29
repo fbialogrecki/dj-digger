@@ -26,6 +26,7 @@ from textual import events, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
+from textual.coordinate import Coordinate
 from textual.screen import ModalScreen
 from textual.timer import Timer
 from textual.widgets import Button, DataTable, Footer, Input, Label, ListItem, ListView, Static
@@ -68,6 +69,23 @@ OPEN_ALL_CONFIRM_THRESHOLD = 20
 # enough to cover a signed URL, a waveform and the first megabytes of audio on a
 # poor connection; short enough that a filter change rarely wastes the work.
 PREFETCH_LEAD = 20.0
+
+# Thirty frames a second, which is what a pulse needs to read as one rather than
+# as a stutter. It only costs anything while a track is playing: with nothing
+# going out, _tick leaves on its first line. Redrawing a waveform this often is
+# only affordable because a frame is now a few style ranges - see paint_waveform.
+TICK = 1 / 30
+# Turning animation off - TEXTUAL_ANIMATIONS=none, which is what you do over a
+# slow link - has to turn this off too, or the one thing that repaints the most
+# would carry on regardless. The clock and the auto-advance still need a pulse,
+# just not thirty of them a second.
+CALM_TICK = 0.25
+# The spinner is slower than the frame rate on purpose; braille that turns thirty
+# times a second is a smear.
+SPINNER = "\u280b\u2819\u2839\u2838\u283c\u2834\u2826\u2827\u2807\u280f"
+SPINNER_EVERY = 4
+# Long enough to catch the eye, short enough that holding `s` down still works.
+FLASH = 0.25
 # Number keys select the nth store that this crate actually contains, so `1` is
 # always the first store you have rather than a fixed category.
 QUICK_FILTER_KEYS = 9
@@ -540,6 +558,8 @@ class DiggerApp(App):
         self._cursor_follows = True
         self._prepared: Optional[Prepared] = None
         self._preparing: str = ""
+        self._frame = 0
+        self._dig_message = ""
         self.player = Player()
         self._client: Optional[SoundCloudClient] = None
         self._set_records(records)
@@ -578,7 +598,9 @@ class DiggerApp(App):
         table.focus()
         # Needs a laid-out width to size itself against.
         self.call_after_refresh(table.fit_flexible_column)
-        self._ticker = self.set_interval(0.25, self._tick)
+        # Asleep until there is something to animate: waking thirty times a
+        # second to look at a list nobody is playing is just a warm laptop.
+        self._ticker = self.set_interval(self.frame_interval, self._tick, pause=True)
         if not self.rows:
             self.action_dig_link()
 
@@ -708,27 +730,52 @@ class DiggerApp(App):
             badges.append(name, style=style)
         return badges
 
+    def _playing_key(self) -> Optional[str]:
+        loaded = self.player.loaded
+        return loaded.track.key if loaded is not None else None
+
+    def _cells(self, row: Row, playing_key: Optional[str]) -> List[Text]:
+        status = self.status_of(row)
+        glyph, style, _meaning = STATUS_STYLES[status]
+        dim = "bright_black" if status == SKIP else ""
+        return [
+            Text(PLAYING_GLYPH if row.track.key == playing_key else "", style="green"),
+            Text(glyph, style=style),
+            Text(str(row.position), style="bright_black"),
+            Text(row.track.label, style=dim),
+            self._store_badges(row),
+            Text(row.track.genre_label or "-", style="bright_black"),
+            Text(row.track.duration_label or "-", style="bright_black"),
+        ]
+
+    def _paint_row(self, index: int, flash: str = "") -> None:
+        """Rewrite one row in place, rather than rebuilding the whole table."""
+
+        if not self.query("#tracks") or not 0 <= index < len(self.visible_rows):
+            return
+        table = self.query_one("#tracks", TrackTable)
+        if index >= table.row_count:
+            return
+        for column, cell in enumerate(self._cells(self.visible_rows[index], self._playing_key())):
+            if flash:
+                cell.stylize(flash)
+            table.update_cell_at(Coordinate(index, column), cell, update_width=False)
+
+    def _flash_row(self, index: int, style: str) -> None:
+        """Light the row you acted on, so a keypress is visibly a change."""
+
+        self._paint_row(index, flash=style)
+        self.set_timer(FLASH, lambda: self._paint_row(index))
+
     def refresh_rows(self, *, keep_cursor: bool = True) -> None:
         table = self.query_one("#tracks", TrackTable)
         previous = table.cursor_row if keep_cursor else 0
         self.visible_rows = self.matching_rows()
-        loaded = self.player.loaded
-        playing_key = loaded.track.key if loaded is not None else None
+        playing_key = self._playing_key()
 
         table.clear()
         for row in self.visible_rows:
-            status = self.status_of(row)
-            glyph, style, _meaning = STATUS_STYLES[status]
-            dim = "bright_black" if status == SKIP else ""
-            table.add_row(
-                Text(PLAYING_GLYPH if row.track.key == playing_key else "", style="green"),
-                Text(glyph, style=style),
-                Text(str(row.position), style="bright_black"),
-                Text(row.track.label, style=dim),
-                self._store_badges(row),
-                Text(row.track.genre_label or "-", style="bright_black"),
-                Text(row.track.duration_label or "-", style="bright_black"),
-            )
+            table.add_row(*self._cells(row, playing_key))
 
         if self.visible_rows:
             table.move_cursor(row=min(previous, len(self.visible_rows) - 1))
@@ -809,6 +856,16 @@ class DiggerApp(App):
             return self.visible_rows[index]
         return None
 
+    def _mark(self, row: Row, index: int, status: str, message: str) -> None:
+        self.state.set(row.track.key, status)
+        self.notify(f"{message}: {row.track.label}", timeout=2)
+        if self.hide_handled:
+            # The row is on its way out of the list, so there is nothing to light.
+            self.refresh_rows()
+            return
+        self._flash_row(index, STATUS_STYLES[status][1])
+        self.update_status()
+
     def _toggle_status(self, status: str, message: str) -> None:
         """Pressing the same key again clears the mark, which is what people try."""
 
@@ -818,10 +875,8 @@ class DiggerApp(App):
         clearing = self.status_of(row) == status
         cursor = self.query_one("#tracks", DataTable).cursor_row
         judging_what_plays = self._playing_index() == cursor
-        self.state.set(row.track.key, NEW if clearing else status)
         label = "Unmarked" if clearing else message
-        self.notify(f"{label}: {row.track.label}", timeout=2)
-        self.refresh_rows()
+        self._mark(row, cursor, NEW if clearing else status, label)
         if clearing:
             # Undoing a mark should leave you looking at what you just undid.
             return
@@ -835,9 +890,7 @@ class DiggerApp(App):
         row = self.current_row()
         if row is None:
             return
-        self.state.set(row.track.key, status)
-        self.notify(f"{message}: {row.track.label}", timeout=2)
-        self.refresh_rows()
+        self._mark(row, self.query_one("#tracks", DataTable).cursor_row, status, message)
 
     def _advance_cursor(self) -> None:
         table = self.query_one("#tracks", DataTable)
@@ -862,6 +915,9 @@ class DiggerApp(App):
         # out a tick can arrive after the bar has already gone.
         if not self.query("#player"):
             return
+        self._frame += 1
+        if self._digging:
+            self._spin()
         if self.player.take_finished():
             # Auditioning a crate means hearing all of it, not pressing a key
             # between every track.
@@ -870,6 +926,32 @@ class DiggerApp(App):
         if self.player.playing:
             self._player_bar().refresh_bar()
             self._prepare_next()
+        elif not self._digging:
+            self._sleep()
+
+    @property
+    def frame_interval(self) -> float:
+        return TICK if self.animation_level == "full" else CALM_TICK
+
+    def _wake(self) -> None:
+        if self._ticker is not None:
+            self._ticker.resume()
+
+    def _sleep(self) -> None:
+        if self._ticker is not None:
+            self._ticker.pause()
+
+    def _spin(self) -> None:
+        if self._frame % SPINNER_EVERY == 0:
+            self._draw_digging()
+
+    def _draw_digging(self) -> None:
+        """Something turning is the difference between working and hung."""
+
+        glyph = SPINNER[(self._frame // SPINNER_EVERY) % len(SPINNER)]
+        self.query_one("#status", Static).update(
+            Text(f"{glyph} {self._dig_message}", style="bright_black")
+        )
 
     def _prepare_next(self) -> None:
         """Get the next track ready while this one plays it out.
@@ -976,6 +1058,7 @@ class DiggerApp(App):
         loaded = self.player.loaded
         if loaded is not None and loaded.track.key == row.track.key:
             self._player_op(self.player.toggle)
+            self._wake()
             return
         # Playing what the cursor is on re-couples the two.
         self._cursor_follows = True
@@ -985,6 +1068,7 @@ class DiggerApp(App):
         if not track.id:
             self.notify("No track id, so there is nothing to stream", timeout=4)
             return
+        self._wake()
         prepared = self._take_prepared(track)
         if prepared is not None:
             self._audio_ready(track, prepared.stream, prepared.waveform, prepared.source)
@@ -1159,16 +1243,17 @@ class DiggerApp(App):
     def _start_dig(self, target: str) -> None:
         self._digging = True
         self.query_one("#tracks", DataTable).loading = True
-        self.query_one("#status", Static).update(f"Digging {target}")
+        self._dig_message = f"Digging {target}"
+        self._draw_digging()
+        self._wake()
         self.dig_in_background(target)
 
     @work(thread=True, exclusive=True)
     def dig_in_background(self, target: str) -> None:
         def on_progress(stage: str, done: int, total: Optional[int]) -> None:
             suffix = f" {done}/{total}" if total else ""
-            self.call_from_thread(
-                self.query_one("#status", Static).update, f"{stage}{suffix}"
-            )
+            # The ticker draws it, so the spinner keeps turning between stages.
+            self._dig_message = f"{stage}{suffix}"
 
         try:
             crate = dig_module.dig(

@@ -55,6 +55,15 @@ WAVEFORM_ROWS = 2
 # Loud tracks sit in the top tenth of the range, so the curve has to expand it.
 WAVEFORM_GAMMA = 3.0
 
+PLAYED_STYLE = "cyan"
+UNPLAYED_STYLE = "bright_black"
+# How far back from the playhead the sound of this instant is allowed to show.
+GLOW_COLUMNS = 12
+# Four steps, not a continuum: a colour that changes on every frame reads as
+# flicker rather than as a pulse. The first is the ordinary played colour, so a
+# silent or paused track looks exactly as it did before any of this.
+GLOW_STYLES = (PLAYED_STYLE, "bold cyan", "bold bright_cyan", "bold white")
+
 
 class PlaybackUnavailable(RuntimeError):
     """No audio output, or miniaudio is missing."""
@@ -172,34 +181,110 @@ def column_levels(samples: List[int], width: int) -> List[float]:
     return levels
 
 
-def render_waveform(
-    samples: List[int], width: int, played_fraction: float = 0.0, rows: int = WAVEFORM_ROWS
-) -> Text:
-    """Draw the samples as a stack of block rows, bottom row filling first."""
+def glow_style(level: float) -> str:
+    step = int(max(0.0, min(1.0, level)) * len(GLOW_STYLES))
+    return GLOW_STYLES[min(step, len(GLOW_STYLES) - 1)]
 
-    text = Text()
+
+class LevelMeter:
+    """Turns the raw peak of a chunk into something that reads as a pulse.
+
+    The peak on its own is no use twice over. It jumps between frames, so it is
+    allowed to rise at once and made to fall away slowly - fast up, slow down,
+    which is what makes a kick look like a kick rather than like noise. And a
+    mastered track sits near full scale from start to finish, so measuring
+    against 1.0 would leave it permanently at maximum; it is measured against a
+    ceiling that follows the loudest thing heard lately instead, with the top of
+    that range stretched, for the same reason ``column_levels`` does it.
+    """
+
+    def __init__(
+        self, release: float = 0.72, ceiling_release: float = 0.995, gamma: float = 2.5
+    ) -> None:
+        self.release = release
+        self.ceiling_release = ceiling_release
+        self.gamma = gamma
+        self.reset()
+
+    def reset(self) -> None:
+        self._value = 0.0
+        self._ceiling = 0.0
+
+    def feed(self, peak: float) -> float:
+        peak = max(0.0, min(1.0, peak))
+        self._value = peak if peak > self._value else self._value * self.release
+        # The floor stops a silent passage from magnifying its own hiss.
+        self._ceiling = max(peak, self._ceiling * self.ceiling_release, 0.05)
+        return (self._value / self._ceiling) ** self.gamma
+
+
+def waveform_rows(
+    samples: List[int], width: int, rows: int = WAVEFORM_ROWS
+) -> List[str]:
+    """The block glyphs for a waveform, one string per row.
+
+    These do not change while a track plays, so they are worth building once and
+    keeping - only the colours move from frame to frame.
+    """
+
     if width <= 0:
-        return text
+        return []
     if not samples:
-        for row in range(rows):
-            text.append("\u2500" * width, style="bright_black")
-            if row < rows - 1:
-                text.append("\n")
-        return text
+        return ["\u2500" * width] * rows
 
     levels = column_levels(samples, width)
-    played_columns = int(width * max(0.0, min(1.0, played_fraction)))
     steps = len(BLOCKS) - 1
+    drawn = []
     for row in range(rows):
         # Row 0 is the top of the bar, so it draws the highest slice of the level.
         slice_index = rows - 1 - row
-        for column, level in enumerate(levels):
-            eighths = level * steps * rows - slice_index * steps
-            glyph = BLOCKS[max(0, min(steps, int(eighths + 0.5)))]
-            text.append(glyph, style="cyan" if column < played_columns else "bright_black")
-        if row < rows - 1:
-            text.append("\n")
+        drawn.append(
+            "".join(
+                BLOCKS[max(0, min(steps, int(level * steps * rows - slice_index * steps + 0.5)))]
+                for level in levels
+            )
+        )
+    return drawn
+
+
+def paint_waveform(rows: List[str], played_fraction: float, level: float = 0.0) -> Text:
+    """Colour prebuilt rows: what has played, what has not, and the leading edge.
+
+    A frame costs a handful of style ranges rather than an append per character,
+    which is what makes thirty of them a second cheaper than the four this
+    managed when every glyph was styled on its own.
+    """
+
+    text = Text("\n".join(rows))
+    if not rows:
+        return text
+
+    width = len(rows[0])
+    played = int(width * max(0.0, min(1.0, played_fraction)))
+    # The played region is history and flicker there only tires the eye, so the
+    # pulse is confined to the columns just behind the playhead.
+    glow_from = max(0, played - GLOW_COLUMNS)
+    head = glow_style(level)
+    for index in range(len(rows)):
+        start = index * (width + 1)
+        if glow_from:
+            text.stylize(PLAYED_STYLE, start, start + glow_from)
+        if played > glow_from:
+            text.stylize(head, start + glow_from, start + played)
+        text.stylize(UNPLAYED_STYLE, start + played, start + width)
     return text
+
+
+def render_waveform(
+    samples: List[int],
+    width: int,
+    played_fraction: float = 0.0,
+    rows: int = WAVEFORM_ROWS,
+    level: float = 0.0,
+) -> Text:
+    """Draw the samples as a stack of block rows, bottom row filling first."""
+
+    return paint_waveform(waveform_rows(samples, width, rows), played_fraction, level)
 
 
 class HttpSourceMixin:
@@ -698,19 +783,20 @@ def format_time(seconds: float) -> str:
     return f"{seconds // 60}:{seconds % 60:02d}"
 
 
+PLAYER_HEIGHT = 3
+PLAYER_GROW = 0.2
+
+
 class PlayerBar(Static):
-    """Title, clock, volume and a clickable waveform."""
+    """Title, clock, volume and a clickable waveform that moves with the music."""
 
     DEFAULT_CSS = """
     PlayerBar {
-        height: 3;
+        height: 0;
         padding: 0 1;
-        display: none;
+        overflow: hidden;
         text-wrap: nowrap;
         text-overflow: ellipsis;
-    }
-    PlayerBar.active {
-        display: block;
     }
     """
 
@@ -718,14 +804,32 @@ class PlayerBar(Static):
         super().__init__(**kwargs)
         self.player = player
         self.message = ""
+        self.meter = LevelMeter()
+        self.wanted_height = 0
+        # The glyphs for the loaded track at the current width, which only need
+        # rebuilding when one of those two changes.
+        self._shape: List[str] = []
+        self._shape_for = (None, 0)
 
     def refresh_bar(self) -> None:
-        self.set_class(self.player.loaded is not None or bool(self.message), "active")
         self.update(self._content())
+        self._want(PLAYER_HEIGHT if self._has_something_to_say() else 0)
+
+    def _has_something_to_say(self) -> bool:
+        return self.player.loaded is not None or bool(self.message)
+
+    def _want(self, height: int) -> None:
+        """Grow or fold away, rather than blinking in and out of existence."""
+
+        if height == self.wanted_height:
+            return
+        self.wanted_height = height
+        self.styles.animate("height", value=height, duration=PLAYER_GROW)
 
     def _content(self) -> Text:
         loaded = self.player.loaded
         if loaded is None:
+            self.meter.reset()
             return Text(self.message, style="bright_black")
 
         head = Text()
@@ -739,10 +843,17 @@ class PlayerBar(Static):
         if self.message:
             head.append(f"  {self.message}", style="yellow")
         head.append("\n")
-        head.append_text(
-            render_waveform(loaded.waveform, self._bar_width(), self.player.fraction)
-        )
+        level = self.meter.feed(self.player.level if self.player.playing else 0.0)
+        head.append_text(paint_waveform(self._rows(loaded), self.player.fraction, level))
         return head
+
+    def _rows(self, loaded: Loaded) -> List[str]:
+        width = self._bar_width()
+        wanted = (loaded.track.key, width)
+        if self._shape_for != wanted:
+            self._shape = waveform_rows(loaded.waveform, width)
+            self._shape_for = wanted
+        return self._shape
 
     def _bar_width(self) -> int:
         return max(1, self.size.width - 2)
