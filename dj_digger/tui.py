@@ -35,7 +35,7 @@ from .player import (
     Player,
     PlaybackUnavailable,
     PlayerBar,
-    download_stream,
+    Stream,
     fetch_waveform,
     resolve_stream,
 )
@@ -59,37 +59,38 @@ CRATES = "Crates"
 PLAYBACK = "Playback"
 OTHER = "Other"
 
-# One source for the footer and the help screen, so they cannot drift apart.
-# Only a handful show in the footer - a footer with twelve entries is unreadable,
-# and `?` covers the rest.
+# One source for the footer and the help screen, so they cannot drift apart:
+# (key, action, footer label, section, show in footer, longer help text).
+# Footer labels stay short because it gets one line; help has the room to explain.
 KEYMAP = [
-    ("o,enter", "open_link", "Open", SELECTED, True),
-    ("g", "mark_got", "Got", SELECTED, True),
-    ("s", "mark_skip", "Skip", SELECTED, True),
-    ("u", "mark_new", "Unmark", SELECTED, False),
-    ("x", "remove_track", "Remove from this crate", SELECTED, False),
-    ("ctrl+z", "undo_remove", "Undo remove", SELECTED, False),
-    ("a", "open_visible", "Open all shown", WHOLE_LIST, True),
-    ("e", "export", "Export shown", WHOLE_LIST, False),
-    ("slash", "start_search", "Search", WHOLE_LIST, True),
-    ("f", "cycle_store(1)", "Store", WHOLE_LIST, True),
-    ("F", "cycle_store(-1)", "Previous store", WHOLE_LIST, False),
-    ("h", "toggle_handled", "Hide handled", WHOLE_LIST, False),
-    ("escape", "clear_filters", "Clear filters", WHOLE_LIST, False),
-    ("space", "play_pause", "Play", PLAYBACK, True),
-    ("left_square_bracket", "seek(-1)", "Back 10s", PLAYBACK, False),
-    ("right_square_bracket", "seek(1)", "Forward 10s", PLAYBACK, False),
-    ("n", "play_step(1)", "Next track", PLAYBACK, False),
-    ("p", "play_step(-1)", "Previous track", PLAYBACK, False),
-    ("minus", "volume(-1)", "Quieter", PLAYBACK, False),
-    ("equals_sign", "volume(1)", "Louder", PLAYBACK, False),
-    ("m", "mute", "Mute", PLAYBACK, False),
-    ("d", "dig_link", "Add crate", CRATES, True),
-    ("r", "refresh_crate", "Refresh crate", CRATES, False),
-    ("X", "delete_crate", "Delete crate", CRATES, False),
-    ("ctrl+b", "toggle_sidebar", "Show/hide crates", CRATES, False),
-    ("question_mark", "help", "Help", OTHER, True),
-    ("q", "quit", "Quit", OTHER, True),
+    ("o,enter", "open_link", "Open", SELECTED, True, "Open its store link in the browser"),
+    ("g", "mark_got", "Got", SELECTED, True, "Mark as got, press again to undo"),
+    ("s", "mark_skip", "Skip", SELECTED, True, "Mark as skipped, press again to undo"),
+    ("u", "mark_new", "Unmark", SELECTED, False, "Clear the mark either way"),
+    ("x", "remove_track", "Remove", SELECTED, False, "Remove from this crate, locally only"),
+    ("ctrl+z", "undo_remove", "Undo", SELECTED, False, "Put back the last removed track"),
+    ("space", "play_pause", "Play", PLAYBACK, True, "Play or pause the highlighted track"),
+    ("left_square_bracket", "seek(-1)", "Back", PLAYBACK, False, "Back 10 seconds"),
+    ("right_square_bracket", "seek(1)", "Forward", PLAYBACK, False, "Forward 10 seconds"),
+    ("n", "play_step(1)", "Next", PLAYBACK, False, "Play the next track in the list"),
+    ("p", "play_step(-1)", "Previous", PLAYBACK, False, "Play the previous track"),
+    ("minus", "volume(-1)", "Quieter", PLAYBACK, False, "Turn it down"),
+    ("equals_sign", "volume(1)", "Louder", PLAYBACK, False, "Turn it up"),
+    ("m", "mute", "Mute", PLAYBACK, False, "Mute or unmute"),
+    ("a", "open_visible", "Open all", WHOLE_LIST, True, "Open every link shown, asks above 20"),
+    ("e", "export", "Export", WHOLE_LIST, False, "Write the rows shown to the export file"),
+    ("slash", "start_search", "Search", WHOLE_LIST, True, "Filter by artist or title"),
+    ("f", "cycle_store(1)", "Next store", WHOLE_LIST, True, "Step to the next store in this crate"),
+    ("F", "cycle_store(-1)", "Previous store", WHOLE_LIST, False, "Step back a store"),
+    ("0", "filter_index(0)", "Show all", WHOLE_LIST, True, "Drop the store filter, show everything"),
+    ("h", "toggle_handled", "Hide handled", WHOLE_LIST, False, "Hide what is got or skipped"),
+    ("escape", "clear_filters", "Clear filters", WHOLE_LIST, False, "Clear store, search and hiding"),
+    ("d", "dig_link", "Add crate", CRATES, True, "Dig a link into a new crate"),
+    ("r", "refresh_crate", "Refresh", CRATES, False, "Re-dig this crate from SoundCloud"),
+    ("X", "delete_crate", "Delete", CRATES, False, "Delete this crate, after confirming"),
+    ("ctrl+b", "toggle_sidebar", "Crates", CRATES, False, "Show or hide the crate sidebar"),
+    ("question_mark", "help", "Help", OTHER, True, "This screen"),
+    ("q", "quit", "Quit", OTHER, True, "Leave"),
 ]
 
 # What each group actually operates on. The old footer never said, so it was
@@ -114,7 +115,7 @@ KEY_DISPLAY = {
     "X": "shift+X",
 }
 HELP_EXTRA = {
-    WHOLE_LIST: [("0", "Show every store"), ("1-9", "Show only the nth store")],
+    WHOLE_LIST: [("1-9", "Show only the nth store")],
 }
 
 
@@ -140,9 +141,11 @@ class CrateItem(ListItem):
 
     def compose(self) -> ComposeResult:
         # A star marks a crate imported from an export file, which is missing
-        # fields the API would have given us.
+        # fields the API would have given us. Text(), not a markup string: a
+        # playlist called "Techno [2026]" would otherwise lose the bracketed part
+        # to Textual's markup parser.
         title = self.record.title + (" *" if self.record.partial else "")
-        yield Label(title, classes="crate-name")
+        yield Label(Text(title), classes="crate-name")
         yield CrateButton("\u21bb", self.record, "refresh", "Refresh from SoundCloud (r)")
         yield CrateButton("\u2715", self.record, "delete", "Delete crate (shift+X)")
 
@@ -224,8 +227,8 @@ class HelpScreen(ModalScreen[None]):
         sections = (SELECTED, PLAYBACK, WHOLE_LIST, CRATES, OTHER)
         for section in sections:
             entries = [
-                (KEY_DISPLAY.get(key, key), label)
-                for key, _action, label, group, _show in KEYMAP
+                (KEY_DISPLAY.get(key, key), detail)
+                for key, _action, _label, group, _show, detail in KEYMAP
                 if group == section
             ] + HELP_EXTRA.get(section, [])
             if not entries:
@@ -371,10 +374,11 @@ class DiggerApp(App):
 
     BINDINGS = [
         Binding(key, action, label, show=show, key_display=KEY_DISPLAY.get(key))
-        for key, action, label, _group, show in KEYMAP
+        for key, action, label, _group, show, _detail in KEYMAP
     ] + [
+        # 0 is declared in KEYMAP so it shows in the footer as the way back.
         Binding(str(index), f"filter_index({index})", f"Store {index}", show=False)
-        for index in range(0, QUICK_FILTER_KEYS + 1)
+        for index in range(1, QUICK_FILTER_KEYS + 1)
     ]
 
     def __init__(
@@ -585,12 +589,14 @@ class DiggerApp(App):
         by_category = links_module.count_by_category(
             [row.record for row in self.rows]
         )
-        line.append("0 all", style="bold" if not self.store_filter else "bright_black")
+        showing_all = not self.store_filter
+        line.append("\u25b8 " if showing_all else "  ", style="bold")
+        line.append("0 all", style="bold reverse" if showing_all else "bright_black")
         for index, category in enumerate(self.present, start=1):
-            line.append("  ")
             active = category == self.store_filter
+            line.append("  \u25b8" if active else "   ", style="bold")
             label = f"{index} {category}" if index <= QUICK_FILTER_KEYS else category
-            line.append(label, style="bold cyan" if active else "cyan")
+            line.append(label, style="bold reverse cyan" if active else "cyan")
             line.append(f"\u00b7{by_category[category]}", style="bright_black")
         self.query_one("#stores", Static).update(line)
 
@@ -605,6 +611,21 @@ class DiggerApp(App):
             return self.visible_rows[index]
         return None
 
+    def _toggle_status(self, status: str, message: str) -> None:
+        """Pressing the same key again clears the mark, which is what people try."""
+
+        row = self.current_row()
+        if row is None:
+            return
+        clearing = self.status_of(row) == status
+        self.state.set(row.record.track.key, NEW if clearing else status)
+        label = "Unmarked" if clearing else message
+        self.notify(f"{label}: {row.record.track.label}", timeout=2)
+        self.refresh_rows()
+        if not clearing:
+            # Only move on when a mark was set, so undoing stays where you are.
+            self._advance_cursor()
+
     def _set_status(self, status: str, message: str) -> None:
         row = self.current_row()
         if row is None:
@@ -612,7 +633,6 @@ class DiggerApp(App):
         self.state.set(row.record.track.key, status)
         self.notify(f"{message}: {row.record.track.label}", timeout=2)
         self.refresh_rows()
-        self._advance_cursor()
 
     def _advance_cursor(self) -> None:
         table = self.query_one("#tracks", DataTable)
@@ -680,25 +700,27 @@ class DiggerApp(App):
 
     @work(thread=True, exclusive=True, group="audio")
     def fetch_audio(self, track: Track) -> None:
+        """Only resolves the URL - the audio itself is decoded off the socket."""
+
         try:
-            stream_url, waveform_url = resolve_stream(self.client, track.id)
-            path = self.player.tempdir / f"{track.id}.mp3"
-            if not path.exists():
-                download_stream(self.client, stream_url, path)
-            samples = fetch_waveform(self.client, waveform_url)
+            stream = resolve_stream(self.client, track.id)
+            samples = fetch_waveform(self.client, stream.waveform_url)
         except (SoundCloudError, PlaybackUnavailable, OSError) as exc:
             self.call_from_thread(self._playback_failed, str(exc))
             return
-        self.call_from_thread(self._audio_ready, track, path, samples)
+        self.call_from_thread(self._audio_ready, track, stream, samples)
 
-    def _audio_ready(self, track: Track, path: Path, samples: List[int]) -> None:
+    def _audio_ready(self, track: Track, stream: Stream, samples: List[int]) -> None:
         bar = self._player_bar()
         bar.message = ""
         try:
-            self.player.load(track, path, samples)
+            self.player.load(track, stream, self.client.session, samples)
             self.player.play()
         except PlaybackUnavailable as exc:
             self._playback_failed(str(exc))
+            return
+        except Exception as exc:  # a bad stream must not take the app down
+            self._playback_failed(f"Could not start the stream ({exc})")
             return
         self._focus_playing_track()
         bar.refresh_bar()
@@ -904,10 +926,10 @@ class DiggerApp(App):
             self.notify("Could not open the link", severity="error")
 
     def action_mark_got(self) -> None:
-        self._set_status(GOT, "Got it")
+        self._toggle_status(GOT, "Got it")
 
     def action_mark_skip(self) -> None:
-        self._set_status(SKIP, "Skipped")
+        self._toggle_status(SKIP, "Skipped")
 
     def action_mark_new(self) -> None:
         self._set_status(NEW, "Unmarked")

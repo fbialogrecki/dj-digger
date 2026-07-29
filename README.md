@@ -85,8 +85,9 @@ On the highlighted row:
 | --- | --- |
 | arrows | move around |
 | `o` or `enter` | open its store link in your browser |
-| `g` | mark as got, and move to the next one |
-| `s` | mark as skipped, `u` to unmark |
+| `g` | mark as got, and move on; press again to undo |
+| `s` | mark as skipped; press again to undo |
+| `u` | clear the mark either way |
 | `x` | remove it from this crate, `ctrl+z` to undo |
 
 Playback:
@@ -106,7 +107,8 @@ On the whole visible list:
 | `a` | open every link shown (asks first above 20) |
 | `/` | filter by artist or title |
 | `f` / `F` | step forward or back through the stores in this crate |
-| `1`-`9` | jump straight to a store, `0` for all |
+| `1`-`9` | jump straight to a store |
+| `0` | drop the store filter and show everything again |
 | `h` | hide what you already handled |
 | `e` | export the rows you can currently see |
 
@@ -127,7 +129,8 @@ lists stores this crate actually contains:
 ```
 
 So `1` is always the first store you have rather than a fixed category, and `f`
-never makes you cycle through eight empty ones.
+never makes you cycle through eight empty ones. The `▸` marks what you are looking
+at; `0` takes you back to everything.
 
 **Marks are keyed by track id, not by playlist.** A track you bought once reads as
 `got it` the next time it turns up in somebody else's set. That state lives in a
@@ -151,16 +154,18 @@ export file and is missing fields the API would have given us; `r` fills it in.
 
 ## Previewing tracks
 
-`space` previews the highlighted track. The MP3 downloads to a temporary
-directory first - about 1.5 seconds for a 7 minute track - which is what makes
-seeking instant afterwards. Click anywhere on the waveform to jump there.
+`space` previews the highlighted track. Nothing is written to disk: the MP3 is
+decoded straight off the socket, so audio starts after about half a second rather
+than waiting out a 6.6 MB download. Click anywhere on the waveform to jump there,
+which re-opens the stream with an HTTP Range header and costs the same half
+second.
 
 The waveform is not computed locally: SoundCloud publishes 1800 samples per track
-and we just draw them.
-
-Nothing is cached between runs. A persistent cache of whole tracks reaches
-gigabytes after an evening of digging and would then need an eviction policy, so
-the temporary directory goes away when you quit.
+and we just draw them. Two rows of block characters give sixteen levels, columns
+average rather than peak, and the loud end of the range is expanded - a mastered
+techno track otherwise renders as a solid rectangle. It is deliberately not
+stretched between its own minimum and maximum, because that made a track with no
+dynamics at all look the most dynamic of the lot.
 
 If there is no audio output, or miniaudio is not installed, the player says so in
 its bar and everything else carries on working.

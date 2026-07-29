@@ -71,9 +71,44 @@ def test_a_track_still_offers_a_plain_mp3_and_a_waveform():
         assert payload.get("track_authorization")
         assert payload.get("waveform_url", "").startswith("https://")
 
-        stream_url, waveform_url = player.resolve_stream(client, track_id)
-        assert stream_url.startswith("https://")
-        assert len(player.fetch_waveform(client, waveform_url)) > 100
+        stream = player.resolve_stream(client, track_id)
+        assert stream.url.startswith("https://")
+        assert len(player.fetch_waveform(client, stream.waveform_url)) > 100
+    finally:
+        client.close()
+
+
+def test_audio_decodes_straight_off_the_socket():
+    """No file is written, so this is the whole playback path bar the sound card."""
+
+    import miniaudio
+
+    client = soundcloud.SoundCloudClient()
+    try:
+        track_id = client.resolve(LIVE_URL)["tracks"][0]["id"]
+        stream = player.resolve_stream(client, track_id)
+        assert stream.duration > 30
+
+        source = player.http_source_type(miniaudio)(client.session, stream.url)
+        try:
+            audio = miniaudio.stream_any(
+                source, source_format=miniaudio.FileFormat.MP3, frames_to_read=1024
+            )
+            chunk = next(audio)
+            assert len(chunk) > 0
+            assert max(abs(sample) for sample in chunk) > 0, "decoded silence"
+
+            # And a Range seek lands on real audio further in.
+            source.seek(0, 0)
+            seeked = miniaudio.stream_any(
+                source,
+                source_format=miniaudio.FileFormat.MP3,
+                frames_to_read=1024,
+                seek_frame=int(30 * player.SAMPLE_RATE),
+            )
+            assert max(abs(sample) for sample in next(seeked)) > 0
+        finally:
+            source.close()
     finally:
         client.close()
 

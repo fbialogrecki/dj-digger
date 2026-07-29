@@ -2,17 +2,16 @@ from __future__ import annotations
 
 import asyncio
 import json
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from textual.widgets import Button, DataTable, Input, ListView, Static
+from textual.widgets import Button, DataTable, Input, Label, ListView, Static
 
 from dj_digger import library, links
 from dj_digger import tui
 from dj_digger.dig import DigOptions, TargetNotFound
 from dj_digger.models import Crate, LinkRecord, Track
-from dj_digger.player import Loaded, PlaybackUnavailable, PlayerBar
+from dj_digger.player import Loaded, PlaybackUnavailable, PlayerBar, Stream
 from dj_digger.state import GOT, OPENED, SKIP, TrackState
 from dj_digger.tui import AskLinkScreen, ConfirmScreen, DiggerApp, HelpScreen
 
@@ -61,8 +60,8 @@ def test_help_documents_every_key(records, state):
             assert isinstance(app.screen, HelpScreen)
 
             text = str(app.screen.query_one(Static).render())
-            for _key, _action, label, _group, _show in tui.KEYMAP:
-                assert label in text
+            for _key, _action, _label, _group, _show, detail in tui.KEYMAP:
+                assert detail in text
             for section in (tui.SELECTED, tui.WHOLE_LIST, tui.CRATES, tui.OTHER):
                 assert section in text
 
@@ -141,6 +140,43 @@ def test_skipping_persists(records, state):
 
     run(scenario)
     assert state.get(records[0].track.key) == SKIP
+
+
+@pytest.mark.parametrize("key,status", [("s", SKIP), ("g", GOT)])
+def test_pressing_the_same_mark_again_clears_it(records, state, key, status):
+    """Reaching for s again to unskip is what people actually try."""
+
+    app = make_app(records, state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            table = app.query_one("#tracks", DataTable)
+            await pilot.press(key)
+            assert state.get(records[0].track.key) == status
+            assert table.cursor_row == 1
+
+            table.move_cursor(row=0)
+            await pilot.press(key)
+            assert state.get(records[0].track.key) == "new"
+            # Undoing should not march the cursor onwards.
+            assert table.cursor_row == 0
+
+    run(scenario)
+
+
+def test_a_crate_name_with_brackets_survives(state):
+    """Label renders Textual markup, so [2026] would vanish from the sidebar."""
+
+    saved_crate(1, source="https://soundcloud.com/a/sets/b", title="Techno [2026] vinyl")
+    app = make_app([], state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            label = app.query_one(".crate-name", Label)
+            assert "[2026]" in str(label.render())
+
+    run(scenario)
 
 
 def test_unmarking_clears_the_status(records, state):
@@ -787,6 +823,10 @@ def test_the_genre_column_shows_genre_then_tag_then_nothing(state):
     run(scenario)
 
 
+def a_stream(duration=300.0):
+    return Stream(url="https://cdn/x.mp3", waveform_url="https://wave/x.json", duration=duration)
+
+
 class FakePlayer:
     """The slice of Player the TUI leans on, without touching a sound card."""
 
@@ -801,10 +841,10 @@ class FakePlayer:
         self.closed = False
         self.muted = False
 
-    tempdir = property(lambda self: Path("/tmp"))
-
-    def load(self, track, path, waveform=None):
-        self.loaded = SimpleNamespace(track=track, path=path, waveform=waveform or [])
+    def load(self, track, stream, session, waveform=None):
+        self.loaded = SimpleNamespace(
+            track=track, stream=stream, duration=self.duration, waveform=waveform or []
+        )
         return self.loaded
 
     def play(self):
@@ -915,7 +955,7 @@ def test_space_toggles_a_track_that_is_already_loaded(records, state, monkeypatc
     async def scenario():
         async with app.run_test() as pilot:
             track = app.visible_rows[0].record.track
-            app.player.load(track, Path("x.mp3"))
+            app.player.load(track, a_stream(), None)
             await pilot.press("space")
             assert app.player.playing is True
             await pilot.press("space")
@@ -929,7 +969,7 @@ def test_seek_keys_nudge_the_position(records, state):
 
     async def scenario():
         async with app.run_test() as pilot:
-            app.player.load(app.visible_rows[0].record.track, Path("x.mp3"))
+            app.player.load(app.visible_rows[0].record.track, a_stream(), None)
             app.player.position = 100.0
             await pilot.press("right_square_bracket")
             await pilot.press("left_square_bracket")
@@ -979,7 +1019,7 @@ def test_pressing_play_twice_without_audio_does_not_crash(records, state, monkey
 
     async def scenario():
         async with app.run_test() as pilot:
-            app.player._loaded = Loaded(track=track, path=Path("x.mp3"), duration=200.0)
+            app.player._loaded = Loaded(track=track, stream=a_stream(), duration=200.0)
             app.player._info = SimpleNamespace(sample_rate=44100, nchannels=2)
             await pilot.press("space")
             await pilot.pause()
@@ -1029,7 +1069,7 @@ def test_clicking_the_waveform_maps_to_a_time(records, state):
     async def scenario():
         async with app.run_test():
             bar = app.query_one("#player", PlayerBar)
-            app.player.load(app.visible_rows[0].record.track, Path("x.mp3"))
+            app.player.load(app.visible_rows[0].record.track, a_stream(), None)
             width = bar._bar_width()
             assert bar.seconds_at(1) == pytest.approx(0.0)
             assert bar.seconds_at(1 + width) == pytest.approx(app.player.duration)
