@@ -168,6 +168,9 @@ class Player:
         return Path(self._tempdir.name)
 
     def _device_for(self, sample_rate: int, channels: int):
+        if self.unavailable_reason:
+            # Already established there is no output; stop hammering the backend.
+            raise PlaybackUnavailable(self.unavailable_reason)
         miniaudio = self._miniaudio or _import_miniaudio()
         self._miniaudio = miniaudio
         if self._device is not None:
@@ -179,7 +182,8 @@ class Player:
         except Exception as exc:
             # The raw miniaudio error is a numbered tuple, no use to anyone here.
             LOGGER.debug("Could not open an audio device: %s", exc)
-            raise PlaybackUnavailable("This machine has no audio output") from exc
+            self.unavailable_reason = "No audio output on this machine or session"
+            raise PlaybackUnavailable(self.unavailable_reason) from exc
         return self._device
 
     # State
@@ -390,5 +394,8 @@ class PlayerBar(Static):
         if self.player.loaded is None or event.y != 1:
             return
         event.stop()
-        self.player.seek(self.seconds_at(event.x))
+        try:
+            self.player.seek(self.seconds_at(event.x))
+        except PlaybackUnavailable as exc:
+            self.message = str(exc)
         self.refresh_bar()

@@ -12,7 +12,7 @@ from dj_digger import library, links
 from dj_digger import tui
 from dj_digger.dig import DigOptions, TargetNotFound
 from dj_digger.models import Crate, LinkRecord, Track
-from dj_digger.player import PlayerBar
+from dj_digger.player import Loaded, PlaybackUnavailable, PlayerBar
 from dj_digger.state import GOT, OPENED, SKIP, TrackState
 from dj_digger.tui import AskLinkScreen, ConfirmScreen, DiggerApp, HelpScreen
 
@@ -628,28 +628,61 @@ def test_the_sidebar_collapses(records, state):
     run(scenario)
 
 
-@pytest.mark.parametrize(
-    "button_id,expected_action",
-    [
-        ("crate-add", "action_dig_link"),
-        ("crate-refresh", "action_refresh_crate"),
-        ("crate-delete", "action_delete_crate"),
-    ],
-)
-def test_each_sidebar_button_runs_its_action(records, state, monkeypatch, button_id, expected_action):
-    """Buttons and keys must trigger the same thing, or one of them rots."""
-
+def test_the_add_button_digs(records, state, monkeypatch):
     app = make_app(records, state)
     called = []
-    monkeypatch.setattr(app, expected_action, lambda: called.append(expected_action))
+    monkeypatch.setattr(app, "action_dig_link", lambda: called.append("dig"))
 
     async def scenario():
         async with app.run_test() as pilot:
-            app.query_one(f"#{button_id}", Button).press()
+            app.query_one("#crate-add", Button).press()
             await pilot.pause()
 
     run(scenario)
-    assert called == [expected_action]
+    assert called == ["dig"]
+
+
+def test_the_add_button_sits_under_the_last_crate(state):
+    """Not pinned to the bottom of the sidebar - it belongs with the list."""
+
+    saved_crate(1, source="https://soundcloud.com/a/sets/one", title="One")
+    app = make_app([], state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            listing = app.query_one("#crates", ListView)
+            add = app.query_one("#crate-add", Button)
+            assert add.region.y == listing.region.y + listing.region.height
+
+    run(scenario)
+
+
+@pytest.mark.parametrize("intent,expected", [("refresh", "refresh_crate"), ("delete", "confirm_delete_crate")])
+def test_each_crate_row_carries_its_own_buttons(state, monkeypatch, intent, expected):
+    """Icons act on the crate in that row, not on whatever is highlighted."""
+
+    saved_crate(1, source="https://soundcloud.com/a/sets/one", title="One")
+    target = saved_crate(1, source="https://soundcloud.com/a/sets/two", title="Two")
+    app = make_app([], state)
+    called = []
+    monkeypatch.setattr(app, expected, lambda record: called.append(record.title))
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            items = list(app.query(tui.CrateItem))
+            assert len(items) == 2
+            button = next(
+                child
+                for child in items[1].children
+                if isinstance(child, tui.CrateButton) and child.intent == intent
+            )
+            button.press()
+            await pilot.pause()
+
+    run(scenario)
+    assert called == [target.title]
 
 
 def test_a_dig_lands_in_the_library(state, monkeypatch):
@@ -931,6 +964,50 @@ def test_a_track_without_an_id_cannot_be_previewed(state, monkeypatch):
             await pilot.pause()
 
     run(scenario)
+
+
+def test_pressing_play_twice_without_audio_does_not_crash(records, state, monkeypatch):
+    """The first press went through the guarded loader, the second did not."""
+
+    app = make_app(records, state)  # the real Player, so the real toggle path runs
+
+    def no_device(*args, **kwargs):
+        raise PlaybackUnavailable("No audio output on this machine")
+
+    monkeypatch.setattr(app.player, "_device_for", no_device)
+    track = records[0].track
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            app.player._loaded = Loaded(track=track, path=Path("x.mp3"), duration=200.0)
+            app.player._info = SimpleNamespace(sample_rate=44100, nchannels=2)
+            await pilot.press("space")
+            await pilot.pause()
+            await pilot.press("space")
+            await pilot.pause()
+            assert "No audio output" in str(app.query_one("#player", PlayerBar).render())
+
+    run(scenario)
+
+
+def test_a_dead_audio_device_is_only_probed_once(monkeypatch):
+    from dj_digger.player import Player
+
+    attempts = []
+
+    class Boom:
+        def __init__(self, **kwargs):
+            attempts.append(kwargs)
+            raise RuntimeError("failed to init device")
+
+    subject = Player()
+    subject._miniaudio = SimpleNamespace(PlaybackDevice=Boom)
+
+    for _ in range(3):
+        with pytest.raises(PlaybackUnavailable):
+            subject._device_for(44100, 2)
+
+    assert len(attempts) == 1
 
 
 def test_a_playback_failure_shows_a_message_instead_of_crashing(records, state):

@@ -124,6 +124,29 @@ class Row:
     record: LinkRecord
 
 
+class CrateButton(Button):
+    """A per-crate icon button. Carries its crate so no widget ids are needed."""
+
+    def __init__(self, label: str, record: CrateRecord, intent: str, tooltip: str) -> None:
+        super().__init__(label, classes="crate-icon", tooltip=tooltip)
+        self.record = record
+        self.intent = intent
+
+
+class CrateItem(ListItem):
+    def __init__(self, record: CrateRecord) -> None:
+        super().__init__()
+        self.record = record
+
+    def compose(self) -> ComposeResult:
+        # A star marks a crate imported from an export file, which is missing
+        # fields the API would have given us.
+        title = self.record.title + (" *" if self.record.partial else "")
+        yield Label(title, classes="crate-name")
+        yield CrateButton("\u21bb", self.record, "refresh", "Refresh from SoundCloud (r)")
+        yield CrateButton("\u2715", self.record, "delete", "Delete crate (shift+X)")
+
+
 class AskLinkScreen(ModalScreen[Optional[str]]):
     """Asks for a SoundCloud link (or a saved HTML file)."""
 
@@ -276,7 +299,7 @@ class DiggerApp(App):
         height: 1fr;
     }
     #sidebar {
-        width: 24;
+        width: 28;
         border-right: solid $panel;
     }
     #sidebar.collapsed {
@@ -286,19 +309,45 @@ class DiggerApp(App):
         padding: 0 1;
         color: $text-muted;
     }
+    /* Auto height so the add button sits right under the last crate, not pinned
+       to the bottom of the sidebar. */
     #crates {
-        height: 1fr;
+        height: auto;
+        max-height: 1fr;
         border: none;
         background: transparent;
     }
-    #crate-actions {
-        height: auto;
+    CrateItem {
+        layout: horizontal;
+        height: 1;
     }
-    #crate-actions Button {
-        min-width: 6;
+    .crate-name {
+        width: 1fr;
+        height: 1;
+    }
+    .crate-icon {
+        width: 3;
+        min-width: 3;
+        height: 1;
+        border: none;
+        padding: 0;
+        background: transparent;
+    }
+    .crate-icon:hover {
+        background: $accent;
+    }
+    #crate-add {
         width: 1fr;
         height: 1;
         border: none;
+        background: transparent;
+        color: $text-muted;
+        content-align: left middle;
+        padding: 0 1;
+    }
+    #crate-add:hover {
+        background: $accent;
+        color: $text;
     }
     #status {
         height: auto;
@@ -370,10 +419,7 @@ class DiggerApp(App):
             with Vertical(id="sidebar"):
                 yield Static("Crates", id="sidebar-title")
                 yield ListView(id="crates")
-                with Horizontal(id="crate-actions"):
-                    yield Button("+", id="crate-add", tooltip="Add a crate (d)")
-                    yield Button("\u21bb", id="crate-refresh", tooltip="Refresh (r)")
-                    yield Button("\u2715", id="crate-delete", tooltip="Delete (shift+X)")
+                yield Button("+ Add crate", id="crate-add", tooltip="Add a crate (d)")
             with Vertical(id="main"):
                 yield Input(placeholder="Filter by artist or title", id="search")
                 yield DataTable(id="tracks", cursor_type="row", zebra_stripes=True)
@@ -386,7 +432,7 @@ class DiggerApp(App):
         table.add_column("#", width=4)
         table.add_column("Track", width=34)
         table.add_column("Store", width=11)
-        table.add_column("Link", width=22)
+        table.add_column("Link", width=21)
         table.add_column("Genre", width=10)
         table.add_column("Status", width=7)
         await self.reload_sidebar()
@@ -430,20 +476,17 @@ class DiggerApp(App):
         listing = self.query_one("#crates", ListView)
         await listing.clear()
         for record in self.crates:
-            # A star marks a crate imported from an export file, which is missing
-            # fields the API would have given us.
-            listing.append(ListItem(Label(record.title + (" *" if record.partial else ""))))
+            listing.append(CrateItem(record))
         if self.crate is not None:
             slugs = [record.slug for record in self.crates]
             if self.crate.slug in slugs:
                 listing.index = slugs.index(self.crate.slug)
 
     def highlighted_crate(self) -> Optional[CrateRecord]:
-        listing = self.query_one("#crates", ListView)
-        index = listing.index
-        if index is None or not (0 <= index < len(self.crates)):
-            return self.crate
-        return self.crates[index]
+        highlighted = self.query_one("#crates", ListView).highlighted_child
+        if isinstance(highlighted, CrateItem):
+            return highlighted.record
+        return self.crate
 
     def load_crate(self, record: CrateRecord) -> None:
         self.crate = record
@@ -605,6 +648,16 @@ class DiggerApp(App):
                 tracks.append(track)
         return tracks
 
+    def _player_op(self, operation) -> None:
+        """Run a player call. Every one of them can hit a missing audio device."""
+
+        try:
+            operation()
+        except PlaybackUnavailable as exc:
+            self._playback_failed(str(exc))
+            return
+        self._player_bar().refresh_bar()
+
     def action_play_pause(self) -> None:
         row = self.current_row()
         if row is None:
@@ -612,8 +665,7 @@ class DiggerApp(App):
         track = row.record.track
         loaded = self.player.loaded
         if loaded is not None and loaded.track.key == track.key:
-            self.player.toggle()
-            self._player_bar().refresh_bar()
+            self._player_op(self.player.toggle)
             return
         self._start_playback(track)
 
@@ -669,8 +721,7 @@ class DiggerApp(App):
     def action_seek(self, direction: int) -> None:
         if self.player.loaded is None:
             return
-        self.player.nudge(direction * SEEK_STEP)
-        self._player_bar().refresh_bar()
+        self._player_op(lambda: self.player.nudge(direction * SEEK_STEP))
 
     def action_play_step(self, step: int) -> None:
         tracks = self.unique_tracks()
@@ -689,12 +740,10 @@ class DiggerApp(App):
         self._start_playback(tracks[index])
 
     def action_volume(self, direction: int) -> None:
-        self.player.change_volume(direction * VOLUME_STEP)
-        self._player_bar().refresh_bar()
+        self._player_op(lambda: self.player.change_volume(direction * VOLUME_STEP))
 
     def action_mute(self) -> None:
-        self.player.toggle_mute()
-        self._player_bar().refresh_bar()
+        self._player_op(self.player.toggle_mute)
 
     def action_help(self) -> None:
         self.push_screen(HelpScreen())
@@ -706,8 +755,7 @@ class DiggerApp(App):
         message = "Paste a SoundCloud link" if self.rows else "What are we digging?"
         self.push_screen(AskLinkScreen(message=message), self._link_entered)
 
-    def action_refresh_crate(self) -> None:
-        record = self.highlighted_crate()
+    def refresh_crate(self, record: Optional[CrateRecord]) -> None:
         if record is None:
             self.notify("No crate to refresh", timeout=2)
             return
@@ -717,8 +765,7 @@ class DiggerApp(App):
         self.crate = record
         self._start_dig(record.source)
 
-    def action_delete_crate(self) -> None:
-        record = self.highlighted_crate()
+    def confirm_delete_crate(self, record: Optional[CrateRecord]) -> None:
         if record is None:
             self.notify("No crate to delete", timeout=2)
             return
@@ -726,6 +773,12 @@ class DiggerApp(App):
             ConfirmScreen(f"Delete the crate '{record.title}'? This cannot be undone."),
             lambda confirmed: self._crate_delete_answered(record, bool(confirmed)),
         )
+
+    def action_refresh_crate(self) -> None:
+        self.refresh_crate(self.highlighted_crate())
+
+    def action_delete_crate(self) -> None:
+        self.confirm_delete_crate(self.highlighted_crate())
 
     def _crate_delete_answered(self, record: CrateRecord, confirmed: bool) -> None:
         if not confirmed:
@@ -754,14 +807,15 @@ class DiggerApp(App):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         event.stop()
-        actions = {
-            "crate-add": self.action_dig_link,
-            "crate-refresh": self.action_refresh_crate,
-            "crate-delete": self.action_delete_crate,
-        }
-        handler = actions.get(event.button.id or "")
-        if handler:
-            handler()
+        button = event.button
+        if isinstance(button, CrateButton):
+            if button.intent == "refresh":
+                self.refresh_crate(button.record)
+            else:
+                self.confirm_delete_crate(button.record)
+            return
+        if button.id == "crate-add":
+            self.action_dig_link()
 
     def _link_entered(self, target: Optional[str]) -> None:
         if not target:
@@ -994,7 +1048,7 @@ class DiggerApp(App):
         self.query_one("#tracks", DataTable).focus()
 
 
-def _short_url(url: str, limit: int = 21) -> str:
+def _short_url(url: str, limit: int = 20) -> str:
     trimmed = url.replace("https://", "").replace("http://", "")
     if len(trimmed) <= limit:
         return trimmed

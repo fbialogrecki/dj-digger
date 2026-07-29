@@ -165,6 +165,18 @@ the temporary directory goes away when you quit.
 If there is no audio output, or miniaudio is not installed, the player says so in
 its bar and everything else carries on working.
 
+A plain RDP or ssh session usually has no audio sink at all, which is what that
+message means. On Fedora with xrdp, sound redirection needs the xrdp pipewire
+module:
+
+```bash
+sudo dnf copr enable infinality/pipewire-module-xrdp
+sudo dnf install pipewire-module-xrdp
+```
+
+Then reconnect. `pactl list short sinks` printing nothing is the quick way to
+confirm the session has no output.
+
 ## Non-interactive use
 
 Add `--no-tui` to just write the export and exit. It is also skipped
