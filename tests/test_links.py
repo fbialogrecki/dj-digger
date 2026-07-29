@@ -301,6 +301,50 @@ def test_genre_falls_back_to_the_first_tag():
     assert Track(title="t", permalink_url="u").genre_label == ""
 
 
+def a_track(**fields):
+    return Track(permalink_url="u", **{"title": "t", **fields})
+
+
+@pytest.mark.parametrize(
+    "fields,expected",
+    [
+        ({"tags": ["techno", "165BPM", "screech"]}, 165),
+        ({"tags": ["hard dance", "162bpm"]}, 162),
+        ({"title": "Anduj - Overdrive (150 BPM)"}, 150),
+        ({"description": "Hardtechno 160 BPM\nfree download"}, 160),
+        ({"description": "BPM: 145"}, 145),
+        # Tags beat a description, which is the more careless of the two.
+        ({"tags": ["150bpm"], "description": "bpm 90"}, 150),
+    ],
+)
+def test_a_stated_tempo_is_read(fields, expected):
+    assert a_track(**fields).bpm == expected
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {},
+        # A bare number is as likely to be a catalogue number or a year.
+        {"title": "Untitled 150"},
+        {"tags": ["techno", "2024"]},
+        {"description": "Cat. no. 140"},
+        # Nobody plays these.
+        {"title": "Slow one 12 bpm"},
+        {"title": "Silly one 900 bpm"},
+    ],
+)
+def test_anything_that_is_not_a_stated_tempo_is_left_alone(fields):
+    assert a_track(**fields).bpm is None
+
+
+def test_a_tempo_reads_the_same_on_a_crate_dug_before_this_existed():
+    """It is worked out from fields every stored crate already has."""
+
+    payload = {"title": "x", "permalink_url": "u", "tag_list": "techno 174bpm"}
+    assert Track.from_api(payload).bpm == 174
+
+
 def test_tags_come_off_the_api_payload():
     track = Track.from_api(
         {"title": "t", "permalink_url": "u", "tag_list": 'Techno "Hard Techno"'}

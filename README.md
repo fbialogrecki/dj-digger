@@ -92,6 +92,7 @@ store. The badge in bold is the one `o` would follow.
 | Stores | a badge per store; `shop` and `others` show the domain instead |
 | Genre | whatever the artist typed, or their first tag |
 | Time | track length |
+| BPM | tempo, only when the crate has any - see below |
 
 On the highlighted row:
 
@@ -119,6 +120,17 @@ not a keypress per track. The cursor comes along for the ride, unless you have
 moved it somewhere else - then playback carries on and `▶` shows where it got to.
 Marking the track you are listening to moves the listening on too, which is what
 makes `s` a triage key rather than a bookkeeping one.
+
+Marking also lights the row for a quarter second, so a keypress is visibly a
+change rather than a glyph you have to go looking for.
+
+**Tempo.** SoundCloud has no BPM field - it is not in the track payload at all -
+so the only tempo available is one the artist wrote down, in a tag, the title or
+the description, and only when it says it is a tempo: a bare `150` is as likely
+to be a catalogue number. On a hard techno playlist that is about one track in
+twenty, so the column only appears when the crate has tempos in it and takes its
+three columns back from the title when it does not. Some scenes tag it
+religiously, and there the column is worth having.
 
 On the whole visible list:
 
@@ -185,9 +197,17 @@ export file and is missing fields the API would have given us; `r` fills it in.
 
 `space` previews the highlighted track. Nothing is written to disk: the MP3 is
 decoded straight off the socket, so audio starts after about half a second rather
-than waiting out a 6.6 MB download. Click anywhere on the waveform to jump there,
-which re-opens the stream with an HTTP Range header and costs the same half
-second.
+than waiting out a 6.6 MB download.
+
+A copy is kept in memory as it arrives, though, and that is what makes seeking
+free. Click anywhere on the waveform, or press `[` and `]`, and it jumps there
+without touching the network - previously every seek opened a fresh connection
+and cost half a second of silence, even to get back to audio that had just
+played. The same copy is why there is no gap between tracks: with twenty seconds
+left, the next one's stream URL, waveform and first megabytes are already being
+fetched, so the auto-advance has nothing to wait for. Two tracks are held at a
+time, about sixteen megabytes; anything over fifty megabytes, or a response that
+will not declare its size, streams the old way instead.
 
 The waveform is not computed locally: SoundCloud publishes 1800 samples per track
 and we just draw them. Two rows of block characters give sixteen levels, columns
@@ -195,6 +215,19 @@ average rather than peak, and the loud end of the range is expanded - a mastered
 techno track otherwise renders as a solid rectangle. It is deliberately not
 stretched between its own minimum and maximum, because that made a track with no
 dynamics at all look the most dynamic of the lot.
+
+The dozen columns behind the playhead brighten with what is actually coming out
+of the speakers, up to white on a hard hit - the level is read off the samples on
+their way to the sound card, before the volume control, so it is the music that
+shows and not the fader. It is measured against the loudest thing heard in the
+last few seconds rather than against full scale, because a mastered techno record
+sits at full scale from beginning to end and would never move otherwise. The
+played region behind the glow stays a steady cyan: it is history, and flicker
+there only tires the eye.
+
+That runs at thirty frames a second while something is playing and not at all
+when nothing is, and drops back to four a second under
+`TEXTUAL_ANIMATIONS=none`, which is what you want over a slow ssh link.
 
 If there is no audio output, or miniaudio is not installed, the player says so in
 its bar and everything else carries on working.

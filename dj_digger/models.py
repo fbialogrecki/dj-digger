@@ -6,9 +6,18 @@ Lives in its own module so ``soundcloud``, ``html_fallback``, ``links`` and
 
 from __future__ import annotations
 
+import re
 import shlex
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
+
+# SoundCloud has no tempo field - it is not in the track payload at all - so the
+# only place it exists is where the artist wrote it. Only a number that says it
+# is a tempo counts: a bare "150" in a title is as likely to be a catalogue
+# number, a year or part of the name.
+BPM_PATTERN = re.compile(r"(?<![\d.])(\d{2,3})\s*bpm\b|\bbpm\s*[:\-]?\s*(\d{2,3})(?![\d.])", re.I)
+SLOWEST_BPM = 60
+FASTEST_BPM = 220
 
 
 def parse_tags(tag_list: str) -> List[str]:
@@ -68,6 +77,23 @@ class Track:
         if self.artist and self.artist.lower() not in self.title.lower():
             return f"{self.artist} - {self.title}"
         return self.title
+
+    @property
+    def bpm(self) -> Optional[int]:
+        """The tempo, if the artist said what it was.
+
+        Worked out on the way past rather than stored, so a crate dug before
+        this existed reads the same as one dug after it.
+        """
+
+        for text in (self.title, " ".join(self.tags), self.description):
+            match = BPM_PATTERN.search(text or "")
+            if match is None:
+                continue
+            value = int(match.group(1) or match.group(2))
+            if SLOWEST_BPM <= value <= FASTEST_BPM:
+                return value
+        return None
 
     @property
     def genre_label(self) -> str:

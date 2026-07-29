@@ -85,9 +85,10 @@ the playhead brighten with the level, and the playhead itself steps from dim cya
 through bright to white on a strong hit. Brightness is quantised to four steps so
 the colour changes only when something actually changed.
 
-The ticker goes from four to thirty ticks a second, and `_tick` returns on its
-first line when nothing is playing. Only the player bar is refreshed; the table
-is not told anything is happening.
+The ticker goes from four to thirty ticks a second, sleeps entirely when nothing
+is playing, and drops back to four under `TEXTUAL_ANIMATIONS=none` - the thing
+that repaints most has no business ignoring the setting that says not to. Only
+the player bar is refreshed; the table is not told anything is happening.
 
 ### Motion for what your hands do
 
@@ -100,12 +101,22 @@ is not told anything is happening.
 - Digging a playlist shows a turning indicator beside the progress text, so
   "working" is distinguishable from "hung".
 
-### A BPM column
+### A BPM column, when there is a BPM to show
 
-SoundCloud's track payload carries a `bpm` field, filled in by the uploader often
-enough to be worth showing and empty often enough that it needs a fallback of
-"-". It sits between Genre and Time at a fixed four columns, taken out of the
-title's share.
+SoundCloud's track payload has no `bpm` field. Checked against the live API on
+six tracks from a real crate: the key is not merely null, it is absent, and there
+is no `key_signature` or tempo field either.
+
+The only tempo available is one the artist wrote down, and only where they said
+it was a tempo - `165BPM` in the tags, `(150 BPM)` in the title, `BPM: 145` in
+the description. A bare `150` does not count; it is as likely to be a catalogue
+number or a year. On an 83 track hard techno crate that finds 4.
+
+So the column is conditional. It appears, last, only when the crate contains at
+least one stated tempo, and the three columns go back to the title when it does
+not - a column of dashes on 95% of rows is not worth the width. The tempo is
+worked out from fields every stored crate already has, so a crate dug before this
+existed reads the same as one dug after it.
 
 ## Testing
 
