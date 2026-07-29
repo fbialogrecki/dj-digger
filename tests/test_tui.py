@@ -4,13 +4,14 @@ import asyncio
 import json
 
 import pytest
-from textual.widgets import DataTable, Input
+from textual.widgets import DataTable, Input, Static
 
 from dj_digger import links
+from dj_digger import tui
 from dj_digger.dig import DigOptions, TargetNotFound
 from dj_digger.models import Crate, LinkRecord, Track
 from dj_digger.state import GOT, OPENED, SKIP, TrackState
-from dj_digger.tui import AskLinkScreen, DiggerApp
+from dj_digger.tui import AskLinkScreen, DiggerApp, HelpScreen
 
 
 def run(scenario):
@@ -43,6 +44,63 @@ def synthetic_records(count, category="bandcamp"):
         )
         for index in range(count)
     ]
+
+
+def test_help_documents_every_key(records, state):
+    """The footer only shows a handful, so help must not drift from the keymap."""
+
+    app = make_app(records, state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("question_mark")
+            await pilot.pause()
+            assert isinstance(app.screen, HelpScreen)
+
+            text = str(app.screen.query_one(Static).render())
+            for _key, _action, label, _group, _show in tui.KEYMAP:
+                assert label in text
+            for section in (tui.SELECTED, tui.WHOLE_LIST, tui.CRATES, tui.OTHER):
+                assert section in text
+
+            await pilot.press("escape")
+            await pilot.pause()
+            assert not isinstance(app.screen, HelpScreen)
+
+    run(scenario)
+
+
+def test_the_command_palette_is_off(records, state):
+    """It showed up in the footer as an unexplained 'palette'."""
+
+    assert make_app(records, state).ENABLE_COMMAND_PALETTE is False
+
+
+def test_the_status_bar_carries_the_crate_name(records, state):
+    app = make_app(records, state)
+
+    async def scenario():
+        async with app.run_test():
+            assert "test crate" in str(app.query_one("#status", Static).render())
+
+    run(scenario)
+
+
+def test_bars_sit_below_the_table(records, state):
+    """Both info bars belong at the bottom, above the footer."""
+
+    app = make_app(records, state)
+
+    async def scenario():
+        async with app.run_test():
+            order = [
+                widget.id
+                for widget in app.screen.children
+                if widget.id in {"tracks", "status", "stores"}
+            ]
+            assert order == ["tracks", "status", "stores"]
+
+    run(scenario)
 
 
 def test_every_link_gets_a_row(records, state):

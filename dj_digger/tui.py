@@ -21,7 +21,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
 from textual.screen import ModalScreen
-from textual.widgets import DataTable, Footer, Header, Input, Label, Static
+from textual.widgets import DataTable, Footer, Input, Label, Static
 
 from . import browser as browser_module
 from . import dig as dig_module
@@ -39,6 +39,43 @@ OPEN_ALL_CONFIRM_THRESHOLD = 20
 # Number keys select the nth store that this crate actually contains, so `1` is
 # always the first store you have rather than a fixed category.
 QUICK_FILTER_KEYS = 9
+
+SELECTED = "Selected track"
+WHOLE_LIST = "Whole visible list"
+CRATES = "Crates"
+OTHER = "Other"
+
+# One source for the footer and the help screen, so they cannot drift apart.
+# Only a handful show in the footer - a footer with twelve entries is unreadable,
+# and `?` covers the rest.
+KEYMAP = [
+    ("o,enter", "open_link", "Open", SELECTED, True),
+    ("g", "mark_got", "Got", SELECTED, True),
+    ("s", "mark_skip", "Skip", SELECTED, True),
+    ("u", "mark_new", "Unmark", SELECTED, False),
+    ("a", "open_visible", "Open all shown", WHOLE_LIST, True),
+    ("e", "export", "Export shown", WHOLE_LIST, False),
+    ("slash", "start_search", "Search", WHOLE_LIST, True),
+    ("f", "cycle_store(1)", "Store", WHOLE_LIST, True),
+    ("F", "cycle_store(-1)", "Previous store", WHOLE_LIST, False),
+    ("h", "toggle_handled", "Hide handled", WHOLE_LIST, False),
+    ("escape", "clear_filters", "Clear filters", WHOLE_LIST, False),
+    ("d", "dig_link", "Crate", CRATES, True),
+    ("question_mark", "help", "Help", OTHER, True),
+    ("q", "quit", "Quit", OTHER, True),
+]
+
+# What each group actually operates on. The old footer never said, so it was
+# impossible to tell whether a key hit one row or the whole list.
+HELP_SCOPES = {
+    SELECTED: "the highlighted row only",
+    WHOLE_LIST: "every row shown, after filters",
+    CRATES: "loads another playlist",
+    OTHER: "",
+}
+HELP_EXTRA = {
+    WHOLE_LIST: [("0", "Show every store"), ("1-9", "Show only the nth store")],
+}
 
 
 @dataclass
@@ -95,7 +132,59 @@ class AskLinkScreen(ModalScreen[Optional[str]]):
         self.dismiss(None)
 
 
+class HelpScreen(ModalScreen[None]):
+    """Every key, grouped by what it acts on."""
+
+    CSS = """
+    HelpScreen {
+        align: center middle;
+    }
+    #help {
+        width: 56;
+        height: auto;
+        max-height: 90%;
+        overflow-y: auto;
+        padding: 1 2;
+        border: round $accent;
+        background: $surface;
+    }
+    """
+
+    BINDINGS = [Binding("escape,question_mark,q", "dismiss", "Close")]
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="help"):
+            yield Static(self._body())
+
+    def _body(self) -> Text:
+        body = Text()
+        sections = (SELECTED, WHOLE_LIST, CRATES, OTHER)
+        for section in sections:
+            entries = [
+                (key.replace("slash", "/").replace("question_mark", "?"), label)
+                for key, _action, label, group, _show in KEYMAP
+                if group == section
+            ] + HELP_EXTRA.get(section, [])
+            if not entries:
+                continue
+            body.append(section + "\n", style="bold")
+            if HELP_SCOPES[section]:
+                body.append(f"  acts on {HELP_SCOPES[section]}\n", style="bright_black")
+            for key, label in entries:
+                body.append(f"  {key:<10}", style="cyan")
+                body.append(f"{label}\n")
+            if section != sections[-1]:
+                body.append("\n")
+        return body
+
+    def action_dismiss(self) -> None:
+        self.dismiss(None)
+
+
 class DiggerApp(App):
+    # The built-in palette showed up in the footer as an unexplained "palette".
+    ENABLE_COMMAND_PALETTE = False
+
     CSS = """
     #status {
         height: auto;
@@ -118,23 +207,10 @@ class DiggerApp(App):
     """
 
     BINDINGS = [
-        Binding("o,enter", "open_link", "Open"),
-        Binding("g", "mark_got", "Got it"),
-        Binding("s", "mark_skip", "Skip"),
-        Binding("u", "mark_new", "Unmark"),
-        Binding("a", "open_visible", "Open all"),
-        Binding("slash", "start_search", "Search"),
-        Binding("f", "cycle_store(1)", "Store"),
-        Binding("h", "toggle_handled", "Hide handled"),
-        Binding("d", "dig_link", "New link"),
-        Binding("e", "export", "Export"),
-        Binding("F", "cycle_store(-1)", "Previous store", show=False),
-        Binding("escape", "clear_filters", "Clear filters", show=False),
-        Binding("0", "filter_index(0)", "All stores", show=False),
-        Binding("q", "quit", "Quit"),
+        Binding(key, action, label, show=show) for key, action, label, _group, show in KEYMAP
     ] + [
         Binding(str(index), f"filter_index({index})", f"Store {index}", show=False)
-        for index in range(1, QUICK_FILTER_KEYS + 1)
+        for index in range(0, QUICK_FILTER_KEYS + 1)
     ]
 
     def __init__(
@@ -168,16 +244,13 @@ class DiggerApp(App):
     # Layout
 
     def compose(self) -> ComposeResult:
-        yield Header(show_clock=False)
-        yield Static(id="status")
-        yield Static(id="stores")
         yield Input(placeholder="Filter by artist or title", id="search")
         yield DataTable(id="tracks", cursor_type="row", zebra_stripes=True)
+        yield Static(id="status")
+        yield Static(id="stores")
         yield Footer()
 
     def on_mount(self) -> None:
-        self.title = "dj-digger"
-        self.sub_title = self.crate_title or "no crate yet"
         table = self.query_one("#tracks", DataTable)
         table.add_column("#", width=4)
         table.add_column("Track", width=44)
@@ -261,8 +334,10 @@ class DiggerApp(App):
         for row in self.rows:
             counts[self.status_of(row)] += 1
 
-        pieces = [
-            f"{len(self.visible_rows)}/{len(self.rows)} links",
+        # The crate name lives here now that the decorative header is gone.
+        pieces = [self.crate_title or "no crate yet"]
+        pieces.append(f"{len(self.visible_rows)}/{len(self.rows)} links")
+        pieces += [
             f"got {counts[GOT]}",
             f"skipped {counts[SKIP]}",
             f"opened {counts[OPENED]}",
@@ -271,7 +346,7 @@ class DiggerApp(App):
             pieces.append(f"search: {self.search_term!r}")
         if self.hide_handled:
             pieces.append("hiding handled")
-        self.query_one("#status", Static).update("  ".join(pieces))
+        self.query_one("#status", Static).update(" \u00b7 ".join(pieces))
         self.update_store_line()
 
     def update_store_line(self) -> None:
@@ -321,6 +396,9 @@ class DiggerApp(App):
             table.move_cursor(row=table.cursor_row + 1)
 
     # Digging
+
+    def action_help(self) -> None:
+        self.push_screen(HelpScreen())
 
     def action_dig_link(self) -> None:
         if self._digging:
