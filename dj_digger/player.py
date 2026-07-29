@@ -24,9 +24,10 @@ import array
 import logging
 import threading
 import time
+from collections import deque
 from dataclasses import dataclass, field
 from functools import lru_cache
-from typing import List, Optional
+from typing import Deque, List, Optional
 
 from rich.text import Text
 from textual.widgets import Static
@@ -42,6 +43,13 @@ SAMPLE_RATE = 44100
 CHANNELS = 2
 # int16, so this is the loudest a sample can be.
 FULL_SCALE = 32768.0
+# One reading per frame of the interface. A callback hands over about a tenth of
+# a second at a time, and the loudest sample in a tenth of a second of techno is
+# a kick every single time - so a reading per callback is a meter that sits still.
+LEVEL_WINDOW = SAMPLE_RATE * CHANNELS // 30
+# A quarter of a second of readings. Past that the meter would be showing the
+# past rather than falling behind gracefully, so the oldest go.
+LEVEL_QUEUE = 8
 
 DOWNLOAD_CHUNK = 64 * 1024
 # A two hour set is not a track, and a response that will not declare its size
@@ -187,35 +195,58 @@ def glow_style(level: float) -> str:
 
 
 class LevelMeter:
-    """Turns the raw peak of a chunk into something that reads as a pulse.
+    """Turns raw peaks into something that reads as a pulse.
 
-    The peak on its own is no use twice over. It jumps between frames, so it is
-    allowed to rise at once and made to fall away slowly - fast up, slow down,
-    which is what makes a kick look like a kick rather than like noise. And a
-    mastered track sits near full scale from start to finish, so measuring
-    against 1.0 would leave it permanently at maximum; it is measured against a
-    ceiling that follows the loudest thing heard lately instead, with the top of
-    that range stretched, for the same reason ``column_levels`` does it.
+    Three things stop a peak from reading as movement, and each gets a fix.
+
+    It jumps between readings, so a hit shows at once and is then made to fall
+    away slowly - fast up, slow down, which is what makes a kick look like a
+    kick. The decay is floored by whatever is arriving now, or a steady sound
+    would chop itself into a two frame flicker.
+
+    It is measured against a window that follows the loudest and the quietest of
+    the last second or two rather than against full scale. Measured on real
+    tracks, a brickwalled hard techno master lives between 0.92 and 1.00 from
+    beginning to end: against full scale it would sit at maximum and never move,
+    and against its own recent range it moves plenty.
+
+    And when that window closes to nothing, nothing is happening - so it reads
+    as dark, rather than as its own hiss stretched to full height.
     """
 
     def __init__(
-        self, release: float = 0.72, ceiling_release: float = 0.995, gamma: float = 2.5
+        self,
+        release: float = 0.72,
+        adapt: float = 0.03,
+        gamma: float = 1.6,
+        quietest_span: float = 0.02,
     ) -> None:
         self.release = release
-        self.ceiling_release = ceiling_release
+        self.adapt = adapt
         self.gamma = gamma
+        self.quietest_span = quietest_span
         self.reset()
 
     def reset(self) -> None:
         self._value = 0.0
+        self._floor = 1.0
         self._ceiling = 0.0
 
     def feed(self, peak: float) -> float:
         peak = max(0.0, min(1.0, peak))
-        self._value = peak if peak > self._value else self._value * self.release
-        # The floor stops a silent passage from magnifying its own hiss.
-        self._ceiling = max(peak, self._ceiling * self.ceiling_release, 0.05)
-        return (self._value / self._ceiling) ** self.gamma
+        self._value = max(peak, self._value * self.release)
+
+        # Both ends open instantly for anything outside the window and close in
+        # on it slowly, so one stray transient does not black out the next
+        # second and a breakdown is not still being measured against the drop.
+        span = max(0.0, self._ceiling - self._floor)
+        self._ceiling = max(peak, self._ceiling - span * self.adapt)
+        self._floor = min(peak, self._floor + span * self.adapt)
+
+        span = self._ceiling - self._floor
+        if span < self.quietest_span:
+            return 0.0
+        return min(1.0, max(0.0, (self._value - self._floor) / span)) ** self.gamma
 
 
 def waveform_rows(
@@ -552,6 +583,9 @@ class Player:
         self._volume = 0.8
         self._muted = False
         self._level = 0.0
+        # Written on the audio thread and read on the interface's, which a deque
+        # is safe for on its own - appends and pops are single bytecodes.
+        self._levels: Deque[float] = deque(maxlen=LEVEL_QUEUE)
         self.unavailable_reason: Optional[str] = None
 
     def _device_for(self, sample_rate: int, channels: int):
@@ -611,15 +645,28 @@ class Player:
     def volume(self) -> float:
         return 0.0 if self._muted else self._volume
 
-    @property
-    def level(self) -> float:
-        """How loud the audio going out right now is, 0 to 1.
+    def _silence(self) -> None:
+        """Nothing is going out, so nothing measured before it still applies."""
 
-        Read straight off the samples on their way to the device, which is the
-        only place the actual sound exists - the waveform picture is an average
-        of the whole track and says nothing about this instant.
+        self._level = 0.0
+        self._levels.clear()
+
+    def take_level(self) -> float:
+        """The next reading of how loud the audio going out is, 0 to 1.
+
+        Read off the samples on their way to the device, which is the only place
+        the actual sound exists - the waveform picture is an average of the whole
+        track and says nothing about this instant.
+
+        Oldest first, one per call, because the readings are made faster than
+        anything asks for them. When they run out the last one stands, which is
+        better than dropping to silence between callbacks.
         """
 
+        if self._levels:
+            self._level = self._levels.popleft()
+        elif not self._playing:
+            self._level = 0.0
         return self._level
 
     # Controls
@@ -674,6 +721,19 @@ class Player:
             self._source.close()
             self._source = None
 
+    def _measure(self, chunk) -> None:
+        """Note how loud each frame's worth of this chunk is.
+
+        Runs on the audio callback thread, so it is two calls into C per slice
+        and nothing else. Taken before the volume scaling, because it is the
+        music that should show and not the fader.
+        """
+
+        for start in range(0, len(chunk), LEVEL_WINDOW):
+            window = chunk[start : start + LEVEL_WINDOW]
+            if len(window):
+                self._levels.append(max(max(window), -min(window)) / FULL_SCALE)
+
     def _feed(self, stream):
         chunk = next(stream)
         required = yield b""
@@ -685,13 +745,10 @@ class Player:
             if not len(chunk):
                 self._playing = False
                 self._finished = True
-                self._level = 0.0
+                self._silence()
                 return
             self._frames += len(chunk) // CHANNELS
-            # Two calls into C on an array, which is all this thread can afford.
-            # Taken before the volume scaling, so turning the app down does not
-            # dim the picture: it is the music that should pulse, not the fader.
-            self._level = max(max(chunk), -min(chunk)) / FULL_SCALE
+            self._measure(chunk)
             volume = self.volume
             out = (
                 chunk
@@ -722,7 +779,7 @@ class Player:
         if self._device is not None and self._playing:
             self._device.stop()
         self._playing = False
-        self._level = 0.0
+        self._silence()
 
     def toggle(self) -> None:
         self.pause() if self._playing else self.play()
@@ -735,7 +792,7 @@ class Player:
         self._finished = False
         self._frames = 0
         self._offset = 0.0
-        self._level = 0.0
+        self._silence()
 
     def seek(self, seconds: float) -> None:
         if self._loaded is None:
@@ -751,7 +808,7 @@ class Player:
         self._frames = 0
         self._playing = False
         self._finished = False
-        self._level = 0.0
+        self._silence()
         if was_playing:
             self.play()
 
@@ -843,7 +900,7 @@ class PlayerBar(Static):
         if self.message:
             head.append(f"  {self.message}", style="yellow")
         head.append("\n")
-        level = self.meter.feed(self.player.level if self.player.playing else 0.0)
+        level = self.meter.feed(self.player.take_level())
         head.append_text(paint_waveform(self._rows(loaded), self.player.fraction, level))
         return head
 

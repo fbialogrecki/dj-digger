@@ -60,16 +60,24 @@ plays through the normal path in its own time and any error surfaces then.
 
 ### A level that comes from the audio itself
 
-`Player._feed` already has every decoded sample in its hands. It now records the
-peak of each chunk as a plain float on the player: two C-level calls on an
-`array`, which is nothing on a callback thread that must not be made to wait.
+`Player._feed` already has every decoded sample in its hands. It records the peak
+of each frame's worth - two C-level calls on a slice of an `array`, which is
+nothing on a callback thread that must not be made to wait - onto a short queue
+the interface drains one reading per frame. Per callback would be too coarse: a
+callback carries about a tenth of a second, and the loudest sample in a tenth of
+a second of techno is a kick every time, which is a meter that never moves.
 
 The measurement is taken before the volume scaling, so turning the app down does
 not dim the picture - it is the music that should pulse, not the fader.
 
-Smoothing - fast attack, slow release, which is what turns a raw peak into a
-breath that follows the kick - is applied by the UI when it draws a frame, where
-it costs nothing and can be tested without an audio device.
+The shaping is applied by the UI when it draws a frame, where it costs nothing
+and can be tested without an audio device. Fast attack and slow release, floored
+by whatever is arriving, turns a raw peak into a breath that follows the kick.
+The result is scaled against a window that follows the loudest and quietest of
+the last second or two, not against full scale - measured on a real crate, a
+brickwalled master sits between 0.92 and 1.00 from beginning to end and would
+never move otherwise. When that window closes to nothing, nothing is happening,
+and it reads as dark rather than as its own hiss stretched to full height.
 
 ### A waveform that is cheap enough to animate
 

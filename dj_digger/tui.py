@@ -1124,6 +1124,10 @@ class DiggerApp(App):
         except Exception as exc:  # a bad stream must not take the app down
             self._playback_failed(f"Could not start the stream ({exc})")
             return
+        # Resolving the stream takes about half a second, and a frame landing in
+        # the middle of it finds nothing playing and puts the timer back to
+        # sleep - so this is where it has to be woken, not where it was asked for.
+        self._wake()
         # Redraw first so the play marker lands on the new row, then chase it.
         self.refresh_rows()
         self._focus_playing_track()

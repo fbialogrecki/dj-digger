@@ -1093,6 +1093,9 @@ class FakePlayer:
         self.finished = False
         self.level = 0.0
 
+    def take_level(self):
+        return self.level
+
     def take_finished(self):
         finished, self.finished = self.finished, False
         return finished
@@ -1651,6 +1654,28 @@ def test_the_frame_timer_sleeps_until_something_plays(state, monkeypatch):
             assert app._ticker._active.is_set() is False
 
             await pilot.press("space")
+            await pilot.pause()
+            assert app._ticker._active.is_set() is True
+
+    run(scenario)
+
+
+def test_the_frame_timer_wakes_when_the_audio_actually_arrives(state, monkeypatch):
+    """It slept through the half second the stream took to resolve, and stayed
+    asleep - so the clock read 0:00 for the whole track."""
+
+    app = player_app(synthetic_records(2), state)
+    asked = []
+    monkeypatch.setattr(app, "fetch_audio", lambda track: asked.append(track))
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("space")
+            await pilot.pause()
+            app._tick()  # a frame lands while the stream is still resolving
+            assert app._ticker._active.is_set() is False
+
+            app._audio_ready(asked[0], a_stream(), [1, 2])
             await pilot.pause()
             assert app._ticker._active.is_set() is True
 

@@ -184,35 +184,60 @@ def test_the_shape_of_a_track_is_the_same_however_it_is_coloured():
 # Reading the level as a pulse
 
 
+def settled(meter, level=0.3, frames=30):
+    """Let the meter learn the room before anything is asked of it."""
+
+    for _ in range(frames):
+        meter.feed(level)
+    return meter
+
+
+def test_a_steady_sound_does_not_flicker():
+    """Left to decay below what is arriving, the release halves it every frame."""
+
+    shown = [player.LevelMeter().feed(0.435) for _ in range(8)]
+    assert len(set(shown)) == 1
+
+
 def test_a_hit_shows_at_once_and_falls_away_afterwards():
-    meter = player.LevelMeter()
+    meter = settled(player.LevelMeter())
     struck = meter.feed(1.0)
-    after = [meter.feed(0.0) for _ in range(4)]
+    after = [meter.feed(0.3) for _ in range(4)]
 
     assert struck == pytest.approx(1.0)
     assert after == sorted(after, reverse=True)
-    assert after[-1] < struck / 4
+    assert after[-1] < struck / 2
 
 
-def test_a_track_that_is_loud_all_through_still_pulses():
-    """Measured against 1.0, a mastered master would sit at the top and stay."""
+def test_a_brickwalled_master_still_moves():
+    """Measured on a real one: it lives between 0.92 and 1.00 the whole way."""
 
     meter = player.LevelMeter()
-    for _ in range(30):
-        meter.feed(0.98)  # the kick
-        quiet = [meter.feed(0.55) for _ in range(6)]  # between kicks
+    shown = []
+    for _ in range(40):
+        shown.append(meter.feed(1.0))  # the kick
+        shown += [meter.feed(0.93) for _ in range(6)]  # between kicks
 
-    assert meter.feed(0.98) - quiet[-1] > 0.5
+    beat = shown[-14:]
+    assert max(beat) - min(beat) > 0.5
+
+
+def test_one_stray_transient_does_not_black_out_the_next_second():
+    meter = settled(player.LevelMeter())
+    meter.feed(1.0)
+    recovered = [meter.feed(0.3 if index % 7 else 0.6) for index in range(60)]
+
+    assert max(recovered[-20:]) > 0.5
 
 
 def test_silence_reads_as_silence_rather_than_amplified_hiss():
     meter = player.LevelMeter()
     assert meter.feed(0.0) == 0.0
-    assert meter.feed(0.001) < 0.01
+    assert max(meter.feed(0.001) for _ in range(20)) == 0.0
 
 
 def test_a_new_track_starts_the_meter_again():
-    meter = player.LevelMeter()
+    meter = settled(player.LevelMeter())
     meter.feed(1.0)
     meter.reset()
     assert meter.feed(0.0) == 0.0
@@ -475,11 +500,11 @@ def test_seeking_keeps_the_source_and_the_track_it_is_holding(monkeypatch):
 
 def test_the_level_follows_the_loudest_sample_going_out(monkeypatch):
     subject, device = loaded_player(monkeypatch)
-    assert subject.level == 0.0
+    assert subject.take_level() == 0.0
 
     subject.play()
     device.started_with.send(1024)
-    assert subject.level == pytest.approx(100 / player.FULL_SCALE)
+    assert subject.take_level() == pytest.approx(100 / player.FULL_SCALE)
 
 
 def test_the_level_ignores_the_volume_knob(monkeypatch):
@@ -490,7 +515,34 @@ def test_the_level_ignores_the_volume_knob(monkeypatch):
     subject.play()
     device.started_with.send(1024)
 
-    assert subject.level == pytest.approx(100 / player.FULL_SCALE)
+    assert subject.take_level() == pytest.approx(100 / player.FULL_SCALE)
+
+
+def test_a_chunk_is_measured_once_per_frame_not_once_per_callback(monkeypatch):
+    """A callback covers a tenth of a second, which in techno always holds a kick."""
+
+    subject, device = loaded_player(monkeypatch)
+    subject.play()
+    chunk = device.started_with.send(1024)  # the fake decoder yields 2048 samples
+
+    assert len(subject._levels) == -(-len(chunk) // player.LEVEL_WINDOW)
+
+
+def test_readings_come_back_oldest_first(monkeypatch):
+    subject, _device = loaded_player(monkeypatch)
+    subject._levels.extend([0.2, 0.9])
+    assert [subject.take_level() for _ in range(2)] == [0.2, 0.9]
+
+
+def test_the_last_reading_stands_until_another_arrives(monkeypatch):
+    """Dropping to silence between callbacks would be a flicker, not a pulse."""
+
+    subject, _device = loaded_player(monkeypatch)
+    subject._playing = True
+    subject._levels.append(0.7)
+
+    assert subject.take_level() == 0.7
+    assert subject.take_level() == 0.7
 
 
 def test_pausing_flattens_the_level(monkeypatch):
@@ -499,7 +551,8 @@ def test_pausing_flattens_the_level(monkeypatch):
     device.started_with.send(1024)
 
     subject.pause()
-    assert subject.level == 0.0
+    assert subject.take_level() == 0.0
+    assert not subject._levels
 
 
 def test_seeking_is_clamped_inside_the_track(monkeypatch):

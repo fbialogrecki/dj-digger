@@ -219,11 +219,12 @@ dynamics at all look the most dynamic of the lot.
 The dozen columns behind the playhead brighten with what is actually coming out
 of the speakers, up to white on a hard hit - the level is read off the samples on
 their way to the sound card, before the volume control, so it is the music that
-shows and not the fader. It is measured against the loudest thing heard in the
-last few seconds rather than against full scale, because a mastered techno record
-sits at full scale from beginning to end and would never move otherwise. The
-played region behind the glow stays a steady cyan: it is history, and flicker
-there only tires the eye.
+shows and not the fader. It is measured against the loudest and quietest of the
+last second or two rather than against full scale: a brickwalled hard techno
+master lives between 0.92 and 1.00 the whole way through, so against full scale
+it would sit at maximum and never move. Against its own recent range it moves
+plenty. The played region behind the glow stays a steady cyan: it is history, and
+flicker there only tires the eye.
 
 That runs at thirty frames a second while something is playing and not at all
 when nothing is, and drops back to four a second under
