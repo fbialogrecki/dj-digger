@@ -3,8 +3,13 @@
 SoundCloud offers a ``progressive`` transcoding next to HLS, which is a plain
 MP3 behind a signed URL. Nothing is downloaded to disk: the MP3 is decoded
 straight off the socket through miniaudio's ``stream_any``, so audio starts after
-about 0.5 s instead of waiting out a 6.6 MB download. Seeking re-opens the stream
-with an HTTP Range header, which CloudFront serves, and costs the same 0.5 s.
+about 0.5 s instead of waiting out a 6.6 MB download.
+
+A copy is kept in memory as it goes, though. Without one, seeking ten seconds
+back into audio that just played meant a fresh connection and half a second of
+silence, and nothing about the next track was known until the current one ended.
+The copy fixes both: the decoder reads from a bytearray, and a seek is a move of
+an index.
 
 ``just-playback`` was the first choice but has no wheel for Python 3.14 and fails
 to build without system headers, so this drives miniaudio directly.
@@ -17,6 +22,8 @@ from __future__ import annotations
 
 import array
 import logging
+import threading
+import time
 from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import List, Optional
@@ -33,6 +40,13 @@ SEEK_STEP = 10.0
 VOLUME_STEP = 0.1
 SAMPLE_RATE = 44100
 CHANNELS = 2
+# int16, so this is the loudest a sample can be.
+FULL_SCALE = 32768.0
+
+DOWNLOAD_CHUNK = 64 * 1024
+# A two hour set is not a track, and a response that will not declare its size
+# could be anything. Both stream off the socket the way everything used to.
+MAX_BUFFER_BYTES = 50 * 1024 * 1024
 
 # Two rows of bottom-anchored blocks give 16 levels instead of 8, which is what
 # stops a loud master from rendering as a solid rectangle.
@@ -189,23 +203,56 @@ def render_waveform(
 
 
 class HttpSourceMixin:
-    """Feeds miniaudio from an HTTP response, seeking with Range requests.
+    """Feeds miniaudio from an HTTP response, keeping a copy of it as it goes.
+
+    A thread pulls the response into memory alongside playback, so the decoder
+    reads out of a bytearray instead of a socket. Playback still starts on the
+    first bytes to land - nothing waits for the download to finish - but by a few
+    seconds in the whole track is here, and seeking into it costs nothing.
+
+    A response too large to hold, or one that will not say how large it is, takes
+    the unbuffered path instead: reads go straight to the socket and a seek
+    reopens it with a Range header, which is what everything used to do.
 
     The logic lives in a mixin because miniaudio's ``StreamableSource`` base is
     only importable when miniaudio is, and the digger has to work without it.
     """
 
-    def __init__(self, session, url: str, timeout: float = 30.0) -> None:
+    def __init__(
+        self,
+        session,
+        url: str,
+        timeout: float = 30.0,
+        max_buffer: int = MAX_BUFFER_BYTES,
+    ) -> None:
         self.session = session
         self.url = url
         self.timeout = timeout
         self.offset = 0
         self.length: Optional[int] = None
         self._response = None
+        self._buffer = bytearray()
+        # Where the buffer starts in the file. It only moves when a seek lands
+        # somewhere we neither hold nor are on our way to.
+        self._base = 0
+        self._buffering = False
+        self._done = False
+        self._failed = False
+        self._closed = False
+        # Bumped on every restart, so a thread left over from the previous one
+        # knows the bytes it is holding are no longer wanted.
+        self._generation = 0
+        self._lock = threading.Lock()
+        self._arrived = threading.Condition(self._lock)
         self._open(0)
+        if self.length and self.length <= max_buffer:
+            self._buffering = True
+            self._spawn()
+
+    # Connection
 
     def _open(self, offset: int) -> None:
-        self.close()
+        self._close_response()
         headers = {"Range": f"bytes={offset}-"} if offset else {}
         self._response = self.session.get(
             self.url, headers=headers, stream=True, timeout=self.timeout
@@ -215,7 +262,124 @@ class HttpSourceMixin:
             self.length = int(declared) + offset if declared else None
         self.offset = offset
 
+    def _close_response(self) -> None:
+        if self._response is not None:
+            self._response.close()
+            self._response = None
+
+    def close(self) -> None:
+        with self._lock:
+            self._closed = True
+            self._generation += 1
+            self._arrived.notify_all()
+        self._close_response()
+
+    # Buffering
+
+    def _spawn(self) -> None:
+        thread = threading.Thread(
+            target=self._download,
+            args=(self._response, self._generation),
+            daemon=True,
+        )
+        thread.start()
+
+    def _download(self, response, generation: int) -> None:
+        """Pull the rest of the response into the buffer, off the audio thread."""
+
+        while True:
+            try:
+                chunk = response.raw.read(DOWNLOAD_CHUNK)
+            except Exception as exc:
+                # Half a track in memory is still better than none: reads inside
+                # it stay instant, and anything past it goes back to the socket.
+                LOGGER.debug("Buffering %s stopped early: %s", self.url, exc)
+                chunk = None
+            with self._lock:
+                if generation != self._generation or self._closed:
+                    return
+                if chunk:
+                    self._buffer.extend(chunk)
+                else:
+                    self._done = True
+                    self._failed = chunk is None
+                self._arrived.notify_all()
+                if not chunk:
+                    return
+
+    def _outside_buffer(self) -> bool:
+        """Is the read head somewhere this buffer does not and will not hold?"""
+
+        with self._lock:
+            if self.offset < self._base:
+                return True
+            complete = self._done and not self._failed
+            return self.offset > self._base + len(self._buffer) and not complete
+
+    def _restart(self, target: int) -> None:
+        """Point the buffer at a new part of the file, dropping what it held."""
+
+        with self._lock:
+            self._generation += 1
+            self._buffer = bytearray()
+            self._base = target
+            self._done = False
+            self._failed = False
+        try:
+            self._open(target)
+        except Exception as exc:
+            LOGGER.debug("Could not reopen %s at %d: %s", self.url, target, exc)
+            with self._lock:
+                self._done = True
+                self._failed = True
+                self._arrived.notify_all()
+            return
+        self._spawn()
+
+    # Reading
+
     def read(self, num_bytes: int) -> bytes:
+        if num_bytes <= 0:
+            return b""
+        if self._buffering:
+            return self._read_buffered(num_bytes)
+        return self._read_direct(num_bytes)
+
+    def _read_buffered(self, num_bytes: int) -> bytes:
+        if self._outside_buffer():
+            self._restart(self.offset)
+        data = self._take(num_bytes)
+        if len(data) < num_bytes and self._died_early():
+            # The download dropped with file still to come, so go back to the
+            # socket for the rest rather than reporting the track as over.
+            self._restart(self.offset)
+            data += self._take(num_bytes - len(data))
+        return data
+
+    def _take(self, num_bytes: int) -> bytes:
+        """Bytes from the buffer, waiting for the download only if it is behind."""
+
+        deadline = time.monotonic() + self.timeout
+        with self._lock:
+            while True:
+                start = self.offset - self._base
+                end = start + num_bytes
+                if end <= len(self._buffer) or self._done or self._closed:
+                    break
+                remaining = deadline - time.monotonic()
+                if remaining <= 0 or not self._arrived.wait(remaining):
+                    break
+            data = bytes(self._buffer[start:end])
+        self.offset += len(data)
+        return data
+
+    def _died_early(self) -> bool:
+        with self._lock:
+            if self._closed or not self._failed:
+                return False
+        return self.length is not None and self.offset < self.length
+
+    def _read_direct(self, num_bytes: int) -> bytes:
         # raw.read can come up short on a socket; the decoder reads a short
         # answer as the end of the file, so keep pulling until it is satisfied.
         parts = []
@@ -234,23 +398,28 @@ class HttpSourceMixin:
         self.offset += len(data)
         return data
 
+    # Seeking
+
     def seek(self, offset: int, origin) -> bool:
-        target = offset
-        if getattr(origin, "value", origin) == 1:  # SeekOrigin.CURRENT
-            target = self.offset + offset
-        elif getattr(origin, "value", origin) == 2 and self.length:  # END
-            target = self.length + offset
+        target = max(0, self._target(offset, origin))
+        if self._buffering:
+            # Nothing else to do: the read that follows either finds the bytes
+            # here, waits the moment out, or sends us back for them.
+            self.offset = target
+            return True
         try:
-            self._open(max(0, target))
+            self._open(target)
         except Exception as exc:
             LOGGER.debug("Range seek failed: %s", exc)
             return False
         return True
 
-    def close(self) -> None:
-        if self._response is not None:
-            self._response.close()
-            self._response = None
+    def _target(self, offset: int, origin) -> int:
+        if getattr(origin, "value", origin) == 1:  # SeekOrigin.CURRENT
+            return self.offset + offset
+        if getattr(origin, "value", origin) == 2 and self.length:  # END
+            return self.length + offset
+        return offset
 
 
 _http_source_type = None
@@ -291,6 +460,7 @@ class Player:
         self._finished = False
         self._volume = 0.8
         self._muted = False
+        self._level = 0.0
         self.unavailable_reason: Optional[str] = None
 
     def _device_for(self, sample_rate: int, channels: int):
@@ -350,6 +520,17 @@ class Player:
     def volume(self) -> float:
         return 0.0 if self._muted else self._volume
 
+    @property
+    def level(self) -> float:
+        """How loud the audio going out right now is, 0 to 1.
+
+        Read straight off the samples on their way to the device, which is the
+        only place the actual sound exists - the waveform picture is an average
+        of the whole track and says nothing about this instant.
+        """
+
+        return self._level
+
     # Controls
 
     def load(
@@ -374,8 +555,11 @@ class Player:
 
     def _open_stream(self, seek_frame: int):
         miniaudio = self._miniaudio
-        self._close_source()
-        self._source = http_source_type(miniaudio)(self._session, self._loaded.stream.url)
+        self._drop_generator()
+        # The source outlives a seek. Replacing it is what used to throw away
+        # the buffered track and put a connection in front of every seek.
+        if self._source is None:
+            self._source = http_source_type(miniaudio)(self._session, self._loaded.stream.url)
         return miniaudio.stream_any(
             self._source,
             source_format=miniaudio.FileFormat.MP3,
@@ -384,11 +568,16 @@ class Player:
             seek_frame=seek_frame,
         )
 
+    def _drop_generator(self) -> None:
+        if self._generator is not None:
+            self._generator.close()
+            self._generator = None
+
     def _close_source(self) -> None:
+        self._drop_generator()
         if self._source is not None:
             self._source.close()
             self._source = None
-        self._generator = None
 
     def _feed(self, stream):
         chunk = next(stream)
@@ -401,8 +590,13 @@ class Player:
             if not len(chunk):
                 self._playing = False
                 self._finished = True
+                self._level = 0.0
                 return
             self._frames += len(chunk) // CHANNELS
+            # Two calls into C on an array, which is all this thread can afford.
+            # Taken before the volume scaling, so turning the app down does not
+            # dim the picture: it is the music that should pulse, not the fader.
+            self._level = max(max(chunk), -min(chunk)) / FULL_SCALE
             volume = self.volume
             out = (
                 chunk
@@ -433,6 +627,7 @@ class Player:
         if self._device is not None and self._playing:
             self._device.stop()
         self._playing = False
+        self._level = 0.0
 
     def toggle(self) -> None:
         self.pause() if self._playing else self.play()
@@ -445,6 +640,7 @@ class Player:
         self._finished = False
         self._frames = 0
         self._offset = 0.0
+        self._level = 0.0
 
     def seek(self, seconds: float) -> None:
         if self._loaded is None:
@@ -453,12 +649,14 @@ class Player:
         was_playing = self._playing
         if self._device is not None:
             self._device.stop()
-        # Drop the socket so the next play reopens it with a Range header.
-        self._close_source()
+        # Only the decoder is rebuilt at the new frame. The source stays, and
+        # with it the copy of the track, which is what makes this instant.
+        self._drop_generator()
         self._offset = target
         self._frames = 0
         self._playing = False
         self._finished = False
+        self._level = 0.0
         if was_playing:
             self.play()
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import array
+import threading
 
 import pytest
 
@@ -383,6 +384,47 @@ def test_seeking_drops_the_generator_so_the_next_play_reopens(monkeypatch):
     assert device.started_with is not first
 
 
+def test_seeking_keeps_the_source_and_the_track_it_is_holding(monkeypatch):
+    """Replacing it would throw the buffer away, which is the cost we removed."""
+
+    subject, _device = loaded_player(monkeypatch)
+    source = object()
+    subject._source = source
+    subject.play()
+
+    subject.seek(120.0)
+    assert subject._source is source
+
+
+def test_the_level_follows_the_loudest_sample_going_out(monkeypatch):
+    subject, device = loaded_player(monkeypatch)
+    assert subject.level == 0.0
+
+    subject.play()
+    device.started_with.send(1024)
+    assert subject.level == pytest.approx(100 / player.FULL_SCALE)
+
+
+def test_the_level_ignores_the_volume_knob(monkeypatch):
+    """It is the music that should pulse, not the fader."""
+
+    subject, device = loaded_player(monkeypatch)
+    subject.set_volume(0.1)
+    subject.play()
+    device.started_with.send(1024)
+
+    assert subject.level == pytest.approx(100 / player.FULL_SCALE)
+
+
+def test_pausing_flattens_the_level(monkeypatch):
+    subject, device = loaded_player(monkeypatch)
+    subject.play()
+    device.started_with.send(1024)
+
+    subject.pause()
+    assert subject.level == 0.0
+
+
 def test_seeking_is_clamped_inside_the_track(monkeypatch):
     subject, _device = loaded_player(monkeypatch)
     subject.seek(9999.0)
@@ -409,9 +451,9 @@ class FakeRaw:
 
 
 class FakeResponse:
-    def __init__(self, data, chunk_size=None):
-        self.raw = FakeRaw(data, chunk_size)
-        self.headers = {"Content-Length": str(len(data))}
+    def __init__(self, raw, declare_length=True):
+        self.raw = raw
+        self.headers = {"Content-Length": str(len(raw.data))} if declare_length else {}
         self.closed = False
 
     def close(self):
@@ -422,19 +464,80 @@ class FakeSession:
     def __init__(self, data, chunk_size=None):
         self.data = data
         self.chunk_size = chunk_size
+        self.declare_length = True
         self.requests = []
 
     def get(self, url, headers=None, stream=False, timeout=None):
         self.requests.append((url, dict(headers or {})))
-        start = 0
+        return FakeResponse(self._raw(self._from(headers)), self.declare_length)
+
+    def _from(self, headers):
         if headers and "Range" in headers:
-            start = int(headers["Range"].split("=")[1].rstrip("-"))
-        return FakeResponse(self.data[start:], self.chunk_size)
+            return int(headers["Range"].split("=")[1].rstrip("-"))
+        return 0
+
+    def _raw(self, start):
+        return FakeRaw(self.data[start:], self.chunk_size)
+
+
+class SlowRaw(FakeRaw):
+    """Hands over the first few bytes, then waits to be let go."""
+
+    def __init__(self, data, hands_over, gate):
+        super().__init__(data, chunk_size=hands_over)
+        self.hands_over = hands_over
+        self.gate = gate
+
+    def read(self, num_bytes):
+        if self.position >= self.hands_over:
+            self.gate.wait(5.0)
+        return super().read(num_bytes)
+
+
+class SlowSession(FakeSession):
+    def __init__(self, data, hands_over):
+        super().__init__(data)
+        self.hands_over = hands_over
+        self.gate = threading.Event()
+
+    def _raw(self, start):
+        return SlowRaw(self.data[start:], self.hands_over, self.gate)
+
+
+class HalfDeadRaw(FakeRaw):
+    """Hands over a few bytes, then the connection drops under it."""
+
+    def __init__(self, data, dies_after):
+        super().__init__(data, chunk_size=dies_after)
+        self.dies_after = dies_after
+
+    def read(self, num_bytes):
+        if self.position >= self.dies_after:
+            raise OSError("connection reset")
+        return super().read(num_bytes)
+
+
+class HalfDeadSession(FakeSession):
+    def __init__(self, data, dies_after):
+        super().__init__(data)
+        self.dies_after = dies_after
+
+    def _raw(self, start):
+        return HalfDeadRaw(self.data[start:], self.dies_after)
+
+
+URL = "https://cdn/x.mp3"
+
+
+def unbuffered(session):
+    """A source for a response too big to hold, which reads over the socket."""
+
+    return player.HttpSourceMixin(session, URL, max_buffer=0)
 
 
 def test_the_source_reads_the_bytes_in_order():
     session = FakeSession(b"0123456789")
-    source = player.HttpSourceMixin(session, "https://cdn/x.mp3")
+    source = player.HttpSourceMixin(session, URL)
 
     assert source.read(4) == b"0123"
     assert source.read(4) == b"4567"
@@ -445,29 +548,19 @@ def test_the_source_keeps_pulling_on_a_short_read():
     """A socket answers short; the decoder reads a short answer as end of file."""
 
     session = FakeSession(b"0123456789", chunk_size=3)
-    source = player.HttpSourceMixin(session, "https://cdn/x.mp3")
 
-    assert source.read(8) == b"01234567"
+    for source in (player.HttpSourceMixin(session, URL), unbuffered(session)):
+        assert source.read(8) == b"01234567"
 
 
 def test_the_source_reports_the_length_from_the_first_response():
     session = FakeSession(b"0123456789")
-    assert player.HttpSourceMixin(session, "https://cdn/x.mp3").length == 10
-
-
-def test_seeking_reissues_a_range_request():
-    session = FakeSession(b"0123456789")
-    source = player.HttpSourceMixin(session, "https://cdn/x.mp3")
-    source.read(2)
-
-    assert source.seek(6, 0) is True  # SeekOrigin.START
-    assert source.read(2) == b"67"
-    assert session.requests[-1][1] == {"Range": "bytes=6-"}
+    assert player.HttpSourceMixin(session, URL).length == 10
 
 
 def test_seeking_relative_to_the_current_position():
     session = FakeSession(b"0123456789")
-    source = player.HttpSourceMixin(session, "https://cdn/x.mp3")
+    source = player.HttpSourceMixin(session, URL)
     source.read(3)
 
     assert source.seek(2, 1) is True  # SeekOrigin.CURRENT
@@ -476,10 +569,87 @@ def test_seeking_relative_to_the_current_position():
 
 def test_seeking_from_the_end():
     session = FakeSession(b"0123456789")
-    source = player.HttpSourceMixin(session, "https://cdn/x.mp3")
+    source = player.HttpSourceMixin(session, URL)
 
     assert source.seek(-2, 2) is True  # SeekOrigin.END
     assert source.read(2) == b"89"
+
+
+def test_closing_the_source_closes_the_response():
+    session = FakeSession(b"0123456789")
+    source = player.HttpSourceMixin(session, URL)
+    response = source._response
+
+    source.close()
+    assert response.closed is True
+    assert source._response is None
+
+
+# Buffering the track as it plays
+
+
+def test_seeking_back_into_played_audio_costs_no_connection():
+    """The whole point: `[` should not mean half a second of silence."""
+
+    session = FakeSession(b"0123456789")
+    source = player.HttpSourceMixin(session, URL)
+    source.read(10)
+    requests = len(session.requests)
+
+    assert source.seek(2, 0) is True  # SeekOrigin.START
+    assert source.read(3) == b"234"
+    assert len(session.requests) == requests
+
+
+def test_a_read_waits_for_the_download_rather_than_reporting_the_end():
+    session = SlowSession(b"0123456789", hands_over=4)
+    source = player.HttpSourceMixin(session, URL)
+    threading.Timer(0.05, session.gate.set).start()
+
+    # Only four bytes existed when this was asked for.
+    assert source.read(10) == b"0123456789"
+
+
+def test_seeking_past_what_has_arrived_goes_and_gets_it():
+    session = SlowSession(b"0123456789", hands_over=4)
+    source = player.HttpSourceMixin(session, URL)
+    try:
+        assert source.read(4) == b"0123"
+
+        source.seek(8, 0)
+        assert source.read(2) == b"89"
+        assert session.requests[-1][1] == {"Range": "bytes=8-"}
+    finally:
+        session.gate.set()
+
+
+def test_a_download_that_dies_goes_back_to_the_socket():
+    session = HalfDeadSession(b"0123456789", dies_after=4)
+    source = player.HttpSourceMixin(session, URL)
+
+    assert source.read(4) == b"0123"
+    # The buffering thread is gone, so this can only come off a new connection.
+    assert source.read(4) == b"4567"
+    assert session.requests[-1][1] == {"Range": "bytes=4-"}
+
+
+def test_a_response_too_big_to_hold_seeks_the_old_way():
+    session = FakeSession(b"0123456789")
+    source = player.HttpSourceMixin(session, URL, max_buffer=4)
+    source.read(2)
+
+    assert source.seek(6, 0) is True
+    assert source.read(2) == b"67"
+    assert session.requests[-1][1] == {"Range": "bytes=6-"}
+
+
+def test_a_response_that_will_not_say_its_size_is_not_buffered():
+    session = FakeSession(b"0123456789")
+    session.declare_length = False
+    source = player.HttpSourceMixin(session, URL)
+
+    assert source.seek(6, 0) is True
+    assert session.requests[-1][1] == {"Range": "bytes=6-"}
 
 
 def test_a_failed_seek_is_reported_not_raised():
@@ -489,8 +659,7 @@ def test_a_failed_seek_is_reported_not_raised():
                 raise OSError("connection reset")
             return super().get(url)
 
-    source = player.HttpSourceMixin(Broken(b"0123456789"), "https://cdn/x.mp3")
-    assert source.seek(5, 0) is False
+    assert unbuffered(Broken(b"0123456789")).seek(5, 0) is False
 
 
 def test_a_read_error_ends_the_stream_quietly():
@@ -498,18 +667,7 @@ def test_a_read_error_ends_the_stream_quietly():
         def read(self, num_bytes):
             raise OSError("connection reset")
 
-    session = FakeSession(b"0123456789")
-    source = player.HttpSourceMixin(session, "https://cdn/x.mp3")
+    source = unbuffered(FakeSession(b"0123456789"))
     source._response.raw = Exploding(b"")
 
     assert source.read(4) == b""
-
-
-def test_closing_the_source_closes_the_response():
-    session = FakeSession(b"0123456789")
-    source = player.HttpSourceMixin(session, "https://cdn/x.mp3")
-    response = source._response
-
-    source.close()
-    assert response.closed is True
-    assert source._response is None
