@@ -6,8 +6,21 @@ Lives in its own module so ``soundcloud``, ``html_fallback``, ``links`` and
 
 from __future__ import annotations
 
+import shlex
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
+
+
+def parse_tags(tag_list: str) -> List[str]:
+    """Split SoundCloud's tag_list, where multi-word tags are quoted."""
+
+    if not tag_list:
+        return []
+    try:
+        return shlex.split(tag_list)
+    except ValueError:
+        # An artist left a quote unclosed; we lose multi-word tags, not the lot.
+        return tag_list.replace('"', " ").split()
 
 
 @dataclass
@@ -23,6 +36,7 @@ class Track:
     description: str = ""
     downloadable: bool = False
     genre: str = ""
+    tags: List[str] = field(default_factory=list)
     # Links found outside the structured fields, e.g. scraped from a track page.
     extra_links: List[Tuple[str, str]] = field(default_factory=list)
 
@@ -37,6 +51,12 @@ class Track:
         if self.artist and self.artist.lower() not in self.title.lower():
             return f"{self.artist} - {self.title}"
         return self.title
+
+    @property
+    def genre_label(self) -> str:
+        """Genre if the artist set one, otherwise their first tag."""
+
+        return self.genre or (self.tags[0] if self.tags else "")
 
     @classmethod
     def from_api(cls, payload: Dict[str, Any]) -> "Track":
@@ -55,6 +75,7 @@ class Track:
             description=payload.get("description") or "",
             downloadable=bool(payload.get("downloadable")),
             genre=clean(payload.get("genre")),
+            tags=parse_tags(payload.get("tag_list") or ""),
         )
 
 

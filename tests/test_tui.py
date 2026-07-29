@@ -667,6 +667,90 @@ def test_a_dig_lands_in_the_library(state, monkeypatch):
     assert len(crates[0].tracks) == 2
 
 
+def test_removing_a_track_persists_and_undo_brings_it_back(state):
+    record = saved_crate(3)
+    app = make_app([], state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            assert app.query_one("#tracks", DataTable).row_count == 3
+
+            await pilot.press("x")
+            await pilot.pause()
+            assert app.query_one("#tracks", DataTable).row_count == 2
+            assert library.load(record.slug).removed_track_keys == ["500"]
+
+            await pilot.press("ctrl+z")
+            await pilot.pause()
+            assert app.query_one("#tracks", DataTable).row_count == 3
+            assert library.load(record.slug).removed_track_keys == []
+
+    run(scenario)
+
+
+def test_removing_keeps_the_active_filter(state):
+    saved_crate(3)
+    app = make_app([], state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await pilot.press("1")  # bandcamp, the only store here
+            assert app.store_filter == "bandcamp"
+            await pilot.press("x")
+            await pilot.pause()
+            # A removal must not reset what you filtered down to.
+            assert app.store_filter == "bandcamp"
+            assert app.query_one("#tracks", DataTable).row_count == 2
+
+    run(scenario)
+
+
+def test_removing_without_a_saved_crate_is_refused_not_a_crash(records, state):
+    app = make_app(records, state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            assert app.crate is None
+            await pilot.press("x")
+            await pilot.pause()
+            assert app.query_one("#tracks", DataTable).row_count == len(records)
+
+    run(scenario)
+
+
+def test_undo_with_nothing_removed_is_harmless(state):
+    saved_crate(2)
+    app = make_app([], state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await pilot.press("ctrl+z")
+            await pilot.pause()
+            assert app.query_one("#tracks", DataTable).row_count == 2
+
+    run(scenario)
+
+
+def test_the_genre_column_shows_genre_then_tag_then_nothing(state):
+    tracks = [
+        Track(title="A", permalink_url="u/a", id=1, genre="Techno", purchase_url="https://l.bandcamp.com/a"),
+        Track(title="B", permalink_url="u/b", id=2, tags=["Acid"], purchase_url="https://l.bandcamp.com/b"),
+        Track(title="C", permalink_url="u/c", id=3, purchase_url="https://l.bandcamp.com/c"),
+    ]
+    app = make_app(links.categorise_all(tracks), state)
+
+    async def scenario():
+        async with app.run_test():
+            table = app.query_one("#tracks", DataTable)
+            genres = [str(table.get_row_at(index)[4]) for index in range(3)]
+            assert genres == ["Techno", "Acid", "-"]
+
+    run(scenario)
+
+
 def test_export_writes_the_visible_rows(records, state, tmp_path):
     output = tmp_path / "view.json"
     app = make_app(records, state, export_path=output)

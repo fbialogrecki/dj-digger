@@ -6,7 +6,7 @@ import json
 import pytest
 
 from dj_digger import links
-from dj_digger.models import Track
+from dj_digger.models import Track, parse_tags
 
 BANDCAMP_PURCHASE = 1011828484
 UNKNOWN_PURCHASE = 846243631
@@ -222,6 +222,33 @@ def test_lookalike_domains_do_not_match_a_store(url):
     """Matching has to respect domain boundaries, not just contain the name."""
 
     assert links.store_for_url(url) is None
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ('EBM "Hard Techno" Techno', ["EBM", "Hard Techno", "Techno"]),
+        ("premiere techno house", ["premiere", "techno", "house"]),
+        ("", []),
+        # Artists leave quotes unclosed; shlex raises on this one.
+        ('EBM "Hard Techno', ["EBM", "Hard", "Techno"]),
+    ],
+)
+def test_parse_tags(raw, expected):
+    assert parse_tags(raw) == expected
+
+
+def test_genre_falls_back_to_the_first_tag():
+    assert Track(title="t", permalink_url="u", genre="Techno", tags=["Acid"]).genre_label == "Techno"
+    assert Track(title="t", permalink_url="u", tags=["Acid", "EBM"]).genre_label == "Acid"
+    assert Track(title="t", permalink_url="u").genre_label == ""
+
+
+def test_tags_come_off_the_api_payload():
+    track = Track.from_api(
+        {"title": "t", "permalink_url": "u", "tag_list": 'Techno "Hard Techno"'}
+    )
+    assert track.tags == ["Techno", "Hard Techno"]
 
 
 def test_summary_keeps_every_category_key(tracks):

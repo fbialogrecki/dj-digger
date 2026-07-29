@@ -55,6 +55,8 @@ KEYMAP = [
     ("g", "mark_got", "Got", SELECTED, True),
     ("s", "mark_skip", "Skip", SELECTED, True),
     ("u", "mark_new", "Unmark", SELECTED, False),
+    ("x", "remove_track", "Remove from this crate", SELECTED, False),
+    ("ctrl+z", "undo_remove", "Undo remove", SELECTED, False),
     ("a", "open_visible", "Open all shown", WHOLE_LIST, True),
     ("e", "export", "Export shown", WHOLE_LIST, False),
     ("slash", "start_search", "Search", WHOLE_LIST, True),
@@ -321,6 +323,7 @@ class DiggerApp(App):
         self.present: List[str] = []
         self._pending_open_all = False
         self._digging = False
+        self._undone: List[str] = []
         self._set_records(records)
 
     # Layout
@@ -344,9 +347,10 @@ class DiggerApp(App):
     async def on_mount(self) -> None:
         table = self.query_one("#tracks", DataTable)
         table.add_column("#", width=4)
-        table.add_column("Track", width=40)
+        table.add_column("Track", width=34)
         table.add_column("Store", width=11)
-        table.add_column("Link", width=26)
+        table.add_column("Link", width=22)
+        table.add_column("Genre", width=10)
         table.add_column("Status", width=7)
         await self.reload_sidebar()
         if not self.rows:
@@ -453,6 +457,7 @@ class DiggerApp(App):
                     "-" if is_missing else _short_url(record.link_url),
                     style="bright_black" if is_missing else "",
                 ),
+                Text(record.track.genre_label or "-", style="bright_black"),
                 Text(label, style=style),
             )
 
@@ -692,6 +697,40 @@ class DiggerApp(App):
     def action_mark_new(self) -> None:
         self._set_status(NEW, "Unmarked")
 
+    def _reload_from_crate(self) -> None:
+        """Rebuild the rows from the crate, keeping filters and cursor in place."""
+
+        if self.crate is None:
+            return
+        self._set_records(links_module.categorise_all(self.crate.active_tracks))
+        self.refresh_rows()
+
+    def action_remove_track(self) -> None:
+        """Drop a track from your copy. SoundCloud is read-only to us."""
+
+        row = self.current_row()
+        if row is None:
+            return
+        if self.crate is None:
+            self.notify("This list is not a saved crate, nothing to remove from", timeout=4)
+            return
+        track = row.record.track
+        self.crate.remove(track.key)
+        library_module.save(self.crate)
+        self._undone.append(track.key)
+        self._reload_from_crate()
+        self.notify(f"Removed {track.label} - ctrl+z to undo", timeout=4)
+
+    def action_undo_remove(self) -> None:
+        if self.crate is None or not self._undone:
+            self.notify("Nothing to undo", timeout=2)
+            return
+        key = self._undone.pop()
+        self.crate.restore(key)
+        library_module.save(self.crate)
+        self._reload_from_crate()
+        self.notify("Restored", timeout=2)
+
     def action_open_visible(self) -> None:
         if not self.visible_rows:
             self.notify("Nothing to open", timeout=2)
@@ -794,7 +833,7 @@ class DiggerApp(App):
         self.query_one("#tracks", DataTable).focus()
 
 
-def _short_url(url: str, limit: int = 25) -> str:
+def _short_url(url: str, limit: int = 21) -> str:
     trimmed = url.replace("https://", "").replace("http://", "")
     if len(trimmed) <= limit:
         return trimmed
