@@ -22,7 +22,7 @@ from rich.table import Table
 from . import __version__
 from . import browser as browser_module
 from . import dig as dig_module
-from . import links
+from . import library, links
 from .models import Crate, LinkRecord
 from .state import TrackState
 
@@ -259,7 +259,9 @@ def handle_dig(args: argparse.Namespace) -> int:
     else:
         LOGGER.info("Collected %s tracks.", len(crate.tracks))
 
-    records = links.categorise_all(crate.tracks)
+    # The library is the source of truth, so a CLI dig joins it too.
+    record = library.remember(crate)
+    records = links.categorise_all(record.active_tracks)
     export_path = links.export_records(records, args.export_format, args.output)
     _print_summary(console, records, crate)
 
@@ -274,6 +276,7 @@ def handle_dig(args: argparse.Namespace) -> int:
             export_format=args.export_format,
             export_path=export_path or args.output,
             dig_options=_dig_options(args),
+            crate_record=record,
         )
     return 0
 
@@ -316,7 +319,8 @@ def _batch_open(args: argparse.Namespace, records: Sequence[LinkRecord]) -> None
 
 def handle_open(args: argparse.Namespace) -> int:
     console = Console(stderr=True)
-    records = links.load_summary(args.summary_file)
+    path = Path(args.summary_file)
+    records = links.load_summary(path)
     _print_summary(console, records)
 
     if args.no_open:
@@ -326,15 +330,27 @@ def handle_open(args: argparse.Namespace) -> int:
         _batch_open(args, records)
         return 0
 
+    # An export carries fewer fields than the API does, so the crate joins the
+    # library marked partial - refreshing it fills in genre and the rest.
+    record = library.remember(
+        Crate(
+            source=str(path),
+            title=path.stem,
+            tracks=links.tracks_from_records(records),
+        ),
+        partial=True,
+    )
+
     from .tui import run_tui
 
     run_tui(
         records,
         state=TrackState(),
-        crate_title=str(args.summary_file),
+        crate_title=record.title,
         browser=args.browser,
         export_format="json",
-        export_path=Path(args.summary_file),
+        export_path=path,
+        crate_record=record,
     )
     return 0
 

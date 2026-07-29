@@ -4,14 +4,14 @@ import asyncio
 import json
 
 import pytest
-from textual.widgets import DataTable, Input, Static
+from textual.widgets import Button, DataTable, Input, ListView, Static
 
-from dj_digger import links
+from dj_digger import library, links
 from dj_digger import tui
 from dj_digger.dig import DigOptions, TargetNotFound
 from dj_digger.models import Crate, LinkRecord, Track
 from dj_digger.state import GOT, OPENED, SKIP, TrackState
-from dj_digger.tui import AskLinkScreen, DiggerApp, HelpScreen
+from dj_digger.tui import AskLinkScreen, ConfirmScreen, DiggerApp, HelpScreen
 
 
 def run(scenario):
@@ -87,7 +87,7 @@ def test_the_status_bar_carries_the_crate_name(records, state):
 
 
 def test_bars_sit_below_the_table(records, state):
-    """Both info bars belong at the bottom, above the footer."""
+    """Both info bars belong at the bottom, under the table and sidebar."""
 
     app = make_app(records, state)
 
@@ -96,9 +96,9 @@ def test_bars_sit_below_the_table(records, state):
             order = [
                 widget.id
                 for widget in app.screen.children
-                if widget.id in {"tracks", "status", "stores"}
+                if widget.id in {"body", "status", "stores"}
             ]
-            assert order == ["tracks", "status", "stores"]
+            assert order == ["body", "status", "stores"]
 
     run(scenario)
 
@@ -319,9 +319,9 @@ def test_open_all_goes_straight_through_for_a_short_list(state, monkeypatch):
     run(scenario)
 
 
-def crate_of(count, *, title="Fresh crate"):
+def crate_of(count, *, title="Fresh crate", source="https://soundcloud.com/a/sets/b"):
     return Crate(
-        source="https://soundcloud.com/a/sets/b",
+        source=source,
         title=title,
         declared_count=count,
         tracks=[
@@ -481,6 +481,190 @@ def test_a_crate_with_no_tracks_is_treated_as_a_failure(state, monkeypatch):
             assert isinstance(app.screen, AskLinkScreen)
 
     run(scenario)
+
+
+def saved_crate(count=3, *, source="https://soundcloud.com/a/sets/saved", title="Saved crate"):
+    record = library.CrateRecord.from_crate(
+        Crate(
+            source=source,
+            title=title,
+            tracks=[
+                Track(
+                    title=f"Kept {index}",
+                    permalink_url=f"https://soundcloud.com/a/k{index}",
+                    id=500 + index,
+                    purchase_url=f"https://label.bandcamp.com/track/k{index}",
+                )
+                for index in range(count)
+            ],
+        )
+    )
+    library.save(record)
+    return record
+
+
+def test_the_sidebar_lists_saved_crates(state):
+    saved_crate(title="Alpha")
+    saved_crate(source="https://soundcloud.com/a/sets/two", title="Beta")
+    app = make_app([], state)
+
+    async def scenario():
+        async with app.run_test():
+            assert [record.title for record in app.crates] == ["Alpha", "Beta"]
+            assert app.query_one("#crates", ListView).children
+
+    run(scenario)
+
+
+def test_a_library_is_opened_instead_of_being_asked_for_a_link(state):
+    """Someone with saved crates wants to see them, not be interrogated."""
+
+    saved_crate(3, title="Already here")
+    app = make_app([], state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            assert not isinstance(app.screen, AskLinkScreen)
+            assert app.crate is not None and app.crate.title == "Already here"
+            assert app.query_one("#tracks", DataTable).row_count == 3
+
+    run(scenario)
+
+
+def test_selecting_a_crate_switches_to_it(state):
+    saved_crate(2, source="https://soundcloud.com/a/sets/one", title="One")
+    saved_crate(4, source="https://soundcloud.com/a/sets/two", title="Two")
+    app = make_app([], state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            listing = app.query_one("#crates", ListView)
+            listing.index = 1
+            listing.action_select_cursor()
+            await pilot.pause()
+
+            assert app.crate.title == "Two"
+            assert app.query_one("#tracks", DataTable).row_count == 4
+
+    run(scenario)
+
+
+def test_refreshing_redigs_the_saved_source_and_keeps_deletions(state, monkeypatch):
+    record = saved_crate(3)
+    record.remove("501")
+    library.save(record)
+
+    # Like the real dig, which reports back the source it was given.
+    monkeypatch.setattr(
+        "dj_digger.dig.dig",
+        lambda target, **kwargs: crate_of(4, title="Refreshed", source=target),
+    )
+    app = make_app([], state, export_format="none")
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await pilot.press("r")
+            await settle(app, pilot)
+
+    run(scenario)
+
+    reloaded = library.load(record.slug)
+    assert reloaded.refreshed_at
+    assert len(reloaded.tracks) == 4
+    assert reloaded.removed_track_keys == ["501"]
+
+
+def test_deleting_a_crate_asks_first(state):
+    record = saved_crate(2)
+    app = make_app([], state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await pilot.press("X")
+            await pilot.pause()
+            assert isinstance(app.screen, ConfirmScreen)
+            await pilot.press("n")
+            await pilot.pause()
+
+    run(scenario)
+    assert library.load(record.slug).title == "Saved crate"
+
+
+def test_confirming_deletes_the_crate(state):
+    saved_crate(2)
+    app = make_app([], state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await pilot.press("X")
+            await pilot.pause()
+            await pilot.press("y")
+            await pilot.pause()
+
+    run(scenario)
+    assert library.list_crates() == []
+
+
+def test_the_sidebar_collapses(records, state):
+    app = make_app(records, state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            sidebar = app.query_one("#sidebar")
+            assert not sidebar.has_class("collapsed")
+            await pilot.press("ctrl+b")
+            assert sidebar.has_class("collapsed")
+            await pilot.press("ctrl+b")
+            assert not sidebar.has_class("collapsed")
+
+    run(scenario)
+
+
+@pytest.mark.parametrize(
+    "button_id,expected_action",
+    [
+        ("crate-add", "action_dig_link"),
+        ("crate-refresh", "action_refresh_crate"),
+        ("crate-delete", "action_delete_crate"),
+    ],
+)
+def test_each_sidebar_button_runs_its_action(records, state, monkeypatch, button_id, expected_action):
+    """Buttons and keys must trigger the same thing, or one of them rots."""
+
+    app = make_app(records, state)
+    called = []
+    monkeypatch.setattr(app, expected_action, lambda: called.append(expected_action))
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            app.query_one(f"#{button_id}", Button).press()
+            await pilot.pause()
+
+    run(scenario)
+    assert called == [expected_action]
+
+
+def test_a_dig_lands_in_the_library(state, monkeypatch):
+    monkeypatch.setattr("dj_digger.dig.dig", lambda target, **kwargs: crate_of(2, title="Dug"))
+    app = make_app([], state, export_format="none")
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.screen.query_one("#ask-input", Input).value = "https://soundcloud.com/a/sets/new"
+            await pilot.press("enter")
+            await settle(app, pilot)
+
+    run(scenario)
+
+    crates = library.list_crates()
+    assert [record.title for record in crates] == ["Dug"]
+    assert len(crates[0].tracks) == 2
 
 
 def test_export_writes_the_visible_rows(records, state, tmp_path):

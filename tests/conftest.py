@@ -6,9 +6,18 @@ from typing import Any, Dict, List
 
 import pytest
 
+from dj_digger import library, state
 from dj_digger.models import Track
 
 FIXTURES = Path(__file__).parent / "fixtures"
+
+
+@pytest.fixture(autouse=True)
+def isolate_user_data(tmp_path, monkeypatch):
+    """Never let a test read or write the real crate library or status file."""
+
+    monkeypatch.setattr(library, "crates_dir", lambda: tmp_path / "crates")
+    monkeypatch.setattr(state, "default_state_path", lambda: tmp_path / "state.json")
 
 
 def load_fixture(name: str) -> Any:

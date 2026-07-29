@@ -344,18 +344,36 @@ def load_summary(path: Path) -> List[LinkRecord]:
             track_url = item.get("track_url")
             if not track_url:
                 raise ValueError(f"Items in category '{category}' need a 'track_url'")
+            link_url = item.get("shop_link") or track_url
             track = Track(
                 title=item.get("title") or "Unknown title",
                 permalink_url=track_url,
                 id=item.get("track_id"),
                 artist=item.get("artist") or "",
+                # Carried on the track so a summary can round-trip into a crate
+                # and still categorise the same way.
+                extra_links=[] if link_url == track_url else [(link_url, item.get("link_text") or "")],
             )
             records.append(
                 LinkRecord(
                     category=category if category in CATEGORY_NAMES else "others",
                     track=track,
-                    link_url=item.get("shop_link") or track_url,
+                    link_url=link_url,
                     link_text=item.get("link_text") or "",
                 )
             )
     return records
+
+
+def tracks_from_records(records: Sequence[LinkRecord]) -> List[Track]:
+    """Collapse records back into unique tracks, merging their links onto each."""
+
+    by_key: Dict[str, Track] = {}
+    for record in records:
+        track = by_key.setdefault(record.track.key, record.track)
+        if track is record.track:
+            continue
+        for pair in record.track.extra_links:
+            if pair not in track.extra_links:
+                track.extra_links.append(pair)
+    return list(by_key.values())

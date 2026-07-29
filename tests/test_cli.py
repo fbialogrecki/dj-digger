@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 
-from dj_digger import cli
+from dj_digger import cli, library, links
 from dj_digger.dig import TargetNotFound
+from dj_digger.models import Crate, Track
 
 
 @pytest.mark.parametrize(
@@ -114,14 +117,79 @@ def test_no_arguments_opens_the_tui_to_ask(monkeypatch):
     monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: True)
     captured = {}
 
-    def fake_run_tui(records, **kwargs):
-        captured["records"] = records
-        captured["kwargs"] = kwargs
+    def fake_run(self):
+        captured["records"] = self.rows
+        captured["options"] = self.dig_options
 
-    monkeypatch.setattr("dj_digger.tui.run_tui", fake_run_tui)
+    monkeypatch.setattr("dj_digger.tui.DiggerApp.run", fake_run)
     assert cli.handle_dig(cli.parse_cli_args([])) == 0
-    assert list(captured["records"]) == []
-    assert captured["kwargs"]["dig_options"].timeout == 20.0
+    assert captured["records"] == []
+    assert captured["options"].timeout == 20.0
+
+
+def test_a_cli_dig_joins_the_library(tmp_path, monkeypatch):
+    """The library is the source of truth, so both entry points feed it."""
+
+    monkeypatch.chdir(tmp_path)
+    crate = Crate(
+        source="https://soundcloud.com/a/sets/b",
+        title="From the CLI",
+        tracks=[Track(title="T", permalink_url="https://soundcloud.com/a/t", id=7)],
+    )
+    monkeypatch.setattr("dj_digger.dig.dig", lambda target, **kwargs: crate)
+
+    assert cli.main(["https://soundcloud.com/a/sets/b", "--no-tui", "-f", "none"]) == 0
+    assert [record.title for record in library.list_crates()] == ["From the CLI"]
+
+
+def test_a_cli_dig_respects_earlier_local_deletions(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    tracks = [
+        Track(title="A", permalink_url="https://soundcloud.com/a/a", id=1),
+        Track(title="B", permalink_url="https://soundcloud.com/a/b", id=2),
+    ]
+    crate = Crate(source="https://soundcloud.com/a/sets/b", title="Crate", tracks=tracks)
+
+    record = library.CrateRecord.from_crate(crate)
+    record.remove("2")
+    library.save(record)
+
+    monkeypatch.setattr("dj_digger.dig.dig", lambda target, **kwargs: crate)
+    cli.main(["https://soundcloud.com/a/sets/b", "--no-tui", "-f", "json", "-o", "out.json"])
+
+    written = json.loads((tmp_path / "out.json").read_text(encoding="utf-8"))
+    titles = [item["title"] for items in written.values() for item in items]
+    assert titles == ["A"]
+
+
+def test_open_imports_the_summary_into_the_library_as_partial(tmp_path, monkeypatch):
+    summary = tmp_path / "crate.json"
+    summary.write_text(
+        json.dumps(
+            {
+                "bandcamp": [
+                    {
+                        "title": "A track",
+                        "track_url": "https://soundcloud.com/a/t",
+                        "shop_link": "https://label.bandcamp.com/track/t",
+                        "track_id": 9,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: True)
+    # Stub the app, not run_tui, so a signature mismatch in between is caught.
+    monkeypatch.setattr("dj_digger.tui.DiggerApp.run", lambda self: None)
+
+    assert cli.main(["open", str(summary)]) == 0
+
+    crates = library.list_crates()
+    assert len(crates) == 1
+    assert crates[0].partial is True
+    # The link survived the round trip, so the crate still categorises.
+    assert links.categorise(crates[0].tracks[0])[0].category == "bandcamp"
 
 
 def test_dig_options_carry_the_cli_knobs():

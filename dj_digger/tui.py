@@ -19,13 +19,15 @@ from rich.text import Text
 from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical
+from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import DataTable, Footer, Input, Label, Static
+from textual.widgets import Button, DataTable, Footer, Input, Label, ListItem, ListView, Static
 
 from . import browser as browser_module
 from . import dig as dig_module
+from . import library as library_module
 from . import links as links_module
+from .library import CrateRecord
 from .models import Crate, LinkRecord
 from .state import GOT, NEW, OPENED, SKIP, TrackState
 
@@ -60,7 +62,10 @@ KEYMAP = [
     ("F", "cycle_store(-1)", "Previous store", WHOLE_LIST, False),
     ("h", "toggle_handled", "Hide handled", WHOLE_LIST, False),
     ("escape", "clear_filters", "Clear filters", WHOLE_LIST, False),
-    ("d", "dig_link", "Crate", CRATES, True),
+    ("d", "dig_link", "Add crate", CRATES, True),
+    ("r", "refresh_crate", "Refresh crate", CRATES, False),
+    ("X", "delete_crate", "Delete crate", CRATES, False),
+    ("ctrl+b", "toggle_sidebar", "Show/hide crates", CRATES, False),
     ("question_mark", "help", "Help", OTHER, True),
     ("q", "quit", "Quit", OTHER, True),
 ]
@@ -181,11 +186,85 @@ class HelpScreen(ModalScreen[None]):
         self.dismiss(None)
 
 
+class ConfirmScreen(ModalScreen[bool]):
+    """Yes/no, for the one action here that cannot be undone."""
+
+    CSS = """
+    ConfirmScreen {
+        align: center middle;
+    }
+    #confirm {
+        width: 62;
+        height: auto;
+        padding: 1 2;
+        border: round $error;
+        background: $surface;
+    }
+    #confirm-buttons {
+        height: auto;
+        margin-top: 1;
+    }
+    """
+
+    BINDINGS = [
+        Binding("y", "confirm", "Yes"),
+        Binding("n,escape", "refuse", "No"),
+    ]
+
+    def __init__(self, question: str) -> None:
+        super().__init__()
+        self.question = question
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="confirm"):
+            yield Label(self.question)
+            with Horizontal(id="confirm-buttons"):
+                yield Button("Yes (y)", variant="error", id="confirm-yes")
+                yield Button("No (n)", id="confirm-no")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        self.dismiss(event.button.id == "confirm-yes")
+
+    def action_confirm(self) -> None:
+        self.dismiss(True)
+
+    def action_refuse(self) -> None:
+        self.dismiss(False)
+
+
 class DiggerApp(App):
     # The built-in palette showed up in the footer as an unexplained "palette".
     ENABLE_COMMAND_PALETTE = False
 
     CSS = """
+    #body {
+        height: 1fr;
+    }
+    #sidebar {
+        width: 24;
+        border-right: solid $panel;
+    }
+    #sidebar.collapsed {
+        display: none;
+    }
+    #sidebar-title {
+        padding: 0 1;
+        color: $text-muted;
+    }
+    #crates {
+        height: 1fr;
+        border: none;
+        background: transparent;
+    }
+    #crate-actions {
+        height: auto;
+    }
+    #crate-actions Button {
+        min-width: 6;
+        width: 1fr;
+        height: 1;
+        border: none;
+    }
     #status {
         height: auto;
         padding: 0 1;
@@ -223,11 +302,14 @@ class DiggerApp(App):
         export_format: str = "json",
         export_path: Optional[Path] = None,
         dig_options: Optional[dig_module.DigOptions] = None,
+        crate_record: Optional[CrateRecord] = None,
     ) -> None:
         super().__init__()
         self.rows: List[Row] = []
         self.state = state or TrackState()
-        self.crate_title = crate_title
+        self.crate = crate_record
+        self.crates: List[CrateRecord] = []
+        self.crate_title = crate_title or (crate_record.title if crate_record else "")
         self.browser = browser
         self.export_format = export_format
         self.export_path = export_path
@@ -244,19 +326,34 @@ class DiggerApp(App):
     # Layout
 
     def compose(self) -> ComposeResult:
-        yield Input(placeholder="Filter by artist or title", id="search")
-        yield DataTable(id="tracks", cursor_type="row", zebra_stripes=True)
+        with Horizontal(id="body"):
+            with Vertical(id="sidebar"):
+                yield Static("Crates", id="sidebar-title")
+                yield ListView(id="crates")
+                with Horizontal(id="crate-actions"):
+                    yield Button("+", id="crate-add", tooltip="Add a crate (d)")
+                    yield Button("\u21bb", id="crate-refresh", tooltip="Refresh (r)")
+                    yield Button("\u2715", id="crate-delete", tooltip="Delete (shift+X)")
+            with Vertical(id="main"):
+                yield Input(placeholder="Filter by artist or title", id="search")
+                yield DataTable(id="tracks", cursor_type="row", zebra_stripes=True)
         yield Static(id="status")
         yield Static(id="stores")
         yield Footer()
 
-    def on_mount(self) -> None:
+    async def on_mount(self) -> None:
         table = self.query_one("#tracks", DataTable)
         table.add_column("#", width=4)
-        table.add_column("Track", width=44)
-        table.add_column("Store", width=12)
-        table.add_column("Link", width=30)
+        table.add_column("Track", width=40)
+        table.add_column("Store", width=11)
+        table.add_column("Link", width=26)
         table.add_column("Status", width=7)
+        await self.reload_sidebar()
+        if not self.rows:
+            # Someone with a library wants to see it, not be interrogated.
+            latest = self.latest_crate()
+            if latest is not None:
+                self.load_crate(latest)
         self.refresh_rows()
         table.focus()
         if not self.rows:
@@ -271,6 +368,40 @@ class DiggerApp(App):
         self.present = links_module.present_categories(records)
         if self.store_filter not in self.present:
             self.store_filter = ""
+
+    # Crate library
+
+    def latest_crate(self) -> Optional[CrateRecord]:
+        if not self.crates:
+            return None
+        return max(self.crates, key=lambda r: r.refreshed_at or r.imported_at or "")
+
+    async def reload_sidebar(self) -> None:
+        # clear() only queues the removal, so appending without awaiting it
+        # leaves the old items in place and duplicates the list.
+        self.crates = library_module.list_crates()
+        listing = self.query_one("#crates", ListView)
+        await listing.clear()
+        for record in self.crates:
+            # A star marks a crate imported from an export file, which is missing
+            # fields the API would have given us.
+            listing.append(ListItem(Label(record.title + (" *" if record.partial else ""))))
+        if self.crate is not None:
+            slugs = [record.slug for record in self.crates]
+            if self.crate.slug in slugs:
+                listing.index = slugs.index(self.crate.slug)
+
+    def highlighted_crate(self) -> Optional[CrateRecord]:
+        listing = self.query_one("#crates", ListView)
+        index = listing.index
+        if index is None or not (0 <= index < len(self.crates)):
+            return self.crate
+        return self.crates[index]
+
+    def load_crate(self, record: CrateRecord) -> None:
+        self.crate = record
+        records = links_module.categorise_all(record.active_tracks)
+        self.load_records(records, title=record.title)
 
     def load_records(self, records: Sequence[LinkRecord], *, title: str = "") -> None:
         self._set_records(records)
@@ -346,6 +477,8 @@ class DiggerApp(App):
             pieces.append(f"search: {self.search_term!r}")
         if self.hide_handled:
             pieces.append("hiding handled")
+        if self.crate is not None and self.crate.partial:
+            pieces.append("imported from a file, press r to complete it")
         self.query_one("#status", Static).update(" \u00b7 ".join(pieces))
         self.update_store_line()
 
@@ -407,12 +540,72 @@ class DiggerApp(App):
         message = "Paste a SoundCloud link" if self.rows else "What are we digging?"
         self.push_screen(AskLinkScreen(message=message), self._link_entered)
 
+    def action_refresh_crate(self) -> None:
+        record = self.highlighted_crate()
+        if record is None:
+            self.notify("No crate to refresh", timeout=2)
+            return
+        if not record.source:
+            self.notify("This crate has no source to refresh from", severity="warning")
+            return
+        self.crate = record
+        self._start_dig(record.source)
+
+    def action_delete_crate(self) -> None:
+        record = self.highlighted_crate()
+        if record is None:
+            self.notify("No crate to delete", timeout=2)
+            return
+        self.push_screen(
+            ConfirmScreen(f"Delete the crate '{record.title}'? This cannot be undone."),
+            lambda confirmed: self._crate_delete_answered(record, bool(confirmed)),
+        )
+
+    def _crate_delete_answered(self, record: CrateRecord, confirmed: bool) -> None:
+        if not confirmed:
+            return
+        library_module.delete(record.slug)
+        if self.crate is not None and self.crate.slug == record.slug:
+            self.crate = None
+            self.crate_title = ""
+            self.load_records([])
+        self.crates = library_module.list_crates()
+        self.notify(f"Deleted '{record.title}'", timeout=3)
+        remaining = self.latest_crate()
+        if not self.rows and remaining is not None:
+            self.load_crate(remaining)
+        self.call_next(self.reload_sidebar)
+
+    def action_toggle_sidebar(self) -> None:
+        self.query_one("#sidebar").toggle_class("collapsed")
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        event.stop()
+        record = self.highlighted_crate()
+        if record is not None:
+            self.load_crate(record)
+        self.query_one("#tracks", DataTable).focus()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        event.stop()
+        actions = {
+            "crate-add": self.action_dig_link,
+            "crate-refresh": self.action_refresh_crate,
+            "crate-delete": self.action_delete_crate,
+        }
+        handler = actions.get(event.button.id or "")
+        if handler:
+            handler()
+
     def _link_entered(self, target: Optional[str]) -> None:
         if not target:
             if not self.rows:
                 # Nothing was asked for and there is nothing to show.
                 self.exit()
             return
+        self._start_dig(target)
+
+    def _start_dig(self, target: str) -> None:
         self._digging = True
         self.query_one("#tracks", DataTable).loading = True
         self.query_one("#status", Static).update(f"Digging {target}")
@@ -447,7 +640,10 @@ class DiggerApp(App):
         self._finish_digging()
         self.refresh_rows(keep_cursor=False)
         self.notify(message, severity="error", timeout=8)
-        self.action_dig_link()
+        # Only re-ask when there is nothing to fall back to; a failed refresh
+        # should not turn into a prompt for a different link.
+        if not self.rows:
+            self.action_dig_link()
 
     def _dig_finished(self, crate: Crate) -> None:
         self._finish_digging()
@@ -455,8 +651,11 @@ class DiggerApp(App):
             self._dig_failed(f"Found no tracks behind {crate.source}")
             return
 
-        records = links_module.categorise_all(crate.tracks)
-        self.load_records(records, title=crate.title or crate.source)
+        # Adding and refreshing both land here, so both persist the same way.
+        record = library_module.remember(crate)
+        self.load_crate(record)
+        self.call_next(self.reload_sidebar)
+        records = [row.record for row in self.rows]
 
         written = None
         if self.export_format != "none":
@@ -595,7 +794,7 @@ class DiggerApp(App):
         self.query_one("#tracks", DataTable).focus()
 
 
-def _short_url(url: str, limit: int = 29) -> str:
+def _short_url(url: str, limit: int = 25) -> str:
     trimmed = url.replace("https://", "").replace("http://", "")
     if len(trimmed) <= limit:
         return trimmed
@@ -611,6 +810,7 @@ def run_tui(
     export_format: str = "json",
     export_path: Optional[Path] = None,
     dig_options: Optional[dig_module.DigOptions] = None,
+    crate_record: Optional[CrateRecord] = None,
 ) -> None:
     DiggerApp(
         records,
@@ -620,4 +820,5 @@ def run_tui(
         export_format=export_format,
         export_path=export_path,
         dig_options=dig_options,
+        crate_record=crate_record,
     ).run()
