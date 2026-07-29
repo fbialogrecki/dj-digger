@@ -79,14 +79,28 @@ Press `?` for the full list, grouped by what each key acts on. That grouping is
 the point: it was previously impossible to tell whether a key hit one row or the
 whole list.
 
+**One row is one track.** A track selling on Bandcamp and also sitting behind a
+Hypeddit gate is one decision, not two, so it gets one row with a badge per
+store. The badge in bold is the one `o` would follow.
+
+| Column | Shows |
+| --- | --- |
+| `▶` | what is playing |
+| mark | `·` untouched, `○` opened, `✓` got it, `✗` skipped |
+| `#` | position in the crate |
+| Track | artist and title, taking whatever width is left over |
+| Stores | a badge per store; `shop` and `others` show the domain instead |
+| Genre | whatever the artist typed, or their first tag |
+| Time | track length |
+
 On the highlighted row:
 
 | Key | Action |
 | --- | --- |
 | arrows | move around |
-| `o` or `enter` | open its store link in your browser |
+| `o` or `enter` | open its best link, or the filtered store, in your browser |
 | `g` | mark as got, and move on; press again to undo |
-| `s` | mark as skipped; press again to undo |
+| `s` | mark as skipped, and move on; press again to undo |
 | `u` | clear the mark either way |
 | `x` | remove it from this crate, `ctrl+z` to undo |
 
@@ -99,6 +113,12 @@ Playback:
 | `n` `p` | next or previous track |
 | `-` `=` | quieter or louder, `m` mutes |
 | click | seek to that point on the waveform |
+
+A track that reaches its end rolls on to the next one, so auditioning a crate is
+not a keypress per track. The cursor comes along for the ride, unless you have
+moved it somewhere else - then playback carries on and `▶` shows where it got to.
+Marking the track you are listening to moves the listening on too, which is what
+makes `s` a triage key rather than a bookkeeping one.
 
 On the whole visible list:
 
@@ -121,16 +141,23 @@ Crates:
 | `shift+X` | delete it, after confirming |
 | `ctrl+b` | show or hide the crate sidebar |
 
-The store line under the header is the legend for the number keys, and it only
-lists stores this crate actually contains:
+One bar sits between the table and the footer. On the left is the legend for the
+number keys, listing only the stores this crate actually contains; on the right
+is how far through it you are:
 
 ```
-0 all  1 bandcamp·189  2 beatport·4  3 junodownload·1  4 shop·8  5 smartlink·2  6 others·86
+▸ 0 all  1 soundcloud·18  2 bandcamp·12  3 gate·53      83/83 tracks · got 0 · skipped 4
 ```
 
 So `1` is always the first store you have rather than a fixed category, and `f`
 never makes you cycle through eight empty ones. The `▸` marks what you are looking
-at; `0` takes you back to everything.
+at; `0` takes you back to everything. Narrow the terminal past the point where
+both halves fit and the counts give way to the legend, which is the half with a
+keyboard behind it - the bar is one line, never two.
+
+Filtering is also how you overrule which link `o` opens. Left alone it follows
+the best one, which puts buying it above earning it through a gate; pick the
+store you want and `o` goes there instead.
 
 **Marks are keyed by track id, not by playlist.** A track you bought once reads as
 `got it` the next time it turns up in somebody else's set. That state lives in a
@@ -140,7 +167,9 @@ on Linux).
 ## Your crate library
 
 Every crate you dig is saved, so switching between playlists is a keypress rather
-than a restart. The sidebar lists them; `enter` on one loads it.
+than a restart. The sidebar lists them; `enter` on one loads it. The `↻` and `✕`
+icons appear only on the row under the cursor or the mouse - the only row they
+could act on anyway - so the other rows get those six columns for their names.
 
 Crates store whole tracks rather than the categorised links, which means
 improving the store detection improves crates you imported months ago. Refreshing
@@ -215,23 +244,32 @@ Links are grouped by what you can actually do with them, best outcome first:
 
 | Category | Means |
 | --- | --- |
+| `soundcloud` | SoundCloud will hand you the file itself, or there is nowhere else to go |
 | `bandcamp` `beatport` `traxsource` `junodownload` `apple` | buy it there |
 | `shop` | another record shop: Boomkat, Hard Wax, Clone, Decks, Deejay, Red Eye, Juno, Phonica, Rush Hour, Bleep, Gumroad |
-| `hypeddit` | free, behind a Hypeddit gate |
-| `download` | free, behind another gate: Wump, The Artist Union, Toneden, Pump Your Sound |
-| `smartlink` | a click-through page: lnk.to, ffm.to, fanlink, smarturl, orcd.co, Linktree, or a label's own `.link` domain |
+| `gate` | free, once you follow or like: Hypeddit, Gaterush, Droploud, Wump, The Artist Union, Toneden, Pump Your Sound |
+| `smartlink` | a click-through page: lnk.to, ffm.to, fanlink, smarturl, orcd.co, DistroKid, Linktree, or a label's own `.link` domain |
 | `streaming` | Spotify, YouTube, Deezer, Tidal - nothing to buy |
-| `others` | an unrecognised link, or no link at all |
+| `others` | an unrecognised link |
 
 That grouping is not guesswork: it comes from surveying `purchase_url` across 53
 playlists and 3497 tracks. Smart links were by far the biggest thing the old
 four-store version threw into `others`, followed by follow-to-download gates.
+Every gate is the same chore from where you sit, so they share one category
+rather than splitting the count between near-synonyms.
 
 A link only earns a category by matching a domain on a boundary, so
 `evil-bandcamp.com` does not pass as Bandcamp. `purchase_url` is not always a
 shop either - artists hang interviews and press articles off it - and those stay
-in `others`. Tracks with no link anywhere still get a row, so nothing silently
-disappears.
+in `others`. Tracks with no link anywhere still get a row under `soundcloud`, so
+nothing silently disappears and the track page is still one keypress away.
+
+A `↓soundcloud` badge means the artist ticked the download box and has not yet
+run out: `downloadable` on its own keeps saying yes long after the free
+allowance is gone, so both that and `has_downloads_left` have to agree before
+the badge appears. The file itself lives behind the download button on the track
+page - the API endpoint for it needs a logged-in token, which this tool does not
+ask you for.
 
 Descriptions are treated as a weaker source than `purchase_url`: a buyable link
 in there is worth having, but the label's Linktree and Spotify profile pasted

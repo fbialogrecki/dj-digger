@@ -40,9 +40,11 @@ def test_store_link_is_found_in_the_description(tracks_by_id):
 
 
 def test_track_without_any_link_still_produces_a_row(tracks_by_id):
+    """Nowhere to buy it still means somewhere to go: its own SoundCloud page."""
+
     records = links.categorise(tracks_by_id[NO_LINK])
     assert len(records) == 1
-    assert records[0].category == "others"
+    assert records[0].category == "soundcloud"
     assert records[0].link_text == links.NO_STORE_LINK
     assert records[0].link_url == records[0].track.permalink_url
 
@@ -56,7 +58,7 @@ def test_unknown_domains_in_the_description_are_ignored():
         description="follow me https://instagram.com/someone and https://example.com/x",
     )
     records = links.categorise(track)
-    assert [record.category for record in records] == ["others"]
+    assert [record.category for record in records] == ["soundcloud"]
     assert records[0].link_text == links.NO_STORE_LINK
 
 
@@ -77,7 +79,7 @@ def test_streaming_and_smart_links_in_a_description_are_dropped(url):
         permalink_url="https://soundcloud.com/a/b",
         description=f"follow us, stream here {url}",
     )
-    assert [record.category for record in links.categorise(track)] == ["others"]
+    assert [record.category for record in links.categorise(track)] == ["soundcloud"]
 
 
 def test_the_same_links_do_count_when_they_are_the_purchase_field():
@@ -161,8 +163,59 @@ def test_different_stores_all_survive():
     assert sorted(record.category for record in links.categorise(track)) == [
         "bandcamp",
         "beatport",
-        "hypeddit",
+        "gate",
     ]
+
+
+def test_a_free_download_on_soundcloud_beats_the_shops():
+    track = Track(
+        title="Handed out",
+        permalink_url="https://soundcloud.com/a/b",
+        downloadable=True,
+        has_downloads_left=True,
+        purchase_url="https://label.bandcamp.com/album/x",
+    )
+    records = links.categorise(track)
+    assert [record.category for record in records] == ["soundcloud", "bandcamp"]
+    assert records[0].link_text == links.FREE_DOWNLOAD
+    assert records[0].link_url == track.permalink_url
+
+
+def test_a_used_up_free_download_is_not_offered():
+    """downloadable stays true after the artist's quota runs out, so it lies alone."""
+
+    track = Track(
+        title="All gone",
+        permalink_url="https://soundcloud.com/a/b",
+        downloadable=True,
+        has_downloads_left=False,
+        purchase_url="https://label.bandcamp.com/album/x",
+    )
+    assert categories_for(track) == ["bandcamp"]
+
+
+def test_group_by_track_puts_the_best_link_first():
+    track = Track(
+        title="Everywhere",
+        permalink_url="https://soundcloud.com/a/b",
+        purchase_url="https://hypeddit.com/x/y",
+        description="also at https://label.bandcamp.com/album/x",
+    )
+    other = Track(title="Alone", permalink_url="https://soundcloud.com/c/d")
+    groups = links.group_by_track(links.categorise_all([track, other]))
+    assert [[record.category for record in group] for group in groups] == [
+        ["bandcamp", "gate"],
+        ["soundcloud"],
+    ]
+
+
+def test_group_by_track_keeps_the_order_tracks_arrived_in():
+    tracks = [
+        Track(title=str(index), permalink_url=f"https://soundcloud.com/a/{index}")
+        for index in range(5)
+    ]
+    groups = links.group_by_track(links.categorise_all(tracks))
+    assert [group[0].track.title for group in groups] == ["0", "1", "2", "3", "4"]
 
 
 @pytest.mark.parametrize(
@@ -180,10 +233,14 @@ def test_different_stores_all_survive():
         ("https://boomkat.com/products/x", "shop"),
         ("https://www.redeyerecords.co.uk/x", "shop"),
         ("https://someone.gumroad.com/l/x", "shop"),
-        ("https://hypeddit.com/x/y", "hypeddit"),
-        ("https://hypd.it/abc", "hypeddit"),
-        ("https://wump.io/x", "download"),
-        ("https://theartistunion.com/tracks/x", "download"),
+        # Every follow-to-download gate is the same chore, so they share a name.
+        ("https://hypeddit.com/x/y", "gate"),
+        ("https://hypd.it/abc", "gate"),
+        ("https://wump.io/x", "gate"),
+        ("https://theartistunion.com/tracks/x", "gate"),
+        ("https://gaterush.me/abc", "gate"),
+        ("https://droploud.com/gate/x", "gate"),
+        ("https://distrokid.com/hyperfollow/x", "smartlink"),
         ("https://lnk.to/abc", "smartlink"),
         ("https://mezzanotte.lnk.to/abc", "smartlink"),
         ("https://ffm.to/abc", "smartlink"),

@@ -5,6 +5,10 @@ not a workflow. This screen lets you walk the list, open one link at a time,
 filter down to a single store and mark what you already own - and the marks
 survive between runs because they live in ``state.TrackState``.
 
+One row is one track, not one link. A track selling on Bandcamp and gated on
+Hypeddit is a single decision, so it gets a single row with a badge per store;
+the store filter doubles as the way to say which of them ``o`` should follow.
+
 It can also start from nothing: with no records it asks for a link, digs it in a
 worker thread so the interface stays responsive, and fills itself in.
 """
@@ -15,13 +19,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence
 
+from rich.table import Table
 from rich.text import Text
-from textual import work
+from textual import events, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
+from textual.timer import Timer
 from textual.widgets import Button, DataTable, Footer, Input, Label, ListItem, ListView, Static
+from textual.widgets.data_table import ColumnKey
 
 from . import browser as browser_module
 from . import dig as dig_module
@@ -42,16 +49,33 @@ from .player import (
 from .soundcloud import SoundCloudClient, SoundCloudError
 from .state import GOT, NEW, OPENED, SKIP, TrackState
 
+# A mark is one glyph in a one-cell gutter. Spelling "skipped" out cost seven
+# columns on every row to say "new" on nearly all of them; the width belongs to
+# the track title instead. HelpScreen carries the words.
 STATUS_STYLES = {
-    NEW: ("new", "white"),
-    OPENED: ("opened", "yellow"),
-    SKIP: ("skipped", "bright_black"),
-    GOT: ("got it", "bold green"),
+    NEW: ("\u00b7", "bright_black", "not looked at yet"),
+    OPENED: ("\u25cb", "yellow", "link opened, outcome unknown"),
+    SKIP: ("\u2717", "bright_black", "skipped"),
+    GOT: ("\u2713", "bold green", "got it"),
 }
+PLAYING_GLYPH = "\u25b6"
 OPEN_ALL_CONFIRM_THRESHOLD = 20
 # Number keys select the nth store that this crate actually contains, so `1` is
 # always the first store you have rather than a fixed category.
 QUICK_FILTER_KEYS = 9
+
+# Everything except the title gets a fixed budget; the title takes the rest, so
+# a wide terminal shows long titles instead of an empty margin.
+MARK_WIDTH = 1
+INDEX_WIDTH = 4
+STORES_WIDTH = 22
+GENRE_WIDTH = 14
+TIME_WIDTH = 5
+MIN_TITLE_WIDTH = 20
+
+# These two say nothing as a word - "shop" and "others" are what is left after
+# every recognised store, so the domain is the only thing that identifies them.
+DOMAIN_BADGE_CATEGORIES = {"shop", "others"}
 
 SELECTED = "Selected track"
 WHOLE_LIST = "Whole visible list"
@@ -63,7 +87,7 @@ OTHER = "Other"
 # (key, action, footer label, section, show in footer, longer help text).
 # Footer labels stay short because it gets one line; help has the room to explain.
 KEYMAP = [
-    ("o,enter", "open_link", "Open", SELECTED, True, "Open its store link in the browser"),
+    ("o,enter", "open_link", "Open", SELECTED, True, "Open its best link, or the filtered store"),
     ("g", "mark_got", "Got", SELECTED, True, "Mark as got, press again to undo"),
     ("s", "mark_skip", "Skip", SELECTED, True, "Mark as skipped, press again to undo"),
     ("u", "mark_new", "Unmark", SELECTED, False, "Clear the mark either way"),
@@ -121,8 +145,63 @@ HELP_EXTRA = {
 
 @dataclass
 class Row:
+    """One track, with every store it turned up in."""
+
     position: int
-    record: LinkRecord
+    track: Track
+    # Best first, in CATEGORY_NAMES order - see links.group_by_track.
+    records: List[LinkRecord]
+
+    @property
+    def categories(self) -> List[str]:
+        return [record.category for record in self.records]
+
+    def record_for(self, category: str) -> Optional[LinkRecord]:
+        for record in self.records:
+            if record.category == category:
+                return record
+        return None
+
+
+class TrackTable(DataTable):
+    """A table whose title column absorbs whatever width is left over.
+
+    DataTable columns are fixed or content-sized, neither of which fills the
+    terminal, so the width is worked out here and refreshed whenever the table
+    is resized - by the terminal, or by the sidebar folding away.
+    """
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.flexible_column: Optional[ColumnKey] = None
+
+    def on_resize(self, event: events.Resize) -> None:
+        self.fit_flexible_column()
+
+    def fit_flexible_column(self) -> None:
+        if self.flexible_column is None or self.flexible_column not in self.columns:
+            return
+        column = self.columns[self.flexible_column]
+        spent = sum(
+            other.get_render_width(self)
+            for key, other in self.columns.items()
+            if key != self.flexible_column
+        )
+        width = self.size.width - spent - 2 * self.cell_padding
+        column.width = max(MIN_TITLE_WIDTH, width)
+        self.refresh(layout=True)
+
+
+class StatusBar(Static):
+    """The bottom bar, which has to be rebuilt whenever its width changes.
+
+    Whether the counts fit beside the store legend is a width question, and the
+    app-level resize event fires before the layout settles - so the widget that
+    actually changed size is the one that has to ask.
+    """
+
+    def on_resize(self, event: events.Resize) -> None:
+        self.app.update_status()
 
 
 class CrateButton(Button):
@@ -143,9 +222,12 @@ class CrateItem(ListItem):
         # A star marks a crate imported from an export file, which is missing
         # fields the API would have given us. Text(), not a markup string: a
         # playlist called "Techno [2026]" would otherwise lose the bracketed part
-        # to Textual's markup parser.
+        # to Textual's markup parser. no_wrap because the row is one line tall,
+        # so a wrapped "Hard Techno Ressurection" would simply lose its surname.
         title = self.record.title + (" *" if self.record.partial else "")
-        yield Label(Text(title), classes="crate-name")
+        yield Label(
+            Text(title, no_wrap=True, overflow="ellipsis"), classes="crate-name"
+        ).with_tooltip(title)
         yield CrateButton("\u21bb", self.record, "refresh", "Refresh from SoundCloud (r)")
         yield CrateButton("\u2715", self.record, "delete", "Delete crate (shift+X)")
 
@@ -239,8 +321,16 @@ class HelpScreen(ModalScreen[None]):
             for key, label in entries:
                 body.append(f"  {key:<10}", style="cyan")
                 body.append(f"{label}\n")
-            if section != sections[-1]:
-                body.append("\n")
+            body.append("\n")
+
+        # The marks are one glyph wide in the table, so this is where they get
+        # to say what they mean.
+        body.append("Marks\n", style="bold")
+        body.append(f"  {PLAYING_GLYPH:<10}", style="cyan")
+        body.append("playing now\n")
+        for glyph, style, meaning in STATUS_STYLES.values():
+            body.append(f"  {glyph:<10}", style=style)
+            body.append(f"{meaning}\n")
         return body
 
     def action_dismiss(self) -> None:
@@ -328,13 +418,21 @@ class DiggerApp(App):
         width: 1fr;
         height: 1;
     }
+    /* The icons cost six of the sidebar's columns, which the crate names need
+       more than a row you are not pointing at does. They come back on the row
+       under the cursor or the mouse, which is the only row you can act on. */
     .crate-icon {
+        display: none;
         width: 3;
         min-width: 3;
         height: 1;
         border: none;
         padding: 0;
         background: transparent;
+    }
+    CrateItem.-highlight .crate-icon,
+    CrateItem.-hovered .crate-icon {
+        display: block;
     }
     .crate-icon:hover {
         background: $accent;
@@ -352,14 +450,12 @@ class DiggerApp(App):
         background: $accent;
         color: $text;
     }
+    /* Exactly one line. Left to wrap, this bar grew back into the three rows of
+       chrome it was meant to replace. */
     #status {
-        height: auto;
+        height: 1;
         padding: 0 1;
         color: $text-muted;
-    }
-    #stores {
-        height: auto;
-        padding: 0 1;
     }
     #search {
         display: none;
@@ -411,6 +507,9 @@ class DiggerApp(App):
         self._pending_open_all = False
         self._digging = False
         self._undone: List[str] = []
+        self._ticker: Optional[Timer] = None
+        # Decided fresh each time playback moves: does the cursor come along?
+        self._cursor_follows = True
         self.player = Player()
         self._client: Optional[SoundCloudClient] = None
         self._set_records(records)
@@ -426,19 +525,19 @@ class DiggerApp(App):
                 yield Button("+ Add crate", id="crate-add", tooltip="Add a crate (d)")
             with Vertical(id="main"):
                 yield Input(placeholder="Filter by artist or title", id="search")
-                yield DataTable(id="tracks", cursor_type="row", zebra_stripes=True)
-        yield Static(id="status")
-        yield Static(id="stores")
+                yield TrackTable(id="tracks", cursor_type="row", zebra_stripes=True)
+        yield StatusBar(id="status")
         yield Footer()
 
     async def on_mount(self) -> None:
-        table = self.query_one("#tracks", DataTable)
-        table.add_column("#", width=4)
-        table.add_column("Track", width=34)
-        table.add_column("Store", width=11)
-        table.add_column("Link", width=21)
-        table.add_column("Genre", width=10)
-        table.add_column("Status", width=7)
+        table = self.query_one("#tracks", TrackTable)
+        table.add_column(Text(PLAYING_GLYPH, style="bright_black"), width=MARK_WIDTH)
+        table.add_column("", width=MARK_WIDTH)
+        table.add_column("#", width=INDEX_WIDTH)
+        table.flexible_column = table.add_column("Track", width=MIN_TITLE_WIDTH)
+        table.add_column("Stores", width=STORES_WIDTH)
+        table.add_column("Genre", width=GENRE_WIDTH)
+        table.add_column("Time", width=TIME_WIDTH)
         await self.reload_sidebar()
         if not self.rows:
             # Someone with a library wants to see it, not be interrogated.
@@ -447,11 +546,18 @@ class DiggerApp(App):
                 self.load_crate(latest)
         self.refresh_rows()
         table.focus()
-        self.set_interval(0.25, self._tick)
+        # Needs a laid-out width to size itself against.
+        self.call_after_refresh(table.fit_flexible_column)
+        self._ticker = self.set_interval(0.25, self._tick)
         if not self.rows:
             self.action_dig_link()
 
     def on_unmount(self) -> None:
+        # A tick landing after the widgets have gone would go looking for a
+        # player bar that no longer exists.
+        if self._ticker is not None:
+            self._ticker.stop()
+            self._ticker = None
         self.player.close()
         if self._client is not None:
             self._client.close()
@@ -460,11 +566,15 @@ class DiggerApp(App):
 
     def _set_records(self, records: Sequence[LinkRecord]) -> None:
         self.rows = [
-            Row(position=index + 1, record=record) for index, record in enumerate(records)
+            Row(position=index + 1, track=group[0].track, records=group)
+            for index, group in enumerate(links_module.group_by_track(records))
         ]
         self.present = links_module.present_categories(records)
         if self.store_filter not in self.present:
             self.store_filter = ""
+
+    def all_records(self) -> List[LinkRecord]:
+        return [record for row in self.rows for record in row.records]
 
     # Crate library
 
@@ -515,54 +625,114 @@ class DiggerApp(App):
         term = self.search_term.strip().lower()
         rows = []
         for row in self.rows:
-            record = row.record
-            if self.store_filter and record.category != self.store_filter:
+            if self.store_filter and self.store_filter not in row.categories:
                 continue
             if self.hide_handled and self.status_of(row) in (GOT, SKIP):
                 continue
-            if term and term not in record.track.label.lower():
+            if term and term not in row.track.label.lower():
                 continue
             rows.append(row)
         return rows
 
     def status_of(self, row: Row) -> str:
-        return self.state.get(row.record.track.key)
+        return self.state.get(row.track.key)
+
+    def record_to_open(self, row: Row) -> LinkRecord:
+        """The link ``o`` would follow: the filtered store, else the best one.
+
+        Filtering to a store is how you say which shop you want, so while a
+        filter is on it also decides what opens - otherwise picking `bandcamp`
+        and pressing `o` would still send you to a follow gate.
+        """
+
+        if self.store_filter:
+            chosen = row.record_for(self.store_filter)
+            if chosen is not None:
+                return chosen
+        return row.records[0]
+
+    def _store_badges(self, row: Row) -> Text:
+        """Every store this track turned up in, the one ``o`` opens picked out."""
+
+        opening = self.record_to_open(row)
+        badges = Text()
+        for record in row.records:
+            if badges:
+                badges.append(" ")
+            free = record.link_text == links_module.FREE_DOWNLOAD
+            if record.category in DOMAIN_BADGE_CATEGORIES:
+                name = links_module.host_of(record.link_url) or record.category
+            elif free:
+                name = "\u2193" + record.category
+            else:
+                name = record.category
+            if record is not opening:
+                style = "bright_black"
+            elif free:
+                style = "bold green"
+            elif record.link_text == links_module.NO_STORE_LINK:
+                style = "bright_black"
+            else:
+                style = "bold cyan"
+            badges.append(name, style=style)
+        return badges
 
     def refresh_rows(self, *, keep_cursor: bool = True) -> None:
-        table = self.query_one("#tracks", DataTable)
+        table = self.query_one("#tracks", TrackTable)
         previous = table.cursor_row if keep_cursor else 0
         self.visible_rows = self.matching_rows()
+        loaded = self.player.loaded
+        playing_key = loaded.track.key if loaded is not None else None
 
         table.clear()
         for row in self.visible_rows:
-            record = row.record
             status = self.status_of(row)
-            label, style = STATUS_STYLES[status]
-            is_missing = record.link_text == links_module.NO_STORE_LINK
+            glyph, style, _meaning = STATUS_STYLES[status]
+            dim = "bright_black" if status == SKIP else ""
             table.add_row(
+                Text(PLAYING_GLYPH if row.track.key == playing_key else "", style="green"),
+                Text(glyph, style=style),
                 Text(str(row.position), style="bright_black"),
-                Text(record.track.label, style="bright_black" if status == SKIP else ""),
-                Text(record.category, style="bright_black" if is_missing else "cyan"),
-                Text(
-                    "-" if is_missing else _short_url(record.link_url),
-                    style="bright_black" if is_missing else "",
-                ),
-                Text(record.track.genre_label or "-", style="bright_black"),
-                Text(label, style=style),
+                Text(row.track.label, style=dim),
+                self._store_badges(row),
+                Text(row.track.genre_label or "-", style="bright_black"),
+                Text(row.track.duration_label or "-", style="bright_black"),
             )
 
         if self.visible_rows:
             table.move_cursor(row=min(previous, len(self.visible_rows) - 1))
+        table.fit_flexible_column()
         self.update_status()
 
     def update_status(self) -> None:
+        """One bar: the store legend on the left, where you are up to on the right.
+
+        These were two stacked bars above the footer, which made three rows of
+        chrome under the table. The crate name went with them - the sidebar
+        already highlights which crate you are in.
+        """
+
+        bar = self.query_one("#status", Static)
+        stores = self._store_line()
+        progress = self._progress_line()
+
+        grid = Table.grid(expand=True)
+        grid.add_column(no_wrap=True)
+        # Narrow terminals cannot have both. The legend is what the number keys
+        # are documented by, so the counts are what goes.
+        if len(stores) + len(progress) + 2 <= bar.size.width:
+            grid.add_column(justify="right", no_wrap=True)
+            grid.add_row(stores, progress)
+        else:
+            grid.add_row(stores)
+        bar.update(grid)
+
+    def _progress_line(self) -> Text:
         counts: Dict[str, int] = {status: 0 for status in STATUS_STYLES}
         for row in self.rows:
             counts[self.status_of(row)] += 1
 
-        # The crate name lives here now that the decorative header is gone.
-        pieces = [self.crate_title or "no crate yet"]
-        pieces.append(f"{len(self.visible_rows)}/{len(self.rows)} links")
+        pieces = [f"{len(self.visible_rows)}/{len(self.rows)} tracks"]
         pieces += [
             f"got {counts[GOT]}",
             f"skipped {counts[SKIP]}",
@@ -574,21 +744,17 @@ class DiggerApp(App):
             pieces.append("hiding handled")
         if self.crate is not None and self.crate.partial:
             pieces.append("imported from a file, press r to complete it")
-        self.query_one("#status", Static).update(" \u00b7 ".join(pieces))
-        self.update_store_line()
+        return Text(" \u00b7 ".join(pieces), style="bright_black")
 
-    def update_store_line(self) -> None:
-        """Show the stores in this crate, numbered, so the number keys explain themselves."""
+    def _store_line(self) -> Text:
+        """The stores in this crate, numbered, so the number keys explain themselves."""
 
         line = Text()
         if not self.rows:
             line.append("press d to dig a link", style="bright_black")
-            self.query_one("#stores", Static).update(line)
-            return
+            return line
 
-        by_category = links_module.count_by_category(
-            [row.record for row in self.rows]
-        )
+        by_category = links_module.count_by_category(self.all_records())
         showing_all = not self.store_filter
         line.append("\u25b8 " if showing_all else "  ", style="bold")
         line.append("0 all", style="bold reverse" if showing_all else "bright_black")
@@ -598,7 +764,7 @@ class DiggerApp(App):
             label = f"{index} {category}" if index <= QUICK_FILTER_KEYS else category
             line.append(label, style="bold reverse cyan" if active else "cyan")
             line.append(f"\u00b7{by_category[category]}", style="bright_black")
-        self.query_one("#stores", Static).update(line)
+        return line
 
     # Helpers
 
@@ -618,20 +784,27 @@ class DiggerApp(App):
         if row is None:
             return
         clearing = self.status_of(row) == status
-        self.state.set(row.record.track.key, NEW if clearing else status)
+        cursor = self.query_one("#tracks", DataTable).cursor_row
+        judging_what_plays = self._playing_index() == cursor
+        self.state.set(row.track.key, NEW if clearing else status)
         label = "Unmarked" if clearing else message
-        self.notify(f"{label}: {row.record.track.label}", timeout=2)
+        self.notify(f"{label}: {row.track.label}", timeout=2)
         self.refresh_rows()
-        if not clearing:
-            # Only move on when a mark was set, so undoing stays where you are.
-            self._advance_cursor()
+        if clearing:
+            # Undoing a mark should leave you looking at what you just undid.
+            return
+        self._advance_cursor()
+        if judging_what_plays and self.player.playing:
+            # You marked the track you were listening to, so listening moves on
+            # with you rather than finishing something you already ruled on.
+            self.action_play_step(1)
 
     def _set_status(self, status: str, message: str) -> None:
         row = self.current_row()
         if row is None:
             return
-        self.state.set(row.record.track.key, status)
-        self.notify(f"{message}: {row.record.track.label}", timeout=2)
+        self.state.set(row.track.key, status)
+        self.notify(f"{message}: {row.track.label}", timeout=2)
         self.refresh_rows()
 
     def _advance_cursor(self) -> None:
@@ -653,20 +826,37 @@ class DiggerApp(App):
         return self.query_one("#player", PlayerBar)
 
     def _tick(self) -> None:
+        # The timer belongs to the app and the bar to the screen, so on the way
+        # out a tick can arrive after the bar has already gone.
+        if not self.query("#player"):
+            return
+        if self.player.take_finished():
+            # Auditioning a crate means hearing all of it, not pressing a key
+            # between every track.
+            self._advance_playback()
+            return
         if self.player.playing:
             self._player_bar().refresh_bar()
 
-    def unique_tracks(self) -> List[Track]:
-        """Visible rows collapsed to tracks - a row is a link, so tracks repeat."""
+    def _advance_playback(self) -> None:
+        """Roll on by itself, taking the cursor only if it was keeping up.
 
-        seen = set()
-        tracks = []
-        for row in self.visible_rows:
-            track = row.record.track
-            if track.key not in seen:
-                seen.add(track.key)
-                tracks.append(track)
-        return tracks
+        Asking the question here, rather than watching every cursor move, keeps
+        it out of the way of the redraw - which moves the cursor too.
+        """
+
+        table = self.query_one("#tracks", DataTable)
+        self._cursor_follows = self._playing_index() == table.cursor_row
+        self._play_at(self._step_from_playing(1))
+
+    def _playing_index(self) -> Optional[int]:
+        loaded = self.player.loaded
+        if loaded is None:
+            return None
+        for index, row in enumerate(self.visible_rows):
+            if row.track.key == loaded.track.key:
+                return index
+        return None
 
     def _player_op(self, operation) -> None:
         """Run a player call. Every one of them can hit a missing audio device."""
@@ -682,12 +872,13 @@ class DiggerApp(App):
         row = self.current_row()
         if row is None:
             return
-        track = row.record.track
         loaded = self.player.loaded
-        if loaded is not None and loaded.track.key == track.key:
+        if loaded is not None and loaded.track.key == row.track.key:
             self._player_op(self.player.toggle)
             return
-        self._start_playback(track)
+        # Playing what the cursor is on re-couples the two.
+        self._cursor_follows = True
+        self._start_playback(row.track)
 
     def _start_playback(self, track: Track) -> None:
         if not track.id:
@@ -722,6 +913,8 @@ class DiggerApp(App):
         except Exception as exc:  # a bad stream must not take the app down
             self._playback_failed(f"Could not start the stream ({exc})")
             return
+        # Redraw first so the play marker lands on the new row, then chase it.
+        self.refresh_rows()
         self._focus_playing_track()
         bar.refresh_bar()
 
@@ -732,34 +925,43 @@ class DiggerApp(App):
         self.notify(message, severity="warning", timeout=6)
 
     def _focus_playing_track(self) -> None:
-        loaded = self.player.loaded
-        if loaded is None:
+        """Drag the cursor to what is playing, unless you steered it away.
+
+        Wandering down the list while something plays is normal, and having the
+        cursor yanked back on every auto-advance would make it impossible.
+        """
+
+        if not self._cursor_follows:
             return
-        for index, row in enumerate(self.visible_rows):
-            if row.record.track.key == loaded.track.key:
-                self.query_one("#tracks", DataTable).move_cursor(row=index)
-                return
+        index = self._playing_index()
+        if index is not None:
+            self.query_one("#tracks", DataTable).move_cursor(row=index)
 
     def action_seek(self, direction: int) -> None:
         if self.player.loaded is None:
             return
         self._player_op(lambda: self.player.nudge(direction * SEEK_STEP))
 
+    def _step_from_playing(self, step: int) -> Optional[int]:
+        if not self.visible_rows:
+            return None
+        playing = self._playing_index()
+        # Nothing of ours is playing, so step from wherever you are looking.
+        start = playing if playing is not None else self.query_one("#tracks", DataTable).cursor_row
+        index = start + step
+        return index if 0 <= index < len(self.visible_rows) else None
+
+    def _play_at(self, index: Optional[int]) -> None:
+        if index is None:
+            if self.visible_rows:
+                self.notify("End of the list", timeout=2)
+            return
+        self._start_playback(self.visible_rows[index].track)
+
     def action_play_step(self, step: int) -> None:
-        tracks = self.unique_tracks()
-        if not tracks:
-            return
-        loaded = self.player.loaded
-        keys = [track.key for track in tracks]
-        if loaded is not None and loaded.track.key in keys:
-            index = keys.index(loaded.track.key) + step
-        else:
-            current = self.current_row()
-            index = keys.index(current.record.track.key) + step if current else 0
-        if not 0 <= index < len(tracks):
-            self.notify("End of the list", timeout=2)
-            return
-        self._start_playback(tracks[index])
+        # Asking for the next track means you want to be taken there.
+        self._cursor_follows = True
+        self._play_at(self._step_from_playing(step))
 
     def action_volume(self, direction: int) -> None:
         self._player_op(lambda: self.player.change_volume(direction * VOLUME_STEP))
@@ -897,7 +1099,7 @@ class DiggerApp(App):
         record = library_module.remember(crate)
         self.load_crate(record)
         self.call_next(self.reload_sidebar)
-        records = [row.record for row in self.rows]
+        records = self.all_records()
 
         written = None
         if self.export_format != "none":
@@ -915,12 +1117,14 @@ class DiggerApp(App):
         row = self.current_row()
         if row is None:
             return
-        record = row.record
+        record = self.record_to_open(row)
         if record.link_text == links_module.NO_STORE_LINK:
             self.notify("No store link for this track - opening it on SoundCloud", timeout=3)
+        elif record.link_text == links_module.FREE_DOWNLOAD:
+            self.notify("Free on SoundCloud - the download button is on the page", timeout=4)
         if browser_module.open_url(record.link_url, self.browser):
             if self.status_of(row) == NEW:
-                self.state.set(record.track.key, OPENED)
+                self.state.set(row.track.key, OPENED)
             self.refresh_rows()
         else:
             self.notify("Could not open the link", severity="error")
@@ -951,7 +1155,7 @@ class DiggerApp(App):
         if self.crate is None:
             self.notify("This list is not a saved crate, nothing to remove from", timeout=4)
             return
-        track = row.record.track
+        track = row.track
         self.crate.remove(track.key)
         library_module.save(self.crate)
         self._undone.append(track.key)
@@ -985,11 +1189,11 @@ class DiggerApp(App):
             return
 
         self._pending_open_all = False
-        urls = [row.record.link_url for row in self.visible_rows]
+        urls = [self.record_to_open(row).link_url for row in self.visible_rows]
         opened = browser_module.open_urls(urls, self.browser)
         for row in self.visible_rows:
             if self.status_of(row) == NEW:
-                self.state.set(row.record.track.key, OPENED)
+                self.state.set(row.track.key, OPENED)
         self.notify(f"Opened {opened} links", timeout=3)
         self.refresh_rows()
 
@@ -1042,7 +1246,7 @@ class DiggerApp(App):
         if self.export_format == "none":
             self.notify("Export is disabled for this run", timeout=3)
             return
-        records = [row.record for row in self.visible_rows]
+        records = [record for row in self.visible_rows for record in row.records]
         if not records:
             self.notify("Nothing to export", timeout=2)
             return
@@ -1068,13 +1272,6 @@ class DiggerApp(App):
         if event.input.id != "search":
             return
         self.query_one("#tracks", DataTable).focus()
-
-
-def _short_url(url: str, limit: int = 20) -> str:
-    trimmed = url.replace("https://", "").replace("http://", "")
-    if len(trimmed) <= limit:
-        return trimmed
-    return trimmed[: limit - 1] + "\u2026"
 
 
 def run_tui(

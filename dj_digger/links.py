@@ -34,7 +34,7 @@ STORE_DOMAINS = {
     "junodownload": {"junodownload.com", "juno.co.uk"},
     "apple": {"apple.com", "apple.co"},
     # Real shops that individually turn up too rarely to deserve their own
-    # category - the Link column already shows which one it is.
+    # category - their badge shows the domain, so you still know which one.
     "shop": {
         "boomkat.com",
         "redeyerecords.co.uk",
@@ -48,9 +48,14 @@ STORE_DOMAINS = {
         "rushhour.nl",
         "bleep.com",
     },
-    "hypeddit": {"hypeddit.com", "hypd.it"},
-    # Follow-or-like gates: the track is free, but you have to earn it.
-    "download": {
+    # Follow-or-like gates: the track is free, but you have to earn it. Hypeddit
+    # is the big one, but from where you sit they are all the same chore, so they
+    # share a category rather than splitting the count across near-synonyms.
+    "gate": {
+        "hypeddit.com",
+        "hypd.it",
+        "gaterush.me",
+        "droploud.com",
         "wump.io",
         "theartistunion.com",
         "pumpyoursound.com",
@@ -59,6 +64,7 @@ STORE_DOMAINS = {
         "click.dj",
     },
     "smartlink": {
+        "distrokid.com",
         "lnk.to",
         "ffm.to",
         "fanlink.to",
@@ -91,17 +97,20 @@ STORE_DOMAINS = {
 # Labels buy their own smart-link domains on this TLD, which is what it exists for.
 SMARTLINK_TLD = ".link"
 
-# Ordered so that the best outcome comes first: somewhere to buy, then a gate to
-# get it free, then a click-through, then stream-only, then no idea.
+# Ordered so that the best outcome comes first, which is also the order the TUI
+# opens links in: a file SoundCloud will simply give you, then somewhere to buy,
+# then a gate to earn it free, then a click-through, then stream-only, then no
+# idea. "soundcloud" is also where tracks land that have no store link at all -
+# the track page is still worth opening, for the description if nothing else.
 CATEGORY_NAMES = [
+    "soundcloud",
     "bandcamp",
     "beatport",
     "traxsource",
     "junodownload",
     "apple",
     "shop",
-    "hypeddit",
-    "download",
+    "gate",
     "smartlink",
     "streaming",
     "others",
@@ -110,7 +119,12 @@ CATEGORY_NAMES = [
 # Descriptions are promo boilerplate - full of Spotify, YouTube and the label's
 # linktree on every single track. Only destinations you can actually buy or
 # download from are worth harvesting out of them.
-DESCRIPTION_CATEGORIES = frozenset(CATEGORY_NAMES) - {"smartlink", "streaming", "others"}
+DESCRIPTION_CATEGORIES = frozenset(CATEGORY_NAMES) - {
+    "soundcloud",
+    "smartlink",
+    "streaming",
+    "others",
+}
 
 CATEGORY_CHOICES = CATEGORY_NAMES + ["all"]
 EXPORT_FORMATS = ["json", "yaml", "csv", "none"]
@@ -119,6 +133,7 @@ URL_RE = re.compile(r"https?://[^\s<>\"'\)\]]+")
 TRAILING_PUNCTUATION = ".,;:!?)]}>\"'"
 
 NO_STORE_LINK = "No store link found"
+FREE_DOWNLOAD = "Free download on SoundCloud"
 
 LOGGER = logging.getLogger(__name__)
 
@@ -191,6 +206,12 @@ def categorise(track: Track) -> List[LinkRecord]:
     claimed: Set[str] = set()
     unmatched: List[Tuple[str, str]] = []
 
+    if track.free_download:
+        # Nothing beats a file the artist is handing out directly, so this one
+        # goes in even when the track also sells somewhere.
+        records.append(LinkRecord("soundcloud", track, track.permalink_url, FREE_DOWNLOAD))
+        claimed.add("soundcloud")
+
     for url, text, source in candidate_links(track):
         category = store_for_url(url)
         if category:
@@ -210,7 +231,7 @@ def categorise(track: Track) -> List[LinkRecord]:
     if unmatched:
         return [LinkRecord("others", track, url, text) for url, text in unmatched]
 
-    return [LinkRecord("others", track, track.permalink_url, NO_STORE_LINK)]
+    return [LinkRecord("soundcloud", track, track.permalink_url, NO_STORE_LINK)]
 
 
 def categorise_all(tracks: Iterable[Track]) -> List[LinkRecord]:
@@ -218,6 +239,24 @@ def categorise_all(tracks: Iterable[Track]) -> List[LinkRecord]:
     for track in tracks:
         records.extend(categorise(track))
     return records
+
+
+def group_by_track(records: Sequence[LinkRecord]) -> List[List[LinkRecord]]:
+    """One list of links per track, tracks in first-seen order, best link first.
+
+    ``categorise`` emits a record per store, so a track selling on Bandcamp and
+    gated on Hypeddit arrives as two records. Anything showing one row per track
+    needs them back together, ordered so the first is the one worth opening.
+    """
+
+    rank = {name: index for index, name in enumerate(CATEGORY_NAMES)}
+    groups: Dict[str, List[LinkRecord]] = {}
+    for record in records:
+        groups.setdefault(record.track.key, []).append(record)
+    return [
+        sorted(group, key=lambda record: rank.get(record.category, len(rank)))
+        for group in groups.values()
+    ]
 
 
 def build_summary(records: Sequence[LinkRecord]) -> Dict[str, List[Dict[str, object]]]:

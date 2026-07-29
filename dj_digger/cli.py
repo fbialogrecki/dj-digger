@@ -344,7 +344,10 @@ def handle_open(args: argparse.Namespace) -> int:
     from .tui import run_tui
 
     run_tui(
-        records,
+        # Re-derived from the URLs rather than trusting the category names in
+        # the file, so a summary written by an older version still groups the
+        # way this one does.
+        links.categorise_all(record.active_tracks),
         state=TrackState(),
         crate_title=record.title,
         browser=args.browser,

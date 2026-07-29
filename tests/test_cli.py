@@ -192,6 +192,38 @@ def test_open_imports_the_summary_into_the_library_as_partial(tmp_path, monkeypa
     assert links.categorise(crates[0].tracks[0])[0].category == "bandcamp"
 
 
+def test_open_recategorises_a_summary_written_by_an_older_version(tmp_path, monkeypatch):
+    """The file says "hypeddit", a name this version no longer has."""
+
+    summary = tmp_path / "old.json"
+    summary.write_text(
+        json.dumps(
+            {
+                "hypeddit": [
+                    {
+                        "title": "Gated",
+                        "track_url": "https://soundcloud.com/a/t",
+                        "shop_link": "https://hypeddit.com/x/y",
+                        "track_id": 11,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: True)
+
+    seen = {}
+    monkeypatch.setattr(
+        "dj_digger.tui.DiggerApp.__init__",
+        lambda self, records=(), **kwargs: seen.update(records=list(records)) or None,
+    )
+    monkeypatch.setattr("dj_digger.tui.DiggerApp.run", lambda self: None)
+
+    assert cli.main(["open", str(summary)]) == 0
+    assert [record.category for record in seen["records"]] == ["gate"]
+
+
 def test_dig_options_carry_the_cli_knobs():
     options = cli._dig_options(cli.parse_cli_args(["link", "-n", "5", "--timeout", "3"]))
     assert (options.limit, options.timeout) == (5, 3.0)

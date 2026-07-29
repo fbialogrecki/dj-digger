@@ -288,6 +288,7 @@ class Player:
         self._frames = 0
         self._offset = 0.0
         self._playing = False
+        self._finished = False
         self._volume = 0.8
         self._muted = False
         self.unavailable_reason: Optional[str] = None
@@ -320,6 +321,16 @@ class Player:
     @property
     def playing(self) -> bool:
         return self._playing
+
+    def take_finished(self) -> bool:
+        """True once for each track that ran to its end, then False again.
+
+        Clearing on read is what stops a caller polling on a timer from firing
+        the same end-of-track over and over while the next one loads.
+        """
+
+        finished, self._finished = self._finished, False
+        return finished
 
     @property
     def duration(self) -> float:
@@ -389,6 +400,7 @@ class Player:
                 chunk = stream.send(required)
             if not len(chunk):
                 self._playing = False
+                self._finished = True
                 return
             self._frames += len(chunk) // CHANNELS
             volume = self.volume
@@ -415,6 +427,7 @@ class Player:
             next(self._generator)
         device.start(self._generator)
         self._playing = True
+        self._finished = False
 
     def pause(self) -> None:
         if self._device is not None and self._playing:
@@ -429,6 +442,7 @@ class Player:
             self._device.stop()
         self._close_source()
         self._playing = False
+        self._finished = False
         self._frames = 0
         self._offset = 0.0
 
@@ -444,6 +458,7 @@ class Player:
         self._offset = target
         self._frames = 0
         self._playing = False
+        self._finished = False
         if was_playing:
             self.play()
 

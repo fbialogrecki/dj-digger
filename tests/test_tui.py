@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import io
 import json
 from types import SimpleNamespace
 
 import pytest
+from rich.console import Console
 from textual.widgets import Button, DataTable, Input, Label, ListView, Static
 
 from dj_digger import library, links
@@ -22,6 +24,22 @@ def run(scenario):
     asyncio.run(scenario())
 
 
+def bar_text(app, width=200):
+    """The bottom bar as plain text - it is a Rich grid, not a bare string."""
+
+    # force_terminal, or Rich clamps a non-tty to 80 columns whatever we ask for.
+    console = Console(width=width, file=io.StringIO(), force_terminal=True)
+    console.print(app.query_one("#status", Static).content)
+    return console.file.getvalue()
+
+
+# Cell offsets into a table row: playing, mark, number, title, stores, genre, time.
+TITLE_CELL = 3
+STORES_CELL = 4
+GENRE_CELL = 5
+TIME_CELL = 6
+
+
 @pytest.fixture
 def state(tmp_path):
     return TrackState(tmp_path / "state.json")
@@ -37,10 +55,16 @@ def make_app(records, state, **kwargs):
 
 
 def synthetic_records(count, category="bandcamp"):
+    """Ids run from 1: SoundCloud has no track 0, and 0 reads as "no id at all"."""
+
     return [
         LinkRecord(
             category=category,
-            track=Track(title=f"Track {index}", permalink_url=f"https://soundcloud.com/a/{index}", id=index),
+            track=Track(
+                title=f"Track {index}",
+                permalink_url=f"https://soundcloud.com/a/{index}",
+                id=index + 1,
+            ),
             link_url=f"https://label.bandcamp.com/track/{index}",
             link_text="Buy",
         )
@@ -78,19 +102,48 @@ def test_the_command_palette_is_off(records, state):
     assert make_app(records, state).ENABLE_COMMAND_PALETTE is False
 
 
-def test_the_status_bar_carries_the_crate_name(records, state):
+def test_the_bottom_bar_pairs_the_stores_with_your_progress(records, state):
+    """One bar, not two stacked ones: the legend left, how far you are right."""
+
     app = make_app(records, state)
 
     async def scenario():
-        async with app.run_test():
-            assert "test crate" in str(app.query_one("#status", Static).render())
+        async with app.run_test(size=(160, 24)) as pilot:
+            await pilot.pause()
+            text = bar_text(app)
+            assert text.count("\n") == 1
+            assert "0 all" in text
+            assert "got 0" in text
+            # The sidebar says which crate this is, so the bar does not repeat it.
+            assert "test crate" not in text
 
     run(scenario)
 
 
-def test_bars_sit_below_the_table(records, state):
-    """Both info bars belong at the bottom, under the table and sidebar."""
+def test_the_bar_stays_one_line_and_drops_the_counts_when_cramped(records, state):
+    """Wrapping would grow it back into the stack of bars it replaced."""
 
+    app = make_app(records, state)
+
+    async def scenario():
+        async with app.run_test(size=(160, 24)) as pilot:
+            await pilot.pause()
+            bar = app.query_one("#status", Static)
+            assert bar.size.height == 1
+            assert "got 0" in bar_text(app)
+
+            await pilot.resize_terminal(60, 24)
+            await pilot.pause()
+            assert bar.size.height == 1
+            # The legend documents the number keys, so the counts are what goes.
+            text = bar_text(app, width=60)
+            assert "0 all" in text
+            assert "got 0" not in text
+
+    run(scenario)
+
+
+def test_the_bar_sits_below_the_table(records, state):
     app = make_app(records, state)
 
     async def scenario():
@@ -98,19 +151,41 @@ def test_bars_sit_below_the_table(records, state):
             order = [
                 widget.id
                 for widget in app.screen.children
-                if widget.id in {"body", "status", "stores"}
+                if widget.id in {"body", "status"}
             ]
-            assert order == ["body", "status", "stores"]
+            assert order == ["body", "status"]
 
     run(scenario)
 
 
-def test_every_link_gets_a_row(records, state):
+def test_every_track_gets_a_row(records, state):
     app = make_app(records, state)
 
     async def scenario():
         async with app.run_test():
             assert app.query_one("#tracks", DataTable).row_count == len(records)
+
+    run(scenario)
+
+
+def test_a_track_in_two_stores_is_still_one_row(state):
+    """Buying it on Bandcamp or earning it on a gate is one decision, not two."""
+
+    track = Track(
+        title="Everywhere",
+        permalink_url="https://soundcloud.com/a/b",
+        id=77,
+        purchase_url="https://hypeddit.com/x/y",
+        description="also at https://label.bandcamp.com/album/x",
+    )
+    records = links.categorise_all([track])
+    assert len(records) == 2
+    app = make_app(records, state)
+
+    async def scenario():
+        async with app.run_test():
+            assert app.query_one("#tracks", DataTable).row_count == 1
+            assert app.rows[0].categories == ["bandcamp", "gate"]
 
     run(scenario)
 
@@ -233,14 +308,14 @@ def test_number_keys_select_the_stores_this_crate_actually_has(records, state):
 
     async def scenario():
         async with app.run_test() as pilot:
-            assert app.present == ["bandcamp", "others"]
+            assert app.present == ["soundcloud", "bandcamp", "others"]
 
-            await pilot.press("1")
+            await pilot.press("2")
             assert app.store_filter == "bandcamp"
             expected = sum(1 for record in records if record.category == "bandcamp")
             assert app.query_one("#tracks", DataTable).row_count == expected
 
-            await pilot.press("2")
+            await pilot.press("3")
             assert app.store_filter == "others"
 
             await pilot.press("0")
@@ -268,6 +343,8 @@ def test_cycling_walks_only_the_stores_present(records, state):
 
     async def scenario():
         async with app.run_test() as pilot:
+            await pilot.press("f")
+            assert app.store_filter == "soundcloud"
             await pilot.press("f")
             assert app.store_filter == "bandcamp"
             await pilot.press("f")
@@ -709,6 +786,9 @@ def test_each_crate_row_carries_its_own_buttons(state, monkeypatch, intent, expe
             await pilot.pause()
             items = list(app.query(tui.CrateItem))
             assert len(items) == 2
+            # Icons only exist on the row you are pointing at.
+            app.query_one("#crates", ListView).index = 1
+            await pilot.pause()
             button = next(
                 child
                 for child in items[1].children
@@ -719,6 +799,46 @@ def test_each_crate_row_carries_its_own_buttons(state, monkeypatch, intent, expe
 
     run(scenario)
     assert called == [target.title]
+
+
+def test_crate_icons_keep_out_of_the_way_of_the_name(state):
+    """Six columns of icons on every row is six columns the names need more."""
+
+    saved_crate(1, source="https://soundcloud.com/a/sets/one", title="One")
+    saved_crate(1, source="https://soundcloud.com/a/sets/two", title="Two")
+    app = make_app([], state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.query_one("#crates", ListView).index = 0
+            await pilot.pause()
+            items = list(app.query(tui.CrateItem))
+            shown = [
+                [child.display for child in item.children if isinstance(child, tui.CrateButton)]
+                for item in items
+            ]
+            assert shown == [[True, True], [False, False]]
+
+    run(scenario)
+
+
+def test_a_long_crate_name_is_trimmed_rather_than_wrapped_away(state):
+    """height: 1 means a wrapped name loses its second half entirely."""
+
+    saved_crate(1, source="https://soundcloud.com/a/sets/x", title="Hard Techno Ressurection")
+    app = make_app([], state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            label = app.query_one(".crate-name", Label)
+            assert label.content.no_wrap is True
+            assert label.content.overflow == "ellipsis"
+            # The full name is still reachable, just not all at once.
+            assert label.tooltip == "Hard Techno Ressurection"
+
+    run(scenario)
 
 
 def test_a_dig_lands_in_the_library(state, monkeypatch):
@@ -817,8 +937,137 @@ def test_the_genre_column_shows_genre_then_tag_then_nothing(state):
     async def scenario():
         async with app.run_test():
             table = app.query_one("#tracks", DataTable)
-            genres = [str(table.get_row_at(index)[4]) for index in range(3)]
+            genres = [str(table.get_row_at(index)[GENRE_CELL]) for index in range(3)]
             assert genres == ["Techno", "Acid", "-"]
+
+    run(scenario)
+
+
+def test_the_time_column_reads_as_minutes_and_seconds(state):
+    tracks = [
+        Track(title="A", permalink_url="u/a", id=1, duration=254_000),
+        Track(title="B", permalink_url="u/b", id=2),
+    ]
+    app = make_app(links.categorise_all(tracks), state)
+
+    async def scenario():
+        async with app.run_test():
+            table = app.query_one("#tracks", DataTable)
+            assert [str(table.get_row_at(index)[TIME_CELL]) for index in range(2)] == ["4:14", "-"]
+
+    run(scenario)
+
+
+def test_the_store_column_badges_every_store_and_picks_out_the_one_o_opens(state):
+    track = Track(
+        title="Everywhere",
+        permalink_url="https://soundcloud.com/a/b",
+        id=5,
+        purchase_url="https://hypeddit.com/x/y",
+        description="also at https://label.bandcamp.com/album/x",
+    )
+    app = make_app(links.categorise_all([track]), state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            table = app.query_one("#tracks", DataTable)
+            assert str(table.get_row_at(0)[STORES_CELL]) == "bandcamp gate"
+            # Bandcamp comes first, so that is what o would follow.
+            assert app.record_to_open(app.rows[0]).category == "bandcamp"
+
+            # Filtering to the gate is how you say you want the gate instead.
+            await pilot.press("2")
+            assert app.store_filter == "gate"
+            assert app.record_to_open(app.rows[0]).category == "gate"
+
+    run(scenario)
+
+
+def test_a_free_soundcloud_download_is_badged_and_opened_first(state):
+    track = Track(
+        title="Handed out",
+        permalink_url="https://soundcloud.com/a/b",
+        id=6,
+        downloadable=True,
+        has_downloads_left=True,
+        purchase_url="https://label.bandcamp.com/album/x",
+    )
+    app = make_app(links.categorise_all([track]), state)
+
+    async def scenario():
+        async with app.run_test():
+            table = app.query_one("#tracks", DataTable)
+            assert str(table.get_row_at(0)[STORES_CELL]) == "\u2193soundcloud bandcamp"
+            chosen = app.record_to_open(app.rows[0])
+            assert chosen.category == "soundcloud"
+            assert chosen.link_url == track.permalink_url
+
+    run(scenario)
+
+
+def test_shops_and_others_are_badged_with_their_domain(state):
+    """"others" as a word says nothing; the domain is the only identification."""
+
+    tracks = [
+        Track(title="A", permalink_url="u/a", id=1, purchase_url="https://www.nofu.de/redirect/?r=X"),
+        Track(title="B", permalink_url="u/b", id=2, purchase_url="https://boomkat.com/products/x"),
+    ]
+    app = make_app(links.categorise_all(tracks), state)
+
+    async def scenario():
+        async with app.run_test():
+            table = app.query_one("#tracks", DataTable)
+            badges = [str(table.get_row_at(index)[STORES_CELL]) for index in range(2)]
+            assert badges == ["nofu.de", "boomkat.com"]
+
+    run(scenario)
+
+
+def test_the_status_bar_counts_tracks_not_links(state):
+    track = Track(
+        title="Everywhere",
+        permalink_url="https://soundcloud.com/a/b",
+        id=7,
+        purchase_url="https://hypeddit.com/x/y",
+        description="also at https://label.bandcamp.com/album/x",
+    )
+    app = make_app(links.categorise_all([track]), state)
+
+    async def scenario():
+        async with app.run_test(size=(160, 24)) as pilot:
+            await pilot.pause()
+            assert "1/1 tracks" in bar_text(app)
+
+    run(scenario)
+
+
+def test_the_title_column_takes_the_width_left_over(state):
+    """A fixed title column left half the terminal empty and cut the titles."""
+
+    app = make_app(synthetic_records(3), state)
+
+    async def scenario():
+        async with app.run_test(size=(160, 24)) as pilot:
+            await pilot.pause()
+            table = app.query_one("#tracks", tui.TrackTable)
+            spent = sum(column.get_render_width(table) for column in table.columns.values())
+            assert spent == table.size.width
+            assert table.columns[table.flexible_column].width > tui.MIN_TITLE_WIDTH
+
+    run(scenario)
+
+
+def test_folding_the_sidebar_gives_the_title_more_room(state):
+    app = make_app(synthetic_records(3), state)
+
+    async def scenario():
+        async with app.run_test(size=(160, 24)) as pilot:
+            await pilot.pause()
+            table = app.query_one("#tracks", tui.TrackTable)
+            before = table.columns[table.flexible_column].width
+            await pilot.press("ctrl+b")
+            await pilot.pause()
+            assert table.columns[table.flexible_column].width > before
 
     run(scenario)
 
@@ -840,6 +1089,11 @@ class FakePlayer:
         self.seeks = []
         self.closed = False
         self.muted = False
+        self.finished = False
+
+    def take_finished(self):
+        finished, self.finished = self.finished, False
+        return finished
 
     def load(self, track, stream, session, waveform=None):
         self.loaded = SimpleNamespace(
@@ -877,7 +1131,7 @@ class FakePlayer:
 
 
 def two_tracks_three_links():
-    """One track sold in two shops, so it owns two rows but is still one track."""
+    """One track sold in two shops, plus a plain one: three links, two rows."""
 
     both = Track(
         title="Sold twice",
@@ -901,7 +1155,20 @@ def player_app(records, state, **kwargs):
     return app
 
 
-def test_rows_collapse_to_unique_tracks_for_the_player():
+def loading_fetch(app, started):
+    """Stand in for the audio worker, doing what _audio_ready would do."""
+
+    def fetch(track):
+        started.append(track.id)
+        app.player.load(track, a_stream(), None)
+        app.player.play()
+        app.refresh_rows()
+        app._focus_playing_track()
+
+    return fetch
+
+
+def test_three_links_over_two_tracks_make_two_rows():
     records = two_tracks_three_links()
     assert len(records) == 3
 
@@ -909,14 +1176,12 @@ def test_rows_collapse_to_unique_tracks_for_the_player():
 
     async def scenario():
         async with app.run_test():
-            assert [track.id for track in app.unique_tracks()] == [901, 902]
+            assert [row.track.id for row in app.rows] == [901, 902]
 
     run(scenario)
 
 
-def test_next_track_skips_the_second_row_of_the_same_track(state, monkeypatch):
-    """A naive next-row would replay the track that owns two rows."""
-
+def test_next_track_moves_on_to_the_next_track(state, monkeypatch):
     app = player_app(two_tracks_three_links(), state)
     started = []
     monkeypatch.setattr(app, "fetch_audio", lambda track: started.append(track.id))
@@ -940,12 +1205,127 @@ def test_previous_track_walks_back(state, monkeypatch):
     async def scenario():
         async with app.run_test() as pilot:
             table = app.query_one("#tracks", DataTable)
-            table.move_cursor(row=2)  # the second track
+            table.move_cursor(row=1)  # the second track
             await pilot.press("p")
             await pilot.pause()
 
     run(scenario)
     assert started == [901]
+
+
+def test_a_finished_track_rolls_on_to_the_next(state, monkeypatch):
+    """Auditioning a crate should not need a keypress between every track."""
+
+    app = player_app(synthetic_records(4), state)
+    started = []
+    monkeypatch.setattr(app, "fetch_audio", loading_fetch(app, started))
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("space")
+            await pilot.pause()
+            app.player.finished = True
+            app._tick()
+            await pilot.pause()
+            assert app.query_one("#tracks", DataTable).cursor_row == 1
+
+    run(scenario)
+    assert started == [1, 2]
+
+
+def test_the_end_of_the_list_stops_instead_of_wrapping(state, monkeypatch):
+    app = player_app(synthetic_records(2), state)
+    started = []
+    monkeypatch.setattr(app, "fetch_audio", loading_fetch(app, started))
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            app.query_one("#tracks", DataTable).move_cursor(row=1)
+            await pilot.press("space")
+            await pilot.pause()
+            app.player.finished = True
+            app._tick()
+            await pilot.pause()
+
+    run(scenario)
+    assert started == [2]
+
+
+def test_wandering_off_leaves_the_cursor_where_you_put_it(state, monkeypatch):
+    """Browsing ahead while something plays must survive the auto-advance."""
+
+    app = player_app(synthetic_records(4), state)
+    started = []
+    monkeypatch.setattr(app, "fetch_audio", loading_fetch(app, started))
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            table = app.query_one("#tracks", DataTable)
+            await pilot.press("space")
+            await pilot.pause()
+            table.move_cursor(row=3)
+            await pilot.pause()
+
+            app.player.finished = True
+            app._tick()
+            await pilot.pause()
+            assert table.cursor_row == 3
+
+    run(scenario)
+    # Playback moved on all the same.
+    assert started == [1, 2]
+
+
+def test_the_playing_row_carries_a_marker(state, monkeypatch):
+    app = player_app(synthetic_records(3), state)
+    monkeypatch.setattr(app, "fetch_audio", loading_fetch(app, []))
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            table = app.query_one("#tracks", DataTable)
+            await pilot.press("space")
+            await pilot.pause()
+            markers = [str(table.get_row_at(index)[0]) for index in range(3)]
+            assert markers == [tui.PLAYING_GLYPH, "", ""]
+
+    run(scenario)
+
+
+def test_marking_the_track_you_are_hearing_moves_listening_on_too(state, monkeypatch):
+    """Ruling on a track mid-triage should not leave it playing to the end."""
+
+    app = player_app(synthetic_records(4), state)
+    started = []
+    monkeypatch.setattr(app, "fetch_audio", loading_fetch(app, started))
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("space")
+            await pilot.pause()
+            await pilot.press("s")
+            await pilot.pause()
+            assert app.query_one("#tracks", DataTable).cursor_row == 1
+
+    run(scenario)
+    assert started == [1, 2]
+
+
+def test_marking_a_track_you_are_not_hearing_leaves_playback_alone(state, monkeypatch):
+    app = player_app(synthetic_records(4), state)
+    started = []
+    monkeypatch.setattr(app, "fetch_audio", loading_fetch(app, started))
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            table = app.query_one("#tracks", DataTable)
+            await pilot.press("space")
+            await pilot.pause()
+            table.move_cursor(row=2)
+            await pilot.press("s")
+            await pilot.pause()
+
+    run(scenario)
+    assert started == [1]
 
 
 def test_space_toggles_a_track_that_is_already_loaded(records, state, monkeypatch):
@@ -954,7 +1334,7 @@ def test_space_toggles_a_track_that_is_already_loaded(records, state, monkeypatc
 
     async def scenario():
         async with app.run_test() as pilot:
-            track = app.visible_rows[0].record.track
+            track = app.visible_rows[0].track
             app.player.load(track, a_stream(), None)
             await pilot.press("space")
             assert app.player.playing is True
@@ -969,7 +1349,7 @@ def test_seek_keys_nudge_the_position(records, state):
 
     async def scenario():
         async with app.run_test() as pilot:
-            app.player.load(app.visible_rows[0].record.track, a_stream(), None)
+            app.player.load(app.visible_rows[0].track, a_stream(), None)
             app.player.position = 100.0
             await pilot.press("right_square_bracket")
             await pilot.press("left_square_bracket")
@@ -1069,7 +1449,7 @@ def test_clicking_the_waveform_maps_to_a_time(records, state):
     async def scenario():
         async with app.run_test():
             bar = app.query_one("#player", PlayerBar)
-            app.player.load(app.visible_rows[0].record.track, a_stream(), None)
+            app.player.load(app.visible_rows[0].track, a_stream(), None)
             width = bar._bar_width()
             assert bar.seconds_at(1) == pytest.approx(0.0)
             assert bar.seconds_at(1 + width) == pytest.approx(app.player.duration)
