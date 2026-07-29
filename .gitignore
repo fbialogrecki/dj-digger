@@ -1,3 +1,4 @@
 *.json
 *.yaml
 *.html
+graphify-out/
