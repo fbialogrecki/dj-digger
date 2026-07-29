@@ -3,7 +3,8 @@
 The headline change from v0.1: ``dj-digger <link>`` is all you need. The link can
 be a playlist, an artist profile, someone's /likes or a single track, and there is
 no subcommand to remember - ``dig`` is assumed when the first argument is not one.
-A saved HTML file still works in the same position.
+A saved HTML file still works in the same position, and running ``dj-digger`` with
+no arguments at all opens the browser and asks for a link.
 """
 
 from __future__ import annotations
@@ -11,7 +12,6 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-import time
 from pathlib import Path
 from typing import List, Optional, Sequence
 
@@ -21,7 +21,8 @@ from rich.table import Table
 
 from . import __version__
 from . import browser as browser_module
-from . import html_fallback, links, soundcloud
+from . import dig as dig_module
+from . import links
 from .models import Crate, LinkRecord
 from .state import TrackState
 
@@ -66,15 +67,19 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    dig = subparsers.add_parser(
+    dig_cmd = subparsers.add_parser(
         "dig",
         help="Dig a SoundCloud link (or a saved playlist HTML file). Assumed by default.",
     )
-    dig.add_argument(
+    dig_cmd.add_argument(
         "target",
-        help="SoundCloud URL (playlist, profile, /likes, track) or a saved HTML file",
+        nargs="?",
+        help=(
+            "SoundCloud URL (playlist, profile, /likes, track) or a saved HTML file. "
+            "Omit it and you will be asked."
+        ),
     )
-    dig.add_argument(
+    dig_cmd.add_argument(
         "-f",
         "--format",
         "--export",
@@ -83,13 +88,13 @@ def build_parser() -> argparse.ArgumentParser:
         default="json",
         help="Export format for the categorised links (default: json)",
     )
-    dig.add_argument(
+    dig_cmd.add_argument(
         "-o",
         "--output",
         type=Path,
         help="Where to write the export. Defaults to soundcloud_links.<ext>",
     )
-    dig.add_argument(
+    dig_cmd.add_argument(
         "-n",
         "--limit",
         "--max-tracks",
@@ -97,19 +102,19 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         help="Process only the first N tracks",
     )
-    dig.add_argument(
+    dig_cmd.add_argument(
         "--timeout",
         type=float,
         default=20.0,
         help="HTTP request timeout in seconds (default: 20)",
     )
-    dig.add_argument(
+    dig_cmd.add_argument(
         "--delay",
         type=float,
         default=0.5,
         help="Delay between requests, only used by the slow HTML fallback (default: 0.5)",
     )
-    _add_shared_arguments(dig)
+    _add_shared_arguments(dig_cmd)
 
     open_cmd = subparsers.add_parser(
         "open",
@@ -143,11 +148,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def inject_default_command(argv: Sequence[str]) -> List[str]:
-    """Let ``dj-digger <link>`` mean ``dj-digger dig <link>``."""
+    """Let ``dj-digger <link>`` mean ``dj-digger dig <link>``, and bare mean ``dig``."""
 
     tokens = list(argv)
-    if not tokens:
-        return tokens
     if any(token in SUBCOMMANDS for token in tokens):
         return tokens
     if any(token in HELP_FLAGS for token in tokens):
@@ -172,65 +175,20 @@ def _progress(console: Console) -> Progress:
     )
 
 
-def _dig_url(url: str, args: argparse.Namespace, console: Console) -> Crate:
+def _dig_with_progress(target: str, args: argparse.Namespace, console: Console) -> Crate:
     with _progress(console) as progress:
-        task = progress.add_task("Reading the link", total=None)
+        task = progress.add_task(dig_module.STAGE_LINK, total=None)
 
-        def on_progress(done: int, total: Optional[int]) -> None:
-            progress.update(task, description="Fetching tracks", completed=done, total=total)
+        def on_progress(stage: str, done: int, total: Optional[int]) -> None:
+            progress.update(task, description=stage, completed=done, total=total)
 
-        return soundcloud.collect_tracks(
-            url,
+        return dig_module.dig(
+            target,
             limit=args.limit,
             timeout=args.timeout,
+            delay=args.delay,
             on_progress=on_progress,
         )
-
-
-def _dig_html(path: Path, args: argparse.Namespace, console: Console) -> Crate:
-    track_ids, track_urls, declared = html_fallback.load_playlist(path)
-    if args.limit is not None:
-        track_ids = track_ids[: args.limit]
-        track_urls = track_urls[: args.limit]
-
-    if track_ids:
-        LOGGER.info("Found %s track ids in %s - hydrating through the API", len(track_ids), path)
-        with _progress(console) as progress:
-            task = progress.add_task("Fetching tracks", total=len(track_ids))
-
-            def on_progress(done: int, total: Optional[int]) -> None:
-                progress.update(task, completed=done, total=total)
-
-            tracks = soundcloud.hydrate_ids(
-                track_ids, timeout=args.timeout, on_progress=on_progress
-            )
-    elif track_urls:
-        LOGGER.info(
-            "No track ids in %s - falling back to scraping %s track pages", path, len(track_urls)
-        )
-        session = soundcloud.create_requests_session()
-        tracks = []
-        try:
-            with _progress(console) as progress:
-                task = progress.add_task("Scraping track pages", total=len(track_urls))
-                for track_url in track_urls:
-                    tracks.append(
-                        html_fallback.scrape_track_page(track_url, session, args.timeout)
-                    )
-                    progress.advance(task)
-                    if args.delay > 0:
-                        time.sleep(args.delay)
-        finally:
-            session.close()
-    else:
-        tracks = []
-
-    return Crate(
-        source=str(path),
-        tracks=tracks,
-        title=path.stem,
-        declared_count=declared,
-    )
 
 
 def _print_summary(
@@ -242,7 +200,8 @@ def _print_summary(
     table = Table(title=crate.title if crate else None, title_justify="left")
     table.add_column("Store")
     table.add_column("Links", justify="right")
-    for category in links.CATEGORY_NAMES:
+    # A dozen categories with most of them empty is noise, so only show the hits.
+    for category in links.present_categories(records):
         table.add_row(category, str(counts[category]))
     table.add_section()
     table.add_row("total", str(len(records)))
@@ -258,27 +217,35 @@ def _should_use_tui(args: argparse.Namespace) -> bool:
     return True
 
 
+def _dig_options(args: argparse.Namespace) -> dig_module.DigOptions:
+    return dig_module.DigOptions(limit=args.limit, timeout=args.timeout, delay=args.delay)
+
+
 def handle_dig(args: argparse.Namespace) -> int:
     console = Console(stderr=True)
-    target = str(args.target)
 
-    if soundcloud.is_soundcloud_url(target):
-        crate = _dig_url(target, args, console)
-    else:
-        path = Path(target)
-        if not path.exists():
+    if args.target is None:
+        if not _should_use_tui(args):
             raise SystemExit(
-                f"'{target}' is neither a soundcloud.com link nor an existing file."
+                "Nothing to dig. Pass a SoundCloud link, or run without --no-tui "
+                "to be asked for one."
             )
-        crate = _dig_html(path, args, console)
+        from .tui import run_tui
+
+        run_tui(
+            [],
+            state=TrackState(),
+            browser=args.browser,
+            export_format=args.export_format,
+            export_path=args.output,
+            dig_options=_dig_options(args),
+        )
+        return 0
+
+    crate = _dig_with_progress(str(args.target), args, console)
 
     if not crate.tracks:
-        LOGGER.warning("No tracks found behind '%s'.", target)
-        if not soundcloud.is_soundcloud_url(target):
-            LOGGER.info(
-                "Tip: pass the playlist link directly instead - it does not need the page "
-                "to be scrolled or saved."
-            )
+        LOGGER.warning("No tracks found behind '%s'.", args.target)
         return 1
 
     if args.limit is not None:
@@ -306,6 +273,7 @@ def handle_dig(args: argparse.Namespace) -> int:
             browser=args.browser,
             export_format=args.export_format,
             export_path=export_path or args.output,
+            dig_options=_dig_options(args),
         )
     return 0
 
@@ -384,9 +352,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             return handle_dig(args)
         if args.command == "open":
             return handle_open(args)
-    except soundcloud.SoundCloudError as exc:
-        LOGGER.error("%s", exc)
-        return 2
+    except dig_module.TargetNotFound as exc:
+        raise SystemExit(str(exc)) from exc
     except (FileNotFoundError, ValueError, RuntimeError) as exc:
         LOGGER.error("%s", exc)
         return 2

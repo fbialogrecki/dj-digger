@@ -60,6 +60,53 @@ def test_unknown_domains_in_the_description_are_ignored():
     assert records[0].link_text == links.NO_STORE_LINK
 
 
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://open.spotify.com/track/x",
+        "https://youtube.com/watch?v=x",
+        "https://linktr.ee/label",
+        "https://dawningrecords.link/abc",
+    ],
+)
+def test_streaming_and_smart_links_in_a_description_are_dropped(url):
+    """Every description carries the label's linktree and Spotify - that is not a find."""
+
+    track = Track(
+        title="Promo boilerplate",
+        permalink_url="https://soundcloud.com/a/b",
+        description=f"follow us, stream here {url}",
+    )
+    assert [record.category for record in links.categorise(track)] == ["others"]
+
+
+def test_the_same_links_do_count_when_they_are_the_purchase_field():
+    track = Track(
+        title="Explicit",
+        permalink_url="https://soundcloud.com/a/b",
+        purchase_url="https://dawningrecords.link/abc",
+    )
+    assert [record.category for record in links.categorise(track)] == ["smartlink"]
+
+
+def test_a_buyable_link_is_still_harvested_from_a_description():
+    track = Track(
+        title="Buried treasure",
+        permalink_url="https://soundcloud.com/a/b",
+        description="grab it at https://label.bandcamp.com/album/x and follow https://linktr.ee/y",
+    )
+    assert [record.category for record in links.categorise(track)] == ["bandcamp"]
+
+
+def test_present_categories_skips_the_empty_ones(tracks):
+    present = links.present_categories(links.categorise_all(tracks))
+    assert present
+    assert set(present) <= set(links.CATEGORY_NAMES)
+    assert all(links.count_by_category(links.categorise_all(tracks))[name] for name in present)
+    # Canonical order is preserved so the TUI number keys stay stable.
+    assert present == [name for name in links.CATEGORY_NAMES if name in present]
+
+
 def test_trailing_punctuation_is_stripped_from_description_links():
     track = Track(
         title="Punctuated",
@@ -123,15 +170,58 @@ def test_different_stores_all_survive():
     [
         ("https://foo.bandcamp.com/track/x", "bandcamp"),
         ("https://www.beatport.com/track/x/1", "beatport"),
+        ("https://pro.beatport.com/track/x/1", "beatport"),
+        ("https://btprt.dj/abc", "beatport"),
+        ("https://www.traxsource.com/title/x", "traxsource"),
         ("https://www.junodownload.com/products/x", "junodownload"),
         ("https://juno.co.uk/products/x", "junodownload"),
+        ("https://itunes.apple.com/album/x", "apple"),
+        ("https://music.apple.com/album/x", "apple"),
+        ("https://boomkat.com/products/x", "shop"),
+        ("https://www.redeyerecords.co.uk/x", "shop"),
+        ("https://someone.gumroad.com/l/x", "shop"),
         ("https://hypeddit.com/x/y", "hypeddit"),
         ("https://hypd.it/abc", "hypeddit"),
+        ("https://wump.io/x", "download"),
+        ("https://theartistunion.com/tracks/x", "download"),
+        ("https://lnk.to/abc", "smartlink"),
+        ("https://mezzanotte.lnk.to/abc", "smartlink"),
+        ("https://ffm.to/abc", "smartlink"),
+        ("https://fanlink.to/abc", "smartlink"),
+        ("https://orcd.co/abc", "smartlink"),
+        ("https://open.spotify.com/track/x", "streaming"),
+        ("https://youtu.be/abc", "streaming"),
         ("https://example.com/x", None),
     ],
 )
 def test_store_for_url(url, expected):
     assert links.store_for_url(url) == expected
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        # Labels buy their own domain on the .link TLD for exactly this purpose.
+        "https://dawningrecords.link/abc",
+        "https://music.lovestyle.link/abc",
+    ],
+)
+def test_the_link_tld_is_treated_as_a_smart_link(url):
+    assert links.store_for_url(url) == "smartlink"
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://evil-bandcamp.com/x",
+        "https://bandcamp.com.attacker.net/x",
+        "https://notbeatport.com/x",
+    ],
+)
+def test_lookalike_domains_do_not_match_a_store(url):
+    """Matching has to respect domain boundaries, not just contain the name."""
+
+    assert links.store_for_url(url) is None
 
 
 def test_summary_keeps_every_category_key(tracks):

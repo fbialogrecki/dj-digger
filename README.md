@@ -10,6 +10,12 @@ dj-digger https://soundcloud.com/someone/sets/that-playlist
 That is the whole workflow. No saving pages, no scrolling to the bottom of a
 playlist, no API key, no account.
 
+Or just run it and let it ask:
+
+```bash
+dj-digger
+```
+
 ## What changed in 0.2
 
 Version 0.1 needed you to open a playlist in the browser, scroll to the very
@@ -24,6 +30,11 @@ carries its purchase link as a field.
 
 A 282-track playlist takes six requests and about three seconds, where the old
 path took 282 requests and about five minutes.
+
+Two other things came with it: results now open in an interactive browser instead
+of firing every link at your browser at once, and the four store categories grew
+into eleven so that smart links, download gates and record shops stop being
+lumped together as `others`.
 
 ## Install
 
@@ -55,6 +66,7 @@ only needed if you actually want YAML.
 | `soundcloud.com/user` | that artist's own tracks |
 | `soundcloud.com/user/track` | a single track |
 | `playlist.html` | a saved page, see the fallback section |
+| nothing at all | you get asked for one |
 
 ## The interactive browser
 
@@ -70,10 +82,22 @@ links at once is not a workflow, so instead you move through them:
 | `u` | unmark |
 | `a` | open everything currently visible (asks first above 20 links) |
 | `/` | filter by artist or title |
-| `1`-`5` | show only one store, `0` for all |
+| `f` / `F` | step forward or back through the stores in this crate |
+| `1`-`9` | jump straight to a store, `0` for all |
 | `h` | hide what you already handled |
+| `d` | dig another link without leaving |
 | `e` | export the rows you can currently see |
 | `q` | quit |
+
+The store line under the header is the legend for the number keys, and it only
+lists stores this crate actually contains:
+
+```
+0 all  1 bandcamp·189  2 beatport·4  3 junodownload·1  4 shop·8  5 smartlink·2  6 others·86
+```
+
+So `1` is always the first store you have rather than a fixed category, and `f`
+never makes you cycle through eight empty ones.
 
 **Marks are keyed by track id, not by playlist.** A track you bought once reads as
 `got it` the next time it turns up in somebody else's set. That state lives in a
@@ -97,11 +121,32 @@ The v0.1 flag names (`dig`, `--export`, `--max-tracks`) still work.
 
 ## Stores
 
-Links are grouped into `bandcamp`, `beatport`, `junodownload`, `hypeddit` and
-`others`. A link only earns a store category by matching that store's domain,
-because `purchase_url` is not always a shop - artists also hang interviews and
-press articles off it. Tracks with no store link anywhere still get a row, so
-nothing silently disappears.
+Links are grouped by what you can actually do with them, best outcome first:
+
+| Category | Means |
+| --- | --- |
+| `bandcamp` `beatport` `traxsource` `junodownload` `apple` | buy it there |
+| `shop` | another record shop: Boomkat, Hard Wax, Clone, Decks, Deejay, Red Eye, Juno, Phonica, Rush Hour, Bleep, Gumroad |
+| `hypeddit` | free, behind a Hypeddit gate |
+| `download` | free, behind another gate: Wump, The Artist Union, Toneden, Pump Your Sound |
+| `smartlink` | a click-through page: lnk.to, ffm.to, fanlink, smarturl, orcd.co, Linktree, or a label's own `.link` domain |
+| `streaming` | Spotify, YouTube, Deezer, Tidal - nothing to buy |
+| `others` | an unrecognised link, or no link at all |
+
+That grouping is not guesswork: it comes from surveying `purchase_url` across 53
+playlists and 3497 tracks. Smart links were by far the biggest thing the old
+four-store version threw into `others`, followed by follow-to-download gates.
+
+A link only earns a category by matching a domain on a boundary, so
+`evil-bandcamp.com` does not pass as Bandcamp. `purchase_url` is not always a
+shop either - artists hang interviews and press articles off it - and those stay
+in `others`. Tracks with no link anywhere still get a row, so nothing silently
+disappears.
+
+Descriptions are treated as a weaker source than `purchase_url`: a buyable link
+in there is worth having, but the label's Linktree and Spotify profile pasted
+into every single description are not, so smart links and streaming links only
+count when they are the track's actual purchase field.
 
 ## Saved-HTML fallback
 

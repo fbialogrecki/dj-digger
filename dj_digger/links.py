@@ -21,13 +21,97 @@ from .models import LinkRecord, Track
 
 DOWNLOAD_KEYWORDS = {"download", "free download", "free d/l"}
 LINK_KEYWORDS = DOWNLOAD_KEYWORDS | {"buy", "purchase", "premiere", "kup"}
+
+# Domains grouped by where a link actually takes you. The membership here comes
+# from surveying purchase_url across 53 playlists / 3497 tracks rather than from
+# guesswork: smart links (lnk.to, ffm.to, fanlink, orcd.co and labels' own .link
+# domains) turned out to be the single biggest group that used to land in
+# "others", followed by follow-to-download gates like wump.io.
 STORE_DOMAINS = {
     "bandcamp": {"bandcamp.com"},
-    "beatport": {"beatport.com"},
+    "beatport": {"beatport.com", "btprt.dj"},
+    "traxsource": {"traxsource.com"},
     "junodownload": {"junodownload.com", "juno.co.uk"},
+    "apple": {"apple.com", "apple.co"},
+    # Real shops that individually turn up too rarely to deserve their own
+    # category - the Link column already shows which one it is.
+    "shop": {
+        "boomkat.com",
+        "redeyerecords.co.uk",
+        "volumo.com",
+        "gumroad.com",
+        "hardwax.com",
+        "decks.de",
+        "deejay.de",
+        "clone.nl",
+        "phonicarecords.com",
+        "rushhour.nl",
+        "bleep.com",
+    },
     "hypeddit": {"hypeddit.com", "hypd.it"},
+    # Follow-or-like gates: the track is free, but you have to earn it.
+    "download": {
+        "wump.io",
+        "theartistunion.com",
+        "pumpyoursound.com",
+        "toneden.io",
+        "hitsdistrict.com",
+        "click.dj",
+    },
+    "smartlink": {
+        "lnk.to",
+        "ffm.to",
+        "fanlink.to",
+        "fanlink.tv",
+        "smarturl.it",
+        "orcd.co",
+        "linktr.ee",
+        "found.ee",
+        "snd.click",
+        "hyperfollow.com",
+        "hyperurl.co",
+        "push.fm",
+        "songwhip.com",
+        "li.sten.to",
+        "gate.fm",
+        "linksr.io",
+    },
+    "streaming": {
+        "open.spotify.com",
+        "spotify.com",
+        "spoti.fi",
+        "youtube.com",
+        "youtu.be",
+        "deezer.com",
+        "tidal.com",
+        "music.amazon.com",
+    },
 }
-CATEGORY_NAMES = ["hypeddit", "bandcamp", "beatport", "junodownload", "others"]
+
+# Labels buy their own smart-link domains on this TLD, which is what it exists for.
+SMARTLINK_TLD = ".link"
+
+# Ordered so that the best outcome comes first: somewhere to buy, then a gate to
+# get it free, then a click-through, then stream-only, then no idea.
+CATEGORY_NAMES = [
+    "bandcamp",
+    "beatport",
+    "traxsource",
+    "junodownload",
+    "apple",
+    "shop",
+    "hypeddit",
+    "download",
+    "smartlink",
+    "streaming",
+    "others",
+]
+
+# Descriptions are promo boilerplate - full of Spotify, YouTube and the label's
+# linktree on every single track. Only destinations you can actually buy or
+# download from are worth harvesting out of them.
+DESCRIPTION_CATEGORIES = frozenset(CATEGORY_NAMES) - {"smartlink", "streaming", "others"}
+
 CATEGORY_CHOICES = CATEGORY_NAMES + ["all"]
 EXPORT_FORMATS = ["json", "yaml", "csv", "none"]
 
@@ -39,11 +123,24 @@ NO_STORE_LINK = "No store link found"
 LOGGER = logging.getLogger(__name__)
 
 
+def host_of(url: str) -> str:
+    host = urlparse(url).netloc.lower().partition(":")[0]
+    return host[4:] if host.startswith("www.") else host
+
+
+def _host_matches(host: str, domain: str) -> bool:
+    """Match on domain boundaries, so evil-bandcamp.com.attacker.net does not."""
+
+    return host == domain or host.endswith("." + domain)
+
+
 def store_for_url(url: str) -> Optional[str]:
-    domain = urlparse(url).netloc.lower()
+    host = host_of(url)
     for category, domains in STORE_DOMAINS.items():
-        if any(target in domain for target in domains):
+        if any(_host_matches(host, domain) for domain in domains):
             return category
+    if host.endswith(SMARTLINK_TLD):
+        return "smartlink"
     return None
 
 
@@ -51,25 +148,33 @@ def urls_in_text(text: str) -> List[str]:
     return [match.rstrip(TRAILING_PUNCTUATION) for match in URL_RE.findall(text or "")]
 
 
-def candidate_links(track: Track) -> List[Tuple[str, str]]:
-    """Every link worth inspecting for one track, best source first."""
+PURCHASE_FIELD = "purchase"
+DESCRIPTION_FIELD = "description"
 
-    candidates: List[Tuple[str, str]] = []
+
+def candidate_links(track: Track) -> List[Tuple[str, str, str]]:
+    """Every link worth inspecting for one track as (url, text, source).
+
+    Ordered best source first, which is what lets ``categorise`` keep the album
+    link from ``purchase_url`` over the label homepage from the description.
+    """
+
+    candidates: List[Tuple[str, str, str]] = []
     seen: Set[str] = set()
 
-    def add(url: str, text: str) -> None:
+    def add(url: str, text: str, source: str) -> None:
         url = (url or "").strip().rstrip(TRAILING_PUNCTUATION)
         if not url or url in seen:
             return
         seen.add(url)
-        candidates.append((url, text))
+        candidates.append((url, text, source))
 
     if track.purchase_url:
-        add(track.purchase_url, track.purchase_title or "Buy")
+        add(track.purchase_url, track.purchase_title or "Buy", PURCHASE_FIELD)
     for url, text in track.extra_links:
-        add(url, text)
+        add(url, text, PURCHASE_FIELD)
     for url in urls_in_text(track.description):
-        add(url, "Link in description")
+        add(url, "Link in description", DESCRIPTION_FIELD)
 
     return candidates
 
@@ -86,9 +191,11 @@ def categorise(track: Track) -> List[LinkRecord]:
     claimed: Set[str] = set()
     unmatched: List[Tuple[str, str]] = []
 
-    for url, text in candidate_links(track):
+    for url, text, source in candidate_links(track):
         category = store_for_url(url)
         if category:
+            if source == DESCRIPTION_FIELD and category not in DESCRIPTION_CATEGORIES:
+                continue
             if category in claimed:
                 continue
             claimed.add(category)
@@ -129,6 +236,17 @@ def count_by_category(records: Sequence[LinkRecord]) -> Dict[str, int]:
         category = record.category if record.category in CATEGORY_NAMES else "others"
         counts[category] += 1
     return counts
+
+
+def present_categories(records: Sequence[LinkRecord]) -> List[str]:
+    """Categories this crate actually contains, in canonical order.
+
+    With a dozen possible categories, showing or cycling through the empty ones
+    is just noise.
+    """
+
+    counts = count_by_category(records)
+    return [name for name in CATEGORY_NAMES if counts[name]]
 
 
 def default_output_path(export_format: str) -> Path:

@@ -4,12 +4,13 @@ import asyncio
 import json
 
 import pytest
-from textual.widgets import DataTable
+from textual.widgets import DataTable, Input
 
 from dj_digger import links
-from dj_digger.models import LinkRecord, Track
+from dj_digger.dig import DigOptions, TargetNotFound
+from dj_digger.models import Crate, LinkRecord, Track
 from dj_digger.state import GOT, OPENED, SKIP, TrackState
-from dj_digger.tui import DiggerApp
+from dj_digger.tui import AskLinkScreen, DiggerApp
 
 
 def run(scenario):
@@ -128,18 +129,56 @@ def test_enter_opens_the_link_exactly_once(records, state, monkeypatch):
     assert opened == [records[0].link_url]
 
 
-def test_store_filter_narrows_the_table(records, state):
+def test_number_keys_select_the_stores_this_crate_actually_has(records, state):
+    """`1` is the first store present, not a fixed category - crates differ."""
+
     app = make_app(records, state)
-    bandcamp = sum(1 for record in records if record.category == "bandcamp")
 
     async def scenario():
         async with app.run_test() as pilot:
-            await pilot.press("2")  # bandcamp is the second category
-            assert app.store_filter == "bandcamp"
-            assert app.query_one("#tracks", DataTable).row_count == bandcamp
+            assert app.present == ["bandcamp", "others"]
 
-            await pilot.press("0")  # back to everything
+            await pilot.press("1")
+            assert app.store_filter == "bandcamp"
+            expected = sum(1 for record in records if record.category == "bandcamp")
+            assert app.query_one("#tracks", DataTable).row_count == expected
+
+            await pilot.press("2")
+            assert app.store_filter == "others"
+
+            await pilot.press("0")
+            assert app.store_filter == ""
             assert app.query_one("#tracks", DataTable).row_count == len(records)
+
+    run(scenario)
+
+
+def test_a_number_key_beyond_the_stores_present_is_a_no_op(records, state):
+    app = make_app(records, state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("9")
+            assert app.store_filter == ""
+
+    run(scenario)
+
+
+def test_cycling_walks_only_the_stores_present(records, state):
+    """With a dozen possible categories, cycling through the empty ones is useless."""
+
+    app = make_app(records, state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("f")
+            assert app.store_filter == "bandcamp"
+            await pilot.press("f")
+            assert app.store_filter == "others"
+            await pilot.press("f")  # wraps back to everything
+            assert app.store_filter == ""
+            await pilot.press("F")  # and backwards
+            assert app.store_filter == "others"
 
     run(scenario)
 
@@ -218,6 +257,170 @@ def test_open_all_goes_straight_through_for_a_short_list(state, monkeypatch):
         async with app.run_test() as pilot:
             await pilot.press("a")
             assert len(opened) == 3
+
+    run(scenario)
+
+
+def crate_of(count, *, title="Fresh crate"):
+    return Crate(
+        source="https://soundcloud.com/a/sets/b",
+        title=title,
+        declared_count=count,
+        tracks=[
+            Track(
+                title=f"Dug {index}",
+                permalink_url=f"https://soundcloud.com/a/{index}",
+                id=1000 + index,
+                purchase_url=f"https://label.bandcamp.com/track/{index}",
+            )
+            for index in range(count)
+        ],
+    )
+
+
+async def settle(app, pilot):
+    """Wait for the background dig to land and the UI to catch up."""
+
+    await app.workers.wait_for_complete()
+    await pilot.pause()
+
+
+def test_an_empty_app_asks_for_a_link(state):
+    app = make_app([], state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            assert isinstance(app.screen, AskLinkScreen)
+
+    run(scenario)
+
+
+def test_entering_a_link_fills_the_table(state, monkeypatch, tmp_path):
+    monkeypatch.setattr("dj_digger.dig.dig", lambda target, **kwargs: crate_of(3))
+    app = make_app([], state, export_path=tmp_path / "out.json")
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.screen.query_one("#ask-input", Input).value = "https://soundcloud.com/a/sets/b"
+            await pilot.press("enter")
+            await settle(app, pilot)
+
+            assert app.query_one("#tracks", DataTable).row_count == 3
+            assert app.present == ["bandcamp"]
+            assert app.sub_title == "Fresh crate"
+
+    run(scenario)
+
+    # A dig started from inside the browser still writes the export.
+    assert json.loads((tmp_path / "out.json").read_text(encoding="utf-8"))["bandcamp"]
+
+
+def test_the_target_is_passed_through_with_the_dig_options(state, monkeypatch):
+    seen = {}
+
+    def fake_dig(target, **kwargs):
+        seen["target"] = target
+        seen["kwargs"] = kwargs
+        return crate_of(1)
+
+    monkeypatch.setattr("dj_digger.dig.dig", fake_dig)
+    app = make_app([], state, dig_options=DigOptions(limit=7, timeout=5.0, delay=0.0))
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.screen.query_one("#ask-input", Input).value = "playlist.html"
+            await pilot.press("enter")
+            await settle(app, pilot)
+
+    run(scenario)
+    assert seen["target"] == "playlist.html"
+    assert seen["kwargs"]["limit"] == 7
+    assert seen["kwargs"]["timeout"] == 5.0
+
+
+def test_cancelling_with_nothing_loaded_quits(state, monkeypatch):
+    app = make_app([], state)
+    exited = []
+    monkeypatch.setattr(app, "exit", lambda *a, **k: exited.append(True))
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await pilot.press("escape")
+            await pilot.pause()
+
+    run(scenario)
+    assert exited == [True]
+
+
+def test_cancelling_keeps_a_crate_you_already_have(records, state):
+    app = make_app(records, state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("d")
+            await pilot.pause()
+            assert isinstance(app.screen, AskLinkScreen)
+            await pilot.press("escape")
+            await pilot.pause()
+            assert app.query_one("#tracks", DataTable).row_count == len(records)
+
+    run(scenario)
+
+
+def test_digging_a_second_link_replaces_the_crate(records, state, monkeypatch):
+    monkeypatch.setattr("dj_digger.dig.dig", lambda target, **kwargs: crate_of(2, title="Second"))
+    app = make_app(records, state, export_format="none")
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("d")
+            await pilot.pause()
+            app.screen.query_one("#ask-input", Input).value = "https://soundcloud.com/a/sets/c"
+            await pilot.press("enter")
+            await settle(app, pilot)
+
+            assert app.query_one("#tracks", DataTable).row_count == 2
+            assert app.sub_title == "Second"
+
+    run(scenario)
+
+
+def test_a_failed_dig_reports_and_asks_again(state, monkeypatch):
+    def boom(target, **kwargs):
+        raise TargetNotFound("nope.html")
+
+    monkeypatch.setattr("dj_digger.dig.dig", boom)
+    app = make_app([], state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.screen.query_one("#ask-input", Input).value = "nope.html"
+            await pilot.press("enter")
+            await settle(app, pilot)
+
+            # Back at the prompt rather than dead or stuck on a spinner.
+            assert isinstance(app.screen, AskLinkScreen)
+            assert app._digging is False
+
+    run(scenario)
+
+
+def test_a_crate_with_no_tracks_is_treated_as_a_failure(state, monkeypatch):
+    monkeypatch.setattr("dj_digger.dig.dig", lambda target, **kwargs: crate_of(0))
+    app = make_app([], state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.screen.query_one("#ask-input", Input).value = "https://soundcloud.com/a/sets/empty"
+            await pilot.press("enter")
+            await settle(app, pilot)
+            assert isinstance(app.screen, AskLinkScreen)
 
     run(scenario)
 
