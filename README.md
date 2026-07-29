@@ -1,83 +1,140 @@
-# SoundCloud Purchase Links Scraper
+# dj-soundcloud-digger
 
-This repository contains a Python tool that automates the process of extracting download or store links from public SoundCloud playlists. Save the playlist page as HTML, let the tool analyse every track, and later open the discovered Bandcamp / Beatport / JunoDownload / Hypeddit links in your preferred browser.
-
-## Features
-
-- **Offline-friendly workflow:** Works entirely on HTML files saved from your browser – no live Selenium scraping required.
-- **Smart categorisation:** Classifies store links into Bandcamp, Beatport, JunoDownload, Hypeddit, or `others` when no known store is detected.
-- **Progress visibility:** A terminal progress bar keeps you informed while tracks are analysed, with retries and back-off for network hiccups.
-- **Flexible output:** Export results to JSON or YAML, or reuse an existing JSON file without re-scraping.
-- **One-click opening:** Instantly open store links (per category) in Chrome, Firefox, Edge, Opera, Safari or the system default browser. Opening all at once remains the default behaviour, with a flag to disable it.
-
-## Requirements
-
-- Python 3.9+
-- [Requests](https://docs.python-requests.org/)
-- [BeautifulSoup4](https://www.crummy.com/software/BeautifulSoup/bs4/doc/)
-- [PyYAML](https://pyyaml.org/) *(optional – only for YAML export)*
-- [tqdm](https://tqdm.github.io/) for the terminal progress bar
-
-## Installation
-
-1. Clone the repository:
-
-   ```bash
-   git clone https://github.com/yourusername/soundcloud-purchase-links-scraper.git
-   cd soundcloud-purchase-links-scraper
-
-   ```
-
-2. Install the required dependencies using pip (a `requirements.txt` is provided):
-
-   ```bash
-   pip install -r requirements.txt
-
-   ```
-
-## Usage
-
-### 1. Save the playlist from SoundCloud
-
-1. Open the playlist page in your browser (Chrome / Edge / Firefox / …).
-2. Scroll all the way down until every track is visible (no “Load more” button).
-3. Use `Ctrl+S` (`Cmd+S` on macOS) and choose **Webpage, Complete (HTML)**. Pick a descriptive name such as `SoundCloud_playlist.html`.
-4. Verify that the browser created both the HTML file *and* the companion folder with resources. That confirms the save was complete.
-5. Move the HTML file (and its resources folder) into your project directory or note the absolute path.
-
-### 2. Run the `dig` command on the saved HTML
+Paste a SoundCloud link, get every purchase and free-download link behind it, then
+walk the list one track at a time and mark off what you already own.
 
 ```bash
-python dj-soundcloud-digger.py dig SoundCloud_playlist.html \
-  --export json \
-  --output soundcloud_links.json
+dj-digger https://soundcloud.com/someone/sets/that-playlist
 ```
 
-- `--export {json,yaml,none}` – choose export format (default: `json`).
-- `--delay` – delay between track requests (default: `0.5s`).
-- `--timeout` – HTTP timeout per track (default: `20s`).
-- `--max-tracks` – process only the first N tracks (useful for testing).
+That is the whole workflow. No saving pages, no scrolling to the bottom of a
+playlist, no API key, no account.
 
-The command shows a progress bar while each track is fetched, generates the summary (unless `--export none` is specified) and then exits. The browser is **not** opened at this stage – that happens in the next step.
+## What changed in 0.2
 
-### 3. Open links from an existing JSON / YAML summary
+Version 0.1 needed you to open a playlist in the browser, scroll to the very
+bottom so every track lazy-loaded into the DOM, save the page with `Ctrl+S`, then
+point the tool at the HTML file. It then fetched every track page one by one.
+
+It turns out none of that was necessary. SoundCloud's own web app asks
+`api-v2.soundcloud.com/resolve` for a playlist and gets **every track id back in
+one response** - the lazy loading only ever affected what was drawn on screen, not
+what the server sent. Tracks are then hydrated 50 at a time, and each one already
+carries its purchase link as a field.
+
+A 282-track playlist takes six requests and about three seconds, where the old
+path took 282 requests and about five minutes.
+
+## Install
 
 ```bash
-python dj-soundcloud-digger.py open soundcloud_links.json \
-  --browser firefox \
-  --skip 10 \
-  --limit 20
+uv tool install dj-soundcloud-digger
 ```
 
-- `--category {hypeddit,bandcamp,beatport,junodownload,others,all}` – category to open. If omitted (and `--no-open` is not set) the tool will interactively ask whether to open all categories or a specific one.
-- `--skip` / `--limit` – skip or limit the number of links to open.
-- `--no-open` – only display the summary without opening links.
-- `--browser {default,chrome,firefox,edge,safari,opera}` – browser controller to use (default: system browser). If the requested browser is not available, the script falls back to the default.
+or
 
-### Log level
+```bash
+pipx install dj-soundcloud-digger
+```
 
-Add `--log-level DEBUG` for verbose output (network retries, per-track details), or `--log-level WARNING` to silence informational logs.
+From a clone, for development:
+
+```bash
+uv venv && uv pip install -e '.[yaml,dev]'
+```
+
+YAML export is an optional extra (`dj-soundcloud-digger[yaml]`) because PyYAML is
+only needed if you actually want YAML.
+
+## Links you can dig
+
+| Link | What you get |
+| --- | --- |
+| `soundcloud.com/user/sets/playlist` | every track in the playlist |
+| `soundcloud.com/user/likes` | everything that user liked |
+| `soundcloud.com/user` | that artist's own tracks |
+| `soundcloud.com/user/track` | a single track |
+| `playlist.html` | a saved page, see the fallback section |
+
+## The interactive browser
+
+By default `dj-digger` drops you into a table of everything it found. Opening 287
+links at once is not a workflow, so instead you move through them:
+
+| Key | Action |
+| --- | --- |
+| arrows | move around |
+| `o` or `enter` | open the selected link in your browser |
+| `g` | mark as got, and move to the next one |
+| `s` | mark as skipped |
+| `u` | unmark |
+| `a` | open everything currently visible (asks first above 20 links) |
+| `/` | filter by artist or title |
+| `1`-`5` | show only one store, `0` for all |
+| `h` | hide what you already handled |
+| `e` | export the rows you can currently see |
+| `q` | quit |
+
+**Marks are keyed by track id, not by playlist.** A track you bought once reads as
+`got it` the next time it turns up in somebody else's set. That state lives in a
+small JSON file under your platform's data directory (`~/.local/share/dj-digger/`
+on Linux).
+
+## Non-interactive use
+
+Add `--no-tui` to just write the export and exit. It is also skipped
+automatically when output is not a terminal, so piping works as you would expect.
+
+```bash
+dj-digger https://soundcloud.com/someone/likes --no-tui -o crate.json
+dj-digger <link> -f csv -o crate.csv     # json (default), yaml, csv or none
+dj-digger <link> -n 20                   # first 20 tracks only
+dj-digger open crate.json                # reopen an export in the browser
+dj-digger open crate.json --category bandcamp   # straight to opening tabs
+```
+
+The v0.1 flag names (`dig`, `--export`, `--max-tracks`) still work.
+
+## Stores
+
+Links are grouped into `bandcamp`, `beatport`, `junodownload`, `hypeddit` and
+`others`. A link only earns a store category by matching that store's domain,
+because `purchase_url` is not always a shop - artists also hang interviews and
+press articles off it. Tracks with no store link anywhere still get a row, so
+nothing silently disappears.
+
+## Saved-HTML fallback
+
+Private and unlisted playlists are not reachable through the API, and the API is
+undocumented so it could change. For those cases, save the page with `Ctrl+S` and
+pass the file:
+
+```bash
+dj-digger playlist.html
+```
+
+You no longer need to scroll first: the saved page contains a `__sc_hydration`
+blob listing every track id, which goes straight to the batch hydrator. If that
+blob is missing, the tool falls back to scraping each track page, which is the
+slow v0.1 behaviour and the only place `--delay` still matters.
+
+## A caveat worth knowing
+
+`api-v2.soundcloud.com` is public but undocumented, and the `client_id` is lifted
+from SoundCloud's own JavaScript bundles. It is cached and re-discovered
+automatically when it stops being accepted, but SoundCloud could change any of
+this without notice. That is why the saved-HTML path is still here.
+
+## Development
+
+```bash
+pytest              # offline suite, uses recorded API payloads
+pytest -m live      # hits the real API, tells you if SoundCloud moved something
+```
+
+The live tests are the early-warning system for the paragraph above. Point them
+somewhere else with `DJ_DIGGER_LIVE_URL` if the default playlist disappears.
 
 ## License
 
-This project is licensed under the Apache License. See the LICENSE file for details.
+Apache License 2.0. See [LICENSE](LICENSE).

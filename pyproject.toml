@@ -1,0 +1,44 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "dj-soundcloud-digger"
+version = "0.2.0"
+description = "Dig purchase and free-download links out of SoundCloud playlists, likes and profiles"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.9"
+keywords = ["soundcloud", "dj", "bandcamp", "beatport", "crate-digging"]
+classifiers = [
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "Programming Language :: Python :: 3",
+    "Topic :: Multimedia :: Sound/Audio",
+]
+dependencies = [
+    "requests>=2.28",
+    "beautifulsoup4>=4.11",
+    "textual>=0.60",
+    "rich>=13.0",
+    "platformdirs>=3.0",
+]
+
+[project.optional-dependencies]
+yaml = ["pyyaml>=6.0"]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+dj-digger = "dj_digger.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/fbialogrecki/dj-soundcloud-digger"
+
+[tool.hatch.build.targets.wheel]
+packages = ["dj_digger"]
+
+[tool.pytest.ini_options]
+markers = [
+    "live: hits the real SoundCloud API (deselected by default, run with -m live)",
+]
+addopts = "-m 'not live'"
