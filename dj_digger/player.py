@@ -425,6 +425,12 @@ class HttpSourceMixin:
 _http_source_type = None
 
 
+def open_source(session, url: str):
+    """Start pulling a track into memory before anything has asked to hear it."""
+
+    return http_source_type(_import_miniaudio())(session, url)
+
+
 def http_source_type(miniaudio):
     """The mixin welded onto miniaudio's StreamableSource, built once."""
 
@@ -539,10 +545,14 @@ class Player:
         stream: Stream,
         session,
         waveform: Optional[List[int]] = None,
+        source=None,
     ) -> Loaded:
+        """``source`` is a stream someone opened ahead of time, already filling."""
+
         self._miniaudio = self._miniaudio or _import_miniaudio()
         self.stop()
         self._session = session
+        self._source = source
         self._loaded = Loaded(
             track=track,
             stream=stream,

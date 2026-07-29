@@ -1090,15 +1090,17 @@ class FakePlayer:
         self.closed = False
         self.muted = False
         self.finished = False
+        self.level = 0.0
 
     def take_finished(self):
         finished, self.finished = self.finished, False
         return finished
 
-    def load(self, track, stream, session, waveform=None):
+    def load(self, track, stream, session, waveform=None, source=None):
         self.loaded = SimpleNamespace(
             track=track, stream=stream, duration=self.duration, waveform=waveform or []
         )
+        self.source = source
         return self.loaded
 
     def play(self):
@@ -1326,6 +1328,162 @@ def test_marking_a_track_you_are_not_hearing_leaves_playback_alone(state, monkey
 
     run(scenario)
     assert started == [1]
+
+
+# Getting the next track ready
+
+
+class FakeSource:
+    def __init__(self):
+        self.closed = False
+
+    def close(self):
+        self.closed = True
+
+
+def prepared_for(app, index, source=None):
+    track = app.visible_rows[index].track
+    return tui.Prepared(track=track, stream=a_stream(), waveform=[1, 2], source=source)
+
+
+def test_the_next_track_is_got_ready_before_this_one_ends(state, monkeypatch):
+    """Otherwise every track in the crate is followed by a second of Loading."""
+
+    app = player_app(synthetic_records(3), state)
+    monkeypatch.setattr(app, "fetch_audio", loading_fetch(app, []))
+    asked = []
+    monkeypatch.setattr(app, "prepare_track", lambda track: asked.append(track.id))
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("space")
+            await pilot.pause()
+
+            app.player.position = 290.0  # ten seconds left of three hundred
+            app._tick()
+            await pilot.pause()
+
+    run(scenario)
+    assert asked == [2]
+
+
+def test_nothing_is_got_ready_while_there_is_time_left(state, monkeypatch):
+    app = player_app(synthetic_records(3), state)
+    monkeypatch.setattr(app, "fetch_audio", loading_fetch(app, []))
+    asked = []
+    monkeypatch.setattr(app, "prepare_track", lambda track: asked.append(track.id))
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("space")
+            await pilot.pause()
+            app.player.position = 100.0
+            app._tick()
+            await pilot.pause()
+
+    run(scenario)
+    assert asked == []
+
+
+def test_the_last_track_has_nothing_to_get_ready(state, monkeypatch):
+    app = player_app(synthetic_records(1), state)
+    monkeypatch.setattr(app, "fetch_audio", loading_fetch(app, []))
+    asked = []
+    monkeypatch.setattr(app, "prepare_track", lambda track: asked.append(track.id))
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("space")
+            await pilot.pause()
+            app.player.position = 295.0
+            app._tick()
+            await pilot.pause()
+
+    run(scenario)
+    assert asked == []
+
+
+def test_a_prepared_track_plays_without_asking_for_it_again(state, monkeypatch):
+    app = player_app(synthetic_records(3), state)
+    started = []
+    monkeypatch.setattr(app, "fetch_audio", lambda track: started.append(track.id))
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            source = FakeSource()
+            app._prepared = prepared_for(app, 1, source)
+            app.query_one("#tracks", DataTable).move_cursor(row=1)
+            await pilot.press("space")
+            await pilot.pause()
+
+            assert started == [], "the worker was asked for what was already here"
+            assert app.player.playing is True
+            assert app.player.source is source
+
+    run(scenario)
+
+
+def test_using_the_prepared_track_leaves_nothing_behind(state, monkeypatch):
+    app = player_app(synthetic_records(3), state)
+    monkeypatch.setattr(app, "fetch_audio", lambda track: None)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            app._prepared = prepared_for(app, 1)
+            app.query_one("#tracks", DataTable).move_cursor(row=1)
+            await pilot.press("space")
+            await pilot.pause()
+            assert app._prepared is None
+
+    run(scenario)
+
+
+def test_a_filter_that_changes_what_comes_next_throws_it_away(state, monkeypatch):
+    records = synthetic_records(2) + synthetic_records(1, category="beatport")
+    app = player_app(records, state)
+    monkeypatch.setattr(app, "fetch_audio", loading_fetch(app, []))
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("space")  # the first track
+            await pilot.pause()
+            source = FakeSource()
+            app._prepared = prepared_for(app, 1, source)
+
+            await pilot.press("2")  # only the beatport track survives
+            await pilot.pause()
+
+            assert app._prepared is None
+            assert source.closed is True
+
+    run(scenario)
+
+
+def test_a_preparation_that_arrives_too_late_is_thrown_away(state):
+    app = player_app(synthetic_records(3), state)
+
+    async def scenario():
+        async with app.run_test():
+            source = FakeSource()
+            app._preparing = "someone else"
+            app._preparation_done("2", prepared_for(app, 1, source))
+
+            assert app._prepared is None
+            assert source.closed is True
+
+    run(scenario)
+
+
+def test_leaving_the_app_lets_go_of_the_prepared_track(state):
+    app = player_app(synthetic_records(3), state)
+    source = FakeSource()
+
+    async def scenario():
+        async with app.run_test():
+            app._prepared = prepared_for(app, 1, source)
+
+    run(scenario)
+    assert source.closed is True
 
 
 def test_space_toggles_a_track_that_is_already_loaded(records, state, monkeypatch):

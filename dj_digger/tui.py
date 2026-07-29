@@ -15,7 +15,8 @@ worker thread so the interface stays responsive, and fills itself in.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import logging
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence
 
@@ -44,6 +45,7 @@ from .player import (
     PlayerBar,
     Stream,
     fetch_waveform,
+    open_source,
     resolve_stream,
 )
 from .soundcloud import SoundCloudClient, SoundCloudError
@@ -58,8 +60,14 @@ STATUS_STYLES = {
     SKIP: ("\u2717", "bright_black", "skipped"),
     GOT: ("\u2713", "bold green", "got it"),
 }
+LOGGER = logging.getLogger(__name__)
+
 PLAYING_GLYPH = "\u25b6"
 OPEN_ALL_CONFIRM_THRESHOLD = 20
+# How long before the end of a track we start getting the next one ready. Long
+# enough to cover a signed URL, a waveform and the first megabytes of audio on a
+# poor connection; short enough that a filter change rarely wastes the work.
+PREFETCH_LEAD = 20.0
 # Number keys select the nth store that this crate actually contains, so `1` is
 # always the first store you have rather than a fixed category.
 QUICK_FILTER_KEYS = 9
@@ -141,6 +149,26 @@ KEY_DISPLAY = {
 HELP_EXTRA = {
     WHOLE_LIST: [("1-9", "Show only the nth store")],
 }
+
+
+@dataclass
+class Prepared:
+    """A track made ready to play before anything asked for it."""
+
+    track: Track
+    stream: Stream
+    waveform: List[int] = field(default_factory=list)
+    # An HTTP source already filling with audio, or None if miniaudio is absent.
+    source: object = None
+
+    @property
+    def key(self) -> str:
+        return self.track.key
+
+    def close(self) -> None:
+        if self.source is not None:
+            self.source.close()
+            self.source = None
 
 
 @dataclass
@@ -510,6 +538,8 @@ class DiggerApp(App):
         self._ticker: Optional[Timer] = None
         # Decided fresh each time playback moves: does the cursor come along?
         self._cursor_follows = True
+        self._prepared: Optional[Prepared] = None
+        self._preparing: str = ""
         self.player = Player()
         self._client: Optional[SoundCloudClient] = None
         self._set_records(records)
@@ -558,6 +588,7 @@ class DiggerApp(App):
         if self._ticker is not None:
             self._ticker.stop()
             self._ticker = None
+        self._discard_prepared()
         self.player.close()
         if self._client is not None:
             self._client.close()
@@ -702,6 +733,7 @@ class DiggerApp(App):
         if self.visible_rows:
             table.move_cursor(row=min(previous, len(self.visible_rows) - 1))
         table.fit_flexible_column()
+        self._drop_stale_preparation()
         self.update_status()
 
     def update_status(self) -> None:
@@ -837,6 +869,75 @@ class DiggerApp(App):
             return
         if self.player.playing:
             self._player_bar().refresh_bar()
+            self._prepare_next()
+
+    def _prepare_next(self) -> None:
+        """Get the next track ready while this one plays it out.
+
+        Everything a track needs - a signed URL, a waveform, the audio itself -
+        used to be fetched after the previous one ended, which put a second of
+        "Loading" between every pair of tracks in the crate.
+        """
+
+        duration = self.player.duration
+        if not duration or duration - self.player.position > PREFETCH_LEAD:
+            return
+        index = self._step_from_playing(1)
+        if index is None:
+            return
+        track = self.visible_rows[index].track
+        if not track.id or self._preparing == track.key:
+            return
+        if self._prepared is not None and self._prepared.key == track.key:
+            return
+        self._discard_prepared()
+        self._preparing = track.key
+        self.prepare_track(track)
+
+    @work(thread=True, exclusive=True, group="prefetch")
+    def prepare_track(self, track: Track) -> None:
+        try:
+            stream = resolve_stream(self.client, track.id)
+            samples = fetch_waveform(self.client, stream.waveform_url)
+            source = open_source(self.client.session, stream.url)
+        except Exception as exc:
+            # Nothing is owed here: if this fails the track loads the ordinary
+            # way in its own time, and says so then.
+            LOGGER.debug("Could not prepare %s: %s", track.label, exc)
+            self.call_from_thread(self._preparation_done, track.key, None)
+            return
+        prepared = Prepared(track=track, stream=stream, waveform=samples, source=source)
+        self.call_from_thread(self._preparation_done, track.key, prepared)
+
+    def _preparation_done(self, key: str, prepared: Optional[Prepared]) -> None:
+        if self._preparing != key:
+            # The list moved under it while it was working.
+            if prepared is not None:
+                prepared.close()
+            return
+        self._preparing = ""
+        self._prepared = prepared
+
+    def _discard_prepared(self) -> None:
+        if self._prepared is not None:
+            self._prepared.close()
+            self._prepared = None
+
+    def _drop_stale_preparation(self) -> None:
+        """A filter that changes what comes next makes the prepared track useless."""
+
+        if self._prepared is None:
+            return
+        index = self._step_from_playing(1)
+        following = self.visible_rows[index].track.key if index is not None else None
+        if self._prepared.key != following:
+            self._discard_prepared()
+
+    def _take_prepared(self, track: Track) -> Optional[Prepared]:
+        if self._prepared is None or self._prepared.key != track.key:
+            return None
+        prepared, self._prepared = self._prepared, None
+        return prepared
 
     def _advance_playback(self) -> None:
         """Roll on by itself, taking the cursor only if it was keeping up.
@@ -884,6 +985,10 @@ class DiggerApp(App):
         if not track.id:
             self.notify("No track id, so there is nothing to stream", timeout=4)
             return
+        prepared = self._take_prepared(track)
+        if prepared is not None:
+            self._audio_ready(track, prepared.stream, prepared.waveform, prepared.source)
+            return
         bar = self._player_bar()
         bar.message = f"Loading {track.label}"
         bar.refresh_bar()
@@ -901,11 +1006,13 @@ class DiggerApp(App):
             return
         self.call_from_thread(self._audio_ready, track, stream, samples)
 
-    def _audio_ready(self, track: Track, stream: Stream, samples: List[int]) -> None:
+    def _audio_ready(
+        self, track: Track, stream: Stream, samples: List[int], source=None
+    ) -> None:
         bar = self._player_bar()
         bar.message = ""
         try:
-            self.player.load(track, stream, self.client.session, samples)
+            self.player.load(track, stream, self.client.session, samples, source)
             self.player.play()
         except PlaybackUnavailable as exc:
             self._playback_failed(str(exc))
