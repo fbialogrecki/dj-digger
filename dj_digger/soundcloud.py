@@ -212,6 +212,32 @@ class SoundCloudClient:
     def _get(self, path: str, **params: Any) -> Any:
         return self._request(f"{API_ROOT}{path}", params)
 
+    @property
+    def session(self) -> requests.Session:
+        """For plain downloads, e.g. an audio stream, that are not API calls."""
+
+        return self._session
+
+    def fetch_track(self, track_id: int) -> Dict[str, Any]:
+        """The raw payload for one track.
+
+        ``Track`` deliberately keeps only what the link digger needs, so playback
+        has to come here for ``media`` and ``track_authorization``.
+        """
+
+        payload = self._get("/tracks", ids=str(int(track_id)))
+        if not isinstance(payload, list) or not payload:
+            raise SoundCloudError(f"Track {track_id} is no longer available")
+        return payload[0]
+
+    def authorize(self, url: str, **params: Any) -> Dict[str, Any]:
+        """Call an absolute api-v2 URL, such as a media transcoding."""
+
+        payload = self._request(url, params)
+        if not isinstance(payload, dict):
+            raise SoundCloudError(f"Unexpected reply from {url}")
+        return payload
+
     def resolve(self, url: str) -> Dict[str, Any]:
         payload = self._get("/resolve", url=url)
         if not isinstance(payload, dict):

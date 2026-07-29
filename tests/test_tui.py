@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from textual.widgets import Button, DataTable, Input, ListView, Static
@@ -10,6 +12,7 @@ from dj_digger import library, links
 from dj_digger import tui
 from dj_digger.dig import DigOptions, TargetNotFound
 from dj_digger.models import Crate, LinkRecord, Track
+from dj_digger.player import PlayerBar
 from dj_digger.state import GOT, OPENED, SKIP, TrackState
 from dj_digger.tui import AskLinkScreen, ConfirmScreen, DiggerApp, HelpScreen
 
@@ -749,6 +752,223 @@ def test_the_genre_column_shows_genre_then_tag_then_nothing(state):
             assert genres == ["Techno", "Acid", "-"]
 
     run(scenario)
+
+
+class FakePlayer:
+    """The slice of Player the TUI leans on, without touching a sound card."""
+
+    def __init__(self):
+        self.loaded = None
+        self.playing = False
+        self.position = 0.0
+        self.duration = 300.0
+        self.fraction = 0.0
+        self.volume = 0.8
+        self.seeks = []
+        self.closed = False
+        self.muted = False
+
+    tempdir = property(lambda self: Path("/tmp"))
+
+    def load(self, track, path, waveform=None):
+        self.loaded = SimpleNamespace(track=track, path=path, waveform=waveform or [])
+        return self.loaded
+
+    def play(self):
+        self.playing = True
+
+    def pause(self):
+        self.playing = False
+
+    def toggle(self):
+        self.playing = not self.playing
+
+    def stop(self):
+        self.playing = False
+
+    def seek(self, seconds):
+        self.seeks.append(seconds)
+        self.position = seconds
+
+    def nudge(self, seconds):
+        self.seek(self.position + seconds)
+
+    def change_volume(self, delta):
+        self.volume = max(0.0, min(1.0, self.volume + delta))
+
+    def toggle_mute(self):
+        self.muted = not self.muted
+
+    def close(self):
+        self.closed = True
+
+
+def two_tracks_three_links():
+    """One track sold in two shops, so it owns two rows but is still one track."""
+
+    both = Track(
+        title="Sold twice",
+        permalink_url="https://soundcloud.com/a/both",
+        id=901,
+        purchase_url="https://label.bandcamp.com/track/x",
+        description="also https://www.beatport.com/track/x/1",
+    )
+    single = Track(
+        title="Sold once",
+        permalink_url="https://soundcloud.com/a/single",
+        id=902,
+        purchase_url="https://label.bandcamp.com/track/y",
+    )
+    return links.categorise_all([both, single])
+
+
+def player_app(records, state, **kwargs):
+    app = make_app(records, state, **kwargs)
+    app.player = FakePlayer()
+    return app
+
+
+def test_rows_collapse_to_unique_tracks_for_the_player():
+    records = two_tracks_three_links()
+    assert len(records) == 3
+
+    app = DiggerApp(records, state=None)
+
+    async def scenario():
+        async with app.run_test():
+            assert [track.id for track in app.unique_tracks()] == [901, 902]
+
+    run(scenario)
+
+
+def test_next_track_skips_the_second_row_of_the_same_track(state, monkeypatch):
+    """A naive next-row would replay the track that owns two rows."""
+
+    app = player_app(two_tracks_three_links(), state)
+    started = []
+    monkeypatch.setattr(app, "fetch_audio", lambda track: started.append(track.id))
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("space")
+            await pilot.pause()
+            await pilot.press("n")
+            await pilot.pause()
+
+    run(scenario)
+    assert started == [901, 902]
+
+
+def test_previous_track_walks_back(state, monkeypatch):
+    app = player_app(two_tracks_three_links(), state)
+    started = []
+    monkeypatch.setattr(app, "fetch_audio", lambda track: started.append(track.id))
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            table = app.query_one("#tracks", DataTable)
+            table.move_cursor(row=2)  # the second track
+            await pilot.press("p")
+            await pilot.pause()
+
+    run(scenario)
+    assert started == [901]
+
+
+def test_space_toggles_a_track_that_is_already_loaded(records, state, monkeypatch):
+    app = player_app(records, state)
+    monkeypatch.setattr(app, "fetch_audio", lambda track: None)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            track = app.visible_rows[0].record.track
+            app.player.load(track, Path("x.mp3"))
+            await pilot.press("space")
+            assert app.player.playing is True
+            await pilot.press("space")
+            assert app.player.playing is False
+
+    run(scenario)
+
+
+def test_seek_keys_nudge_the_position(records, state):
+    app = player_app(records, state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            app.player.load(app.visible_rows[0].record.track, Path("x.mp3"))
+            app.player.position = 100.0
+            await pilot.press("right_square_bracket")
+            await pilot.press("left_square_bracket")
+
+    run(scenario)
+    assert app.player.seeks == [110.0, 100.0]
+
+
+def test_volume_and_mute_keys(records, state):
+    app = player_app(records, state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("minus")
+            assert app.player.volume == pytest.approx(0.7)
+            await pilot.press("equals_sign")
+            assert app.player.volume == pytest.approx(0.8)
+            await pilot.press("m")
+            assert app.player.muted is True
+
+    run(scenario)
+
+
+def test_a_track_without_an_id_cannot_be_previewed(state, monkeypatch):
+    track = Track(title="No id", permalink_url="https://soundcloud.com/a/x")
+    app = player_app(links.categorise_all([track]), state)
+    monkeypatch.setattr(app, "fetch_audio", lambda t: pytest.fail("should not fetch"))
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("space")
+            await pilot.pause()
+
+    run(scenario)
+
+
+def test_a_playback_failure_shows_a_message_instead_of_crashing(records, state):
+    app = player_app(records, state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            app._playback_failed("This machine has no audio output")
+            await pilot.pause()
+            bar = app.query_one("#player", PlayerBar)
+            assert "no audio output" in str(bar.render())
+
+    run(scenario)
+
+
+def test_clicking_the_waveform_maps_to_a_time(records, state):
+    app = player_app(records, state)
+
+    async def scenario():
+        async with app.run_test():
+            bar = app.query_one("#player", PlayerBar)
+            app.player.load(app.visible_rows[0].record.track, Path("x.mp3"))
+            width = bar._bar_width()
+            assert bar.seconds_at(1) == pytest.approx(0.0)
+            assert bar.seconds_at(1 + width) == pytest.approx(app.player.duration)
+
+    run(scenario)
+
+
+def test_the_player_is_closed_on_exit(records, state):
+    app = player_app(records, state)
+
+    async def scenario():
+        async with app.run_test():
+            pass
+
+    run(scenario)
+    assert app.player.closed is True
 
 
 def test_export_writes_the_visible_rows(records, state, tmp_path):

@@ -28,7 +28,18 @@ from . import dig as dig_module
 from . import library as library_module
 from . import links as links_module
 from .library import CrateRecord
-from .models import Crate, LinkRecord
+from .models import Crate, LinkRecord, Track
+from .player import (
+    SEEK_STEP,
+    VOLUME_STEP,
+    Player,
+    PlaybackUnavailable,
+    PlayerBar,
+    download_stream,
+    fetch_waveform,
+    resolve_stream,
+)
+from .soundcloud import SoundCloudClient, SoundCloudError
 from .state import GOT, NEW, OPENED, SKIP, TrackState
 
 STATUS_STYLES = {
@@ -45,6 +56,7 @@ QUICK_FILTER_KEYS = 9
 SELECTED = "Selected track"
 WHOLE_LIST = "Whole visible list"
 CRATES = "Crates"
+PLAYBACK = "Playback"
 OTHER = "Other"
 
 # One source for the footer and the help screen, so they cannot drift apart.
@@ -64,6 +76,14 @@ KEYMAP = [
     ("F", "cycle_store(-1)", "Previous store", WHOLE_LIST, False),
     ("h", "toggle_handled", "Hide handled", WHOLE_LIST, False),
     ("escape", "clear_filters", "Clear filters", WHOLE_LIST, False),
+    ("space", "play_pause", "Play", PLAYBACK, True),
+    ("left_square_bracket", "seek(-1)", "Back 10s", PLAYBACK, False),
+    ("right_square_bracket", "seek(1)", "Forward 10s", PLAYBACK, False),
+    ("n", "play_step(1)", "Next track", PLAYBACK, False),
+    ("p", "play_step(-1)", "Previous track", PLAYBACK, False),
+    ("minus", "volume(-1)", "Quieter", PLAYBACK, False),
+    ("equals_sign", "volume(1)", "Louder", PLAYBACK, False),
+    ("m", "mute", "Mute", PLAYBACK, False),
     ("d", "dig_link", "Add crate", CRATES, True),
     ("r", "refresh_crate", "Refresh crate", CRATES, False),
     ("X", "delete_crate", "Delete crate", CRATES, False),
@@ -75,10 +95,23 @@ KEYMAP = [
 # What each group actually operates on. The old footer never said, so it was
 # impossible to tell whether a key hit one row or the whole list.
 HELP_SCOPES = {
-    SELECTED: "the highlighted row only",
-    WHOLE_LIST: "every row shown, after filters",
+    SELECTED: "acts on the highlighted row only",
+    WHOLE_LIST: "acts on every row shown, after filters",
     CRATES: "loads another playlist",
+    PLAYBACK: "click the waveform to seek",
     OTHER: "",
+}
+
+# Textual's key identifiers are not what anyone wants to read in a help screen.
+KEY_DISPLAY = {
+    "slash": "/",
+    "question_mark": "?",
+    "minus": "-",
+    "equals_sign": "=",
+    "left_square_bracket": "[",
+    "right_square_bracket": "]",
+    "o,enter": "o, enter",
+    "X": "shift+X",
 }
 HELP_EXTRA = {
     WHOLE_LIST: [("0", "Show every store"), ("1-9", "Show only the nth store")],
@@ -165,10 +198,10 @@ class HelpScreen(ModalScreen[None]):
 
     def _body(self) -> Text:
         body = Text()
-        sections = (SELECTED, WHOLE_LIST, CRATES, OTHER)
+        sections = (SELECTED, PLAYBACK, WHOLE_LIST, CRATES, OTHER)
         for section in sections:
             entries = [
-                (key.replace("slash", "/").replace("question_mark", "?"), label)
+                (KEY_DISPLAY.get(key, key), label)
                 for key, _action, label, group, _show in KEYMAP
                 if group == section
             ] + HELP_EXTRA.get(section, [])
@@ -176,7 +209,7 @@ class HelpScreen(ModalScreen[None]):
                 continue
             body.append(section + "\n", style="bold")
             if HELP_SCOPES[section]:
-                body.append(f"  acts on {HELP_SCOPES[section]}\n", style="bright_black")
+                body.append(f"  {HELP_SCOPES[section]}\n", style="bright_black")
             for key, label in entries:
                 body.append(f"  {key:<10}", style="cyan")
                 body.append(f"{label}\n")
@@ -288,7 +321,8 @@ class DiggerApp(App):
     """
 
     BINDINGS = [
-        Binding(key, action, label, show=show) for key, action, label, _group, show in KEYMAP
+        Binding(key, action, label, show=show, key_display=KEY_DISPLAY.get(key))
+        for key, action, label, _group, show in KEYMAP
     ] + [
         Binding(str(index), f"filter_index({index})", f"Store {index}", show=False)
         for index in range(0, QUICK_FILTER_KEYS + 1)
@@ -324,11 +358,14 @@ class DiggerApp(App):
         self._pending_open_all = False
         self._digging = False
         self._undone: List[str] = []
+        self.player = Player()
+        self._client: Optional[SoundCloudClient] = None
         self._set_records(records)
 
     # Layout
 
     def compose(self) -> ComposeResult:
+        yield PlayerBar(self.player, id="player")
         with Horizontal(id="body"):
             with Vertical(id="sidebar"):
                 yield Static("Crates", id="sidebar-title")
@@ -360,8 +397,14 @@ class DiggerApp(App):
                 self.load_crate(latest)
         self.refresh_rows()
         table.focus()
+        self.set_interval(0.25, self._tick)
         if not self.rows:
             self.action_dig_link()
+
+    def on_unmount(self) -> None:
+        self.player.close()
+        if self._client is not None:
+            self._client.close()
 
     # Records
 
@@ -534,6 +577,124 @@ class DiggerApp(App):
             table.move_cursor(row=table.cursor_row + 1)
 
     # Digging
+
+    # Playback
+
+    @property
+    def client(self) -> SoundCloudClient:
+        if self._client is None:
+            self._client = SoundCloudClient()
+        return self._client
+
+    def _player_bar(self) -> PlayerBar:
+        return self.query_one("#player", PlayerBar)
+
+    def _tick(self) -> None:
+        if self.player.playing:
+            self._player_bar().refresh_bar()
+
+    def unique_tracks(self) -> List[Track]:
+        """Visible rows collapsed to tracks - a row is a link, so tracks repeat."""
+
+        seen = set()
+        tracks = []
+        for row in self.visible_rows:
+            track = row.record.track
+            if track.key not in seen:
+                seen.add(track.key)
+                tracks.append(track)
+        return tracks
+
+    def action_play_pause(self) -> None:
+        row = self.current_row()
+        if row is None:
+            return
+        track = row.record.track
+        loaded = self.player.loaded
+        if loaded is not None and loaded.track.key == track.key:
+            self.player.toggle()
+            self._player_bar().refresh_bar()
+            return
+        self._start_playback(track)
+
+    def _start_playback(self, track: Track) -> None:
+        if not track.id:
+            self.notify("No track id, so there is nothing to stream", timeout=4)
+            return
+        bar = self._player_bar()
+        bar.message = f"Loading {track.label}"
+        bar.refresh_bar()
+        self.fetch_audio(track)
+
+    @work(thread=True, exclusive=True, group="audio")
+    def fetch_audio(self, track: Track) -> None:
+        try:
+            stream_url, waveform_url = resolve_stream(self.client, track.id)
+            path = self.player.tempdir / f"{track.id}.mp3"
+            if not path.exists():
+                download_stream(self.client, stream_url, path)
+            samples = fetch_waveform(self.client, waveform_url)
+        except (SoundCloudError, PlaybackUnavailable, OSError) as exc:
+            self.call_from_thread(self._playback_failed, str(exc))
+            return
+        self.call_from_thread(self._audio_ready, track, path, samples)
+
+    def _audio_ready(self, track: Track, path: Path, samples: List[int]) -> None:
+        bar = self._player_bar()
+        bar.message = ""
+        try:
+            self.player.load(track, path, samples)
+            self.player.play()
+        except PlaybackUnavailable as exc:
+            self._playback_failed(str(exc))
+            return
+        self._focus_playing_track()
+        bar.refresh_bar()
+
+    def _playback_failed(self, message: str) -> None:
+        bar = self._player_bar()
+        bar.message = message
+        bar.refresh_bar()
+        self.notify(message, severity="warning", timeout=6)
+
+    def _focus_playing_track(self) -> None:
+        loaded = self.player.loaded
+        if loaded is None:
+            return
+        for index, row in enumerate(self.visible_rows):
+            if row.record.track.key == loaded.track.key:
+                self.query_one("#tracks", DataTable).move_cursor(row=index)
+                return
+
+    def action_seek(self, direction: int) -> None:
+        if self.player.loaded is None:
+            return
+        self.player.nudge(direction * SEEK_STEP)
+        self._player_bar().refresh_bar()
+
+    def action_play_step(self, step: int) -> None:
+        tracks = self.unique_tracks()
+        if not tracks:
+            return
+        loaded = self.player.loaded
+        keys = [track.key for track in tracks]
+        if loaded is not None and loaded.track.key in keys:
+            index = keys.index(loaded.track.key) + step
+        else:
+            current = self.current_row()
+            index = keys.index(current.record.track.key) + step if current else 0
+        if not 0 <= index < len(tracks):
+            self.notify("End of the list", timeout=2)
+            return
+        self._start_playback(tracks[index])
+
+    def action_volume(self, direction: int) -> None:
+        self.player.change_volume(direction * VOLUME_STEP)
+        self._player_bar().refresh_bar()
+
+    def action_mute(self) -> None:
+        self.player.toggle_mute()
+        self._player_bar().refresh_bar()
 
     def action_help(self) -> None:
         self.push_screen(HelpScreen())

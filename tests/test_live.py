@@ -14,7 +14,7 @@ import os
 
 import pytest
 
-from dj_digger import links, soundcloud
+from dj_digger import links, player, soundcloud
 
 LIVE_URL = os.environ.get(
     "DJ_DIGGER_LIVE_URL", "https://soundcloud.com/antarcticae/sets/techno-vinyl"
@@ -51,6 +51,29 @@ def test_batch_hydration_still_caps_at_fifty():
         assert len(client.hydrate_tracks(ids[:50])) > 0
         with pytest.raises(soundcloud.SoundCloudError):
             client._get("/tracks", ids=",".join(str(i) for i in ids))
+    finally:
+        client.close()
+
+
+def test_a_track_still_offers_a_plain_mp3_and_a_waveform():
+    """Audio preview rests on both of these; SoundCloud could drop either."""
+
+    client = soundcloud.SoundCloudClient()
+    try:
+        track_id = client.resolve(LIVE_URL)["tracks"][0]["id"]
+        payload = client.fetch_track(track_id)
+
+        protocols = {
+            (item.get("format") or {}).get("protocol")
+            for item in payload["media"]["transcodings"]
+        }
+        assert "progressive" in protocols, f"only got {protocols}"
+        assert payload.get("track_authorization")
+        assert payload.get("waveform_url", "").startswith("https://")
+
+        stream_url, waveform_url = player.resolve_stream(client, track_id)
+        assert stream_url.startswith("https://")
+        assert len(player.fetch_waveform(client, waveform_url)) > 100
     finally:
         client.close()
 

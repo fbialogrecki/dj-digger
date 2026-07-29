@@ -26,7 +26,10 @@ dependencies = [
 
 [project.optional-dependencies]
 yaml = ["pyyaml>=6.0"]
-dev = ["pytest>=7.0"]
+# Audio preview. Kept optional so a platform without a miniaudio wheel can still
+# install the link digger; the player degrades with a message when it is absent.
+play = ["miniaudio>=1.59"]
+dev = ["pytest>=7.0", "miniaudio>=1.59"]
 
 [project.scripts]
 dj-digger = "dj_digger.cli:main"

@@ -31,31 +31,33 @@ carries its purchase link as a field.
 A 282-track playlist takes six requests and about three seconds, where the old
 path took 282 requests and about five minutes.
 
-Two other things came with it: results now open in an interactive browser instead
-of firing every link at your browser at once, and the four store categories grew
-into eleven so that smart links, download gates and record shops stop being
-lumped together as `others`.
+Three other things came with it. Results open in an interactive browser instead of
+firing every link at your browser at once, and that browser keeps a library of
+crates you can switch between and preview audio from. And the four store
+categories grew into eleven, so smart links, download gates and record shops stop
+being lumped together as `others`.
 
 ## Install
 
 ```bash
-uv tool install dj-soundcloud-digger
+uv tool install 'dj-soundcloud-digger[play]'
 ```
 
 or
 
 ```bash
-pipx install dj-soundcloud-digger
+pipx install 'dj-soundcloud-digger[play]'
 ```
 
 From a clone, for development:
 
 ```bash
-uv venv && uv pip install -e '.[yaml,dev]'
+uv venv && uv pip install -e '.[play,yaml,dev]'
 ```
 
-YAML export is an optional extra (`dj-soundcloud-digger[yaml]`) because PyYAML is
-only needed if you actually want YAML.
+Both extras are optional. `play` pulls in miniaudio for audio preview, and `yaml`
+pulls in PyYAML for YAML export; without them everything else still works and the
+features that need them say so.
 
 ## Links you can dig
 
@@ -73,21 +75,49 @@ only needed if you actually want YAML.
 By default `dj-digger` drops you into a table of everything it found. Opening 287
 links at once is not a workflow, so instead you move through them:
 
+Press `?` for the full list, grouped by what each key acts on. That grouping is
+the point: it was previously impossible to tell whether a key hit one row or the
+whole list.
+
+On the highlighted row:
+
 | Key | Action |
 | --- | --- |
 | arrows | move around |
-| `o` or `enter` | open the selected link in your browser |
+| `o` or `enter` | open its store link in your browser |
 | `g` | mark as got, and move to the next one |
-| `s` | mark as skipped |
-| `u` | unmark |
-| `a` | open everything currently visible (asks first above 20 links) |
+| `s` | mark as skipped, `u` to unmark |
+| `x` | remove it from this crate, `ctrl+z` to undo |
+
+Playback:
+
+| Key | Action |
+| --- | --- |
+| `space` | play or pause |
+| `[` `]` | back or forward 10 seconds |
+| `n` `p` | next or previous track |
+| `-` `=` | quieter or louder, `m` mutes |
+| click | seek to that point on the waveform |
+
+On the whole visible list:
+
+| Key | Action |
+| --- | --- |
+| `a` | open every link shown (asks first above 20) |
 | `/` | filter by artist or title |
 | `f` / `F` | step forward or back through the stores in this crate |
 | `1`-`9` | jump straight to a store, `0` for all |
 | `h` | hide what you already handled |
-| `d` | dig another link without leaving |
 | `e` | export the rows you can currently see |
-| `q` | quit |
+
+Crates:
+
+| Key | Action |
+| --- | --- |
+| `d` | add a crate from a link |
+| `r` | refresh the highlighted crate from SoundCloud |
+| `shift+X` | delete it, after confirming |
+| `ctrl+b` | show or hide the crate sidebar |
 
 The store line under the header is the legend for the number keys, and it only
 lists stores this crate actually contains:
@@ -103,6 +133,37 @@ never makes you cycle through eight empty ones.
 `got it` the next time it turns up in somebody else's set. That state lives in a
 small JSON file under your platform's data directory (`~/.local/share/dj-digger/`
 on Linux).
+
+## Your crate library
+
+Every crate you dig is saved, so switching between playlists is a keypress rather
+than a restart. The sidebar lists them; `enter` on one loads it.
+
+Crates store whole tracks rather than the categorised links, which means
+improving the store detection improves crates you imported months ago. Refreshing
+(`r`) re-digs the saved link and **keeps tracks you deleted locally deleted** -
+that is why deletions are tracked separately from the track list.
+
+Removing a track with `x` only touches your copy. We read SoundCloud with an
+anonymous client id, which grants no write access whatsoever, so editing the real
+playlist would need a full OAuth login. A crate marked with `*` came from an
+export file and is missing fields the API would have given us; `r` fills it in.
+
+## Previewing tracks
+
+`space` previews the highlighted track. The MP3 downloads to a temporary
+directory first - about 1.5 seconds for a 7 minute track - which is what makes
+seeking instant afterwards. Click anywhere on the waveform to jump there.
+
+The waveform is not computed locally: SoundCloud publishes 1800 samples per track
+and we just draw them.
+
+Nothing is cached between runs. A persistent cache of whole tracks reaches
+gigabytes after an evening of digging and would then need an eviction policy, so
+the temporary directory goes away when you quit.
+
+If there is no audio output, or miniaudio is not installed, the player says so in
+its bar and everything else carries on working.
 
 ## Non-interactive use
 
@@ -170,6 +231,9 @@ from SoundCloud's own JavaScript bundles. It is cached and re-discovered
 automatically when it stops being accepted, but SoundCloud could change any of
 this without notice. That is why the saved-HTML path is still here.
 
+Audio preview leans on the same API, plus the `progressive` transcoding and
+`waveform_url` specifically. `pytest -m live` checks both still exist.
+
 ## Development
 
 ```bash
@@ -179,6 +243,9 @@ pytest -m live      # hits the real API, tells you if SoundCloud moved something
 
 The live tests are the early-warning system for the paragraph above. Point them
 somewhere else with `DJ_DIGGER_LIVE_URL` if the default playlist disappears.
+
+The offline suite never opens an audio device and never touches your real crate
+library or status file - both are redirected to a temporary directory.
 
 ## License
 
