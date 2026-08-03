@@ -33,6 +33,7 @@ class Track:
     artist: str = ""
     purchase_url: Optional[str] = None
     purchase_title: Optional[str] = None
+    download_url: Optional[str] = None
     description: str = ""
     downloadable: bool = False
     # Artists cap how many free downloads they hand out, and the cap is reached
@@ -55,6 +56,12 @@ class Track:
         """SoundCloud itself will hand over the file, and has not run out."""
 
         return self.downloadable and self.has_downloads_left
+
+    @property
+    def has_direct_download(self) -> bool:
+        """The API says the artist currently offers a concrete download URL."""
+
+        return self.free_download and bool(self.download_url)
 
     @property
     def duration_label(self) -> str:
@@ -89,6 +96,7 @@ class Track:
             permalink_url=clean(payload.get("permalink_url")),
             purchase_url=clean(payload.get("purchase_url")) or None,
             purchase_title=clean(payload.get("purchase_title")) or None,
+            download_url=clean(payload.get("download_url")) or None,
             description=payload.get("description") or "",
             downloadable=bool(payload.get("downloadable")),
             has_downloads_left=bool(payload.get("has_downloads_left")),

@@ -34,8 +34,57 @@ class FakeSession:
         pass
 
 
+class DownloadResponse:
+    status_code = 200
+
+    def __init__(self, chunks):
+        self.chunks = chunks
+
+    def iter_content(self, chunk_size):
+        return iter(self.chunks)
+
+
+class DownloadSession:
+    def __init__(self, response):
+        self.response = response
+        self.calls = []
+
+    def get(self, url, params=None, timeout=None, stream=False):
+        self.calls.append((url, dict(params or {}), timeout, stream))
+        return self.response
+
+    def close(self):
+        pass
+
+
 def make_client(session=None):
     return SoundCloudClient(session=session or FakeSession([]), client_id=DUMMY_CLIENT_ID)
+
+
+def test_download_uses_only_the_artist_provided_download_url(tmp_path):
+    session = DownloadSession(DownloadResponse([b"first", b"", b"second"]))
+    client = make_client(session)
+    track = Track(
+        title="A track / live",
+        artist="Artist",
+        permalink_url="https://soundcloud.com/artist/track",
+        downloadable=True,
+        has_downloads_left=True,
+        download_url="https://api-v2.soundcloud.com/tracks/1/download",
+    )
+
+    path = client.download_track(track, tmp_path)
+
+    assert path.name == "Artist - A track live.mp3"
+    assert path.read_bytes() == b"firstsecond"
+    assert session.calls == [
+        (
+            track.download_url,
+            {"client_id": DUMMY_CLIENT_ID},
+            20.0,
+            True,
+        )
+    ]
 
 
 def track_payload(track_id):

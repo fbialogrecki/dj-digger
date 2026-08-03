@@ -14,6 +14,7 @@ whenever a request comes back unauthorised.
 from __future__ import annotations
 
 import logging
+import os
 import re
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Sequence, Tuple
@@ -54,6 +55,13 @@ ProgressCallback = Callable[[int, Optional[int]], None]
 
 class SoundCloudError(RuntimeError):
     """Raised when SoundCloud cannot be reached or gives us nothing usable."""
+
+
+def _download_stem(track: Track) -> str:
+    raw = " - ".join(part for part in (track.artist, track.title) if part).strip()
+    raw = re.sub(r"[^\w .-]+", "", raw, flags=re.UNICODE).strip(" .")
+    raw = re.sub(r"\s+", " ", raw)
+    return (raw or f"track-{track.id or 'soundcloud'}")[:180]
 
 
 def create_requests_session(max_retries: int = 5, backoff_factor: float = 0.5) -> requests.Session:
@@ -237,6 +245,51 @@ class SoundCloudClient:
         if not isinstance(payload, dict):
             raise SoundCloudError(f"Unexpected reply from {url}")
         return payload
+
+    def download_track(self, track: Track, directory: Path) -> Path:
+        """Save the artist-provided download, never a playback stream."""
+
+        if not track.has_direct_download or not track.download_url:
+            raise SoundCloudError("This track has no active direct download")
+        host = (urlparse(track.download_url).hostname or "").lower()
+        if not (
+            host == "soundcloud.com"
+            or host.endswith(".soundcloud.com")
+            or host.endswith(".sndcdn.com")
+        ):
+            raise SoundCloudError("SoundCloud returned an unsafe download URL")
+
+        directory = Path(directory)
+        directory.mkdir(parents=True, exist_ok=True)
+        target = directory / f"{_download_stem(track)}.mp3"
+        temporary = target.with_name(target.name + ".part")
+        completed = False
+        try:
+            response = self._session.get(
+                track.download_url,
+                params={"client_id": self.client_id},
+                timeout=self._timeout,
+                stream=True,
+            )
+            if response.status_code >= 400:
+                raise SoundCloudError(
+                    f"SoundCloud returned HTTP {response.status_code} for the download"
+                )
+            with temporary.open("wb") as handle:
+                for chunk in response.iter_content(chunk_size=1024 * 128):
+                    if chunk:
+                        handle.write(chunk)
+            os.replace(temporary, target)
+            completed = True
+        except requests.RequestException as exc:
+            raise SoundCloudError(f"Download request failed: {exc}") from exc
+        finally:
+            if not completed:
+                try:
+                    temporary.unlink()
+                except FileNotFoundError:
+                    pass
+        return target
 
     def resolve(self, url: str) -> Dict[str, Any]:
         payload = self._get("/resolve", url=url)

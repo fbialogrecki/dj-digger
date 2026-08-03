@@ -40,11 +40,11 @@ def test_store_link_is_found_in_the_description(tracks_by_id):
 
 
 def test_track_without_any_link_still_produces_a_row(tracks_by_id):
-    """Nowhere to buy it still means somewhere to go: its own SoundCloud page."""
+    """A track with no actionable link is visible but not labelled as a download."""
 
     records = links.categorise(tracks_by_id[NO_LINK])
     assert len(records) == 1
-    assert records[0].category == "soundcloud"
+    assert records[0].category == "no-link"
     assert records[0].link_text == links.NO_STORE_LINK
     assert records[0].link_url == records[0].track.permalink_url
 
@@ -58,7 +58,7 @@ def test_unknown_domains_in_the_description_are_ignored():
         description="follow me https://instagram.com/someone and https://example.com/x",
     )
     records = links.categorise(track)
-    assert [record.category for record in records] == ["soundcloud"]
+    assert [record.category for record in records] == ["no-link"]
     assert records[0].link_text == links.NO_STORE_LINK
 
 
@@ -79,7 +79,7 @@ def test_streaming_and_smart_links_in_a_description_are_dropped(url):
         permalink_url="https://soundcloud.com/a/b",
         description=f"follow us, stream here {url}",
     )
-    assert [record.category for record in links.categorise(track)] == ["soundcloud"]
+    assert [record.category for record in links.categorise(track)] == ["no-link"]
 
 
 def test_the_same_links_do_count_when_they_are_the_purchase_field():
@@ -173,12 +173,23 @@ def test_a_free_download_on_soundcloud_beats_the_shops():
         permalink_url="https://soundcloud.com/a/b",
         downloadable=True,
         has_downloads_left=True,
+        download_url="https://api-v2.soundcloud.com/tracks/1/download",
         purchase_url="https://label.bandcamp.com/album/x",
     )
     records = links.categorise(track)
     assert [record.category for record in records] == ["soundcloud", "bandcamp"]
     assert records[0].link_text == links.FREE_DOWNLOAD
-    assert records[0].link_url == track.permalink_url
+    assert records[0].link_url == track.download_url
+
+
+def test_download_flags_without_a_url_are_not_presented_as_a_download():
+    track = Track(
+        title="No endpoint",
+        permalink_url="https://soundcloud.com/a/b",
+        downloadable=True,
+        has_downloads_left=True,
+    )
+    assert categories_for(track) == ["no-link"]
 
 
 def test_a_used_up_free_download_is_not_offered():
@@ -205,7 +216,7 @@ def test_group_by_track_puts_the_best_link_first():
     groups = links.group_by_track(links.categorise_all([track, other]))
     assert [[record.category for record in group] for group in groups] == [
         ["bandcamp", "gate"],
-        ["soundcloud"],
+        ["no-link"],
     ]
 
 

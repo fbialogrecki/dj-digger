@@ -100,10 +100,11 @@ SMARTLINK_TLD = ".link"
 # Ordered so that the best outcome comes first, which is also the order the TUI
 # opens links in: a file SoundCloud will simply give you, then somewhere to buy,
 # then a gate to earn it free, then a click-through, then stream-only, then no
-# idea. "soundcloud" is also where tracks land that have no store link at all -
-# the track page is still worth opening, for the description if nothing else.
+# idea. Tracks with no recognised link get their own category so they cannot be
+# mistaken for a SoundCloud download.
 CATEGORY_NAMES = [
     "soundcloud",
+    "no-link",
     "bandcamp",
     "beatport",
     "traxsource",
@@ -121,6 +122,7 @@ CATEGORY_NAMES = [
 # download from are worth harvesting out of them.
 DESCRIPTION_CATEGORIES = frozenset(CATEGORY_NAMES) - {
     "soundcloud",
+    "no-link",
     "smartlink",
     "streaming",
     "others",
@@ -132,7 +134,7 @@ EXPORT_FORMATS = ["json", "yaml", "csv", "none"]
 URL_RE = re.compile(r"https?://[^\s<>\"'\)\]]+")
 TRAILING_PUNCTUATION = ".,;:!?)]}>\"'"
 
-NO_STORE_LINK = "No store link found"
+NO_STORE_LINK = "No link found"
 FREE_DOWNLOAD = "Free download on SoundCloud"
 
 LOGGER = logging.getLogger(__name__)
@@ -206,10 +208,17 @@ def categorise(track: Track) -> List[LinkRecord]:
     claimed: Set[str] = set()
     unmatched: List[Tuple[str, str]] = []
 
-    if track.free_download:
+    if track.has_direct_download:
         # Nothing beats a file the artist is handing out directly, so this one
         # goes in even when the track also sells somewhere.
-        records.append(LinkRecord("soundcloud", track, track.permalink_url, FREE_DOWNLOAD))
+        records.append(
+            LinkRecord(
+                "soundcloud",
+                track,
+                track.download_url or track.permalink_url,
+                FREE_DOWNLOAD,
+            )
+        )
         claimed.add("soundcloud")
 
     for url, text, source in candidate_links(track):
@@ -231,7 +240,7 @@ def categorise(track: Track) -> List[LinkRecord]:
     if unmatched:
         return [LinkRecord("others", track, url, text) for url, text in unmatched]
 
-    return [LinkRecord("soundcloud", track, track.permalink_url, NO_STORE_LINK)]
+    return [LinkRecord("no-link", track, track.permalink_url, NO_STORE_LINK)]
 
 
 def categorise_all(tracks: Iterable[Track]) -> List[LinkRecord]:

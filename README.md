@@ -102,6 +102,7 @@ On the highlighted row:
 | --- | --- |
 | arrows | move around |
 | `o` or `enter` | open its best link, or the filtered store, in your browser |
+| `w` | download an active artist-provided SoundCloud file |
 | `g` | mark as got, and move on; press again to undo |
 | `s` | mark as skipped, and move on; press again to undo |
 | `u` | clear the mark either way |
@@ -272,7 +273,8 @@ Links are grouped by what you can actually do with them, best outcome first:
 
 | Category | Means |
 | --- | --- |
-| `soundcloud` | SoundCloud will hand you the file itself, or there is nowhere else to go |
+| `soundcloud` | SoundCloud currently offers the artist-provided file for download |
+| `no-link` | no purchase, gate, streaming or direct-download link was found |
 | `bandcamp` `beatport` `traxsource` `junodownload` `apple` | buy it there |
 | `shop` | another record shop: Boomkat, Hard Wax, Clone, Decks, Deejay, Red Eye, Juno, Phonica, Rush Hour, Bleep, Gumroad |
 | `gate` | free, once you follow or like: Hypeddit, Gaterush, Droploud, Wump, The Artist Union, Toneden, Pump Your Sound |
@@ -289,15 +291,14 @@ rather than splitting the count between near-synonyms.
 A link only earns a category by matching a domain on a boundary, so
 `evil-bandcamp.com` does not pass as Bandcamp. `purchase_url` is not always a
 shop either - artists hang interviews and press articles off it - and those stay
-in `others`. Tracks with no link anywhere still get a row under `soundcloud`, so
+in `others`. Tracks with no link anywhere still get a row under `no-link`, so
 nothing silently disappears and the track page is still one keypress away.
 
-A `↓soundcloud` badge means the artist ticked the download box and has not yet
-run out: `downloadable` on its own keeps saying yes long after the free
-allowance is gone, so both that and `has_downloads_left` have to agree before
-the badge appears. The file itself lives behind the download button on the track
-page - the API endpoint for it needs a logged-in token, which this tool does not
-ask you for.
+A `↓soundcloud` badge means the artist ticked the download box, has not yet run
+out, and SoundCloud supplied a direct `download_url`. Press `w` to save that
+artist-provided file into your Downloads directory. The action never turns an
+ordinary playback stream into a download; if SoundCloud does not expose the
+download endpoint, the track remains `no-link` or keeps its other links.
 
 Descriptions are treated as a weaker source than `purchase_url`: a buyable link
 in there is worth having, but the label's Linktree and Spotify profile pasted

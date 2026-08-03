@@ -22,6 +22,7 @@ from typing import Dict, List, Optional, Sequence
 
 from rich.table import Table
 from rich.text import Text
+from platformdirs import user_downloads_dir
 from textual import events, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -114,6 +115,7 @@ OTHER = "Other"
 # Footer labels stay short because it gets one line; help has the room to explain.
 KEYMAP = [
     ("o,enter", "open_link", "Open", SELECTED, True, "Open its best link, or the filtered store"),
+    ("w", "download_track", "Download", SELECTED, True, "Download an artist-provided SoundCloud file"),
     ("g", "mark_got", "Got", SELECTED, True, "Mark as got, press again to undo"),
     ("s", "mark_skip", "Skip", SELECTED, True, "Mark as skipped, press again to undo"),
     ("u", "mark_new", "Unmark", SELECTED, False, "Clear the mark either way"),
@@ -1315,15 +1317,45 @@ class DiggerApp(App):
             return
         record = self.record_to_open(row)
         if record.link_text == links_module.NO_STORE_LINK:
-            self.notify("No store link for this track - opening it on SoundCloud", timeout=3)
+            self.notify("No link for this track - opening it on SoundCloud", timeout=3)
         elif record.link_text == links_module.FREE_DOWNLOAD:
-            self.notify("Free on SoundCloud - the download button is on the page", timeout=4)
-        if browser_module.open_url(record.link_url, self.browser):
+            self.notify("Use w to download the artist-provided file", timeout=4)
+        url = (
+            record.track.permalink_url
+            if record.link_text in {links_module.NO_STORE_LINK, links_module.FREE_DOWNLOAD}
+            else record.link_url
+        )
+        if browser_module.open_url(url, self.browser):
             if self.status_of(row) == NEW:
                 self.state.set(row.track.key, OPENED)
             self.refresh_rows()
         else:
             self.notify("Could not open the link", severity="error")
+
+    def action_download_track(self) -> None:
+        row = self.current_row()
+        if row is None:
+            return
+        if not row.track.has_direct_download:
+            self.notify("This track has no active direct SoundCloud download", timeout=4)
+            return
+        self.notify(f"Downloading {row.track.label}...", timeout=3)
+        self.download_track_in_background(row.track)
+
+    @work(thread=True, exclusive=True, group="download")
+    def download_track_in_background(self, track: Track) -> None:
+        try:
+            path = self.client.download_track(track, Path(user_downloads_dir()))
+        except (SoundCloudError, OSError) as exc:
+            self.call_from_thread(self._download_failed, str(exc))
+            return
+        self.call_from_thread(self._download_finished, path)
+
+    def _download_failed(self, message: str) -> None:
+        self.notify(f"Download failed: {message}", severity="error", timeout=6)
+
+    def _download_finished(self, path: Path) -> None:
+        self.notify(f"Downloaded to {path}", timeout=5)
 
     def action_mark_got(self) -> None:
         self._toggle_status(GOT, "Got it")

@@ -309,7 +309,7 @@ def test_number_keys_select_the_stores_this_crate_actually_has(records, state):
 
     async def scenario():
         async with app.run_test() as pilot:
-            assert app.present == ["soundcloud", "bandcamp", "others"]
+            assert app.present == ["no-link", "bandcamp", "others"]
 
             await pilot.press("2")
             assert app.store_filter == "bandcamp"
@@ -345,7 +345,7 @@ def test_cycling_walks_only_the_stores_present(records, state):
     async def scenario():
         async with app.run_test() as pilot:
             await pilot.press("f")
-            assert app.store_filter == "soundcloud"
+            assert app.store_filter == "no-link"
             await pilot.press("f")
             assert app.store_filter == "bandcamp"
             await pilot.press("f")
@@ -991,6 +991,7 @@ def test_a_free_soundcloud_download_is_badged_and_opened_first(state):
         id=6,
         downloadable=True,
         has_downloads_left=True,
+        download_url="https://api-v2.soundcloud.com/tracks/6/download",
         purchase_url="https://label.bandcamp.com/album/x",
     )
     app = make_app(links.categorise_all([track]), state)
@@ -1001,7 +1002,7 @@ def test_a_free_soundcloud_download_is_badged_and_opened_first(state):
             assert str(table.get_row_at(0)[STORES_CELL]) == "\u2193soundcloud bandcamp"
             chosen = app.record_to_open(app.rows[0])
             assert chosen.category == "soundcloud"
-            assert chosen.link_url == track.permalink_url
+            assert chosen.link_url == track.download_url
 
     run(scenario)
 
