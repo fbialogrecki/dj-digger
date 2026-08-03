@@ -109,22 +109,22 @@ the player bar is refreshed; the table is not told anything is happening.
 - Digging a playlist shows a turning indicator beside the progress text, so
   "working" is distinguishable from "hung".
 
-### A BPM column, when there is a BPM to show
+### A BPM column - looked at and dropped
 
-SoundCloud's track payload has no `bpm` field. Checked against the live API on
-six tracks from a real crate: the key is not merely null, it is absent, and there
-is no `key_signature` or tempo field either.
+The plan assumed SoundCloud's track payload carried a `bpm` field. It does not:
+checked against the live API on six tracks from a real crate, the key is not
+merely null, it is absent, and there is no `key_signature` or tempo field either.
 
-The only tempo available is one the artist wrote down, and only where they said
-it was a tempo - `165BPM` in the tags, `(150 BPM)` in the title, `BPM: 145` in
-the description. A bare `150` does not count; it is as likely to be a catalogue
-number or a year. On an 83 track hard techno crate that finds 4.
+That leaves only what the artist wrote down, and only where they said it was a
+tempo - `165BPM` in the tags, `(150 BPM)` in the title, `BPM: 145` in the
+description. A bare `150` cannot count; it is as likely to be a catalogue number
+or a year, and a wrong tempo is worse than none. On an 83 track hard techno crate
+that finds four.
 
-So the column is conditional. It appears, last, only when the crate contains at
-least one stated tempo, and the three columns go back to the title when it does
-not - a column of dashes on 95% of rows is not worth the width. The tempo is
-worked out from fields every stored crate already has, so a crate dug before this
-existed reads the same as one dug after it.
+A conditional column - present only when the crate has any tempos - was built and
+then removed. Four rows in eighty-three does not carry a column, even one that
+hides itself, and every reader of the table has to learn a column that is usually
+not there. Recorded here so nobody reaches for the `bpm` field again.
 
 ## Testing
 
@@ -145,4 +145,3 @@ existed reads the same as one dug after it.
 2. Prefetching the next track.
 3. The visual layer: level, waveform render, pulse, frame rate, flash, player bar
    growth, digging indicator.
-4. The BPM column.

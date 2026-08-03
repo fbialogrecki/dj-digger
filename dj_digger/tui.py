@@ -97,7 +97,6 @@ INDEX_WIDTH = 4
 STORES_WIDTH = 22
 GENRE_WIDTH = 14
 TIME_WIDTH = 5
-BPM_WIDTH = 3
 MIN_TITLE_WIDTH = 20
 
 # These two say nothing as a word - "shop" and "others" are what is left after
@@ -546,8 +545,6 @@ class DiggerApp(App):
         self.export_format = export_format
         self.export_path = export_path
         self.dig_options = dig_options or dig_module.DigOptions()
-        self.show_bpm = False
-        self.bpm_column: Optional[ColumnKey] = None
         self.store_filter: str = ""
         self.search_term: str = ""
         self.hide_handled: bool = False
@@ -625,10 +622,6 @@ class DiggerApp(App):
             Row(position=index + 1, track=group[0].track, records=group)
             for index, group in enumerate(links_module.group_by_track(records))
         ]
-        # Most artists never say. A column of dashes would cost the title three
-        # of its columns to tell you nothing, so it only turns up when the crate
-        # has tempos in it - which some genres and labels are good about.
-        self.show_bpm = any(row.track.bpm for row in self.rows)
         self.present = links_module.present_categories(records)
         if self.store_filter not in self.present:
             self.store_filter = ""
@@ -745,7 +738,7 @@ class DiggerApp(App):
         status = self.status_of(row)
         glyph, style, _meaning = STATUS_STYLES[status]
         dim = "bright_black" if status == SKIP else ""
-        cells = [
+        return [
             Text(PLAYING_GLYPH if row.track.key == playing_key else "", style="green"),
             Text(glyph, style=style),
             Text(str(row.position), style="bright_black"),
@@ -754,10 +747,6 @@ class DiggerApp(App):
             Text(row.track.genre_label or "-", style="bright_black"),
             Text(row.track.duration_label or "-", style="bright_black"),
         ]
-        if self.show_bpm:
-            bpm = row.track.bpm
-            cells.append(Text(str(bpm) if bpm else "-", style="bright_black"))
-        return cells
 
     def _paint_row(self, index: int, flash: str = "") -> None:
         """Rewrite one row in place, rather than rebuilding the whole table."""
@@ -778,20 +767,11 @@ class DiggerApp(App):
         self._paint_row(index, flash=style)
         self.set_timer(FLASH, lambda: self._paint_row(index))
 
-    def _fit_bpm_column(self, table: TrackTable) -> None:
-        if self.show_bpm and self.bpm_column is None:
-            # Last, because it is the column that comes and goes.
-            self.bpm_column = table.add_column("BPM", width=BPM_WIDTH)
-        elif self.bpm_column is not None and not self.show_bpm:
-            table.remove_column(self.bpm_column)
-            self.bpm_column = None
-
     def refresh_rows(self, *, keep_cursor: bool = True) -> None:
         table = self.query_one("#tracks", TrackTable)
         previous = table.cursor_row if keep_cursor else 0
         self.visible_rows = self.matching_rows()
         playing_key = self._playing_key()
-        self._fit_bpm_column(table)
 
         table.clear()
         for row in self.visible_rows:

@@ -92,7 +92,9 @@ store. The badge in bold is the one `o` would follow.
 | Stores | a badge per store; `shop` and `others` show the domain instead |
 | Genre | whatever the artist typed, or their first tag |
 | Time | track length |
-| BPM | tempo, only when the crate has any - see below |
+
+The table stays deliberately compact: it shows metadata SoundCloud provides
+reliably and does not infer extra values from titles, tags, or descriptions.
 
 On the highlighted row:
 
@@ -123,14 +125,6 @@ makes `s` a triage key rather than a bookkeeping one.
 
 Marking also lights the row for a quarter second, so a keypress is visibly a
 change rather than a glyph you have to go looking for.
-
-**Tempo.** SoundCloud has no BPM field - it is not in the track payload at all -
-so the only tempo available is one the artist wrote down, in a tag, the title or
-the description, and only when it says it is a tempo: a bare `150` is as likely
-to be a catalogue number. On a hard techno playlist that is about one track in
-twenty, so the column only appears when the crate has tempos in it and takes its
-three columns back from the title when it does not. Some scenes tag it
-religiously, and there the column is worth having.
 
 On the whole visible list:
 
