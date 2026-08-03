@@ -1,4 +1,17 @@
 *.json
 *.yaml
+*.csv
 *.html
 graphify-out/
+
+# Test fixtures are real API payloads and have to be committed.
+!tests/fixtures/*.json
+
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.venv/
+build/
+dist/
