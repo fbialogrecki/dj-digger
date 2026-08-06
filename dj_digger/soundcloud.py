@@ -25,8 +25,16 @@ from platformdirs import user_cache_dir
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from . import auth
+from . import auth, gates
 from .models import Crate, Track
+
+
+def _sanitize_filename(filename: str) -> str:
+    """Sanitize filename to prevent path traversal and invalid characters."""
+    filename = os.path.basename(filename)
+    filename = re.sub(r'[\\/*?:"<>|]', '_', filename)
+    filename = filename.strip('. ')
+    return filename or "download"
 
 API_ROOT = "https://api-v2.soundcloud.com"
 DISCOVER_URL = "https://soundcloud.com/discover"
@@ -259,18 +267,24 @@ class SoundCloudClient:
             raise SoundCloudError(f"Unexpected reply from {url}")
         return payload
 
-    def download_track(self, track: Track, directory: Path) -> Path:
-        """Save the artist-provided download, never a playback stream.
-
-        With an OAuth token the API's ``/tracks/<id>/download`` endpoint is
-        available and returns the original file the artist uploaded.  Without
-        one we fall back to ``track.download_url`` when present.
-        """
+    def download_track(
+        self,
+        track: Track,
+        directory: Path,
+        *,
+        gate_url: Optional[str] = None,
+        on_progress: Optional[Callable[[int, Optional[int]], None]] = None,
+    ) -> Path:
+        """Save artist-provided download file directly or via resolved gate URL."""
 
         download_url: Optional[str] = None
 
-        # Try the authenticated download endpoint first.
-        if self._oauth_token and track.free_download and track.id:
+        # 1. Try resolving gate URL if provided
+        if gate_url:
+            download_url = gates.resolve_gate_download_url(gate_url, self._session, timeout=self._timeout)
+
+        # 2. Try authenticated download endpoint
+        if not download_url and self._oauth_token and track.free_download and track.id:
             try:
                 resp = self._session.get(
                     f"{API_ROOT}/tracks/{track.id}/download",
@@ -292,12 +306,12 @@ class SoundCloudClient:
             except requests.RequestException as exc:
                 LOGGER.debug("Authenticated download failed, falling back: %s", exc)
 
-        # Fallback: use the pre-populated download_url from the track payload.
+        # 3. Fallback: pre-populated download_url
         if not download_url and track.has_direct_download and track.download_url:
             download_url = track.download_url
 
         if not download_url:
-            raise SoundCloudError("This track has no active direct download")
+            raise SoundCloudError("This track has no active direct download or resolved gate link")
 
         host = (urlparse(download_url).hostname or "").lower()
         if not (
@@ -305,32 +319,39 @@ class SoundCloudClient:
             or host.endswith(".soundcloud.com")
             or host.endswith(".sndcdn.com")
             or host.endswith(".amazonaws.com")
+            or host.endswith(".hypeddit.com")
+            or host.endswith(".toneden.io")
+            or host.endswith(".google.com")
+            or host.endswith(".dropbox.com")
         ):
-            raise SoundCloudError("SoundCloud returned an unsafe download URL")
+            raise SoundCloudError("Unsafe or untrusted download host")
 
         directory = Path(directory)
         directory.mkdir(parents=True, exist_ok=True)
 
-        completed = False
         try:
             response = self._session.get(
                 download_url,
-                params={"client_id": self.client_id},
+                params={"client_id": self.client_id} if "soundcloud.com" in host else None,
                 timeout=self._timeout,
                 stream=True,
             )
             if response.status_code >= 400:
                 raise SoundCloudError(
-                    f"SoundCloud returned HTTP {response.status_code} for the download"
+                    f"Server returned HTTP {response.status_code} for download"
                 )
 
-            # Detect real format from Content-Disposition filename or Content-Type header.
             headers = getattr(response, "headers", {})
             content_disp = ""
             content_type = ""
+            total_size: Optional[int] = None
             if isinstance(headers, dict) or hasattr(headers, "get"):
                 content_disp = headers.get("Content-Disposition", "")
                 content_type = headers.get("Content-Type", "")
+                try:
+                    total_size = int(headers.get("Content-Length", 0)) or None
+                except ValueError:
+                    total_size = None
 
             extension = ".mp3"
             cd_lower = content_disp.lower()
@@ -342,24 +363,34 @@ class SoundCloudClient:
             elif ".aiff" in cd_lower or ".aif" in cd_lower or "aiff" in ct_lower or "aif" in ct_lower:
                 extension = ".aiff"
 
-            target = directory / f"{_download_stem(track)}{extension}"
+            stem = _sanitize_filename(_download_stem(track))
+            target = directory / f"{stem}{extension}"
+
+            counter = 1
+            while target.exists():
+                target = directory / f"{stem} ({counter}){extension}"
+                counter += 1
+
             temporary = target.with_name(target.name + ".part")
+            downloaded = 0
 
             with temporary.open("wb") as handle:
                 for chunk in response.iter_content(chunk_size=1024 * 128):
                     if chunk:
                         handle.write(chunk)
+                        downloaded += len(chunk)
+                        if on_progress:
+                            on_progress(downloaded, total_size)
+
             os.replace(temporary, target)
-            completed = True
-        except requests.RequestException as exc:
-            raise SoundCloudError(f"Download request failed: {exc}") from exc
-        finally:
-            if not completed:
+            return target
+        except Exception as exc:
+            if 'temporary' in locals() and temporary.exists():
                 try:
                     temporary.unlink()
-                except FileNotFoundError:
+                except OSError:
                     pass
-        return target
+            raise SoundCloudError(f"Download failed: {exc}") from exc
 
     def resolve(self, url: str) -> Dict[str, Any]:
         payload = self._get("/resolve", url=url)

@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Optional
@@ -32,11 +33,12 @@ def default_state_path() -> Path:
 
 
 class TrackState:
-    """A tiny JSON-backed status store."""
+    """A tiny JSON-backed status store with thread-safety locks."""
 
     def __init__(self, path: Optional[Path] = None) -> None:
         self.path = Path(path) if path else default_state_path()
         self._entries: Dict[str, Dict[str, str]] = {}
+        self._lock = threading.Lock()
         self._load()
 
     def _load(self) -> None:
@@ -67,23 +69,25 @@ class TrackState:
             LOGGER.warning("Could not save state to %s: %s", self.path, exc)
 
     def get(self, key: str) -> str:
-        entry = self._entries.get(key)
-        if not entry:
-            return NEW
-        status = entry.get("status", NEW)
-        return status if status in STATUSES else NEW
+        with self._lock:
+            entry = self._entries.get(key)
+            if not entry:
+                return NEW
+            status = entry.get("status", NEW)
+            return status if status in STATUSES else NEW
 
     def set(self, key: str, status: str) -> None:
         if status not in STATUSES:
             raise ValueError(f"Unknown status: {status}")
-        if status == NEW:
-            self._entries.pop(key, None)
-        else:
-            self._entries[key] = {
-                "status": status,
-                "updated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            }
-        self.save()
+        with self._lock:
+            if status == NEW:
+                self._entries.pop(key, None)
+            else:
+                self._entries[key] = {
+                    "status": status,
+                    "updated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                }
+            self.save()
 
     def counts(self) -> Dict[str, int]:
         counts = {status: 0 for status in STATUSES}

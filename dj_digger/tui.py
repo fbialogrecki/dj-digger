@@ -16,9 +16,12 @@ worker thread so the interface stays responsive, and fills itself in.
 from __future__ import annotations
 
 import logging
+import time
+import urllib.parse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from rich.table import Table
 from rich.text import Text
@@ -116,6 +119,10 @@ OTHER = "Other"
 KEYMAP = [
     ("o,enter", "open_link", "Open", SELECTED, True, "Open its best link, or the filtered store"),
     ("w", "download_track", "Download", SELECTED, True, "Download an artist-provided SoundCloud file"),
+    ("W", "batch_download", "Batch download", WHOLE_LIST, True, "Download all free & gate tracks in view"),
+    ("b", "search_bandcamp", "Bandcamp", SELECTED, True, "Search Bandcamp for highlighted track"),
+    ("B", "search_beatport", "Beatport", SELECTED, False, "Search Beatport for highlighted track"),
+    ("c", "cart_bandcamp", "Cart", SELECTED, False, "Add track to Bandcamp cart"),
     ("g", "mark_got", "Got", SELECTED, True, "Mark as got, press again to undo"),
     ("s", "mark_skip", "Skip", SELECTED, True, "Mark as skipped, press again to undo"),
     ("u", "mark_new", "Unmark", SELECTED, False, "Clear the mark either way"),
@@ -573,6 +580,8 @@ class DiggerApp(App):
         self._preparing: str = ""
         self._frame = 0
         self._dig_message = ""
+        self.download_progress: Dict[str, float] = {}
+        self._last_progress_redraw: float = 0.0
         self.player = Player()
         self._client: Optional[SoundCloudClient] = None
         self._set_records(records)
@@ -756,12 +765,23 @@ class DiggerApp(App):
     def _cells(self, row: Row, playing_key: Optional[str]) -> List[Text]:
         status = self.status_of(row)
         glyph, style, _meaning = STATUS_STYLES[status]
+        label_text = row.track.label
         dim = "bright_black" if status == SKIP else ""
+
+        if row.track.key in self.download_progress:
+            pct = self.download_progress[row.track.key]
+            glyph = "\u29d7"
+            style = "bold yellow"
+            label_text = f"[{int(pct * 100)}%] {row.track.label}"
+            dim = "bold black on yellow"
+        elif status == GOT:
+            dim = "bold green"
+
         return [
             Text(PLAYING_GLYPH if row.track.key == playing_key else "", style="green"),
             Text(glyph, style=style),
             Text(str(row.position), style="bright_black"),
-            Text(row.track.label, style=dim),
+            Text(label_text, style=dim),
             self._store_badges(row),
             Text(row.track.genre_label or "-", style="bright_black"),
             Text(row.track.duration_label or "-", style="bright_black"),
@@ -1378,30 +1398,169 @@ class DiggerApp(App):
         row = self.current_row()
         if row is None:
             return
-        if not row.track.free_download:
-            self.notify("This track has no active SoundCloud free download", timeout=4)
+
+        gate_url: Optional[str] = None
+        for rec in row.records:
+            if rec.category in ("hypeddit", "toneden") or "hypeddit.com" in rec.link_url or "toneden.io" in rec.link_url:
+                gate_url = rec.link_url
+                break
+
+        if not row.track.free_download and not gate_url and not row.track.has_direct_download:
+            self.notify("This track has no active SoundCloud free download or supported gate link", timeout=4)
             return
-        if row.track.download_url:
-            self.notify(f"Downloading {row.track.label}...", timeout=3)
-            self.download_track_in_background(row.track)
-        else:
-            self.notify("Opening SoundCloud page in browser to download...", timeout=3)
-            browser_module.open_url(row.track.permalink_url, self.browser)
+
+        self.notify(f"Downloading {row.track.label}...", timeout=3)
+        self.download_track_in_background(row.track, gate_url)
 
     @work(thread=True, exclusive=True, group="download")
-    def download_track_in_background(self, track: Track) -> None:
-        try:
-            path = self.client.download_track(track, Path(user_downloads_dir()))
-        except (SoundCloudError, OSError) as exc:
-            self.call_from_thread(self._download_failed, str(exc))
-            return
-        self.call_from_thread(self._download_finished, path)
+    def download_track_in_background(self, track: Track, gate_url: Optional[str] = None) -> None:
+        key = track.key
 
-    def _download_failed(self, message: str) -> None:
+        def on_progress(downloaded: int, total_bytes: Optional[int]) -> None:
+            pct = min(1.0, downloaded / total_bytes) if total_bytes and total_bytes > 0 else 0.5
+            self.call_from_thread(self._update_track_progress, key, pct)
+
+        try:
+            self.call_from_thread(self._update_track_progress, key, 0.05)
+            path = self.client.download_track(
+                track,
+                Path(user_downloads_dir()),
+                gate_url=gate_url,
+                on_progress=on_progress,
+            )
+        except Exception as exc:
+            self.call_from_thread(self._download_failed, key, str(exc))
+            return
+        self.call_from_thread(self._download_finished, key, path)
+
+    def _update_track_progress(self, key: str, pct: float) -> None:
+        self.download_progress[key] = pct
+        now = time.time()
+        if now - self._last_progress_redraw >= 0.08:
+            self._last_progress_redraw = now
+            self.refresh_rows()
+
+    def _download_failed(self, key: str, message: str) -> None:
+        self.download_progress.pop(key, None)
+        self.refresh_rows()
         self.notify(f"Download failed: {message}", severity="error", timeout=6)
 
-    def _download_finished(self, path: Path) -> None:
+    def _download_finished(self, key: str, path: Path) -> None:
+        self.download_progress.pop(key, None)
+        self.state.set(key, GOT)
+        self.refresh_rows()
         self.notify(f"Downloaded to {path}", timeout=5)
+
+    def action_batch_download(self) -> None:
+        """Download all eligible tracks in current view (SoundCloud direct + Hypeddit/ToneDen gates) in parallel."""
+        eligible: List[Tuple[Row, Optional[str]]] = []
+        for row in self.visible_rows:
+            gate_url: Optional[str] = None
+            for rec in row.records:
+                if rec.category in ("hypeddit", "toneden") or "hypeddit.com" in rec.link_url or "toneden.io" in rec.link_url:
+                    gate_url = rec.link_url
+                    break
+            if row.track.free_download or gate_url or row.track.has_direct_download:
+                eligible.append((row, gate_url))
+
+        if not eligible:
+            self.notify("No downloadable free or gate tracks in current view", timeout=3)
+            return
+
+        self.notify(f"Starting parallel batch download for {len(eligible)} tracks...", timeout=4)
+        self.batch_download_in_background(eligible)
+
+    @work(thread=True, exclusive=True, group="batch_download")
+    def batch_download_in_background(self, items: List[Tuple[Row, Optional[str]]]) -> None:
+        completed_count = 0
+        failed_count = 0
+        total = len(items)
+
+        def download_one(item: Tuple[Row, Optional[str]]) -> Tuple[Row, bool, str]:
+            row, gate_url = item
+            key = row.track.key
+
+            def on_progress(downloaded: int, total_bytes: Optional[int]) -> None:
+                pct = min(1.0, downloaded / total_bytes) if total_bytes and total_bytes > 0 else 0.5
+                self.call_from_thread(self._update_track_progress, key, pct)
+
+            try:
+                self.call_from_thread(self._update_track_progress, key, 0.05)
+                path = self.client.download_track(
+                    row.track,
+                    Path(user_downloads_dir()),
+                    gate_url=gate_url,
+                    on_progress=on_progress,
+                )
+                return (row, True, str(path))
+            except Exception as exc:
+                return (row, False, str(exc))
+
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = [executor.submit(download_one, item) for item in items]
+            for future in as_completed(futures):
+                row, success, result = future.result()
+                key = row.track.key
+                if success:
+                    completed_count += 1
+                    self.call_from_thread(self._on_batch_track_finished, row, result)
+                else:
+                    failed_count += 1
+                    self.call_from_thread(self._on_batch_track_failed, row, result)
+
+        self.call_from_thread(self._on_batch_download_complete, completed_count, failed_count, total)
+
+    def _on_batch_track_finished(self, row: Row, path_str: str) -> None:
+        key = row.track.key
+        self.download_progress.pop(key, None)
+        self.state.set(key, GOT)
+        self.refresh_rows()
+
+    def _on_batch_track_failed(self, row: Row, message: str) -> None:
+        key = row.track.key
+        self.download_progress.pop(key, None)
+        self.refresh_rows()
+
+    def _on_batch_download_complete(self, completed: int, failed: int, total: int) -> None:
+        self.download_progress.clear()
+        self.refresh_rows()
+        msg = f"Batch download finished: {completed}/{total} downloaded"
+        if failed > 0:
+            msg += f" ({failed} skipped or requires manual browser unlock)"
+        self.notify(msg, timeout=6)
+
+    def action_search_bandcamp(self) -> None:
+        row = self.current_row()
+        if row is None:
+            return
+        query = urllib.parse.quote_plus(row.track.label)
+        url = f"https://bandcamp.com/search?q={query}"
+        self.notify(f"Searching Bandcamp for {row.track.label}...", timeout=3)
+        browser_module.open_url(url, self.browser)
+
+    def action_search_beatport(self) -> None:
+        row = self.current_row()
+        if row is None:
+            return
+        query = urllib.parse.quote_plus(row.track.label)
+        url = f"https://www.beatport.com/search?q={query}"
+        self.notify(f"Searching Beatport for {row.track.label}...", timeout=3)
+        browser_module.open_url(url, self.browser)
+
+    def action_cart_bandcamp(self) -> None:
+        row = self.current_row()
+        if row is None:
+            return
+        bc_record = row.record_for("bandcamp")
+        if bc_record and bc_record.link_url:
+            cart_url = bc_record.link_url + ("?" if "?" not in bc_record.link_url else "&") + "action=add_to_cart"
+            self.notify(f"Adding to Bandcamp cart: {row.track.label}...", timeout=3)
+            browser_module.open_url(cart_url, self.browser)
+        else:
+            query = urllib.parse.quote_plus(row.track.label)
+            url = f"https://bandcamp.com/search?q={query}"
+            self.notify(f"Searching Bandcamp for cart addition: {row.track.label}...", timeout=3)
+            browser_module.open_url(url, self.browser)
 
     def action_mark_got(self) -> None:
         self._toggle_status(GOT, "Got it")
