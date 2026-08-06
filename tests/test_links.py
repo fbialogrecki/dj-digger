@@ -182,14 +182,14 @@ def test_a_free_download_on_soundcloud_beats_the_shops():
     assert records[0].link_url == track.download_url
 
 
-def test_download_flags_without_a_url_are_not_presented_as_a_download():
+def test_download_flags_without_a_url_are_presented_as_soundcloud_download():
     track = Track(
-        title="No endpoint",
+        title="No direct endpoint",
         permalink_url="https://soundcloud.com/a/b",
         downloadable=True,
         has_downloads_left=True,
     )
-    assert categories_for(track) == ["no-link"]
+    assert categories_for(track) == ["soundcloud"]
 
 
 def test_a_used_up_free_download_is_not_offered():

@@ -208,7 +208,7 @@ def categorise(track: Track) -> List[LinkRecord]:
     claimed: Set[str] = set()
     unmatched: List[Tuple[str, str]] = []
 
-    if track.has_direct_download:
+    if track.free_download:
         # Nothing beats a file the artist is handing out directly, so this one
         # goes in even when the track also sells somewhere.
         records.append(

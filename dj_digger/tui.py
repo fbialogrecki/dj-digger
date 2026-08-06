@@ -1336,11 +1336,15 @@ class DiggerApp(App):
         row = self.current_row()
         if row is None:
             return
-        if not row.track.has_direct_download:
-            self.notify("This track has no active direct SoundCloud download", timeout=4)
+        if not row.track.free_download:
+            self.notify("This track has no active SoundCloud free download", timeout=4)
             return
-        self.notify(f"Downloading {row.track.label}...", timeout=3)
-        self.download_track_in_background(row.track)
+        if row.track.download_url:
+            self.notify(f"Downloading {row.track.label}...", timeout=3)
+            self.download_track_in_background(row.track)
+        else:
+            self.notify("Opening SoundCloud page in browser to download...", timeout=3)
+            browser_module.open_url(row.track.permalink_url, self.browser)
 
     @work(thread=True, exclusive=True, group="download")
     def download_track_in_background(self, track: Track) -> None:
