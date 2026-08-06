@@ -312,15 +312,15 @@ def test_number_keys_select_the_stores_this_crate_actually_has(records, state):
             assert app.present == ["no-link", "bandcamp", "others"]
 
             await pilot.press("2")
-            assert app.store_filter == "bandcamp"
+            assert app.store_filters == {"bandcamp"}
             expected = sum(1 for record in records if record.category == "bandcamp")
             assert app.query_one("#tracks", DataTable).row_count == expected
 
             await pilot.press("3")
-            assert app.store_filter == "others"
+            assert app.store_filters == {"bandcamp", "others"}
 
             await pilot.press("0")
-            assert app.store_filter == ""
+            assert app.store_filters == set()
             assert app.query_one("#tracks", DataTable).row_count == len(records)
 
     run(scenario)

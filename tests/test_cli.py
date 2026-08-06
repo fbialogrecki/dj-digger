@@ -66,7 +66,23 @@ def test_top_level_help_lists_the_subcommands(capsys):
     with pytest.raises(SystemExit) as exit_info:
         cli.parse_cli_args(["--help"])
     assert exit_info.value.code == 0
-    assert "{dig,open}" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "dig" in out and "open" in out and "auth" in out
+
+
+def test_auth_subcommand_parsing():
+    args = cli.parse_cli_args(["auth", "login", "--token", "test-token"])
+    assert args.command == "auth"
+    assert args.auth_action == "login"
+    assert args.token == "test-token"
+
+    args = cli.parse_cli_args(["auth", "status"])
+    assert args.command == "auth"
+    assert args.auth_action == "status"
+
+    args = cli.parse_cli_args(["auth", "logout"])
+    assert args.command == "auth"
+    assert args.auth_action == "logout"
 
 
 def test_unknown_export_format_is_rejected():

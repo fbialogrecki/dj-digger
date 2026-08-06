@@ -134,7 +134,7 @@ KEYMAP = [
     ("slash", "start_search", "Search", WHOLE_LIST, True, "Filter by artist or title"),
     ("f", "cycle_store(1)", "Next store", WHOLE_LIST, True, "Step to the next store in this crate"),
     ("F", "cycle_store(-1)", "Previous store", WHOLE_LIST, False, "Step back a store"),
-    ("0", "filter_index(0)", "Show all", WHOLE_LIST, True, "Drop the store filter, show everything"),
+    ("0", "filter_index(0)", "Show all", WHOLE_LIST, False, "Drop the store filter, show everything"),
     ("h", "toggle_handled", "Hide handled", WHOLE_LIST, False, "Hide what is got or skipped"),
     ("escape", "clear_filters", "Clear filters", WHOLE_LIST, False, "Clear store, search and hiding"),
     ("d", "dig_link", "Add crate", CRATES, True, "Dig a link into a new crate"),
@@ -250,6 +250,16 @@ class StatusBar(Static):
 
     def on_resize(self, event: events.Resize) -> None:
         self.app.update_status()
+
+    def on_click(self, event: events.Click) -> None:
+        app = self.app
+        if not hasattr(app, "_badge_click_regions"):
+            return
+        x = event.x
+        for start_x, end_x, store_idx in getattr(app, "_badge_click_regions", []):
+            if start_x <= x < end_x:
+                app.action_filter_index(store_idx)
+                break
 
 
 class CrateButton(Button):
@@ -547,7 +557,8 @@ class DiggerApp(App):
         self.export_format = export_format
         self.export_path = export_path
         self.dig_options = dig_options or dig_module.DigOptions()
-        self.store_filter: str = ""
+        self.store_filters: set[str] = set()
+        self._badge_click_regions: List[Tuple[int, int, int]] = []
         self.search_term: str = ""
         self.hide_handled: bool = False
         self.visible_rows: List[Row] = []
@@ -565,6 +576,16 @@ class DiggerApp(App):
         self.player = Player()
         self._client: Optional[SoundCloudClient] = None
         self._set_records(records)
+
+    @property
+    def store_filter(self) -> str:
+        return list(self.store_filters)[0] if len(self.store_filters) == 1 else ""
+
+    @store_filter.setter
+    def store_filter(self, val: str) -> None:
+        self.store_filters.clear()
+        if val:
+            self.store_filters.add(val)
 
     # Layout
 
@@ -625,8 +646,7 @@ class DiggerApp(App):
             for index, group in enumerate(links_module.group_by_track(records))
         ]
         self.present = links_module.present_categories(records)
-        if self.store_filter not in self.present:
-            self.store_filter = ""
+        self.store_filters = {c for c in self.store_filters if c in self.present}
 
     def all_records(self) -> List[LinkRecord]:
         return [record for row in self.rows for record in row.records]
@@ -680,7 +700,7 @@ class DiggerApp(App):
         term = self.search_term.strip().lower()
         rows = []
         for row in self.rows:
-            if self.store_filter and self.store_filter not in row.categories:
+            if self.store_filters and not any(cat in row.categories for cat in self.store_filters):
                 continue
             if self.hide_handled and self.status_of(row) in (GOT, SKIP):
                 continue
@@ -693,17 +713,14 @@ class DiggerApp(App):
         return self.state.get(row.track.key)
 
     def record_to_open(self, row: Row) -> LinkRecord:
-        """The link ``o`` would follow: the filtered store, else the best one.
+        """The link ``o`` would follow: the filtered store, else the best one."""
 
-        Filtering to a store is how you say which shop you want, so while a
-        filter is on it also decides what opens - otherwise picking `bandcamp`
-        and pressing `o` would still send you to a follow gate.
-        """
-
-        if self.store_filter:
-            chosen = row.record_for(self.store_filter)
-            if chosen is not None:
-                return chosen
+        if self.store_filters:
+            for cat in self.present:
+                if cat in self.store_filters:
+                    chosen = row.record_for(cat)
+                    if chosen is not None:
+                        return chosen
         return row.records[0]
 
     def _store_badges(self, row: Row) -> Text:
@@ -831,20 +848,45 @@ class DiggerApp(App):
         """The stores in this crate, numbered, so the number keys explain themselves."""
 
         line = Text()
+        self._badge_click_regions = []
         if not self.rows:
             line.append("press d to dig a link", style="bright_black")
             return line
 
         by_category = links_module.count_by_category(self.all_records())
-        showing_all = not self.store_filter
-        line.append("\u25b8 " if showing_all else "  ", style="bold")
-        line.append("0 all", style="bold reverse" if showing_all else "bright_black")
+        showing_all = not self.store_filters
+        current_x = 0
+
+        prefix_str = "\u25b8 " if showing_all else "  "
+        line.append(prefix_str, style="bold")
+        current_x += len(prefix_str)
+
+        all_btn_text = "0 all"
+        all_btn_start = current_x
+        all_btn_end = current_x + len(all_btn_text)
+        line.append(all_btn_text, style="bold reverse" if showing_all else "bright_black")
+        self._badge_click_regions.append((all_btn_start, all_btn_end, 0))
+        current_x = all_btn_end
+
         for index, category in enumerate(self.present, start=1):
-            active = category == self.store_filter
-            line.append("  \u25b8" if active else "   ", style="bold")
+            active = category in self.store_filters
+            cat_prefix = "  \u25b8" if active else "   "
+            line.append(cat_prefix, style="bold")
+            current_x += len(cat_prefix)
+
             label = f"{index} {category}" if index <= QUICK_FILTER_KEYS else category
+            count_str = f"\u00b7{by_category[category]}"
+            full_span_text = label + count_str
+
+            badge_start = current_x
+            badge_end = current_x + len(full_span_text)
+
             line.append(label, style="bold reverse cyan" if active else "cyan")
-            line.append(f"\u00b7{by_category[category]}", style="bright_black")
+            line.append(count_str, style="bright_black")
+
+            self._badge_click_regions.append((badge_start, badge_end, index))
+            current_x = badge_end
+
         return line
 
     # Helpers
@@ -1421,21 +1463,36 @@ class DiggerApp(App):
             return
 
         self._pending_open_all = False
-        urls = [self.record_to_open(row).link_url for row in self.visible_rows]
+        rows = list(self.visible_rows)
+        self.notify(f"Opening {len(rows)} links in background...", timeout=3)
+        self.open_visible_in_background(rows)
+
+    @work(thread=True, exclusive=True, group="open_all")
+    def open_visible_in_background(self, rows: List[Row]) -> None:
+        urls = [self.record_to_open(row).link_url for row in rows]
         opened = browser_module.open_urls(urls, self.browser)
-        for row in self.visible_rows:
+        for row in rows:
             if self.status_of(row) == NEW:
                 self.state.set(row.track.key, OPENED)
+        self.call_from_thread(self._open_visible_finished, opened)
+
+    def _open_visible_finished(self, opened: int) -> None:
         self.notify(f"Opened {opened} links", timeout=3)
         self.refresh_rows()
 
     def _apply_store_filter(self, category: str) -> None:
-        self.store_filter = category
+        if not category:
+            self.store_filters.clear()
+        else:
+            if category in self.store_filters:
+                self.store_filters.remove(category)
+            else:
+                self.store_filters.add(category)
         self._pending_open_all = False
         self.refresh_rows(keep_cursor=False)
 
     def action_filter_index(self, index: int) -> None:
-        """``0`` clears the filter, ``1``-``9`` pick the nth store in this crate."""
+        """``0`` clears the filter, ``1``-``9`` toggle the nth store in this crate."""
 
         if index == 0:
             self._apply_store_filter("")
@@ -1451,8 +1508,14 @@ class DiggerApp(App):
         if not self.present:
             return
         options = [""] + self.present
-        current = options.index(self.store_filter) if self.store_filter in options else 0
-        self._apply_store_filter(options[(current + step) % len(options)])
+        current_single = list(self.store_filters)[0] if len(self.store_filters) == 1 else ""
+        current = options.index(current_single) if current_single in options else 0
+        next_cat = options[(current + step) % len(options)]
+        self.store_filters.clear()
+        if next_cat:
+            self.store_filters.add(next_cat)
+        self._pending_open_all = False
+        self.refresh_rows(keep_cursor=False)
 
     def action_toggle_handled(self) -> None:
         self.hide_handled = not self.hide_handled
@@ -1468,7 +1531,7 @@ class DiggerApp(App):
         search.value = ""
         search.remove_class("visible")
         self.search_term = ""
-        self.store_filter = ""
+        self.store_filters.clear()
         self.hide_handled = False
         self._pending_open_all = False
         self.refresh_rows(keep_cursor=False)

@@ -20,13 +20,14 @@ from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeEl
 from rich.table import Table
 
 from . import __version__
+from . import auth as auth_module
 from . import browser as browser_module
 from . import dig as dig_module
-from . import library, links
+from . import library, links, soundcloud
 from .models import Crate, LinkRecord
 from .state import TrackState
 
-SUBCOMMANDS = {"dig", "open"}
+SUBCOMMANDS = {"dig", "open", "auth"}
 HELP_FLAGS = {"-h", "--help", "--version"}
 LOG_LEVELS = ["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"]
 
@@ -143,6 +144,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="Only display the summary without opening anything",
     )
     _add_shared_arguments(open_cmd)
+
+    auth_cmd = subparsers.add_parser(
+        "auth",
+        help="Manage SoundCloud authentication for direct downloads.",
+    )
+    auth_sub = auth_cmd.add_subparsers(dest="auth_action")
+
+    auth_login = auth_sub.add_parser("login", help="Log in to SoundCloud.")
+    auth_login.add_argument(
+        "--token",
+        help="Paste an OAuth token directly instead of browser detection.",
+    )
+
+    auth_sub.add_parser("logout", help="Remove saved credentials.")
+    auth_sub.add_parser("status", help="Show current authentication status.")
+    _add_shared_arguments(auth_cmd)
 
     return parser
 
@@ -358,6 +375,63 @@ def handle_open(args: argparse.Namespace) -> int:
     return 0
 
 
+def handle_auth(args: argparse.Namespace) -> int:
+    console = Console()
+    action = getattr(args, "auth_action", None)
+
+    if action == "login":
+        token = getattr(args, "token", None)
+        if token and token.strip():
+            with soundcloud.SoundCloudClient(oauth_token=token.strip()) as client:
+                user_data = auth_module.verify_token(token.strip(), client.client_id)
+                if user_data:
+                    username = user_data.get("username") or "User"
+                    user_id = user_data.get("id")
+                    auth_module.save_token(token.strip(), username, user_id)
+                    console.print(f"[green]Logged in as [bold]{username}[/bold] (ID: {user_id or 'N/A'}). Credentials saved securely.[/green]")
+                    return 0
+                else:
+                    console.print("[red]Verification failed. The provided OAuth token is invalid.[/red]")
+                    return 1
+        else:
+            console.print("Scanning local browser cookie databases for SoundCloud session...")
+            with soundcloud.SoundCloudClient() as client:
+                res = auth_module.auto_detect_and_verify(client.client_id)
+                if res:
+                    _, username, user_id = res
+                    console.print(f"[green]Successfully detected session for [bold]{username}[/bold] (ID: {user_id or 'N/A'}). Credentials saved securely.[/green]")
+                    return 0
+                else:
+                    console.print("[yellow]No active SoundCloud login found in local browser cookies.[/yellow]")
+                    console.print("To log in manually, find your 'oauth_token' cookie on soundcloud.com and run:")
+                    console.print("  [bold]dj-digger auth login --token <YOUR_OAUTH_TOKEN>[/bold]")
+                    return 1
+
+    elif action == "logout":
+        auth_module.clear_token()
+        console.print("[green]Logged out. Saved SoundCloud credentials removed.[/green]")
+        return 0
+
+    elif action == "status":
+        info = auth_module.get_stored_auth_info()
+        token = info.get("oauth_token")
+        if not token:
+            console.print("[yellow]Authentication status: Not logged in.[/yellow]")
+            return 0
+
+        console.print(f"Stored user: [bold]{info.get('username') or 'Unknown'}[/bold]")
+        with soundcloud.SoundCloudClient(oauth_token=token) as client:
+            user_data = auth_module.verify_token(token, client.client_id)
+            if user_data:
+                console.print("[green]Token status: Valid & active.[/green]")
+            else:
+                console.print("[red]Token status: Expired or invalid.[/red]")
+        return 0
+
+    else:
+        return handle_auth(argparse.Namespace(auth_action="status"))
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parse_cli_args(argv)
 
@@ -371,6 +445,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             return handle_dig(args)
         if args.command == "open":
             return handle_open(args)
+        if args.command == "auth":
+            return handle_auth(args)
     except dig_module.TargetNotFound as exc:
         raise SystemExit(str(exc)) from exc
     except (FileNotFoundError, ValueError, RuntimeError) as exc:

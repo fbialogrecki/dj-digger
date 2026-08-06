@@ -25,6 +25,7 @@ from platformdirs import user_cache_dir
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+from . import auth
 from .models import Crate, Track
 
 API_ROOT = "https://api-v2.soundcloud.com"
@@ -125,10 +126,19 @@ class SoundCloudClient:
         *,
         timeout: float = 20.0,
         client_id: Optional[str] = None,
+        oauth_token: Optional[str] = None,
     ) -> None:
         self._session = session or create_requests_session()
         self._timeout = timeout
         self._client_id = client_id
+        if oauth_token is None:
+            self._oauth_token = auth.get_stored_token()
+        else:
+            self._oauth_token = oauth_token
+
+    @property
+    def oauth_token(self) -> Optional[str]:
+        return self._oauth_token
 
     def close(self) -> None:
         self._session.close()
@@ -190,8 +200,11 @@ class SoundCloudClient:
         for attempt in (0, 1):
             merged = dict(params or {})
             merged["client_id"] = self.client_id
+            kwargs: Dict[str, Any] = {"params": merged, "timeout": self._timeout}
+            if self._oauth_token:
+                kwargs["headers"] = {"Authorization": f"OAuth {self._oauth_token}"}
             try:
-                response = self._session.get(url, params=merged, timeout=self._timeout)
+                response = self._session.get(url, **kwargs)
             except requests.RequestException as exc:
                 raise SoundCloudError(f"Request to {url} failed: {exc}") from exc
 
@@ -247,26 +260,61 @@ class SoundCloudClient:
         return payload
 
     def download_track(self, track: Track, directory: Path) -> Path:
-        """Save the artist-provided download, never a playback stream."""
+        """Save the artist-provided download, never a playback stream.
 
-        if not track.has_direct_download or not track.download_url:
+        With an OAuth token the API's ``/tracks/<id>/download`` endpoint is
+        available and returns the original file the artist uploaded.  Without
+        one we fall back to ``track.download_url`` when present.
+        """
+
+        download_url: Optional[str] = None
+
+        # Try the authenticated download endpoint first.
+        if self._oauth_token and track.free_download and track.id:
+            try:
+                resp = self._session.get(
+                    f"{API_ROOT}/tracks/{track.id}/download",
+                    params={"client_id": self.client_id},
+                    headers={"Authorization": f"OAuth {self._oauth_token}"},
+                    timeout=self._timeout,
+                    allow_redirects=False,
+                )
+                if resp.status_code in (200, 302):
+                    redirect = getattr(resp, "headers", {}).get("Location") if hasattr(resp, "headers") else ""
+                    if resp.status_code == 302 and redirect:
+                        download_url = redirect
+                    elif resp.status_code == 200:
+                        try:
+                            data = resp.json()
+                            download_url = data.get("redirectUri") or data.get("url")
+                        except ValueError:
+                            pass
+            except requests.RequestException as exc:
+                LOGGER.debug("Authenticated download failed, falling back: %s", exc)
+
+        # Fallback: use the pre-populated download_url from the track payload.
+        if not download_url and track.has_direct_download and track.download_url:
+            download_url = track.download_url
+
+        if not download_url:
             raise SoundCloudError("This track has no active direct download")
-        host = (urlparse(track.download_url).hostname or "").lower()
+
+        host = (urlparse(download_url).hostname or "").lower()
         if not (
             host == "soundcloud.com"
             or host.endswith(".soundcloud.com")
             or host.endswith(".sndcdn.com")
+            or host.endswith(".amazonaws.com")
         ):
             raise SoundCloudError("SoundCloud returned an unsafe download URL")
 
         directory = Path(directory)
         directory.mkdir(parents=True, exist_ok=True)
-        target = directory / f"{_download_stem(track)}.mp3"
-        temporary = target.with_name(target.name + ".part")
+
         completed = False
         try:
             response = self._session.get(
-                track.download_url,
+                download_url,
                 params={"client_id": self.client_id},
                 timeout=self._timeout,
                 stream=True,
@@ -275,6 +323,28 @@ class SoundCloudClient:
                 raise SoundCloudError(
                     f"SoundCloud returned HTTP {response.status_code} for the download"
                 )
+
+            # Detect real format from Content-Disposition filename or Content-Type header.
+            headers = getattr(response, "headers", {})
+            content_disp = ""
+            content_type = ""
+            if isinstance(headers, dict) or hasattr(headers, "get"):
+                content_disp = headers.get("Content-Disposition", "")
+                content_type = headers.get("Content-Type", "")
+
+            extension = ".mp3"
+            cd_lower = content_disp.lower()
+            ct_lower = content_type.lower()
+            if ".wav" in cd_lower or "wav" in ct_lower:
+                extension = ".wav"
+            elif ".flac" in cd_lower or "flac" in ct_lower:
+                extension = ".flac"
+            elif ".aiff" in cd_lower or ".aif" in cd_lower or "aiff" in ct_lower or "aif" in ct_lower:
+                extension = ".aiff"
+
+            target = directory / f"{_download_stem(track)}{extension}"
+            temporary = target.with_name(target.name + ".part")
+
             with temporary.open("wb") as handle:
                 for chunk in response.iter_content(chunk_size=1024 * 128):
                     if chunk:

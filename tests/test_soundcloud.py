@@ -26,7 +26,7 @@ class FakeSession:
         self.responses = list(responses)
         self.calls = []
 
-    def get(self, url, params=None, timeout=None):
+    def get(self, url, params=None, timeout=None, **kwargs):
         self.calls.append((url, dict(params or {})))
         return self.responses.pop(0)
 
@@ -37,8 +37,9 @@ class FakeSession:
 class DownloadResponse:
     status_code = 200
 
-    def __init__(self, chunks):
+    def __init__(self, chunks, headers=None):
         self.chunks = chunks
+        self.headers = headers or {}
 
     def iter_content(self, chunk_size):
         return iter(self.chunks)
@@ -49,7 +50,7 @@ class DownloadSession:
         self.response = response
         self.calls = []
 
-    def get(self, url, params=None, timeout=None, stream=False):
+    def get(self, url, params=None, timeout=None, stream=False, **kwargs):
         self.calls.append((url, dict(params or {}), timeout, stream))
         return self.response
 
