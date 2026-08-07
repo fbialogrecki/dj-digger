@@ -44,9 +44,16 @@ def _clean_url(raw_url: Optional[str], *, allow_preview: bool = False) -> Option
 
 
 def resolve_hypeddit_download_url(
-    url: str, session: requests.Session, timeout: float = 10.0, config: Optional[Any] = None
+    url: str,
+    session: requests.Session,
+    timeout: float = 10.0,
+    config: Optional[Any] = None,
+    _depth: int = 0,
 ) -> Optional[str]:
     """Resolve direct audio download URL from Hypeddit gate link by simulating step completion."""
+    if _depth > 2:
+        return None
+
     if config is None:
         from .config import AppConfig
         config = AppConfig()
@@ -70,13 +77,18 @@ def resolve_hypeddit_download_url(
 
         text = resp.text
 
-        # 1. Check if landing/choice page links directly to a Hypeddit fan gate URL
-        gate_links = re.findall(r'href=["\'](https?://(?:www\.)?hypeddit\.com/(?:track/)?[a-zA-Z0-9_-]+)["\']', text)
-        for g_link in gate_links:
-            if g_link != url and not any(skip in g_link for skip in ["/legal", "/privacy", "/news", "/dmcapolicy", "/artist", "javascript:"]):
-                sub_res = resolve_hypeddit_download_url(g_link, session, timeout=timeout, config=config)
-                if sub_res:
-                    return sub_res
+        # 1. Check if landing/choice page links directly to a Hypeddit track gate URL
+        if _depth < 1:
+            gate_links = re.findall(
+                r'href=["\'](https?://(?:www\.)?hypeddit\.com/track/[a-zA-Z0-9_-]+)["\']', text
+            )
+            for g_link in gate_links:
+                if g_link != url:
+                    sub_res = resolve_hypeddit_download_url(
+                        g_link, session, timeout=timeout, config=config, _depth=_depth + 1
+                    )
+                    if sub_res:
+                        return sub_res
 
         # 2. Immediate regex search in HTML source for pre-embedded full download URLs
         patterns = [

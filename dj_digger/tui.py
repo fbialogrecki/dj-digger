@@ -1685,7 +1685,8 @@ class DiggerApp(App):
         """Download all eligible tracks in current view (SoundCloud direct + Hypeddit/ToneDen gates) in parallel."""
         eligible: List[Tuple[Row, Optional[str]]] = []
         for row in self.visible_rows:
-            if self.status_of(row) == GOT:
+            status = self.status_of(row)
+            if status in (GOT, SKIP):
                 continue
             gate_url = self._find_gate_url(row)
             if row.track.free_download or gate_url or row.track.has_direct_download:

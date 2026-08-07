@@ -1868,3 +1868,29 @@ def test_clean_gate_badge_name(state):
     row = app.rows[0]
     badges = app._store_badges(row)
     assert str(badges) == "gate(hypeddit)"
+
+
+def test_batch_download_skips_skipped_tracks(state, monkeypatch):
+    rec1 = LinkRecord(
+        track=Track("Track 1", "Artist", "https://soundcloud.com/1", free_download=True),
+        category="gate",
+        link_url="https://hypeddit.com/test1",
+    )
+    rec2 = LinkRecord(
+        track=Track("Track 2", "Artist", "https://soundcloud.com/2", free_download=True),
+        category="gate",
+        link_url="https://hypeddit.com/test2",
+    )
+    state.set(rec2.track.key, SKIP)
+    app = make_app([rec1, rec2], state)
+
+    started = []
+    monkeypatch.setattr(app, "batch_download_in_background", lambda items: started.extend(items))
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("W")
+
+    run(scenario)
+    assert len(started) == 1
+    assert started[0][0].track.key == rec1.track.key
