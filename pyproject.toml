@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dj-soundcloud-digger"
-version = "0.4.11"
+version = "0.4.12"
 description = "Dig purchase and free-download links out of SoundCloud playlists, likes and profiles"
 readme = "README.md"
 license = { file = "LICENSE" }
