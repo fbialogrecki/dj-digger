@@ -41,7 +41,7 @@ def _clean_url(raw_url: Optional[str]) -> Optional[str]:
 
 
 def resolve_hypeddit_download_url(url: str, session: requests.Session, timeout: float = 10.0) -> Optional[str]:
-    """Resolve direct audio download URL from Hypeddit gate link."""
+    """Resolve direct audio download URL from Hypeddit gate link by simulating step completion."""
     match = HYPEDDIT_RE.search(url)
     if not match:
         return None
@@ -50,58 +50,112 @@ def resolve_hypeddit_download_url(url: str, session: requests.Session, timeout: 
     headers = {**DEFAULT_HEADERS, "Referer": url}
 
     try:
-        # Request gate page HTML
+        # Step 0: GET gate page HTML (establishes session cookies like PHPSESSID)
         resp = session.get(url, headers=headers, timeout=timeout)
-        if resp.status_code == 200:
-            text = resp.text
+        if resp.status_code != 200:
+            return None
 
-            # 1. Broad regex search for JS variables / HTML attributes
-            patterns = [
-                r'var\s+download_url\s*=\s*["\']([^"\']+)["\']',
-                r'var\s+s3_url\s*=\s*["\']([^"\']+)["\']',
-                r'var\s+file_url\s*=\s*["\']([^"\']+)["\']',
-                r'var\s+file_download\s*=\s*["\']([^"\']+)["\']',
-                r'data-download-url=["\']([^"\']+)["\']',
-                r'data-s3-url=["\']([^"\']+)["\']',
-                r'data-file=["\']([^"\']+)["\']',
-                r'["\'](https?://[^"\']*(?:s3\.amazonaws\.com|hypeddit-downloads|hypeddit)[^"\']*\.(?:mp3|wav|zip|flac|aiff)[^"\']*)["\']',
-                r'["\'](https?://s3[^\s"\'<>]+\.(?:mp3|wav|zip|flac|aiff)[^\s"\'<>]*)\b["\']',
-                r'["\']download_url["\']\s*:\s*["\']([^"\']+)["\']',
-                r'["\']s3_url["\']\s*:\s*["\']([^"\']+)["\']',
-            ]
-            for pattern in patterns:
-                found = re.search(pattern, text, re.IGNORECASE)
-                if found:
-                    cleaned = _clean_url(found.group(1))
-                    if cleaned:
-                        return cleaned
+        text = resp.text
 
-            # 2. Extract hidden inputs
-            input_match = re.search(r'name=["\'](?:download_key|key|id_downloads)["\']\s+value=["\']([^"\']+)["\']', text)
-            download_key = input_match.group(1) if input_match else gate_id
+        # 1. Immediate regex search in HTML source for pre-embedded download URLs
+        patterns = [
+            r'var\s+download_url\s*=\s*["\']([^"\']+)["\']',
+            r'var\s+s3_url\s*=\s*["\']([^"\']+)["\']',
+            r'var\s+file_url\s*=\s*["\']([^"\']+)["\']',
+            r'var\s+file_download\s*=\s*["\']([^"\']+)["\']',
+            r'data-download-url=["\']([^"\']+)["\']',
+            r'data-s3-url=["\']([^"\']+)["\']',
+            r'data-file=["\']([^"\']+)["\']',
+            r'["\'](https?://[^"\']*(?:s3\.amazonaws\.com|hypeddit-downloads|hypeddit)[^"\']*\.(?:mp3|wav|zip|flac|aiff)[^"\']*)["\']',
+            r'["\'](https?://s3[^\s"\'<>]+\.(?:mp3|wav|zip|flac|aiff)[^\s"\'<>]*)\b["\']',
+            r'["\']download_url["\']\s*:\s*["\']([^"\']+)["\']',
+            r'["\']s3_url["\']\s*:\s*["\']([^"\']+)["\']',
+        ]
+        for pattern in patterns:
+            found = re.search(pattern, text, re.IGNORECASE)
+            if found:
+                cleaned = _clean_url(found.group(1))
+                if cleaned:
+                    return cleaned
 
-            # 3. Try Hypeddit gate API download endpoints with AJAX headers
-            ajax_headers = {
-                **headers,
-                "X-Requested-With": "XMLHttpRequest",
-                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-            }
+        # 2. Collect hidden inputs from page HTML
+        form_data = {}
+        for input_tag in re.findall(r'<input[^>]+>', text, re.IGNORECASE):
+            name_m = re.search(r'name=["\']([^"\']+)["\']', input_tag, re.IGNORECASE)
+            val_m = re.search(r'value=["\']([^"\']+)["\']', input_tag, re.IGNORECASE)
+            if name_m and val_m:
+                form_data[name_m.group(1)] = val_m.group(1)
 
-            api_urls = [
-                "https://hypeddit.com/index.php?rm=gate/get_download_link",
-                "https://hypeddit.com/index.php?rm=gate/download",
-            ]
+        download_key = form_data.get("download_key") or form_data.get("key") or form_data.get("id") or gate_id
 
-            for api_url in api_urls:
+        # Prepare AJAX headers
+        ajax_headers = {
+            **headers,
+            "X-Requested-With": "XMLHttpRequest",
+            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        }
+
+        # 3. Simulate comment step ("Amazing track!")
+        comment_endpoints = [
+            "https://hypeddit.com/index.php?rm=gate/save_comment",
+            "https://hypeddit.com/index.php?rm=gate/comment",
+            "https://hypeddit.com/index.php?rm=gate/add_comment",
+        ]
+        for comment_url in comment_endpoints:
+            try:
+                comment_payload = {
+                    "id": download_key,
+                    "comment": "Amazing track!",
+                    "email": "listener@gmail.com",
+                    "name": "Listener",
+                    **form_data,
+                }
+                session.post(comment_url, data=comment_payload, headers=ajax_headers, timeout=timeout)
+            except requests.RequestException:
+                pass
+
+        # 4. Simulate step progression (clicking links, steps 1..5)
+        step_endpoints = [
+            "https://hypeddit.com/index.php?rm=gate/save_step",
+            "https://hypeddit.com/index.php?rm=gate/step",
+            "https://hypeddit.com/index.php?rm=gate/next_step",
+            "https://hypeddit.com/index.php?rm=gate/complete_step",
+            "https://hypeddit.com/index.php?rm=gate/step_done",
+        ]
+        for step_num in range(1, 6):
+            for step_url in step_endpoints:
+                try:
+                    step_payload = {
+                        "id": download_key,
+                        "step": step_num,
+                        "action": "complete",
+                        "status": "done",
+                        **form_data,
+                    }
+                    session.post(step_url, data=step_payload, headers=ajax_headers, timeout=timeout)
+                except requests.RequestException:
+                    pass
+
+        # 5. Final download link resolution from Hypeddit API
+        dl_endpoints = [
+            "https://hypeddit.com/index.php?rm=gate/get_download_link",
+            "https://hypeddit.com/index.php?rm=gate/download",
+            "https://hypeddit.com/index.php?rm=gate/finish",
+            f"https://hypeddit.com/sc_download.php?id={download_key}",
+            f"https://hypeddit.com/download.php?id={download_key}",
+        ]
+
+        for dl_url in dl_endpoints:
+            if "index.php" in dl_url:
                 for key_param in ("id", "gate_id", "fan_gate_id", "key"):
                     try:
-                        post_data = {key_param: download_key}
-                        api_resp = session.post(api_url, data=post_data, headers=ajax_headers, timeout=timeout)
+                        post_data = {key_param: download_key, **form_data}
+                        api_resp = session.post(dl_url, data=post_data, headers=ajax_headers, timeout=timeout)
                         if api_resp.status_code == 200:
                             try:
                                 data = api_resp.json()
                                 if isinstance(data, dict):
-                                    for field in ("download_url", "url", "s3_url", "file", "download_link", "location"):
+                                    for field in ("download_url", "url", "s3_url", "file", "download_link", "location", "redirect"):
                                         cleaned = _clean_url(data.get(field))
                                         if cleaned:
                                             return cleaned
@@ -113,6 +167,17 @@ def resolve_hypeddit_download_url(url: str, session: requests.Session, timeout: 
                                         return cleaned
                     except requests.RequestException:
                         continue
+            else:
+                try:
+                    get_resp = session.get(dl_url, headers=headers, timeout=timeout, allow_redirects=False)
+                    if get_resp.status_code in (200, 301, 302):
+                        redirect = get_resp.headers.get("Location")
+                        if redirect:
+                            cleaned = _clean_url(redirect)
+                            if cleaned:
+                                return cleaned
+                except requests.RequestException:
+                    continue
 
     except requests.RequestException as exc:
         LOGGER.debug("Hypeddit gate resolution failed for %s: %s", url, exc)
