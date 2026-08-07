@@ -283,6 +283,7 @@ class ErrorBanner(Widget):
         color: white;
         height: auto;
         max-height: 12;
+        width: 100%;
         padding: 0 1;
         dock: top;
         border-bottom: solid $error;
@@ -291,6 +292,7 @@ class ErrorBanner(Widget):
         display: block;
     }
     #error-container {
+        width: 100%;
         height: auto;
         max-height: 11;
     }
@@ -616,6 +618,14 @@ class DiggerApp(App):
     ENABLE_COMMAND_PALETTE = False
 
     CSS = """
+    DiggerApp {
+        layers: base top;
+    }
+    #error-banner {
+        width: 100%;
+        dock: top;
+        layer: top;
+    }
     #body {
         height: 1fr;
     }
@@ -1714,8 +1724,9 @@ class DiggerApp(App):
             except Exception as exc:
                 return (row, False, str(exc))
 
-        with ThreadPoolExecutor(max_workers=4) as executor:
-            futures = [executor.submit(download_one, item) for item in items]
+        self._download_executor = ThreadPoolExecutor(max_workers=4)
+        try:
+            futures = [self._download_executor.submit(download_one, item) for item in items]
             for future in as_completed(futures):
                 row, success, result = future.result()
                 key = row.track.key
@@ -1725,6 +1736,13 @@ class DiggerApp(App):
                 else:
                     failed_count += 1
                     self.call_from_thread(self._on_batch_track_failed, row, result)
+        finally:
+            if getattr(self, "_download_executor", None):
+                try:
+                    self._download_executor.shutdown(wait=False)
+                except Exception:
+                    pass
+                self._download_executor = None
 
         self.call_from_thread(self._on_batch_download_complete, completed_count, failed_count, total)
 
@@ -1963,6 +1981,36 @@ class DiggerApp(App):
         if event.input.id != "search":
             return
         self.query_one("#tracks", DataTable).focus()
+
+    def on_unmount(self) -> None:
+        if getattr(self, "_prepared", None) and hasattr(self._prepared, "source"):
+            try:
+                self._prepared.source.close()
+            except Exception:
+                pass
+        if getattr(self, "_download_executor", None):
+            try:
+                self._download_executor.shutdown(wait=False, cancel_futures=True)
+            except Exception:
+                pass
+        if getattr(self, "player", None):
+            try:
+                self.player.close()
+            except Exception:
+                pass
+        if getattr(self, "_client", None):
+            try:
+                self._client.close()
+            except Exception:
+                pass
+
+    def action_quit(self) -> None:
+        if getattr(self, "_download_executor", None):
+            try:
+                self._download_executor.shutdown(wait=False, cancel_futures=True)
+            except Exception:
+                pass
+        self.exit()
 
 
 def run_tui(

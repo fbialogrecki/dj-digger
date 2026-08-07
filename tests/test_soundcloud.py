@@ -82,7 +82,7 @@ def test_download_uses_only_the_artist_provided_download_url(tmp_path):
         (
             track.download_url,
             {"client_id": DUMMY_CLIENT_ID},
-            20.0,
+            (20.0, 20.0),
             True,
         )
     ]

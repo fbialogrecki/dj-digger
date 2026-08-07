@@ -331,7 +331,7 @@ class SoundCloudClient:
             response = self._session.get(
                 download_url,
                 params={"client_id": self.client_id} if "soundcloud.com" in host else None,
-                timeout=self._timeout,
+                timeout=(self._timeout, self._timeout),
                 stream=True,
             )
             if response.status_code >= 400:
@@ -373,12 +373,20 @@ class SoundCloudClient:
             downloaded = 0
 
             with temporary.open("wb") as handle:
-                for chunk in response.iter_content(chunk_size=1024 * 128):
-                    if chunk:
-                        handle.write(chunk)
-                        downloaded += len(chunk)
-                        if on_progress:
-                            on_progress(downloaded, total_size)
+                try:
+                    for chunk in response.iter_content(chunk_size=1024 * 128):
+                        if chunk:
+                            handle.write(chunk)
+                            downloaded += len(chunk)
+                            if on_progress:
+                                on_progress(downloaded, total_size)
+                except Exception as stream_exc:
+                    if temporary.exists():
+                        try:
+                            temporary.unlink()
+                        except OSError:
+                            pass
+                    raise SoundCloudError(f"Download stream read failed: {stream_exc}") from stream_exc
 
             os.replace(temporary, target)
             return target
