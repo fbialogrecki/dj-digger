@@ -1455,6 +1455,8 @@ class DiggerApp(App):
         """Download all eligible tracks in current view (SoundCloud direct + Hypeddit/ToneDen gates) in parallel."""
         eligible: List[Tuple[Row, Optional[str]]] = []
         for row in self.visible_rows:
+            if self.status_of(row) == GOT:
+                continue
             gate_url: Optional[str] = None
             for rec in row.records:
                 if rec.category in ("hypeddit", "toneden") or "hypeddit.com" in rec.link_url or "toneden.io" in rec.link_url:
@@ -1606,11 +1608,12 @@ class DiggerApp(App):
         self.notify("Restored", timeout=2)
 
     def action_open_visible(self) -> None:
-        if not self.visible_rows:
-            self.notify("Nothing to open", timeout=2)
+        target_rows = [row for row in self.visible_rows if self.status_of(row) != GOT]
+        if not target_rows:
+            self.notify("Nothing to open (all visible tracks are marked as 'got')", timeout=2)
             return
 
-        count = len(self.visible_rows)
+        count = len(target_rows)
         if count > OPEN_ALL_CONFIRM_THRESHOLD and not self._pending_open_all:
             self._pending_open_all = True
             self.notify(
@@ -1622,9 +1625,8 @@ class DiggerApp(App):
             return
 
         self._pending_open_all = False
-        rows = list(self.visible_rows)
-        self.notify(f"Opening {len(rows)} links in background...", timeout=3)
-        self.open_visible_in_background(rows)
+        self.notify(f"Opening {len(target_rows)} links in background...", timeout=3)
+        self.open_visible_in_background(target_rows)
 
     @work(thread=True, exclusive=True, group="open_all")
     def open_visible_in_background(self, rows: List[Row]) -> None:
