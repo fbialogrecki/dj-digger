@@ -1696,9 +1696,9 @@ class DiggerApp(App):
         self.notify("Restored", timeout=2)
 
     def action_open_visible(self) -> None:
-        target_rows = [row for row in self.visible_rows if self.status_of(row) != GOT]
+        target_rows = [row for row in self.visible_rows if self.status_of(row) not in (GOT, OPENED)]
         if not target_rows:
-            self.notify("Nothing to open (all visible tracks are marked as 'got')", timeout=2)
+            self.notify("Nothing to open (all visible tracks are marked as 'got' or already opened)", timeout=3)
             return
 
         count = len(target_rows)
