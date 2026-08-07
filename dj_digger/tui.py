@@ -841,21 +841,35 @@ class DiggerApp(App):
             if badges:
                 badges.append(" ")
             free = record.link_text == links_module.FREE_DOWNLOAD
-            if record.category in DOMAIN_BADGE_CATEGORIES:
-                name = links_module.host_of(record.link_url) or record.category
-            elif free:
-                name = "\u2193" + record.category
+            if record.category == "gate":
+                host = links_module.host_of(record.link_url)
+                name = "\u2193gate" if free else "gate"
+                if record is not opening:
+                    style = "bright_black"
+                elif free:
+                    style = "bold green"
+                else:
+                    style = "bold cyan"
+                badges.append(name, style=style)
+                if host and host != "gate":
+                    badges.append(f"({host})", style="bright_black")
             else:
-                name = record.category
-            if record is not opening:
-                style = "bright_black"
-            elif free:
-                style = "bold green"
-            elif record.link_text == links_module.NO_STORE_LINK:
-                style = "bright_black"
-            else:
-                style = "bold cyan"
-            badges.append(name, style=style)
+                if record.category in DOMAIN_BADGE_CATEGORIES:
+                    name = links_module.host_of(record.link_url) or record.category
+                elif free:
+                    name = "\u2193" + record.category
+                else:
+                    name = record.category
+
+                if record is not opening:
+                    style = "bright_black"
+                elif free:
+                    style = "bold green"
+                elif record.link_text == links_module.NO_STORE_LINK:
+                    style = "bright_black"
+                else:
+                    style = "bold cyan"
+                badges.append(name, style=style)
         return badges
 
     def _playing_key(self) -> Optional[str]:
