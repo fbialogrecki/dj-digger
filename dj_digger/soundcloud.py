@@ -313,18 +313,8 @@ class SoundCloudClient:
         if not download_url:
             raise SoundCloudError("This track has no active direct download or resolved gate link")
 
-        host = (urlparse(download_url).hostname or "").lower()
-        if not (
-            host == "soundcloud.com"
-            or host.endswith(".soundcloud.com")
-            or host.endswith(".sndcdn.com")
-            or host.endswith(".amazonaws.com")
-            or host.endswith(".hypeddit.com")
-            or host.endswith(".toneden.io")
-            or host.endswith(".google.com")
-            or host.endswith(".dropbox.com")
-        ):
-            raise SoundCloudError("Unsafe or untrusted download host")
+        if not (download_url.startswith("http://") or download_url.startswith("https://")):
+            raise SoundCloudError("Invalid or unsafe download URL scheme")
 
         directory = Path(directory)
         directory.mkdir(parents=True, exist_ok=True)

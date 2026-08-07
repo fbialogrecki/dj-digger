@@ -254,17 +254,58 @@ def resolve_droploud_download_url(
     return None
 
 
+def resolve_mediafire_download_url(url: str, session: requests.Session, timeout: float = 10.0) -> Optional[str]:
+    """Extract direct download link from MediaFire page."""
+    try:
+        resp = session.get(url, headers=DEFAULT_HEADERS, timeout=timeout)
+        if resp.status_code == 200:
+            match = re.search(r'href=["\'](https?://download\d+\.mediafire\.com/[^"\']+)["\']', resp.text)
+            if match:
+                return match.group(1)
+            btn = re.search(r'id=["\']downloadButton["\'][^>]*href=["\']([^"\']+)["\']', resp.text)
+            if btn:
+                return btn.group(1)
+    except requests.RequestException:
+        pass
+    return url
+
+
+def resolve_dropbox_download_url(url: str) -> str:
+    """Convert Dropbox link to direct download link."""
+    return url.replace("www.dropbox.com", "dl.dropboxusercontent.com").replace("dl=0", "dl=1")
+
+
+def resolve_google_drive_download_url(url: str) -> str:
+    """Convert Google Drive view link to direct download link."""
+    m = re.search(r'/d/([a-zA-Z0-9_-]+)', url) or re.search(r'id=([a-zA-Z0-9_-]+)', url)
+    if m:
+        file_id = m.group(1)
+        return f"https://drive.google.com/uc?export=download&id={file_id}"
+    return url
+
+
 def resolve_gate_download_url(url: str, session: requests.Session, timeout: float = 10.0) -> Optional[str]:
-    """Inspect and resolve direct download URL from supported gate providers."""
+    """Inspect and resolve direct download URL from supported gate providers and cloud storage."""
     if not url or not url.startswith("http"):
         return None
 
-    if "hypeddit.com" in url:
+    if "hypeddit.com" in url or "hypd.it" in url:
         return resolve_hypeddit_download_url(url, session, timeout=timeout)
     if "droploud.com" in url:
         return resolve_droploud_download_url(url, session, timeout=timeout)
     if "toneden.io" in url:
         return resolve_toneden_download_url(url, session, timeout=timeout)
+    if "mediafire.com" in url:
+        return resolve_mediafire_download_url(url, session, timeout=timeout)
+    if "dropbox.com" in url or "dropboxusercontent.com" in url:
+        return resolve_dropbox_download_url(url)
+    if "drive.google.com" in url or "docs.google.com" in url:
+        return resolve_google_drive_download_url(url)
+
+    # Direct audio file links (S3, R2, CDN, raw audio files)
+    lower_url = url.lower()
+    if any(lower_url.endswith(ext) or f"{ext}?" in lower_url for ext in (".mp3", ".wav", ".flac", ".zip", ".aiff")):
+        return url
 
     return None
 

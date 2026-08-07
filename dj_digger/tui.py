@@ -1527,7 +1527,7 @@ class DiggerApp(App):
 
         gate_url: Optional[str] = None
         for rec in row.records:
-            if rec.category in ("gate", "hypeddit", "toneden") or any(dom in rec.link_url for dom in ("hypeddit.com", "toneden.io", "droploud.com")):
+            if rec.link_url and "soundcloud.com" not in rec.link_url and rec.link_text != links_module.NO_STORE_LINK:
                 gate_url = rec.link_url
                 break
 
@@ -1585,7 +1585,7 @@ class DiggerApp(App):
                 continue
             gate_url: Optional[str] = None
             for rec in row.records:
-                if rec.category in ("gate", "hypeddit", "toneden") or any(dom in rec.link_url for dom in ("hypeddit.com", "toneden.io", "droploud.com")):
+                if rec.link_url and "soundcloud.com" not in rec.link_url and rec.link_text != links_module.NO_STORE_LINK:
                     gate_url = rec.link_url
                     break
             if row.track.free_download or gate_url or row.track.has_direct_download:
