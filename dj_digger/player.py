@@ -833,6 +833,11 @@ class Player:
         except Exception as exc:
             LOGGER.debug("Closing the audio device complained: %s", exc)
         self._device = None
+        if hasattr(self, "_session") and self._session is not None:
+            try:
+                self._session.close()
+            except Exception:
+                pass
 
 
 def format_time(seconds: float) -> str:

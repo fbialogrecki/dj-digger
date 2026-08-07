@@ -729,6 +729,10 @@ class DiggerApp(App):
         if self._ticker is not None:
             self._ticker.stop()
             self._ticker = None
+        try:
+            self.workers.cancel_all()
+        except Exception:
+            pass
         self._discard_prepared()
         self.player.close()
         if self._client is not None:
@@ -1843,7 +1847,7 @@ def run_tui(
     dig_options: Optional[dig_module.DigOptions] = None,
     crate_record: Optional[CrateRecord] = None,
 ) -> None:
-    DiggerApp(
+    app = DiggerApp(
         records,
         state=state,
         crate_title=crate_title,
@@ -1852,4 +1856,13 @@ def run_tui(
         export_path=export_path,
         dig_options=dig_options,
         crate_record=crate_record,
-    ).run()
+    )
+    try:
+        app.run()
+    finally:
+        player = getattr(app, "player", None)
+        if player is not None:
+            player.close()
+        client = getattr(app, "_client", None)
+        if client is not None:
+            client.close()
