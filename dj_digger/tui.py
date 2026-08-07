@@ -33,6 +33,7 @@ from textual.containers import Horizontal, Vertical
 from textual.coordinate import Coordinate
 from textual.screen import ModalScreen
 from textual.timer import Timer
+from textual.widget import Widget
 from textual.widgets import Button, DataTable, Footer, Input, Label, ListItem, ListView, Static
 from textual.widgets.data_table import ColumnKey
 
@@ -267,6 +268,82 @@ class StatusBar(Static):
             if start_x <= x < end_x:
                 app.action_filter_index(store_idx)
                 break
+
+
+class ErrorBanner(Widget):
+    """Top bar displaying error/debug messages with an [x] close button."""
+
+    DEFAULT_CSS = """
+    ErrorBanner {
+        display: none;
+        background: $error-darken-2;
+        color: white;
+        height: auto;
+        max-height: 8;
+        padding: 0 1;
+        dock: top;
+        border-bottom: solid $error;
+    }
+    ErrorBanner.visible {
+        display: block;
+    }
+    #error-container {
+        height: auto;
+    }
+    #error-text {
+        width: 1fr;
+        height: auto;
+    }
+    #error-close {
+        width: 5;
+        min-width: 5;
+        height: 1;
+        border: none;
+        background: $error;
+        color: white;
+    }
+    #error-close:hover {
+        background: yellow;
+        color: black;
+    }
+    """
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.errors: List[str] = []
+
+    def compose(self) -> ComposeResult:
+        with Horizontal(id="error-container"):
+            yield Static("", id="error-text")
+            yield Button(" [x] ", id="error-close", tooltip="Close error banner")
+
+    def add_error(self, message: str) -> None:
+        if message and message not in self.errors:
+            self.errors.append(message)
+        self._update_display()
+
+    def clear_errors(self) -> None:
+        self.errors.clear()
+        self._update_display()
+
+    def _update_display(self) -> None:
+        try:
+            msg_widget = self.query_one("#error-text", Static)
+        except Exception:
+            return
+        if not self.errors:
+            self.remove_class("visible")
+            msg_widget.update("")
+        else:
+            self.add_class("visible")
+            formatted = "\n".join(f"• {e}" for e in self.errors[-5:])
+            if len(self.errors) > 5:
+                formatted = f"([bold]{len(self.errors)} errors total[/bold], showing last 5):\n" + formatted
+            msg_widget.update(f"[bold yellow]Errors / Debug Log:[/bold yellow]\n{formatted}")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "error-close":
+            self.clear_errors()
 
 
 class CrateButton(Button):
@@ -599,6 +676,7 @@ class DiggerApp(App):
     # Layout
 
     def compose(self) -> ComposeResult:
+        yield ErrorBanner(id="error-banner")
         yield PlayerBar(self.player, id="player")
         with Horizontal(id="body"):
             with Vertical(id="sidebar"):
@@ -610,6 +688,15 @@ class DiggerApp(App):
                 yield TrackTable(id="tracks", cursor_type="row", zebra_stripes=True)
         yield StatusBar(id="status")
         yield Footer()
+
+    def show_error(self, message: str) -> None:
+        """Display an error/debug message in the top ErrorBanner."""
+        try:
+            banner = self.query_one(ErrorBanner)
+            banner.add_error(message)
+        except Exception:
+            LOGGER.error("Error: %s", message)
+            self.notify(f"Error: {message}", severity="error", timeout=8)
 
     async def on_mount(self) -> None:
         table = self.query_one("#tracks", TrackTable)
@@ -1521,6 +1608,7 @@ class DiggerApp(App):
     def _on_batch_track_failed(self, row: Row, message: str) -> None:
         key = row.track.key
         self.download_progress.pop(key, None)
+        self.show_error(f"Batch download failed [{row.track.label}]: {message}")
         self.refresh_rows()
 
     def _on_batch_download_complete(self, completed: int, failed: int, total: int) -> None:
@@ -1631,14 +1719,25 @@ class DiggerApp(App):
     @work(thread=True, exclusive=True, group="open_all")
     def open_visible_in_background(self, rows: List[Row]) -> None:
         urls = [self.record_to_open(row).link_url for row in rows]
-        opened = browser_module.open_urls(urls, self.browser)
+
+        def handle_error(err_msg: str) -> None:
+            self.call_from_thread(self.show_error, err_msg)
+
+        opened = browser_module.open_urls(
+            urls, self.browser, on_error=handle_error
+        )
         for row in rows:
             if self.status_of(row) == NEW:
                 self.state.set(row.track.key, OPENED)
-        self.call_from_thread(self._open_visible_finished, opened)
+        self.call_from_thread(self._open_visible_finished, opened, len(rows))
 
-    def _open_visible_finished(self, opened: int) -> None:
-        self.notify(f"Opened {opened} links", timeout=3)
+    def _open_visible_finished(self, opened: int, total: int) -> None:
+        if opened < total:
+            self.show_error(
+                f"Opened {opened}/{total} tabs. {total - opened} failed to open "
+                "(OS process / browser tab opening limit reached)."
+            )
+        self.notify(f"Opened {opened}/{total} links", timeout=3)
         self.refresh_rows()
 
     def _apply_store_filter(self, category: str) -> None:

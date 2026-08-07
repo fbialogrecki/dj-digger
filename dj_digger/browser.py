@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import time
 import webbrowser
-from typing import Iterable, Optional
+from typing import Callable, Iterable, Optional
 
 BROWSER_CHOICES = ["default", "chrome", "firefox", "edge", "safari", "opera"]
 BROWSER_ALIASES = {
@@ -47,17 +47,27 @@ def open_urls(
     *,
     pause: float = 0.1,
     controller: Optional[webbrowser.BaseBrowser] = None,
+    on_error: Optional[Callable[[str], None]] = None,
 ) -> int:
     """Open several links in tabs. Returns how many actually opened."""
 
     controller = controller or resolve_controller(browser)
     opened = 0
-    for url in urls:
+    for index, url in enumerate(urls):
         try:
-            controller.open_new_tab(url)
-            opened += 1
+            res = controller.open_new_tab(url)
+            if res is False:
+                err_msg = f"Browser rejected opening tab #{index + 1}: {url}"
+                LOGGER.error("%s", err_msg)
+                if on_error:
+                    on_error(err_msg)
+            else:
+                opened += 1
         except Exception as exc:
-            LOGGER.error("Failed to open %s: %s", url, exc)
+            err_msg = f"Failed to open tab #{index + 1} ({url}): {exc}"
+            LOGGER.error("%s", err_msg)
+            if on_error:
+                on_error(err_msg)
             continue
         if pause > 0:
             time.sleep(pause)
