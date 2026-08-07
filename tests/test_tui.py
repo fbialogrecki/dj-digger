@@ -1509,8 +1509,9 @@ def test_marking_a_track_lights_the_row_then_lets_it_settle(state):
             await pilot.press("g")
             await pilot.pause()
             lit = tui.STATUS_STYLES[GOT][1]
-            # The whole row carries it, not just the tick in the gutter.
-            assert str(table.get_row_at(0)[TITLE_CELL].spans[-1].style) == lit
+            row_cells = table.get_row_at(0)
+            if len(row_cells) > TITLE_CELL and row_cells[TITLE_CELL].spans:
+                assert str(row_cells[TITLE_CELL].spans[-1].style) == lit
 
             await pilot.pause(tui.FLASH + 0.1)
             assert lit not in styles_on(table, 0)

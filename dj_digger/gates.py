@@ -43,8 +43,18 @@ def _clean_url(raw_url: Optional[str], *, allow_preview: bool = False) -> Option
     return None
 
 
-def resolve_hypeddit_download_url(url: str, session: requests.Session, timeout: float = 10.0) -> Optional[str]:
+def resolve_hypeddit_download_url(
+    url: str, session: requests.Session, timeout: float = 10.0, config: Optional[Any] = None
+) -> Optional[str]:
     """Resolve direct audio download URL from Hypeddit gate link by simulating step completion."""
+    if config is None:
+        from .config import AppConfig
+        config = AppConfig()
+
+    email = config.user_email
+    name = config.user_name
+    comment = config.random_comment()
+
     match = HYPEDDIT_RE.search(url)
     if not match:
         return None
@@ -107,7 +117,6 @@ def resolve_hypeddit_download_url(url: str, session: requests.Session, timeout: 
 
         fan_gate_id = inputs.get("fan_gate_id") or inputs.get("fangate_id") or gate_id
         download_key = inputs.get("current_download_file_listner") or inputs.get("fangate_id") or fan_gate_id
-        email = "music.listener@yahoo.com"
 
         # Prepare AJAX headers with CSRF token
         ajax_headers = {
@@ -120,9 +129,9 @@ def resolve_hypeddit_download_url(url: str, session: requests.Session, timeout: 
 
         # 3. Execute step completion calls for all steps declared in nwSteps
         step_calls = [
-            ("https://hypeddit.com/verifyEmailAddress", {"_token": csrf_token, "validateEmailAddress": email, "fan_gate_id": fan_gate_id, "email_name": "Music Listener"}),
-            ("https://hypeddit.com/setSC", {"_token": csrf_token, "fan_gate_id": fan_gate_id, "comment_sc": "Awesome track!", "is_repost": 1, "is_subscribe": 1}),
-            ("https://hypeddit.com/setYT", {"_token": csrf_token, "fan_gate_id": fan_gate_id, "comment_yt": "Awesome track!"}),
+            ("https://hypeddit.com/verifyEmailAddress", {"_token": csrf_token, "validateEmailAddress": email, "fan_gate_id": fan_gate_id, "email_name": name}),
+            ("https://hypeddit.com/setSC", {"_token": csrf_token, "fan_gate_id": fan_gate_id, "comment_sc": comment, "is_repost": 1, "is_subscribe": 1}),
+            ("https://hypeddit.com/setYT", {"_token": csrf_token, "fan_gate_id": fan_gate_id, "comment_yt": comment}),
         ]
         nw_steps = inputs.get("nwSteps", "email,sc").split(",")
         for st in nw_steps:
@@ -258,9 +267,16 @@ GATERUSH_RE = re.compile(r"https?://(?:www\.)?gaterush\.me/([a-zA-Z0-9_-]+)", re
 
 
 def resolve_gaterush_download_url(
-    url: str, session: requests.Session, timeout: float = 10.0
+    url: str, session: requests.Session, timeout: float = 10.0, config: Optional[Any] = None
 ) -> Optional[str]:
     """Resolve direct audio download URL from GateRush fan gate link."""
+    if config is None:
+        from .config import AppConfig
+        config = AppConfig()
+
+    email = config.user_email
+    comment = config.random_comment()
+
     match = GATERUSH_RE.search(url)
     if not match:
         return None
@@ -270,12 +286,18 @@ def resolve_gaterush_download_url(
         resp = session.get(url, headers=headers, timeout=timeout)
         if resp.status_code == 200:
             text = resp.text
-            csrf_m = re.search(r'name="csrf-token"\s+content="([^"]+)"', text)
+            csrf_m = re.search(r'name="_csrf"\s+value="([^"]+)"', text) or re.search(r'csrf-token.*content="([^"]+)"', text)
             csrf = csrf_m.group(1) if csrf_m else ""
-            ajax_headers = {**headers, "X-CSRF-Token": csrf, "X-Requested-With": "XMLHttpRequest"}
+            ajax_headers = {**headers, "X-CSRF-Token": csrf, "X-Requested-With": "XMLHttpRequest", "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"}
+
+            # Save comment and email
+            session.post(f"https://gaterush.me/save-comment/{slug}", data={"commentText": comment, "_csrf": csrf}, headers=ajax_headers, timeout=timeout)
+            session.post(f"https://gaterush.me/save-email/{slug}", data={"email": email, "_csrf": csrf}, headers=ajax_headers, timeout=timeout)
+
             steps_m = re.findall(r'id["\']:\s*["\']([^"\']+)["\']', text)
-            for st in set(steps_m) | {"soundcloud", "spotify", "instagram", "youtube"}:
+            for st in set(steps_m) | {"instagram", "spotify", "youtube", "soundcloud", "email", "tiktok"}:
                 session.post(f"https://gaterush.me/gate-step/{slug}", data={"stepId": st, "_csrf": csrf}, headers=ajax_headers, timeout=timeout)
+
             dl_resp = session.get(f"https://gaterush.me/download/{slug}", headers=headers, allow_redirects=False, timeout=timeout)
             if dl_resp.status_code in (301, 302) and dl_resp.headers.get("Location"):
                 return dl_resp.headers["Location"]
@@ -316,17 +338,19 @@ def resolve_google_drive_download_url(url: str) -> str:
     return url
 
 
-def resolve_gate_download_url(url: str, session: requests.Session, timeout: float = 10.0) -> Optional[str]:
+def resolve_gate_download_url(
+    url: str, session: requests.Session, timeout: float = 10.0, config: Optional[Any] = None
+) -> Optional[str]:
     """Inspect and resolve direct download URL from supported gate providers and cloud storage."""
     if not url or not url.startswith("http"):
         return None
 
     if "hypeddit.com" in url or "hypd.it" in url:
-        return resolve_hypeddit_download_url(url, session, timeout=timeout)
+        return resolve_hypeddit_download_url(url, session, timeout=timeout, config=config)
     if "droploud.com" in url:
         return resolve_droploud_download_url(url, session, timeout=timeout)
     if "gaterush.me" in url:
-        return resolve_gaterush_download_url(url, session, timeout=timeout)
+        return resolve_gaterush_download_url(url, session, timeout=timeout, config=config)
     if "toneden.io" in url:
         return resolve_toneden_download_url(url, session, timeout=timeout)
     if "mediafire.com" in url:

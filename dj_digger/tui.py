@@ -41,6 +41,7 @@ from . import browser as browser_module
 from . import dig as dig_module
 from . import library as library_module
 from . import links as links_module
+from .config import AppConfig
 from .library import CrateRecord
 from .models import Crate, LinkRecord, Track
 from .player import (
@@ -151,6 +152,7 @@ KEYMAP = [
     ("U", "reset_crate_statuses", "Reset statuses", CRATES, False, "Reset all track statuses to 'new' for this crate"),
     ("ctrl+b", "toggle_sidebar", "Crates", CRATES, False, "Show or hide the crate sidebar"),
     ("question_mark", "help", "Help", OTHER, True, "This screen"),
+    ("S", "open_settings", "Settings", OTHER, True, "Configure profile name, email and gate comments"),
     ("q", "quit", "Quit", OTHER, True, "Leave"),
 ]
 
@@ -532,6 +534,81 @@ class ConfirmScreen(ModalScreen[bool]):
 
     def action_refuse(self) -> None:
         self.dismiss(False)
+
+
+class SettingsScreen(ModalScreen[None]):
+    """Modal dialog for editing user profile (Name, Email) and gate automation comments."""
+
+    CSS = """
+    SettingsScreen {
+        align: center middle;
+    }
+    #settings-dialog {
+        width: 72;
+        height: auto;
+        padding: 1 2;
+        border: round $accent;
+        background: $surface;
+    }
+    #settings-title {
+        text-style: bold;
+        margin-bottom: 1;
+    }
+    .settings-label {
+        margin-top: 1;
+        color: $text-muted;
+    }
+    #settings-buttons {
+        height: auto;
+        margin-top: 1;
+    }
+    """
+
+    BINDINGS = [
+        Binding("escape", "dismiss", "Cancel"),
+    ]
+
+    def __init__(self, config: AppConfig) -> None:
+        super().__init__()
+        self.config = config
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="settings-dialog"):
+            yield Label("Gate Automation & Profile Settings", id="settings-title")
+            yield Label("Your Name (for gate forms):", classes="settings-label")
+            yield Input(value=self.config.user_name, id="input-name")
+            yield Label("Your Email (for gate forms):", classes="settings-label")
+            yield Input(value=self.config.user_email, id="input-email")
+            yield Label("Random Hype Comments (separated by | or newlines):", classes="settings-label")
+            comments_str = " | ".join(self.config.custom_comments)
+            yield Input(value=comments_str, id="input-comments")
+            with Horizontal(id="settings-buttons"):
+                yield Button("Save", variant="primary", id="btn-save-settings")
+                yield Button("Cancel", id="btn-cancel-settings")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-save-settings":
+            name = self.query_one("#input-name", Input).value.strip()
+            email = self.query_one("#input-email", Input).value.strip()
+            comments_text = self.query_one("#input-comments", Input).value
+            raw_list = comments_text.split("|") if "|" in comments_text else comments_text.splitlines()
+            comments = [c.strip() for c in raw_list if c.strip()]
+
+            if name:
+                self.config.user_name = name
+            if email:
+                self.config.user_email = email
+            if comments:
+                self.config.custom_comments = comments
+
+            self.config.save()
+            self.app.notify("Settings saved!", timeout=4)
+            self.dismiss()
+        else:
+            self.dismiss()
+
+    def action_dismiss(self) -> None:
+        self.dismiss()
 
 
 class DiggerApp(App):
@@ -1746,6 +1823,9 @@ class DiggerApp(App):
         library_module.save(self.crate)
         self._reload_from_crate()
         self.notify("Restored", timeout=2)
+
+    def action_open_settings(self) -> None:
+        self.push_screen(SettingsScreen(self.client.config))
 
     def action_open_visible(self) -> None:
         target_rows = [row for row in self.visible_rows if self.status_of(row) not in (GOT, OPENED)]

@@ -144,6 +144,9 @@ class SoundCloudClient:
         else:
             self._oauth_token = oauth_token
 
+        from .config import AppConfig
+        self.config = AppConfig()
+
     @property
     def oauth_token(self) -> Optional[str]:
         return self._oauth_token
@@ -281,7 +284,9 @@ class SoundCloudClient:
 
         # 1. Try resolving gate URL if provided
         if gate_url:
-            download_url = gates.resolve_gate_download_url(gate_url, self._session, timeout=self._timeout)
+            download_url = gates.resolve_gate_download_url(
+                gate_url, self._session, timeout=self._timeout, config=self.config
+            )
 
         # 2. Try authenticated download endpoint
         if not download_url and self._oauth_token and track.free_download and track.id:
