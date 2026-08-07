@@ -1859,7 +1859,7 @@ def test_export_writes_the_visible_rows(records, state, tmp_path):
 
 def test_clean_gate_badge_name(state):
     rec = LinkRecord(
-        track=Track(title="Test Track", artist="Artist"),
+        track=Track("Test Track", "Artist", "https://soundcloud.com/test/track"),
         category="gate",
         link_url="https://hypeddit.com/exaltation/krvzyintotheabyss-1",
         link_text="Download",
