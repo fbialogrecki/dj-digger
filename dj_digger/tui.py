@@ -148,6 +148,7 @@ KEYMAP = [
     ("d", "dig_link", "Add crate", CRATES, True, "Dig a link into a new crate"),
     ("r", "refresh_crate", "Refresh", CRATES, False, "Re-dig this crate from SoundCloud"),
     ("X", "delete_crate", "Delete", CRATES, False, "Delete this crate, after confirming"),
+    ("U", "reset_crate_statuses", "Reset statuses", CRATES, False, "Reset all track statuses to 'new' for this crate"),
     ("ctrl+b", "toggle_sidebar", "Crates", CRATES, False, "Show or hide the crate sidebar"),
     ("question_mark", "help", "Help", OTHER, True, "This screen"),
     ("q", "quit", "Quit", OTHER, True, "Leave"),
@@ -1354,9 +1355,21 @@ class DiggerApp(App):
     def action_delete_crate(self) -> None:
         self.confirm_delete_crate(self.highlighted_crate())
 
+    def action_reset_crate_statuses(self) -> None:
+        if not self.rows:
+            return
+        for row in self.rows:
+            self.state.set(row.track.key, NEW)
+        self.refresh_rows()
+        self.notify("Reset all track statuses to 'new' for this crate", timeout=3)
+
     def _crate_delete_answered(self, record: CrateRecord, confirmed: bool) -> None:
         if not confirmed:
             return
+        # Reset track statuses for tracks in this crate so re-adding the crate starts fresh
+        for track in record.tracks:
+            self.state.set(track.key, NEW)
+
         library_module.delete(record.slug)
         if self.crate is not None and self.crate.slug == record.slug:
             self.crate = None
