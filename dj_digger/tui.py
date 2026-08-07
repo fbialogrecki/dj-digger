@@ -272,7 +272,7 @@ class StatusBar(Static):
 
 
 class ErrorBanner(Widget):
-    """Top bar displaying error/debug messages with an [x] close button."""
+    """Top bar displaying error/debug messages with a scrollable view and an [X] close button."""
 
     DEFAULT_CSS = """
     ErrorBanner {
@@ -280,7 +280,7 @@ class ErrorBanner(Widget):
         background: $error-darken-2;
         color: white;
         height: auto;
-        max-height: 8;
+        max-height: 12;
         padding: 0 1;
         dock: top;
         border-bottom: solid $error;
@@ -290,18 +290,26 @@ class ErrorBanner(Widget):
     }
     #error-container {
         height: auto;
+        max-height: 11;
+    }
+    #error-scroll {
+        width: 1fr;
+        height: auto;
+        max-height: 10;
+        overflow-y: scroll;
     }
     #error-text {
         width: 1fr;
         height: auto;
     }
     #error-close {
-        width: 5;
-        min-width: 5;
+        width: 7;
+        min-width: 7;
         height: 1;
         border: none;
         background: $error;
         color: white;
+        text-style: bold;
     }
     #error-close:hover {
         background: yellow;
@@ -315,8 +323,9 @@ class ErrorBanner(Widget):
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="error-container"):
-            yield Static("", id="error-text")
-            yield Button(" [x] ", id="error-close", tooltip="Close error banner")
+            with VerticalScroll(id="error-scroll"):
+                yield Static("", id="error-text")
+            yield Button("[X]", id="error-close", tooltip="Close error banner (clear all errors)")
 
     def add_error(self, message: str) -> None:
         if message and message not in self.errors:
@@ -337,10 +346,9 @@ class ErrorBanner(Widget):
             msg_widget.update("")
         else:
             self.add_class("visible")
-            formatted = "\n".join(f"• {e}" for e in self.errors[-5:])
-            if len(self.errors) > 5:
-                formatted = f"([bold]{len(self.errors)} errors total[/bold], showing last 5):\n" + formatted
-            msg_widget.update(f"[bold yellow]Errors / Debug Log:[/bold yellow]\n{formatted}")
+            formatted = "\n".join(f"• {e}" for e in self.errors)
+            header = f"[bold yellow]Errors / Debug Log ({len(self.errors)} total, scrollable):[/bold yellow]\n"
+            msg_widget.update(f"{header}{formatted}")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "error-close":
@@ -1505,7 +1513,7 @@ class DiggerApp(App):
 
         gate_url: Optional[str] = None
         for rec in row.records:
-            if rec.category in ("hypeddit", "toneden") or "hypeddit.com" in rec.link_url or "toneden.io" in rec.link_url:
+            if rec.category in ("gate", "hypeddit", "toneden") or any(dom in rec.link_url for dom in ("hypeddit.com", "toneden.io", "droploud.com")):
                 gate_url = rec.link_url
                 break
 
@@ -1563,7 +1571,7 @@ class DiggerApp(App):
                 continue
             gate_url: Optional[str] = None
             for rec in row.records:
-                if rec.category in ("hypeddit", "toneden") or "hypeddit.com" in rec.link_url or "toneden.io" in rec.link_url:
+                if rec.category in ("gate", "hypeddit", "toneden") or any(dom in rec.link_url for dom in ("hypeddit.com", "toneden.io", "droploud.com")):
                     gate_url = rec.link_url
                     break
             if row.track.free_download or gate_url or row.track.has_direct_download:

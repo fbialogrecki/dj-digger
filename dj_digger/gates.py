@@ -118,15 +118,19 @@ def resolve_hypeddit_download_url(url: str, session: requests.Session, timeout: 
         if csrf_token:
             ajax_headers["X-CSRF-TOKEN"] = csrf_token
 
-        # 3. Execute step completion calls
+        # 3. Execute step completion calls for all steps declared in nwSteps
         step_calls = [
             ("https://hypeddit.com/verifyEmailAddress", {"_token": csrf_token, "validateEmailAddress": email, "fan_gate_id": fan_gate_id, "email_name": "Music Listener"}),
             ("https://hypeddit.com/setSC", {"_token": csrf_token, "fan_gate_id": fan_gate_id, "comment_sc": "Awesome track!", "is_repost": 1, "is_subscribe": 1}),
             ("https://hypeddit.com/setYT", {"_token": csrf_token, "fan_gate_id": fan_gate_id, "comment_yt": "Awesome track!"}),
-            ("https://hypeddit.com/setGatePathway", {"_token": csrf_token, "fan_gate_id": fan_gate_id, "stepName": "email"}),
-            ("https://hypeddit.com/setGatePathway", {"_token": csrf_token, "fan_gate_id": fan_gate_id, "stepName": "sc"}),
-            ("https://hypeddit.com/setGatePathwayOr", {"_token": csrf_token, "fan_gate_id": fan_gate_id, "skipSteps": "", "selectedStep": "sc"}),
         ]
+        nw_steps = inputs.get("nwSteps", "email,sc").split(",")
+        for st in nw_steps:
+            st = st.strip()
+            if st:
+                step_calls.append(("https://hypeddit.com/setGatePathway", {"_token": csrf_token, "fan_gate_id": fan_gate_id, "stepName": st}))
+                step_calls.append(("https://hypeddit.com/setGatePathwayOr", {"_token": csrf_token, "fan_gate_id": fan_gate_id, "skipSteps": "", "selectedStep": st}))
+
         for ep_url, payload in step_calls:
             try:
                 session.post(ep_url, data=payload, headers=ajax_headers, timeout=timeout)
@@ -222,6 +226,34 @@ def resolve_toneden_download_url(url: str, session: requests.Session, timeout: f
     return None
 
 
+DROPLOUD_RE = re.compile(
+    r"https?://(?:www\.)?droploud\.com/track/([a-f0-9\-]{36}|[a-zA-Z0-9_\-]+)", re.I
+)
+
+
+def resolve_droploud_download_url(
+    url: str, session: requests.Session, timeout: float = 10.0
+) -> Optional[str]:
+    """Resolve direct audio stream/download URL from Droploud track gate."""
+    match = DROPLOUD_RE.search(url)
+    if not match:
+        return None
+    track_id = match.group(1)
+    api_url = f"https://api.droploud.com/api/tracks/{track_id}"
+    try:
+        resp = session.get(api_url, headers=DEFAULT_HEADERS, timeout=timeout)
+        if resp.status_code == 200:
+            data = resp.json()
+            if isinstance(data, dict) and data.get("stream_url"):
+                stream_path = data["stream_url"]
+                if stream_path.startswith("http"):
+                    return stream_path
+                return f"https://api.droploud.com{stream_path}"
+    except requests.RequestException as exc:
+        LOGGER.debug("Droploud gate resolution failed for %s: %s", url, exc)
+    return None
+
+
 def resolve_gate_download_url(url: str, session: requests.Session, timeout: float = 10.0) -> Optional[str]:
     """Inspect and resolve direct download URL from supported gate providers."""
     if not url or not url.startswith("http"):
@@ -229,6 +261,8 @@ def resolve_gate_download_url(url: str, session: requests.Session, timeout: floa
 
     if "hypeddit.com" in url:
         return resolve_hypeddit_download_url(url, session, timeout=timeout)
+    if "droploud.com" in url:
+        return resolve_droploud_download_url(url, session, timeout=timeout)
     if "toneden.io" in url:
         return resolve_toneden_download_url(url, session, timeout=timeout)
 
