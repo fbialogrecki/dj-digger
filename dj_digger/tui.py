@@ -929,7 +929,8 @@ class DiggerApp(App):
                     style = "bold cyan"
                 badges.append(name, style=style)
                 if host and host != "gate":
-                    badges.append(f"({host})", style="bright_black")
+                    clean_host = host.rpartition(".")[0] or host
+                    badges.append(f"({clean_host})", style="bright_black")
             else:
                 if record.category in DOMAIN_BADGE_CATEGORIES:
                     name = links_module.host_of(record.link_url) or record.category

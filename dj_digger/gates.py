@@ -70,7 +70,15 @@ def resolve_hypeddit_download_url(
 
         text = resp.text
 
-        # 1. Immediate regex search in HTML source for pre-embedded full download URLs
+        # 1. Check if landing/choice page links directly to a Hypeddit fan gate URL
+        gate_links = re.findall(r'href=["\'](https?://(?:www\.)?hypeddit\.com/(?:track/)?[a-zA-Z0-9_-]+)["\']', text)
+        for g_link in gate_links:
+            if g_link != url and not any(skip in g_link for skip in ["/legal", "/privacy", "/news", "/dmcapolicy", "/artist", "javascript:"]):
+                sub_res = resolve_hypeddit_download_url(g_link, session, timeout=timeout, config=config)
+                if sub_res:
+                    return sub_res
+
+        # 2. Immediate regex search in HTML source for pre-embedded full download URLs
         patterns = [
             r'var\s+download_url\s*=\s*["\']([^"\']+)["\']',
             r'var\s+s3_url\s*=\s*["\']([^"\']+)["\']',

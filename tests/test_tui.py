@@ -972,7 +972,7 @@ def test_the_store_column_badges_every_store_and_picks_out_the_one_o_opens(state
     async def scenario():
         async with app.run_test() as pilot:
             table = app.query_one("#tracks", DataTable)
-            assert str(table.get_row_at(0)[STORES_CELL]) == "bandcamp gate(hypeddit.com)"
+            assert str(table.get_row_at(0)[STORES_CELL]) == "bandcamp gate(hypeddit)"
             # Bandcamp comes first, so that is what o would follow.
             assert app.record_to_open(app.rows[0]).category == "bandcamp"
 
@@ -1855,3 +1855,16 @@ def test_export_writes_the_visible_rows(records, state, tmp_path):
     assert sum(len(items) for items in written.values()) == sum(
         1 for record in records if record.category == "bandcamp"
     )
+
+
+def test_clean_gate_badge_name(state):
+    rec = LinkRecord(
+        track=Track(title="Test Track", artist="Artist"),
+        category="gate",
+        link_url="https://hypeddit.com/exaltation/krvzyintotheabyss-1",
+        link_text="Download",
+    )
+    app = make_app([rec], state)
+    row = app.rows[0]
+    badges = app._store_badges(row)
+    assert str(badges) == "gate(hypeddit)"
