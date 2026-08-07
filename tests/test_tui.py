@@ -1875,11 +1875,13 @@ def test_batch_download_skips_skipped_tracks(state, monkeypatch):
         track=Track("Track 1", "Artist", "https://soundcloud.com/1", downloadable=True),
         category="gate",
         link_url="https://hypeddit.com/test1",
+        link_text="Download",
     )
     rec2 = LinkRecord(
         track=Track("Track 2", "Artist", "https://soundcloud.com/2", downloadable=True),
         category="gate",
         link_url="https://hypeddit.com/test2",
+        link_text="Download",
     )
     state.set(rec2.track.key, SKIP)
     app = make_app([rec1, rec2], state)
