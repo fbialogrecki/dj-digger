@@ -1872,12 +1872,12 @@ def test_clean_gate_badge_name(state):
 
 def test_batch_download_skips_skipped_tracks(state, monkeypatch):
     rec1 = LinkRecord(
-        track=Track("Track 1", "Artist", "https://soundcloud.com/1", free_download=True),
+        track=Track("Track 1", "Artist", "https://soundcloud.com/1", downloadable=True),
         category="gate",
         link_url="https://hypeddit.com/test1",
     )
     rec2 = LinkRecord(
-        track=Track("Track 2", "Artist", "https://soundcloud.com/2", free_download=True),
+        track=Track("Track 2", "Artist", "https://soundcloud.com/2", downloadable=True),
         category="gate",
         link_url="https://hypeddit.com/test2",
     )
