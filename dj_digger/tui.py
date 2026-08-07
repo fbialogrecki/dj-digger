@@ -1720,15 +1720,18 @@ class DiggerApp(App):
     def open_visible_in_background(self, rows: List[Row]) -> None:
         urls = [self.record_to_open(row).link_url for row in rows]
 
+        def on_success(idx: int, url: str) -> None:
+            row = rows[idx]
+            if self.status_of(row) == NEW:
+                self.state.set(row.track.key, OPENED)
+                self.call_from_thread(self.refresh_rows)
+
         def handle_error(err_msg: str) -> None:
             self.call_from_thread(self.show_error, err_msg)
 
         opened = browser_module.open_urls(
-            urls, self.browser, on_error=handle_error
+            urls, self.browser, on_success=on_success, on_error=handle_error
         )
-        for row in rows:
-            if self.status_of(row) == NEW:
-                self.state.set(row.track.key, OPENED)
         self.call_from_thread(self._open_visible_finished, opened, len(rows))
 
     def _open_visible_finished(self, opened: int, total: int) -> None:

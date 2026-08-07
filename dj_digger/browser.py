@@ -47,9 +47,14 @@ def open_urls(
     *,
     pause: float = 0.1,
     controller: Optional[webbrowser.BaseBrowser] = None,
+    on_success: Optional[Callable[[int, str], None]] = None,
     on_error: Optional[Callable[[str], None]] = None,
 ) -> int:
     """Open several links in tabs. Returns how many actually opened."""
+
+    import os
+    # Prevent wslview on WSL from running slow curl --head checks on every URL
+    os.environ["WSLVIEW_SKIP_VALIDATION_CHECK"] = "1"
 
     controller = controller or resolve_controller(browser)
     opened = 0
@@ -63,6 +68,8 @@ def open_urls(
                     on_error(err_msg)
             else:
                 opened += 1
+                if on_success:
+                    on_success(index, url)
         except Exception as exc:
             err_msg = f"Failed to open tab #{index + 1} ({url}): {exc}"
             LOGGER.error("%s", err_msg)
