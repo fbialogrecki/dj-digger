@@ -313,6 +313,7 @@ class SoundCloudClient:
         if not download_url:
             raise SoundCloudError("This track has no active direct download or resolved gate link")
 
+        host = (urlparse(download_url).hostname or "").lower()
         if not (download_url.startswith("http://") or download_url.startswith("https://")):
             raise SoundCloudError("Invalid or unsafe download URL scheme")
 
