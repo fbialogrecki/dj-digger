@@ -23,10 +23,20 @@ from dj_digger.models import Crate, Track
         (["--help"], ["--help"]),
         (["-h"], ["-h"]),
         (["--version"], ["--version"]),
+        (["-v"], ["-v"]),
     ],
 )
 def test_default_command_injection(argv, expected):
     assert cli.inject_default_command(argv) == expected
+
+
+@pytest.mark.parametrize("flag", ["-v", "--version"])
+def test_version_flag_prints_version(flag, capsys):
+    with pytest.raises(SystemExit) as exit_info:
+        cli.parse_cli_args([flag])
+    assert exit_info.value.code == 0
+    out = capsys.readouterr().out
+    assert cli.__version__ in out
 
 
 def test_a_bare_link_is_dug():

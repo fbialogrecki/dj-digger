@@ -28,13 +28,19 @@ from .models import Crate, LinkRecord
 from .state import TrackState
 
 SUBCOMMANDS = {"dig", "open", "auth"}
-HELP_FLAGS = {"-h", "--help", "--version"}
+HELP_FLAGS = {"-h", "--help", "-v", "--version"}
 LOG_LEVELS = ["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"]
 
 LOGGER = logging.getLogger("dj_digger")
 
 
 def _add_shared_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "-v",
+        "--version",
+        action="version",
+        version=f"dj-digger {__version__}",
+    )
     parser.add_argument(
         "--log-level",
         default="INFO",
@@ -63,7 +69,6 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         epilog="Example: dj-digger https://soundcloud.com/someone/sets/a-playlist",
     )
-    parser.add_argument("--version", action="version", version=f"dj-digger {__version__}")
     _add_shared_arguments(parser)
 
     subparsers = parser.add_subparsers(dest="command", required=True)
