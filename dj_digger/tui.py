@@ -1520,16 +1520,32 @@ class DiggerApp(App):
         else:
             self.notify("Could not open the link", severity="error")
 
+    def _find_gate_url(self, row: Row) -> Optional[str]:
+        # 1. Prefer explicit gate category record
+        for rec in row.records:
+            if rec.category == "gate" and rec.link_url and "soundcloud.com" not in rec.link_url:
+                return rec.link_url
+
+        # 2. Check for known gate domains
+        gate_domains = ("hypeddit.com", "hypd.it", "droploud.com", "gaterush.me", "toneden.io", "mediafire.com", "dropbox.com", "drive.google.com")
+        for rec in row.records:
+            if rec.link_url and any(dom in rec.link_url.lower() for dom in gate_domains):
+                return rec.link_url
+
+        # 3. Fallback for non-store / non-streaming links
+        for rec in row.records:
+            if rec.link_url and "soundcloud.com" not in rec.link_url and rec.link_text != links_module.NO_STORE_LINK:
+                if rec.category not in ("beatport", "bandcamp", "traxsource", "junodownload", "apple", "shop", "streaming"):
+                    return rec.link_url
+
+        return None
+
     def action_download_track(self) -> None:
         row = self.current_row()
         if row is None:
             return
 
-        gate_url: Optional[str] = None
-        for rec in row.records:
-            if rec.link_url and "soundcloud.com" not in rec.link_url and rec.link_text != links_module.NO_STORE_LINK:
-                gate_url = rec.link_url
-                break
+        gate_url = self._find_gate_url(row)
 
         if not row.track.free_download and not gate_url and not row.track.has_direct_download:
             self.notify("This track has no active SoundCloud free download or supported gate link", timeout=4)
@@ -1583,11 +1599,7 @@ class DiggerApp(App):
         for row in self.visible_rows:
             if self.status_of(row) == GOT:
                 continue
-            gate_url: Optional[str] = None
-            for rec in row.records:
-                if rec.link_url and "soundcloud.com" not in rec.link_url and rec.link_text != links_module.NO_STORE_LINK:
-                    gate_url = rec.link_url
-                    break
+            gate_url = self._find_gate_url(row)
             if row.track.free_download or gate_url or row.track.has_direct_download:
                 eligible.append((row, gate_url))
 
@@ -1647,7 +1659,8 @@ class DiggerApp(App):
     def _on_batch_track_failed(self, row: Row, message: str) -> None:
         key = row.track.key
         self.download_progress.pop(key, None)
-        self.show_error(f"Batch download failed [{row.track.label}]: {message}")
+        if "requires browser completion" not in message:
+            self.show_error(f"Batch download failed [{row.track.label}]: {message}")
         self.refresh_rows()
 
     def _on_batch_download_complete(self, completed: int, failed: int, total: int) -> None:
@@ -1655,7 +1668,7 @@ class DiggerApp(App):
         self.refresh_rows()
         msg = f"Batch download finished: {completed}/{total} downloaded"
         if failed > 0:
-            msg += f" ({failed} skipped or requires manual browser unlock)"
+            msg += f" ({failed} require manual browser completion - press 'o' to open)"
         self.notify(msg, timeout=6)
 
     def action_search_bandcamp(self) -> None:
