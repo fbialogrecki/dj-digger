@@ -972,7 +972,7 @@ def test_the_store_column_badges_every_store_and_picks_out_the_one_o_opens(state
     async def scenario():
         async with app.run_test() as pilot:
             table = app.query_one("#tracks", DataTable)
-            assert str(table.get_row_at(0)[STORES_CELL]) == "bandcamp gate"
+            assert str(table.get_row_at(0)[STORES_CELL]) == "bandcamp gate(hypeddit.com)"
             # Bandcamp comes first, so that is what o would follow.
             assert app.record_to_open(app.rows[0]).category == "bandcamp"
 
