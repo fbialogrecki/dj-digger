@@ -227,7 +227,7 @@ def resolve_toneden_download_url(url: str, session: requests.Session, timeout: f
 
 
 DROPLOUD_RE = re.compile(
-    r"https?://(?:www\.)?droploud\.com/track/([a-f0-9\-]{36}|[a-zA-Z0-9_\-]+)", re.I
+    r"https?://(?:www\.)?droploud\.com/(?:track|gate)/([a-f0-9\-]{36}|[a-zA-Z0-9_\-]+)", re.I
 )
 
 
@@ -251,6 +251,38 @@ def resolve_droploud_download_url(
                 return f"https://api.droploud.com{stream_path}"
     except requests.RequestException as exc:
         LOGGER.debug("Droploud gate resolution failed for %s: %s", url, exc)
+    return None
+
+
+GATERUSH_RE = re.compile(r"https?://(?:www\.)?gaterush\.me/([a-zA-Z0-9_-]+)", re.I)
+
+
+def resolve_gaterush_download_url(
+    url: str, session: requests.Session, timeout: float = 10.0
+) -> Optional[str]:
+    """Resolve direct audio download URL from GateRush fan gate link."""
+    match = GATERUSH_RE.search(url)
+    if not match:
+        return None
+    slug = match.group(1)
+    try:
+        headers = {**DEFAULT_HEADERS, "Referer": url}
+        resp = session.get(url, headers=headers, timeout=timeout)
+        if resp.status_code == 200:
+            text = resp.text
+            csrf_m = re.search(r'name="csrf-token"\s+content="([^"]+)"', text)
+            csrf = csrf_m.group(1) if csrf_m else ""
+            ajax_headers = {**headers, "X-CSRF-Token": csrf, "X-Requested-With": "XMLHttpRequest"}
+            steps_m = re.findall(r'id["\']:\s*["\']([^"\']+)["\']', text)
+            for st in set(steps_m) | {"soundcloud", "spotify", "instagram", "youtube"}:
+                session.post(f"https://gaterush.me/gate-step/{slug}", data={"stepId": st, "_csrf": csrf}, headers=ajax_headers, timeout=timeout)
+            dl_resp = session.get(f"https://gaterush.me/download/{slug}", headers=headers, allow_redirects=False, timeout=timeout)
+            if dl_resp.status_code in (301, 302) and dl_resp.headers.get("Location"):
+                return dl_resp.headers["Location"]
+            elif dl_resp.status_code == 200:
+                return f"https://gaterush.me/download/{slug}"
+    except requests.RequestException as exc:
+        LOGGER.debug("GateRush gate resolution failed for %s: %s", url, exc)
     return None
 
 
@@ -293,6 +325,8 @@ def resolve_gate_download_url(url: str, session: requests.Session, timeout: floa
         return resolve_hypeddit_download_url(url, session, timeout=timeout)
     if "droploud.com" in url:
         return resolve_droploud_download_url(url, session, timeout=timeout)
+    if "gaterush.me" in url:
+        return resolve_gaterush_download_url(url, session, timeout=timeout)
     if "toneden.io" in url:
         return resolve_toneden_download_url(url, session, timeout=timeout)
     if "mediafire.com" in url:

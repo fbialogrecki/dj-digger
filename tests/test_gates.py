@@ -36,3 +36,16 @@ def test_resolve_gate_download_url_routing():
 
     assert resolve_gate_download_url("https://hypeddit.com/test", session) == "https://s3.amazonaws.com/test.flac"
     assert resolve_gate_download_url("https://example.com/other", session) is None
+
+
+def test_resolve_droploud_gate():
+    session = MagicMock(spec=requests.Session)
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.json.return_value = {"stream_url": "/api/stream/4b0a4c1d-a3da-474d-8099-b63f3b0abe67"}
+    session.get.return_value = resp
+
+    url = "https://droploud.com/gate/4b0a4c1d-a3da-474d-8099-b63f3b0abe67"
+    result = resolve_gate_download_url(url, session)
+    assert result == "https://api.droploud.com/api/stream/4b0a4c1d-a3da-474d-8099-b63f3b0abe67"
+

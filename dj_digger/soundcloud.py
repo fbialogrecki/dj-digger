@@ -311,6 +311,8 @@ class SoundCloudClient:
             download_url = track.download_url
 
         if not download_url:
+            if gate_url:
+                raise SoundCloudError(f"Gate link requires browser completion ({gate_url}) - press 'o' to open")
             raise SoundCloudError("This track has no active direct download or resolved gate link")
 
         host = (urlparse(download_url).hostname or "").lower()
