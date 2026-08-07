@@ -30,12 +30,14 @@ DEFAULT_HEADERS = {
 }
 
 
-def _clean_url(raw_url: Optional[str]) -> Optional[str]:
-    """Clean and validate an extracted download URL."""
+def _clean_url(raw_url: Optional[str], *, allow_preview: bool = False) -> Optional[str]:
+    """Clean and validate an extracted download URL. Rejects audio preview clips (_preview)."""
     if not raw_url or not isinstance(raw_url, str):
         return None
     import html
     cleaned = html.unescape(raw_url.replace("\\/", "/")).strip('"\' ')
+    if not allow_preview and "_preview" in cleaned.lower():
+        return None
     if cleaned.startswith("http://") or cleaned.startswith("https://"):
         return cleaned
     return None
@@ -58,7 +60,7 @@ def resolve_hypeddit_download_url(url: str, session: requests.Session, timeout: 
 
         text = resp.text
 
-        # 1. Immediate regex search in HTML source for pre-embedded download URLs
+        # 1. Immediate regex search in HTML source for pre-embedded full download URLs
         patterns = [
             r'var\s+download_url\s*=\s*["\']([^"\']+)["\']',
             r'var\s+s3_url\s*=\s*["\']([^"\']+)["\']',
@@ -79,11 +81,20 @@ def resolve_hypeddit_download_url(url: str, session: requests.Session, timeout: 
                 if cleaned:
                     return cleaned
 
-        # 2. Extract input fields and CSRF token
+        # 2. Extract input fields, jsonGateData, and CSRF token
         csrf_m = re.search(r'<meta\s+name=["\']csrf-token["\']\s+content=["\']([^"\']+)["\']', text, re.IGNORECASE)
         if not csrf_m:
             csrf_m = re.search(r'content=["\']([^"\']+)["\']\s+name=["\']csrf-token["\']', text, re.IGNORECASE)
         csrf_token = csrf_m.group(1) if csrf_m else ""
+
+        extern_id = ""
+        gate_data_m = re.search(r'var\s+jsonGateData\s*=\s*({.*?});', text)
+        if gate_data_m:
+            try:
+                import json
+                extern_id = json.loads(gate_data_m.group(1)).get("externID", "")
+            except Exception:
+                pass
 
         inputs = {}
         for tag in re.findall(r'<input[^>]+>', text, re.IGNORECASE):
@@ -96,6 +107,7 @@ def resolve_hypeddit_download_url(url: str, session: requests.Session, timeout: 
 
         fan_gate_id = inputs.get("fan_gate_id") or inputs.get("fangate_id") or gate_id
         download_key = inputs.get("current_download_file_listner") or inputs.get("fangate_id") or fan_gate_id
+        email = "music.listener@yahoo.com"
 
         # Prepare AJAX headers with CSRF token
         ajax_headers = {
@@ -108,9 +120,10 @@ def resolve_hypeddit_download_url(url: str, session: requests.Session, timeout: 
 
         # 3. Execute step completion calls
         step_calls = [
-            ("https://hypeddit.com/verifyEmailAddress", {"_token": csrf_token, "validateEmailAddress": "djfan@gmail.com", "fan_gate_id": fan_gate_id, "email_name": "DJ Fan"}),
-            ("https://hypeddit.com/setSC", {"_token": csrf_token, "fan_gate_id": fan_gate_id, "comment_sc": "Amazing track!", "is_repost": 1, "is_subscribe": 1}),
-            ("https://hypeddit.com/setYT", {"_token": csrf_token, "fan_gate_id": fan_gate_id, "comment_yt": "Amazing track!"}),
+            ("https://hypeddit.com/verifyEmailAddress", {"_token": csrf_token, "validateEmailAddress": email, "fan_gate_id": fan_gate_id, "email_name": "Music Listener"}),
+            ("https://hypeddit.com/setSC", {"_token": csrf_token, "fan_gate_id": fan_gate_id, "comment_sc": "Awesome track!", "is_repost": 1, "is_subscribe": 1}),
+            ("https://hypeddit.com/setYT", {"_token": csrf_token, "fan_gate_id": fan_gate_id, "comment_yt": "Awesome track!"}),
+            ("https://hypeddit.com/setGatePathway", {"_token": csrf_token, "fan_gate_id": fan_gate_id, "stepName": "email"}),
             ("https://hypeddit.com/setGatePathway", {"_token": csrf_token, "fan_gate_id": fan_gate_id, "stepName": "sc"}),
             ("https://hypeddit.com/setGatePathwayOr", {"_token": csrf_token, "fan_gate_id": fan_gate_id, "skipSteps": "", "selectedStep": "sc"}),
         ]
@@ -120,18 +133,25 @@ def resolve_hypeddit_download_url(url: str, session: requests.Session, timeout: 
             except requests.RequestException:
                 pass
 
-        # 4. Try resolve via gate/download/ul
+        # 4. Try resolve full original file via gate/download/ul
         try:
             dl_resp = session.post(
                 "https://hypeddit.com/gate/download/ul",
                 data={
                     "_token": csrf_token,
-                    "fan_gate_id": fan_gate_id,
                     "file": download_key,
                     "download_visit": "true",
                     "profile_downloads": "true",
+                    "page": "nonsingle",
+                    "is_skippable": inputs.get("is_skippable", "0"),
+                    "steps": inputs.get("nwSteps", ""),
+                    "email": email,
                     "download_action": "DOWNLOAD",
-                    "email": "djfan@gmail.com",
+                    "wrndk": inputs.get("wrndk", ""),
+                    "gvf": inputs.get("gvf", "0"),
+                    "gvt": inputs.get("gvt", ""),
+                    "external_id": extern_id,
+                    "fan_gate_id": fan_gate_id,
                 },
                 headers=ajax_headers,
                 timeout=timeout,
@@ -147,13 +167,6 @@ def resolve_hypeddit_download_url(url: str, session: requests.Session, timeout: 
                     pass
         except requests.RequestException:
             pass
-
-        # 5. Fallback: preview_url in HTML input
-        preview_url = inputs.get("preview_url")
-        if preview_url:
-            cleaned_preview = _clean_url(preview_url)
-            if cleaned_preview:
-                return cleaned_preview
 
     except requests.RequestException as exc:
         LOGGER.debug("Hypeddit gate resolution failed for %s: %s", url, exc)
