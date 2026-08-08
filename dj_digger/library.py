@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from .db import Database
 from .models import Crate, Track
 
 VERSION = 1
@@ -63,8 +64,6 @@ class CrateRecord:
     removed_track_keys: List[str] = field(default_factory=list)
     imported_at: str = ""
     refreshed_at: Optional[str] = None
-    # True for crates read out of an export file, which carries fewer fields than
-    # the API does (no genre, no description). Refreshing fills them in.
     partial: bool = False
 
     @property
@@ -123,25 +122,43 @@ class CrateRecord:
         )
 
 
+def _db() -> Database:
+    return Database(crates_dir().parent / "digger.db")
+
+
 def save(record: CrateRecord) -> Path:
+    if not record.imported_at:
+        record.imported_at = _now()
     path = record.path
     path.parent.mkdir(parents=True, exist_ok=True)
+    data = record.to_json()
     temporary = path.with_suffix(".json.tmp")
     temporary.write_text(
-        json.dumps(record.to_json(), ensure_ascii=False, indent=2), encoding="utf-8"
+        json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     os.replace(temporary, path)
+    _db().save_crate(
+        source=record.source,
+        title=record.title,
+        declared_count=len(record.tracks),
+        updated=record.refreshed_at or record.imported_at,
+        tracks_data=data.get("tracks", [])
+    )
     return path
 
 
 def load(slug: str) -> CrateRecord:
     path = crates_dir() / f"{slug}.json"
-    return CrateRecord.from_json(json.loads(path.read_text(encoding="utf-8")))
+    if path.exists():
+        return CrateRecord.from_json(json.loads(path.read_text(encoding="utf-8")))
+    for crate_info in _db().list_crates():
+        rec = _db().load_crate(crate_info["source"])
+        if rec and slug_for(rec["source"]) == slug:
+            return CrateRecord.from_json(rec)
+    raise FileNotFoundError(f"Crate slug not found: {slug}")
 
 
 def list_crates() -> List[CrateRecord]:
-    """Every saved crate, sorted by title. Unreadable files are skipped, not fatal."""
-
     records = []
     for path in sorted(crates_dir().glob("*.json")):
         try:
@@ -152,12 +169,18 @@ def list_crates() -> List[CrateRecord]:
 
 
 def delete(slug: str) -> None:
-    (crates_dir() / f"{slug}.json").unlink(missing_ok=True)
+    path = crates_dir() / f"{slug}.json"
+    if path.exists():
+        try:
+            rec = CrateRecord.from_json(json.loads(path.read_text(encoding="utf-8")))
+            if rec and rec.source:
+                _db().delete_crate(rec.source)
+        except Exception:
+            pass
+        path.unlink(missing_ok=True)
 
 
 def refresh(record: CrateRecord, crate: Crate, *, partial: bool = False) -> CrateRecord:
-    """Replace the tracks from a fresh dig, keeping what you deleted locally deleted."""
-
     record.tracks = list(crate.tracks)
     record.title = crate.title or record.title
     record.refreshed_at = _now()
@@ -166,8 +189,6 @@ def refresh(record: CrateRecord, crate: Crate, *, partial: bool = False) -> Crat
 
 
 def remember(crate: Crate, *, partial: bool = False) -> CrateRecord:
-    """Save a dug crate, updating the existing record for that source if there is one."""
-
     slug = slug_for(crate.source)
     try:
         record = refresh(load(slug), crate, partial=partial)
