@@ -15,8 +15,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Optional
 
-from platformdirs import user_data_dir
-
 NEW = "new"
 OPENED = "opened"
 SKIP = "skip"
@@ -29,7 +27,8 @@ LOGGER = logging.getLogger(__name__)
 
 
 def default_state_path() -> Path:
-    return Path(user_data_dir("dj-digger")) / "state.json"
+    data_dir = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share")) / "dj-digger"
+    return data_dir / "state.json"
 
 
 class TrackState:

@@ -8,21 +8,13 @@ import webbrowser
 from typing import Callable, Iterable, Optional
 
 BROWSER_CHOICES = ["default", "chrome", "firefox", "edge", "safari", "opera"]
-BROWSER_ALIASES = {
-    "chrome": "chrome",
-    "firefox": "firefox",
-    "edge": "edge",
-    "safari": "safari",
-    "opera": "opera",
-}
 
 LOGGER = logging.getLogger(__name__)
 
 
 def resolve_controller(browser: str = "default") -> webbrowser.BaseBrowser:
-    target = BROWSER_ALIASES.get(browser, browser)
     try:
-        return webbrowser.get(target if browser != "default" else None)
+        return webbrowser.get(browser if browser != "default" else None)
     except webbrowser.Error as exc:
         LOGGER.warning(
             "Could not resolve browser '%s' (%s). Falling back to the system default.",

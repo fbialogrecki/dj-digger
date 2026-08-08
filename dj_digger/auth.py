@@ -6,7 +6,6 @@ macOS, and WSL/Windows paths), and verifying credentials with SoundCloud's /me A
 
 from __future__ import annotations
 
-import base64
 import glob
 import json
 import logging
@@ -14,15 +13,13 @@ import os
 import re
 import shutil
 import sqlite3
-import subprocess
 import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
-from platformdirs import user_config_dir
 
-CONFIG_DIR = Path(user_config_dir("dj-digger"))
+CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME") or (Path.home() / ".config")) / "dj-digger"
 AUTH_FILE = CONFIG_DIR / "auth.json"
 OAUTH_TOKEN_RE = re.compile(r'^[0-9]+-[0-9]+-[A-Za-z0-9_-]+')
 
@@ -63,9 +60,6 @@ def get_stored_auth_info() -> Dict[str, Any]:
         return data if isinstance(data, dict) else {}
     except Exception:
         return {}
-
-
-import tempfile
 
 
 def save_token(token: str, username: str = "", user_id: Optional[int] = None) -> None:
@@ -196,147 +190,12 @@ def find_browser_cookie_paths() -> List[str]:
     return candidate_paths
 
 
-def _decrypt_win_dpapi_aes(enc_key_b64: str, enc_val_b64: str) -> Optional[str]:
-    """Decrypt Windows Chromium DPAPI+AES-GCM cookie payload using powershell.exe interop in WSL."""
-    if not shutil.which("powershell.exe"):
-        return None
-
-    ps_script = (
-        "$ErrorActionPreference = 'Stop'; "
-        "Add-Type -AssemblyName System.Security; "
-        f"$encKey = [System.Convert]::FromBase64String('{enc_key_b64}'); "
-        "$key = [System.Security.Cryptography.ProtectedData]::Unprotect($encKey, $null, [System.Security.Cryptography.DataProtectionScope]::CurrentUser); "
-        f"$cipherBytes = [System.Convert]::FromBase64String('{enc_val_b64}'); "
-        "if ($cipherBytes.Length -lt 31) { exit 1 }; "
-        "$nonce = [byte[]]::new(12); [Array]::Copy($cipherBytes, 3, $nonce, 0, 12); "
-        "$cipherLen = $cipherBytes.Length - 15 - 16; $ciphertext = [byte[]]::new($cipherLen); [Array]::Copy($cipherBytes, 15, $ciphertext, 0, $cipherLen); "
-        "$tag = [byte[]]::new(16); [Array]::Copy($cipherBytes, $cipherBytes.Length - 16, $tag, 0, 16); "
-        "$code = @'\n"
-        "using System;\nusing System.Text;\nusing System.Runtime.InteropServices;\n"
-        "public class AesGcmDecryptor {\n"
-        "    [DllImport(\"bcrypt.dll\")] private static extern int BCryptOpenAlgorithmProvider(out IntPtr hAlg, string id, string imp, uint flags);\n"
-        "    [DllImport(\"bcrypt.dll\")] private static extern int BCryptCloseAlgorithmProvider(IntPtr hAlg, uint flags);\n"
-        "    [DllImport(\"bcrypt.dll\")] private static extern int BCryptSetProperty(IntPtr hObj, string name, byte[] val, int len, int flags);\n"
-        "    [DllImport(\"bcrypt.dll\")] private static extern int BCryptGenerateSymmetricKey(IntPtr hAlg, out IntPtr hKey, IntPtr obj, int objLen, byte[] secret, int secretLen, uint flags);\n"
-        "    [DllImport(\"bcrypt.dll\")] private static extern int BCryptDestroyKey(IntPtr hKey);\n"
-        "    [DllImport(\"bcrypt.dll\")] private static extern int BCryptDecrypt(IntPtr hKey, byte[] inBytes, int inLen, ref INFO info, byte[] iv, int ivLen, byte[] outBytes, int outLen, out int resLen, uint flags);\n"
-        "    [StructLayout(LayoutKind.Sequential)] private struct INFO { public int size; public uint ver; public IntPtr pNonce; public int cbNonce; public IntPtr pAuth; public int cbAuth; public IntPtr pTag; public int cbTag; public IntPtr pMac; public int cbMac; public int cbAAD; public long cbData; public uint flags; }\n"
-        "    public static string Decrypt(byte[] cipher, byte[] nonce, byte[] tag, byte[] key) {\n"
-        "        IntPtr hAlg, hKey;\n"
-        "        if (BCryptOpenAlgorithmProvider(out hAlg, \"AES\", null, 0) != 0) return null;\n"
-        "        try {\n"
-        "            byte[] mode = Encoding.Unicode.GetBytes(\"ChainingModeGCM\\0\");\n"
-        "            BCryptSetProperty(hAlg, \"ChainingMode\", mode, mode.Length, 0);\n"
-        "            if (BCryptGenerateSymmetricKey(hAlg, out hKey, IntPtr.Zero, 0, key, key.Length, 0) != 0) return null;\n"
-        "            try {\n"
-        "                GCHandle hN = GCHandle.Alloc(nonce, GCHandleType.Pinned);\n"
-        "                GCHandle hT = GCHandle.Alloc(tag, GCHandleType.Pinned);\n"
-        "                try {\n"
-        "                    var info = new INFO(); info.size = Marshal.SizeOf(info); info.ver = 1;\n"
-        "                    info.pNonce = hN.AddrOfPinnedObject(); info.cbNonce = nonce.Length;\n"
-        "                    info.pTag = hT.AddrOfPinnedObject(); info.cbTag = tag.Length;\n"
-        "                    byte[] plain = new byte[cipher.Length]; int plainLen;\n"
-        "                    if (BCryptDecrypt(hKey, cipher, cipher.Length, ref info, null, 0, plain, plain.Length, out plainLen, 0) == 0) {\n"
-        "                        return Encoding.UTF8.GetString(plain, 0, plainLen);\n"
-        "                    }\n"
-        "                } finally { hN.Free(); hT.Free(); }\n"
-        "            } finally { BCryptDestroyKey(hKey); }\n"
-        "        } finally { BCryptCloseAlgorithmProvider(hAlg, 0); }\n"
-        "        return null;\n"
-        "    }\n"
-        "}\n"
-        "'@; Add-Type -TypeDefinition $code; "
-        "$res = [AesGcmDecryptor]::Decrypt($ciphertext, $nonce, $tag, $key); "
-        "if ($res) { Write-Output $res }"
-    )
-
-    try:
-        proc = subprocess.run(
-            ["powershell.exe", "-NoProfile", "-Command", ps_script],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        if proc.returncode == 0 and proc.stdout.strip():
-            return proc.stdout.strip()
-    except Exception as exc:
-        LOGGER.debug("Powershell DPAPI decryption failed: %s", exc)
-    return None
-
-
-def _extract_wsl_windows_chromium_cookies() -> List[str]:
-    """Scan Windows Chrome/Edge/Brave cookies from WSL using powershell.exe DPAPI interop."""
-    if not os.path.exists("/mnt/c/Users") or not shutil.which("powershell.exe"):
-        return []
-
-    tokens: List[str] = []
-    for win_user_dir in glob.glob("/mnt/c/Users/*"):
-        browser_roots = [
-            f"{win_user_dir}/AppData/Local/Google/Chrome/User Data",
-            f"{win_user_dir}/AppData/Local/Microsoft/Edge/User Data",
-            f"{win_user_dir}/AppData/Local/BraveSoftware/Brave-Browser/User Data",
-        ]
-        for root in browser_roots:
-            local_state_path = os.path.join(root, "Local State")
-            if not os.path.exists(local_state_path):
-                continue
-            try:
-                data = json.loads(Path(local_state_path).read_text(encoding="utf-8"))
-                enc_key_raw = data.get("os_crypt", {}).get("encrypted_key")
-                if not enc_key_raw or not isinstance(enc_key_raw, str):
-                    continue
-                raw_bytes = base64.b64decode(enc_key_raw)
-                if not raw_bytes.startswith(b"DPAPI"):
-                    continue
-                enc_key_b64 = base64.b64encode(raw_bytes[5:]).decode("ascii")
-
-                cookie_dbs = glob.glob(f"{root}/*/Network/Cookies") + glob.glob(f"{root}/*/Cookies")
-                for db in cookie_dbs:
-                    if not os.path.exists(db):
-                        continue
-                    tmp_path = None
-                    try:
-                        with tempfile.NamedTemporaryFile(suffix=".sqlite", delete=False) as tmp_file:
-                            tmp_path = tmp_file.name
-                        os.chmod(tmp_path, 0o600)
-                        shutil.copyfile(db, tmp_path)
-
-                        conn = sqlite3.connect(tmp_path)
-                        cursor = conn.cursor()
-                        cursor.execute(
-                            "SELECT encrypted_value FROM cookies WHERE host_key LIKE '%soundcloud%' AND name = 'oauth_token'"
-                        )
-                        for row in cursor.fetchall():
-                            val = row[0]
-                            if val and isinstance(val, bytes) and len(val) > 15:
-                                val_b64 = base64.b64encode(val).decode("ascii")
-                                token = _decrypt_win_dpapi_aes(enc_key_b64, val_b64)
-                                if token:
-                                    tokens.append(token)
-                        conn.close()
-                    except Exception as exc:
-                        LOGGER.debug("Failed querying WSL chromium db %s: %s", db, exc)
-                    finally:
-                        if tmp_path and os.path.exists(tmp_path):
-                            try:
-                                os.remove(tmp_path)
-                            except OSError:
-                                pass
-            except Exception as exc:
-                LOGGER.debug("Failed reading Local State %s: %s", local_state_path, exc)
-
-    return tokens
-
-
 def scan_browser_cookies() -> List[str]:
     """Find any plaintext oauth_token values stored in browser cookie stores."""
     found_tokens: List[str] = []
     for path in find_browser_cookie_paths():
-        if "cookies.sqlite" in path:
+        if "cookies.sqlite" in path or "Cookies" in path:
             found_tokens.extend(_extract_sqlite_cookies(path))
-
-    # Also scan Windows Chrome/Edge/Brave cookies if running inside WSL
-    found_tokens.extend(_extract_wsl_windows_chromium_cookies())
 
     # Deduplicate while preserving order
     seen = set()

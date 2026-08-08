@@ -25,7 +25,6 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from rich.table import Table
 from rich.text import Text
-from platformdirs import user_downloads_dir
 from textual import events, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -1654,7 +1653,7 @@ class DiggerApp(App):
             self.call_from_thread(self._update_track_progress, key, 0.05)
             path = self.client.download_track(
                 track,
-                Path(user_downloads_dir()),
+                Path.home() / "Downloads",
                 gate_url=gate_url,
                 on_progress=on_progress,
             )
@@ -1717,7 +1716,7 @@ class DiggerApp(App):
                 self.call_from_thread(self._update_track_progress, key, 0.05)
                 path = self.client.download_track(
                     row.track,
-                    Path(user_downloads_dir()),
+                    Path.home() / "Downloads",
                     gate_url=gate_url,
                     on_progress=on_progress,
                 )

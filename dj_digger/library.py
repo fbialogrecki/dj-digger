@@ -17,8 +17,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from platformdirs import user_data_dir
-
 from .models import Crate, Track
 
 VERSION = 1
@@ -27,7 +25,8 @@ LOGGER = logging.getLogger(__name__)
 
 
 def crates_dir() -> Path:
-    return Path(user_data_dir("dj-digger")) / "crates"
+    data_dir = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share")) / "dj-digger"
+    return data_dir / "crates"
 
 
 def _now() -> str:

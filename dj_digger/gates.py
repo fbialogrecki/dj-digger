@@ -126,14 +126,13 @@ def resolve_hypeddit_download_url(
             except Exception:
                 pass
 
-        inputs = {}
-        for tag in re.findall(r'<input[^>]+>', text, re.IGNORECASE):
-            name_m = re.search(r'name=["\']([^"\']+)["\']', tag, re.IGNORECASE)
-            id_m = re.search(r'id=["\']([^"\']+)["\']', tag, re.IGNORECASE)
-            val_m = re.search(r'value=["\']([^"\']*)["\']', tag, re.IGNORECASE)
-            key = name_m.group(1) if name_m else (id_m.group(1) if id_m else None)
-            if key and val_m:
-                inputs[key] = val_m.group(1)
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(text, "html.parser")
+        inputs = {
+            tag.get("name") or tag.get("id"): tag.get("value", "")
+            for tag in soup.find_all("input")
+            if tag.get("name") or tag.get("id")
+        }
 
         fan_gate_id = inputs.get("fan_gate_id") or inputs.get("fangate_id") or gate_id
         download_key = inputs.get("current_download_file_listner") or inputs.get("fangate_id") or fan_gate_id

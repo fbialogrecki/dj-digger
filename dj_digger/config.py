@@ -13,48 +13,16 @@ import random
 from pathlib import Path
 from typing import List, Optional
 
-from platformdirs import user_config_dir
-
 LOGGER = logging.getLogger(__name__)
 
 DEFAULT_NAME = "Music Listener"
 DEFAULT_EMAIL = "music.listener@yahoo.com"
-DEFAULT_COMMENTS = [
-    "Love it!",
-    "Amazing track!",
-    "Dope tune!",
-    "Fire!",
-    "Banger!",
-    "Great tune!",
-    "Sick beats!",
-    "Massive track!",
-    "Huge release!",
-    "Pure energy!",
-    "Loving this!",
-    "Absolute banger!",
-    "So good!",
-    "Fire tune!",
-    "On repeat!",
-    "Incredible vibes!",
-    "Mad energy!",
-    "Tune of the month!",
-    "Unreal sound!",
-    "Masterpiece!",
-    "Insane production!",
-    "Heavyweight track!",
-    "Quality sound!",
-    "Peak time banger!",
-    "Top notch!",
-    "What a tune!",
-    "Straight fire!",
-    "Sublime!",
-    "Certified banger!",
-    "Needed this!",
-]
+DEFAULT_COMMENTS = ["Love it!", "Amazing track!", "Dope tune!", "Fire!", "Banger!", "Great tune!"]
 
 
 def default_config_path() -> Path:
-    return Path(user_config_dir("dj-digger")) / "config.json"
+    config_dir = Path(os.environ.get("XDG_CONFIG_HOME") or (Path.home() / ".config")) / "dj-digger"
+    return config_dir / "config.json"
 
 
 class AppConfig:

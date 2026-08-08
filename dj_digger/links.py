@@ -298,7 +298,7 @@ def present_categories(records: Sequence[LinkRecord]) -> List[str]:
 
 
 def default_output_path(export_format: str) -> Path:
-    extension = {"json": "json", "yaml": "yaml", "csv": "csv"}.get(export_format, "json")
+    extension = export_format if export_format in {"json", "yaml", "csv"} else "json"
     return Path(f"soundcloud_links.{extension}")
 
 

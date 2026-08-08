@@ -21,7 +21,6 @@ from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Sequ
 from urllib.parse import urlparse
 
 import requests
-from platformdirs import user_cache_dir
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
@@ -104,7 +103,8 @@ def is_soundcloud_url(value: str) -> bool:
 
 
 def _client_id_cache() -> Path:
-    return Path(user_cache_dir("dj-digger")) / "client_id.txt"
+    cache_dir = Path(os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache")) / "dj-digger"
+    return cache_dir / "client_id.txt"
 
 
 def _chunks(values: Sequence[Any], size: int) -> Iterator[Sequence[Any]]:
