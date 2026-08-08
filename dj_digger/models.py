@@ -44,6 +44,7 @@ class Track:
     tags: List[str] = field(default_factory=list)
     # Links found outside the structured fields, e.g. scraped from a track page.
     extra_links: List[Tuple[str, str]] = field(default_factory=list)
+    local_path: Optional[str] = None
 
     @property
     def key(self) -> str:
