@@ -92,7 +92,6 @@ class Database:
                                 "INSERT OR IGNORE INTO track_states (key, status, updated) VALUES (?, ?, ?)",
                                 (str(key), str(val["status"]), str(val.get("updated", "")))
                             )
-                state_file.rename(state_file.with_suffix(".json.bak"))
                 LOGGER.info("Migrated legacy state.json to SQLite")
             except Exception as exc:
                 LOGGER.warning("Could not migrate legacy state.json: %s", exc)

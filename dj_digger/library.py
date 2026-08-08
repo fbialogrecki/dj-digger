@@ -159,13 +159,27 @@ def load(slug: str) -> CrateRecord:
 
 
 def list_crates() -> List[CrateRecord]:
-    records = []
+    records_by_source: Dict[str, CrateRecord] = {}
+
     for path in sorted(crates_dir().glob("*.json")):
         try:
-            records.append(CrateRecord.from_json(json.loads(path.read_text(encoding="utf-8"))))
+            rec = CrateRecord.from_json(json.loads(path.read_text(encoding="utf-8")))
+            if rec.source:
+                records_by_source[rec.source] = rec
         except (OSError, ValueError) as exc:
             LOGGER.warning("Skipping unreadable crate %s: %s", path, exc)
-    return sorted(records, key=lambda record: record.title.lower())
+
+    try:
+        for crate_info in _db().list_crates():
+            source = crate_info.get("source")
+            if source and source not in records_by_source:
+                raw_rec = _db().load_crate(source)
+                if raw_rec:
+                    records_by_source[source] = CrateRecord.from_json(raw_rec)
+    except Exception as exc:
+        LOGGER.warning("Could not read crates from SQLite: %s", exc)
+
+    return sorted(records_by_source.values(), key=lambda record: record.title.lower())
 
 
 def delete(slug: str) -> None:
