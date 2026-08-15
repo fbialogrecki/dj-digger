@@ -28,7 +28,7 @@ The codebase is organized under `dj_digger/`:
 | `dj_digger/tui/` | The crate browser. `app.py` is the shell; one mixin per concern | `DiggerApp`, `RenderMixin`, `PlaybackMixin` |
 | `dj_digger/tui/keymap.py` | One source for the bindings, the footer and the help screen | `KEYMAP`, `KEY_DISPLAY` |
 | `dj_digger/soundcloud.py` | api-v2 integration, `client_id` discovery, batch hydration, downloads | `SoundCloudClient`, `hydrate_ids()` |
-| `dj_digger/links.py` | Store/gate/smart-link classification and export | `categorise()`, `store_for_url()`, `LinkRecord` |
+| `dj_digger/links.py` | Store/gate/smart-link classification and export | `categorise()`, `store_for_url()`, `hub_links()`, `LinkRecord` |
 | `dj_digger/browser.py` | Opening links: scheme safety, browser detection, WSL | `is_openable()`, `available_browsers()`, `is_wsl()` |
 | `dj_digger/player.py` | Streaming audio player, in-memory buffer, waveform, level meter | `Player`, `paint_waveform()`, `LevelMeter` |
 | `dj_digger/scanner.py` | Matching a crate against audio files already on disk | `LocalScanner`, `LocalMatch`, `copy_to_clipboard()` |
@@ -36,7 +36,7 @@ The codebase is organized under `dj_digger/`:
 | `dj_digger/state.py` | Track status store (`got`, `skip`, `opened`) with thread locks | `TrackState`, `batched()` |
 | `dj_digger/db.py` | SQLite engine: statuses, crates, local file cache | `Database`, `default_db_path()` |
 | `dj_digger/models.py` | Core dataclasses | `Track`, `Crate`, `LinkRecord` |
-| `dj_digger/gates.py` | Download-gate resolvers, driven by `requests` | `resolve_gate_download_url()`, `can_resolve()` |
+| `dj_digger/gates.py` | Download-gate resolvers and link-hub reading, driven by `requests` | `resolve_gate_download_url()`, `can_resolve()`, `store_links_on_page()` |
 | `dj_digger/config.py` | Profile, scan folders, browser choice | `AppConfig` |
 | `dj_digger/auth.py` | Browser cookie extraction and OAuth token verification | `get_stored_token()`, `auto_detect_and_verify()` |
 | `dj_digger/html_fallback.py` | Saved-page parser (`__sc_hydration`) for private or unlisted playlists | `extract_from_hydration()`, `load_playlist()` |

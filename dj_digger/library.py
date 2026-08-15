@@ -65,6 +65,8 @@ class CrateRecord:
     title: str
     tracks: list[Track] = field(default_factory=list)
     removed_track_keys: list[str] = field(default_factory=list)
+    # What the last refresh brought in that the crate did not already have.
+    new_track_keys: list[str] = field(default_factory=list)
     imported_at: str = ""
     refreshed_at: str | None = None
     partial: bool = False
@@ -80,7 +82,11 @@ class CrateRecord:
     @property
     def active_tracks(self) -> list[Track]:
         removed = set(self.removed_track_keys)
-        return [track for track in self.tracks if track.key not in removed]
+        kept = [track for track in self.tracks if track.key not in removed]
+        # What the last refresh added goes to the top; sorted is stable, so the
+        # playlist's own order survives inside each half.
+        arrived = set(self.new_track_keys)
+        return sorted(kept, key=lambda track: track.key not in arrived)
 
     def remove(self, track_key: str) -> None:
         if track_key not in self.removed_track_keys:
@@ -109,6 +115,7 @@ class CrateRecord:
             "refreshed_at": self.refreshed_at,
             "partial": self.partial,
             "removed_track_keys": self.removed_track_keys,
+            "new_track_keys": self.new_track_keys,
             "tracks": [_track_to_json(track) for track in self.tracks],
         }
 
@@ -119,6 +126,7 @@ class CrateRecord:
             title=data.get("title") or data.get("source") or "crate",
             tracks=[_track_from_json(item) for item in data.get("tracks") or []],
             removed_track_keys=list(data.get("removed_track_keys") or []),
+            new_track_keys=list(data.get("new_track_keys") or []),
             imported_at=data.get("imported_at") or "",
             refreshed_at=data.get("refreshed_at"),
             partial=bool(data.get("partial")),
@@ -198,6 +206,12 @@ def delete(slug: str) -> None:
 
 
 def refresh(record: CrateRecord, crate: Crate, *, partial: bool = False) -> CrateRecord:
+    known = {track.key for track in record.tracks}
+    arrived = [track.key for track in crate.tracks if track.key not in known]
+    if arrived:
+        # A refresh that brought nothing keeps the previous batch marked, so
+        # pressing r twice does not lose what the first press turned up.
+        record.new_track_keys = arrived
     record.tracks = list(crate.tracks)
     record.title = crate.title or record.title
     record.refreshed_at = _now()

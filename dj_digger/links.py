@@ -116,6 +116,16 @@ CATEGORY_NAMES = [
     "others",
 ]
 
+# Where you can actually buy the record. What a link hub is worth opening for.
+SHOP_CATEGORIES = frozenset(
+    {"bandcamp", "beatport", "traxsource", "junodownload", "apple", "shop"}
+)
+
+# Categories whose page might turn out to be a list of shops rather than a
+# download - see ``hub_links``. An unrecognised purchase link counts too, which
+# is the None case there rather than a name here.
+HUB_CATEGORIES = frozenset({"gate", "smartlink"})
+
 # Descriptions are promo boilerplate - full of Spotify, YouTube and the label's
 # linktree on every single track. Only destinations you can actually buy or
 # download from are worth harvesting out of them.
@@ -198,6 +208,25 @@ def candidate_links(track: Track) -> list[tuple[str, str, str]]:
         add(url, "Link in description", DESCRIPTION_FIELD)
 
     return candidates
+
+
+def hub_links(track: Track) -> list[str]:
+    """Purchase links worth opening to see whether they are a shop list.
+
+    A gate, a smart link, or a host nobody recognises: any of the three can turn
+    out to hand over no file at all and just point at Bandcamp and Beatport.
+    Description links are left out - they are promo boilerplate, and one request
+    each for a linktree the label pastes onto every track is not worth it.
+    """
+
+    found: list[str] = []
+    for url, _text, source in candidate_links(track):
+        if source != PURCHASE_FIELD:
+            continue
+        category = store_for_url(url)
+        if category in HUB_CATEGORIES or (category is None and is_openable(url)):
+            found.append(url)
+    return found
 
 
 def categorise(track: Track) -> list[LinkRecord]:

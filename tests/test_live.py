@@ -119,3 +119,26 @@ def test_a_full_dig_produces_store_links():
     counts = links.count_by_category(records)
     assert sum(counts.values()) >= len(crate.tracks)
     assert counts["bandcamp"] > 0, "expected at least one bandcamp link in a vinyl playlist"
+
+
+def test_a_link_hub_still_gives_up_its_shops():
+    """The whole feature rests on these pages staying readable without a browser.
+
+    ampsuite wraps every shop in its own redirect, so this covers both halves:
+    reading the anchors, and following the wrappers to where they land.
+    """
+
+    from dj_digger import dig
+    from dj_digger.models import Track
+
+    track = Track(
+        title="Know Your Place",
+        permalink_url="https://soundcloud.com/sonaxx/know-your-place",
+        purchase_url="https://sonaxx.ampsuite.com/releases/links?id=447",
+    )
+
+    assert dig.expand_link_hubs([track]) == 1
+    assert track.purchase_url is None
+    categories = {record.category for record in links.categorise(track)}
+    assert {"bandcamp", "beatport"} <= categories
+    assert "gate" not in categories and "others" not in categories

@@ -15,7 +15,7 @@ from dj_digger.models import Crate, LinkRecord, Track
 from dj_digger.player import Loaded, PlaybackUnavailable, PlayerBar, Stream
 from dj_digger.scanner import LocalMatch
 from dj_digger.state import GOT, OPENED, SKIP, TrackState
-from dj_digger.tui import AskLinkScreen, ConfirmScreen, DiggerApp, HelpScreen
+from dj_digger.tui import AskLinkScreen, ConfirmScreen, DiggerApp, HelpScreen, SettingsScreen
 
 
 def run(scenario):
@@ -2118,5 +2118,53 @@ def test_copying_the_path_says_so_either_way(records, state, monkeypatch):
             )
             await pilot.press("y")
             assert "/music/a.mp3" in said[-1]
+
+    run(scenario)
+
+
+def test_the_first_launch_asks_for_the_settings_before_anything_else(state, tmp_path):
+    """No config file means nothing is configured, including the scan folders."""
+
+    (tmp_path / "config.json").unlink()  # conftest wrote one; a first run has none
+    app = make_app([], state)
+    assert app.config.first_run is True
+
+    async def scenario():
+        # Left on screen deliberately: dismissing it would start the library
+        # scan, and this profile still points at the real ~/Music.
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            assert isinstance(app.screen, SettingsScreen)
+
+    run(scenario)
+
+
+def test_tracks_a_refresh_brought_in_are_marked_and_sorted_to_the_top(state):
+    record = saved_crate(2, title="Grown")
+    library.refresh(record, Crate(
+        source=record.source,
+        title=record.title,
+        tracks=list(record.tracks) + [
+            Track(
+                title="Arrived",
+                permalink_url="https://soundcloud.com/a/new",
+                id=900,
+                purchase_url="https://label.bandcamp.com/track/new",
+            )
+        ],
+    ))
+    library.save(record)
+    app = make_app([], state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            app.load_crate(record)
+            await pilot.pause()
+            table = app.query_one("#tracks", DataTable)
+            first = table.get_cell_at(Coordinate(0, TITLE_CELL))
+            assert first.plain.startswith("NEW ")
+            assert "Arrived" in first.plain
+            second = table.get_cell_at(Coordinate(1, TITLE_CELL))
+            assert not second.plain.startswith("NEW ")
 
     run(scenario)

@@ -3,7 +3,7 @@
 [![Python Version](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
 [![Built with Textual](https://img.shields.io/badge/TUI-Textual-ff69b4.svg)](https://textual.textualize.io/)
-[![Version](https://img.shields.io/badge/version-0.6.0-orange.svg)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-0.7.0-orange.svg)](pyproject.toml)
 
 > **The ultimate crate-digging companion for DJs and electronic music collectors.**
 > Instantly extract purchase links, free downloads, and download gates from SoundCloud playlists, user likes, or artist profiles—then preview tracks and manage your library in a high-performance terminal interface.
@@ -22,6 +22,8 @@ dj-digger https://soundcloud.com/someone/sets/that-playlist
 - **📦 Multi-Crate Local Library**: Save dig sessions as local crates in `~/.local/share/dj-digger/crates/`. Switch, refresh, or search across crates seamlessly.
 - **🧠 Cross-Crate Track Memory**: Track decisions (`got it` / `skipped`) are stored globally by SoundCloud track ID. Buying a track once marks it across all future playlists.
 - **🔓 Download Gate Automation**: Resolves follow-to-download gates (Hypeddit, ToneDen, GateRush, Droploud) by replaying their step-completion calls. No browser automation, no Playwright.
+- **🔗 Link-Hub Expansion**: A purchase link that turns out to be a list of shops rather than a download—an ampsuite release page, a gate running in smart-link mode—is opened, and the Bandcamp and Beatport links behind it are added to the track directly instead of a `gate` badge.
+- **🆕 New Since Last Refresh**: Refreshing a crate marks whatever the playlist gained with `NEW` and sorts it to the top.
 - **📄 Saved-HTML Fallback**: Fully supports saved HTML pages (`Ctrl+S`) for private or unlisted SoundCloud playlists.
 - **⚙️ CLI & Non-Interactive Mode**: Export crates directly to JSON or CSV for automated pipelines and scripts.
 

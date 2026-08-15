@@ -120,6 +120,8 @@ class HelpScreen(ModalScreen[None]):
         body.append("Marks\n", style="bold")
         body.append(f"  {PLAYING_GLYPH:<10}", style="cyan")
         body.append("playing now\n")
+        body.append(f"  {'NEW':<10}", style="bold yellow")
+        body.append("added by the last refresh\n")
         for glyph, style, meaning in STATUS_STYLES.values():
             body.append(f"  {glyph:<10}", style=style)
             body.append(f"{meaning}\n")
@@ -221,6 +223,8 @@ class SettingsScreen(ModalScreen[None]):
             yield Label("Random Hype Comments (separated by | or newlines):", classes="settings-label")
             comments_str = " | ".join(self.config.custom_comments)
             yield Input(value=comments_str, id="input-comments")
+            yield Label("Folders to scan for music you already own (separated by |):", classes="settings-label")
+            yield Input(value=" | ".join(self.config.scan_directories), id="input-scan-dirs")
             yield Label("Open links with:", classes="settings-label")
             # Only what this machine reported. The saved value names a program
             # that gets executed, so the list is the whitelist.
@@ -251,7 +255,11 @@ class SettingsScreen(ModalScreen[None]):
                 self.config.user_email = email
             if comments:
                 self.config.custom_comments = comments
+            scan_dirs = [d.strip() for d in self.query_one("#input-scan-dirs", Input).value.split("|") if d.strip()]
+            if scan_dirs:
+                self.config.scan_directories = scan_dirs
 
+            self.config.first_run = False
             self.config.save()
             self.app.notify("Settings saved!", timeout=4)
             self.dismiss()

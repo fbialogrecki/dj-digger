@@ -386,6 +386,97 @@ RESOLVABLE_HOSTS = (
 )
 
 
+# Hubs wrap each shop in their own redirect (ampsuite's link-redirect, most
+# smart-link services), so the real destination only shows up in a Location
+# header. A page listing more than this many is a page we have misread.
+HUB_REDIRECT_LIMIT = 12
+
+
+def _offers_a_download(text: str) -> bool:
+    """Whether the page mentions handing over a file at all.
+
+    Crude on purpose: a real follow-to-download gate says "download" somewhere,
+    and a page that says it keeps its gate badge rather than being replaced by
+    the shop it also happens to link to. A pure link list never says it.
+
+    ponytail: word match on the whole page. A gate that only ever writes it in
+    an image or a JS bundle reads as a hub; narrow it to the button text if that
+    turns up in practice.
+    """
+
+    return "download" in text.lower()
+
+
+def store_links_on_page(
+    url: str,
+    session: requests.Session,
+    timeout: float = 10.0,
+) -> list[tuple[str, str]]:
+    """The shops a link hub points at, as (url, text). Empty when it is a gate.
+
+    Some pages behind a purchase link hand over no file: ampsuite release pages,
+    and gates run in smart-link mode, are a list of streaming services and shops.
+    Those shops are the point, so they are read off the page and the caller drops
+    the hub itself.
+    """
+
+    from bs4 import BeautifulSoup
+
+    from .html_fallback import normalize_link
+    from .links import SHOP_CATEGORIES, host_of, store_for_url
+
+    try:
+        response = session.get(url, headers=DEFAULT_HEADERS, timeout=timeout)
+    except requests.RequestException as exc:
+        LOGGER.debug("Could not read %s: %s", url, exc)
+        return []
+    if response.status_code >= 400 or _offers_a_download(response.text):
+        return []
+
+    # response.url, not url: a hub reached through a redirect wraps its shops in
+    # links relative to where it landed, not where it was asked for.
+    landed = response.url
+    hub_host = host_of(landed)
+    found: list[tuple[str, str]] = []
+    wrapped: list[tuple[str, str]] = []
+    seen: set[str] = set()
+
+    for anchor in BeautifulSoup(response.text, "html.parser").select("a[href]"):
+        href = normalize_link(landed, (anchor.get("href") or "").strip())
+        if not href or href in seen:
+            continue
+        seen.add(href)
+        text = anchor.get_text(" ", strip=True) or host_of(href)
+        if store_for_url(href) in SHOP_CATEGORIES:
+            found.append((href, text))
+        elif host_of(href) == hub_host:
+            wrapped.append((href, text))
+
+    for href, text in wrapped[:HUB_REDIRECT_LIMIT]:
+        try:
+            # stream=True so a link that turns out to be a page rather than a
+            # redirect costs the headers and nothing else.
+            hop = session.get(
+                href,
+                headers=DEFAULT_HEADERS,
+                timeout=timeout,
+                allow_redirects=False,
+                stream=True,
+            )
+            location = hop.headers.get("Location", "")
+            hop.close()
+        except requests.RequestException:
+            continue
+        if location and store_for_url(location) in SHOP_CATEGORIES:
+            found.append((location, text))
+
+    # A shop linked both directly and through a wrapper is still one shop.
+    unique: dict[str, tuple[str, str]] = {}
+    for pair in found:
+        unique.setdefault(pair[0], pair)
+    return list(unique.values())
+
+
 def can_resolve(url: str) -> bool:
     """True when ``resolve_gate_download_url`` has a resolver for this host."""
 

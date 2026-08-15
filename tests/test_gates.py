@@ -4,6 +4,7 @@ import requests
 
 from dj_digger.gates import (
     resolve_gate_download_url,
+    store_links_on_page,
     resolve_hypeddit_download_url,
     resolve_toneden_download_url,
 )
@@ -102,3 +103,96 @@ def test_an_address_the_user_set_is_submitted_without_complaint(caplog):
         )
 
     assert not any("placeholder address" in record.message for record in caplog.records)
+
+
+class HubSession:
+    """Answers a hub page and the redirect wrappers on it, without a network."""
+
+    def __init__(self, page, redirects=None, landed="https://label.ampsuite.com/releases/links?id=1"):
+        self.page = page
+        self.redirects = redirects or {}
+        self.landed = landed
+        self.asked = []
+
+    def get(self, url, **kwargs):
+        self.asked.append(url)
+        response = MagicMock()
+        response.close.return_value = None
+        if url in self.redirects:
+            response.status_code = 302
+            response.headers = {"Location": self.redirects[url]}
+            response.text = ""
+            response.url = url
+            return response
+        response.status_code = 200
+        response.headers = {}
+        response.text = self.page
+        response.url = self.landed
+        return response
+
+
+HUB_PAGE = """
+<html><body>
+  <a class="retailer-link" href="/releases/link-redirect?store_id=1"><span>Beatport</span></a>
+  <a class="retailer-link" href="/releases/link-redirect?store_id=20"><span>Bandcamp</span></a>
+  <a class="retailer-link" href="https://open.spotify.com/album/xyz"><span>Spotify</span></a>
+  <a href="/about">About the label</a>
+</body></html>
+"""
+
+
+def test_a_hub_page_gives_up_the_shops_behind_its_own_redirects():
+    session = HubSession(
+        HUB_PAGE,
+        redirects={
+            "https://label.ampsuite.com/releases/link-redirect?store_id=1":
+                "https://www.beatport.com/release/know-your-place/7057750",
+            "https://label.ampsuite.com/releases/link-redirect?store_id=20":
+                "https://label.bandcamp.com/album/know-your-place",
+        },
+    )
+
+    found = store_links_on_page("https://label.ampsuite.com/releases/links?id=1", session)
+
+    assert [url for url, _text in found] == [
+        "https://www.beatport.com/release/know-your-place/7057750",
+        "https://label.bandcamp.com/album/know-your-place",
+    ]
+    assert [text for _url, text in found] == ["Beatport", "Bandcamp"]
+
+
+def test_a_hub_page_does_not_offer_the_streaming_services_it_lists():
+    """Spotify is on the page, but you cannot buy the record there."""
+
+    session = HubSession(HUB_PAGE)
+    found = store_links_on_page("https://label.ampsuite.com/releases/links?id=1", session)
+    assert not any("spotify" in url for url, _text in found)
+
+
+def test_a_page_that_hands_over_a_file_is_left_as_a_gate():
+    """A real follow-to-download gate keeps its badge, shop link or not."""
+
+    page = (
+        '<html><body><a href="https://label.bandcamp.com/track/a">Buy</a>'
+        "<button>Free Download</button></body></html>"
+    )
+    assert store_links_on_page("https://hypeddit.com/track/abc", HubSession(page)) == []
+
+
+def test_a_shop_linked_twice_is_returned_once():
+    page = (
+        '<html><body><a href="https://label.bandcamp.com/album/a">Bandcamp</a>'
+        '<a href="/go?store=1">Bandcamp</a></body></html>'
+    )
+    session = HubSession(
+        page,
+        redirects={"https://label.ampsuite.com/go?store=1": "https://label.bandcamp.com/album/a"},
+    )
+    found = store_links_on_page("https://label.ampsuite.com/releases/links?id=1", session)
+    assert len(found) == 1
+
+
+def test_an_unreachable_hub_changes_nothing():
+    session = MagicMock(spec=requests.Session)
+    session.get.side_effect = requests.RequestException("nope")
+    assert store_links_on_page("https://label.ampsuite.com/x", session) == []

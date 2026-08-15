@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.7.0
+
+### Deprecated
+
+- **`--browser` is still here.** 0.6.0 said it would go in 0.7; it did not, so
+  nothing that used it breaks on this upgrade. It still warns, and the removal
+  moves to 0.8. The browser remains a setting: press `S` and pick from what the
+  machine actually has.
+
+### Added
+
+- **Settings open on the first launch.** A fresh install had a profile nobody
+  had ever seen: gates were handed the placeholder name and address, and the
+  library scan walked whatever `~/Music` happened to contain. With no config
+  file on disk the crate browser now opens Settings first, and the scan waits
+  for the answer. Scan folders are editable there too, which was the one
+  setting the screen could not reach.
+- **A refresh says what it brought in.** Tracks that were not in the crate
+  before are marked `NEW` and sorted to the top; the playlist's own order is
+  kept inside each half. A refresh that turns up nothing leaves the previous
+  batch marked, so pressing `r` twice does not lose it.
+- **Link hubs are opened and replaced by the shops behind them.** Plenty of
+  purchase links hand over no file at all - ampsuite release pages, and gates
+  running in smart-link mode - they are just a list of streaming services and
+  shops. Those pages are now read during a dig, the Bandcamp and Beatport links
+  behind them (including the ones wrapped in the hub's own redirect) are added
+  to the track, and the hub link itself is dropped so the track is not badged
+  as a gate that gates nothing. A page that does offer a download is left
+  exactly as it was.
+
 ## 0.6.0
 
 ### Breaking

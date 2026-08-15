@@ -29,6 +29,15 @@ def test_app_config_save_load():
         assert loaded.random_comment() in ["Super tune!", "Mega banger!"]
 
 
+def test_first_run_is_flagged_only_when_there_was_no_config_file(tmp_path):
+    """The TUI opens Settings on the strength of this flag."""
+
+    # Not config.json: conftest already wrote one there to isolate user data.
+    path = tmp_path / "fresh-profile.json"
+    assert AppConfig(path).first_run is True
+    assert AppConfig(path).first_run is False, "the first load wrote the file"
+
+
 def test_the_default_email_is_not_deliverable_to_anybody():
     """gates.py posts this to third parties; RFC 2606 reserves .invalid for it."""
 
