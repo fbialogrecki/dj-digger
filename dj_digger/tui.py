@@ -754,6 +754,9 @@ class DiggerApp(App):
         self._dig_message = ""
         self.download_progress: Dict[str, float] = {}
         self._last_progress_redraw: float = 0.0
+        # Only a batch download builds one. Declared here so the teardown path
+        # can ask about it plainly rather than through getattr.
+        self._download_executor: Optional[ThreadPoolExecutor] = None
         self.player = Player()
         self._client: Optional[SoundCloudClient] = None
         self._set_records(records)
@@ -819,19 +822,30 @@ class DiggerApp(App):
             self.action_dig_link()
 
     def on_unmount(self) -> None:
+        """Let go of everything this screen owns, in one place.
+
+        There were two of these, and Python kept the second - so the ticker went
+        on running and the download pool was shut down twice over while the
+        prefetched stream was closed by hand rather than through its own method.
+
+        No ``workers.cancel_all()``: Textual runs one itself, and traced against
+        8.2.8 it lands before this method is dispatched, not after.
+        """
+
         # A tick landing after the widgets have gone would go looking for a
-        # player bar that no longer exists.
+        # player bar that no longer exists. Textual does stop its timers, but
+        # only further down the same teardown, so this one goes first.
         if self._ticker is not None:
             self._ticker.stop()
             self._ticker = None
-        try:
-            self.workers.cancel_all()
-        except Exception:
-            pass
+        if self._download_executor is not None:
+            self._download_executor.shutdown(wait=False, cancel_futures=True)
+            self._download_executor = None
         self._discard_prepared()
         self.player.close()
         if self._client is not None:
             self._client.close()
+            self._client = None
 
     # Records
 
@@ -1737,11 +1751,8 @@ class DiggerApp(App):
                     failed_count += 1
                     self.call_from_thread(self._on_batch_track_failed, row, result)
         finally:
-            if getattr(self, "_download_executor", None):
-                try:
-                    self._download_executor.shutdown(wait=False)
-                except Exception:
-                    pass
+            if self._download_executor is not None:
+                self._download_executor.shutdown(wait=False)
                 self._download_executor = None
 
         self.call_from_thread(self._on_batch_download_complete, completed_count, failed_count, total)
@@ -1981,36 +1992,6 @@ class DiggerApp(App):
         if event.input.id != "search":
             return
         self.query_one("#tracks", DataTable).focus()
-
-    def on_unmount(self) -> None:
-        if getattr(self, "_prepared", None) and hasattr(self._prepared, "source"):
-            try:
-                self._prepared.source.close()
-            except Exception:
-                pass
-        if getattr(self, "_download_executor", None):
-            try:
-                self._download_executor.shutdown(wait=False, cancel_futures=True)
-            except Exception:
-                pass
-        if getattr(self, "player", None):
-            try:
-                self.player.close()
-            except Exception:
-                pass
-        if getattr(self, "_client", None):
-            try:
-                self._client.close()
-            except Exception:
-                pass
-
-    def action_quit(self) -> None:
-        if getattr(self, "_download_executor", None):
-            try:
-                self._download_executor.shutdown(wait=False, cancel_futures=True)
-            except Exception:
-                pass
-        self.exit()
 
 
 def run_tui(

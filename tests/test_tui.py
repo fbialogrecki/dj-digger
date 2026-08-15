@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import io
 import json
+from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 
 import pytest
@@ -1896,3 +1897,49 @@ def test_batch_download_skips_skipped_tracks(state, monkeypatch):
     run(scenario)
     assert len(started) == 1
     assert started[0][0].track.key == rec1.track.key
+
+
+class ClosingSource:
+    """A prepared stream that records whether anybody let go of it."""
+
+    def __init__(self) -> None:
+        self.closed = False
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def test_leaving_stops_the_ticker_and_lets_go_of_everything(records, state, monkeypatch):
+    """There were two on_unmount methods, so only the second one ever ran.
+
+    Which meant the thirty-a-second ticker was left running - and nothing
+    noticed, because no test covered the way out at all.
+    """
+
+    app = make_app(records, state)
+    closed = []
+    source = ClosingSource()
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            monkeypatch.setattr(
+                type(app.player), "close", lambda self: closed.append("player")
+            )
+            app._prepared = tui.Prepared(
+                track=Track(title="next", permalink_url="https://soundcloud.com/a/2", id=2),
+                stream=Stream(url="https://cdn/2.mp3"),
+                source=source,
+            )
+            app._download_executor = ThreadPoolExecutor(max_workers=1)
+            executor = app._download_executor
+            app.exit()
+
+        assert app._ticker is None, "the ticker was left running"
+        assert closed == ["player"], "the audio device was not handed back"
+        assert source.closed, "the prefetched stream was left open"
+        assert app._download_executor is None
+        with pytest.raises(RuntimeError):
+            executor.submit(lambda: None)
+
+    run(scenario)
