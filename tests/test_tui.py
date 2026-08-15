@@ -1986,3 +1986,28 @@ def test_the_gate_link_w_would_use(state, row, expected):
     """Three passes: the declared gate, then a host gates knows, then anything left."""
 
     assert make_app([], state)._find_gate_url(row) == expected
+
+
+def test_no_two_parts_of_the_app_define_the_same_method():
+    """A name defined twice is how this class lost an on_unmount for two releases.
+
+    DiggerApp is assembled from seven mixins. Python resolves a clash silently by
+    taking the first in the MRO, so the only thing standing between a rename and
+    a method that quietly stops running is this.
+    """
+
+    ours = [base for base in DiggerApp.__mro__ if base.__module__.startswith("dj_digger.tui")]
+    assert len(ours) == 8, f"expected DiggerApp plus seven mixins, got {len(ours)}"
+
+    owner = {}
+    clashes = []
+    for base in ours:
+        for name, value in vars(base).items():
+            if name.startswith("__") or not (callable(value) or isinstance(value, property)):
+                continue
+            if name in owner:
+                clashes.append(f"{name} ({owner[name].__name__} and {base.__name__})")
+            owner[name] = base
+
+    assert len(owner) > 100, "the scan found almost nothing, so it proves nothing"
+    assert not clashes, "defined more than once: " + ", ".join(clashes)
