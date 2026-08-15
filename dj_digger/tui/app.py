@@ -175,7 +175,6 @@ class DiggerApp(
         *,
         state: TrackState | None = None,
         crate_title: str = "",
-        browser: str = "",
         export_format: str = "json",
         export_path: Path | None = None,
         dig_options: dig_module.DigOptions | None = None,
@@ -191,7 +190,6 @@ class DiggerApp(
         self.crate = crate_record
         self.crates: list[CrateRecord] = []
         self.crate_title = crate_title or (crate_record.title if crate_record else "")
-        self._browser_override = browser
         self.export_format = export_format
         self.export_path = export_path
         self.dig_options = dig_options or dig_module.DigOptions()
@@ -313,13 +311,13 @@ class DiggerApp(
 
     @property
     def browser(self) -> str:
-        """The deprecated CLI override if there was one, else what Settings says.
+        """What Settings says. Empty means the system default.
 
         Read fresh each time rather than settled in __init__, so changing it in
         Settings takes effect on the next link instead of the next run.
         """
 
-        return self._browser_override or self.config.browser
+        return self.config.browser
 
     def action_help(self) -> None:
         self.push_screen(HelpScreen())

@@ -27,6 +27,7 @@ from . import __version__, library, links, soundcloud
 from . import auth as auth_module
 from . import browser as browser_module
 from . import dig as dig_module
+from .config import AppConfig
 from .models import Crate, LinkRecord
 from .state import TrackState
 
@@ -49,14 +50,6 @@ def _add_shared_arguments(parser: argparse.ArgumentParser) -> None:
         default="INFO",
         choices=LOG_LEVELS,
         help="Logging verbosity (default: INFO)",
-    )
-    parser.add_argument(
-        "--browser",
-        default="",
-        help=(
-            "Deprecated, and removed in 0.7: the browser is a setting now. Press "
-            "S in the crate browser to pick one from what this machine has."
-        ),
     )
     parser.add_argument(
         "--no-tui",
@@ -262,7 +255,6 @@ def handle_dig(args: argparse.Namespace) -> int:
         run_tui(
             [],
             state=TrackState(),
-            browser=args.browser,
             export_format=args.export_format,
             export_path=args.output,
             dig_options=_dig_options(args),
@@ -299,7 +291,6 @@ def handle_dig(args: argparse.Namespace) -> int:
             records,
             state=TrackState(),
             crate_title=crate.title,
-            browser=args.browser,
             export_format=args.export_format,
             export_path=export_path or args.output,
             dig_options=_dig_options(args),
@@ -338,10 +329,11 @@ def _batch_open(args: argparse.Namespace, records: Sequence[LinkRecord]) -> None
         LOGGER.info("No links left to open for category '%s'.", category)
         return
 
-    opened = browser_module.open_urls(
-        [record.link_url for record in selected], args.browser
-    )
-    LOGGER.info("Opened %s links in browser '%s'.", opened, args.browser)
+    # The same setting the crate browser opens links with, so --no-tui and the
+    # interactive path do not disagree about which browser you meant.
+    chosen = AppConfig().browser
+    opened = browser_module.open_urls([record.link_url for record in selected], chosen)
+    LOGGER.info("Opened %s links in browser '%s'.", opened, chosen or "the system default")
 
 
 def handle_open(args: argparse.Namespace) -> int:
@@ -377,7 +369,6 @@ def handle_open(args: argparse.Namespace) -> int:
         links.categorise_all(record.active_tracks),
         state=TrackState(),
         crate_title=record.title,
-        browser=args.browser,
         export_format="json",
         export_path=path,
         crate_record=record,
@@ -449,13 +440,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         level=getattr(logging, args.log_level.upper(), logging.INFO),
         format="%(levelname)s: %(message)s",
     )
-
-    if getattr(args, "browser", ""):
-        # Still honoured for this release so a script does not break on upgrade.
-        LOGGER.warning(
-            "--browser is deprecated and goes away in 0.7. Press S in the crate "
-            "browser to choose from the browsers this machine actually has."
-        )
 
     try:
         if args.command == "dig":

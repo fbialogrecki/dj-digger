@@ -1,10 +1,11 @@
+import argparse
 import json
 
 import pytest
 
 from dj_digger import cli, library, links
 from dj_digger.dig import TargetNotFound
-from dj_digger.models import Crate, Track
+from dj_digger.models import Crate, LinkRecord, Track
 
 
 @pytest.mark.parametrize(
@@ -251,3 +252,35 @@ def test_open_recategorises_a_summary_written_by_an_older_version(tmp_path, monk
 def test_dig_options_carry_the_cli_knobs():
     options = cli._dig_options(cli.parse_cli_args(["link", "-n", "5", "--timeout", "3"]))
     assert (options.limit, options.timeout) == (5, 3.0)
+
+
+def test_the_browser_flag_is_gone():
+    """Deprecated in 0.6, removed in 0.8. The browser is a setting now."""
+
+    with pytest.raises(SystemExit):
+        cli.parse_cli_args(["--browser", "firefox", "https://soundcloud.com/a/sets/b"])
+
+
+def test_batch_open_uses_the_browser_from_settings(monkeypatch, tmp_path):
+    """--no-tui and the crate browser must not disagree about which browser you meant."""
+
+    config_path = tmp_path / "settings.json"
+    config_path.write_text(json.dumps({"browser": "firefox"}), encoding="utf-8")
+    monkeypatch.setattr("dj_digger.config.default_config_path", lambda: config_path)
+
+    used = []
+    monkeypatch.setattr(
+        "dj_digger.browser.open_urls",
+        lambda urls, chosen="", **kwargs: used.append(chosen) or len(list(urls)),
+    )
+
+    record = LinkRecord(
+        category="bandcamp",
+        track=Track(title="T", permalink_url="https://soundcloud.com/a/t"),
+        link_url="https://label.bandcamp.com/track/t",
+        link_text="Buy",
+    )
+    args = argparse.Namespace(category="bandcamp", skip=0, limit=None)
+    cli._batch_open(args, [record])
+
+    assert used == ["firefox"]
