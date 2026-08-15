@@ -18,9 +18,9 @@ jobs:
     steps:
       # Pinned to a commit rather than a tag, as in publish.yml: a tag can be
       # moved to point at new code.
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install uv
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
       - name: Ruff
         run: uv run --extra dev ruff check .
 
@@ -37,9 +37,9 @@ jobs:
         # Every version requires-python claims to support.
         python-version: ["3.12", "3.13", "3.14"]
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install uv
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
       # --extra dev, because pytest lives in an optional dependency rather than
       # in the default set: without it uv resolves an environment that cannot
       # run the suite at all.
