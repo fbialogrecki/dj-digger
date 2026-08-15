@@ -3,6 +3,14 @@
 Answers to the questions `/graphify` raised for this repo, kept here because
 `graphify-out/` is regenerated on every run and these findings are not.
 
+> **Stale as of 0.6.0.** The graph these notes describe was built before the
+> ponytail cycle. Since then `dj_digger/ui/` has been deleted, `tui.py` has
+> become a package of thirteen modules, and `browser.py`, `scanner.py` and
+> `db.py` have grown real roles. The reasoning below still holds - especially
+> the caveat about heuristic `uses` edges - but the node counts and centrality
+> figures describe a tree that no longer exists. Re-run `/graphify` to refresh
+> it.
+
 Graph built at commit `c2e8c1e` (v0.5.1): 1289 nodes, 3142 edges, 85 communities,
 from 43 code files and 11 documents. Betweenness figures below were recomputed
 directly from `graphify-out/graph.json` with NetworkX, so they differ in the
