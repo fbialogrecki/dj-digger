@@ -31,7 +31,11 @@ def isolate_user_data(tmp_path, monkeypatch):
     opens the app would walk the developer's actual music collection.
     """
 
-    scan_dir = tmp_path / "music"
+    # Not "music": macOS and Windows have case-insensitive filesystems, so this
+    # directory and a test's own tmp_path/"Music" are the same one there, and
+    # whichever ran second failed with FileExistsError. A name no test would
+    # reach for by accident keeps that from happening again.
+    scan_dir = tmp_path / "isolated-scan-root"
     scan_dir.mkdir()
     config_path = tmp_path / "config.json"
     config_path.write_text(
