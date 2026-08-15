@@ -59,3 +59,14 @@ def test_an_address_the_user_chose_is_left_alone(tmp_path):
     config = AppConfig(path)
     assert config.user_email == "dj@example.com"
     assert config.has_real_email() is True
+
+
+def test_the_browser_choice_round_trips(tmp_path):
+    path = tmp_path / "config.json"
+    config = AppConfig(path)
+    assert config.browser == "", "empty means the system default"
+
+    config.browser = "firefox"
+    config.save()
+
+    assert AppConfig(path).browser == "firefox"

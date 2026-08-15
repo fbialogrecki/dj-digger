@@ -134,6 +134,7 @@ class SoundCloudClient:
         timeout: float = 20.0,
         client_id: str | None = None,
         oauth_token: str | None = None,
+        config=None,
     ) -> None:
         self._session = session or create_requests_session()
         self._timeout = timeout
@@ -143,8 +144,14 @@ class SoundCloudClient:
         else:
             self._oauth_token = oauth_token
 
-        from .config import AppConfig
-        self.config = AppConfig()
+        # The caller passes its own when it has one, so that editing your name
+        # and email in Settings reaches the gate resolvers below rather than
+        # updating a second copy nobody reads.
+        if config is None:
+            from .config import AppConfig
+
+            config = AppConfig()
+        self.config = config
 
     @property
     def oauth_token(self) -> str | None:

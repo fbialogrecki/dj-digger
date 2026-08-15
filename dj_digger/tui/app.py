@@ -14,6 +14,7 @@ from textual.widgets import Button, DataTable, Footer, Input, ListView, Static
 
 from .. import dig as dig_module
 from .. import links as links_module
+from ..config import AppConfig
 from ..library import CrateRecord
 from ..models import LinkRecord
 from ..player import (
@@ -174,7 +175,7 @@ class DiggerApp(
         *,
         state: TrackState | None = None,
         crate_title: str = "",
-        browser: str = "default",
+        browser: str = "",
         export_format: str = "json",
         export_path: Path | None = None,
         dig_options: dig_module.DigOptions | None = None,
@@ -183,10 +184,14 @@ class DiggerApp(
         super().__init__()
         self.rows: list[Row] = []
         self.state = state or TrackState()
+        # One profile for the whole app: Settings edits this object, and the
+        # SoundCloud client is handed the same one so the gate resolvers see
+        # your name and email rather than a copy loaded before you changed them.
+        self.config = AppConfig()
         self.crate = crate_record
         self.crates: list[CrateRecord] = []
         self.crate_title = crate_title or (crate_record.title if crate_record else "")
-        self.browser = browser
+        self._browser_override = browser
         self.export_format = export_format
         self.export_path = export_path
         self.dig_options = dig_options or dig_module.DigOptions()
@@ -295,14 +300,24 @@ class DiggerApp(
     @property
     def client(self) -> SoundCloudClient:
         if self._client is None:
-            self._client = SoundCloudClient()
+            self._client = SoundCloudClient(config=self.config)
         return self._client
+
+    @property
+    def browser(self) -> str:
+        """The deprecated CLI override if there was one, else what Settings says.
+
+        Read fresh each time rather than settled in __init__, so changing it in
+        Settings takes effect on the next link instead of the next run.
+        """
+
+        return self._browser_override or self.config.browser
 
     def action_help(self) -> None:
         self.push_screen(HelpScreen())
 
     def action_open_settings(self) -> None:
-        self.push_screen(SettingsScreen(self.client.config))
+        self.push_screen(SettingsScreen(self.config))
 
     def action_export(self) -> None:
         if self.export_format == "none":

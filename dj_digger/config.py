@@ -59,6 +59,9 @@ class AppConfig:
         ]
         self.keybindings: dict[str, str] = dict(DEFAULT_KEYBINDINGS)
         self.footer_keys: list[dict[str, str]] = list(DEFAULT_FOOTER_KEYS)
+        # Empty means the system default. Anything else is checked against what
+        # the machine reports before it is used - see browser.resolve_choice.
+        self.browser: str = ""
         self.load()
 
     def load(self) -> None:
@@ -84,6 +87,7 @@ class AppConfig:
                     for action, key_str in keys.items():
                         if isinstance(key_str, str) and key_str.strip():
                             self.keybindings[action] = key_str.strip().lower()
+                self.browser = str(raw.get("browser") or "").strip()
                 footer = raw.get("footer_keys")
                 if isinstance(footer, list) and footer:
                     self.footer_keys = [f for f in footer if isinstance(f, dict) and "key" in f and "label" in f]
@@ -98,6 +102,7 @@ class AppConfig:
             "user_email": self.user_email,
             "custom_comments": self.custom_comments,
             "scan_directories": self.scan_directories,
+            "browser": self.browser,
             "keybindings": self.keybindings,
             "footer_keys": self.footer_keys,
         }

@@ -52,9 +52,11 @@ def _add_shared_arguments(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument(
         "--browser",
-        choices=browser_module.BROWSER_CHOICES,
-        default="default",
-        help="Browser used to open links (default: system default)",
+        default="",
+        help=(
+            "Deprecated, and removed in 0.7: the browser is a setting now. Press "
+            "S in the crate browser to pick one from what this machine has."
+        ),
     )
     parser.add_argument(
         "--no-tui",
@@ -447,6 +449,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         level=getattr(logging, args.log_level.upper(), logging.INFO),
         format="%(levelname)s: %(message)s",
     )
+
+    if getattr(args, "browser", ""):
+        # Still honoured for this release so a script does not break on upgrade.
+        LOGGER.warning(
+            "--browser is deprecated and goes away in 0.7. Press S in the crate "
+            "browser to choose from the browsers this machine actually has."
+        )
 
     try:
         if args.command == "dig":

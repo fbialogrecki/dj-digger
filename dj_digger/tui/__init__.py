@@ -61,7 +61,7 @@ def run_tui(
     *,
     state: TrackState | None = None,
     crate_title: str = "",
-    browser: str = "default",
+    browser: str = "",
     export_format: str = "json",
     export_path: Path | None = None,
     dig_options: dig_module.DigOptions | None = None,

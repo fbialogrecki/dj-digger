@@ -1,12 +1,20 @@
-"""Opening links in the user's browser."""
+"""Opening links in the user's browser.
+
+There is no ``--browser`` choice baked in any more. The system default is what
+gets used unless you pick something else in Settings, and what Settings offers
+is whatever this machine turns out to have - including, under WSL, the browser
+running on the Windows side, which is the one you actually look at.
+"""
 
 import logging
+import os
+import shutil
+import subprocess
 import time
 import webbrowser
 from collections.abc import Callable, Iterable
+from pathlib import Path
 from urllib.parse import urlparse
-
-BROWSER_CHOICES = ["default", "chrome", "firefox", "edge", "safari", "opera"]
 
 # Every link that reaches this module came from somewhere we do not control: a
 # ``purchase_url`` any artist can set, an anchor scraped off a track page, or a
@@ -16,6 +24,39 @@ BROWSER_CHOICES = ["default", "chrome", "firefox", "edge", "safari", "opera"]
 # is an outbound SMB authentication), ``javascript:`` and ``data:`` execute in
 # whatever the platform hands them to. So the scheme is checked, not the host.
 SAFE_SCHEMES = frozenset({"http", "https"})
+
+# The stored preference meaning "whatever the OS opens links with".
+SYSTEM_DEFAULT = ""
+# WSL only: hand the link to Windows rather than to anything inside the distro.
+WINDOWS = "windows"
+
+# Asked for one at a time and kept only if webbrowser answers. Reading
+# ``webbrowser._tryorder`` would be shorter and is what most code does, but it
+# is private, it is populated lazily, and its shape has changed across releases.
+BROWSER_CANDIDATES = (
+    "firefox",
+    "chrome",
+    "google-chrome",
+    "chromium",
+    "chromium-browser",
+    "microsoft-edge",
+    "safari",
+    "opera",
+)
+
+# Tried in order under WSL. wslview is the polite one; explorer.exe is on every
+# installation; powershell is the fallback when somebody has hidden explorer.
+WINDOWS_OPENERS = (
+    ["wslview"],
+    ["explorer.exe"],
+    ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", "Start-Process"],
+)
+
+# wslview otherwise runs a `curl --head` against every URL before opening it,
+# which on a list of thirty tabs is a visible stall. Set once, at import, rather
+# than from inside the loop that opens them - that reached into the environment
+# of the whole process on every call.
+os.environ.setdefault("WSLVIEW_SKIP_VALIDATION_CHECK", "1")
 
 LOGGER = logging.getLogger(__name__)
 
@@ -34,22 +75,101 @@ def is_openable(url: str) -> bool:
     return parsed.scheme.lower() in SAFE_SCHEMES and bool(parsed.netloc)
 
 
-def resolve_controller(browser: str = "default") -> webbrowser.BaseBrowser:
+def is_wsl() -> bool:
+    """Running inside WSL, where the browser lives on the other side."""
+
+    if os.environ.get("WSL_DISTRO_NAME"):
+        return True
     try:
-        return webbrowser.get(browser if browser != "default" else None)
+        return "microsoft" in Path("/proc/version").read_text(encoding="utf-8").lower()
+    except OSError:
+        return False
+
+
+def _windows_opener() -> list[str] | None:
+    """The command that hands a URL to Windows, if one of them is installed."""
+
+    for command in WINDOWS_OPENERS:
+        if shutil.which(command[0]):
+            return command
+    return None
+
+
+def available_browsers() -> list[tuple[str, str]]:
+    """``(value, label)`` for everything this machine can actually open a link with."""
+
+    found = [(SYSTEM_DEFAULT, "System default")]
+    if is_wsl():
+        opener = _windows_opener()
+        if opener is not None:
+            found.append((WINDOWS, f"Windows default (via {opener[0]})"))
+    for name in BROWSER_CANDIDATES:
+        try:
+            webbrowser.get(name)
+        except webbrowser.Error:
+            continue
+        found.append((name, name.replace("-", " ").title()))
+    return found
+
+
+def resolve_choice(choice: str) -> str:
+    """A stored preference, checked against what is really here.
+
+    Never passed to ``webbrowser.get`` unchecked. That function accepts a whole
+    command line as well as a browser name - ``webbrowser.get("/bin/sh -c evil
+    %s")`` returns something that will run it - so a config file anyone can edit
+    is not allowed to name the program we execute. Only a value this machine
+    reported gets through.
+    """
+
+    if choice in {SYSTEM_DEFAULT, "default", None}:
+        return SYSTEM_DEFAULT
+    if choice in {value for value, _label in available_browsers()}:
+        return choice
+    LOGGER.warning(
+        "Browser %r is not available here - using the system default instead.", choice
+    )
+    return SYSTEM_DEFAULT
+
+
+def _open_on_windows(url: str) -> bool:
+    command = _windows_opener()
+    if command is None:
+        LOGGER.error("No way to reach a Windows browser from here.")
+        return False
+    try:
+        finished = subprocess.run(
+            [*command, url], capture_output=True, timeout=20, shell=False
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        LOGGER.error("Could not hand %s to Windows: %s", url, exc)
+        return False
+    # explorer.exe answers 1 even when it opened the tab, and has done for
+    # twenty years. Reaching the end of the call is the only signal it gives.
+    if command[0] == "explorer.exe":
+        return True
+    return finished.returncode == 0
+
+
+def resolve_controller(choice: str = SYSTEM_DEFAULT) -> webbrowser.BaseBrowser:
+    resolved = resolve_choice(choice)
+    try:
+        return webbrowser.get(resolved or None)
     except webbrowser.Error as exc:
         LOGGER.warning(
             "Could not resolve browser '%s' (%s). Falling back to the system default.",
-            browser,
+            choice,
             exc,
         )
         return webbrowser.get()
 
 
-def open_url(url: str, browser: str = "default") -> bool:
+def open_url(url: str, browser: str = SYSTEM_DEFAULT) -> bool:
     if not is_openable(url):
         LOGGER.error("Refusing to open %r - only http and https links are opened.", url)
         return False
+    if resolve_choice(browser) == WINDOWS:
+        return _open_on_windows(url)
     try:
         resolve_controller(browser).open_new_tab(url)
         return True
@@ -60,7 +180,7 @@ def open_url(url: str, browser: str = "default") -> bool:
 
 def open_urls(
     urls: Iterable[str],
-    browser: str = "default",
+    browser: str = SYSTEM_DEFAULT,
     *,
     pause: float = 0.1,
     controller: webbrowser.BaseBrowser | None = None,
@@ -69,11 +189,9 @@ def open_urls(
 ) -> int:
     """Open several links in tabs. Returns how many actually opened."""
 
-    import os
-    # Prevent wslview on WSL from running slow curl --head checks on every URL
-    os.environ["WSLVIEW_SKIP_VALIDATION_CHECK"] = "1"
-
-    controller = controller or resolve_controller(browser)
+    to_windows = controller is None and resolve_choice(browser) == WINDOWS
+    if not to_windows:
+        controller = controller or resolve_controller(browser)
     opened = 0
     for index, url in enumerate(urls):
         if not is_openable(url):
@@ -83,7 +201,7 @@ def open_urls(
                 on_error(err_msg)
             continue
         try:
-            res = controller.open_new_tab(url)
+            res = _open_on_windows(url) if to_windows else controller.open_new_tab(url)
             if res is False:
                 err_msg = f"Browser rejected opening tab #{index + 1}: {url}"
                 LOGGER.error("%s", err_msg)

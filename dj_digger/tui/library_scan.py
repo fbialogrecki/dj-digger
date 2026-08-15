@@ -9,7 +9,6 @@ from pathlib import Path
 
 from textual import work
 
-from ..config import AppConfig
 from ..scanner import LocalScanner, copy_to_clipboard
 from ..state import GOT, NEW
 
@@ -29,7 +28,7 @@ class LibraryScanMixin:
         """
 
         scanner = LocalScanner(
-            directories=[Path(d).expanduser() for d in AppConfig().scan_directories],
+            directories=[Path(d).expanduser() for d in self.config.scan_directories],
             # The status store already holds a connection to this database; a
             # second Database means a second pool and a second legacy import.
             db=self.state.db,

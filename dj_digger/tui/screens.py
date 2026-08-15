@@ -5,8 +5,9 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Label, Static
+from textual.widgets import Button, Input, Label, Select, Static
 
+from .. import browser as browser_module
 from ..config import AppConfig
 from .keymap import (
     CRATES,
@@ -220,6 +221,16 @@ class SettingsScreen(ModalScreen[None]):
             yield Label("Random Hype Comments (separated by | or newlines):", classes="settings-label")
             comments_str = " | ".join(self.config.custom_comments)
             yield Input(value=comments_str, id="input-comments")
+            yield Label("Open links with:", classes="settings-label")
+            # Only what this machine reported. The saved value names a program
+            # that gets executed, so the list is the whitelist.
+            choices = browser_module.available_browsers()
+            yield Select(
+                [(label, value) for value, label in choices],
+                value=browser_module.resolve_choice(self.config.browser),
+                allow_blank=False,
+                id="input-browser",
+            )
             with Horizontal(id="settings-buttons"):
                 yield Button("Save", variant="primary", id="btn-save-settings")
                 yield Button("Cancel", id="btn-cancel-settings")
@@ -231,6 +242,8 @@ class SettingsScreen(ModalScreen[None]):
             comments_text = self.query_one("#input-comments", Input).value
             raw_list = comments_text.split("|") if "|" in comments_text else comments_text.splitlines()
             comments = [c.strip() for c in raw_list if c.strip()]
+
+            self.config.browser = self.query_one("#input-browser", Select).value
 
             if name:
                 self.config.user_name = name
