@@ -78,10 +78,14 @@ def test_the_limit_applies_before_hydration(tmp_path, monkeypatch):
     path.write_text(page_with_ids(1, 2, 3, 4, 5), encoding="utf-8")
 
     hydrated = {}
-    monkeypatch.setattr(
-        "dj_digger.soundcloud.hydrate_ids",
-        lambda ids, **kw: hydrated.setdefault("ids", list(ids)) or a_crate(2).tracks,
-    )
+
+    def fake_hydrate(ids, **kwargs):
+        # Not a one-liner with setdefault: that returns the id list, so the fake
+        # handed back ints instead of tracks and nothing downstream noticed.
+        hydrated["ids"] = list(ids)
+        return a_crate(2).tracks
+
+    monkeypatch.setattr("dj_digger.soundcloud.hydrate_ids", fake_hydrate)
     dig.dig(str(path), limit=2)
 
     assert hydrated["ids"] == [1, 2]
@@ -152,3 +156,87 @@ def test_scraping_reports_progress_per_page(tmp_path, monkeypatch):
 def test_default_options():
     options = dig.DigOptions()
     assert (options.limit, options.timeout, options.delay) == (None, 20.0, 0.5)
+
+
+def a_hub_track():
+    return Track(
+        title="Know Your Place",
+        permalink_url="https://soundcloud.com/a/kyp",
+        id=1,
+        purchase_url="https://sonaxx.ampsuite.com/releases/links?id=447",
+        purchase_title="Buy",
+    )
+
+
+def test_a_link_hub_is_replaced_by_the_shops_behind_it(monkeypatch):
+    from dj_digger import links
+
+    monkeypatch.setattr(
+        "dj_digger.gates.store_links_on_page",
+        lambda url, session, timeout=10.0: [
+            ("https://www.beatport.com/release/kyp/7057750", "Beatport"),
+            ("https://label.bandcamp.com/album/kyp", "Bandcamp"),
+        ],
+    )
+    monkeypatch.setattr("dj_digger.soundcloud.create_requests_session", lambda **kw: FakeSession())
+
+    track = a_hub_track()
+    assert dig.expand_link_hubs([track]) == 1
+
+    assert track.purchase_url is None, "the hub itself does not survive"
+    assert [url for url, _text in track.extra_links] == [
+        "https://www.beatport.com/release/kyp/7057750",
+        "https://label.bandcamp.com/album/kyp",
+    ]
+    # And the point of all of it: no gate badge, two shops instead.
+    assert sorted(record.category for record in links.categorise(track)) == ["bandcamp", "beatport"]
+
+
+def test_a_hub_that_turned_out_to_be_a_gate_is_left_alone(monkeypatch):
+    from dj_digger import links
+
+    monkeypatch.setattr("dj_digger.gates.store_links_on_page", lambda *a, **kw: [])
+    monkeypatch.setattr("dj_digger.soundcloud.create_requests_session", lambda **kw: FakeSession())
+
+    track = Track(
+        title="T",
+        permalink_url="https://soundcloud.com/a/t",
+        purchase_url="https://hypeddit.com/track/abc",
+    )
+    assert dig.expand_link_hubs([track]) == 0
+    assert track.purchase_url == "https://hypeddit.com/track/abc"
+    assert [record.category for record in links.categorise(track)] == ["gate"]
+
+
+def test_a_crate_of_plain_shop_links_costs_no_requests(monkeypatch):
+    """Nothing to expand means no session, no page fetch, no progress noise."""
+
+    monkeypatch.setattr(
+        "dj_digger.soundcloud.create_requests_session",
+        lambda **kw: pytest.fail("should not open a session"),
+    )
+    track = Track(
+        title="T",
+        permalink_url="https://soundcloud.com/a/t",
+        purchase_url="https://label.bandcamp.com/track/a",
+    )
+    seen = []
+    assert dig.expand_link_hubs([track], on_progress=lambda *args: seen.append(args)) == 0
+    assert seen == []
+
+
+def test_hub_expansion_reports_progress(monkeypatch):
+    monkeypatch.setattr(
+        "dj_digger.gates.store_links_on_page",
+        lambda *a, **kw: [("https://label.bandcamp.com/album/a", "Bandcamp")],
+    )
+    monkeypatch.setattr("dj_digger.soundcloud.create_requests_session", lambda **kw: FakeSession())
+
+    seen = []
+    dig.expand_link_hubs([a_hub_track()], on_progress=lambda *args: seen.append(args))
+    assert seen == [(dig.STAGE_HUBS, 1, 1)]
+
+
+class FakeSession:
+    def close(self):
+        pass

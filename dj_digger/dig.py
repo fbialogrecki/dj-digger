@@ -7,12 +7,13 @@ an ``on_progress`` hook.
 
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import html_fallback, soundcloud
-from .models import Crate
+from . import gates, html_fallback, links, soundcloud
+from .models import Crate, Track
 
 # stage, done, total (total is None while it is still unknown)
 ProgressHook = Callable[[str, int, int | None], None]
@@ -20,6 +21,11 @@ ProgressHook = Callable[[str, int, int | None], None]
 STAGE_LINK = "Reading the link"
 STAGE_TRACKS = "Fetching tracks"
 STAGE_PAGES = "Scraping track pages"
+STAGE_HUBS = "Opening link hubs"
+
+# One page plus a handful of redirects per track, so this is worth doing several
+# at a time. Kept modest: these are somebody else's servers.
+HUB_WORKERS = 8
 
 LOGGER = logging.getLogger(__name__)
 
@@ -114,6 +120,62 @@ def dig_html(
     return Crate(source=str(path), tracks=tracks, title=path.stem, declared_count=declared)
 
 
+def _expand_one(track: Track, timeout: float) -> bool:
+    """Swap a track's link hubs for the shops behind them. True if any changed."""
+
+    changed = False
+    # One session per track rather than one shared across the pool: these pages
+    # set cookies, and a shared jar would have eight gates writing to it at once.
+    session = soundcloud.create_requests_session()
+    try:
+        for url in links.hub_links(track):
+            found = gates.store_links_on_page(url, session, timeout=timeout)
+            if not found:
+                continue
+            for pair in found:
+                if pair not in track.extra_links:
+                    track.extra_links.append(pair)
+            # The hub goes: its shops are on the track directly now, and leaving
+            # it would badge the track as a gate that gates nothing.
+            if track.purchase_url == url:
+                track.purchase_url = None
+                track.purchase_title = None
+            track.extra_links = [pair for pair in track.extra_links if pair[0] != url]
+            changed = True
+    finally:
+        session.close()
+    return changed
+
+
+def expand_link_hubs(
+    tracks: Iterable[Track],
+    *,
+    timeout: float = 20.0,
+    on_progress: ProgressHook | None = None,
+) -> int:
+    """Read the shops off purchase links that turn out to be lists of shops.
+
+    Mutates the tracks in place and returns how many changed. A crate whose
+    purchase links are all recognised shops costs nothing here.
+    """
+
+    pending = [track for track in tracks if links.hub_links(track)]
+    if not pending:
+        return 0
+
+    expanded = 0
+    with ThreadPoolExecutor(max_workers=HUB_WORKERS) as pool:
+        futures = [pool.submit(_expand_one, track, timeout) for track in pending]
+        for done, future in enumerate(as_completed(futures), start=1):
+            try:
+                if future.result():
+                    expanded += 1
+            except Exception as exc:  # one unreadable page must not sink the dig
+                LOGGER.warning("Could not expand a link hub: %s", exc)
+            _notify(on_progress, STAGE_HUBS, done, len(pending))
+    return expanded
+
+
 def dig(
     target: str,
     *,
@@ -126,9 +188,14 @@ def dig(
 
     target = target.strip()
     if soundcloud.is_soundcloud_url(target):
-        return dig_url(target, limit=limit, timeout=timeout, on_progress=on_progress)
+        crate = dig_url(target, limit=limit, timeout=timeout, on_progress=on_progress)
+    else:
+        path = Path(target).expanduser()
+        if not path.exists():
+            raise TargetNotFound(target)
+        crate = dig_html(
+            path, limit=limit, timeout=timeout, delay=delay, on_progress=on_progress
+        )
 
-    path = Path(target).expanduser()
-    if not path.exists():
-        raise TargetNotFound(target)
-    return dig_html(path, limit=limit, timeout=timeout, delay=delay, on_progress=on_progress)
+    expand_link_hubs(crate.tracks, timeout=timeout, on_progress=on_progress)
+    return crate

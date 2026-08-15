@@ -437,3 +437,32 @@ def test_a_yaml_summary_says_what_happened_rather_than_failing_to_parse(tmp_path
 def test_yaml_is_not_offered_as_an_export_format():
     assert "yaml" not in links.EXPORT_FORMATS
     assert links.EXPORT_FORMATS == ["json", "csv", "none"]
+
+
+def test_hub_links_are_the_purchase_links_worth_opening():
+    """A gate, a smart link and an unknown host: any of the three may be a shop list."""
+
+    track = Track(
+        title="T",
+        permalink_url="https://soundcloud.com/a/t",
+        purchase_url="https://sonaxx.ampsuite.com/releases/links?id=447",
+        extra_links=[
+            ("https://hypeddit.com/track/abc", "Free download"),
+            ("https://ffm.to/abc", "Listen"),
+            ("https://label.bandcamp.com/track/a", "Buy"),
+        ],
+        description="Label linktree: https://linktr.ee/label",
+    )
+
+    assert links.hub_links(track) == [
+        "https://sonaxx.ampsuite.com/releases/links?id=447",
+        "https://hypeddit.com/track/abc",
+        "https://ffm.to/abc",
+    ]
+
+
+def test_a_hub_link_has_to_be_a_web_address():
+    """'others' is opened like anything else, so a file path is not a candidate."""
+
+    track = Track(title="T", permalink_url="https://soundcloud.com/a/t", purchase_url="file:///etc/passwd")
+    assert links.hub_links(track) == []
