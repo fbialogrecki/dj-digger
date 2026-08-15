@@ -93,11 +93,16 @@ class RenderMixin:
                 # The file is already on disk; `y` copies the path to it.
                 label_text = f"{label_text}  \U0001f4c1"
 
+        label_cell = Text(label_text, style=dim)
+        if self.crate is not None and row.track.key in self.crate.new_track_keys:
+            # Sorted to the top of the crate by CrateRecord.active_tracks.
+            label_cell = Text("NEW ", style="bold yellow").append_text(label_cell)
+
         return [
             Text(PLAYING_GLYPH if row.track.key == playing_key else "", style="green"),
             Text(glyph, style=style),
             Text(str(row.position), style="bright_black"),
-            Text(label_text, style=dim),
+            label_cell,
             self._store_badges(row),
             Text(row.track.genre_label or "-", style="bright_black"),
             Text(row.track.duration_label or "-", style="bright_black"),

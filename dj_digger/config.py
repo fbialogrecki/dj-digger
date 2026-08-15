@@ -44,6 +44,10 @@ class AppConfig:
         # Empty means the system default. Anything else is checked against what
         # the machine reports before it is used - see browser.resolve_choice.
         self.browser: str = ""
+        # True when there was no config file to read, i.e. this is the first
+        # launch. The TUI uses it to ask for the settings before anything needs
+        # them - gates submit the name and email without asking again.
+        self.first_run: bool = False
         self.load()
 
     def load(self) -> None:
@@ -66,6 +70,7 @@ class AppConfig:
                     self.scan_directories = [str(d).strip() for d in scan_dirs if str(d).strip()]
                 self.browser = str(raw.get("browser") or "").strip()
         except FileNotFoundError:
+            self.first_run = True
             self.save()
         except (OSError, ValueError) as exc:
             LOGGER.warning("Could not load config from %s: %s", self.path, exc)

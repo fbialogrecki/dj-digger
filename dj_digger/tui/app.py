@@ -265,6 +265,14 @@ class DiggerApp(
         # Asleep until there is something to animate: waking thirty times a
         # second to look at a list nobody is playing is just a warm laptop.
         self._ticker = self.set_interval(self.frame_interval, self._tick, pause=True)
+        if self.config.first_run:
+            # Nothing is configured yet, and one of the things being asked about
+            # is which folders to scan, so the scan waits for the answer too.
+            self.push_screen(SettingsScreen(self.config), lambda _: self._after_setup())
+        else:
+            self._after_setup()
+
+    def _after_setup(self) -> None:
         # Off the interface thread: a first scan of a real music folder takes a
         # while, and the crate is usable long before it finishes.
         self.scan_local_files()
