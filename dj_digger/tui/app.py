@@ -1,57 +1,30 @@
-"""Interactive crate browser.
-
-Opening every link at once means 287 browser tabs on a big playlist, which is
-not a workflow. This screen lets you walk the list, open one link at a time,
-filter down to a single store and mark what you already own - and the marks
-survive between runs because they live in ``state.TrackState``.
-
-One row is one track, not one link. A track selling on Bandcamp and gated on
-Hypeddit is a single decision, so it gets a single row with a badge per store;
-the store filter doubles as the way to say which of them ``o`` should follow.
-
-It can also start from nothing: with no records it asks for a link, digs it in a
-worker thread so the interface stays responsive, and fills itself in.
-"""
+"""The crate browser application itself: state, actions and workers."""
 
 import logging
 import time
 import urllib.parse
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass, field
 from pathlib import Path
 
 from rich.table import Table
 from rich.text import Text
-from textual import events, work
+from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.containers import Horizontal, Vertical
 from textual.coordinate import Coordinate
-from textual.screen import ModalScreen
 from textual.timer import Timer
-from textual.widget import Widget
-from textual.widgets import (
-    Button,
-    DataTable,
-    Footer,
-    Input,
-    Label,
-    ListItem,
-    ListView,
-    Static,
-)
-from textual.widgets.data_table import ColumnKey
+from textual.widgets import Button, DataTable, Footer, Input, ListView, Static
 
-from . import browser as browser_module
-from . import dig as dig_module
-from . import gates
-from . import library as library_module
-from . import links as links_module
-from .config import AppConfig
-from .library import CrateRecord
-from .models import Crate, LinkRecord, Track
-from .player import (
+from .. import browser as browser_module
+from .. import dig as dig_module
+from .. import gates
+from .. import library as library_module
+from .. import links as links_module
+from ..library import CrateRecord
+from ..models import Crate, LinkRecord, Track
+from ..player import (
     SEEK_STEP,
     VOLUME_STEP,
     PlaybackUnavailable,
@@ -62,568 +35,35 @@ from .player import (
     open_source,
     resolve_stream,
 )
-from .soundcloud import SoundCloudClient, SoundCloudError
-from .state import GOT, NEW, OPENED, SKIP, TrackState
-
-# A mark is one glyph in a one-cell gutter. Spelling "skipped" out cost seven
-# columns on every row to say "new" on nearly all of them; the width belongs to
-# the track title instead. HelpScreen carries the words.
-STATUS_STYLES = {
-    NEW: ("\u00b7", "bright_black", "not looked at yet"),
-    OPENED: ("\u25cb", "yellow", "link opened, outcome unknown"),
-    SKIP: ("\u2717", "bright_black", "skipped"),
-    GOT: ("\u2713", "bold green", "got it"),
-}
-LOGGER = logging.getLogger(__name__)
-
-PLAYING_GLYPH = "\u25b6"
-OPEN_ALL_CONFIRM_THRESHOLD = 20
-# How long before the end of a track we start getting the next one ready. Long
-# enough to cover a signed URL, a waveform and the first megabytes of audio on a
-# poor connection; short enough that a filter change rarely wastes the work.
-PREFETCH_LEAD = 20.0
-
-# Thirty frames a second, which is what a pulse needs to read as one rather than
-# as a stutter. It only costs anything while a track is playing: with nothing
-# going out, _tick leaves on its first line. Redrawing a waveform this often is
-# only affordable because a frame is now a few style ranges - see paint_waveform.
-TICK = 1 / 30
-# Turning animation off - TEXTUAL_ANIMATIONS=none, which is what you do over a
-# slow link - has to turn this off too, or the one thing that repaints the most
-# would carry on regardless. The clock and the auto-advance still need a pulse,
-# just not thirty of them a second.
-CALM_TICK = 0.25
-# The spinner is slower than the frame rate on purpose; braille that turns thirty
-# times a second is a smear.
-SPINNER = "\u280b\u2819\u2839\u2838\u283c\u2834\u2826\u2827\u2807\u280f"
-SPINNER_EVERY = 4
-# Long enough to catch the eye, short enough that holding `s` down still works.
-FLASH = 0.25
-# Number keys select the nth store that this crate actually contains, so `1` is
-# always the first store you have rather than a fixed category.
-QUICK_FILTER_KEYS = 9
-
-# Everything except the title gets a fixed budget; the title takes the rest, so
-# a wide terminal shows long titles instead of an empty margin.
-MARK_WIDTH = 1
-INDEX_WIDTH = 4
-STORES_WIDTH = 22
-GENRE_WIDTH = 14
-TIME_WIDTH = 5
-MIN_TITLE_WIDTH = 20
-
-# These two say nothing as a word - "shop" and "others" are what is left after
-# every recognised store, so the domain is the only thing that identifies them.
-DOMAIN_BADGE_CATEGORIES = {"shop", "others"}
-
-# Categories whose link goes to a shop page, which is not something a gate
-# resolver can unwrap into a file.
-DIRECT_STORE_CATEGORIES = frozenset(
-    {"beatport", "bandcamp", "traxsource", "junodownload", "apple", "shop", "streaming"}
+from ..soundcloud import SoundCloudClient, SoundCloudError
+from ..state import GOT, NEW, OPENED, SKIP, TrackState
+from .keymap import (
+    CALM_TICK,
+    DIRECT_STORE_CATEGORIES,
+    DOMAIN_BADGE_CATEGORIES,
+    FLASH,
+    GENRE_WIDTH,
+    INDEX_WIDTH,
+    KEY_DISPLAY,
+    KEYMAP,
+    MARK_WIDTH,
+    MIN_TITLE_WIDTH,
+    OPEN_ALL_CONFIRM_THRESHOLD,
+    PLAYING_GLYPH,
+    PREFETCH_LEAD,
+    QUICK_FILTER_KEYS,
+    SPINNER,
+    SPINNER_EVERY,
+    STATUS_STYLES,
+    STORES_WIDTH,
+    TICK,
+    TIME_WIDTH,
 )
-
-SELECTED = "Selected track"
-WHOLE_LIST = "Whole visible list"
-CRATES = "Crates"
-PLAYBACK = "Playback"
-OTHER = "Other"
-
-# One source for the footer and the help screen, so they cannot drift apart:
-# (key, action, footer label, section, show in footer, longer help text).
-# Footer labels stay short because it gets one line; help has the room to explain.
-KEYMAP = [
-    ("o,enter", "open_link", "Open", SELECTED, True, "Open its best link, or the filtered store"),
-    ("w", "download_track", "Download", SELECTED, True, "Download an artist-provided SoundCloud file"),
-    ("W", "batch_download", "Batch download", WHOLE_LIST, True, "Download all free & gate tracks in view"),
-    ("b", "search_bandcamp", "Bandcamp", SELECTED, True, "Search Bandcamp for highlighted track"),
-    ("B", "search_beatport", "Beatport", SELECTED, False, "Search Beatport for highlighted track"),
-    ("c", "cart_bandcamp", "Cart", SELECTED, False, "Add track to Bandcamp cart"),
-    ("g", "mark_got", "Got", SELECTED, True, "Mark as got, press again to undo"),
-    ("s", "mark_skip", "Skip", SELECTED, True, "Mark as skipped, press again to undo"),
-    ("u", "mark_new", "Unmark", SELECTED, False, "Clear the mark either way"),
-    ("x", "remove_track", "Remove", SELECTED, False, "Remove from this crate, locally only"),
-    ("ctrl+z", "undo_remove", "Undo", SELECTED, False, "Put back the last removed track"),
-    ("space", "play_pause", "Play", PLAYBACK, True, "Play or pause the highlighted track"),
-    ("left_square_bracket", "seek(-1)", "Back", PLAYBACK, False, "Back 10 seconds"),
-    ("right_square_bracket", "seek(1)", "Forward", PLAYBACK, False, "Forward 10 seconds"),
-    ("n", "play_step(1)", "Next", PLAYBACK, False, "Play the next track in the list"),
-    ("p", "play_step(-1)", "Previous", PLAYBACK, False, "Play the previous track"),
-    ("minus", "volume(-1)", "Quieter", PLAYBACK, False, "Turn it down"),
-    ("equals_sign", "volume(1)", "Louder", PLAYBACK, False, "Turn it up"),
-    ("m", "mute", "Mute", PLAYBACK, False, "Mute or unmute"),
-    ("a", "open_visible", "Open all", WHOLE_LIST, True, "Open every link shown, asks above 20"),
-    ("e", "export", "Export", WHOLE_LIST, False, "Write the rows shown to the export file"),
-    ("slash", "start_search", "Search", WHOLE_LIST, True, "Filter by artist or title"),
-    ("f", "cycle_store(1)", "Next store", WHOLE_LIST, True, "Step to the next store in this crate"),
-    ("F", "cycle_store(-1)", "Previous store", WHOLE_LIST, False, "Step back a store"),
-    ("0", "filter_index(0)", "Show all", WHOLE_LIST, False, "Drop the store filter, show everything"),
-    ("h", "toggle_handled", "Hide handled", WHOLE_LIST, False, "Hide what is got or skipped"),
-    ("escape", "clear_filters", "Clear filters", WHOLE_LIST, False, "Clear store, search and hiding"),
-    ("d", "dig_link", "Add crate", CRATES, True, "Dig a link into a new crate"),
-    ("r", "refresh_crate", "Refresh", CRATES, False, "Re-dig this crate from SoundCloud"),
-    ("X", "delete_crate", "Delete", CRATES, False, "Delete this crate, after confirming"),
-    ("U", "reset_crate_statuses", "Reset statuses", CRATES, False, "Reset all track statuses to 'new' for this crate"),
-    ("ctrl+b", "toggle_sidebar", "Crates", CRATES, False, "Show or hide the crate sidebar"),
-    ("question_mark", "help", "Help", OTHER, True, "This screen"),
-    ("S", "open_settings", "Settings", OTHER, True, "Configure profile name, email and gate comments"),
-    ("q", "quit", "Quit", OTHER, True, "Leave"),
-]
-
-# What each group actually operates on. The old footer never said, so it was
-# impossible to tell whether a key hit one row or the whole list.
-HELP_SCOPES = {
-    SELECTED: "acts on the highlighted row only",
-    WHOLE_LIST: "acts on every row shown, after filters",
-    CRATES: "loads another playlist",
-    PLAYBACK: "click the waveform to seek",
-    OTHER: "",
-}
-
-# Textual's key identifiers are not what anyone wants to read in a help screen.
-KEY_DISPLAY = {
-    "slash": "/",
-    "question_mark": "?",
-    "minus": "-",
-    "equals_sign": "=",
-    "left_square_bracket": "[",
-    "right_square_bracket": "]",
-    "o,enter": "o, enter",
-    "X": "shift+X",
-}
-HELP_EXTRA = {
-    WHOLE_LIST: [("1-9", "Show only the nth store")],
-}
-
-
-@dataclass
-class Prepared:
-    """A track made ready to play before anything asked for it."""
-
-    track: Track
-    stream: Stream
-    waveform: list[int] = field(default_factory=list)
-    # An HTTP source already filling with audio, or None if miniaudio is absent.
-    source: object = None
-
-    @property
-    def key(self) -> str:
-        return self.track.key
-
-    def close(self) -> None:
-        if self.source is not None:
-            self.source.close()
-            self.source = None
-
-
-@dataclass
-class Row:
-    """One track, with every store it turned up in."""
-
-    position: int
-    track: Track
-    # Best first, in CATEGORY_NAMES order - see links.group_by_track.
-    records: list[LinkRecord]
-
-    @property
-    def categories(self) -> list[str]:
-        return [record.category for record in self.records]
-
-    def record_for(self, category: str) -> LinkRecord | None:
-        for record in self.records:
-            if record.category == category:
-                return record
-        return None
-
-
-class TrackTable(DataTable):
-    """A table whose title column absorbs whatever width is left over.
-
-    DataTable columns are fixed or content-sized, neither of which fills the
-    terminal, so the width is worked out here and refreshed whenever the table
-    is resized - by the terminal, or by the sidebar folding away.
-    """
-
-    def __init__(self, **kwargs) -> None:
-        super().__init__(**kwargs)
-        self.flexible_column: ColumnKey | None = None
-
-    def on_resize(self, event: events.Resize) -> None:
-        self.fit_flexible_column()
-
-    def fit_flexible_column(self) -> None:
-        if self.flexible_column is None or self.flexible_column not in self.columns:
-            return
-        column = self.columns[self.flexible_column]
-        spent = sum(
-            other.get_render_width(self)
-            for key, other in self.columns.items()
-            if key != self.flexible_column
-        )
-        width = self.size.width - spent - 2 * self.cell_padding
-        column.width = max(MIN_TITLE_WIDTH, width)
-        self.refresh(layout=True)
-
-
-class StatusBar(Static):
-    """The bottom bar, which has to be rebuilt whenever its width changes.
-
-    Whether the counts fit beside the store legend is a width question, and the
-    app-level resize event fires before the layout settles - so the widget that
-    actually changed size is the one that has to ask.
-    """
-
-    def on_resize(self, event: events.Resize) -> None:
-        self.app.update_status()
-
-    def on_click(self, event: events.Click) -> None:
-        app = self.app
-        if not hasattr(app, "_badge_click_regions"):
-            return
-        x = event.x
-        for start_x, end_x, store_idx in getattr(app, "_badge_click_regions", []):
-            if start_x <= x < end_x:
-                app.action_filter_index(store_idx)
-                break
-
-
-class ErrorBanner(Widget):
-    """Top bar displaying error/debug messages with a scrollable view and an [X] close button."""
-
-    DEFAULT_CSS = """
-    ErrorBanner {
-        display: none;
-        background: $error-darken-2;
-        color: white;
-        height: auto;
-        max-height: 12;
-        width: 100%;
-        padding: 0 1;
-        dock: top;
-        border-bottom: solid $error;
-    }
-    ErrorBanner.visible {
-        display: block;
-    }
-    #error-container {
-        width: 100%;
-        height: auto;
-        max-height: 11;
-    }
-    #error-scroll {
-        width: 1fr;
-        height: auto;
-        max-height: 10;
-        overflow-y: scroll;
-    }
-    #error-text {
-        width: 1fr;
-        height: auto;
-    }
-    #error-close {
-        width: 7;
-        min-width: 7;
-        height: 1;
-        border: none;
-        background: $error;
-        color: white;
-        text-style: bold;
-    }
-    #error-close:hover {
-        background: yellow;
-        color: black;
-    }
-    """
-
-    def __init__(self, **kwargs) -> None:
-        super().__init__(**kwargs)
-        self.errors: list[str] = []
-
-    def compose(self) -> ComposeResult:
-        with Horizontal(id="error-container"):
-            with VerticalScroll(id="error-scroll"):
-                yield Static("", id="error-text")
-            yield Button("[X]", id="error-close", tooltip="Close error banner (clear all errors)")
-
-    def add_error(self, message: str) -> None:
-        if message and message not in self.errors:
-            self.errors.append(message)
-        self._update_display()
-
-    def clear_errors(self) -> None:
-        self.errors.clear()
-        self._update_display()
-
-    def _update_display(self) -> None:
-        try:
-            msg_widget = self.query_one("#error-text", Static)
-        except Exception:
-            return
-        if not self.errors:
-            self.remove_class("visible")
-            msg_widget.update("")
-        else:
-            self.add_class("visible")
-            formatted = "\n".join(f"• {e}" for e in self.errors)
-            header = f"[bold yellow]Errors / Debug Log ({len(self.errors)} total, scrollable):[/bold yellow]\n"
-            msg_widget.update(f"{header}{formatted}")
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "error-close":
-            self.clear_errors()
-
-
-class CrateButton(Button):
-    """A per-crate icon button. Carries its crate so no widget ids are needed."""
-
-    def __init__(self, label: str, record: CrateRecord, intent: str, tooltip: str) -> None:
-        super().__init__(label, classes="crate-icon", tooltip=tooltip)
-        self.record = record
-        self.intent = intent
-
-
-class CrateItem(ListItem):
-    def __init__(self, record: CrateRecord) -> None:
-        super().__init__()
-        self.record = record
-
-    def compose(self) -> ComposeResult:
-        # A star marks a crate imported from an export file, which is missing
-        # fields the API would have given us. Text(), not a markup string: a
-        # playlist called "Techno [2026]" would otherwise lose the bracketed part
-        # to Textual's markup parser. no_wrap because the row is one line tall,
-        # so a wrapped "Hard Techno Ressurection" would simply lose its surname.
-        title = self.record.title + (" *" if self.record.partial else "")
-        yield Label(
-            Text(title, no_wrap=True, overflow="ellipsis"), classes="crate-name"
-        ).with_tooltip(title)
-        yield CrateButton("\u21bb", self.record, "refresh", "Refresh from SoundCloud (r)")
-        yield CrateButton("\u2715", self.record, "delete", "Delete crate (shift+X)")
-
-
-class AskLinkScreen(ModalScreen[str | None]):
-    """Asks for a SoundCloud link (or a saved HTML file)."""
-
-    CSS = """
-    AskLinkScreen {
-        align: center middle;
-    }
-    #ask {
-        width: 78;
-        height: auto;
-        padding: 1 2;
-        border: round $accent;
-        background: $surface;
-    }
-    #ask-hint {
-        color: $text-muted;
-        margin-bottom: 1;
-    }
-    """
-
-    BINDINGS = [Binding("escape", "cancel", "Cancel")]
-
-    def __init__(self, *, message: str = "Paste a SoundCloud link") -> None:
-        super().__init__()
-        self.message = message
-
-    def compose(self) -> ComposeResult:
-        with Vertical(id="ask"):
-            yield Label(self.message)
-            yield Label(
-                "Playlist, artist profile, /likes, one track, or a saved .html file.",
-                id="ask-hint",
-            )
-            yield Input(placeholder="https://soundcloud.com/...", id="ask-input")
-
-    def on_mount(self) -> None:
-        self.query_one("#ask-input", Input).focus()
-
-    def on_input_submitted(self, event: Input.Submitted) -> None:
-        event.stop()
-        target = event.value.strip()
-        if target:
-            self.dismiss(target)
-
-    def action_cancel(self) -> None:
-        self.dismiss(None)
-
-
-class HelpScreen(ModalScreen[None]):
-    """Every key, grouped by what it acts on."""
-
-    CSS = """
-    HelpScreen {
-        align: center middle;
-    }
-    #help {
-        width: 56;
-        height: auto;
-        max-height: 90%;
-        overflow-y: auto;
-        padding: 1 2;
-        border: round $accent;
-        background: $surface;
-    }
-    """
-
-    BINDINGS = [Binding("escape,question_mark,q", "dismiss", "Close")]
-
-    def compose(self) -> ComposeResult:
-        with Vertical(id="help"):
-            yield Static(self._body())
-
-    def _body(self) -> Text:
-        body = Text()
-        sections = (SELECTED, PLAYBACK, WHOLE_LIST, CRATES, OTHER)
-        for section in sections:
-            entries = [
-                (KEY_DISPLAY.get(key, key), detail)
-                for key, _action, _label, group, _show, detail in KEYMAP
-                if group == section
-            ] + HELP_EXTRA.get(section, [])
-            if not entries:
-                continue
-            body.append(section + "\n", style="bold")
-            if HELP_SCOPES[section]:
-                body.append(f"  {HELP_SCOPES[section]}\n", style="bright_black")
-            for key, label in entries:
-                body.append(f"  {key:<10}", style="cyan")
-                body.append(f"{label}\n")
-            body.append("\n")
-
-        # The marks are one glyph wide in the table, so this is where they get
-        # to say what they mean.
-        body.append("Marks\n", style="bold")
-        body.append(f"  {PLAYING_GLYPH:<10}", style="cyan")
-        body.append("playing now\n")
-        for glyph, style, meaning in STATUS_STYLES.values():
-            body.append(f"  {glyph:<10}", style=style)
-            body.append(f"{meaning}\n")
-        return body
-
-    def action_dismiss(self) -> None:
-        self.dismiss(None)
-
-
-class ConfirmScreen(ModalScreen[bool]):
-    """Yes/no, for the one action here that cannot be undone."""
-
-    CSS = """
-    ConfirmScreen {
-        align: center middle;
-    }
-    #confirm {
-        width: 62;
-        height: auto;
-        padding: 1 2;
-        border: round $error;
-        background: $surface;
-    }
-    #confirm-buttons {
-        height: auto;
-        margin-top: 1;
-    }
-    """
-
-    BINDINGS = [
-        Binding("y", "confirm", "Yes"),
-        Binding("n,escape", "refuse", "No"),
-    ]
-
-    def __init__(self, question: str) -> None:
-        super().__init__()
-        self.question = question
-
-    def compose(self) -> ComposeResult:
-        with Vertical(id="confirm"):
-            yield Label(self.question)
-            with Horizontal(id="confirm-buttons"):
-                yield Button("Yes (y)", variant="error", id="confirm-yes")
-                yield Button("No (n)", id="confirm-no")
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        self.dismiss(event.button.id == "confirm-yes")
-
-    def action_confirm(self) -> None:
-        self.dismiss(True)
-
-    def action_refuse(self) -> None:
-        self.dismiss(False)
-
-
-class SettingsScreen(ModalScreen[None]):
-    """Modal dialog for editing user profile (Name, Email) and gate automation comments."""
-
-    CSS = """
-    SettingsScreen {
-        align: center middle;
-    }
-    #settings-dialog {
-        width: 72;
-        height: auto;
-        padding: 1 2;
-        border: round $accent;
-        background: $surface;
-    }
-    #settings-title {
-        text-style: bold;
-        margin-bottom: 1;
-    }
-    .settings-label {
-        margin-top: 1;
-        color: $text-muted;
-    }
-    #settings-buttons {
-        height: auto;
-        margin-top: 1;
-    }
-    """
-
-    BINDINGS = [
-        Binding("escape", "dismiss", "Cancel"),
-    ]
-
-    def __init__(self, config: AppConfig) -> None:
-        super().__init__()
-        self.config = config
-
-    def compose(self) -> ComposeResult:
-        with Vertical(id="settings-dialog"):
-            yield Label("Gate Automation & Profile Settings", id="settings-title")
-            yield Label("Your Name (for gate forms):", classes="settings-label")
-            yield Input(value=self.config.user_name, id="input-name")
-            yield Label("Your Email (for gate forms):", classes="settings-label")
-            yield Input(value=self.config.user_email, id="input-email")
-            yield Label("Random Hype Comments (separated by | or newlines):", classes="settings-label")
-            comments_str = " | ".join(self.config.custom_comments)
-            yield Input(value=comments_str, id="input-comments")
-            with Horizontal(id="settings-buttons"):
-                yield Button("Save", variant="primary", id="btn-save-settings")
-                yield Button("Cancel", id="btn-cancel-settings")
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "btn-save-settings":
-            name = self.query_one("#input-name", Input).value.strip()
-            email = self.query_one("#input-email", Input).value.strip()
-            comments_text = self.query_one("#input-comments", Input).value
-            raw_list = comments_text.split("|") if "|" in comments_text else comments_text.splitlines()
-            comments = [c.strip() for c in raw_list if c.strip()]
-
-            if name:
-                self.config.user_name = name
-            if email:
-                self.config.user_email = email
-            if comments:
-                self.config.custom_comments = comments
-
-            self.config.save()
-            self.app.notify("Settings saved!", timeout=4)
-            self.dismiss()
-        else:
-            self.dismiss()
-
-    def action_dismiss(self) -> None:
-        self.dismiss()
+from .rows import Prepared, Row
+from .screens import AskLinkScreen, ConfirmScreen, HelpScreen, SettingsScreen
+from .widgets import CrateButton, CrateItem, ErrorBanner, StatusBar, TrackTable
+
+LOGGER = logging.getLogger(__name__)
 
 
 class DiggerApp(App):
@@ -2000,35 +1440,3 @@ class DiggerApp(App):
         if event.input.id != "search":
             return
         self.query_one("#tracks", DataTable).focus()
-
-
-def run_tui(
-    records: Sequence[LinkRecord] = (),
-    *,
-    state: TrackState | None = None,
-    crate_title: str = "",
-    browser: str = "default",
-    export_format: str = "json",
-    export_path: Path | None = None,
-    dig_options: dig_module.DigOptions | None = None,
-    crate_record: CrateRecord | None = None,
-) -> None:
-    app = DiggerApp(
-        records,
-        state=state,
-        crate_title=crate_title,
-        browser=browser,
-        export_format=export_format,
-        export_path=export_path,
-        dig_options=dig_options,
-        crate_record=crate_record,
-    )
-    try:
-        app.run()
-    finally:
-        player = getattr(app, "player", None)
-        if player is not None:
-            player.close()
-        client = getattr(app, "_client", None)
-        if client is not None:
-            client.close()
