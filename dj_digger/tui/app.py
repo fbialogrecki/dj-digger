@@ -38,6 +38,7 @@ from .keymap import (
     STORES_WIDTH,
     TIME_WIDTH,
 )
+from .library_scan import LibraryScanMixin
 from .opening import OpeningMixin
 from .playback import PlaybackMixin
 from .render import RenderMixin
@@ -56,6 +57,7 @@ class DiggerApp(
     DiggingMixin,
     DownloadMixin,
     OpeningMixin,
+    LibraryScanMixin,
     App,
 ):
     """The crate browser.
@@ -258,6 +260,9 @@ class DiggerApp(
         # Asleep until there is something to animate: waking thirty times a
         # second to look at a list nobody is playing is just a warm laptop.
         self._ticker = self.set_interval(self.frame_interval, self._tick, pause=True)
+        # Off the interface thread: a first scan of a real music folder takes a
+        # while, and the crate is usable long before it finishes.
+        self.scan_local_files()
         if not self.rows:
             self.action_dig_link()
 

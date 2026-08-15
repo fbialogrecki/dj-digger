@@ -6,12 +6,14 @@ from types import SimpleNamespace
 
 import pytest
 from rich.console import Console
+from textual.coordinate import Coordinate
 from textual.widgets import Button, DataTable, Input, Label, ListView, Static
 
 from dj_digger import library, links, tui
 from dj_digger.dig import DigOptions, TargetNotFound
 from dj_digger.models import Crate, LinkRecord, Track
 from dj_digger.player import Loaded, PlaybackUnavailable, PlayerBar, Stream
+from dj_digger.scanner import LocalMatch
 from dj_digger.state import GOT, OPENED, SKIP, TrackState
 from dj_digger.tui import AskLinkScreen, ConfirmScreen, DiggerApp, HelpScreen
 
@@ -1997,7 +1999,9 @@ def test_no_two_parts_of_the_app_define_the_same_method():
     """
 
     ours = [base for base in DiggerApp.__mro__ if base.__module__.startswith("dj_digger.tui")]
-    assert len(ours) == 8, f"expected DiggerApp plus seven mixins, got {len(ours)}"
+    # Not an exact count, which would need editing every time a concern moves
+    # out - just enough to prove the scan below is looking at something.
+    assert len(ours) >= 8, f"expected DiggerApp and its mixins, got {len(ours)}"
 
     owner = {}
     clashes = []
@@ -2011,3 +2015,108 @@ def test_no_two_parts_of_the_app_define_the_same_method():
 
     assert len(owner) > 100, "the scan found almost nothing, so it proves nothing"
     assert not clashes, "defined more than once: " + ", ".join(clashes)
+
+
+class StubScanner:
+    """Answers match_track from a dict, so no test touches a real music folder."""
+
+    def __init__(self, matches):
+        self.matches = matches
+
+    def match_track(self, track):
+        return self.matches.get(track.key)
+
+
+def test_a_confident_match_marks_an_untouched_track_as_got(records, state):
+    app = make_app(records, state)
+    key = records[0].track.key
+    scanner = StubScanner({key: LocalMatch("/music/a.mp3", confident=True)})
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.apply_local_file_matches(scanner)
+
+            assert state.get(key) == GOT
+            assert app.rows[0].track.local_path == "/music/a.mp3"
+
+    run(scenario)
+
+
+def test_a_loose_match_points_at_the_file_without_claiming_you_have_it(records, state):
+    """A title that happens to agree is not evidence you own the track."""
+
+    app = make_app(records, state)
+    key = records[0].track.key
+    scanner = StubScanner({key: LocalMatch("/music/maybe.mp3", confident=False)})
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.apply_local_file_matches(scanner)
+
+            assert app.rows[0].track.local_path == "/music/maybe.mp3"
+            assert state.get(key) == "new", "a loose match must not mark anything"
+
+    run(scenario)
+
+
+def test_a_scan_never_overwrites_a_decision_you_made(records, state):
+    """Skipping a track is a judgement; a file in Downloads does not overrule it."""
+
+    app = make_app(records, state)
+    key = records[0].track.key
+    state.set(key, SKIP)
+    scanner = StubScanner({key: LocalMatch("/music/a.mp3", confident=True)})
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.apply_local_file_matches(scanner)
+
+            assert state.get(key) == SKIP
+            assert app.rows[0].track.local_path == "/music/a.mp3", "the badge still belongs"
+
+    run(scenario)
+
+
+def test_a_matched_track_is_badged_in_the_table(records, state):
+    app = make_app(records, state)
+    key = records[0].track.key
+    scanner = StubScanner({key: LocalMatch("/music/a.mp3", confident=True)})
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.apply_local_file_matches(scanner)
+            await pilot.pause()
+
+            table = app.query_one("#tracks", DataTable)
+            title = table.get_cell_at(Coordinate(0, TITLE_CELL))
+            assert "\U0001f4c1" in str(title)
+
+    run(scenario)
+
+
+def test_copying_the_path_says_so_either_way(records, state, monkeypatch):
+    app = make_app(records, state)
+    key = records[0].track.key
+    said = []
+    monkeypatch.setattr(DiggerApp, "notify", lambda self, msg, **kw: said.append(msg))
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await pilot.press("y")
+            assert "No local file matched" in said[-1]
+
+            app.apply_local_file_matches(
+                StubScanner({key: LocalMatch("/music/a.mp3", confident=True)})
+            )
+            monkeypatch.setattr(
+                "dj_digger.tui.library_scan.copy_to_clipboard", lambda text: True
+            )
+            await pilot.press("y")
+            assert "/music/a.mp3" in said[-1]
+
+    run(scenario)

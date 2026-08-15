@@ -16,6 +16,12 @@ from typing import Any
 
 LOGGER = logging.getLogger(__name__)
 
+# Databases whose legacy JSON has already been imported in this process.
+# The import is a one-off, but Database is constructed freely - library._db()
+# builds a fresh one per call - and re-running it turns a status you just
+# cleared back into whatever state.json still said a moment ago.
+_MIGRATED: set[Path] = set()
+
 def default_db_path() -> Path:
     data_dir = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share")) / "dj-digger"
     return data_dir / "digger.db"
@@ -75,7 +81,9 @@ class Database:
                 )
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_local_normalized ON local_files(normalized_stem);")
-        self._migrate_legacy_json()
+        if self.path not in _MIGRATED:
+            _MIGRATED.add(self.path)
+            self._migrate_legacy_json()
 
     def _migrate_legacy_json(self) -> None:
         base_dir = self.path.parent

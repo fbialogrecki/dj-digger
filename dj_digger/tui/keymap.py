@@ -78,6 +78,8 @@ KEYMAP = [
     ("b", "search_bandcamp", "Bandcamp", SELECTED, True, "Search Bandcamp for highlighted track"),
     ("B", "search_beatport", "Beatport", SELECTED, False, "Search Beatport for highlighted track"),
     ("c", "cart_bandcamp", "Cart", SELECTED, False, "Add track to Bandcamp cart"),
+    # Not `c`, which is the Bandcamp cart.
+    ("y", "copy_path", "Copy path", SELECTED, False, "Copy the path of the local file that matches"),
     ("g", "mark_got", "Got", SELECTED, True, "Mark as got, press again to undo"),
     ("s", "mark_skip", "Skip", SELECTED, True, "Mark as skipped, press again to undo"),
     ("u", "mark_new", "Unmark", SELECTED, False, "Clear the mark either way"),

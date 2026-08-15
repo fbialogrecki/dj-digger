@@ -86,8 +86,12 @@ class RenderMixin:
             style = "bold yellow"
             label_text = f"[{int(pct * 100)}%] {row.track.label}"
             dim = "bold black on yellow"
-        elif status == GOT:
-            dim = "bold green"
+        else:
+            if status == GOT:
+                dim = "bold green"
+            if row.track.local_path:
+                # The file is already on disk; `y` copies the path to it.
+                label_text = f"{label_text}  \U0001f4c1"
 
         return [
             Text(PLAYING_GLYPH if row.track.key == playing_key else "", style="green"),

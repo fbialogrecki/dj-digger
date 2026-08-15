@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from dj_digger import auth, config, library, state
+from dj_digger import auth, config, db, library, state
 from dj_digger.models import Track
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -25,11 +25,23 @@ def isolate_user_data(tmp_path, monkeypatch):
     first time it cannot find one, and ``SoundCloudClient`` reads auth.json on
     construction - so without this a test run edits the developer's own settings
     and can pick up their live OAuth token.
+
+    And the scan folders, because the crate browser starts a library scan on
+    mount. Left alone it defaults to ~/Music and ~/Downloads, so every test that
+    opens the app would walk the developer's actual music collection.
     """
+
+    scan_dir = tmp_path / "music"
+    scan_dir.mkdir()
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps({"scan_directories": [str(scan_dir)]}), encoding="utf-8"
+    )
 
     monkeypatch.setattr(library, "crates_dir", lambda: tmp_path / "crates")
     monkeypatch.setattr(state, "default_state_path", lambda: tmp_path / "state.json")
-    monkeypatch.setattr(config, "default_config_path", lambda: tmp_path / "config.json")
+    monkeypatch.setattr(config, "default_config_path", lambda: config_path)
+    monkeypatch.setattr(db, "default_db_path", lambda: tmp_path / "digger.db")
     monkeypatch.setattr(auth, "CONFIG_DIR", tmp_path / "auth")
     monkeypatch.setattr(auth, "AUTH_FILE", tmp_path / "auth" / "auth.json")
 

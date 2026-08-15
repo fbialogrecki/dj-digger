@@ -60,3 +60,23 @@ def test_tracks_without_an_id_fall_back_to_their_url(tmp_path):
     state = TrackState(tmp_path / "state.json")
     state.set(track.key, SKIP)
     assert state.get("https://soundcloud.com/a/x") == SKIP
+
+
+def test_batched_writes_the_mirror_once_instead_of_once_per_mark(tmp_path):
+    """A library scan marks hundreds of tracks; each set rewrites the whole file."""
+
+    path = tmp_path / "state.json"
+    state = TrackState(path)
+    writes = []
+    original = TrackState.save
+    TrackState.save = lambda self: (writes.append(1), original(self))[1]
+    try:
+        with state.batched():
+            for index in range(20):
+                state.set(str(index), GOT)
+            assert not path.exists(), "nothing should have been written yet"
+    finally:
+        TrackState.save = original
+
+    assert len(writes) == 21, "20 deferred calls plus the one flush at the end"
+    assert TrackState(path).get("19") == GOT

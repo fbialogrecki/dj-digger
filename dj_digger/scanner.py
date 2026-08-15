@@ -1,15 +1,17 @@
-"""Local Music & Downloads directory scanner.
+"""Finding the tracks you already own.
 
-Recursively scans ~/Music, ~/Downloads (or custom configured folders) for audio files,
-normalizes filenames/tags to match SoundCloud tracks, marks matched tracks as 'got',
-and copies local file paths to the system clipboard using OSC 52 or native utilities.
+Walks the configured folders for audio files, normalises their names, and offers
+the crate browser a way to ask "do I have this one already?". The answer comes
+with a confidence, because a filename is weak evidence: two different tracks can
+easily share a title, and being wrong here would overwrite a decision the user
+made by hand.
 """
 
 import logging
 import re
 import subprocess
-import sys
 from pathlib import Path
+from typing import NamedTuple
 
 from .db import Database
 from .models import Track
@@ -26,36 +28,52 @@ def normalize_string(text: str) -> str:
     return text
 
 
+class LocalMatch(NamedTuple):
+    """A file on disk that looks like a track, and how much it looks like it."""
+
+    path: str
+    # True when artist and title both matched. A title on its own is enough to
+    # point at a file and nowhere near enough to mark a track as owned.
+    confident: bool
+
+
+# Tried in order. OSC 52 is deliberately absent even though it is the one that
+# works over SSH: it copies by writing an escape sequence to stdout, and while
+# the crate browser is running stdout belongs to Textual - the sequence would
+# land in the middle of a frame and corrupt the screen.
+CLIPBOARD_COMMANDS = (
+    ["wl-copy"],
+    ["xclip", "-selection", "clipboard"],
+    ["xsel", "--clipboard", "--input"],
+    ["pbcopy"],
+    # On WSL the clipboard you paste from is Windows', not the Linux one.
+    ["clip.exe"],
+)
+
+
 def copy_to_clipboard(text: str) -> bool:
-    """Copy text to clipboard using OSC 52 ANSI escape sequence with OS fallback commands."""
+    """Put text on the system clipboard. False when nothing here could.
+
+    It used to return True unconditionally, which meant the caller could not
+    tell a copy from a shrug.
+    """
+
     if not text:
         return False
-
-    # 1. OSC 52 ANSI escape sequence (works in modern terminals & SSH sessions)
-    try:
-        import base64
-        b64 = base64.b64encode(text.encode("utf-8")).decode("ascii")
-        osc52 = f"\x1b]52;c;{b64}\x07"
-        sys.stdout.write(osc52)
-        sys.stdout.flush()
-    except Exception:
-        pass
-
-    # 2. Native OS clipboard commands
-    tools = [
-        ["wl-copy"],
-        ["xclip", "-selection", "clipboard"],
-        ["xsel", "--clipboard", "--input"],
-        ["pbcopy"],
-    ]
-    for tool in tools:
+    for command in CLIPBOARD_COMMANDS:
+        # clip.exe reads UTF-16LE; everything else wants UTF-8. Sending the
+        # wrong one mangles any path that is not pure ASCII.
+        encoding = "utf-16-le" if command[0] == "clip.exe" else "utf-8"
         try:
-            res = subprocess.run(tool, input=text.encode("utf-8"), capture_output=True, timeout=2)
-            if res.returncode == 0:
-                return True
+            finished = subprocess.run(
+                command, input=text.encode(encoding), capture_output=True, timeout=2
+            )
         except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
             continue
-    return True
+        if finished.returncode == 0:
+            return True
+    LOGGER.debug("No clipboard tool answered; tried %s", [c[0] for c in CLIPBOARD_COMMANDS])
+    return False
 
 
 def default_scan_directories() -> list[Path]:
@@ -106,21 +124,23 @@ class LocalScanner:
                         LOGGER.debug("Skipping file %s during scan: %s", entry, exc)
         return scanned
 
-    def match_track(self, track: Track) -> str | None:
-        """Find a local audio file matching the track's artist and title."""
+    def match_track(self, track: Track) -> LocalMatch | None:
+        """The local file that looks like this track, if there is one."""
+
         if not track.title:
             return None
 
-        # Try matching full label "Artist Title" or "Title"
-        label_stem = normalize_string(f"{track.artist}{track.title}")
-        match = self.db.find_local_match(label_stem)
-        if match:
-            return match
+        both = self.db.find_local_match(normalize_string(f"{track.artist}{track.title}"))
+        if both:
+            return LocalMatch(both, confident=True)
 
+        # A title alone. Short ones match far too much - "intro" is a filename
+        # in every second folder - so there is a floor under how little evidence
+        # is enough to even point at a file.
         title_stem = normalize_string(track.title)
         if len(title_stem) >= 6:
-            match = self.db.find_local_match(title_stem)
-            if match:
-                return match
+            loose = self.db.find_local_match(title_stem)
+            if loose:
+                return LocalMatch(loose, confident=False)
 
         return None

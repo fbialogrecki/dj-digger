@@ -7,6 +7,8 @@ import json
 import logging
 import os
 import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -38,7 +40,28 @@ class TrackState:
         self.db = Database(db_path)
         self._entries: dict[str, dict[str, str]] = {}
         self._lock = threading.Lock()
+        self._defer_saves = False
+        self._save_pending = False
         self._load_json()
+
+    @contextmanager
+    def batched(self) -> Iterator[None]:
+        """Write the JSON mirror once at the end instead of once per change.
+
+        ``set`` rewrites the whole of state.json every time, so marking a few
+        hundred tracks in a row - which is exactly what a library scan does -
+        writes the same file a few hundred times over. SQLite is unaffected;
+        this only holds back the mirror. Not reentrant, and not meant to be.
+        """
+
+        self._defer_saves = True
+        try:
+            yield
+        finally:
+            self._defer_saves = False
+            if self._save_pending:
+                self._save_pending = False
+                self.save()
 
     def _load_json(self) -> None:
         try:
@@ -52,6 +75,9 @@ class TrackState:
             pass
 
     def save(self) -> None:
+        if self._defer_saves:
+            self._save_pending = True
+            return
         payload = {"version": STATE_VERSION, "tracks": self._entries}
         try:
             self.json_path.parent.mkdir(parents=True, exist_ok=True)
