@@ -421,3 +421,19 @@ def test_load_summary_rejects_a_link_that_is_not_http(tmp_path, field):
 
     with pytest.raises(ValueError, match=field):
         links.load_summary(path)
+
+
+def test_a_yaml_summary_says_what_happened_rather_than_failing_to_parse(tmp_path):
+    """0.5 and earlier could write these; the message has to be better than a
+    complaint about a colon on line one."""
+
+    path = tmp_path / "soundcloud_links.yaml"
+    path.write_text("bandcamp:\n  - title: Trap\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="no longer reads"):
+        links.load_summary(path)
+
+
+def test_yaml_is_not_offered_as_an_export_format():
+    assert "yaml" not in links.EXPORT_FORMATS
+    assert links.EXPORT_FORMATS == ["json", "csv", "none"]

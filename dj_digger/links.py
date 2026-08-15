@@ -128,7 +128,7 @@ DESCRIPTION_CATEGORIES = frozenset(CATEGORY_NAMES) - {
 }
 
 CATEGORY_CHOICES = CATEGORY_NAMES + ["all"]
-EXPORT_FORMATS = ["json", "yaml", "csv", "none"]
+EXPORT_FORMATS = ["json", "csv", "none"]
 
 URL_RE = re.compile(r"https?://[^\s<>\"'\)\]]+")
 TRAILING_PUNCTUATION = ".,;:!?)]}>\"'"
@@ -305,7 +305,7 @@ def present_categories(records: Sequence[LinkRecord]) -> list[str]:
 
 
 def default_output_path(export_format: str) -> Path:
-    extension = export_format if export_format in {"json", "yaml", "csv"} else "json"
+    extension = export_format if export_format in {"json", "csv"} else "json"
     return Path(f"soundcloud_links.{extension}")
 
 
@@ -348,43 +348,29 @@ def export_records(
         LOGGER.info("Saved %s links to %s", len(records), path)
         return path
 
-    if export_format == "yaml":
-        try:
-            import yaml
-        except ModuleNotFoundError:
-            LOGGER.error(
-                "YAML export needs PyYAML. Install it with: pip install 'dj-soundcloud-digger[yaml]'"
-            )
-            return None
-        with path.open("w", encoding="utf-8") as handle:
-            yaml.safe_dump(summary, handle, sort_keys=False, allow_unicode=True)
-        LOGGER.info("Saved %s links to %s", len(records), path)
-        return path
-
     raise ValueError(f"Unknown export format: {export_format}")
 
 
 def load_summary(path: Path) -> list[LinkRecord]:
-    """Read a previously exported JSON/YAML summary back into records."""
+    """Read a previously exported JSON summary back into records."""
 
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(f"Summary file not found: {path}")
 
-    text = path.read_text(encoding="utf-8")
     if path.suffix.lower() in {".yaml", ".yml"}:
-        try:
-            import yaml
-        except ModuleNotFoundError as exc:
-            raise RuntimeError(
-                "Reading YAML needs PyYAML. Install it with: pip install 'dj-soundcloud-digger[yaml]'"
-            ) from exc
-        data = yaml.safe_load(text)
-    else:
-        try:
-            data = json.loads(text)
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"Invalid JSON in {path}: {exc}") from exc
+        # Written by 0.5 and earlier. Saying so beats a parser error about a
+        # colon on line one.
+        raise ValueError(
+            f"{path} is YAML, which this version no longer reads. Convert it to "
+            "JSON, or re-dig the source."
+        )
+
+    text = path.read_text(encoding="utf-8")
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid JSON in {path}: {exc}") from exc
 
     if not isinstance(data, dict):
         raise ValueError(f"{path} should contain a mapping of category to links")
