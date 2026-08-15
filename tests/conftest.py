@@ -7,7 +7,7 @@ from typing import Any, Dict, List
 
 import pytest
 
-from dj_digger import library, state
+from dj_digger import auth, config, library, state
 from dj_digger.models import Track
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -21,10 +21,19 @@ os.environ.setdefault("TEXTUAL_ANIMATIONS", "none")
 
 @pytest.fixture(autouse=True)
 def isolate_user_data(tmp_path, monkeypatch):
-    """Never let a test read or write the real crate library or status file."""
+    """Never let a test read or write the real crate library or status file.
+
+    Config and auth are in here too: ``AppConfig()`` writes a default file the
+    first time it cannot find one, and ``SoundCloudClient`` reads auth.json on
+    construction - so without this a test run edits the developer's own settings
+    and can pick up their live OAuth token.
+    """
 
     monkeypatch.setattr(library, "crates_dir", lambda: tmp_path / "crates")
     monkeypatch.setattr(state, "default_state_path", lambda: tmp_path / "state.json")
+    monkeypatch.setattr(config, "default_config_path", lambda: tmp_path / "config.json")
+    monkeypatch.setattr(auth, "CONFIG_DIR", tmp_path / "auth")
+    monkeypatch.setattr(auth, "AUTH_FILE", tmp_path / "auth" / "auth.json")
 
 
 def load_fixture(name: str) -> Any:

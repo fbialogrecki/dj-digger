@@ -371,3 +371,55 @@ def test_load_summary_rejects_a_non_mapping(tmp_path):
     path.write_text("[]", encoding="utf-8")
     with pytest.raises(ValueError, match="mapping"):
         links.load_summary(path)
+
+
+# A purchase_url is whatever the artist typed into SoundCloud, and a summary
+# file is whatever was on disk. Neither is trusted to be a web address.
+
+HOSTILE_URLS = [
+    "javascript:alert`1`",
+    "data:text/html;base64,PHNjcmlwdD4=",
+    "file:///etc/passwd",
+    # The domain tables match on the host alone, so a known store name in front
+    # of a hostile scheme used to earn a real category - and a category is what
+    # makes a link openable.
+    "file://bandcamp.com/etc/passwd",
+    r"\\attacker\share\payload",
+]
+
+
+@pytest.mark.parametrize("url", HOSTILE_URLS)
+def test_a_hostile_scheme_never_earns_a_store_category(url):
+    assert links.store_for_url(url) is None
+
+
+@pytest.mark.parametrize("url", HOSTILE_URLS)
+def test_a_hostile_purchase_url_never_becomes_an_openable_link(url):
+    track = Track(
+        title="Trap",
+        permalink_url="https://soundcloud.com/artist/track",
+        purchase_url=url,
+        purchase_title="Buy",
+    )
+    records = links.categorise(track)
+
+    assert [record.link_url for record in records] == [
+        "https://soundcloud.com/artist/track"
+    ]
+    assert [record.category for record in records] == ["no-link"]
+
+
+@pytest.mark.parametrize("field", ["track_url", "shop_link"])
+def test_load_summary_rejects_a_link_that_is_not_http(tmp_path, field):
+    item = {
+        "title": "Trap",
+        "track_url": "https://soundcloud.com/artist/track",
+        "shop_link": "https://bandcamp.com/album/x",
+        "link_text": "Buy",
+    }
+    item[field] = "file:///etc/passwd"
+    path = tmp_path / "summary.json"
+    path.write_text(json.dumps({"bandcamp": [item]}), encoding="utf-8")
+
+    with pytest.raises(ValueError, match=field):
+        links.load_summary(path)

@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 from urllib.parse import urlparse
 
+from .browser import is_openable
 from .models import LinkRecord, Track
 
 DOWNLOAD_KEYWORDS = {"download", "free download", "free d/l"}
@@ -152,6 +153,11 @@ def _host_matches(host: str, domain: str) -> bool:
 
 
 def store_for_url(url: str) -> Optional[str]:
+    # The scheme is checked before the host, because the host is the only thing
+    # the domain tables look at: ``file://bandcamp.com/etc/passwd`` matches
+    # bandcamp perfectly well, and a category is what makes a link openable.
+    if not is_openable(url):
+        return None
     host = host_of(url)
     for category, domains in STORE_DOMAINS.items():
         if any(_host_matches(host, domain) for domain in domains):
@@ -230,8 +236,11 @@ def categorise(track: Track) -> List[LinkRecord]:
                 continue
             claimed.add(category)
             records.append(LinkRecord(category, track, url, text))
-        elif url == track.purchase_url:
-            # An explicit purchase field pointing somewhere we do not know.
+        elif url == track.purchase_url and is_openable(url):
+            # An explicit purchase field pointing somewhere we do not know. It
+            # still has to be a web address: "others" is opened like any other
+            # category, so an unrecognised destination is not a licence to hand
+            # the OS a file:// path.
             unmatched.append((url, text))
 
     if records:
@@ -393,6 +402,17 @@ def load_summary(path: Path) -> List[LinkRecord]:
             if not track_url:
                 raise ValueError(f"Items in category '{category}' need a 'track_url'")
             link_url = item.get("shop_link") or track_url
+            # Categorisation is skipped for a summary - the category is read off
+            # the file - so this is the only place these two are checked before
+            # they reach the browser. Loud rather than quiet: this file is
+            # written by the digger itself, so anything else in it is either
+            # corruption or someone hoping you will press 'o'.
+            for field, value in (("track_url", track_url), ("shop_link", link_url)):
+                if not is_openable(value):
+                    raise ValueError(
+                        f"'{field}' in category '{category}' is not an http or https "
+                        f"link: {value!r}"
+                    )
             track = Track(
                 title=item.get("title") or "Unknown title",
                 permalink_url=track_url,

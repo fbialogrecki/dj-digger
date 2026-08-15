@@ -63,18 +63,40 @@ def get_stored_auth_info() -> Dict[str, Any]:
 
 
 def save_token(token: str, username: str = "", user_id: Optional[int] = None) -> None:
-    """Save an OAuth token and metadata to user config file with strict 0600 permissions."""
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    """Save an OAuth token so that it is never readable by anyone else.
+
+    Not ``write_text`` followed by a chmod: that creates the file with the umask
+    default, usually 0644, writes a live token into it, and only then narrows
+    the permissions - so there is a window where any other account on the
+    machine can read it. ``mkstemp`` hands back a file that is 0600 before it
+    holds a single byte, and ``os.replace`` moves it into place atomically,
+    which is also how ``config``, ``state`` and ``library`` already write.
+    """
+
+    directory = AUTH_FILE.parent
+    directory.mkdir(parents=True, exist_ok=True)
+    try:
+        os.chmod(directory, 0o700)
+    except OSError as exc:
+        LOGGER.debug("Could not tighten permissions on %s: %s", directory, exc)
+
     payload = {
         "oauth_token": token.strip(),
         "username": username,
         "user_id": user_id,
     }
-    AUTH_FILE.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    descriptor, temporary = tempfile.mkstemp(dir=str(directory), prefix=".auth-", suffix=".tmp")
     try:
-        os.chmod(AUTH_FILE, 0o600)
-    except OSError as exc:
-        LOGGER.debug("Could not set strict 0600 permissions on auth.json: %s", exc)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            json.dump(payload, stream, indent=2)
+        os.replace(temporary, AUTH_FILE)
+    except BaseException:
+        # Never leave a temporary holding the token behind on the way out.
+        try:
+            os.unlink(temporary)
+        except OSError:
+            pass
+        raise
 
 
 def clear_token() -> None:

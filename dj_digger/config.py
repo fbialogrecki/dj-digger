@@ -16,7 +16,13 @@ from typing import Dict, List, Optional
 LOGGER = logging.getLogger(__name__)
 
 DEFAULT_NAME = "Music Listener"
-DEFAULT_EMAIL = "music.listener@yahoo.com"
+# ``gates`` submits this address to third-party download gates automatically, so
+# the default must not be deliverable to anybody. RFC 2606 reserves .invalid for
+# exactly this. The previous default was a real-looking address at a real
+# provider, which meant every unconfigured install was signing a stranger up for
+# artist mailing lists - so it is retired rather than merely changed.
+DEFAULT_EMAIL = "dj-digger@example.invalid"
+RETIRED_EMAILS = frozenset({"music.listener@yahoo.com"})
 DEFAULT_COMMENTS = ["Love it!", "Amazing track!", "Dope tune!", "Fire!", "Banger!", "Great tune!"]
 
 DEFAULT_KEYBINDINGS: Dict[str, str] = {
@@ -64,6 +70,10 @@ class AppConfig:
             if isinstance(raw, dict):
                 self.user_name = str(raw.get("user_name") or DEFAULT_NAME).strip()
                 self.user_email = str(raw.get("user_email") or DEFAULT_EMAIL).strip()
+                if self.user_email.lower() in RETIRED_EMAILS:
+                    # Saved by an older version that shipped a stranger's address
+                    # as the default. Nobody chose it, so it does not survive.
+                    self.user_email = DEFAULT_EMAIL
                 comments = raw.get("custom_comments")
                 if isinstance(comments, list) and comments:
                     cleaned = [str(c).strip() for c in comments if str(c).strip()]
@@ -107,3 +117,8 @@ class AppConfig:
     def random_comment(self) -> str:
         pool = self.custom_comments or DEFAULT_COMMENTS
         return random.choice(pool)
+
+    def has_real_email(self) -> bool:
+        """False while the profile still carries the unroutable placeholder."""
+
+        return bool(self.user_email) and not self.user_email.lower().endswith(".invalid")

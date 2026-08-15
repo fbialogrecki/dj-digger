@@ -67,3 +67,36 @@ def test_verify_token_invalid(monkeypatch):
         lambda url, headers=None, timeout=10.0: DummyResponse(401),
     )
     assert auth.verify_token("invalid_token", "dummy_client") is None
+
+
+def test_the_token_file_is_owner_only_without_relying_on_a_later_chmod(tmp_path, monkeypatch):
+    """The old code chmod'd after writing, so the token was briefly world readable.
+
+    Neutering ``os.chmod`` proves the 0600 comes from how the file is created
+    rather than from a narrowing that happens once the secret is already on disk.
+    """
+
+    monkeypatch.setenv("SOUNDCLOUD_OAUTH_TOKEN", "")
+    auth_file = tmp_path / "cfg" / "auth.json"
+    monkeypatch.setattr(auth, "AUTH_FILE", auth_file)
+    monkeypatch.setattr(auth, "CONFIG_DIR", auth_file.parent)
+    monkeypatch.setattr(os, "chmod", lambda *args, **kwargs: None)
+
+    auth.save_token("secret-token")
+
+    assert auth.get_stored_token() == "secret-token"
+    if os.name == "posix":
+        assert os.stat(auth_file).st_mode & 0o777 == 0o600
+
+
+def test_saving_a_token_leaves_no_temporary_behind(tmp_path, monkeypatch):
+    monkeypatch.setenv("SOUNDCLOUD_OAUTH_TOKEN", "")
+    auth_file = tmp_path / "cfg" / "auth.json"
+    monkeypatch.setattr(auth, "AUTH_FILE", auth_file)
+    monkeypatch.setattr(auth, "CONFIG_DIR", auth_file.parent)
+
+    auth.save_token("secret-token")
+
+    assert list(auth_file.parent.glob(".auth-*")) == []
+    if os.name == "posix":
+        assert os.stat(auth_file.parent).st_mode & 0o777 == 0o700

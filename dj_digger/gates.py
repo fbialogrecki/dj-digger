@@ -9,12 +9,33 @@ from __future__ import annotations
 import json
 import logging
 import re
-from typing import Optional
+from typing import Any, Optional
 from urllib.parse import unquote
 
 import requests
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _identity_for(config: Optional[Any]) -> Any:
+    """The profile a gate form gets filled in with.
+
+    Warns when it is still the placeholder: these resolvers post a name and an
+    email to somebody else's server, and the artist on the other end deserves a
+    contact that exists rather than a reserved .invalid address.
+    """
+
+    if config is None:
+        from .config import AppConfig
+
+        config = AppConfig()
+    if not config.has_real_email():
+        LOGGER.warning(
+            "Submitting the placeholder address %s to a download gate. Set your name "
+            "and email in Settings (S) so the artist receives a real contact.",
+            config.user_email,
+        )
+    return config
 
 HYPEDDIT_RE = re.compile(r'https?://(?:www\.)?hypeddit\.com/(?:track/)?([a-zA-Z0-9_-]+)')
 TONEDEN_RE = re.compile(r'https?://(?:www\.)?toneden\.io/([^/]+)/post/([a-zA-Z0-9_-]+)')
@@ -54,10 +75,7 @@ def resolve_hypeddit_download_url(
     if _depth > 2:
         return None
 
-    if config is None:
-        from .config import AppConfig
-        config = AppConfig()
-
+    config = _identity_for(config)
     email = config.user_email
     name = config.user_name
     comment = config.random_comment()
@@ -289,10 +307,7 @@ def resolve_gaterush_download_url(
     url: str, session: requests.Session, timeout: float = 10.0, config: Optional[Any] = None
 ) -> Optional[str]:
     """Resolve direct audio download URL from GateRush fan gate link."""
-    if config is None:
-        from .config import AppConfig
-        config = AppConfig()
-
+    config = _identity_for(config)
     email = config.user_email
     comment = config.random_comment()
 
