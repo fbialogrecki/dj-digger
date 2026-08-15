@@ -142,7 +142,7 @@ def test_refresh_clears_the_partial_flag():
     assert record.partial is False
 
 
-def test_delete_removes_the_file():
+def test_delete_removes_the_crate():
     record = library.CrateRecord.from_crate(a_crate())
     library.save(record)
     library.delete(record.slug)
@@ -153,23 +153,46 @@ def test_deleting_something_that_is_not_there_is_harmless():
     library.delete("no-such-crate")
 
 
-def test_an_unreadable_crate_is_skipped_not_fatal(crates_in_tmp):
-    library.save(library.CrateRecord.from_crate(a_crate(1, source="s://good")))
+def test_delete_finds_the_crate_by_its_slug_with_no_file_involved():
+    """Delete used to happen entirely inside `if the JSON file exists`.
+
+    A crate whose row outlived its file could not be removed at all: the sidebar
+    drew it, X ran and changed nothing, and it was back on the next reload. Since
+    0.9 there is no file, so the slug is looked up against the stored records -
+    which is the path that used to be unreachable.
+    """
+
+    record = library.CrateRecord.from_crate(a_crate())
+    library.save(record)
+    assert [rec.source for rec in library.list_crates()] == [record.source]
+
+    library.delete(record.slug)
+
+    assert library.list_crates() == []
+
+
+def test_an_unreadable_legacy_crate_does_not_sink_the_import(crates_in_tmp):
+    """One corrupt file from 0.8 must not cost you the rest of the library."""
+
     crates_in_tmp.mkdir(parents=True, exist_ok=True)
     (crates_in_tmp / "broken.json").write_text("{not json", encoding="utf-8")
+    (crates_in_tmp / "good.json").write_text(
+        json.dumps({"source": "s://good", "title": "Readable", "tracks": []}),
+        encoding="utf-8",
+    )
 
-    assert len(library.list_crates()) == 1
+    titles = [record.title for record in library.list_crates()]
+
+    assert titles == ["Readable"]
 
 
 def test_unknown_fields_in_a_stored_track_are_ignored(crates_in_tmp):
     """A crate written by a newer version must still load."""
 
     record = library.CrateRecord.from_crate(a_crate(1))
-    library.save(record)
-
-    raw = json.loads(record.path.read_text(encoding="utf-8"))
+    raw = record.to_json()
     raw["tracks"][0]["something_from_the_future"] = 42
-    record.path.write_text(json.dumps(raw), encoding="utf-8")
+    library._db().save_crate(raw)
 
     assert library.load(record.slug).tracks[0].id == 100
 

@@ -6,6 +6,7 @@ an ``on_progress`` hook.
 """
 
 import logging
+import threading
 import time
 from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -26,6 +27,17 @@ STAGE_HUBS = "Opening link hubs"
 # One page plus a handful of redirects per track, so this is worth doing several
 # at a time. Kept modest: these are somebody else's servers.
 HUB_WORKERS = 8
+
+# api-v2's retry budget is not the right one for a shop page nobody has updated
+# in five years. Five connect retries against a 20 second timeout meant a single
+# dead host - smartlinks.cygnusmusic.net, in the playlist this was measured on -
+# cost around two minutes all by itself, and a big crate has several.
+HUB_RETRIES = 2
+HUB_BACKOFF = 0.3
+HUB_CONNECT_TIMEOUT = 5.0
+# After this many failures a host is written off for the rest of the dig. Two
+# rather than one: a single timeout is often the network, not the host.
+HOST_FAILURE_LIMIT = 2
 
 LOGGER = logging.getLogger(__name__)
 
@@ -120,16 +132,58 @@ def dig_html(
     return Crate(source=str(path), tracks=tracks, title=path.stem, declared_count=declared)
 
 
-def _expand_one(track: Track, timeout: float) -> bool:
+class DeadHosts:
+    """Hosts that stopped answering, remembered for the rest of one dig.
+
+    A playlist points at the same handful of smart-link domains over and over, so
+    a host that is gone is not one wasted request but one per track that mentions
+    it - and each of those costs the full connect timeout. Two strikes rather
+    than one, because a single timeout is as often the local network.
+
+    Shared across the hub pool, so every method holds the lock.
+
+    ponytail: requests already in flight when the count reaches the limit still
+    run, so the worst case is HUB_WORKERS wasted waits rather than two. Tracking
+    in-flight hosts as well would close that, at the price of a pool that queues
+    behind its own bookkeeping - not worth it for the requests it would save.
+    """
+
+    def __init__(self) -> None:
+        self._failures: dict[str, int] = {}
+        self._lock = threading.Lock()
+
+    def written_off(self, url: str) -> bool:
+        with self._lock:
+            return self._failures.get(links.host_of(url), 0) >= HOST_FAILURE_LIMIT
+
+    def failed(self, url: str) -> None:
+        host = links.host_of(url)
+        with self._lock:
+            self._failures[host] = self._failures.get(host, 0) + 1
+            count = self._failures[host]
+        if count == HOST_FAILURE_LIMIT:
+            LOGGER.info("%s is not answering - skipping it for the rest of this dig.", host)
+
+
+def _expand_one(track: Track, timeout: float, dead: DeadHosts) -> bool:
     """Swap a track's link hubs for the shops behind them. True if any changed."""
 
     changed = False
     # One session per track rather than one shared across the pool: these pages
     # set cookies, and a shared jar would have eight gates writing to it at once.
-    session = soundcloud.create_requests_session()
+    # Its retry budget is the one for somebody else's shop page, not for api-v2.
+    session = soundcloud.create_requests_session(
+        max_retries=HUB_RETRIES, backoff_factor=HUB_BACKOFF
+    )
+    hub_timeout = (HUB_CONNECT_TIMEOUT, timeout)
     try:
         for url in links.hub_links(track):
-            found = gates.store_links_on_page(url, session, timeout=timeout)
+            if dead.written_off(url):
+                continue
+            found = gates.store_links_on_page(url, session, timeout=hub_timeout)
+            if found is None:
+                dead.failed(url)
+                continue
             if not found:
                 continue
             for pair in found:
@@ -164,8 +218,9 @@ def expand_link_hubs(
         return 0
 
     expanded = 0
+    dead = DeadHosts()
     with ThreadPoolExecutor(max_workers=HUB_WORKERS) as pool:
-        futures = [pool.submit(_expand_one, track, timeout) for track in pending]
+        futures = [pool.submit(_expand_one, track, timeout, dead) for track in pending]
         for done, future in enumerate(as_completed(futures), start=1):
             try:
                 if future.result():

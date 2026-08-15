@@ -57,18 +57,20 @@ class LibraryScanMixin:
         """
 
         touched = False
-        with self.state.batched():
-            for row in self.rows:
-                track = row.track
-                if track.local_path:
-                    continue
-                match = scanner.match_track(track)
-                if match is None:
-                    continue
-                track.local_path = match.path
-                touched = True
-                if match.confident and self.state.get(track.key) == NEW:
-                    self.state.set(track.key, GOT)
+        # No batching any more: this used to run inside state.batched(), which
+        # existed only to stop each mark rewriting the whole of state.json. With
+        # the mirror gone a mark is one SQLite write.
+        for row in self.rows:
+            track = row.track
+            if track.local_path:
+                continue
+            match = scanner.match_track(track)
+            if match is None:
+                continue
+            track.local_path = match.path
+            touched = True
+            if match.confident and self.state.get(track.key) == NEW:
+                self.state.set(track.key, GOT)
         if touched:
             self.refresh_rows()
 

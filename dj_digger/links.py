@@ -15,7 +15,7 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 from urllib.parse import urlparse
 
-from .browser import is_openable
+from .browser import is_fetchable, is_openable
 from .models import LinkRecord, Track
 
 DOWNLOAD_KEYWORDS = {"download", "free download", "free d/l"}
@@ -226,7 +226,10 @@ def hub_links(track: Track) -> list[str]:
         category = store_for_url(url)
         if category in HUB_CATEGORIES or (category is None and is_openable(url)):
             found.append(url)
-    return found
+    # Openable is the wrong bar for a list that exists to be fetched: nobody
+    # pressed a key for these, a dig reads them by itself, and the addresses came
+    # out of a purchase_url a stranger set.
+    return [url for url in found if is_fetchable(url)]
 
 
 def categorise(track: Track) -> list[LinkRecord]:

@@ -1,5 +1,8 @@
 import argparse
+import contextlib
+import io
 import json
+import logging
 
 import pytest
 
@@ -284,3 +287,33 @@ def test_batch_open_uses_the_browser_from_settings(monkeypatch, tmp_path):
     cli._batch_open(args, [record])
 
     assert used == ["firefox"]
+
+
+def test_only_our_own_log_reaches_the_terminal():
+    """basicConfig configured the root logger, so urllib3 came out with us.
+
+    A dig across 484 tracks printed dozens of "Retrying (Retry(total=1..." lines,
+    one per dead link in the playlist, before it printed a single result.
+    """
+
+    stderr = io.StringIO()
+    with contextlib.redirect_stderr(stderr):
+        # Inside the redirect: StreamHandler binds sys.stderr when it is built.
+        cli._configure_logging("INFO")
+        logging.getLogger("urllib3.connectionpool").warning("Retrying (Retry(total=1...))")
+        logging.getLogger("dj_digger.dig").info("Collected 484 tracks.")
+    written = stderr.getvalue()
+
+    assert "Retrying" not in written
+    assert "INFO: Collected 484 tracks." in written
+
+
+def test_debug_still_shows_everything():
+    """The one level where somebody does want the library's side of the story."""
+
+    stderr = io.StringIO()
+    with contextlib.redirect_stderr(stderr):
+        cli._configure_logging("DEBUG")
+        logging.getLogger("urllib3.connectionpool").warning("Retrying (Retry(total=1...))")
+
+    assert "Retrying" in stderr.getvalue()

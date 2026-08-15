@@ -5,7 +5,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Label, Select, Static
+from textual.widgets import Button, Checkbox, Footer, Input, Label, Select, Static
 
 from .. import browser as browser_module
 from ..config import AppConfig
@@ -33,6 +33,7 @@ class AskLinkScreen(ModalScreen[str | None]):
     }
     #ask {
         width: 78;
+        max-width: 90%;
         height: auto;
         padding: 1 2;
         border: round $accent;
@@ -58,6 +59,7 @@ class AskLinkScreen(ModalScreen[str | None]):
                 id="ask-hint",
             )
             yield Input(placeholder="https://soundcloud.com/...", id="ask-input")
+        yield Footer()
 
     def on_mount(self) -> None:
         self.query_one("#ask-input", Input).focus()
@@ -79,8 +81,15 @@ class HelpScreen(ModalScreen[None]):
     HelpScreen {
         align: center middle;
     }
+    /* 64, not 56: the widest line this builds is 60 columns, and at 56 every
+       description longer than the box wrapped back to column 0, leaving
+       "store" and "matches" hanging underneath as if they were keys. Width auto
+       does not work here - a Static holding a Text does not report a width - so
+       it is measured against _body() instead, and max-width keeps it inside a
+       small terminal, where it wraps again but has nowhere else to go. */
     #help {
-        width: 56;
+        width: 66;
+        max-width: 90%;
         height: auto;
         max-height: 90%;
         overflow-y: auto;
@@ -95,6 +104,7 @@ class HelpScreen(ModalScreen[None]):
     def compose(self) -> ComposeResult:
         with Vertical(id="help"):
             yield Static(self._body())
+        yield Footer()
 
     def _body(self) -> Text:
         body = Text()
@@ -140,6 +150,7 @@ class ConfirmScreen(ModalScreen[bool]):
     }
     #confirm {
         width: 62;
+        max-width: 90%;
         height: auto;
         padding: 1 2;
         border: round $error;
@@ -166,6 +177,7 @@ class ConfirmScreen(ModalScreen[bool]):
             with Horizontal(id="confirm-buttons"):
                 yield Button("Yes (y)", variant="error", id="confirm-yes")
                 yield Button("No (n)", id="confirm-no")
+        yield Footer()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         self.dismiss(event.button.id == "confirm-yes")
@@ -184,9 +196,16 @@ class SettingsScreen(ModalScreen[None]):
     SettingsScreen {
         align: center middle;
     }
+    /* Six fields and a button row come to 34 lines, which is taller than an
+       80x24 terminal - and this is the screen a first run opens on, so Save was
+       simply off the bottom of the screen with no way to reach it. It scrolls
+       now, and stays inside the terminal it is drawn in. */
     #settings-dialog {
         width: 72;
+        max-width: 90%;
         height: auto;
+        max-height: 90%;
+        overflow-y: auto;
         padding: 1 2;
         border: round $accent;
         background: $surface;
@@ -198,6 +217,17 @@ class SettingsScreen(ModalScreen[None]):
     .settings-label {
         margin-top: 1;
         color: $text-muted;
+    }
+    /* Sits under the checkbox it explains, so no margin above it. */
+    .settings-hint {
+        color: $text-muted;
+        text-style: italic;
+    }
+    #input-gate-social {
+        margin-top: 1;
+        border: none;
+        padding: 0;
+        background: transparent;
     }
     #settings-buttons {
         height: auto;
@@ -225,6 +255,21 @@ class SettingsScreen(ModalScreen[None]):
             yield Input(value=comments_str, id="input-comments")
             yield Label("Folders to scan for music you already own (separated by |):", classes="settings-label")
             yield Input(value=" | ".join(self.config.scan_directories), id="input-scan-dirs")
+            yield Label("Save downloads to:", classes="settings-label")
+            yield Input(value=self.config.download_directory, id="input-download-dir")
+            # Named on this screen because this screen is what a first run opens
+            # on. Up to 0.8 the repost and the follow were hard-coded into the
+            # gate calls and appeared in no interface at all.
+            yield Checkbox(
+                "Let gates record a repost, a follow and a comment on my account",
+                value=self.config.gate_social_actions,
+                id="input-gate-social",
+            )
+            yield Label(
+                "Turning this off keeps your account out of it. Some gates hand "
+                "over nothing without it.",
+                classes="settings-hint",
+            )
             yield Label("Open links with:", classes="settings-label")
             # Only what this machine reported. The saved value names a program
             # that gets executed, so the list is the whitelist.
@@ -238,6 +283,7 @@ class SettingsScreen(ModalScreen[None]):
             with Horizontal(id="settings-buttons"):
                 yield Button("Save", variant="primary", id="btn-save-settings")
                 yield Button("Cancel", id="btn-cancel-settings")
+        yield Footer()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-save-settings":
@@ -258,6 +304,10 @@ class SettingsScreen(ModalScreen[None]):
             scan_dirs = [d.strip() for d in self.query_one("#input-scan-dirs", Input).value.split("|") if d.strip()]
             if scan_dirs:
                 self.config.scan_directories = scan_dirs
+            download_dir = self.query_one("#input-download-dir", Input).value.strip()
+            if download_dir:
+                self.config.download_directory = download_dir
+            self.config.gate_social_actions = self.query_one("#input-gate-social", Checkbox).value
 
             self.config.first_run = False
             self.config.save()

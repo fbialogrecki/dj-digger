@@ -1,4 +1,3 @@
-import json
 
 import pytest
 
@@ -24,7 +23,8 @@ def test_marking_new_again_forgets_the_track(tmp_path):
     state.set("1", NEW)
 
     assert state.get("1") == NEW
-    assert json.loads(path.read_text(encoding="utf-8"))["tracks"] == {}
+    # Read back through a second instance: the row is gone, not merely masked.
+    assert TrackState(path).get("1") == NEW
 
 
 def test_rejects_a_status_it_does_not_know(tmp_path):
@@ -62,21 +62,17 @@ def test_tracks_without_an_id_fall_back_to_their_url(tmp_path):
     assert state.get("https://soundcloud.com/a/x") == SKIP
 
 
-def test_batched_writes_the_mirror_once_instead_of_once_per_mark(tmp_path):
-    """A library scan marks hundreds of tracks; each set rewrites the whole file."""
+def test_marking_a_whole_scan_writes_no_json_at_all(tmp_path):
+    """This is what batched() was for: each mark rewrote the whole of state.json.
+
+    Since 0.9 a mark is one row in SQLite, so there is nothing to hold back.
+    """
 
     path = tmp_path / "state.json"
     state = TrackState(path)
-    writes = []
-    original = TrackState.save
-    TrackState.save = lambda self: (writes.append(1), original(self))[1]
-    try:
-        with state.batched():
-            for index in range(20):
-                state.set(str(index), GOT)
-            assert not path.exists(), "nothing should have been written yet"
-    finally:
-        TrackState.save = original
 
-    assert len(writes) == 21, "20 deferred calls plus the one flush at the end"
+    for index in range(20):
+        state.set(str(index), GOT)
+
+    assert not path.exists(), "state.json is not written any more"
     assert TrackState(path).get("19") == GOT

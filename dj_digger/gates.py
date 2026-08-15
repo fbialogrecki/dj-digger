@@ -4,12 +4,18 @@ Extracts direct file download URLs from gate pages without requiring manual
 social media login steps.
 """
 
+import html
 import json
 import logging
 import re
 from typing import Any
 
 import requests
+from bs4 import BeautifulSoup
+
+from .browser import is_fetchable
+from .html_fallback import normalize_link
+from .links import SHOP_CATEGORIES, host_of, store_for_url
 
 LOGGER = logging.getLogger(__name__)
 
@@ -52,7 +58,6 @@ def _clean_url(raw_url: str | None, *, allow_preview: bool = False) -> str | Non
     """Clean and validate an extracted download URL. Rejects audio preview clips (_preview)."""
     if not raw_url or not isinstance(raw_url, str):
         return None
-    import html
     cleaned = html.unescape(raw_url.replace("\\/", "/")).strip('"\' ')
     if not allow_preview and "_preview" in cleaned.lower():
         return None
@@ -136,12 +141,10 @@ def resolve_hypeddit_download_url(
         gate_data_m = re.search(r'var\s+jsonGateData\s*=\s*({.*?});', text)
         if gate_data_m:
             try:
-                import json
                 extern_id = json.loads(gate_data_m.group(1)).get("externID", "")
-            except Exception:
-                pass
+            except (ValueError, AttributeError) as exc:
+                LOGGER.debug("Unreadable jsonGateData on %s: %s", url, exc)
 
-        from bs4 import BeautifulSoup
         soup = BeautifulSoup(text, "html.parser")
         inputs = {
             tag.get("name") or tag.get("id"): tag.get("value", "")
@@ -161,11 +164,18 @@ def resolve_hypeddit_download_url(
         if csrf_token:
             ajax_headers["X-CSRF-TOKEN"] = csrf_token
 
-        # 3. Execute step completion calls for all steps declared in nwSteps
+        # 3. Execute step completion calls for all steps declared in nwSteps.
+        # The repost and the follow are the two the gate records against your
+        # SoundCloud account rather than against this download, so they are the
+        # two that ask first. Off, they go out as 0 and the comment field stays
+        # empty - some gates will then refuse the file, which is the trade the
+        # setting exists to let you make.
+        social = bool(getattr(config, "gate_social_actions", True))
+        sc_comment = comment if social else ""
         step_calls = [
             ("https://hypeddit.com/verifyEmailAddress", {"_token": csrf_token, "validateEmailAddress": email, "fan_gate_id": fan_gate_id, "email_name": name}),
-            ("https://hypeddit.com/setSC", {"_token": csrf_token, "fan_gate_id": fan_gate_id, "comment_sc": comment, "is_repost": 1, "is_subscribe": 1}),
-            ("https://hypeddit.com/setYT", {"_token": csrf_token, "fan_gate_id": fan_gate_id, "comment_yt": comment}),
+            ("https://hypeddit.com/setSC", {"_token": csrf_token, "fan_gate_id": fan_gate_id, "comment_sc": sc_comment, "is_repost": int(social), "is_subscribe": int(social)}),
+            ("https://hypeddit.com/setYT", {"_token": csrf_token, "fan_gate_id": fan_gate_id, "comment_yt": sc_comment}),
         ]
         nw_steps = inputs.get("nwSteps", "email,sc").split(",")
         for st in nw_steps:
@@ -289,7 +299,7 @@ def resolve_droploud_download_url(
             data = resp.json()
             if isinstance(data, dict) and data.get("stream_url"):
                 stream_path = data["stream_url"]
-                if stream_path.startswith("http"):
+                if stream_path.startswith(("http://", "https://")):
                     return stream_path
                 return f"https://api.droploud.com{stream_path}"
     except requests.RequestException as exc:
@@ -321,8 +331,10 @@ def resolve_gaterush_download_url(
             csrf = csrf_m.group(1) if csrf_m else ""
             ajax_headers = {**headers, "X-CSRF-Token": csrf, "X-Requested-With": "XMLHttpRequest", "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"}
 
-            # Save comment and email
-            session.post(f"https://gaterush.me/save-comment/{slug}", data={"commentText": comment, "_csrf": csrf}, headers=ajax_headers, timeout=timeout)
+            # The email is what the download is for; the comment is posted in
+            # your name, so it goes only when you have said it may.
+            if getattr(config, "gate_social_actions", True):
+                session.post(f"https://gaterush.me/save-comment/{slug}", data={"commentText": comment, "_csrf": csrf}, headers=ajax_headers, timeout=timeout)
             session.post(f"https://gaterush.me/save-email/{slug}", data={"email": email, "_csrf": csrf}, headers=ajax_headers, timeout=timeout)
 
             steps_m = re.findall(r'id["\']:\s*["\']([^"\']+)["\']', text)
@@ -392,44 +404,77 @@ RESOLVABLE_HOSTS = (
 HUB_REDIRECT_LIMIT = 12
 
 
+# What the thing you press on a gate says it will do. Several languages, because
+# a gate run by a German or Spanish label was invisible to a match on the English
+# word alone and got rewritten into a shop list.
+DOWNLOAD_WORDS = (
+    "download",
+    "herunterladen",
+    "descargar",
+    "télécharger",
+    "telecharger",
+    "scarica",
+    "pobierz",
+    "baixar",
+)
+
+# Where a page says what pressing it does. Matching the whole document instead
+# caught every shop page with the word in a footer, a cookie banner or a script.
+ACTION_TAGS = ("a", "button", "input", "label", "h1", "h2", "h3")
+
+
 def _offers_a_download(text: str) -> bool:
-    """Whether the page mentions handing over a file at all.
+    """Whether the page offers to hand over a file at all.
 
-    Crude on purpose: a real follow-to-download gate says "download" somewhere,
-    and a page that says it keeps its gate badge rather than being replaced by
-    the shop it also happens to link to. A pure link list never says it.
+    A real follow-to-download gate says so on the thing you press, and a page
+    that says it keeps its gate badge rather than being replaced by the shop it
+    also happens to link to. A pure link list never says it.
 
-    ponytail: word match on the whole page. A gate that only ever writes it in
-    an image or a JS bundle reads as a hub; narrow it to the button text if that
-    turns up in practice.
+    ponytail: the words are a fixed list in eight languages, and only the action
+    elements are read. A gate whose button is an image, or whose language is not
+    here, still reads as a hub. Widening it means the word list, not the shape.
     """
 
-    return "download" in text.lower()
+
+    soup = BeautifulSoup(text or "", "html.parser")
+    for tag in soup.find_all(ACTION_TAGS):
+        # An <input type=submit> carries its label in value=, not in its text.
+        candidates = (tag.get_text(" ", strip=True), tag.get("value") or "", tag.get("title") or "")
+        haystack = " ".join(candidates).lower()
+        if any(word in haystack for word in DOWNLOAD_WORDS):
+            return True
+    return False
 
 
 def store_links_on_page(
     url: str,
     session: requests.Session,
     timeout: float = 10.0,
-) -> list[tuple[str, str]]:
+) -> list[tuple[str, str]] | None:
     """The shops a link hub points at, as (url, text). Empty when it is a gate.
 
     Some pages behind a purchase link hand over no file: ampsuite release pages,
     and gates run in smart-link mode, are a list of streaming services and shops.
     Those shops are the point, so they are read off the page and the caller drops
     the hub itself.
+
+    ``None`` rather than ``[]`` when the host never answered, so a caller can tell
+    "this page had nothing for us" from "this host is gone" and stop asking. A 404
+    is the first kind: something replied.
     """
 
-    from bs4 import BeautifulSoup
 
-    from .html_fallback import normalize_link
-    from .links import SHOP_CATEGORIES, host_of, store_for_url
+    # The caller filters too, but this is the function that issues the request,
+    # so it is the one that has to refuse an address inside the user's network.
+    if not is_fetchable(url):
+        LOGGER.debug("Refusing to read %s - not an address worth reaching out to.", url)
+        return []
 
     try:
         response = session.get(url, headers=DEFAULT_HEADERS, timeout=timeout)
     except requests.RequestException as exc:
         LOGGER.debug("Could not read %s: %s", url, exc)
-        return []
+        return None
     if response.status_code >= 400 or _offers_a_download(response.text):
         return []
 
@@ -488,7 +533,10 @@ def resolve_gate_download_url(
     url: str, session: requests.Session, timeout: float = 10.0, config: Any | None = None
 ) -> str | None:
     """Inspect and resolve direct download URL from supported gate providers and cloud storage."""
-    if not url or not url.startswith("http"):
+    # Was ``startswith("http")``, which also accepted ``httpfoo://``. is_fetchable
+    # parses the URL instead of guessing at its prefix, and refuses an address on
+    # the user's own network - every resolver below posts to whatever it is given.
+    if not is_fetchable(url):
         return None
 
     if "hypeddit.com" in url or "hypd.it" in url:

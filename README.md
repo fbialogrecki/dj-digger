@@ -3,7 +3,7 @@
 [![Python Version](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
 [![Built with Textual](https://img.shields.io/badge/TUI-Textual-ff69b4.svg)](https://textual.textualize.io/)
-[![Version](https://img.shields.io/badge/version-0.8.0-orange.svg)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-0.9.0-orange.svg)](pyproject.toml)
 
 > **The ultimate crate-digging companion for DJs and electronic music collectors.**
 > Instantly extract purchase links, free downloads, and download gates from SoundCloud playlists, user likes, or artist profiles—then preview tracks and manage your library in a high-performance terminal interface.
@@ -16,12 +16,12 @@ dj-digger https://soundcloud.com/someone/sets/that-playlist
 
 ## ⚡ Highlights & Features
 
-- **🚀 Ultra-Fast API v2 Digging**: Digs a 300-track playlist in ~3 seconds using batch hydration API calls—no browser scrolling or DOM scraping required.
+- **🚀 Ultra-Fast API v2 Digging**: Reads a 300-track playlist off the API in ~3 seconds using batch hydration calls—no browser scrolling or DOM scraping required. That figure is the SoundCloud half; a crate whose purchase links need following (see *Link-Hub Expansion* below) then spends as long as those third-party servers take, which on a 484-track playlist is around a minute.
 - **🏷️ Smart Store & Gate Classification**: Group links automatically into **Bandcamp**, **Beatport**, **Traxsource**, **JunoDownload**, **Record Shops**, **Download Gates** (Hypeddit, Toneden, etc.), **Smart links**, and **Direct SoundCloud Downloads**.
 - **🎶 In-Memory Audio Preview**: Zero-latency streaming and seeking powered by `miniaudio`. Pre-fetches upcoming tracks and renders dynamic 16-level block waveforms with reactive audio level meters.
-- **📦 Multi-Crate Local Library**: Save dig sessions as local crates in `~/.local/share/dj-digger/crates/`. Switch, refresh, or search across crates seamlessly.
+- **📦 Multi-Crate Local Library**: Save dig sessions as local crates in `~/.local/share/dj-digger/digger.db`. Switch, refresh, or search across crates seamlessly.
 - **🧠 Cross-Crate Track Memory**: Track decisions (`got it` / `skipped`) are stored globally by SoundCloud track ID. Buying a track once marks it across all future playlists.
-- **🔓 Download Gate Automation**: Resolves follow-to-download gates (Hypeddit, ToneDen, GateRush, Droploud) by replaying their step-completion calls. No browser automation, no Playwright.
+- **🔓 Download Gate Automation**: Resolves follow-to-download gates (Hypeddit, ToneDen, GateRush, Droploud) by replaying their step-completion calls. No browser automation, no Playwright. **What this sends on your behalf:** your name and email from Settings, and—unless you turn it off—a repost, a follow and a comment recorded against your SoundCloud account, because that is what the gate is asking for in exchange for the file. The switch is on the Settings screen (`S`), which also opens on the first run. Turning it off keeps your account out of it; some gates then hand over nothing. Note that automating a gate is your call to make against SoundCloud's and the gate operator's terms, and the requests go out with a browser's User-Agent.
 - **🔗 Link-Hub Expansion**: A purchase link that turns out to be a list of shops rather than a download—an ampsuite release page, a gate running in smart-link mode—is opened, and the Bandcamp and Beatport links behind it are added to the track directly instead of a `gate` badge.
 - **🆕 New Since Last Refresh**: Refreshing a crate marks whatever the playlist gained with `NEW` and sorts it to the top.
 - **📄 Saved-HTML Fallback**: Fully supports saved HTML pages (`Ctrl+S`) for private or unlisted SoundCloud playlists.
@@ -94,7 +94,7 @@ Press `?` inside the TUI at any time to view the full grouped keybinding modal.
 | --- | --- |
 | `Up` / `Down` / `j` / `k` | Navigate track rows |
 | `o` or `Enter` | Open the best link (or active store filter) in your default web browser |
-| `w` | Download artist-provided SoundCloud MP3/WAV directly to `~/Downloads` |
+| `w` | Download artist-provided SoundCloud MP3/WAV to your download folder (set it with `S`) |
 | `g` | Mark track as **Got** (`✓`) and move to next track |
 | `s` | Mark track as **Skipped** (`✗`) and move to next track |
 | `u` | Clear track status mark (`·`) |

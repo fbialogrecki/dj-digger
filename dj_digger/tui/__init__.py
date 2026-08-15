@@ -44,14 +44,23 @@ from .keymap import (
 )
 from .rows import Prepared, Row
 from .screens import AskLinkScreen, ConfirmScreen, HelpScreen, SettingsScreen
-from .widgets import CrateButton, CrateItem, ErrorBanner, StatusBar, TrackTable
+from .widgets import (
+    CrateButton,
+    CrateItem,
+    ErrorBanner,
+    FittedFooter,
+    SearchInput,
+    StatusBar,
+    TrackTable,
+)
 
 __all__ = [
     "CALM_TICK", "CRATES", "FLASH", "HELP_EXTRA", "HELP_SCOPES", "KEYMAP",
     "KEY_DISPLAY", "MIN_TITLE_WIDTH", "OTHER", "PLAYBACK", "PLAYING_GLYPH",
     "SELECTED", "SPINNER", "SPINNER_EVERY", "STATUS_STYLES", "TICK",
     "WHOLE_LIST", "AskLinkScreen", "ConfirmScreen", "CrateButton", "CrateItem",
-    "DiggerApp", "ErrorBanner", "HelpScreen", "PlayerBar", "Prepared", "Row",
+    "DiggerApp", "ErrorBanner", "FittedFooter", "HelpScreen", "PlayerBar",
+    "Prepared", "Row", "SearchInput",
     "SettingsScreen", "StatusBar", "TrackTable", "browser_module", "run_tui",
 ]
 

@@ -1,0 +1,47 @@
+name: CI
+
+# The test job in publish.yml only ever ran on a release or a tag, which is the
+# moment it is already too late to learn anything from it. This one runs on the
+# commits themselves.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      # Pinned to a commit rather than a tag, as in publish.yml: a tag can be
+      # moved to point at new code.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Install uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+      - name: Ruff
+        run: uv run --extra dev ruff check .
+
+  test:
+    name: ${{ matrix.os }} / Python ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # auth.py carries separate cookie paths for macOS and WSL/Windows and
+        # browser.py resolves programs per platform, but only Linux was ever run
+        # - so the support was asserted rather than checked.
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        # Every version requires-python claims to support.
+        python-version: ["3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Install uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+      # --extra dev, because pytest lives in an optional dependency rather than
+      # in the default set: without it uv resolves an environment that cannot
+      # run the suite at all.
+      - name: Run tests
+        run: uv run --extra dev --python ${{ matrix.python-version }} pytest

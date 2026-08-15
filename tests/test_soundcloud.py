@@ -86,6 +86,136 @@ def test_download_uses_only_the_artist_provided_download_url(tmp_path):
     ]
 
 
+def test_a_lookalike_host_is_not_handed_our_client_id(tmp_path):
+    """'soundcloud.com' in host is also true of soundcloud.com.attacker.net."""
+
+    session = DownloadSession(DownloadResponse([b"x"]))
+    client = make_client(session)
+    track = Track(
+        title="A track",
+        artist="Artist",
+        permalink_url="https://soundcloud.com/artist/track",
+        downloadable=True,
+        has_downloads_left=True,
+        download_url="https://evil-soundcloud.com.attacker.example/file.mp3",
+    )
+
+    client.download_track(track, tmp_path)
+
+    _url, params, _timeout, _stream = session.calls[0]
+    assert params == {}
+
+
+@pytest.mark.parametrize("name", ["CON", "aux", "Com1", "LPT9", "NUL"])
+def test_a_track_named_after_a_windows_device_still_gets_a_filename(name):
+    """CON.mp3 is as reserved as CON, and the OSError lands after the download."""
+
+    cleaned = soundcloud._sanitize_filename(name)
+    assert cleaned.upper() not in soundcloud.WINDOWS_RESERVED
+    assert name.lower() in cleaned.lower()
+
+
+def test_a_gate_answering_with_a_web_page_is_not_saved_as_a_track(tmp_path):
+    """A 200 full of HTML used to become a .mp3 that no player could open."""
+
+    session = DownloadSession(
+        DownloadResponse([b"<html>complete the steps</html>"], headers={"Content-Type": "text/html"})
+    )
+    client = make_client(session)
+    track = Track(
+        title="T",
+        artist="A",
+        permalink_url="https://soundcloud.com/a/t",
+        downloadable=True,
+        has_downloads_left=True,
+        download_url="https://gate.example/file",
+    )
+    destination = tmp_path / "downloads"
+
+    with pytest.raises(soundcloud.SoundCloudError, match="web page"):
+        client.download_track(track, destination)
+
+    assert list(destination.iterdir()) == []
+
+
+def test_a_download_runs_on_the_session_it_was_given(tmp_path, monkeypatch):
+    """A batch download hands each of its four threads one of these.
+
+    A gate is a multi-step flow held together by its own cookies, so sharing the
+    client's single session between them lets four flows overwrite each other.
+    """
+
+    seen = []
+
+    def fake_resolve(url, session, **kwargs):
+        seen.append(session)
+        return "https://cdn.example/file.mp3"
+
+    monkeypatch.setattr("dj_digger.gates.resolve_gate_download_url", fake_resolve)
+
+    # The client's own session raises if anything reaches for it: it has no
+    # queued responses. That is the point of the test.
+    client = make_client(FakeSession([]))
+    mine = DownloadSession(DownloadResponse([b"x"]))
+    track = Track(title="T", artist="A", permalink_url="https://soundcloud.com/a/t")
+
+    client.download_track(
+        track, tmp_path / "downloads", gate_url="https://hypeddit.com/track/x", session=mine
+    )
+
+    assert seen == [mine], "the gate flow has to run on the caller's session"
+    assert mine.calls, "and so does the fetch that follows it"
+
+
+def test_a_download_that_never_ends_is_stopped(tmp_path, monkeypatch):
+    """Content-Length is a claim; without a ceiling the loop ends when the server says so."""
+
+    monkeypatch.setattr(soundcloud, "MAX_DOWNLOAD_BYTES", 1024)
+    endless = DownloadResponse([b"a" * 512] * 10)
+    session = DownloadSession(endless)
+    client = make_client(session)
+    track = Track(
+        title="Huge",
+        artist="Artist",
+        permalink_url="https://soundcloud.com/artist/track",
+        downloadable=True,
+        has_downloads_left=True,
+        download_url="https://cdn.example/file.mp3",
+    )
+
+    # Its own directory: tmp_path also holds the isolated config from conftest.
+    destination = tmp_path / "downloads"
+
+    with pytest.raises(soundcloud.SoundCloudError, match="exceeded"):
+        client.download_track(track, destination)
+
+    # And nothing half-written is left behind.
+    assert list(destination.iterdir()) == []
+
+
+def test_a_download_declaring_more_than_the_limit_is_refused_before_writing(tmp_path, monkeypatch):
+    monkeypatch.setattr(soundcloud, "MAX_DOWNLOAD_BYTES", 1024)
+    session = DownloadSession(
+        DownloadResponse([b"a"], headers={"Content-Length": str(50 * 1024 * 1024)})
+    )
+    client = make_client(session)
+    track = Track(
+        title="Huge",
+        artist="Artist",
+        permalink_url="https://soundcloud.com/artist/track",
+        downloadable=True,
+        has_downloads_left=True,
+        download_url="https://cdn.example/file.mp3",
+    )
+
+    destination = tmp_path / "downloads"
+
+    with pytest.raises(soundcloud.SoundCloudError, match="Refusing"):
+        client.download_track(track, destination)
+
+    assert list(destination.iterdir()) == []
+
+
 def track_payload(track_id):
     return {
         "kind": "track",

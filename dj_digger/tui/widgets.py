@@ -3,13 +3,52 @@
 from rich.text import Text
 from textual import events
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Horizontal, VerticalScroll
 from textual.widget import Widget
-from textual.widgets import Button, DataTable, Label, ListItem, Static
+from textual.widgets import Button, DataTable, Footer, Input, Label, ListItem, Static
+from textual.widgets._footer import FooterKey
 from textual.widgets.data_table import ColumnKey
 
 from ..library import CrateRecord
-from .keymap import MIN_TITLE_WIDTH
+from .keymap import FOOTER_OPTIONAL, MIN_TITLE_WIDTH
+
+
+class FittedFooter(Footer):
+    """A footer that gives keys up rather than clipping the last one mid-word.
+
+    Textual's footer lays its bindings out and lets the row overflow, so the
+    thirteen this app shows were cut at "space P" on anything under about 145
+    columns. Filtering in ``compose`` rather than by hiding the widgets
+    afterwards, because the footer recomposes itself whenever focus moves and
+    would undo that on the next keystroke.
+    """
+
+    def _dropped_actions(self) -> set[str]:
+        """Which bindings will not fit, decided before any widget is built."""
+
+        budget = self.size.width or self.app.size.width
+        cost: dict[str, int] = {}
+        for _node, binding, _enabled, _tooltip in self.screen.active_bindings.values():
+            if binding.show and binding.action not in cost:
+                key_display = self.app.get_key_display(binding)
+                cost[binding.action] = len(key_display) + len(binding.description) + 3
+        total = sum(cost.values())
+        dropped: set[str] = set()
+        for action in FOOTER_OPTIONAL:
+            if total <= budget:
+                break
+            if action in cost:
+                dropped.add(action)
+                total -= cost[action]
+        return dropped
+
+    def compose(self) -> ComposeResult:
+        dropped = self._dropped_actions()
+        for key in super().compose():
+            if isinstance(key, FooterKey) and key.action in dropped:
+                continue
+            yield key
 
 
 class TrackTable(DataTable):
@@ -36,9 +75,26 @@ class TrackTable(DataTable):
             for key, other in self.columns.items()
             if key != self.flexible_column
         )
-        width = self.size.width - spent - 2 * self.cell_padding
+        # scrollable_content_region, not size: the vertical scrollbar owns two
+        # of those columns, and spending them on the title put the table one
+        # column over and hung a horizontal scrollbar under an 80-column
+        # terminal with the last digit of Time behind the edge.
+        available = self.scrollable_content_region.width or self.size.width
+        width = available - spent - 2 * self.cell_padding
         column.width = max(MIN_TITLE_WIDTH, width)
         self.refresh(layout=True)
+
+
+class SearchInput(Input):
+    """The filter box, carrying the one key that gets you back out of it.
+
+    Textual's footer shows the bindings that are live for whatever has focus,
+    and an Input swallows every printable key - so while you are typing here the
+    footer emptied out to the key you had just pressed. Escape already worked;
+    it was simply never on screen.
+    """
+
+    BINDINGS = [Binding("escape", "app.clear_filters", "Clear search")]
 
 
 class StatusBar(Static):

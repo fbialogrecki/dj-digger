@@ -1,0 +1,31 @@
+name: Live API check
+
+# tests/test_live.py is the only thing standing between us and SoundCloud
+# changing api-v2 under the client, and it is opt-in (`addopts = -m 'not live'`),
+# so in practice it ran when somebody remembered. Once a week it runs by itself.
+#
+# Deliberately not a gate on anything: it fails when somebody else's API moves,
+# which is news rather than a reason to block a release.
+on:
+  schedule:
+    # Mondays, 06:00 UTC. Early enough in the week to do something about it.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    name: Hit the real api-v2
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Install uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+      - name: Run the live tests
+        # Point these at another playlist by setting DJ_DIGGER_LIVE_URL in the
+        # repository variables, for when the default one disappears.
+        env:
+          DJ_DIGGER_LIVE_URL: ${{ vars.DJ_DIGGER_LIVE_URL }}
+        run: uv run --extra dev pytest -m live

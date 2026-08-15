@@ -1,3 +1,4 @@
+import json
 import tempfile
 from pathlib import Path
 
@@ -79,3 +80,26 @@ def test_the_browser_choice_round_trips(tmp_path):
     config.save()
 
     assert AppConfig(path).browser == "firefox"
+
+
+def test_the_download_directory_round_trips(tmp_path):
+    """It was ~/Downloads written into the download code in two places."""
+
+    path = tmp_path / "config.json"
+    config = AppConfig(path)
+    assert config.download_directory.endswith("Downloads")
+
+    config.download_directory = str(tmp_path / "crates" / "incoming")
+    config.save()
+
+    assert AppConfig(path).download_directory == str(tmp_path / "crates" / "incoming")
+
+
+def test_an_older_config_without_a_download_directory_still_gets_one(tmp_path):
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps({"user_name": "DJ Test"}), encoding="utf-8")
+
+    config = AppConfig(path)
+
+    assert config.user_name == "DJ Test"
+    assert config.download_directory.endswith("Downloads")

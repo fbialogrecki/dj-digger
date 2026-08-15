@@ -2,11 +2,13 @@ from unittest.mock import MagicMock
 
 import requests
 
+from dj_digger import gates
 from dj_digger.gates import (
     resolve_gate_download_url,
-    store_links_on_page,
+    resolve_gaterush_download_url,
     resolve_hypeddit_download_url,
     resolve_toneden_download_url,
+    store_links_on_page,
 )
 
 
@@ -61,9 +63,10 @@ def test_resolve_droploud_gate():
 class StubConfig:
     """A profile a gate form can be filled in from, without touching real config."""
 
-    def __init__(self, email):
+    def __init__(self, email, gate_social_actions=True):
         self.user_name = "Music Listener"
         self.user_email = email
+        self.gate_social_actions = gate_social_actions
 
     def has_real_email(self):
         return not self.user_email.endswith(".invalid")
@@ -103,6 +106,117 @@ def test_an_address_the_user_set_is_submitted_without_complaint(caplog):
         )
 
     assert not any("placeholder address" in record.message for record in caplog.records)
+
+
+def _stepping_gate_session():
+    """A gate page with no download URL in it, so the step calls actually run.
+
+    ``_gate_session`` hands over an S3 link straight from the HTML, which is the
+    shortcut this resolver takes before it posts anything at all.
+    """
+
+    session = MagicMock(spec=requests.Session)
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.text = (
+        '<html><head><meta name="csrf-token" content="tok123"></head>'
+        '<body><input name="fan_gate_id" value="42">'
+        '<input name="nwSteps" value="email,sc"></body></html>'
+    )
+    session.get.return_value = resp
+    post_resp = MagicMock()
+    post_resp.status_code = 200
+    post_resp.text = ""
+    session.post.return_value = post_resp
+    return session
+
+
+def _posted_to(session, endpoint):
+    """Every payload this session posted to an endpoint whose URL ends in ``endpoint``."""
+
+    return [
+        call.kwargs.get("data", {})
+        for call in session.post.call_args_list
+        if call.args and call.args[0].endswith(endpoint)
+    ]
+
+
+def test_a_gate_is_told_about_the_repost_only_when_it_was_allowed():
+    """Every version up to 0.8 sent these, and said so in no interface at all."""
+
+    session = _stepping_gate_session()
+    resolve_hypeddit_download_url(
+        "https://hypeddit.com/track/abc1234",
+        session,
+        config=StubConfig("dj@example.com", gate_social_actions=True),
+    )
+
+    payloads = _posted_to(session, "/setSC")
+    assert payloads, "the SoundCloud step should still run"
+    assert payloads[0]["is_repost"] == 1
+    assert payloads[0]["is_subscribe"] == 1
+    assert payloads[0]["comment_sc"] == "Fire!"
+
+
+def test_a_gate_gets_no_repost_no_follow_and_no_comment_when_it_was_refused():
+    session = _stepping_gate_session()
+    resolve_hypeddit_download_url(
+        "https://hypeddit.com/track/abc1234",
+        session,
+        config=StubConfig("dj@example.com", gate_social_actions=False),
+    )
+
+    payloads = _posted_to(session, "/setSC")
+    assert payloads, "the step itself still runs - the gate counts it"
+    assert payloads[0]["is_repost"] == 0
+    assert payloads[0]["is_subscribe"] == 0
+    assert payloads[0]["comment_sc"] == ""
+    # And nothing is written under your name on the YouTube step either.
+    assert all(payload["comment_yt"] == "" for payload in _posted_to(session, "/setYT"))
+
+
+def test_gaterush_posts_no_comment_when_social_actions_are_refused():
+    session = MagicMock(spec=requests.Session)
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.text = 'var download_url = "https://s3.amazonaws.com/bucket/track.wav";'
+    session.get.return_value = resp
+
+    resolve_gaterush_download_url(
+        "https://gaterush.me/someslug",
+        session,
+        config=StubConfig("dj@example.com", gate_social_actions=False),
+    )
+
+    assert _posted_to(session, "/save-comment/someslug") == []
+    # The address is what the download is actually for, so it still goes.
+    assert _posted_to(session, "/save-email/someslug")
+
+
+def test_a_shop_page_that_merely_mentions_downloads_is_still_a_shop():
+    """The word used to be matched anywhere on the page, footers included."""
+
+    page = """
+    <html><body>
+      <a class="retailer-link" href="https://label.bandcamp.com/album/x">Bandcamp</a>
+      <footer>Instant download with every vinyl order. Digital downloads FAQ.</footer>
+      <script>var downloadTracker = init("download");</script>
+    </body></html>
+    """
+    assert gates._offers_a_download(page) is False
+
+
+def test_a_gate_in_another_language_is_recognised_as_a_gate():
+    """A German or Spanish gate used to be rewritten into a list of shops."""
+
+    for button in ("Herunterladen", "Descargar", "Télécharger", "Pobierz"):
+        page = f'<html><body><button class="gate-cta">{button}</button></body></html>'
+        assert gates._offers_a_download(page) is True, button
+
+
+def test_a_download_button_is_still_found_when_it_is_a_submit_input():
+    page = '<html><body><input type="submit" value="Free Download"></body></html>'
+    assert gates._offers_a_download(page) is True
 
 
 class HubSession:
@@ -193,6 +307,22 @@ def test_a_shop_linked_twice_is_returned_once():
 
 
 def test_an_unreachable_hub_changes_nothing():
+    """None, not []: the caller writes the host off after two of these."""
+
     session = MagicMock(spec=requests.Session)
     session.get.side_effect = requests.RequestException("nope")
+    assert store_links_on_page("https://label.ampsuite.com/x", session) is None
+
+
+def test_a_host_that_answered_404_is_not_reported_as_unreachable():
+    """Something replied. Only silence counts against a host."""
+
+    session = MagicMock(spec=requests.Session)
+    session.get.return_value = MagicMock(status_code=404, text="", url="https://label.ampsuite.com/x")
     assert store_links_on_page("https://label.ampsuite.com/x", session) == []
+
+
+def test_an_address_on_our_own_network_is_never_fetched():
+    session = MagicMock(spec=requests.Session)
+    assert store_links_on_page("http://169.254.169.254/latest/meta-data/", session) == []
+    session.get.assert_not_called()

@@ -404,6 +404,10 @@ def handle_auth(args: argparse.Namespace) -> int:
                     return 0
                 else:
                     console.print("[yellow]No active SoundCloud login found in local browser cookies.[/yellow]")
+                    # Said out loud rather than left to be guessed: Chromium keeps
+                    # its cookies encrypted behind the system keyring, so there is
+                    # nothing here to find and no amount of retrying will help.
+                    console.print("Only Firefox cookies can be read - Chrome and Edge keep theirs encrypted.")
                     console.print("To log in manually, find your 'oauth_token' cookie on soundcloud.com and run:")
                     console.print("  [bold]dj-digger auth login --token <YOUR_OAUTH_TOKEN>[/bold]")
                     return 1
@@ -433,13 +437,51 @@ def handle_auth(args: argparse.Namespace) -> int:
         return handle_auth(argparse.Namespace(auth_action="status"))
 
 
+def _configure_logging(level_name: str) -> None:
+    """Put our own log on screen, and nobody else's.
+
+    ``logging.basicConfig`` configures the root logger, so urllib3's retry
+    warnings came out with ours: a dig across 484 tracks printed dozens of
+    ``Retrying (Retry(total=1, connect=5...))`` lines - one per dead link in the
+    playlist - before it printed a single result. Those are a library talking to
+    itself about a host it is about to give up on, which we already report.
+
+    ``--log-level DEBUG`` is the one case where somebody does want to see them,
+    so that level lets them back through.
+    """
+
+    level = getattr(logging, level_name.upper(), logging.INFO)
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
+
+    root = logging.getLogger()
+    ours = logging.getLogger("dj_digger")
+    ours.handlers.clear()
+
+    if level <= logging.DEBUG:
+        # Debugging is the one time somebody does want the whole picture. Wired
+        # by hand rather than through basicConfig, which does nothing at all when
+        # the root logger already has a handler - and by then so would we.
+        ours.propagate = True
+        ours.setLevel(logging.NOTSET)
+        root.addHandler(handler)
+        root.setLevel(level)
+        return
+
+    ours.addHandler(handler)
+    ours.setLevel(level)
+    ours.propagate = False
+    # Without a handler on the root logger Python falls back to logging.lastResort,
+    # which prints WARNING and above to stderr - so leaving root bare would not
+    # have silenced urllib3, it would only have taken the formatting away.
+    if not root.handlers:
+        root.addHandler(logging.NullHandler())
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_cli_args(argv)
 
-    logging.basicConfig(
-        level=getattr(logging, args.log_level.upper(), logging.INFO),
-        format="%(levelname)s: %(message)s",
-    )
+    _configure_logging(args.log_level)
 
     try:
         if args.command == "dig":

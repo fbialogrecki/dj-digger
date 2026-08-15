@@ -731,12 +731,29 @@ def test_the_sidebar_collapses(records, state):
     app = make_app(records, state)
 
     async def scenario():
-        async with app.run_test() as pilot:
+        # Wide, or the narrow-terminal rule below would have collapsed it first.
+        async with app.run_test(size=(140, 42)) as pilot:
             sidebar = app.query_one("#sidebar")
             assert not sidebar.has_class("collapsed")
             await pilot.press("ctrl+b")
             assert sidebar.has_class("collapsed")
             await pilot.press("ctrl+b")
+            assert not sidebar.has_class("collapsed")
+
+    run(scenario)
+
+
+def test_a_narrow_terminal_collapses_the_sidebar_by_itself(records, state):
+    """28 of 80 columns on crate names costs the title and the right-hand columns."""
+
+    app = make_app(records, state)
+
+    async def scenario():
+        async with app.run_test(size=(80, 24)) as pilot:
+            sidebar = app.query_one("#sidebar")
+            assert sidebar.has_class("collapsed")
+            await pilot.resize_terminal(140, 42)
+            await pilot.pause()
             assert not sidebar.has_class("collapsed")
 
     run(scenario)
@@ -972,7 +989,9 @@ def test_the_store_column_badges_every_store_and_picks_out_the_one_o_opens(state
     async def scenario():
         async with app.run_test() as pilot:
             table = app.query_one("#tracks", DataTable)
-            assert str(table.get_row_at(0)[STORES_CELL]) == "bandcamp gate(hypeddit)"
+            # One character over the column, so it arrives elided rather than
+            # clipped by the table into "gate(hypedd".
+            assert str(table.get_row_at(0)[STORES_CELL]) == "bandcamp gate(hypeddi…"
             # Bandcamp comes first, so that is what o would follow.
             assert app.record_to_open(app.rows[0]).category == "bandcamp"
 
@@ -1055,6 +1074,41 @@ def test_the_title_column_takes_the_width_left_over(state):
             spent = sum(column.get_render_width(table) for column in table.columns.values())
             assert spent == table.size.width
             assert table.columns[table.flexible_column].width > tui.MIN_TITLE_WIDTH
+
+    run(scenario)
+
+
+def test_an_80_column_terminal_needs_no_horizontal_scrollbar(state):
+    """Genre and Time used to sit off the right edge behind a scrollbar."""
+
+    app = make_app(synthetic_records(60), state)
+
+    async def scenario():
+        async with app.run_test(size=(80, 24)) as pilot:
+            await pilot.pause()
+            table = app.query_one("#tracks", tui.TrackTable)
+            # Enough rows for a vertical scrollbar, whose two columns the title
+            # has to leave alone.
+            assert table.show_vertical_scrollbar
+            assert not table.show_horizontal_scrollbar
+
+    run(scenario)
+
+
+def test_the_footer_drops_keys_rather_than_cutting_one_in_half(state):
+    """Thirteen bindings want 161 columns; the row is as wide as the terminal."""
+
+    app = make_app(synthetic_records(3), state)
+
+    async def scenario():
+        async with app.run_test(size=(80, 24)) as pilot:
+            await pilot.pause()
+            keys = [key for key in app.query("FooterKey") if key.display]
+            spent = sum(len(k.key_display) + len(k.description) + 3 for k in keys)
+            assert spent <= 80
+            # The ones you cannot do without survive the cut.
+            shown = {key.action for key in keys}
+            assert {"open_link", "play_pause", "help", "quit"} <= shown
 
     run(scenario)
 

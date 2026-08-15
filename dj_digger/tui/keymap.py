@@ -43,6 +43,19 @@ FLASH = 0.25
 # always the first store you have rather than a fixed category.
 QUICK_FILTER_KEYS = 9
 
+# The footer wants 161 columns to show every binding below and has never had
+# them, so Textual clipped the last one mid-word. These are the actions it gives
+# up instead, least useful first; `?` still lists all of them.
+FOOTER_OPTIONAL = (
+    "batch_download",
+    "download_track",
+    "search_bandcamp",
+    "open_visible",
+    "cycle_store(1)",
+    "dig_link",
+    "open_settings",
+)
+
 # Everything except the title gets a fixed budget; the title takes the rest, so
 # a wide terminal shows long titles instead of an empty margin.
 MARK_WIDTH = 1
@@ -50,7 +63,12 @@ INDEX_WIDTH = 4
 STORES_WIDTH = 22
 GENRE_WIDTH = 14
 TIME_WIDTH = 5
-MIN_TITLE_WIDTH = 20
+# 16, not 20: an 80-column terminal has 17 columns left for the title once the
+# fixed ones, their padding and the vertical scrollbar are paid for, so a higher
+# floor pushed the table past the screen and hung a horizontal scrollbar under
+# it with the last digit of Time behind the edge. It is a floor for terminals
+# this narrow only - at 140 columns the title still takes 49.
+MIN_TITLE_WIDTH = 16
 
 # These two say nothing as a word - "shop" and "others" are what is left after
 # every recognised store, so the domain is the only thing that identifies them.

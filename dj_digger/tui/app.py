@@ -6,11 +6,12 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from rich.text import Text
+from textual import events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.timer import Timer
-from textual.widgets import Button, DataTable, Footer, Input, ListView, Static
+from textual.widgets import Button, DataTable, ListView, Static
 
 from .. import dig as dig_module
 from .. import links as links_module
@@ -45,9 +46,14 @@ from .playback import PlaybackMixin
 from .render import RenderMixin
 from .rows import Prepared, Row
 from .screens import HelpScreen, SettingsScreen
-from .widgets import ErrorBanner, StatusBar, TrackTable
+from .widgets import ErrorBanner, FittedFooter, SearchInput, StatusBar, TrackTable
 
 LOGGER = logging.getLogger(__name__)
+
+# The table needs 79 columns before the title stops shrinking, and the sidebar
+# and its border cost 29. Below the sum of the two the sidebar is crate names
+# paid for with Genre, Time and half the title, so it folds itself away.
+NARROW_WIDTH = 110
 
 
 class DiggerApp(
@@ -70,6 +76,9 @@ class DiggerApp(
     """
     # The built-in palette showed up in the footer as an unexplained "palette".
     ENABLE_COMMAND_PALETTE = False
+    # Otherwise the terminal's window and tab say "DiggerApp", which is the name
+    # of the class rather than of anything the user installed.
+    TITLE = "dj-digger"
 
     CSS = """
     DiggerApp {
@@ -149,8 +158,15 @@ class DiggerApp(
         padding: 0 1;
         color: $text-muted;
     }
+    /* One line, like the status bar: the default Input spends three rows on a
+       border to hold one row of text, and this sits above the list you are
+       filtering. */
     #search {
         display: none;
+        height: 1;
+        border: none;
+        padding: 0 1;
+        background: $panel;
     }
     #search.visible {
         display: block;
@@ -190,6 +206,9 @@ class DiggerApp(
         self.crate = crate_record
         self.crates: list[CrateRecord] = []
         self.crate_title = crate_title or (crate_record.title if crate_record else "")
+        # load_records sets this when you switch crates; this covers the one the
+        # command line opened us on.
+        self.sub_title = self.crate_title
         self.export_format = export_format
         self.export_path = export_path
         self.dig_options = dig_options or dig_module.DigOptions()
@@ -214,6 +233,8 @@ class DiggerApp(
         # Only a batch download builds one. Declared here so the teardown path
         # can ask about it plainly rather than through getattr.
         self._download_executor: ThreadPoolExecutor | None = None
+        # None until the first resize, so the first one always applies.
+        self._narrow: bool | None = None
         self.player = Player()
         self._client: SoundCloudClient | None = None
         self._set_records(records)
@@ -227,10 +248,29 @@ class DiggerApp(
                 yield ListView(id="crates")
                 yield Button("+ Add crate", id="crate-add", tooltip="Add a crate (d)")
             with Vertical(id="main"):
-                yield Input(placeholder="Filter by artist or title", id="search")
+                yield SearchInput(placeholder="Filter by artist or title", id="search")
                 yield TrackTable(id="tracks", cursor_type="row", zebra_stripes=True)
         yield StatusBar(id="status")
-        yield Footer()
+        yield FittedFooter()
+
+    def on_resize(self, event: events.Resize) -> None:
+        """Give the narrow terminal back the columns it does not have.
+
+        Both of these already had a manual switch - ``ctrl+b`` for the sidebar,
+        ``?`` for the full key list - so this only decides for you at the widths
+        where there is nothing to decide.
+        """
+
+        narrow = event.size.width < NARROW_WIDTH
+        if narrow != self._narrow:
+            self._narrow = narrow
+            self.query_one("#sidebar").set_class(narrow, "collapsed")
+        # The footer picks which bindings fit in its own compose, which resize
+        # does not otherwise trigger. Queued on the footer rather than on the
+        # app: composing a widget from the app's message pump breaks the data
+        # binding Textual's Footer sets up on its own keys.
+        footer = self.query_one(FittedFooter)
+        footer.call_next(footer.recompose)
 
     def show_error(self, message: str) -> None:
         """Display an error/debug message in the top ErrorBanner."""

@@ -225,6 +225,67 @@ def test_a_crate_of_plain_shop_links_costs_no_requests(monkeypatch):
     assert seen == []
 
 
+def test_a_host_that_stops_answering_is_asked_twice_and_no_more(monkeypatch):
+    """A playlist names the same smart-link domain over and over.
+
+    Each attempt costs the full connect timeout, so one dead host used to be one
+    wasted wait per track that mentioned it - minutes, on a real crate.
+    """
+
+    asked = []
+
+    def never_answers(url, session, timeout=10.0):
+        asked.append(url)
+        return None  # the host said nothing at all
+
+    monkeypatch.setattr("dj_digger.gates.store_links_on_page", never_answers)
+    monkeypatch.setattr("dj_digger.soundcloud.create_requests_session", lambda **kw: FakeSession())
+
+    # Forty tracks, all pointing at the same dead host.
+    tracks = [
+        Track(
+            title=f"T{index}",
+            permalink_url=f"https://soundcloud.com/a/{index}",
+            id=index,
+            purchase_url=f"https://smartlinks.gone.example/l/{index}",
+        )
+        for index in range(40)
+    ]
+
+    assert dig.expand_link_hubs(tracks) == 0
+    # Not exactly HOST_FAILURE_LIMIT: whatever the pool already had in flight
+    # when the count reached the limit still finishes. The guarantee is that no
+    # further request is started, which bounds it by the worker count.
+    assert len(asked) <= dig.HUB_WORKERS
+    assert len(asked) < len(tracks)
+
+
+def test_a_host_that_answers_is_asked_every_time(monkeypatch):
+    """The breaker must not trip on a working host that has nothing to give."""
+
+    asked = []
+
+    def answers_with_nothing(url, session, timeout=10.0):
+        asked.append(url)
+        return []
+
+    monkeypatch.setattr("dj_digger.gates.store_links_on_page", answers_with_nothing)
+    monkeypatch.setattr("dj_digger.soundcloud.create_requests_session", lambda **kw: FakeSession())
+
+    tracks = [
+        Track(
+            title=f"T{index}",
+            permalink_url=f"https://soundcloud.com/a/{index}",
+            id=index,
+            purchase_url=f"https://hypeddit.com/track/{index}",
+        )
+        for index in range(5)
+    ]
+
+    dig.expand_link_hubs(tracks)
+    assert len(asked) == 5
+
+
 def test_hub_expansion_reports_progress(monkeypatch):
     monkeypatch.setattr(
         "dj_digger.gates.store_links_on_page",

@@ -833,8 +833,8 @@ class Player:
         if hasattr(self, "_session") and self._session is not None:
             try:
                 self._session.close()
-            except Exception:
-                pass
+            except Exception as exc:
+                LOGGER.debug("Closing the playback session complained: %s", exc)
 
 
 def format_time(seconds: float) -> str:

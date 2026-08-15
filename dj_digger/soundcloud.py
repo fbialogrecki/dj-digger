@@ -26,16 +26,33 @@ from urllib3.util.retry import Retry
 from . import auth, gates
 from .models import Crate, Track
 
+# Windows refuses these as a filename whatever the extension - CON.mp3 is as
+# reserved as CON - and says so with an OSError at the moment of writing, which
+# is after the whole file has already been fetched. A track called "Aux" is not
+# a hypothetical.
+WINDOWS_RESERVED = frozenset(
+    {"CON", "PRN", "AUX", "NUL"}
+    | {f"COM{number}" for number in range(1, 10)}
+    | {f"LPT{number}" for number in range(1, 10)}
+)
+
 
 def _sanitize_filename(filename: str) -> str:
     """Sanitize filename to prevent path traversal and invalid characters."""
     filename = os.path.basename(filename)
     filename = re.sub(r'[\\/*?:"<>|]', '_', filename)
     filename = filename.strip('. ')
+    if filename.upper() in WINDOWS_RESERVED:
+        filename = f"_{filename}"
     return filename or "download"
 
 API_ROOT = "https://api-v2.soundcloud.com"
 DISCOVER_URL = "https://soundcloud.com/discover"
+# A ceiling on what one track may write to disk. A gate hands over whatever it
+# likes and Content-Length is only a claim, so without this the write loop ends
+# when the server decides it does. Two gigabytes clears any real DJ file - a
+# 10-minute WAV at 24/96 is under 400 MB - by a wide margin.
+MAX_DOWNLOAD_BYTES = 2 * 1024 * 1024 * 1024
 
 # The /tracks endpoint answers 400 for more than 50 ids.
 HYDRATE_BATCH = 50
@@ -283,21 +300,30 @@ class SoundCloudClient:
         *,
         gate_url: str | None = None,
         on_progress: Callable[[int, int | None], None] | None = None,
+        session: requests.Session | None = None,
     ) -> Path:
-        """Save artist-provided download file directly or via resolved gate URL."""
+        """Save artist-provided download file directly or via resolved gate URL.
 
+        ``session`` exists for callers downloading several tracks at once. A gate
+        is a multi-step flow held together by its own cookies, so two of them
+        sharing one jar overwrite each other's state - the same reason
+        ``dig._expand_one`` builds a session per track. Left out, this uses the
+        client's own, which is right for a single download.
+        """
+
+        session = session or self._session
         download_url: str | None = None
 
         # 1. Try resolving gate URL if provided
         if gate_url:
             download_url = gates.resolve_gate_download_url(
-                gate_url, self._session, timeout=self._timeout, config=self.config
+                gate_url, session, timeout=self._timeout, config=self.config
             )
 
         # 2. Try authenticated download endpoint
         if not download_url and self._oauth_token and track.free_download and track.id:
             try:
-                resp = self._session.get(
+                resp = session.get(
                     f"{API_ROOT}/tracks/{track.id}/download",
                     params={"client_id": self.client_id},
                     headers={"Authorization": f"OAuth {self._oauth_token}"},
@@ -327,6 +353,10 @@ class SoundCloudClient:
             raise SoundCloudError("This track has no active direct download or resolved gate link")
 
         host = (urlparse(download_url).hostname or "").lower()
+        # Suffix, not substring: "soundcloud.com" in host is also true of
+        # evil-soundcloud.com.attacker.net, which would then be handed our
+        # client_id along with the request.
+        ours = host == "soundcloud.com" or host.endswith(".soundcloud.com")
         if not (download_url.startswith("http://") or download_url.startswith("https://")):
             raise SoundCloudError("Invalid or unsafe download URL scheme")
 
@@ -334,9 +364,9 @@ class SoundCloudClient:
         directory.mkdir(parents=True, exist_ok=True)
 
         try:
-            response = self._session.get(
+            response = session.get(
                 download_url,
-                params={"client_id": self.client_id} if "soundcloud.com" in host else None,
+                params={"client_id": self.client_id} if ours else None,
                 timeout=(self._timeout, self._timeout),
                 stream=True,
             )
@@ -357,9 +387,25 @@ class SoundCloudClient:
                 except ValueError:
                     total_size = None
 
+            if total_size and total_size > MAX_DOWNLOAD_BYTES:
+                raise SoundCloudError(
+                    f"Refusing a {total_size // (1024 * 1024)} MB download - "
+                    f"the limit is {MAX_DOWNLOAD_BYTES // (1024 * 1024)} MB"
+                )
+
             extension = ".mp3"
             cd_lower = content_disp.lower()
             ct_lower = content_type.lower()
+
+            # A gate that has not been satisfied answers 200 with its own page
+            # rather than a file. Without this that page was saved as a perfectly
+            # ordinary .mp3, and the first sign of trouble was a player refusing
+            # to open a track you thought you owned.
+            if ct_lower.startswith(("text/html", "application/xhtml")):
+                raise SoundCloudError(
+                    "That link returned a web page rather than a file - "
+                    "press 'o' to finish it in a browser"
+                )
             if ".wav" in cd_lower or "wav" in ct_lower:
                 extension = ".wav"
             elif ".flac" in cd_lower or "flac" in ct_lower:
@@ -384,6 +430,14 @@ class SoundCloudClient:
                         if chunk:
                             handle.write(chunk)
                             downloaded += len(chunk)
+                            # Content-Length is a claim, and a gate that never
+                            # stops sending would otherwise fill the disk: the
+                            # loop above had no end but the server's goodwill.
+                            if downloaded > MAX_DOWNLOAD_BYTES:
+                                raise SoundCloudError(
+                                    "Download exceeded "
+                                    f"{MAX_DOWNLOAD_BYTES // (1024 * 1024)} MB - stopped"
+                                )
                             if on_progress:
                                 on_progress(downloaded, total_size)
                 except Exception as stream_exc:

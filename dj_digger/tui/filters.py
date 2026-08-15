@@ -18,18 +18,29 @@ LOGGER = logging.getLogger(__name__)
 class FilterMixin:
     """Narrowing the visible rows: by store, by search text, by whether you have handled them."""
 
-    def matching_rows(self) -> list[Row]:
+    def soft_matching_rows(self) -> list[Row]:
+        """What search and hide-handled left, before the store filter.
+
+        Split out because the store legend counts these: see ``_store_line``.
+        """
+
         term = self.search_term.strip().lower()
         rows = []
         for row in self.rows:
-            if self.store_filters and not any(cat in row.categories for cat in self.store_filters):
-                continue
             if self.hide_handled and self.status_of(row) in (GOT, SKIP):
                 continue
             if term and term not in row.track.label.lower():
                 continue
             rows.append(row)
         return rows
+
+    def matching_rows(self) -> list[Row]:
+        return [
+            row
+            for row in self.soft_matching_rows()
+            if not self.store_filters
+            or any(cat in row.categories for cat in self.store_filters)
+        ]
 
     def status_of(self, row: Row) -> str:
         return self.state.get(row.track.key)

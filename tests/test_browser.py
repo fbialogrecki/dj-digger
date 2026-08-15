@@ -52,6 +52,35 @@ def test_anything_that_is_not_a_web_link_is_refused(url):
     assert browser.is_openable(url) is False
 
 
+# Addresses inside the machine or inside its network. A dig reaches these by
+# itself - nobody presses a key for a link hub - so a purchase_url pointed at one
+# turns a playlist into a request issued from behind the user's firewall.
+INSIDE_THE_NETWORK = [
+    "http://127.0.0.1:8080/admin",
+    "http://localhost/x",
+    "http://api.localhost/x",
+    "http://[::1]/x",
+    "http://169.254.169.254/latest/meta-data/",  # cloud metadata
+    "http://192.168.1.1/",
+    "http://10.0.0.5/",
+    "http://172.16.0.1/",
+    "http://2130706433/",  # 127.0.0.1 written as one integer
+]
+
+
+@pytest.mark.parametrize("url", INSIDE_THE_NETWORK)
+def test_addresses_on_our_own_network_are_not_fetched(url):
+    assert browser.is_fetchable(url) is False
+    # Still openable: pressing `o` on one is the user's business, and refusing
+    # there would break anyone digging a playlist about their own homelab.
+    assert browser.is_openable(url) is True
+
+
+@pytest.mark.parametrize("url", ["https://bandcamp.com/a", "https://8.8.8.8/x"])
+def test_the_open_internet_is_still_fetchable(url):
+    assert browser.is_fetchable(url) is True
+
+
 def test_open_url_refuses_without_even_resolving_a_browser(monkeypatch):
     def explode(*_args, **_kwargs):
         raise AssertionError("a refused link must not reach the browser layer")
@@ -163,6 +192,37 @@ def test_handing_a_link_to_windows_never_goes_through_a_shell(monkeypatch):
     assert browser._open_on_windows("https://bandcamp.com/a") is True
     assert seen["command"] == ["wslview", "https://bandcamp.com/a"]
     assert seen["shell"] is False
+
+
+def test_powershell_never_receives_the_url_as_part_of_its_script(monkeypatch):
+    """shell=False does not help when the interpreter is PowerShell itself.
+
+    Everything after -Command is parsed as code, so a URL carrying `;` or `$(...)`
+    would run. The URL goes through the environment, which is read and not parsed.
+    """
+
+    hostile = "https://ok.example/a;$(Start-Process calc.exe)"
+    seen = {}
+
+    def fake_run(command, **kwargs):
+        seen["command"] = command
+        seen["env"] = kwargs.get("env")
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(
+        browser,
+        "_windows_opener",
+        lambda: ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command"],
+    )
+    monkeypatch.setattr(browser.subprocess, "run", fake_run)
+
+    assert browser._open_on_windows(hostile) is True
+    assert hostile not in seen["command"]
+    assert not any(hostile in part for part in seen["command"])
+    assert seen["env"][browser.URL_ENV_VAR] == hostile
+    # And the link is still a legitimate one to open - the defence belongs here,
+    # not in is_openable, which is right to accept it.
+    assert browser.is_openable(hostile)
 
 
 def test_a_windows_choice_still_refuses_a_link_that_is_not_a_web_address(monkeypatch):

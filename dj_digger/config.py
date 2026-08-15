@@ -41,9 +41,21 @@ class AppConfig:
             str(Path.home() / "Music"),
             str(Path.home() / "Downloads"),
         ]
+        # Where `w` and `W` put the files they fetch. It was ~/Downloads written
+        # into two places in the download code, which is not where anybody with a
+        # sorted collection wants their records to land.
+        self.download_directory: str = str(Path.home() / "Downloads")
         # Empty means the system default. Anything else is checked against what
         # the machine reports before it is used - see browser.resolve_choice.
         self.browser: str = ""
+        # Whether a gate may record a repost, a follow and a comment against your
+        # SoundCloud account in exchange for the file. Every version up to 0.8
+        # did this and said so nowhere: `is_repost` and `is_subscribe` were
+        # hard-coded into the Hypeddit step calls, and only the comment text was
+        # ever visible in Settings. On by default, because turning it off is what
+        # changes behaviour - but now it is a sentence on the first-run screen
+        # rather than a line in somebody else's source.
+        self.gate_social_actions: bool = True
         # True when there was no config file to read, i.e. this is the first
         # launch. The TUI uses it to ask for the settings before anything needs
         # them - gates submit the name and email without asking again.
@@ -69,6 +81,11 @@ class AppConfig:
                 if isinstance(scan_dirs, list) and scan_dirs:
                     self.scan_directories = [str(d).strip() for d in scan_dirs if str(d).strip()]
                 self.browser = str(raw.get("browser") or "").strip()
+                download_dir = str(raw.get("download_directory") or "").strip()
+                if download_dir:
+                    self.download_directory = download_dir
+                if "gate_social_actions" in raw:
+                    self.gate_social_actions = bool(raw["gate_social_actions"])
         except FileNotFoundError:
             self.first_run = True
             self.save()
@@ -82,6 +99,8 @@ class AppConfig:
             "custom_comments": self.custom_comments,
             "scan_directories": self.scan_directories,
             "browser": self.browser,
+            "download_directory": self.download_directory,
+            "gate_social_actions": self.gate_social_actions,
         }
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)

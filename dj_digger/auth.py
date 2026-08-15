@@ -56,7 +56,8 @@ def get_stored_auth_info() -> dict[str, Any]:
     try:
         data = json.loads(AUTH_FILE.read_text(encoding="utf-8"))
         return data if isinstance(data, dict) else {}
-    except Exception:
+    except (OSError, ValueError) as exc:
+        LOGGER.debug("Could not read %s: %s", AUTH_FILE, exc)
         return {}
 
 
@@ -137,7 +138,16 @@ def verify_token(token: str, client_id: str, timeout: float = 10.0) -> dict[str,
 
 
 def _extract_sqlite_cookies(db_path: str) -> list[str]:
-    """Extract oauth_token values from unencrypted SQLite cookies database (e.g. Firefox)."""
+    """Read oauth_token out of a Firefox cookie store.
+
+    Firefox only. There was a second query here against Chromium's ``cookies``
+    table, reading its ``value`` column - which in Chromium is always empty,
+    because the cookie lives in ``encrypted_value`` behind a key in the system
+    keyring. It could not ever have returned anything, so it has gone rather than
+    stayed as a promise the code does not keep. On Chromium, paste the token in
+    by hand or set SOUNDCLOUD_OAUTH_TOKEN.
+    """
+
     if not os.path.exists(db_path):
         return []
 
@@ -152,7 +162,6 @@ def _extract_sqlite_cookies(db_path: str) -> list[str]:
         conn = sqlite3.connect(tmp_path)
         cursor = conn.cursor()
 
-        # Check moz_cookies (Firefox)
         try:
             cursor.execute(
                 "SELECT name, value FROM moz_cookies WHERE host LIKE '%soundcloud%' AND name = 'oauth_token'"
@@ -160,23 +169,13 @@ def _extract_sqlite_cookies(db_path: str) -> list[str]:
             for row in cursor.fetchall():
                 if row[1] and isinstance(row[1], str) and row[1].strip():
                     tokens.append(row[1].strip())
-        except sqlite3.OperationalError:
-            pass
-
-        # Check cookies (Chromium)
-        try:
-            cursor.execute(
-                "SELECT name, value FROM cookies WHERE host_key LIKE '%soundcloud%' AND name = 'oauth_token'"
-            )
-            for row in cursor.fetchall():
-                if row[1] and isinstance(row[1], str) and row[1].strip():
-                    tokens.append(row[1].strip())
-        except sqlite3.OperationalError:
-            pass
+        except sqlite3.OperationalError as exc:
+            # Not a Firefox store, or a schema we do not know.
+            LOGGER.debug("No moz_cookies in %s: %s", db_path, exc)
 
         conn.close()
-    except Exception:
-        pass
+    except (OSError, sqlite3.Error) as exc:
+        LOGGER.debug("Could not read cookies from %s: %s", db_path, exc)
     finally:
         if tmp_path and os.path.exists(tmp_path):
             try:

@@ -1,5 +1,111 @@
 # Changelog
 
+## 0.9.0
+
+### Security
+
+- **A link could run a command under WSL.** Handing a URL to the Windows browser
+  went through `powershell.exe -Command Start-Process <url>`, and everything
+  after `-Command` is parsed by PowerShell as code rather than taken as an
+  argument — `shell=False` does not help when the interpreter *is* PowerShell.
+  A `purchase_url` is set by whoever uploaded the track, and one containing `;`
+  or `$(...)` is a perfectly valid URL. The address now travels in an
+  environment variable, which PowerShell reads and never re-parses.
+- **A dig no longer reaches into your own network.** Link hubs and gates are
+  fetched from addresses that come out of a track's purchase link, with no check
+  on where they point, so one aimed at `127.0.0.1`, at a box on your LAN or at a
+  cloud metadata service made your machine issue those requests. Loopback,
+  link-local, private and reserved addresses are refused before anything is
+  sent. Opening such a link by hand still works — that is your decision to make.
+- **A download can no longer fill the disk.** The write loop ran until the server
+  stopped sending; `Content-Length` was read but only ever fed the progress bar.
+  There is a 2 GB ceiling now, applied to the declared length as well.
+- **A lookalike host no longer receives our client_id.** The check was
+  `"soundcloud.com" in host`, which is also true of
+  `evil-soundcloud.com.attacker.example`.
+- Scheme checks that used `startswith("http")` — which accepts `httpfoo://` —
+  now parse the URL.
+
+### Breaking
+
+- **Crates and track statuses live in SQLite only.** They used to be written to
+  `crates/<slug>.json` *and* the database, with the file treated as the real copy
+  and the table as a fallback that had room for five of a record's fields — so a
+  crate that fell back to it silently lost its import date, its `partial` flag
+  and its `NEW` marks. There is one copy now. Existing `state.json` and
+  `crates/*.json` are imported once, on first start after the upgrade, and then
+  left on disk untouched; nothing reads or writes them again. Downgrading to 0.8
+  after that point loses anything changed in between.
+
+### Added
+
+- **A switch for what gates do with your account.** Every version up to 0.8 sent
+  `is_repost` and `is_subscribe` to Hypeddit and a comment to GateRush, hard-coded
+  and visible in no interface. It is a checkbox on the Settings screen now — the
+  same screen a first run opens on — and it is on by default, so nothing changes
+  unless you turn it off.
+- **A download folder setting.** It was `~/Downloads`, written into the download
+  code in two places.
+- **Tests run on every push and pull request**, across Ubuntu, macOS and Windows.
+  They only ran on a release or a tag before, which is the point at which it is
+  too late for them to tell you anything.
+- **A weekly job hits the real api-v2**, so a change on SoundCloud's side shows
+  up as a red build rather than as a bug report.
+- Ruff is a declared dev dependency, configured, and enforced in CI.
+- `py.typed`, so the annotations reach anyone importing `dj_digger`.
+
+### Fixed
+
+- **Deleting a crate did nothing** unless it happened to still have a JSON file:
+  the whole operation sat inside `if the file exists`, so a crate whose row
+  outlived its file could not be removed at all. The confirmation appeared, the
+  crate stayed, and it came back on every reload.
+- **Link hubs that mention "download" anywhere are no longer mistaken for gates.**
+  The check matched the word across the entire page, so a shop with it in a
+  footer, a FAQ or an analytics script was left as a `gate` and never expanded.
+  It now reads the text of the thing you would press, in eight languages — a
+  German or Spanish gate used to be invisible to it. On a 484-track playlist this
+  turned up 46 shop links that were previously never followed.
+- **A batch download no longer shares one session between its four threads.** Gate
+  flows are multi-step and held together by their own cookies, so four of them in
+  one cookie jar overwrote each other's state. `dig` already got this right; the
+  download path never had the fix.
+- **A dead host costs seconds, not minutes.** Third-party pages were fetched with
+  the retry budget meant for api-v2 — five connect retries against a 20 second
+  timeout — and a playlist names the same dead smart-link domain over and over. A
+  host that stops answering is now skipped for the rest of the dig. The dig this
+  was measured on went from minutes to about a minute.
+- **The log is ours again.** `logging.basicConfig` configured the root logger, so
+  urllib3's retry warnings came out with our own output: dozens of
+  `Retrying (Retry(total=1...))` lines before a single result. `--log-level DEBUG`
+  still shows everything.
+- SQLite connections are no longer leaked. A fresh `Database` was built on every
+  call — three times inside `list_crates` alone — each opening its own connection,
+  re-running every `CREATE TABLE`, and closing nothing.
+- A gate that answers with its own web page is no longer saved as an `.mp3` that
+  no player can open.
+- A track called `Aux` or `Con` no longer fails to save on Windows.
+- Scanning browser cookies no longer pretends to support Chromium. The query read
+  a column that is always empty there, because the value is encrypted behind the
+  system keyring — `dj-digger auth` says so now instead of reporting nothing found.
+
+### Interface
+
+- The help screen no longer wraps its own descriptions back to column 0, leaving
+  words hanging underneath as if they were key names.
+- The sidebar folds itself away below 110 columns, where it was costing the track
+  title, the genre and the time column.
+- The footer drops its least important bindings rather than cutting the last one
+  mid-word. `q Quit` is visible for the first time.
+- Settings scrolls, and its Save button is reachable on an 80×24 terminal. It was
+  off the bottom of the screen — on the one screen a first run opens on.
+- Store badges are elided rather than clipped, so `gate(hypeddit)` no longer
+  arrives as `gate(hypedd`.
+- The store counts in the status bar follow the search instead of staying at the
+  crate's totals.
+- The search box is one line rather than three, and says how to leave it.
+- The terminal title says `dj-digger`, not `DiggerApp`.
+
 ## 0.8.0
 
 ### Breaking

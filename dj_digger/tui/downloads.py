@@ -11,6 +11,7 @@ from pathlib import Path
 
 from textual import work
 
+from .. import soundcloud
 from ..models import Track
 from ..state import GOT, SKIP
 from .rows import Row
@@ -47,7 +48,7 @@ class DownloadMixin:
             self.call_from_thread(self._update_track_progress, key, 0.05)
             path = self.client.download_track(
                 track,
-                Path.home() / "Downloads",
+                Path(self.config.download_directory),
                 gate_url=gate_url,
                 on_progress=on_progress,
             )
@@ -106,17 +107,25 @@ class DownloadMixin:
                 pct = min(1.0, downloaded / total_bytes) if total_bytes and total_bytes > 0 else 0.5
                 self.call_from_thread(self._update_track_progress, key, pct)
 
+            # Its own session, not the client's: a gate is a multi-step flow held
+            # together by its own cookies, and four of them sharing one jar
+            # overwrite each other's state. Same reason dig._expand_one builds one
+            # per track - this path simply never got the fix.
+            session = soundcloud.create_requests_session()
             try:
                 self.call_from_thread(self._update_track_progress, key, 0.05)
                 path = self.client.download_track(
                     row.track,
-                    Path.home() / "Downloads",
+                    Path(self.config.download_directory),
                     gate_url=gate_url,
                     on_progress=on_progress,
+                    session=session,
                 )
                 return (row, True, str(path))
             except Exception as exc:
                 return (row, False, str(exc))
+            finally:
+                session.close()
 
         self._download_executor = ThreadPoolExecutor(max_workers=4)
         try:

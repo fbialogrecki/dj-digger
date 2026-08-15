@@ -4,14 +4,15 @@ Stores whole tracks rather than categorised links, so that improving the
 categorisation improves crates you imported months ago. Stream URLs are
 deliberately not stored - they expire, and are fetched fresh on playback.
 
-ponytail: every crate is written twice, to crates/<slug>.json and to the crates
-table, and ``list_crates`` merges both by source. See the same note in
-``state``: one of the two is enough, and dropping the JSON half would take
-about forty lines with it.
+Since 0.9 there is one copy, in SQLite. Crates used to be written to both
+crates/<slug>.json and the crates table, with ``list_crates`` merging the two by
+source - which meant two answers to "what is in this crate" and, because the
+table only had room for five of the record's fields, a fallback that silently
+lost the import date, the NEW marks and the partial flag. Files written by 0.8
+and earlier are imported once and then left alone.
 """
 
 import hashlib
-import json
 import logging
 import os
 import re
@@ -20,7 +21,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Self
 
-from .db import Database
+from .db import Database, database
 from .models import Crate, Track
 
 VERSION = 1
@@ -74,10 +75,6 @@ class CrateRecord:
     @property
     def slug(self) -> str:
         return slug_for(self.source)
-
-    @property
-    def path(self) -> Path:
-        return crates_dir() / f"{self.slug}.json"
 
     @property
     def active_tracks(self) -> list[Track]:
@@ -134,75 +131,47 @@ class CrateRecord:
 
 
 def _db() -> Database:
-    return Database(crates_dir().parent / "digger.db")
+    return database(crates_dir().parent / "digger.db")
 
 
-def save(record: CrateRecord) -> Path:
+def save(record: CrateRecord) -> None:
     if not record.imported_at:
         record.imported_at = _now()
-    path = record.path
-    path.parent.mkdir(parents=True, exist_ok=True)
-    data = record.to_json()
-    temporary = path.with_suffix(".json.tmp")
-    temporary.write_text(
-        json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
-    os.replace(temporary, path)
-    _db().save_crate(
-        source=record.source,
-        title=record.title,
-        declared_count=len(record.tracks),
-        updated=record.refreshed_at or record.imported_at,
-        tracks_data=data.get("tracks", [])
-    )
-    return path
+    _db().save_crate(record.to_json())
 
 
 def load(slug: str) -> CrateRecord:
-    path = crates_dir() / f"{slug}.json"
-    if path.exists():
-        return CrateRecord.from_json(json.loads(path.read_text(encoding="utf-8")))
-    for crate_info in _db().list_crates():
-        rec = _db().load_crate(crate_info["source"])
-        if rec and slug_for(rec["source"]) == slug:
-            return CrateRecord.from_json(rec)
+    for raw in _db().all_crates():
+        source = raw.get("source") or ""
+        if source and slug_for(source) == slug:
+            return CrateRecord.from_json(raw)
     raise FileNotFoundError(f"Crate slug not found: {slug}")
 
 
 def list_crates() -> list[CrateRecord]:
-    records_by_source: dict[str, CrateRecord] = {}
-
-    for path in sorted(crates_dir().glob("*.json")):
-        try:
-            rec = CrateRecord.from_json(json.loads(path.read_text(encoding="utf-8")))
-            if rec.source:
-                records_by_source[rec.source] = rec
-        except (OSError, ValueError) as exc:
-            LOGGER.warning("Skipping unreadable crate %s: %s", path, exc)
-
     try:
-        for crate_info in _db().list_crates():
-            source = crate_info.get("source")
-            if source and source not in records_by_source:
-                raw_rec = _db().load_crate(source)
-                if raw_rec:
-                    records_by_source[source] = CrateRecord.from_json(raw_rec)
+        raw_records = _db().all_crates()
     except Exception as exc:
         LOGGER.warning("Could not read crates from SQLite: %s", exc)
-
-    return sorted(records_by_source.values(), key=lambda record: record.title.lower())
+        return []
+    records = [CrateRecord.from_json(raw) for raw in raw_records if raw.get("source")]
+    return sorted(records, key=lambda record: record.title.lower())
 
 
 def delete(slug: str) -> None:
-    path = crates_dir() / f"{slug}.json"
-    if path.exists():
-        try:
-            rec = CrateRecord.from_json(json.loads(path.read_text(encoding="utf-8")))
-            if rec and rec.source:
-                _db().delete_crate(rec.source)
-        except Exception:
-            pass
-        path.unlink(missing_ok=True)
+    """Remove a crate from the library.
+
+    Until 0.9 all of this sat inside ``if the JSON file exists``, so a crate whose
+    row outlived its file could not be deleted at all: the row survived,
+    ``list_crates`` kept returning it, and the sidebar drew it again the moment it
+    reloaded - pressing X did nothing, every time.
+    """
+
+    for raw in _db().all_crates():
+        source = raw.get("source") or ""
+        if source and slug_for(source) == slug:
+            _db().delete_crate(source)
+            return
 
 
 def refresh(record: CrateRecord, crate: Crate, *, partial: bool = False) -> CrateRecord:

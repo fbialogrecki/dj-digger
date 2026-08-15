@@ -4,20 +4,27 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dj-soundcloud-digger"
-version = "0.8.0"
+version = "0.9.0"
 description = "Dig purchase and free-download links out of SoundCloud playlists, likes and profiles"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.12"
 keywords = ["soundcloud", "dj", "bandcamp", "beatport", "crate-digging"]
+authors = [{ name = "Filip Białogrecki" }]
 classifiers = [
+    # 4, not 5: the storage format and the CLI are not frozen yet. That decision
+    # is 1.0, and it is a separate one.
+    "Development Status :: 4 - Beta",
     "Environment :: Console",
     "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Topic :: Multimedia :: Sound/Audio",
+    "Typing :: Typed",
 ]
 dependencies = [
     "requests>=2.28",
@@ -30,16 +37,28 @@ dependencies = [
 # Audio preview. Kept optional so a platform without a miniaudio wheel can still
 # install the link digger; the player degrades with a message when it is absent.
 play = ["miniaudio>=1.59"]
-dev = ["pytest>=7.0", "miniaudio>=1.59"]
+dev = ["pytest>=7.0", "miniaudio>=1.59", "ruff>=0.6"]
 
 [project.scripts]
 dj-digger = "dj_digger.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/fbialogrecki/dj-soundcloud-digger"
+Repository = "https://github.com/fbialogrecki/dj-soundcloud-digger"
+Issues = "https://github.com/fbialogrecki/dj-soundcloud-digger/issues"
+Changelog = "https://github.com/fbialogrecki/dj-soundcloud-digger/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
 packages = ["dj_digger"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+# Ruff's default set plus import order, which this code already follows. E501 is
+# deliberately absent: it is not in the default set either, and 71 lines here are
+# longer than 100 characters. Reformatting them is not what a release is for.
+select = ["E4", "E7", "E9", "F", "I"]
 
 [tool.pytest.ini_options]
 markers = [

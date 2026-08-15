@@ -19,6 +19,7 @@ from .keymap import (
     PLAYING_GLYPH,
     QUICK_FILTER_KEYS,
     STATUS_STYLES,
+    STORES_WIDTH,
 )
 from .rows import Row
 from .widgets import TrackTable
@@ -68,6 +69,11 @@ class RenderMixin:
                 else:
                     style = "bold cyan"
                 badges.append(name, style=style)
+        # DataTable clips the cell at STORES_WIDTH with nothing to show for it,
+        # so "gate(hypeddit)" arrives as "gate(hypedd" and reads as a misspelt
+        # store rather than a cut one. Cut it here, with the mark that says so.
+        if len(badges.plain) > STORES_WIDTH:
+            badges.truncate(STORES_WIDTH, overflow="ellipsis")
         return badges
 
     def _playing_key(self) -> str | None:
@@ -194,7 +200,14 @@ class RenderMixin:
             line.append("press d to dig a link", style="bright_black")
             return line
 
-        by_category = links_module.count_by_category(self.all_records())
+        # Counted over what the search and hide-handled left, so the legend does
+        # not claim 113 smartlinks next to the two rows a search is showing. The
+        # store filter itself is deliberately not applied: counting that would
+        # zero every store except the one you are in, which is the legend you
+        # need to get back out of it.
+        by_category = links_module.count_by_category(
+            [record for row in self.soft_matching_rows() for record in row.records]
+        )
         showing_all = not self.store_filters
         current_x = 0
 

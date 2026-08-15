@@ -6,6 +6,7 @@ is whatever this machine turns out to have - including, under WSL, the browser
 running on the Windows side, which is the one you actually look at.
 """
 
+import ipaddress
 import logging
 import os
 import shutil
@@ -46,11 +47,16 @@ BROWSER_CANDIDATES = (
 
 # Tried in order under WSL. wslview is the polite one; explorer.exe is on every
 # installation; powershell is the fallback when somebody has hidden explorer.
+# The powershell entry stops at -Command on purpose: what follows it is a script,
+# not an argument list, and _open_on_windows is the one place allowed to build it.
 WINDOWS_OPENERS = (
     ["wslview"],
     ["explorer.exe"],
-    ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", "Start-Process"],
+    ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command"],
 )
+
+# Read by the script above, never re-parsed by it. See _open_on_windows.
+URL_ENV_VAR = "DJ_DIGGER_URL"
 
 # wslview otherwise runs a `curl --head` against every URL before opening it,
 # which on a list of thirty tabs is a visible stall. Set once, at import, rather
@@ -73,6 +79,38 @@ def is_openable(url: str) -> bool:
     except ValueError:  # malformed IPv6 literals and the like
         return False
     return parsed.scheme.lower() in SAFE_SCHEMES and bool(parsed.netloc)
+
+
+def is_fetchable(url: str) -> bool:
+    """True when this is an address we are willing to *request*, not just open.
+
+    Opening a link is the user pressing a key; fetching one happens by itself
+    during a dig - a link hub is read to see which shops are behind it, and a
+    gate resolver posts to it. Those addresses come out of a ``purchase_url``
+    that any stranger can set, so one pointed at ``127.0.0.1``, at a box on the
+    LAN, or at a cloud metadata service turns a dig into requests issued from
+    inside the user's own network.
+
+    ponytail: literal addresses only. A name that resolves to a private address
+    gets through, and so does one that resolves differently the second time
+    (DNS rebinding). Closing that means resolving here and pinning the address
+    into a custom transport adapter - upgrade there if a dig ever runs somewhere
+    it does not own the network.
+    """
+
+    if not is_openable(url):
+        return False
+    host = (urlparse(url).hostname or "").lower()
+    # RFC 6761 reserves these for the local machine, so they need no lookup.
+    if host == "localhost" or host.endswith(".localhost"):
+        return False
+    try:
+        # A bare integer is a legal way to write an address - http://2130706433/
+        # is 127.0.0.1 - and ip_address does not accept that spelling on its own.
+        address = ipaddress.ip_address(int(host) if host.isdigit() else host)
+    except ValueError:
+        return True  # a name, not a literal; see the note above
+    return address.is_global
 
 
 def is_wsl() -> bool:
@@ -137,9 +175,22 @@ def _open_on_windows(url: str) -> bool:
     if command is None:
         LOGGER.error("No way to reach a Windows browser from here.")
         return False
+    # PowerShell parses everything after -Command as code, so the URL cannot be
+    # an argument there - and shell=False does not help, because the interpreter
+    # is PowerShell itself rather than a shell we declined to invoke.
+    # ``https://ok.example/a;$(...)`` is a valid URL, passes is_openable, and is
+    # also a valid script; every URL reaching here came from a purchase_url that
+    # a stranger set. An environment variable is read by the script and never
+    # parsed as part of it. wslview and explorer.exe take a plain argument.
+    if command[0].startswith("powershell"):
+        argv = [*command, f"Start-Process -FilePath $env:{URL_ENV_VAR}"]
+        env = {**os.environ, URL_ENV_VAR: url}
+    else:
+        argv = [*command, url]
+        env = None
     try:
         finished = subprocess.run(
-            [*command, url], capture_output=True, timeout=20, shell=False
+            argv, env=env, capture_output=True, timeout=20, shell=False
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         LOGGER.error("Could not hand %s to Windows: %s", url, exc)
