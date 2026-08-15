@@ -8,12 +8,15 @@ version = "0.5.1"
 description = "Dig purchase and free-download links out of SoundCloud playlists, likes and profiles"
 readme = "README.md"
 license = { file = "LICENSE" }
-requires-python = ">=3.9"
+requires-python = ">=3.12"
 keywords = ["soundcloud", "dj", "bandcamp", "beatport", "crate-digging"]
 classifiers = [
     "Environment :: Console",
     "Intended Audience :: End Users/Desktop",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Multimedia :: Sound/Audio",
 ]
 dependencies = [
