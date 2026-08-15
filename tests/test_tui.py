@@ -333,7 +333,7 @@ def test_a_number_key_beyond_the_stores_present_is_a_no_op(records, state):
     async def scenario():
         async with app.run_test() as pilot:
             await pilot.press("9")
-            assert app.store_filter == ""
+            assert app.store_filters == set()
 
     run(scenario)
 
@@ -346,15 +346,15 @@ def test_cycling_walks_only_the_stores_present(records, state):
     async def scenario():
         async with app.run_test() as pilot:
             await pilot.press("f")
-            assert app.store_filter == "no-link"
+            assert app.store_filters == {"no-link"}
             await pilot.press("f")
-            assert app.store_filter == "bandcamp"
+            assert app.store_filters == {"bandcamp"}
             await pilot.press("f")
-            assert app.store_filter == "others"
+            assert app.store_filters == {"others"}
             await pilot.press("f")  # wraps back to everything
-            assert app.store_filter == ""
+            assert app.store_filters == set()
             await pilot.press("F")  # and backwards
-            assert app.store_filter == "others"
+            assert app.store_filters == {"others"}
 
     run(scenario)
 
@@ -394,7 +394,7 @@ def test_escape_clears_every_filter(records, state):
             await pilot.press("2")
             await pilot.press("h")
             await pilot.press("escape")
-            assert app.store_filter == ""
+            assert app.store_filters == set()
             assert app.hide_handled is False
             assert app.query_one("#tracks", DataTable).row_count == len(records)
 
@@ -891,11 +891,11 @@ def test_removing_keeps_the_active_filter(state):
         async with app.run_test() as pilot:
             await pilot.pause()
             await pilot.press("1")  # bandcamp, the only store here
-            assert app.store_filter == "bandcamp"
+            assert app.store_filters == {"bandcamp"}
             await pilot.press("x")
             await pilot.pause()
             # A removal must not reset what you filtered down to.
-            assert app.store_filter == "bandcamp"
+            assert app.store_filters == {"bandcamp"}
             assert app.query_one("#tracks", DataTable).row_count == 2
 
     run(scenario)
@@ -979,7 +979,7 @@ def test_the_store_column_badges_every_store_and_picks_out_the_one_o_opens(state
 
             # Filtering to the gate is how you say you want the gate instead.
             await pilot.press("2")
-            assert app.store_filter == "gate"
+            assert app.store_filters == {"gate"}
             assert app.record_to_open(app.rows[0]).category == "gate"
 
     run(scenario)
@@ -1943,3 +1943,49 @@ def test_leaving_stops_the_ticker_and_lets_go_of_everything(records, state, monk
             executor.submit(lambda: None)
 
     run(scenario)
+
+
+def gate_row(*pairs):
+    """One row carrying (category, url) links, in the order given."""
+
+    track = Track(title="T", permalink_url="https://soundcloud.com/a/b", id=5)
+    return tui.Row(
+        position=1,
+        track=track,
+        records=[
+            LinkRecord(category=category, track=track, link_url=url, link_text="Buy")
+            for category, url in pairs
+        ],
+    )
+
+
+@pytest.mark.parametrize(
+    "row,expected",
+    [
+        # An explicit gate beats a shop that happens to come first.
+        (
+            gate_row(("bandcamp", "https://x.bandcamp.com/a"), ("gate", "https://hypeddit.com/track/z")),
+            "https://hypeddit.com/track/z",
+        ),
+        # Cloud storage has no category of its own, but gates can still unwrap it.
+        (
+            gate_row(("others", "https://www.mediafire.com/file/abc")),
+            "https://www.mediafire.com/file/abc",
+        ),
+        (
+            gate_row(("others", "https://drive.google.com/file/d/abc/view")),
+            "https://drive.google.com/file/d/abc/view",
+        ),
+        # A shop page is not something a resolver can turn into a file.
+        (gate_row(("bandcamp", "https://x.bandcamp.com/a"), ("beatport", "https://beatport.com/t/1")), None),
+        (gate_row(("streaming", "https://open.spotify.com/track/1")), None),
+        # Anything else unrecognised is worth handing over as a last resort.
+        (gate_row(("smartlink", "https://lnk.to/abc")), "https://lnk.to/abc"),
+        # Nothing to hand over at all.
+        (gate_row(("soundcloud", "https://soundcloud.com/a/b")), None),
+    ],
+)
+def test_the_gate_link_w_would_use(state, row, expected):
+    """Three passes: the declared gate, then a host gates knows, then anything left."""
+
+    assert make_app([], state)._find_gate_url(row) == expected

@@ -82,6 +82,3 @@ class TrackState:
             else:
                 self._entries[key] = {"status": status, "updated": updated}
             self.save()
-
-    def counts(self) -> Dict[str, int]:
-        return self.db.get_status_counts()

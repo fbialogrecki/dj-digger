@@ -372,6 +372,30 @@ def resolve_google_drive_download_url(url: str) -> str:
     return url
 
 
+# Every host the routing below knows how to unwrap. It lives here rather than
+# beside the caller that has to pick a candidate link, because a second copy of
+# this list is a second copy that drifts.
+RESOLVABLE_HOSTS = (
+    "hypeddit.com",
+    "hypd.it",
+    "droploud.com",
+    "gaterush.me",
+    "toneden.io",
+    "mediafire.com",
+    "dropbox.com",
+    "dropboxusercontent.com",
+    "drive.google.com",
+    "docs.google.com",
+)
+
+
+def can_resolve(url: str) -> bool:
+    """True when ``resolve_gate_download_url`` has a resolver for this host."""
+
+    lowered = (url or "").lower()
+    return any(host in lowered for host in RESOLVABLE_HOSTS)
+
+
 def resolve_gate_download_url(
     url: str, session: requests.Session, timeout: float = 10.0, config: Optional[Any] = None
 ) -> Optional[str]:

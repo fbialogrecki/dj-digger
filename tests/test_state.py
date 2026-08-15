@@ -34,19 +34,6 @@ def test_rejects_a_status_it_does_not_know(tmp_path):
         TrackState(tmp_path / "state.json").set("1", "purchased")
 
 
-def test_counts_group_by_status(tmp_path):
-    state = TrackState(tmp_path / "state.json")
-    state.set("1", GOT)
-    state.set("2", GOT)
-    state.set("3", SKIP)
-    state.set("4", OPENED)
-
-    counts = state.counts()
-    assert counts[GOT] == 2
-    assert counts[SKIP] == 1
-    assert counts[OPENED] == 1
-
-
 def test_a_corrupt_state_file_is_ignored_rather_than_fatal(tmp_path):
     path = tmp_path / "state.json"
     path.write_text("{not json", encoding="utf-8")

@@ -200,22 +200,6 @@ class SoundCloudClient:
                 LOGGER.debug("Could not cache client_id: %s", exc)
             return client_id
 
-        # Fallback hardcoded client IDs if discovery failed
-        fallback_ids = [
-            "2t91er31yO4L419L3y8N0L3x7770",
-            "a32732a372608c0282121e7a08b9f11d",
-            "iZ8612P4938210391209381029381029",
-        ]
-        for fid in fallback_ids:
-            if len(fid) == 32:
-                LOGGER.info("Using fallback client_id: %s", fid)
-                try:
-                    cache.parent.mkdir(parents=True, exist_ok=True)
-                    cache.write_text(fid, encoding="utf-8")
-                except OSError:
-                    pass
-                return fid
-
         raise SoundCloudError(
             "Could not find a client_id in SoundCloud's JS bundles. "
             "SoundCloud may have changed its site - try the saved-HTML fallback."

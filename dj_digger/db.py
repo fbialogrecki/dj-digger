@@ -135,15 +135,6 @@ class Database:
                     (str(key), status, updated)
                 )
 
-    def get_status_counts(self) -> Dict[str, int]:
-        counts = {"new": 0, "opened": 0, "skip": 0, "got": 0}
-        with self.connection() as conn:
-            cur = conn.execute("SELECT status, COUNT(*) as cnt FROM track_states GROUP BY status")
-            for row in cur.fetchall():
-                if row["status"] in counts:
-                    counts[row["status"]] = row["cnt"]
-        return counts
-
     # --- Crates API ---
     def save_crate(self, source: str, title: str, declared_count: Optional[int], updated: str, tracks_data: List[Dict[str, Any]]) -> None:
         with self.connection() as conn:

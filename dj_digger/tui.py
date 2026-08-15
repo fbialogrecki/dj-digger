@@ -38,6 +38,7 @@ from textual.widgets.data_table import ColumnKey
 
 from . import browser as browser_module
 from . import dig as dig_module
+from . import gates
 from . import library as library_module
 from . import links as links_module
 from .config import AppConfig
@@ -107,6 +108,12 @@ MIN_TITLE_WIDTH = 20
 # These two say nothing as a word - "shop" and "others" are what is left after
 # every recognised store, so the domain is the only thing that identifies them.
 DOMAIN_BADGE_CATEGORIES = {"shop", "others"}
+
+# Categories whose link goes to a shop page, which is not something a gate
+# resolver can unwrap into a file.
+DIRECT_STORE_CATEGORIES = frozenset(
+    {"beatport", "bandcamp", "traxsource", "junodownload", "apple", "shop", "streaming"}
+)
 
 SELECTED = "Selected track"
 WHOLE_LIST = "Whole visible list"
@@ -760,16 +767,6 @@ class DiggerApp(App):
         self.player = Player()
         self._client: Optional[SoundCloudClient] = None
         self._set_records(records)
-
-    @property
-    def store_filter(self) -> str:
-        return list(self.store_filters)[0] if len(self.store_filters) == 1 else ""
-
-    @store_filter.setter
-    def store_filter(self, val: str) -> None:
-        self.store_filters.clear()
-        if val:
-            self.store_filters.add(val)
 
     # Layout
 
@@ -1622,23 +1619,28 @@ class DiggerApp(App):
             self.notify("Could not open the link", severity="error")
 
     def _find_gate_url(self, row: Row) -> Optional[str]:
-        # 1. Prefer explicit gate category record
-        for rec in row.records:
-            if rec.category == "gate" and rec.link_url and "soundcloud.com" not in rec.link_url:
-                return rec.link_url
+        """The link ``w`` hands to the gate resolvers, surest bet first.
 
-        # 2. Check for known gate domains
-        gate_domains = ("hypeddit.com", "hypd.it", "droploud.com", "gaterush.me", "toneden.io", "mediafire.com", "dropbox.com", "drive.google.com")
-        for rec in row.records:
-            if rec.link_url and any(dom in rec.link_url.lower() for dom in gate_domains):
-                return rec.link_url
+        Three passes over one shortlist rather than three shortlists, and the
+        host list comes from ``gates`` rather than being spelled out again here.
+        """
 
-        # 3. Fallback for non-store / non-streaming links
-        for rec in row.records:
-            if rec.link_url and "soundcloud.com" not in rec.link_url and rec.link_text != links_module.NO_STORE_LINK:
-                if rec.category not in ("beatport", "bandcamp", "traxsource", "junodownload", "apple", "shop", "streaming"):
-                    return rec.link_url
-
+        candidates = [
+            record
+            for record in row.records
+            if record.link_url
+            and "soundcloud.com" not in record.link_url
+            and record.link_text != links_module.NO_STORE_LINK
+        ]
+        for record in candidates:
+            if record.category == "gate":
+                return record.link_url
+        for record in candidates:
+            if gates.can_resolve(record.link_url):
+                return record.link_url
+        for record in candidates:
+            if record.category not in DIRECT_STORE_CATEGORIES:
+                return record.link_url
         return None
 
     def action_download_track(self) -> None:

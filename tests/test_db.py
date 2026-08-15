@@ -13,8 +13,8 @@ def test_database_init_and_state(tmp_path: Path) -> None:
     db.set_track_status("12345", "got", "2026-08-08T12:00:00")
     assert db.get_track_status("12345") == "got"
 
-    counts = db.get_status_counts()
-    assert counts["got"] == 1
+    db.set_track_status("12345", "new", "2026-08-08T12:01:00")
+    assert db.get_track_status("12345") == "new"
 
 
 def test_database_crates(tmp_path: Path) -> None:
