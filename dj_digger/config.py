@@ -1,7 +1,8 @@
-"""Configuration settings for user profile, download gates, keybindings, and local scan dirs.
+"""What the app remembers about you, in ~/.config/dj-digger/config.json.
 
-Stores user name, email, hype comments, custom keybindings, footer actions,
-and scan directories (~/.config/dj-digger/config.json).
+Your name and email, which the gate resolvers submit on your behalf; the
+comments they leave; where to look for music you already own; and which browser
+opens links.
 """
 
 import json
@@ -22,23 +23,6 @@ DEFAULT_EMAIL = "dj-digger@example.invalid"
 RETIRED_EMAILS = frozenset({"music.listener@yahoo.com"})
 DEFAULT_COMMENTS = ["Love it!", "Amazing track!", "Dope tune!", "Fire!", "Banger!", "Great tune!"]
 
-DEFAULT_KEYBINDINGS: dict[str, str] = {
-    "mark_got": "g",
-    "mark_skip": "s",
-    "clear_mark": "u",
-    "remove_track": "x",
-    "copy_path": "c",
-    "context_menu": "m",
-}
-
-DEFAULT_FOOTER_KEYS: list[dict[str, str]] = [
-    {"key": "space", "label": "Play/Pause"},
-    {"key": "g", "label": "Got"},
-    {"key": "s", "label": "Skip"},
-    {"key": "m", "label": "Menu"},
-    {"key": "?", "label": "Help"},
-]
-
 
 def default_config_path() -> Path:
     config_dir = Path(os.environ.get("XDG_CONFIG_HOME") or (Path.home() / ".config")) / "dj-digger"
@@ -46,7 +30,7 @@ def default_config_path() -> Path:
 
 
 class AppConfig:
-    """User profile, keybindings, and scan settings with JSON persistence."""
+    """User profile and preferences, persisted as JSON."""
 
     def __init__(self, path: Path | None = None) -> None:
         self.path = Path(path) if path else default_config_path()
@@ -57,8 +41,6 @@ class AppConfig:
             str(Path.home() / "Music"),
             str(Path.home() / "Downloads"),
         ]
-        self.keybindings: dict[str, str] = dict(DEFAULT_KEYBINDINGS)
-        self.footer_keys: list[dict[str, str]] = list(DEFAULT_FOOTER_KEYS)
         # Empty means the system default. Anything else is checked against what
         # the machine reports before it is used - see browser.resolve_choice.
         self.browser: str = ""
@@ -82,15 +64,7 @@ class AppConfig:
                 scan_dirs = raw.get("scan_directories")
                 if isinstance(scan_dirs, list) and scan_dirs:
                     self.scan_directories = [str(d).strip() for d in scan_dirs if str(d).strip()]
-                keys = raw.get("keybindings")
-                if isinstance(keys, dict):
-                    for action, key_str in keys.items():
-                        if isinstance(key_str, str) and key_str.strip():
-                            self.keybindings[action] = key_str.strip().lower()
                 self.browser = str(raw.get("browser") or "").strip()
-                footer = raw.get("footer_keys")
-                if isinstance(footer, list) and footer:
-                    self.footer_keys = [f for f in footer if isinstance(f, dict) and "key" in f and "label" in f]
         except FileNotFoundError:
             self.save()
         except (OSError, ValueError) as exc:
@@ -103,8 +77,6 @@ class AppConfig:
             "custom_comments": self.custom_comments,
             "scan_directories": self.scan_directories,
             "browser": self.browser,
-            "keybindings": self.keybindings,
-            "footer_keys": self.footer_keys,
         }
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)

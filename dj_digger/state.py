@@ -1,6 +1,12 @@
 """Remember which tracks you already grabbed, across every playlist.
 
 Status is stored in SQLite and synced to state.json for backward compatibility.
+
+ponytail: two stores for one fact. SQLite is the only reader - ``get`` never
+looks at the JSON - so the mirror exists to be migrated from and to be written
+to, and nothing else. Collapsing to SQLite alone drops roughly seventy lines
+here and in ``library``, at the cost of no way back to the pre-0.5 format. Kept
+deliberately; v0.5.1 was an explicit decision to have both work.
 """
 
 import json

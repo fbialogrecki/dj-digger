@@ -3,6 +3,11 @@
 Stores whole tracks rather than categorised links, so that improving the
 categorisation improves crates you imported months ago. Stream URLs are
 deliberately not stored - they expire, and are fetched fresh on playback.
+
+ponytail: every crate is written twice, to crates/<slug>.json and to the crates
+table, and ``list_crates`` merges both by source. See the same note in
+``state``: one of the two is enough, and dropping the JSON half would take
+about forty lines with it.
 """
 
 import hashlib
