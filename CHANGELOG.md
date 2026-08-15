@@ -1,13 +1,18 @@
 # Changelog
 
+## 0.8.0
+
+### Breaking
+
+- **`--browser` is gone.** Deprecated in 0.6.0, carried through 0.7.0 with a
+  warning, removed here. Passing it is now an argument error rather than a
+  warning, so a script still using it fails loudly instead of quietly opening
+  the wrong browser. The browser is a setting: press `S` in the crate browser
+  and pick from what this machine actually has. `--no-tui --category` reads the
+  same setting, so batch opening and the interactive path no longer disagree
+  about which browser you meant.
+
 ## 0.7.0
-
-### Deprecated
-
-- **`--browser` is still here.** 0.6.0 said it would go in 0.7; it did not, so
-  nothing that used it breaks on this upgrade. It still warns, and the removal
-  moves to 0.8. The browser remains a setting: press `S` and pick from what the
-  machine actually has.
 
 ### Added
 
