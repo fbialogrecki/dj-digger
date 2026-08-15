@@ -3,15 +3,12 @@
 Status is stored in SQLite and synced to state.json for backward compatibility.
 """
 
-from __future__ import annotations
-
 import json
 import logging
 import os
 import threading
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Dict, Optional
 
 from .db import Database, default_db_path
 
@@ -34,12 +31,12 @@ def default_state_path() -> Path:
 class TrackState:
     """SQLite-backed status store with state.json synchronization."""
 
-    def __init__(self, path: Optional[Path] = None) -> None:
+    def __init__(self, path: Path | None = None) -> None:
         self.json_path = Path(path) if path else default_state_path()
         self.path = self.json_path
         db_path = self.json_path.parent / "digger.db" if self.json_path.suffix == ".json" else default_db_path()
         self.db = Database(db_path)
-        self._entries: Dict[str, Dict[str, str]] = {}
+        self._entries: dict[str, dict[str, str]] = {}
         self._lock = threading.Lock()
         self._load_json()
 
@@ -74,7 +71,7 @@ class TrackState:
     def set(self, key: str, status: str) -> None:
         if status not in STATUSES:
             raise ValueError(f"Unknown status: {status}")
-        updated = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        updated = datetime.now(UTC).isoformat(timespec="seconds")
         with self._lock:
             self.db.set_track_status(key, status, updated)
             if status == NEW:

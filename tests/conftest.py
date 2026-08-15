@@ -1,9 +1,7 @@
-from __future__ import annotations
-
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import pytest
 
@@ -41,24 +39,24 @@ def load_fixture(name: str) -> Any:
 
 
 @pytest.fixture
-def track_payloads() -> List[Dict[str, Any]]:
+def track_payloads() -> list[dict[str, Any]]:
     """Four real tracks, trimmed, covering every categorisation branch."""
 
     return load_fixture("tracks.json")
 
 
 @pytest.fixture
-def tracks(track_payloads: List[Dict[str, Any]]) -> List[Track]:
+def tracks(track_payloads: list[dict[str, Any]]) -> list[Track]:
     return [Track.from_api(payload) for payload in track_payloads]
 
 
 @pytest.fixture
-def tracks_by_id(tracks: List[Track]) -> Dict[int, Track]:
+def tracks_by_id(tracks: list[Track]) -> dict[int, Track]:
     return {track.id: track for track in tracks if track.id}
 
 
 @pytest.fixture
-def playlist_payload() -> Dict[str, Any]:
+def playlist_payload() -> dict[str, Any]:
     """A real /resolve reply: full envelope, id-only track stubs."""
 
     return load_fixture("playlist_resolve.json")

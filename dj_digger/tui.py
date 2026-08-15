@@ -13,15 +13,13 @@ It can also start from nothing: with no records it asks for a link, digs it in a
 worker thread so the interface stays responsive, and fills itself in.
 """
 
-from __future__ import annotations
-
 import logging
 import time
 import urllib.parse
+from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
 
 from rich.table import Table
 from rich.text import Text
@@ -33,7 +31,16 @@ from textual.coordinate import Coordinate
 from textual.screen import ModalScreen
 from textual.timer import Timer
 from textual.widget import Widget
-from textual.widgets import Button, DataTable, Footer, Input, Label, ListItem, ListView, Static
+from textual.widgets import (
+    Button,
+    DataTable,
+    Footer,
+    Input,
+    Label,
+    ListItem,
+    ListView,
+    Static,
+)
 from textual.widgets.data_table import ColumnKey
 
 from . import browser as browser_module
@@ -47,8 +54,8 @@ from .models import Crate, LinkRecord, Track
 from .player import (
     SEEK_STEP,
     VOLUME_STEP,
-    Player,
     PlaybackUnavailable,
+    Player,
     PlayerBar,
     Stream,
     fetch_waveform,
@@ -194,7 +201,7 @@ class Prepared:
 
     track: Track
     stream: Stream
-    waveform: List[int] = field(default_factory=list)
+    waveform: list[int] = field(default_factory=list)
     # An HTTP source already filling with audio, or None if miniaudio is absent.
     source: object = None
 
@@ -215,13 +222,13 @@ class Row:
     position: int
     track: Track
     # Best first, in CATEGORY_NAMES order - see links.group_by_track.
-    records: List[LinkRecord]
+    records: list[LinkRecord]
 
     @property
-    def categories(self) -> List[str]:
+    def categories(self) -> list[str]:
         return [record.category for record in self.records]
 
-    def record_for(self, category: str) -> Optional[LinkRecord]:
+    def record_for(self, category: str) -> LinkRecord | None:
         for record in self.records:
             if record.category == category:
                 return record
@@ -238,7 +245,7 @@ class TrackTable(DataTable):
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
-        self.flexible_column: Optional[ColumnKey] = None
+        self.flexible_column: ColumnKey | None = None
 
     def on_resize(self, event: events.Resize) -> None:
         self.fit_flexible_column()
@@ -329,7 +336,7 @@ class ErrorBanner(Widget):
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
-        self.errors: List[str] = []
+        self.errors: list[str] = []
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="error-container"):
@@ -393,7 +400,7 @@ class CrateItem(ListItem):
         yield CrateButton("\u2715", self.record, "delete", "Delete crate (shift+X)")
 
 
-class AskLinkScreen(ModalScreen[Optional[str]]):
+class AskLinkScreen(ModalScreen[str | None]):
     """Asks for a SoundCloud link (or a saved HTML file)."""
 
     CSS = """
@@ -725,47 +732,47 @@ class DiggerApp(App):
         self,
         records: Sequence[LinkRecord] = (),
         *,
-        state: Optional[TrackState] = None,
+        state: TrackState | None = None,
         crate_title: str = "",
         browser: str = "default",
         export_format: str = "json",
-        export_path: Optional[Path] = None,
-        dig_options: Optional[dig_module.DigOptions] = None,
-        crate_record: Optional[CrateRecord] = None,
+        export_path: Path | None = None,
+        dig_options: dig_module.DigOptions | None = None,
+        crate_record: CrateRecord | None = None,
     ) -> None:
         super().__init__()
-        self.rows: List[Row] = []
+        self.rows: list[Row] = []
         self.state = state or TrackState()
         self.crate = crate_record
-        self.crates: List[CrateRecord] = []
+        self.crates: list[CrateRecord] = []
         self.crate_title = crate_title or (crate_record.title if crate_record else "")
         self.browser = browser
         self.export_format = export_format
         self.export_path = export_path
         self.dig_options = dig_options or dig_module.DigOptions()
         self.store_filters: set[str] = set()
-        self._badge_click_regions: List[Tuple[int, int, int]] = []
+        self._badge_click_regions: list[tuple[int, int, int]] = []
         self.search_term: str = ""
         self.hide_handled: bool = False
-        self.visible_rows: List[Row] = []
-        self.present: List[str] = []
+        self.visible_rows: list[Row] = []
+        self.present: list[str] = []
         self._pending_open_all = False
         self._digging = False
-        self._undone: List[str] = []
-        self._ticker: Optional[Timer] = None
+        self._undone: list[str] = []
+        self._ticker: Timer | None = None
         # Decided fresh each time playback moves: does the cursor come along?
         self._cursor_follows = True
-        self._prepared: Optional[Prepared] = None
+        self._prepared: Prepared | None = None
         self._preparing: str = ""
         self._frame = 0
         self._dig_message = ""
-        self.download_progress: Dict[str, float] = {}
+        self.download_progress: dict[str, float] = {}
         self._last_progress_redraw: float = 0.0
         # Only a batch download builds one. Declared here so the teardown path
         # can ask about it plainly rather than through getattr.
-        self._download_executor: Optional[ThreadPoolExecutor] = None
+        self._download_executor: ThreadPoolExecutor | None = None
         self.player = Player()
-        self._client: Optional[SoundCloudClient] = None
+        self._client: SoundCloudClient | None = None
         self._set_records(records)
 
     # Layout
@@ -854,12 +861,12 @@ class DiggerApp(App):
         self.present = links_module.present_categories(records)
         self.store_filters = {c for c in self.store_filters if c in self.present}
 
-    def all_records(self) -> List[LinkRecord]:
+    def all_records(self) -> list[LinkRecord]:
         return [record for row in self.rows for record in row.records]
 
     # Crate library
 
-    def latest_crate(self) -> Optional[CrateRecord]:
+    def latest_crate(self) -> CrateRecord | None:
         if not self.crates:
             return None
         return max(self.crates, key=lambda r: r.refreshed_at or r.imported_at or "")
@@ -877,7 +884,7 @@ class DiggerApp(App):
             if self.crate.slug in slugs:
                 listing.index = slugs.index(self.crate.slug)
 
-    def highlighted_crate(self) -> Optional[CrateRecord]:
+    def highlighted_crate(self) -> CrateRecord | None:
         highlighted = self.query_one("#crates", ListView).highlighted_child
         if isinstance(highlighted, CrateItem):
             return highlighted.record
@@ -902,7 +909,7 @@ class DiggerApp(App):
 
     # Filtering
 
-    def matching_rows(self) -> List[Row]:
+    def matching_rows(self) -> list[Row]:
         term = self.search_term.strip().lower()
         rows = []
         for row in self.rows:
@@ -970,11 +977,11 @@ class DiggerApp(App):
                 badges.append(name, style=style)
         return badges
 
-    def _playing_key(self) -> Optional[str]:
+    def _playing_key(self) -> str | None:
         loaded = self.player.loaded
         return loaded.track.key if loaded is not None else None
 
-    def _cells(self, row: Row, playing_key: Optional[str]) -> List[Text]:
+    def _cells(self, row: Row, playing_key: str | None) -> list[Text]:
         status = self.status_of(row)
         glyph, style, _meaning = STATUS_STYLES[status]
         label_text = row.track.label
@@ -1058,7 +1065,7 @@ class DiggerApp(App):
         bar.update(grid)
 
     def _progress_line(self) -> Text:
-        counts: Dict[str, int] = {status: 0 for status in STATUS_STYLES}
+        counts: dict[str, int] = {status: 0 for status in STATUS_STYLES}
         for row in self.rows:
             counts[self.status_of(row)] += 1
 
@@ -1123,7 +1130,7 @@ class DiggerApp(App):
 
     # Helpers
 
-    def current_row(self) -> Optional[Row]:
+    def current_row(self) -> Row | None:
         table = self.query_one("#tracks", DataTable)
         if not self.visible_rows:
             return None
@@ -1267,7 +1274,7 @@ class DiggerApp(App):
         prepared = Prepared(track=track, stream=stream, waveform=samples, source=source)
         self.call_from_thread(self._preparation_done, track.key, prepared)
 
-    def _preparation_done(self, key: str, prepared: Optional[Prepared]) -> None:
+    def _preparation_done(self, key: str, prepared: Prepared | None) -> None:
         if self._preparing != key:
             # The list moved under it while it was working.
             if prepared is not None:
@@ -1291,7 +1298,7 @@ class DiggerApp(App):
         if self._prepared.key != following:
             self._discard_prepared()
 
-    def _take_prepared(self, track: Track) -> Optional[Prepared]:
+    def _take_prepared(self, track: Track) -> Prepared | None:
         if self._prepared is None or self._prepared.key != track.key:
             return None
         prepared, self._prepared = self._prepared, None
@@ -1308,7 +1315,7 @@ class DiggerApp(App):
         self._cursor_follows = self._playing_index() == table.cursor_row
         self._play_at(self._step_from_playing(1))
 
-    def _playing_index(self) -> Optional[int]:
+    def _playing_index(self) -> int | None:
         loaded = self.player.loaded
         if loaded is None:
             return None
@@ -1367,7 +1374,7 @@ class DiggerApp(App):
         self.call_from_thread(self._audio_ready, track, stream, samples)
 
     def _audio_ready(
-        self, track: Track, stream: Stream, samples: List[int], source=None
+        self, track: Track, stream: Stream, samples: list[int], source=None
     ) -> None:
         bar = self._player_bar()
         bar.message = ""
@@ -1413,7 +1420,7 @@ class DiggerApp(App):
             return
         self._player_op(lambda: self.player.nudge(direction * SEEK_STEP))
 
-    def _step_from_playing(self, step: int) -> Optional[int]:
+    def _step_from_playing(self, step: int) -> int | None:
         if not self.visible_rows:
             return None
         playing = self._playing_index()
@@ -1422,7 +1429,7 @@ class DiggerApp(App):
         index = start + step
         return index if 0 <= index < len(self.visible_rows) else None
 
-    def _play_at(self, index: Optional[int]) -> None:
+    def _play_at(self, index: int | None) -> None:
         if index is None:
             if self.visible_rows:
                 self.notify("End of the list", timeout=2)
@@ -1450,7 +1457,7 @@ class DiggerApp(App):
         message = "Paste a SoundCloud link" if self.rows else "What are we digging?"
         self.push_screen(AskLinkScreen(message=message), self._link_entered)
 
-    def refresh_crate(self, record: Optional[CrateRecord]) -> None:
+    def refresh_crate(self, record: CrateRecord | None) -> None:
         if record is None:
             self.notify("No crate to refresh", timeout=2)
             return
@@ -1460,7 +1467,7 @@ class DiggerApp(App):
         self.crate = record
         self._start_dig(record.source)
 
-    def confirm_delete_crate(self, record: Optional[CrateRecord]) -> None:
+    def confirm_delete_crate(self, record: CrateRecord | None) -> None:
         if record is None:
             self.notify("No crate to delete", timeout=2)
             return
@@ -1524,7 +1531,7 @@ class DiggerApp(App):
         if button.id == "crate-add":
             self.action_dig_link()
 
-    def _link_entered(self, target: Optional[str]) -> None:
+    def _link_entered(self, target: str | None) -> None:
         if not target:
             if not self.rows:
                 # Nothing was asked for and there is nothing to show.
@@ -1542,7 +1549,7 @@ class DiggerApp(App):
 
     @work(thread=True, exclusive=True)
     def dig_in_background(self, target: str) -> None:
-        def on_progress(stage: str, done: int, total: Optional[int]) -> None:
+        def on_progress(stage: str, done: int, total: int | None) -> None:
             suffix = f" {done}/{total}" if total else ""
             # The ticker draws it, so the spinner keeps turning between stages.
             self._dig_message = f"{stage}{suffix}"
@@ -1618,7 +1625,7 @@ class DiggerApp(App):
         else:
             self.notify("Could not open the link", severity="error")
 
-    def _find_gate_url(self, row: Row) -> Optional[str]:
+    def _find_gate_url(self, row: Row) -> str | None:
         """The link ``w`` hands to the gate resolvers, surest bet first.
 
         Three passes over one shortlist rather than three shortlists, and the
@@ -1658,10 +1665,10 @@ class DiggerApp(App):
         self.download_track_in_background(row.track, gate_url)
 
     @work(thread=True, exclusive=True, group="download")
-    def download_track_in_background(self, track: Track, gate_url: Optional[str] = None) -> None:
+    def download_track_in_background(self, track: Track, gate_url: str | None = None) -> None:
         key = track.key
 
-        def on_progress(downloaded: int, total_bytes: Optional[int]) -> None:
+        def on_progress(downloaded: int, total_bytes: int | None) -> None:
             pct = min(1.0, downloaded / total_bytes) if total_bytes and total_bytes > 0 else 0.5
             self.call_from_thread(self._update_track_progress, key, pct)
 
@@ -1698,7 +1705,7 @@ class DiggerApp(App):
 
     def action_batch_download(self) -> None:
         """Download all eligible tracks in current view (SoundCloud direct + Hypeddit/ToneDen gates) in parallel."""
-        eligible: List[Tuple[Row, Optional[str]]] = []
+        eligible: list[tuple[Row, str | None]] = []
         for row in self.visible_rows:
             status = self.status_of(row)
             if status in (GOT, SKIP):
@@ -1715,16 +1722,16 @@ class DiggerApp(App):
         self.batch_download_in_background(eligible)
 
     @work(thread=True, exclusive=True, group="batch_download")
-    def batch_download_in_background(self, items: List[Tuple[Row, Optional[str]]]) -> None:
+    def batch_download_in_background(self, items: list[tuple[Row, str | None]]) -> None:
         completed_count = 0
         failed_count = 0
         total = len(items)
 
-        def download_one(item: Tuple[Row, Optional[str]]) -> Tuple[Row, bool, str]:
+        def download_one(item: tuple[Row, str | None]) -> tuple[Row, bool, str]:
             row, gate_url = item
             key = row.track.key
 
-            def on_progress(downloaded: int, total_bytes: Optional[int]) -> None:
+            def on_progress(downloaded: int, total_bytes: int | None) -> None:
                 pct = min(1.0, downloaded / total_bytes) if total_bytes and total_bytes > 0 else 0.5
                 self.call_from_thread(self._update_track_progress, key, pct)
 
@@ -1745,7 +1752,6 @@ class DiggerApp(App):
             futures = [self._download_executor.submit(download_one, item) for item in items]
             for future in as_completed(futures):
                 row, success, result = future.result()
-                key = row.track.key
                 if success:
                     completed_count += 1
                     self.call_from_thread(self._on_batch_track_finished, row, result)
@@ -1881,7 +1887,7 @@ class DiggerApp(App):
         self.open_visible_in_background(target_rows)
 
     @work(thread=True, exclusive=True, group="open_all")
-    def open_visible_in_background(self, rows: List[Row]) -> None:
+    def open_visible_in_background(self, rows: list[Row]) -> None:
         urls = [self.record_to_open(row).link_url for row in rows]
 
         def on_success(idx: int, url: str) -> None:
@@ -1999,13 +2005,13 @@ class DiggerApp(App):
 def run_tui(
     records: Sequence[LinkRecord] = (),
     *,
-    state: Optional[TrackState] = None,
+    state: TrackState | None = None,
     crate_title: str = "",
     browser: str = "default",
     export_format: str = "json",
-    export_path: Optional[Path] = None,
-    dig_options: Optional[dig_module.DigOptions] = None,
-    crate_record: Optional[CrateRecord] = None,
+    export_path: Path | None = None,
+    dig_options: dig_module.DigOptions | None = None,
+    crate_record: CrateRecord | None = None,
 ) -> None:
     app = DiggerApp(
         records,

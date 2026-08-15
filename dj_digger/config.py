@@ -4,14 +4,11 @@ Stores user name, email, hype comments, custom keybindings, footer actions,
 and scan directories (~/.config/dj-digger/config.json).
 """
 
-from __future__ import annotations
-
 import json
 import logging
 import os
 import random
 from pathlib import Path
-from typing import Dict, List, Optional
 
 LOGGER = logging.getLogger(__name__)
 
@@ -25,7 +22,7 @@ DEFAULT_EMAIL = "dj-digger@example.invalid"
 RETIRED_EMAILS = frozenset({"music.listener@yahoo.com"})
 DEFAULT_COMMENTS = ["Love it!", "Amazing track!", "Dope tune!", "Fire!", "Banger!", "Great tune!"]
 
-DEFAULT_KEYBINDINGS: Dict[str, str] = {
+DEFAULT_KEYBINDINGS: dict[str, str] = {
     "mark_got": "g",
     "mark_skip": "s",
     "clear_mark": "u",
@@ -34,7 +31,7 @@ DEFAULT_KEYBINDINGS: Dict[str, str] = {
     "context_menu": "m",
 }
 
-DEFAULT_FOOTER_KEYS: List[Dict[str, str]] = [
+DEFAULT_FOOTER_KEYS: list[dict[str, str]] = [
     {"key": "space", "label": "Play/Pause"},
     {"key": "g", "label": "Got"},
     {"key": "s", "label": "Skip"},
@@ -51,17 +48,17 @@ def default_config_path() -> Path:
 class AppConfig:
     """User profile, keybindings, and scan settings with JSON persistence."""
 
-    def __init__(self, path: Optional[Path] = None) -> None:
+    def __init__(self, path: Path | None = None) -> None:
         self.path = Path(path) if path else default_config_path()
         self.user_name: str = DEFAULT_NAME
         self.user_email: str = DEFAULT_EMAIL
-        self.custom_comments: List[str] = list(DEFAULT_COMMENTS)
-        self.scan_directories: List[str] = [
+        self.custom_comments: list[str] = list(DEFAULT_COMMENTS)
+        self.scan_directories: list[str] = [
             str(Path.home() / "Music"),
             str(Path.home() / "Downloads"),
         ]
-        self.keybindings: Dict[str, str] = dict(DEFAULT_KEYBINDINGS)
-        self.footer_keys: List[Dict[str, str]] = list(DEFAULT_FOOTER_KEYS)
+        self.keybindings: dict[str, str] = dict(DEFAULT_KEYBINDINGS)
+        self.footer_keys: list[dict[str, str]] = list(DEFAULT_FOOTER_KEYS)
         self.load()
 
     def load(self) -> None:

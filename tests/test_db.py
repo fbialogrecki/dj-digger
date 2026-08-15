@@ -1,6 +1,7 @@
 """Tests for SQLite database engine."""
 
 from pathlib import Path
+
 from dj_digger.db import Database
 
 

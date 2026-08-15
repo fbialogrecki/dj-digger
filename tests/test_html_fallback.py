@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import json
 
 from dj_digger import html_fallback

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import asyncio
 import io
 import json
@@ -10,8 +8,7 @@ import pytest
 from rich.console import Console
 from textual.widgets import Button, DataTable, Input, Label, ListView, Static
 
-from dj_digger import library, links
-from dj_digger import tui
+from dj_digger import library, links, tui
 from dj_digger.dig import DigOptions, TargetNotFound
 from dj_digger.models import Crate, LinkRecord, Track
 from dj_digger.player import Loaded, PlaybackUnavailable, PlayerBar, Stream

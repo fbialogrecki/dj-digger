@@ -1,6 +1,12 @@
-import requests
 from unittest.mock import MagicMock
-from dj_digger.gates import resolve_hypeddit_download_url, resolve_toneden_download_url, resolve_gate_download_url
+
+import requests
+
+from dj_digger.gates import (
+    resolve_gate_download_url,
+    resolve_hypeddit_download_url,
+    resolve_toneden_download_url,
+)
 
 
 def test_resolve_hypeddit_var_in_html():

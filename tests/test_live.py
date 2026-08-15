@@ -8,8 +8,6 @@ Point them at a different playlist with DJ_DIGGER_LIVE_URL if the default one
 disappears.
 """
 
-from __future__ import annotations
-
 import os
 
 import pytest

@@ -1,6 +1,7 @@
 """Tests for LocalScanner and clipboard path copying."""
 
 from pathlib import Path
+
 from dj_digger.db import Database
 from dj_digger.models import Track
 from dj_digger.scanner import LocalScanner, copy_to_clipboard, normalize_string

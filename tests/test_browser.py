@@ -1,7 +1,5 @@
 """Which links are allowed to reach the operating system, and which are not."""
 
-from __future__ import annotations
-
 import pytest
 
 from dj_digger import browser

@@ -1,11 +1,9 @@
-from __future__ import annotations
-
 import json
 
 import pytest
 
 from dj_digger.models import Track
-from dj_digger.state import GOT, NEW, OPENED, SKIP, TrackState
+from dj_digger.state import GOT, NEW, SKIP, TrackState
 
 
 def test_unknown_tracks_start_as_new(tmp_path):

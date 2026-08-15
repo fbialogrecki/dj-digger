@@ -4,20 +4,17 @@ Extracts direct file download URLs from gate pages without requiring manual
 social media login steps.
 """
 
-from __future__ import annotations
-
 import json
 import logging
 import re
-from typing import Any, Optional
-from urllib.parse import unquote
+from typing import Any
 
 import requests
 
 LOGGER = logging.getLogger(__name__)
 
 
-def _identity_for(config: Optional[Any]) -> Any:
+def _identity_for(config: Any | None) -> Any:
     """The profile a gate form gets filled in with.
 
     Warns when it is still the placeholder: these resolvers post a name and an
@@ -51,7 +48,7 @@ DEFAULT_HEADERS = {
 }
 
 
-def _clean_url(raw_url: Optional[str], *, allow_preview: bool = False) -> Optional[str]:
+def _clean_url(raw_url: str | None, *, allow_preview: bool = False) -> str | None:
     """Clean and validate an extracted download URL. Rejects audio preview clips (_preview)."""
     if not raw_url or not isinstance(raw_url, str):
         return None
@@ -68,9 +65,9 @@ def resolve_hypeddit_download_url(
     url: str,
     session: requests.Session,
     timeout: float = 10.0,
-    config: Optional[Any] = None,
+    config: Any | None = None,
     _depth: int = 0,
-) -> Optional[str]:
+) -> str | None:
     """Resolve direct audio download URL from Hypeddit gate link by simulating step completion."""
     if _depth > 2:
         return None
@@ -224,7 +221,7 @@ def resolve_hypeddit_download_url(
     return None
 
 
-def resolve_toneden_download_url(url: str, session: requests.Session, timeout: float = 10.0) -> Optional[str]:
+def resolve_toneden_download_url(url: str, session: requests.Session, timeout: float = 10.0) -> str | None:
     """Resolve direct audio download URL from ToneDen fan gate link."""
     match = TONEDEN_RE.search(url)
     if not match:
@@ -279,7 +276,7 @@ DROPLOUD_RE = re.compile(
 
 def resolve_droploud_download_url(
     url: str, session: requests.Session, timeout: float = 10.0
-) -> Optional[str]:
+) -> str | None:
     """Resolve direct audio stream/download URL from Droploud track gate."""
     match = DROPLOUD_RE.search(url)
     if not match:
@@ -304,8 +301,8 @@ GATERUSH_RE = re.compile(r"https?://(?:www\.)?gaterush\.me/([a-zA-Z0-9_-]+)", re
 
 
 def resolve_gaterush_download_url(
-    url: str, session: requests.Session, timeout: float = 10.0, config: Optional[Any] = None
-) -> Optional[str]:
+    url: str, session: requests.Session, timeout: float = 10.0, config: Any | None = None
+) -> str | None:
     """Resolve direct audio download URL from GateRush fan gate link."""
     config = _identity_for(config)
     email = config.user_email
@@ -342,7 +339,7 @@ def resolve_gaterush_download_url(
     return None
 
 
-def resolve_mediafire_download_url(url: str, session: requests.Session, timeout: float = 10.0) -> Optional[str]:
+def resolve_mediafire_download_url(url: str, session: requests.Session, timeout: float = 10.0) -> str | None:
     """Extract direct download link from MediaFire page."""
     try:
         resp = session.get(url, headers=DEFAULT_HEADERS, timeout=timeout)
@@ -397,8 +394,8 @@ def can_resolve(url: str) -> bool:
 
 
 def resolve_gate_download_url(
-    url: str, session: requests.Session, timeout: float = 10.0, config: Optional[Any] = None
-) -> Optional[str]:
+    url: str, session: requests.Session, timeout: float = 10.0, config: Any | None = None
+) -> str | None:
     """Inspect and resolve direct download URL from supported gate providers and cloud storage."""
     if not url or not url.startswith("http"):
         return None

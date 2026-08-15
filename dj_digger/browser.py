@@ -1,11 +1,9 @@
 """Opening links in the user's browser."""
 
-from __future__ import annotations
-
 import logging
 import time
 import webbrowser
-from typing import Callable, Iterable, Optional
+from collections.abc import Callable, Iterable
 from urllib.parse import urlparse
 
 BROWSER_CHOICES = ["default", "chrome", "firefox", "edge", "safari", "opera"]
@@ -65,9 +63,9 @@ def open_urls(
     browser: str = "default",
     *,
     pause: float = 0.1,
-    controller: Optional[webbrowser.BaseBrowser] = None,
-    on_success: Optional[Callable[[int, str], None]] = None,
-    on_error: Optional[Callable[[str], None]] = None,
+    controller: webbrowser.BaseBrowser | None = None,
+    on_success: Callable[[int, str], None] | None = None,
+    on_error: Callable[[str], None] | None = None,
 ) -> int:
     """Open several links in tabs. Returns how many actually opened."""
 

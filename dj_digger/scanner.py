@@ -5,15 +5,11 @@ normalizes filenames/tags to match SoundCloud tracks, marks matched tracks as 'g
 and copies local file paths to the system clipboard using OSC 52 or native utilities.
 """
 
-from __future__ import annotations
-
 import logging
-import os
 import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 from .db import Database
 from .models import Track
@@ -62,7 +58,7 @@ def copy_to_clipboard(text: str) -> bool:
     return True
 
 
-def default_scan_directories() -> List[Path]:
+def default_scan_directories() -> list[Path]:
     home = Path.home()
     dirs = [home / "Music", home / "Downloads"]
     return [d for d in dirs if d.is_dir()]
@@ -71,7 +67,7 @@ def default_scan_directories() -> List[Path]:
 class LocalScanner:
     """Background scanner for local audio files with mtime SQLite caching."""
 
-    def __init__(self, directories: Optional[List[Path]] = None, db: Optional[Database] = None) -> None:
+    def __init__(self, directories: list[Path] | None = None, db: Database | None = None) -> None:
         self.directories = directories or default_scan_directories()
         self.db = db or Database()
 
@@ -110,7 +106,7 @@ class LocalScanner:
                         LOGGER.debug("Skipping file %s during scan: %s", entry, exc)
         return scanned
 
-    def match_track(self, track: Track) -> Optional[str]:
+    def match_track(self, track: Track) -> str | None:
         """Find a local audio file matching the track's artist and title."""
         if not track.title:
             return None

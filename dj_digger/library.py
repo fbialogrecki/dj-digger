@@ -5,17 +5,15 @@ categorisation improves crates you imported months ago. Stream URLs are
 deliberately not stored - they expire, and are fetched fresh on playback.
 """
 
-from __future__ import annotations
-
 import hashlib
 import json
 import logging
 import os
 import re
 from dataclasses import asdict, dataclass, field, fields
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Self
 
 from .db import Database
 from .models import Crate, Track
@@ -31,7 +29,7 @@ def crates_dir() -> Path:
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+    return datetime.now(UTC).isoformat(timespec="seconds")
 
 
 def slug_for(source: str) -> str:
@@ -44,11 +42,11 @@ def slug_for(source: str) -> str:
     return f"{readable or 'crate'}-{digest}"
 
 
-def _track_to_json(track: Track) -> Dict[str, Any]:
+def _track_to_json(track: Track) -> dict[str, Any]:
     return asdict(track)
 
 
-def _track_from_json(data: Dict[str, Any]) -> Track:
+def _track_from_json(data: dict[str, Any]) -> Track:
     # Filtered by field name so a crate written by another version still loads.
     known = {f.name for f in fields(Track)}
     values = {key: value for key, value in data.items() if key in known}
@@ -60,10 +58,10 @@ def _track_from_json(data: Dict[str, Any]) -> Track:
 class CrateRecord:
     source: str
     title: str
-    tracks: List[Track] = field(default_factory=list)
-    removed_track_keys: List[str] = field(default_factory=list)
+    tracks: list[Track] = field(default_factory=list)
+    removed_track_keys: list[str] = field(default_factory=list)
     imported_at: str = ""
-    refreshed_at: Optional[str] = None
+    refreshed_at: str | None = None
     partial: bool = False
 
     @property
@@ -75,7 +73,7 @@ class CrateRecord:
         return crates_dir() / f"{self.slug}.json"
 
     @property
-    def active_tracks(self) -> List[Track]:
+    def active_tracks(self) -> list[Track]:
         removed = set(self.removed_track_keys)
         return [track for track in self.tracks if track.key not in removed]
 
@@ -88,7 +86,7 @@ class CrateRecord:
             self.removed_track_keys.remove(track_key)
 
     @classmethod
-    def from_crate(cls, crate: Crate, *, partial: bool = False) -> "CrateRecord":
+    def from_crate(cls, crate: Crate, *, partial: bool = False) -> Self:
         return cls(
             source=crate.source,
             title=crate.title or crate.source,
@@ -97,7 +95,7 @@ class CrateRecord:
             partial=partial,
         )
 
-    def to_json(self) -> Dict[str, Any]:
+    def to_json(self) -> dict[str, Any]:
         return {
             "version": VERSION,
             "source": self.source,
@@ -110,7 +108,7 @@ class CrateRecord:
         }
 
     @classmethod
-    def from_json(cls, data: Dict[str, Any]) -> "CrateRecord":
+    def from_json(cls, data: dict[str, Any]) -> Self:
         return cls(
             source=data.get("source") or "",
             title=data.get("title") or data.get("source") or "crate",
@@ -158,8 +156,8 @@ def load(slug: str) -> CrateRecord:
     raise FileNotFoundError(f"Crate slug not found: {slug}")
 
 
-def list_crates() -> List[CrateRecord]:
-    records_by_source: Dict[str, CrateRecord] = {}
+def list_crates() -> list[CrateRecord]:
+    records_by_source: dict[str, CrateRecord] = {}
 
     for path in sorted(crates_dir().glob("*.json")):
         try:

@@ -1,6 +1,8 @@
 import tempfile
 from pathlib import Path
-from dj_digger.config import AppConfig, DEFAULT_COMMENTS, DEFAULT_EMAIL, DEFAULT_NAME
+
+from dj_digger.config import DEFAULT_COMMENTS, DEFAULT_EMAIL, DEFAULT_NAME, AppConfig
+
 
 def test_app_config_defaults():
     with tempfile.TemporaryDirectory() as tmpdir:

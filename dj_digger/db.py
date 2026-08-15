@@ -4,16 +4,15 @@ Replaces flat JSON files with a thread-safe SQLite database (~/.local/share/dj-d
 Supports WAL mode for concurrent background worker writes without UI thread locks.
 """
 
-from __future__ import annotations
-
 import json
 import logging
 import os
 import sqlite3
 import threading
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Any
 
 LOGGER = logging.getLogger(__name__)
 
@@ -24,7 +23,7 @@ def default_db_path() -> Path:
 class Database:
     """Thread-safe SQLite database manager with WAL mode and auto-migration."""
 
-    def __init__(self, db_path: Optional[Path] = None) -> None:
+    def __init__(self, db_path: Path | None = None) -> None:
         self.path = Path(db_path) if db_path else default_db_path()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._local = threading.local()
@@ -136,7 +135,7 @@ class Database:
                 )
 
     # --- Crates API ---
-    def save_crate(self, source: str, title: str, declared_count: Optional[int], updated: str, tracks_data: List[Dict[str, Any]]) -> None:
+    def save_crate(self, source: str, title: str, declared_count: int | None, updated: str, tracks_data: list[dict[str, Any]]) -> None:
         with self.connection() as conn:
             conn.execute(
                 """INSERT OR REPLACE INTO crates
@@ -145,7 +144,7 @@ class Database:
                 (source, title, declared_count, updated, json.dumps(tracks_data, ensure_ascii=False))
             )
 
-    def load_crate(self, source: str) -> Optional[Dict[str, Any]]:
+    def load_crate(self, source: str) -> dict[str, Any] | None:
         with self.connection() as conn:
             cur = conn.execute("SELECT source, title, declared_count, updated, tracks_json FROM crates WHERE source = ?", (source,))
             row = cur.fetchone()
@@ -159,7 +158,7 @@ class Database:
                 "tracks": json.loads(row["tracks_json"])
             }
 
-    def list_crates(self) -> List[Dict[str, Any]]:
+    def list_crates(self) -> list[dict[str, Any]]:
         with self.connection() as conn:
             cur = conn.execute("SELECT source, title, declared_count, updated, tracks_json FROM crates ORDER BY updated DESC")
             crates = []
@@ -179,7 +178,7 @@ class Database:
             conn.execute("DELETE FROM crates WHERE source = ?", (source,))
 
     # --- Local File Cache API ---
-    def get_cached_files(self) -> Dict[str, Tuple[float, str]]:
+    def get_cached_files(self) -> dict[str, tuple[float, str]]:
         """Return dict of path -> (mtime, normalized_stem)."""
         with self.connection() as conn:
             cur = conn.execute("SELECT path, mtime, normalized_stem FROM local_files")
@@ -193,7 +192,7 @@ class Database:
                 (path, mtime, size, artist, title, normalized_stem)
             )
 
-    def find_local_match(self, normalized_stem: str) -> Optional[str]:
+    def find_local_match(self, normalized_stem: str) -> str | None:
         with self.connection() as conn:
             cur = conn.execute("SELECT path FROM local_files WHERE normalized_stem = ? LIMIT 1", (normalized_stem,))
             row = cur.fetchone()

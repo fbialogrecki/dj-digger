@@ -7,14 +7,12 @@ store category by matching a known domain. Anything else falls back to
 ``others``.
 """
 
-from __future__ import annotations
-
 import csv
 import json
 import logging
 import re
+from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 from urllib.parse import urlparse
 
 from .browser import is_openable
@@ -152,7 +150,7 @@ def _host_matches(host: str, domain: str) -> bool:
     return host == domain or host.endswith("." + domain)
 
 
-def store_for_url(url: str) -> Optional[str]:
+def store_for_url(url: str) -> str | None:
     # The scheme is checked before the host, because the host is the only thing
     # the domain tables look at: ``file://bandcamp.com/etc/passwd`` matches
     # bandcamp perfectly well, and a category is what makes a link openable.
@@ -167,7 +165,7 @@ def store_for_url(url: str) -> Optional[str]:
     return None
 
 
-def urls_in_text(text: str) -> List[str]:
+def urls_in_text(text: str) -> list[str]:
     return [match.rstrip(TRAILING_PUNCTUATION) for match in URL_RE.findall(text or "")]
 
 
@@ -175,15 +173,15 @@ PURCHASE_FIELD = "purchase"
 DESCRIPTION_FIELD = "description"
 
 
-def candidate_links(track: Track) -> List[Tuple[str, str, str]]:
+def candidate_links(track: Track) -> list[tuple[str, str, str]]:
     """Every link worth inspecting for one track as (url, text, source).
 
     Ordered best source first, which is what lets ``categorise`` keep the album
     link from ``purchase_url`` over the label homepage from the description.
     """
 
-    candidates: List[Tuple[str, str, str]] = []
-    seen: Set[str] = set()
+    candidates: list[tuple[str, str, str]] = []
+    seen: set[str] = set()
 
     def add(url: str, text: str, source: str) -> None:
         url = (url or "").strip().rstrip(TRAILING_PUNCTUATION)
@@ -202,7 +200,7 @@ def candidate_links(track: Track) -> List[Tuple[str, str, str]]:
     return candidates
 
 
-def categorise(track: Track) -> List[LinkRecord]:
+def categorise(track: Track) -> list[LinkRecord]:
     """Categorise one track's links, never returning an empty list.
 
     At most one link per store: a track that lists an album on Bandcamp and also
@@ -210,9 +208,9 @@ def categorise(track: Track) -> List[LinkRecord]:
     and ``candidate_links`` already puts the best source first.
     """
 
-    records: List[LinkRecord] = []
-    claimed: Set[str] = set()
-    unmatched: List[Tuple[str, str]] = []
+    records: list[LinkRecord] = []
+    claimed: set[str] = set()
+    unmatched: list[tuple[str, str]] = []
 
     if track.free_download:
         # Nothing beats a file the artist is handing out directly, so this one
@@ -252,14 +250,14 @@ def categorise(track: Track) -> List[LinkRecord]:
     return [LinkRecord("no-link", track, track.permalink_url, NO_STORE_LINK)]
 
 
-def categorise_all(tracks: Iterable[Track]) -> List[LinkRecord]:
-    records: List[LinkRecord] = []
+def categorise_all(tracks: Iterable[Track]) -> list[LinkRecord]:
+    records: list[LinkRecord] = []
     for track in tracks:
         records.extend(categorise(track))
     return records
 
 
-def group_by_track(records: Sequence[LinkRecord]) -> List[List[LinkRecord]]:
+def group_by_track(records: Sequence[LinkRecord]) -> list[list[LinkRecord]]:
     """One list of links per track, tracks in first-seen order, best link first.
 
     ``categorise`` emits a record per store, so a track selling on Bandcamp and
@@ -268,7 +266,7 @@ def group_by_track(records: Sequence[LinkRecord]) -> List[List[LinkRecord]]:
     """
 
     rank = {name: index for index, name in enumerate(CATEGORY_NAMES)}
-    groups: Dict[str, List[LinkRecord]] = {}
+    groups: dict[str, list[LinkRecord]] = {}
     for record in records:
         groups.setdefault(record.track.key, []).append(record)
     return [
@@ -277,17 +275,17 @@ def group_by_track(records: Sequence[LinkRecord]) -> List[List[LinkRecord]]:
     ]
 
 
-def build_summary(records: Sequence[LinkRecord]) -> Dict[str, List[Dict[str, object]]]:
+def build_summary(records: Sequence[LinkRecord]) -> dict[str, list[dict[str, object]]]:
     """Group records into the export shape, keyed by category."""
 
-    summary: Dict[str, List[Dict[str, object]]] = {name: [] for name in CATEGORY_NAMES}
+    summary: dict[str, list[dict[str, object]]] = {name: [] for name in CATEGORY_NAMES}
     for record in records:
         category = record.category if record.category in CATEGORY_NAMES else "others"
         summary[category].append(record.as_dict())
     return summary
 
 
-def count_by_category(records: Sequence[LinkRecord]) -> Dict[str, int]:
+def count_by_category(records: Sequence[LinkRecord]) -> dict[str, int]:
     counts = {name: 0 for name in CATEGORY_NAMES}
     for record in records:
         category = record.category if record.category in CATEGORY_NAMES else "others"
@@ -295,7 +293,7 @@ def count_by_category(records: Sequence[LinkRecord]) -> Dict[str, int]:
     return counts
 
 
-def present_categories(records: Sequence[LinkRecord]) -> List[str]:
+def present_categories(records: Sequence[LinkRecord]) -> list[str]:
     """Categories this crate actually contains, in canonical order.
 
     With a dozen possible categories, showing or cycling through the empty ones
@@ -314,8 +312,8 @@ def default_output_path(export_format: str) -> Path:
 def export_records(
     records: Sequence[LinkRecord],
     export_format: str,
-    output_path: Optional[Path] = None,
-) -> Optional[Path]:
+    output_path: Path | None = None,
+) -> Path | None:
     """Write categorised links to disk. Returns the path written, if any."""
 
     if export_format == "none":
@@ -366,7 +364,7 @@ def export_records(
     raise ValueError(f"Unknown export format: {export_format}")
 
 
-def load_summary(path: Path) -> List[LinkRecord]:
+def load_summary(path: Path) -> list[LinkRecord]:
     """Read a previously exported JSON/YAML summary back into records."""
 
     path = Path(path)
@@ -391,7 +389,7 @@ def load_summary(path: Path) -> List[LinkRecord]:
     if not isinstance(data, dict):
         raise ValueError(f"{path} should contain a mapping of category to links")
 
-    records: List[LinkRecord] = []
+    records: list[LinkRecord] = []
     for category, items in data.items():
         if not isinstance(items, list):
             raise ValueError(f"Category '{category}' in {path} should contain a list")
@@ -433,10 +431,10 @@ def load_summary(path: Path) -> List[LinkRecord]:
     return records
 
 
-def tracks_from_records(records: Sequence[LinkRecord]) -> List[Track]:
+def tracks_from_records(records: Sequence[LinkRecord]) -> list[Track]:
     """Collapse records back into unique tracks, merging their links onto each."""
 
-    by_key: Dict[str, Track] = {}
+    by_key: dict[str, Track] = {}
     for record in records:
         track = by_key.setdefault(record.track.key, record.track)
         if track is record.track:

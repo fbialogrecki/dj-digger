@@ -4,8 +4,6 @@ Handles saving/loading OAuth tokens, scanning browser cookies (supporting Linux,
 macOS, and WSL/Windows paths), and verifying credentials with SoundCloud's /me API.
 """
 
-from __future__ import annotations
-
 import glob
 import json
 import logging
@@ -15,7 +13,7 @@ import shutil
 import sqlite3
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import requests
 
@@ -30,7 +28,7 @@ def auth_file_path() -> Path:
     return AUTH_FILE
 
 
-def get_stored_token() -> Optional[str]:
+def get_stored_token() -> str | None:
     """Retrieve OAuth token from environment variable or saved config file."""
     env_token = os.environ.get("SOUNDCLOUD_OAUTH_TOKEN", "").strip()
     if env_token:
@@ -51,7 +49,7 @@ def get_stored_token() -> Optional[str]:
     return None
 
 
-def get_stored_auth_info() -> Dict[str, Any]:
+def get_stored_auth_info() -> dict[str, Any]:
     """Get full stored auth details (token, username, etc.)."""
     if not AUTH_FILE.exists():
         return {}
@@ -62,7 +60,7 @@ def get_stored_auth_info() -> Dict[str, Any]:
         return {}
 
 
-def save_token(token: str, username: str = "", user_id: Optional[int] = None) -> None:
+def save_token(token: str, username: str = "", user_id: int | None = None) -> None:
     """Save an OAuth token so that it is never readable by anyone else.
 
     Not ``write_text`` followed by a chmod: that creates the file with the umask
@@ -108,7 +106,7 @@ def clear_token() -> None:
             LOGGER.debug("Could not remove auth.json: %s", exc)
 
 
-def verify_token(token: str, client_id: str, timeout: float = 10.0) -> Optional[Dict[str, Any]]:
+def verify_token(token: str, client_id: str, timeout: float = 10.0) -> dict[str, Any] | None:
     """Test token against SoundCloud's /me endpoint.
 
     Returns user data dictionary if valid, None if invalid/unauthorized.
@@ -138,12 +136,12 @@ def verify_token(token: str, client_id: str, timeout: float = 10.0) -> Optional[
     return None
 
 
-def _extract_sqlite_cookies(db_path: str) -> List[str]:
+def _extract_sqlite_cookies(db_path: str) -> list[str]:
     """Extract oauth_token values from unencrypted SQLite cookies database (e.g. Firefox)."""
     if not os.path.exists(db_path):
         return []
 
-    tokens: List[str] = []
+    tokens: list[str] = []
     tmp_path = None
     try:
         with tempfile.NamedTemporaryFile(suffix=".sqlite", delete=False) as tmp_file:
@@ -189,9 +187,9 @@ def _extract_sqlite_cookies(db_path: str) -> List[str]:
     return tokens
 
 
-def find_browser_cookie_paths() -> List[str]:
+def find_browser_cookie_paths() -> list[str]:
     """Locate browser cookie database files on Linux, macOS, and WSL/Windows paths."""
-    candidate_paths: List[str] = []
+    candidate_paths: list[str] = []
 
     # Linux / macOS standard paths
     home = Path.home()
@@ -212,9 +210,9 @@ def find_browser_cookie_paths() -> List[str]:
     return candidate_paths
 
 
-def scan_browser_cookies() -> List[str]:
+def scan_browser_cookies() -> list[str]:
     """Find any plaintext oauth_token values stored in browser cookie stores."""
-    found_tokens: List[str] = []
+    found_tokens: list[str] = []
     for path in find_browser_cookie_paths():
         if "cookies.sqlite" in path or "Cookies" in path:
             found_tokens.extend(_extract_sqlite_cookies(path))
@@ -229,7 +227,7 @@ def scan_browser_cookies() -> List[str]:
     return result
 
 
-def auto_detect_and_verify(client_id: str) -> Optional[Tuple[str, str, int]]:
+def auto_detect_and_verify(client_id: str) -> tuple[str, str, int] | None:
     """Scan available browser cookie stores for a valid SoundCloud OAuth token.
 
     Returns (token, username, user_id) if a working session is found, else None.
