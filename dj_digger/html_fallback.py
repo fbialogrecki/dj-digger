@@ -7,13 +7,10 @@ blob with every track id in it, which can be handed straight to the batch
 hydrator; if it does not, the anchors on the page are scraped the slow old way.
 """
 
-from __future__ import annotations
-
 import json
 import logging
 import re
 from pathlib import Path
-from typing import List, Optional, Set, Tuple
 from urllib.parse import urljoin, urlparse
 
 import requests
@@ -88,7 +85,7 @@ def clean_track_url(url: str) -> str:
     return cleaned.geturl().rstrip("?")
 
 
-def is_reserved_path(path_segments: List[str]) -> bool:
+def is_reserved_path(path_segments: list[str]) -> bool:
     if not path_segments:
         return True
     first_segment = path_segments[0].lower()
@@ -101,8 +98,8 @@ def is_reserved_path(path_segments: List[str]) -> bool:
     return False
 
 
-def parse_track_links_from_html(html: str) -> Set[str]:
-    links: Set[str] = set()
+def parse_track_links_from_html(html: str) -> set[str]:
+    links: set[str] = set()
     soup = BeautifulSoup(html, "html.parser")
     for anchor in soup.find_all("a", href=True):
         href = anchor["href"]
@@ -121,7 +118,7 @@ def parse_track_links_from_html(html: str) -> Set[str]:
     return links
 
 
-def parse_hydration(html: str) -> Optional[list]:
+def parse_hydration(html: str) -> list | None:
     """Pull the ``window.__sc_hydration`` array out of a saved page.
 
     Uses ``raw_decode`` to read exactly one JSON value starting at the opening
@@ -143,12 +140,12 @@ def parse_hydration(html: str) -> Optional[list]:
     return data if isinstance(data, list) else None
 
 
-def extract_from_hydration(dataset: Optional[list]) -> Tuple[List[int], Set[str], Optional[int]]:
+def extract_from_hydration(dataset: list | None) -> tuple[list[int], set[str], int | None]:
     """Return (track ids, track urls, declared count) from a hydration array."""
 
-    track_ids: List[int] = []
-    urls: Set[str] = set()
-    declared: Optional[int] = None
+    track_ids: list[int] = []
+    urls: set[str] = set()
+    declared: int | None = None
 
     for entry in dataset or []:
         if not isinstance(entry, dict):
@@ -186,12 +183,12 @@ def extract_from_hydration(dataset: Optional[list]) -> Tuple[List[int], Set[str]
                 urls.add(clean_track_url(permalink))
 
     # Preserve playlist order while removing repeats.
-    seen: Set[int] = set()
+    seen: set[int] = set()
     ordered_ids = [tid for tid in track_ids if not (tid in seen or seen.add(tid))]
     return ordered_ids, urls, declared
 
 
-def extract_declared_track_count(html: str) -> Optional[int]:
+def extract_declared_track_count(html: str) -> int | None:
     soup = BeautifulSoup(html, "html.parser")
 
     meta = soup.find("meta", attrs={"itemprop": "numTracks"})
@@ -224,7 +221,7 @@ def read_html(path: Path) -> str:
         return path.read_text(encoding="latin-1")
 
 
-def load_playlist(path: Path) -> Tuple[List[int], List[str], Optional[int]]:
+def load_playlist(path: Path) -> tuple[list[int], list[str], int | None]:
     """Read a saved playlist page.
 
     Returns track ids (fast API hydration), track urls (slow scraping fallback)
@@ -278,7 +275,7 @@ def scrape_track_page(
         return Track(title="Unknown title", permalink_url=track_url)
 
     soup = BeautifulSoup(response.text, "html.parser")
-    extra_links: List[Tuple[str, str]] = []
+    extra_links: list[tuple[str, str]] = []
     for anchor in soup.select("a[href]"):
         href = anchor["href"].strip()
         if not href:

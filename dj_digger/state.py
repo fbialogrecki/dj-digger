@@ -1,17 +1,22 @@
 """Remember which tracks you already grabbed, across every playlist.
 
 Status is stored in SQLite and synced to state.json for backward compatibility.
-"""
 
-from __future__ import annotations
+ponytail: two stores for one fact. SQLite is the only reader - ``get`` never
+looks at the JSON - so the mirror exists to be migrated from and to be written
+to, and nothing else. Collapsing to SQLite alone drops roughly seventy lines
+here and in ``library``, at the cost of no way back to the pre-0.5 format. Kept
+deliberately; v0.5.1 was an explicit decision to have both work.
+"""
 
 import json
 import logging
 import os
 import threading
-from datetime import datetime, timezone
+from collections.abc import Iterator
+from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Dict, Optional
 
 from .db import Database, default_db_path
 
@@ -34,14 +39,35 @@ def default_state_path() -> Path:
 class TrackState:
     """SQLite-backed status store with state.json synchronization."""
 
-    def __init__(self, path: Optional[Path] = None) -> None:
+    def __init__(self, path: Path | None = None) -> None:
         self.json_path = Path(path) if path else default_state_path()
         self.path = self.json_path
         db_path = self.json_path.parent / "digger.db" if self.json_path.suffix == ".json" else default_db_path()
         self.db = Database(db_path)
-        self._entries: Dict[str, Dict[str, str]] = {}
+        self._entries: dict[str, dict[str, str]] = {}
         self._lock = threading.Lock()
+        self._defer_saves = False
+        self._save_pending = False
         self._load_json()
+
+    @contextmanager
+    def batched(self) -> Iterator[None]:
+        """Write the JSON mirror once at the end instead of once per change.
+
+        ``set`` rewrites the whole of state.json every time, so marking a few
+        hundred tracks in a row - which is exactly what a library scan does -
+        writes the same file a few hundred times over. SQLite is unaffected;
+        this only holds back the mirror. Not reentrant, and not meant to be.
+        """
+
+        self._defer_saves = True
+        try:
+            yield
+        finally:
+            self._defer_saves = False
+            if self._save_pending:
+                self._save_pending = False
+                self.save()
 
     def _load_json(self) -> None:
         try:
@@ -55,6 +81,9 @@ class TrackState:
             pass
 
     def save(self) -> None:
+        if self._defer_saves:
+            self._save_pending = True
+            return
         payload = {"version": STATE_VERSION, "tracks": self._entries}
         try:
             self.json_path.parent.mkdir(parents=True, exist_ok=True)
@@ -74,7 +103,7 @@ class TrackState:
     def set(self, key: str, status: str) -> None:
         if status not in STATUSES:
             raise ValueError(f"Unknown status: {status}")
-        updated = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        updated = datetime.now(UTC).isoformat(timespec="seconds")
         with self._lock:
             self.db.set_track_status(key, status, updated)
             if status == NEW:
@@ -82,6 +111,3 @@ class TrackState:
             else:
                 self._entries[key] = {"status": status, "updated": updated}
             self.save()
-
-    def counts(self) -> Dict[str, int]:
-        return self.db.get_status_counts()

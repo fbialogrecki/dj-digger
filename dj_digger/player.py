@@ -18,8 +18,6 @@ Everything degrades: a machine with no audio sink refuses to open a device, and
 that must never take the app down.
 """
 
-from __future__ import annotations
-
 import array
 import logging
 import threading
@@ -27,7 +25,6 @@ import time
 from collections import deque
 from dataclasses import dataclass, field
 from functools import lru_cache
-from typing import Deque, List, Optional
 
 from rich.text import Text
 from textual.widgets import Static
@@ -87,7 +84,7 @@ def _import_miniaudio():
     return miniaudio
 
 
-def unplayable_reason(payload: dict) -> Optional[str]:
+def unplayable_reason(payload: dict) -> str | None:
     """Why this track cannot be previewed in full, if so."""
 
     if payload.get("policy") == "SNIP":
@@ -154,13 +151,13 @@ def _cached_waveform(client: SoundCloudClient, waveform_url: str) -> tuple:
     return tuple(int(value) for value in samples) if isinstance(samples, list) else ()
 
 
-def fetch_waveform(client: SoundCloudClient, waveform_url: str) -> List[int]:
+def fetch_waveform(client: SoundCloudClient, waveform_url: str) -> list[int]:
     if not waveform_url:
         return []
     return list(_cached_waveform(client, waveform_url))
 
 
-def column_levels(samples: List[int], width: int) -> List[float]:
+def column_levels(samples: list[int], width: int) -> list[float]:
     """One 0..1 level per column, with the loud end of the range expanded.
 
     Two deliberate choices. Columns average their samples rather than taking the
@@ -250,8 +247,8 @@ class LevelMeter:
 
 
 def waveform_rows(
-    samples: List[int], width: int, rows: int = WAVEFORM_ROWS
-) -> List[str]:
+    samples: list[int], width: int, rows: int = WAVEFORM_ROWS
+) -> list[str]:
     """The block glyphs for a waveform, one string per row.
 
     These do not change while a track plays, so they are worth building once and
@@ -278,7 +275,7 @@ def waveform_rows(
     return drawn
 
 
-def paint_waveform(rows: List[str], played_fraction: float, level: float = 0.0) -> Text:
+def paint_waveform(rows: list[str], played_fraction: float, level: float = 0.0) -> Text:
     """Colour prebuilt rows: what has played, what has not, and the leading edge.
 
     A frame costs a handful of style ranges rather than an append per character,
@@ -307,7 +304,7 @@ def paint_waveform(rows: List[str], played_fraction: float, level: float = 0.0) 
 
 
 def render_waveform(
-    samples: List[int],
+    samples: list[int],
     width: int,
     played_fraction: float = 0.0,
     rows: int = WAVEFORM_ROWS,
@@ -345,7 +342,7 @@ class HttpSourceMixin:
         self.url = url
         self.timeout = timeout
         self.offset = 0
-        self.length: Optional[int] = None
+        self.length: int | None = None
         self._response = None
         self._buffer = bytearray()
         # Where the buffer starts in the file. It only moves when a seek lands
@@ -563,7 +560,7 @@ class Loaded:
     track: Track
     stream: Stream
     duration: float
-    waveform: List[int] = field(default_factory=list)
+    waveform: list[int] = field(default_factory=list)
 
 
 class Player:
@@ -572,7 +569,7 @@ class Player:
     def __init__(self) -> None:
         self._miniaudio = None
         self._device = None
-        self._loaded: Optional[Loaded] = None
+        self._loaded: Loaded | None = None
         self._session = None
         self._source = None
         self._generator = None
@@ -585,8 +582,8 @@ class Player:
         self._level = 0.0
         # Written on the audio thread and read on the interface's, which a deque
         # is safe for on its own - appends and pops are single bytecodes.
-        self._levels: Deque[float] = deque(maxlen=LEVEL_QUEUE)
-        self.unavailable_reason: Optional[str] = None
+        self._levels: deque[float] = deque(maxlen=LEVEL_QUEUE)
+        self.unavailable_reason: str | None = None
 
     def _device_for(self, sample_rate: int, channels: int):
         if self.unavailable_reason:
@@ -610,7 +607,7 @@ class Player:
     # State
 
     @property
-    def loaded(self) -> Optional[Loaded]:
+    def loaded(self) -> Loaded | None:
         return self._loaded
 
     @property
@@ -676,7 +673,7 @@ class Player:
         track: Track,
         stream: Stream,
         session,
-        waveform: Optional[List[int]] = None,
+        waveform: list[int] | None = None,
         source=None,
     ) -> Loaded:
         """``source`` is a stream someone opened ahead of time, already filling."""
@@ -870,7 +867,7 @@ class PlayerBar(Static):
         self.wanted_height = 0
         # The glyphs for the loaded track at the current width, which only need
         # rebuilding when one of those two changes.
-        self._shape: List[str] = []
+        self._shape: list[str] = []
         self._shape_for = (None, 0)
 
     def refresh_bar(self) -> None:
@@ -909,7 +906,7 @@ class PlayerBar(Static):
         head.append_text(paint_waveform(self._rows(loaded), self.player.fraction, level))
         return head
 
-    def _rows(self, loaded: Loaded) -> List[str]:
+    def _rows(self, loaded: Loaded) -> list[str]:
         width = self._bar_width()
         wanted = (loaded.track.key, width)
         if self._shape_for != wanted:

@@ -5,19 +5,17 @@ need to do exactly the same work, so the work lives here and the caller supplies
 an ``on_progress`` hook.
 """
 
-from __future__ import annotations
-
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Optional
 
 from . import html_fallback, soundcloud
 from .models import Crate
 
 # stage, done, total (total is None while it is still unknown)
-ProgressHook = Callable[[str, int, Optional[int]], None]
+ProgressHook = Callable[[str, int, int | None], None]
 
 STAGE_LINK = "Reading the link"
 STAGE_TRACKS = "Fetching tracks"
@@ -30,7 +28,7 @@ LOGGER = logging.getLogger(__name__)
 class DigOptions:
     """The knobs a dig needs, bundled so the TUI can carry them around."""
 
-    limit: Optional[int] = None
+    limit: int | None = None
     timeout: float = 20.0
     delay: float = 0.5
 
@@ -45,7 +43,7 @@ class TargetNotFound(ValueError):
         self.target = target
 
 
-def _notify(on_progress: Optional[ProgressHook], stage: str, done: int, total: Optional[int]) -> None:
+def _notify(on_progress: ProgressHook | None, stage: str, done: int, total: int | None) -> None:
     if on_progress:
         on_progress(stage, done, total)
 
@@ -53,9 +51,9 @@ def _notify(on_progress: Optional[ProgressHook], stage: str, done: int, total: O
 def dig_url(
     url: str,
     *,
-    limit: Optional[int] = None,
+    limit: int | None = None,
     timeout: float = 20.0,
-    on_progress: Optional[ProgressHook] = None,
+    on_progress: ProgressHook | None = None,
 ) -> Crate:
     _notify(on_progress, STAGE_LINK, 0, None)
     return soundcloud.collect_tracks(
@@ -69,10 +67,10 @@ def dig_url(
 def dig_html(
     path: Path,
     *,
-    limit: Optional[int] = None,
+    limit: int | None = None,
     timeout: float = 20.0,
     delay: float = 0.5,
-    on_progress: Optional[ProgressHook] = None,
+    on_progress: ProgressHook | None = None,
 ) -> Crate:
     """Read a saved page.
 
@@ -119,10 +117,10 @@ def dig_html(
 def dig(
     target: str,
     *,
-    limit: Optional[int] = None,
+    limit: int | None = None,
     timeout: float = 20.0,
     delay: float = 0.5,
-    on_progress: Optional[ProgressHook] = None,
+    on_progress: ProgressHook | None = None,
 ) -> Crate:
     """Dig a SoundCloud link or a saved HTML file."""
 

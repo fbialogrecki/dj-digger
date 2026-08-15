@@ -4,14 +4,12 @@ Lives in its own module so ``soundcloud``, ``html_fallback``, ``links`` and
 ``tui`` can all speak the same vocabulary without importing each other.
 """
 
-from __future__ import annotations
-
 import shlex
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Self
 
 
-def parse_tags(tag_list: str) -> List[str]:
+def parse_tags(tag_list: str) -> list[str]:
     """Split SoundCloud's tag_list, where multi-word tags are quoted."""
 
     if not tag_list:
@@ -29,11 +27,11 @@ class Track:
 
     title: str
     permalink_url: str
-    id: Optional[int] = None
+    id: int | None = None
     artist: str = ""
-    purchase_url: Optional[str] = None
-    purchase_title: Optional[str] = None
-    download_url: Optional[str] = None
+    purchase_url: str | None = None
+    purchase_title: str | None = None
+    download_url: str | None = None
     description: str = ""
     downloadable: bool = False
     # Artists cap how many free downloads they hand out, and the cap is reached
@@ -41,10 +39,10 @@ class Track:
     has_downloads_left: bool = False
     duration: int = 0
     genre: str = ""
-    tags: List[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
     # Links found outside the structured fields, e.g. scraped from a track page.
-    extra_links: List[Tuple[str, str]] = field(default_factory=list)
-    local_path: Optional[str] = None
+    extra_links: list[tuple[str, str]] = field(default_factory=list)
+    local_path: str | None = None
 
     @property
     def key(self) -> str:
@@ -84,7 +82,7 @@ class Track:
         return self.genre or (self.tags[0] if self.tags else "")
 
     @classmethod
-    def from_api(cls, payload: Dict[str, Any]) -> "Track":
+    def from_api(cls, payload: dict[str, Any]) -> Self:
         user = payload.get("user") or {}
 
         def clean(value: Any) -> str:
@@ -112,9 +110,9 @@ class Crate:
     """A batch of tracks pulled from one source."""
 
     source: str
-    tracks: List[Track] = field(default_factory=list)
+    tracks: list[Track] = field(default_factory=list)
     title: str = ""
-    declared_count: Optional[int] = None
+    declared_count: int | None = None
 
 
 @dataclass
@@ -126,7 +124,7 @@ class LinkRecord:
     link_url: str
     link_text: str
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         """Export shape. Keeps the v0.1 keys so old summaries stay readable."""
 
         return {

@@ -11,13 +11,12 @@ SoundCloud's own JS bundles. That id rotates, so it is cached and re-discovered
 whenever a request comes back unauthorised.
 """
 
-from __future__ import annotations
-
 import logging
 import os
 import re
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Sequence, Tuple
+from typing import Any, Self
 from urllib.parse import urlparse
 
 import requests
@@ -58,7 +57,7 @@ REQUEST_HEADERS = {
 
 LOGGER = logging.getLogger(__name__)
 
-ProgressCallback = Callable[[int, Optional[int]], None]
+ProgressCallback = Callable[[int, int | None], None]
 
 
 class SoundCloudError(RuntimeError):
@@ -112,7 +111,7 @@ def _chunks(values: Sequence[Any], size: int) -> Iterator[Sequence[Any]]:
         yield values[start : start + size]
 
 
-def split_user_collection(url: str) -> Tuple[Optional[str], str]:
+def split_user_collection(url: str) -> tuple[str | None, str]:
     """Split ``/someone/likes`` into ``("likes", "https://soundcloud.com/someone")``.
 
     ``/resolve`` does not understand the collection suffixes, so they have to be
@@ -130,11 +129,12 @@ def split_user_collection(url: str) -> Tuple[Optional[str], str]:
 class SoundCloudClient:
     def __init__(
         self,
-        session: Optional[requests.Session] = None,
+        session: requests.Session | None = None,
         *,
         timeout: float = 20.0,
-        client_id: Optional[str] = None,
-        oauth_token: Optional[str] = None,
+        client_id: str | None = None,
+        oauth_token: str | None = None,
+        config=None,
     ) -> None:
         self._session = session or create_requests_session()
         self._timeout = timeout
@@ -144,17 +144,23 @@ class SoundCloudClient:
         else:
             self._oauth_token = oauth_token
 
-        from .config import AppConfig
-        self.config = AppConfig()
+        # The caller passes its own when it has one, so that editing your name
+        # and email in Settings reaches the gate resolvers below rather than
+        # updating a second copy nobody reads.
+        if config is None:
+            from .config import AppConfig
+
+            config = AppConfig()
+        self.config = config
 
     @property
-    def oauth_token(self) -> Optional[str]:
+    def oauth_token(self) -> str | None:
         return self._oauth_token
 
     def close(self) -> None:
         self._session.close()
 
-    def __enter__(self) -> "SoundCloudClient":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *_exc: Any) -> None:
@@ -200,34 +206,18 @@ class SoundCloudClient:
                 LOGGER.debug("Could not cache client_id: %s", exc)
             return client_id
 
-        # Fallback hardcoded client IDs if discovery failed
-        fallback_ids = [
-            "2t91er31yO4L419L3y8N0L3x7770",
-            "a32732a372608c0282121e7a08b9f11d",
-            "iZ8612P4938210391209381029381029",
-        ]
-        for fid in fallback_ids:
-            if len(fid) == 32:
-                LOGGER.info("Using fallback client_id: %s", fid)
-                try:
-                    cache.parent.mkdir(parents=True, exist_ok=True)
-                    cache.write_text(fid, encoding="utf-8")
-                except OSError:
-                    pass
-                return fid
-
         raise SoundCloudError(
             "Could not find a client_id in SoundCloud's JS bundles. "
             "SoundCloud may have changed its site - try the saved-HTML fallback."
         )
 
-    def _request(self, url: str, params: Optional[Dict[str, Any]] = None) -> Any:
+    def _request(self, url: str, params: dict[str, Any] | None = None) -> Any:
         """GET with one automatic retry against a freshly discovered client_id."""
 
         for attempt in (0, 1):
             merged = dict(params or {})
             merged["client_id"] = self.client_id
-            kwargs: Dict[str, Any] = {"params": merged, "timeout": self._timeout}
+            kwargs: dict[str, Any] = {"params": merged, "timeout": self._timeout}
             if self._oauth_token:
                 kwargs["headers"] = {"Authorization": f"OAuth {self._oauth_token}"}
             try:
@@ -266,7 +256,7 @@ class SoundCloudClient:
 
         return self._session
 
-    def fetch_track(self, track_id: int) -> Dict[str, Any]:
+    def fetch_track(self, track_id: int) -> dict[str, Any]:
         """The raw payload for one track.
 
         ``Track`` deliberately keeps only what the link digger needs, so playback
@@ -278,7 +268,7 @@ class SoundCloudClient:
             raise SoundCloudError(f"Track {track_id} is no longer available")
         return payload[0]
 
-    def authorize(self, url: str, **params: Any) -> Dict[str, Any]:
+    def authorize(self, url: str, **params: Any) -> dict[str, Any]:
         """Call an absolute api-v2 URL, such as a media transcoding."""
 
         payload = self._request(url, params)
@@ -291,12 +281,12 @@ class SoundCloudClient:
         track: Track,
         directory: Path,
         *,
-        gate_url: Optional[str] = None,
-        on_progress: Optional[Callable[[int, Optional[int]], None]] = None,
+        gate_url: str | None = None,
+        on_progress: Callable[[int, int | None], None] | None = None,
     ) -> Path:
         """Save artist-provided download file directly or via resolved gate URL."""
 
-        download_url: Optional[str] = None
+        download_url: str | None = None
 
         # 1. Try resolving gate URL if provided
         if gate_url:
@@ -358,7 +348,7 @@ class SoundCloudClient:
             headers = getattr(response, "headers", {})
             content_disp = ""
             content_type = ""
-            total_size: Optional[int] = None
+            total_size: int | None = None
             if isinstance(headers, dict) or hasattr(headers, "get"):
                 content_disp = headers.get("Content-Disposition", "")
                 content_type = headers.get("Content-Type", "")
@@ -414,7 +404,7 @@ class SoundCloudClient:
                     pass
             raise SoundCloudError(f"Download failed: {exc}") from exc
 
-    def resolve(self, url: str) -> Dict[str, Any]:
+    def resolve(self, url: str) -> dict[str, Any]:
         payload = self._get("/resolve", url=url)
         if not isinstance(payload, dict):
             raise SoundCloudError(f"Unexpected reply when resolving {url}")
@@ -424,8 +414,8 @@ class SoundCloudClient:
         self,
         track_ids: Sequence[int],
         *,
-        on_progress: Optional[ProgressCallback] = None,
-    ) -> List[Track]:
+        on_progress: ProgressCallback | None = None,
+    ) -> list[Track]:
         """Turn bare track ids into full track objects, 50 per request."""
 
         ids = [int(tid) for tid in track_ids]
@@ -433,7 +423,7 @@ class SoundCloudClient:
             return []
 
         position = {track_id: index for index, track_id in enumerate(ids)}
-        tracks: List[Track] = []
+        tracks: list[Track] = []
         for chunk in _chunks(ids, HYDRATE_BATCH):
             payload = self._get("/tracks", ids=",".join(str(i) for i in chunk))
             if isinstance(payload, list):
@@ -449,10 +439,10 @@ class SoundCloudClient:
         self,
         path: str,
         *,
-        limit: Optional[int] = None,
-        on_progress: Optional[ProgressCallback] = None,
-    ) -> List[Track]:
-        tracks: List[Track] = []
+        limit: int | None = None,
+        on_progress: ProgressCallback | None = None,
+    ) -> list[Track]:
+        tracks: list[Track] = []
         payload = self._get(path, limit=PAGE_SIZE)
         while True:
             if not isinstance(payload, dict):
@@ -479,8 +469,8 @@ class SoundCloudClient:
         self,
         url: str,
         *,
-        limit: Optional[int] = None,
-        on_progress: Optional[ProgressCallback] = None,
+        limit: int | None = None,
+        on_progress: ProgressCallback | None = None,
     ) -> Crate:
         """Pull every track behind a SoundCloud link."""
 
@@ -539,10 +529,10 @@ class SoundCloudClient:
 def collect_tracks(
     url: str,
     *,
-    limit: Optional[int] = None,
+    limit: int | None = None,
     timeout: float = 20.0,
-    on_progress: Optional[ProgressCallback] = None,
-    session: Optional[requests.Session] = None,
+    on_progress: ProgressCallback | None = None,
+    session: requests.Session | None = None,
 ) -> Crate:
     """Convenience wrapper for one-shot use."""
 
@@ -554,8 +544,8 @@ def hydrate_ids(
     track_ids: Iterable[int],
     *,
     timeout: float = 20.0,
-    on_progress: Optional[ProgressCallback] = None,
-    session: Optional[requests.Session] = None,
-) -> List[Track]:
+    on_progress: ProgressCallback | None = None,
+    session: requests.Session | None = None,
+) -> list[Track]:
     with SoundCloudClient(session=session, timeout=timeout) as client:
         return client.hydrate_tracks(list(track_ids), on_progress=on_progress)

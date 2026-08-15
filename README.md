@@ -48,12 +48,13 @@ pipx install 'dj-soundcloud-digger[play]'
 git clone https://github.com/fbialogrecki/dj-soundcloud-digger.git
 cd dj-soundcloud-digger
 uv venv
-uv pip install -e '.[play,yaml,dev]'
+uv pip install -e '.[play,dev]'
 ```
 
+> **Requires Python 3.12 or newer.**
+>
 > **Note on optional extras**:
 > - `play`: Enables in-memory audio preview via `miniaudio`.
-> - `yaml`: Enables YAML export support via `PyYAML`.
 > If installed without `[play]`, the tool runs normally and displays an advisory if audio playback is requested.
 
 ---
@@ -96,6 +97,7 @@ Press `?` inside the TUI at any time to view the full grouped keybinding modal.
 | `s` | Mark track as **Skipped** (`✗`) and move to next track |
 | `u` | Clear track status mark (`·`) |
 | `x` | Remove track from current crate (`Ctrl+Z` to undo) |
+| `y` | Copy the path of the local file that matches this track (`📁` in the row) |
 
 #### Audio Preview Controls
 | Key | Action |

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import json
 
 import pytest
@@ -54,8 +52,8 @@ def test_log_level_works_before_a_bare_link():
 
 
 def test_v01_flag_names_still_work():
-    args = cli.parse_cli_args(["dig", "playlist.html", "--export", "yaml", "--max-tracks", "5"])
-    assert args.export_format == "yaml"
+    args = cli.parse_cli_args(["dig", "playlist.html", "--export", "csv", "--max-tracks", "5"])
+    assert args.export_format == "csv"
     assert args.limit == 5
 
 

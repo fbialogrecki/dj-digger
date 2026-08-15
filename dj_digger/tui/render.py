@@ -1,0 +1,276 @@
+"""Drawing the table and the status bar, and the marks that change what they say.
+
+Mixed into ``DiggerApp``; the attributes these reach for are set up in its
+``__init__``.
+"""
+
+import logging
+
+from rich.table import Table
+from rich.text import Text
+from textual.coordinate import Coordinate
+from textual.widgets import DataTable, Static
+
+from .. import links as links_module
+from ..state import GOT, NEW, OPENED, SKIP
+from .keymap import (
+    DOMAIN_BADGE_CATEGORIES,
+    FLASH,
+    PLAYING_GLYPH,
+    QUICK_FILTER_KEYS,
+    STATUS_STYLES,
+)
+from .rows import Row
+from .widgets import TrackTable
+
+LOGGER = logging.getLogger(__name__)
+
+
+class RenderMixin:
+    """Drawing the table and the status bar, and the marks that change what they say."""
+
+    def _store_badges(self, row: Row) -> Text:
+        """Every store this track turned up in, the one ``o`` opens picked out."""
+
+        opening = self.record_to_open(row)
+        badges = Text()
+        for record in row.records:
+            if badges:
+                badges.append(" ")
+            free = record.link_text == links_module.FREE_DOWNLOAD
+            if record.category == "gate":
+                host = links_module.host_of(record.link_url)
+                name = "\u2193gate" if free else "gate"
+                if record is not opening:
+                    style = "bright_black"
+                elif free:
+                    style = "bold green"
+                else:
+                    style = "bold cyan"
+                badges.append(name, style=style)
+                if host and host != "gate":
+                    clean_host = host.rpartition(".")[0] or host
+                    badges.append(f"({clean_host})", style="bright_black")
+            else:
+                if record.category in DOMAIN_BADGE_CATEGORIES:
+                    name = links_module.host_of(record.link_url) or record.category
+                elif free:
+                    name = "\u2193" + record.category
+                else:
+                    name = record.category
+
+                if record is not opening:
+                    style = "bright_black"
+                elif free:
+                    style = "bold green"
+                elif record.link_text == links_module.NO_STORE_LINK:
+                    style = "bright_black"
+                else:
+                    style = "bold cyan"
+                badges.append(name, style=style)
+        return badges
+
+    def _playing_key(self) -> str | None:
+        loaded = self.player.loaded
+        return loaded.track.key if loaded is not None else None
+
+    def _cells(self, row: Row, playing_key: str | None) -> list[Text]:
+        status = self.status_of(row)
+        glyph, style, _meaning = STATUS_STYLES[status]
+        label_text = row.track.label
+        dim = "bright_black" if status == SKIP else ""
+
+        if row.track.key in self.download_progress:
+            pct = self.download_progress[row.track.key]
+            glyph = "\u29d7"
+            style = "bold yellow"
+            label_text = f"[{int(pct * 100)}%] {row.track.label}"
+            dim = "bold black on yellow"
+        else:
+            if status == GOT:
+                dim = "bold green"
+            if row.track.local_path:
+                # The file is already on disk; `y` copies the path to it.
+                label_text = f"{label_text}  \U0001f4c1"
+
+        return [
+            Text(PLAYING_GLYPH if row.track.key == playing_key else "", style="green"),
+            Text(glyph, style=style),
+            Text(str(row.position), style="bright_black"),
+            Text(label_text, style=dim),
+            self._store_badges(row),
+            Text(row.track.genre_label or "-", style="bright_black"),
+            Text(row.track.duration_label or "-", style="bright_black"),
+        ]
+
+    def _paint_row(self, index: int, flash: str = "") -> None:
+        """Rewrite one row in place, rather than rebuilding the whole table."""
+
+        if not self.query("#tracks") or not 0 <= index < len(self.visible_rows):
+            return
+        table = self.query_one("#tracks", TrackTable)
+        if index >= table.row_count:
+            return
+        for column, cell in enumerate(self._cells(self.visible_rows[index], self._playing_key())):
+            if flash:
+                cell.stylize(flash)
+            table.update_cell_at(Coordinate(index, column), cell, update_width=False)
+
+    def _flash_row(self, index: int, style: str) -> None:
+        """Light the row you acted on, so a keypress is visibly a change."""
+
+        self._paint_row(index, flash=style)
+        self.set_timer(FLASH, lambda: self._paint_row(index))
+
+    def refresh_rows(self, *, keep_cursor: bool = True) -> None:
+        table = self.query_one("#tracks", TrackTable)
+        previous = table.cursor_row if keep_cursor else 0
+        self.visible_rows = self.matching_rows()
+        playing_key = self._playing_key()
+
+        table.clear()
+        for row in self.visible_rows:
+            table.add_row(*self._cells(row, playing_key))
+
+        if self.visible_rows:
+            table.move_cursor(row=min(previous, len(self.visible_rows) - 1))
+        table.fit_flexible_column()
+        self._drop_stale_preparation()
+        self.update_status()
+
+    def update_status(self) -> None:
+        """One bar: the store legend on the left, where you are up to on the right.
+
+        These were two stacked bars above the footer, which made three rows of
+        chrome under the table. The crate name went with them - the sidebar
+        already highlights which crate you are in.
+        """
+
+        bar = self.query_one("#status", Static)
+        stores = self._store_line()
+        progress = self._progress_line()
+
+        grid = Table.grid(expand=True)
+        grid.add_column(no_wrap=True)
+        # Narrow terminals cannot have both. The legend is what the number keys
+        # are documented by, so the counts are what goes.
+        if len(stores) + len(progress) + 2 <= bar.size.width:
+            grid.add_column(justify="right", no_wrap=True)
+            grid.add_row(stores, progress)
+        else:
+            grid.add_row(stores)
+        bar.update(grid)
+
+    def _progress_line(self) -> Text:
+        counts: dict[str, int] = {status: 0 for status in STATUS_STYLES}
+        for row in self.rows:
+            counts[self.status_of(row)] += 1
+
+        pieces = [f"{len(self.visible_rows)}/{len(self.rows)} tracks"]
+        pieces += [
+            f"got {counts[GOT]}",
+            f"skipped {counts[SKIP]}",
+            f"opened {counts[OPENED]}",
+        ]
+        if self.search_term:
+            pieces.append(f"search: {self.search_term!r}")
+        if self.hide_handled:
+            pieces.append("hiding handled")
+        if self.crate is not None and self.crate.partial:
+            pieces.append("imported from a file, press r to complete it")
+        return Text(" \u00b7 ".join(pieces), style="bright_black")
+
+    def _store_line(self) -> Text:
+        """The stores in this crate, numbered, so the number keys explain themselves."""
+
+        line = Text()
+        self._badge_click_regions = []
+        if not self.rows:
+            line.append("press d to dig a link", style="bright_black")
+            return line
+
+        by_category = links_module.count_by_category(self.all_records())
+        showing_all = not self.store_filters
+        current_x = 0
+
+        prefix_str = "\u25b8 " if showing_all else "  "
+        line.append(prefix_str, style="bold")
+        current_x += len(prefix_str)
+
+        all_btn_text = "0 all"
+        all_btn_start = current_x
+        all_btn_end = current_x + len(all_btn_text)
+        line.append(all_btn_text, style="bold reverse" if showing_all else "bright_black")
+        self._badge_click_regions.append((all_btn_start, all_btn_end, 0))
+        current_x = all_btn_end
+
+        for index, category in enumerate(self.present, start=1):
+            active = category in self.store_filters
+            cat_prefix = "  \u25b8" if active else "   "
+            line.append(cat_prefix, style="bold")
+            current_x += len(cat_prefix)
+
+            label = f"{index} {category}" if index <= QUICK_FILTER_KEYS else category
+            count_str = f"\u00b7{by_category[category]}"
+            full_span_text = label + count_str
+
+            badge_start = current_x
+            badge_end = current_x + len(full_span_text)
+
+            line.append(label, style="bold reverse cyan" if active else "cyan")
+            line.append(count_str, style="bright_black")
+
+            self._badge_click_regions.append((badge_start, badge_end, index))
+            current_x = badge_end
+
+        return line
+
+    def _mark(self, row: Row, index: int, status: str, message: str) -> None:
+        self.state.set(row.track.key, status)
+        self.notify(f"{message}: {row.track.label}", timeout=2)
+        if self.hide_handled:
+            # The row is on its way out of the list, so there is nothing to light.
+            self.refresh_rows()
+            return
+        self._flash_row(index, STATUS_STYLES[status][1])
+        self.update_status()
+
+    def _toggle_status(self, status: str, message: str) -> None:
+        """Pressing the same key again clears the mark, which is what people try."""
+
+        row = self.current_row()
+        if row is None:
+            return
+        clearing = self.status_of(row) == status
+        cursor = self.query_one("#tracks", DataTable).cursor_row
+        judging_what_plays = self._playing_index() == cursor
+        label = "Unmarked" if clearing else message
+        self._mark(row, cursor, NEW if clearing else status, label)
+        if clearing:
+            # Undoing a mark should leave you looking at what you just undid.
+            return
+        self._advance_cursor()
+        if judging_what_plays and self.player.playing:
+            # You marked the track you were listening to, so listening moves on
+            # with you rather than finishing something you already ruled on.
+            self.action_play_step(1)
+
+    def _set_status(self, status: str, message: str) -> None:
+        row = self.current_row()
+        if row is None:
+            return
+        self._mark(row, self.query_one("#tracks", DataTable).cursor_row, status, message)
+
+    def _advance_cursor(self) -> None:
+        table = self.query_one("#tracks", DataTable)
+        if self.visible_rows and table.cursor_row < len(self.visible_rows) - 1:
+            table.move_cursor(row=table.cursor_row + 1)
+
+    def action_mark_got(self) -> None:
+        self._toggle_status(GOT, "Got it")
+
+    def action_mark_skip(self) -> None:
+        self._toggle_status(SKIP, "Skipped")
+
+    def action_mark_new(self) -> None:
+        self._set_status(NEW, "Unmarked")

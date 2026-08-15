@@ -1,19 +1,19 @@
-from __future__ import annotations
-
 import asyncio
 import io
 import json
+from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 
 import pytest
 from rich.console import Console
+from textual.coordinate import Coordinate
 from textual.widgets import Button, DataTable, Input, Label, ListView, Static
 
-from dj_digger import library, links
-from dj_digger import tui
+from dj_digger import library, links, tui
 from dj_digger.dig import DigOptions, TargetNotFound
 from dj_digger.models import Crate, LinkRecord, Track
 from dj_digger.player import Loaded, PlaybackUnavailable, PlayerBar, Stream
+from dj_digger.scanner import LocalMatch
 from dj_digger.state import GOT, OPENED, SKIP, TrackState
 from dj_digger.tui import AskLinkScreen, ConfirmScreen, DiggerApp, HelpScreen
 
@@ -332,7 +332,7 @@ def test_a_number_key_beyond_the_stores_present_is_a_no_op(records, state):
     async def scenario():
         async with app.run_test() as pilot:
             await pilot.press("9")
-            assert app.store_filter == ""
+            assert app.store_filters == set()
 
     run(scenario)
 
@@ -345,15 +345,15 @@ def test_cycling_walks_only_the_stores_present(records, state):
     async def scenario():
         async with app.run_test() as pilot:
             await pilot.press("f")
-            assert app.store_filter == "no-link"
+            assert app.store_filters == {"no-link"}
             await pilot.press("f")
-            assert app.store_filter == "bandcamp"
+            assert app.store_filters == {"bandcamp"}
             await pilot.press("f")
-            assert app.store_filter == "others"
+            assert app.store_filters == {"others"}
             await pilot.press("f")  # wraps back to everything
-            assert app.store_filter == ""
+            assert app.store_filters == set()
             await pilot.press("F")  # and backwards
-            assert app.store_filter == "others"
+            assert app.store_filters == {"others"}
 
     run(scenario)
 
@@ -393,7 +393,7 @@ def test_escape_clears_every_filter(records, state):
             await pilot.press("2")
             await pilot.press("h")
             await pilot.press("escape")
-            assert app.store_filter == ""
+            assert app.store_filters == set()
             assert app.hide_handled is False
             assert app.query_one("#tracks", DataTable).row_count == len(records)
 
@@ -890,11 +890,11 @@ def test_removing_keeps_the_active_filter(state):
         async with app.run_test() as pilot:
             await pilot.pause()
             await pilot.press("1")  # bandcamp, the only store here
-            assert app.store_filter == "bandcamp"
+            assert app.store_filters == {"bandcamp"}
             await pilot.press("x")
             await pilot.pause()
             # A removal must not reset what you filtered down to.
-            assert app.store_filter == "bandcamp"
+            assert app.store_filters == {"bandcamp"}
             assert app.query_one("#tracks", DataTable).row_count == 2
 
     run(scenario)
@@ -978,7 +978,7 @@ def test_the_store_column_badges_every_store_and_picks_out_the_one_o_opens(state
 
             # Filtering to the gate is how you say you want the gate instead.
             await pilot.press("2")
-            assert app.store_filter == "gate"
+            assert app.store_filters == {"gate"}
             assert app.record_to_open(app.rows[0]).category == "gate"
 
     run(scenario)
@@ -1896,3 +1896,227 @@ def test_batch_download_skips_skipped_tracks(state, monkeypatch):
     run(scenario)
     assert len(started) == 1
     assert started[0][0].track.key == rec1.track.key
+
+
+class ClosingSource:
+    """A prepared stream that records whether anybody let go of it."""
+
+    def __init__(self) -> None:
+        self.closed = False
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def test_leaving_stops_the_ticker_and_lets_go_of_everything(records, state, monkeypatch):
+    """There were two on_unmount methods, so only the second one ever ran.
+
+    Which meant the thirty-a-second ticker was left running - and nothing
+    noticed, because no test covered the way out at all.
+    """
+
+    app = make_app(records, state)
+    closed = []
+    source = ClosingSource()
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            monkeypatch.setattr(
+                type(app.player), "close", lambda self: closed.append("player")
+            )
+            app._prepared = tui.Prepared(
+                track=Track(title="next", permalink_url="https://soundcloud.com/a/2", id=2),
+                stream=Stream(url="https://cdn/2.mp3"),
+                source=source,
+            )
+            app._download_executor = ThreadPoolExecutor(max_workers=1)
+            executor = app._download_executor
+            app.exit()
+
+        assert app._ticker is None, "the ticker was left running"
+        assert closed == ["player"], "the audio device was not handed back"
+        assert source.closed, "the prefetched stream was left open"
+        assert app._download_executor is None
+        with pytest.raises(RuntimeError):
+            executor.submit(lambda: None)
+
+    run(scenario)
+
+
+def gate_row(*pairs):
+    """One row carrying (category, url) links, in the order given."""
+
+    track = Track(title="T", permalink_url="https://soundcloud.com/a/b", id=5)
+    return tui.Row(
+        position=1,
+        track=track,
+        records=[
+            LinkRecord(category=category, track=track, link_url=url, link_text="Buy")
+            for category, url in pairs
+        ],
+    )
+
+
+@pytest.mark.parametrize(
+    "row,expected",
+    [
+        # An explicit gate beats a shop that happens to come first.
+        (
+            gate_row(("bandcamp", "https://x.bandcamp.com/a"), ("gate", "https://hypeddit.com/track/z")),
+            "https://hypeddit.com/track/z",
+        ),
+        # Cloud storage has no category of its own, but gates can still unwrap it.
+        (
+            gate_row(("others", "https://www.mediafire.com/file/abc")),
+            "https://www.mediafire.com/file/abc",
+        ),
+        (
+            gate_row(("others", "https://drive.google.com/file/d/abc/view")),
+            "https://drive.google.com/file/d/abc/view",
+        ),
+        # A shop page is not something a resolver can turn into a file.
+        (gate_row(("bandcamp", "https://x.bandcamp.com/a"), ("beatport", "https://beatport.com/t/1")), None),
+        (gate_row(("streaming", "https://open.spotify.com/track/1")), None),
+        # Anything else unrecognised is worth handing over as a last resort.
+        (gate_row(("smartlink", "https://lnk.to/abc")), "https://lnk.to/abc"),
+        # Nothing to hand over at all.
+        (gate_row(("soundcloud", "https://soundcloud.com/a/b")), None),
+    ],
+)
+def test_the_gate_link_w_would_use(state, row, expected):
+    """Three passes: the declared gate, then a host gates knows, then anything left."""
+
+    assert make_app([], state)._find_gate_url(row) == expected
+
+
+def test_no_two_parts_of_the_app_define_the_same_method():
+    """A name defined twice is how this class lost an on_unmount for two releases.
+
+    DiggerApp is assembled from seven mixins. Python resolves a clash silently by
+    taking the first in the MRO, so the only thing standing between a rename and
+    a method that quietly stops running is this.
+    """
+
+    ours = [base for base in DiggerApp.__mro__ if base.__module__.startswith("dj_digger.tui")]
+    # Not an exact count, which would need editing every time a concern moves
+    # out - just enough to prove the scan below is looking at something.
+    assert len(ours) >= 8, f"expected DiggerApp and its mixins, got {len(ours)}"
+
+    owner = {}
+    clashes = []
+    for base in ours:
+        for name, value in vars(base).items():
+            if name.startswith("__") or not (callable(value) or isinstance(value, property)):
+                continue
+            if name in owner:
+                clashes.append(f"{name} ({owner[name].__name__} and {base.__name__})")
+            owner[name] = base
+
+    assert len(owner) > 100, "the scan found almost nothing, so it proves nothing"
+    assert not clashes, "defined more than once: " + ", ".join(clashes)
+
+
+class StubScanner:
+    """Answers match_track from a dict, so no test touches a real music folder."""
+
+    def __init__(self, matches):
+        self.matches = matches
+
+    def match_track(self, track):
+        return self.matches.get(track.key)
+
+
+def test_a_confident_match_marks_an_untouched_track_as_got(records, state):
+    app = make_app(records, state)
+    key = records[0].track.key
+    scanner = StubScanner({key: LocalMatch("/music/a.mp3", confident=True)})
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.apply_local_file_matches(scanner)
+
+            assert state.get(key) == GOT
+            assert app.rows[0].track.local_path == "/music/a.mp3"
+
+    run(scenario)
+
+
+def test_a_loose_match_points_at_the_file_without_claiming_you_have_it(records, state):
+    """A title that happens to agree is not evidence you own the track."""
+
+    app = make_app(records, state)
+    key = records[0].track.key
+    scanner = StubScanner({key: LocalMatch("/music/maybe.mp3", confident=False)})
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.apply_local_file_matches(scanner)
+
+            assert app.rows[0].track.local_path == "/music/maybe.mp3"
+            assert state.get(key) == "new", "a loose match must not mark anything"
+
+    run(scenario)
+
+
+def test_a_scan_never_overwrites_a_decision_you_made(records, state):
+    """Skipping a track is a judgement; a file in Downloads does not overrule it."""
+
+    app = make_app(records, state)
+    key = records[0].track.key
+    state.set(key, SKIP)
+    scanner = StubScanner({key: LocalMatch("/music/a.mp3", confident=True)})
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.apply_local_file_matches(scanner)
+
+            assert state.get(key) == SKIP
+            assert app.rows[0].track.local_path == "/music/a.mp3", "the badge still belongs"
+
+    run(scenario)
+
+
+def test_a_matched_track_is_badged_in_the_table(records, state):
+    app = make_app(records, state)
+    key = records[0].track.key
+    scanner = StubScanner({key: LocalMatch("/music/a.mp3", confident=True)})
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.apply_local_file_matches(scanner)
+            await pilot.pause()
+
+            table = app.query_one("#tracks", DataTable)
+            title = table.get_cell_at(Coordinate(0, TITLE_CELL))
+            assert "\U0001f4c1" in str(title)
+
+    run(scenario)
+
+
+def test_copying_the_path_says_so_either_way(records, state, monkeypatch):
+    app = make_app(records, state)
+    key = records[0].track.key
+    said = []
+    monkeypatch.setattr(DiggerApp, "notify", lambda self, msg, **kw: said.append(msg))
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await pilot.press("y")
+            assert "No local file matched" in said[-1]
+
+            app.apply_local_file_matches(
+                StubScanner({key: LocalMatch("/music/a.mp3", confident=True)})
+            )
+            monkeypatch.setattr(
+                "dj_digger.tui.library_scan.copy_to_clipboard", lambda text: True
+            )
+            await pilot.press("y")
+            assert "/music/a.mp3" in said[-1]
+
+    run(scenario)

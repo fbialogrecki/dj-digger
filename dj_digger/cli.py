@@ -7,23 +7,26 @@ A saved HTML file still works in the same position, and running ``dj-digger`` wi
 no arguments at all opens the browser and asks for a link.
 """
 
-from __future__ import annotations
-
 import argparse
 import logging
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import List, Optional, Sequence
 
 from rich.console import Console
-from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
+)
 from rich.table import Table
 
-from . import __version__
+from . import __version__, library, links, soundcloud
 from . import auth as auth_module
 from . import browser as browser_module
 from . import dig as dig_module
-from . import library, links, soundcloud
 from .models import Crate, LinkRecord
 from .state import TrackState
 
@@ -49,9 +52,11 @@ def _add_shared_arguments(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument(
         "--browser",
-        choices=browser_module.BROWSER_CHOICES,
-        default="default",
-        help="Browser used to open links (default: system default)",
+        default="",
+        help=(
+            "Deprecated, and removed in 0.7: the browser is a setting now. Press "
+            "S in the crate browser to pick one from what this machine has."
+        ),
     )
     parser.add_argument(
         "--no-tui",
@@ -169,7 +174,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def inject_default_command(argv: Sequence[str]) -> List[str]:
+def inject_default_command(argv: Sequence[str]) -> list[str]:
     """Let ``dj-digger <link>`` mean ``dj-digger dig <link>``, and bare mean ``dig``."""
 
     tokens = list(argv)
@@ -180,7 +185,7 @@ def inject_default_command(argv: Sequence[str]) -> List[str]:
     return ["dig", *tokens]
 
 
-def parse_cli_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
+def parse_cli_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     raw = list(sys.argv[1:] if argv is None else argv)
     return build_parser().parse_args(inject_default_command(raw))
 
@@ -201,7 +206,7 @@ def _dig_with_progress(target: str, args: argparse.Namespace, console: Console) 
     with _progress(console) as progress:
         task = progress.add_task(dig_module.STAGE_LINK, total=None)
 
-        def on_progress(stage: str, done: int, total: Optional[int]) -> None:
+        def on_progress(stage: str, done: int, total: int | None) -> None:
             progress.update(task, description=stage, completed=done, total=total)
 
         return dig_module.dig(
@@ -216,7 +221,7 @@ def _dig_with_progress(target: str, args: argparse.Namespace, console: Console) 
 def _print_summary(
     console: Console,
     records: Sequence[LinkRecord],
-    crate: Optional[Crate] = None,
+    crate: Crate | None = None,
 ) -> None:
     counts = links.count_by_category(records)
     table = Table(title=crate.title if crate else None, title_justify="left")
@@ -437,13 +442,20 @@ def handle_auth(args: argparse.Namespace) -> int:
         return handle_auth(argparse.Namespace(auth_action="status"))
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     args = parse_cli_args(argv)
 
     logging.basicConfig(
         level=getattr(logging, args.log_level.upper(), logging.INFO),
         format="%(levelname)s: %(message)s",
     )
+
+    if getattr(args, "browser", ""):
+        # Still honoured for this release so a script does not break on upgrade.
+        LOGGER.warning(
+            "--browser is deprecated and goes away in 0.7. Press S in the crate "
+            "browser to choose from the browsers this machine actually has."
+        )
 
     try:
         if args.command == "dig":

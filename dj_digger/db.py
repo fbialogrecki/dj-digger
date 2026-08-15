@@ -4,18 +4,23 @@ Replaces flat JSON files with a thread-safe SQLite database (~/.local/share/dj-d
 Supports WAL mode for concurrent background worker writes without UI thread locks.
 """
 
-from __future__ import annotations
-
 import json
 import logging
 import os
 import sqlite3
 import threading
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Any
 
 LOGGER = logging.getLogger(__name__)
+
+# Databases whose legacy JSON has already been imported in this process.
+# The import is a one-off, but Database is constructed freely - library._db()
+# builds a fresh one per call - and re-running it turns a status you just
+# cleared back into whatever state.json still said a moment ago.
+_MIGRATED: set[Path] = set()
 
 def default_db_path() -> Path:
     data_dir = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share")) / "dj-digger"
@@ -24,7 +29,7 @@ def default_db_path() -> Path:
 class Database:
     """Thread-safe SQLite database manager with WAL mode and auto-migration."""
 
-    def __init__(self, db_path: Optional[Path] = None) -> None:
+    def __init__(self, db_path: Path | None = None) -> None:
         self.path = Path(db_path) if db_path else default_db_path()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._local = threading.local()
@@ -76,7 +81,9 @@ class Database:
                 )
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_local_normalized ON local_files(normalized_stem);")
-        self._migrate_legacy_json()
+        if self.path not in _MIGRATED:
+            _MIGRATED.add(self.path)
+            self._migrate_legacy_json()
 
     def _migrate_legacy_json(self) -> None:
         base_dir = self.path.parent
@@ -135,17 +142,8 @@ class Database:
                     (str(key), status, updated)
                 )
 
-    def get_status_counts(self) -> Dict[str, int]:
-        counts = {"new": 0, "opened": 0, "skip": 0, "got": 0}
-        with self.connection() as conn:
-            cur = conn.execute("SELECT status, COUNT(*) as cnt FROM track_states GROUP BY status")
-            for row in cur.fetchall():
-                if row["status"] in counts:
-                    counts[row["status"]] = row["cnt"]
-        return counts
-
     # --- Crates API ---
-    def save_crate(self, source: str, title: str, declared_count: Optional[int], updated: str, tracks_data: List[Dict[str, Any]]) -> None:
+    def save_crate(self, source: str, title: str, declared_count: int | None, updated: str, tracks_data: list[dict[str, Any]]) -> None:
         with self.connection() as conn:
             conn.execute(
                 """INSERT OR REPLACE INTO crates
@@ -154,7 +152,7 @@ class Database:
                 (source, title, declared_count, updated, json.dumps(tracks_data, ensure_ascii=False))
             )
 
-    def load_crate(self, source: str) -> Optional[Dict[str, Any]]:
+    def load_crate(self, source: str) -> dict[str, Any] | None:
         with self.connection() as conn:
             cur = conn.execute("SELECT source, title, declared_count, updated, tracks_json FROM crates WHERE source = ?", (source,))
             row = cur.fetchone()
@@ -168,7 +166,7 @@ class Database:
                 "tracks": json.loads(row["tracks_json"])
             }
 
-    def list_crates(self) -> List[Dict[str, Any]]:
+    def list_crates(self) -> list[dict[str, Any]]:
         with self.connection() as conn:
             cur = conn.execute("SELECT source, title, declared_count, updated, tracks_json FROM crates ORDER BY updated DESC")
             crates = []
@@ -188,7 +186,7 @@ class Database:
             conn.execute("DELETE FROM crates WHERE source = ?", (source,))
 
     # --- Local File Cache API ---
-    def get_cached_files(self) -> Dict[str, Tuple[float, str]]:
+    def get_cached_files(self) -> dict[str, tuple[float, str]]:
         """Return dict of path -> (mtime, normalized_stem)."""
         with self.connection() as conn:
             cur = conn.execute("SELECT path, mtime, normalized_stem FROM local_files")
@@ -202,7 +200,7 @@ class Database:
                 (path, mtime, size, artist, title, normalized_stem)
             )
 
-    def find_local_match(self, normalized_stem: str) -> Optional[str]:
+    def find_local_match(self, normalized_stem: str) -> str | None:
         with self.connection() as conn:
             cur = conn.execute("SELECT path FROM local_files WHERE normalized_stem = ? LIMIT 1", (normalized_stem,))
             row = cur.fetchone()

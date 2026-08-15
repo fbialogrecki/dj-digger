@@ -7,16 +7,15 @@ store category by matching a known domain. Anything else falls back to
 ``others``.
 """
 
-from __future__ import annotations
-
 import csv
 import json
 import logging
 import re
+from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 from urllib.parse import urlparse
 
+from .browser import is_openable
 from .models import LinkRecord, Track
 
 DOWNLOAD_KEYWORDS = {"download", "free download", "free d/l"}
@@ -129,7 +128,7 @@ DESCRIPTION_CATEGORIES = frozenset(CATEGORY_NAMES) - {
 }
 
 CATEGORY_CHOICES = CATEGORY_NAMES + ["all"]
-EXPORT_FORMATS = ["json", "yaml", "csv", "none"]
+EXPORT_FORMATS = ["json", "csv", "none"]
 
 URL_RE = re.compile(r"https?://[^\s<>\"'\)\]]+")
 TRAILING_PUNCTUATION = ".,;:!?)]}>\"'"
@@ -151,7 +150,12 @@ def _host_matches(host: str, domain: str) -> bool:
     return host == domain or host.endswith("." + domain)
 
 
-def store_for_url(url: str) -> Optional[str]:
+def store_for_url(url: str) -> str | None:
+    # The scheme is checked before the host, because the host is the only thing
+    # the domain tables look at: ``file://bandcamp.com/etc/passwd`` matches
+    # bandcamp perfectly well, and a category is what makes a link openable.
+    if not is_openable(url):
+        return None
     host = host_of(url)
     for category, domains in STORE_DOMAINS.items():
         if any(_host_matches(host, domain) for domain in domains):
@@ -161,7 +165,7 @@ def store_for_url(url: str) -> Optional[str]:
     return None
 
 
-def urls_in_text(text: str) -> List[str]:
+def urls_in_text(text: str) -> list[str]:
     return [match.rstrip(TRAILING_PUNCTUATION) for match in URL_RE.findall(text or "")]
 
 
@@ -169,15 +173,15 @@ PURCHASE_FIELD = "purchase"
 DESCRIPTION_FIELD = "description"
 
 
-def candidate_links(track: Track) -> List[Tuple[str, str, str]]:
+def candidate_links(track: Track) -> list[tuple[str, str, str]]:
     """Every link worth inspecting for one track as (url, text, source).
 
     Ordered best source first, which is what lets ``categorise`` keep the album
     link from ``purchase_url`` over the label homepage from the description.
     """
 
-    candidates: List[Tuple[str, str, str]] = []
-    seen: Set[str] = set()
+    candidates: list[tuple[str, str, str]] = []
+    seen: set[str] = set()
 
     def add(url: str, text: str, source: str) -> None:
         url = (url or "").strip().rstrip(TRAILING_PUNCTUATION)
@@ -196,7 +200,7 @@ def candidate_links(track: Track) -> List[Tuple[str, str, str]]:
     return candidates
 
 
-def categorise(track: Track) -> List[LinkRecord]:
+def categorise(track: Track) -> list[LinkRecord]:
     """Categorise one track's links, never returning an empty list.
 
     At most one link per store: a track that lists an album on Bandcamp and also
@@ -204,9 +208,9 @@ def categorise(track: Track) -> List[LinkRecord]:
     and ``candidate_links`` already puts the best source first.
     """
 
-    records: List[LinkRecord] = []
-    claimed: Set[str] = set()
-    unmatched: List[Tuple[str, str]] = []
+    records: list[LinkRecord] = []
+    claimed: set[str] = set()
+    unmatched: list[tuple[str, str]] = []
 
     if track.free_download:
         # Nothing beats a file the artist is handing out directly, so this one
@@ -230,8 +234,11 @@ def categorise(track: Track) -> List[LinkRecord]:
                 continue
             claimed.add(category)
             records.append(LinkRecord(category, track, url, text))
-        elif url == track.purchase_url:
-            # An explicit purchase field pointing somewhere we do not know.
+        elif url == track.purchase_url and is_openable(url):
+            # An explicit purchase field pointing somewhere we do not know. It
+            # still has to be a web address: "others" is opened like any other
+            # category, so an unrecognised destination is not a licence to hand
+            # the OS a file:// path.
             unmatched.append((url, text))
 
     if records:
@@ -243,14 +250,14 @@ def categorise(track: Track) -> List[LinkRecord]:
     return [LinkRecord("no-link", track, track.permalink_url, NO_STORE_LINK)]
 
 
-def categorise_all(tracks: Iterable[Track]) -> List[LinkRecord]:
-    records: List[LinkRecord] = []
+def categorise_all(tracks: Iterable[Track]) -> list[LinkRecord]:
+    records: list[LinkRecord] = []
     for track in tracks:
         records.extend(categorise(track))
     return records
 
 
-def group_by_track(records: Sequence[LinkRecord]) -> List[List[LinkRecord]]:
+def group_by_track(records: Sequence[LinkRecord]) -> list[list[LinkRecord]]:
     """One list of links per track, tracks in first-seen order, best link first.
 
     ``categorise`` emits a record per store, so a track selling on Bandcamp and
@@ -259,7 +266,7 @@ def group_by_track(records: Sequence[LinkRecord]) -> List[List[LinkRecord]]:
     """
 
     rank = {name: index for index, name in enumerate(CATEGORY_NAMES)}
-    groups: Dict[str, List[LinkRecord]] = {}
+    groups: dict[str, list[LinkRecord]] = {}
     for record in records:
         groups.setdefault(record.track.key, []).append(record)
     return [
@@ -268,17 +275,17 @@ def group_by_track(records: Sequence[LinkRecord]) -> List[List[LinkRecord]]:
     ]
 
 
-def build_summary(records: Sequence[LinkRecord]) -> Dict[str, List[Dict[str, object]]]:
+def build_summary(records: Sequence[LinkRecord]) -> dict[str, list[dict[str, object]]]:
     """Group records into the export shape, keyed by category."""
 
-    summary: Dict[str, List[Dict[str, object]]] = {name: [] for name in CATEGORY_NAMES}
+    summary: dict[str, list[dict[str, object]]] = {name: [] for name in CATEGORY_NAMES}
     for record in records:
         category = record.category if record.category in CATEGORY_NAMES else "others"
         summary[category].append(record.as_dict())
     return summary
 
 
-def count_by_category(records: Sequence[LinkRecord]) -> Dict[str, int]:
+def count_by_category(records: Sequence[LinkRecord]) -> dict[str, int]:
     counts = {name: 0 for name in CATEGORY_NAMES}
     for record in records:
         category = record.category if record.category in CATEGORY_NAMES else "others"
@@ -286,7 +293,7 @@ def count_by_category(records: Sequence[LinkRecord]) -> Dict[str, int]:
     return counts
 
 
-def present_categories(records: Sequence[LinkRecord]) -> List[str]:
+def present_categories(records: Sequence[LinkRecord]) -> list[str]:
     """Categories this crate actually contains, in canonical order.
 
     With a dozen possible categories, showing or cycling through the empty ones
@@ -298,15 +305,15 @@ def present_categories(records: Sequence[LinkRecord]) -> List[str]:
 
 
 def default_output_path(export_format: str) -> Path:
-    extension = export_format if export_format in {"json", "yaml", "csv"} else "json"
+    extension = export_format if export_format in {"json", "csv"} else "json"
     return Path(f"soundcloud_links.{extension}")
 
 
 def export_records(
     records: Sequence[LinkRecord],
     export_format: str,
-    output_path: Optional[Path] = None,
-) -> Optional[Path]:
+    output_path: Path | None = None,
+) -> Path | None:
     """Write categorised links to disk. Returns the path written, if any."""
 
     if export_format == "none":
@@ -341,48 +348,34 @@ def export_records(
         LOGGER.info("Saved %s links to %s", len(records), path)
         return path
 
-    if export_format == "yaml":
-        try:
-            import yaml
-        except ModuleNotFoundError:
-            LOGGER.error(
-                "YAML export needs PyYAML. Install it with: pip install 'dj-soundcloud-digger[yaml]'"
-            )
-            return None
-        with path.open("w", encoding="utf-8") as handle:
-            yaml.safe_dump(summary, handle, sort_keys=False, allow_unicode=True)
-        LOGGER.info("Saved %s links to %s", len(records), path)
-        return path
-
     raise ValueError(f"Unknown export format: {export_format}")
 
 
-def load_summary(path: Path) -> List[LinkRecord]:
-    """Read a previously exported JSON/YAML summary back into records."""
+def load_summary(path: Path) -> list[LinkRecord]:
+    """Read a previously exported JSON summary back into records."""
 
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(f"Summary file not found: {path}")
 
-    text = path.read_text(encoding="utf-8")
     if path.suffix.lower() in {".yaml", ".yml"}:
-        try:
-            import yaml
-        except ModuleNotFoundError as exc:
-            raise RuntimeError(
-                "Reading YAML needs PyYAML. Install it with: pip install 'dj-soundcloud-digger[yaml]'"
-            ) from exc
-        data = yaml.safe_load(text)
-    else:
-        try:
-            data = json.loads(text)
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"Invalid JSON in {path}: {exc}") from exc
+        # Written by 0.5 and earlier. Saying so beats a parser error about a
+        # colon on line one.
+        raise ValueError(
+            f"{path} is YAML, which this version no longer reads. Convert it to "
+            "JSON, or re-dig the source."
+        )
+
+    text = path.read_text(encoding="utf-8")
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Invalid JSON in {path}: {exc}") from exc
 
     if not isinstance(data, dict):
         raise ValueError(f"{path} should contain a mapping of category to links")
 
-    records: List[LinkRecord] = []
+    records: list[LinkRecord] = []
     for category, items in data.items():
         if not isinstance(items, list):
             raise ValueError(f"Category '{category}' in {path} should contain a list")
@@ -393,6 +386,17 @@ def load_summary(path: Path) -> List[LinkRecord]:
             if not track_url:
                 raise ValueError(f"Items in category '{category}' need a 'track_url'")
             link_url = item.get("shop_link") or track_url
+            # Categorisation is skipped for a summary - the category is read off
+            # the file - so this is the only place these two are checked before
+            # they reach the browser. Loud rather than quiet: this file is
+            # written by the digger itself, so anything else in it is either
+            # corruption or someone hoping you will press 'o'.
+            for field, value in (("track_url", track_url), ("shop_link", link_url)):
+                if not is_openable(value):
+                    raise ValueError(
+                        f"'{field}' in category '{category}' is not an http or https "
+                        f"link: {value!r}"
+                    )
             track = Track(
                 title=item.get("title") or "Unknown title",
                 permalink_url=track_url,
@@ -413,10 +417,10 @@ def load_summary(path: Path) -> List[LinkRecord]:
     return records
 
 
-def tracks_from_records(records: Sequence[LinkRecord]) -> List[Track]:
+def tracks_from_records(records: Sequence[LinkRecord]) -> list[Track]:
     """Collapse records back into unique tracks, merging their links onto each."""
 
-    by_key: Dict[str, Track] = {}
+    by_key: dict[str, Track] = {}
     for record in records:
         track = by_key.setdefault(record.track.key, record.track)
         if track is record.track:

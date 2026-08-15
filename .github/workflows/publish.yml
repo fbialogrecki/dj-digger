@@ -8,18 +8,48 @@ on:
       - 'v*'
   workflow_dispatch:
 
+# Least privilege by default. The publish job asks for the one extra token it
+# needs, and only for itself.
+permissions:
+  contents: read
+
 jobs:
+  # Nothing reached PyPI through a test before this job existed: a tag push went
+  # straight to build and upload, and a release cannot be unpublished.
+  test:
+    name: Test on Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Every version requires-python claims to support, so the claim is
+        # checked rather than asserted.
+        python-version: ["3.12", "3.13", "3.14"]
+    steps:
+      # Third-party actions are pinned to a commit rather than a tag. A tag can
+      # be moved to point at new code, and the job below hands an OIDC token
+      # that publishes to PyPI under our name to whatever these actions run.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Install uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+      # --extra dev, because pytest lives in an optional dependency rather than
+      # in the default set: without it uv resolves an environment that cannot
+      # run the suite at all.
+      - name: Run tests
+        run: uv run --extra dev --python ${{ matrix.python-version }} pytest
+
   pypi-publish:
     name: Upload release to PyPI
+    needs: test
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
-      id-token: write  # IMPORTANT: Mandatory for PyPI Trusted Publisher (OIDC)
+      id-token: write # IMPORTANT: Mandatory for PyPI Trusted Publisher (OIDC)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
       - name: Build package
         run: uv build
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
