@@ -1,9 +1,9 @@
 # 🎧 dj-soundcloud-digger
 
-[![Python Version](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![Python Version](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
 [![Built with Textual](https://img.shields.io/badge/TUI-Textual-ff69b4.svg)](https://textual.textualize.io/)
-[![Version](https://img.shields.io/badge/version-0.5.1-orange.svg)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-0.6.0-orange.svg)](pyproject.toml)
 
 > **The ultimate crate-digging companion for DJs and electronic music collectors.**
 > Instantly extract purchase links, free downloads, and download gates from SoundCloud playlists, user likes, or artist profiles—then preview tracks and manage your library in a high-performance terminal interface.
@@ -21,9 +21,9 @@ dj-digger https://soundcloud.com/someone/sets/that-playlist
 - **🎶 In-Memory Audio Preview**: Zero-latency streaming and seeking powered by `miniaudio`. Pre-fetches upcoming tracks and renders dynamic 16-level block waveforms with reactive audio level meters.
 - **📦 Multi-Crate Local Library**: Save dig sessions as local crates in `~/.local/share/dj-digger/crates/`. Switch, refresh, or search across crates seamlessly.
 - **🧠 Cross-Crate Track Memory**: Track decisions (`got it` / `skipped`) are stored globally by SoundCloud track ID. Buying a track once marks it across all future playlists.
-- **🔓 Download Gate Automation**: Integrates Playwright and cookie authentication to unlock follow-to-download gates automatically.
+- **🔓 Download Gate Automation**: Resolves follow-to-download gates (Hypeddit, ToneDen, GateRush, Droploud) by replaying their step-completion calls. No browser automation, no Playwright.
 - **📄 Saved-HTML Fallback**: Fully supports saved HTML pages (`Ctrl+S`) for private or unlisted SoundCloud playlists.
-- **⚙️ CLI & Non-Interactive Mode**: Export crates directly to JSON, CSV, or YAML for automated pipelines and scripts.
+- **⚙️ CLI & Non-Interactive Mode**: Export crates directly to JSON or CSV for automated pipelines and scripts.
 
 ---
 
