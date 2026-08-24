@@ -1754,6 +1754,195 @@ def test_marking_a_track_does_not_redraw_the_whole_table(state, monkeypatch):
     run(scenario)
 
 
+def test_download_progress_does_not_move_the_viewport(state, monkeypatch):
+    app = make_app(synthetic_records(60), state)
+
+    async def scenario():
+        async with app.run_test(size=(100, 24)) as pilot:
+            table = app.query_one("#tracks", tui.TrackTable)
+            table.move_cursor(row=30)
+            table.scroll_to(y=20, animate=False, force=True, immediate=True)
+            await pilot.pause()
+            cursor = table.cursor_row
+            viewport = table.scroll_offset
+            rebuilds = []
+            monkeypatch.setattr(table, "clear", lambda *a, **k: rebuilds.append(1))
+
+            row = app.visible_rows[35]
+            app._update_track_progress(row.track.key, 0.42)
+            await pilot.pause()
+
+            assert rebuilds == []
+            assert table.cursor_row == cursor
+            assert table.scroll_offset == viewport
+            assert "[42%]" in str(table.get_row_at(35)[TITLE_CELL])
+
+    run(scenario)
+
+
+def test_batch_progress_repaints_every_row_waiting_for_the_throttle(state):
+    app = make_app(synthetic_records(4), state)
+
+    async def scenario():
+        async with app.run_test():
+            first, second = app.visible_rows[:2]
+            app._last_progress_redraw = float("inf")
+            app._update_track_progress(first.track.key, 0.21)
+            app._update_track_progress(second.track.key, 0.37)
+
+            app._last_progress_redraw = 0
+            app._update_track_progress(first.track.key, 0.42)
+
+            table = app.query_one("#tracks", tui.TrackTable)
+            assert "[42%]" in str(table.get_row_at(0)[TITLE_CELL])
+            assert "[37%]" in str(table.get_row_at(1)[TITLE_CELL])
+
+    run(scenario)
+
+
+@pytest.mark.parametrize(
+    ("outcome", "completed"),
+    [
+        ("single_success", True),
+        ("single_failure", False),
+        ("batch_success", True),
+        ("batch_failure", False),
+        ("batch_complete", False),
+    ],
+)
+def test_download_results_do_not_move_the_viewport(state, monkeypatch, tmp_path, outcome, completed):
+    app = make_app(synthetic_records(60), state)
+
+    async def scenario():
+        async with app.run_test(size=(100, 24)) as pilot:
+            table = app.query_one("#tracks", tui.TrackTable)
+            table.move_cursor(row=30)
+            table.scroll_to(y=20, animate=False, force=True, immediate=True)
+            row = app.visible_rows[35]
+            key = row.track.key
+            app.download_progress[key] = 0.42
+            app._paint_download_row(key)
+            await pilot.pause()
+            cursor = table.cursor_row
+            viewport = table.scroll_offset
+            rebuilds = []
+            monkeypatch.setattr(table, "clear", lambda *a, **k: rebuilds.append(1))
+
+            if outcome == "single_success":
+                app._download_finished(key, tmp_path / "track.mp3")
+            elif outcome == "single_failure":
+                app._download_failed(key, "network broke")
+            elif outcome == "batch_success":
+                app._on_batch_track_finished(row, str(tmp_path / "track.mp3"))
+            elif outcome == "batch_failure":
+                app._on_batch_track_failed(row, "network broke")
+            else:
+                app._on_batch_download_complete(0, 1, 1)
+            await pilot.pause()
+
+            assert rebuilds == []
+            assert table.cursor_row == cursor
+            assert table.scroll_offset == viewport
+            assert "[42%]" not in str(table.get_row_at(35)[TITLE_CELL])
+            assert (state.get(key) == GOT) is completed
+
+    run(scenario)
+
+
+def test_hidden_completion_outside_the_current_view_does_not_rebuild(state, monkeypatch, tmp_path):
+    app = make_app(synthetic_records(4), state)
+
+    async def scenario():
+        async with app.run_test():
+            hidden_row = app.visible_rows[0]
+            app.search_term = "Track 3"
+            app.hide_handled = True
+            app.refresh_rows(keep_cursor=False)
+            table = app.query_one("#tracks", tui.TrackTable)
+            rebuilds = []
+            monkeypatch.setattr(table, "clear", lambda *a, **k: rebuilds.append(1))
+
+            app._download_finished(hidden_row.track.key, tmp_path / "track.mp3")
+
+            assert rebuilds == []
+            assert len(app.visible_rows) == 1
+
+    run(scenario)
+
+
+@pytest.mark.parametrize(("cursor_row", "scroll_y"), [(30, 20), (10, 40)])
+def test_refresh_rows_preserves_the_viewport(state, cursor_row, scroll_y):
+    app = make_app(synthetic_records(60), state)
+
+    async def scenario():
+        async with app.run_test(size=(100, 24)) as pilot:
+            table = app.query_one("#tracks", tui.TrackTable)
+            table.move_cursor(row=cursor_row)
+            table.scroll_to(y=scroll_y, animate=False, force=True, immediate=True)
+            await pilot.pause()
+            cursor = table.cursor_row
+            viewport = table.scroll_offset
+
+            app.refresh_rows()
+            await pilot.pause()
+
+            assert table.cursor_row == cursor
+            assert table.scroll_offset == viewport
+
+    run(scenario)
+
+
+def test_refresh_rows_keeps_the_same_tracks_after_rows_above_are_removed(state):
+    app = make_app(synthetic_records(60), state)
+
+    async def scenario():
+        async with app.run_test(size=(100, 24)) as pilot:
+            table = app.query_one("#tracks", tui.TrackTable)
+            await pilot.pause()
+            table.move_cursor(row=45)
+            table.scroll_to(y=40, animate=False, force=True, immediate=True)
+            await pilot.pause()
+            cursor_key = app.visible_rows[table.cursor_row].track.key
+            top_key = app.visible_rows[table.scroll_offset.y].track.key
+
+            app.hide_handled = True
+            state.set(app.visible_rows[10].track.key, GOT)
+            app.refresh_rows()
+            await pilot.pause()
+
+            assert app.visible_rows[table.cursor_row].track.key == cursor_key
+            assert app.visible_rows[table.scroll_offset.y].track.key == top_key
+
+    run(scenario)
+
+
+def test_back_to_back_refreshes_keep_the_same_tracks(state):
+    app = make_app(synthetic_records(60), state)
+
+    async def scenario():
+        async with app.run_test(size=(100, 24)) as pilot:
+            table = app.query_one("#tracks", tui.TrackTable)
+            await pilot.pause()
+            table.move_cursor(row=10)
+            table.scroll_to(y=40, animate=False, force=True, immediate=True)
+            await pilot.pause()
+            cursor_key = app.visible_rows[table.cursor_row].track.key
+            top_key = app.visible_rows[table.scroll_offset.y].track.key
+            assert table.scroll_offset.y > 0
+
+            app.hide_handled = True
+            state.set(app.rows[20].track.key, GOT)
+            app.refresh_rows()
+            state.set(app.rows[21].track.key, GOT)
+            app.refresh_rows()
+            await pilot.pause()
+
+            assert app.visible_rows[table.cursor_row].track.key == cursor_key
+            assert app.visible_rows[table.scroll_offset.y].track.key == top_key
+
+    run(scenario)
+
+
 def test_a_row_that_is_about_to_be_hidden_is_not_lit(state):
     """With handled rows hidden, the row leaves rather than flashing in place."""
 

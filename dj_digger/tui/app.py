@@ -232,6 +232,7 @@ class DiggerApp(
         self._frame = 0
         self._dig_message = ""
         self.download_progress: dict[str, float] = {}
+        self._dirty_download_rows: set[str] = set()
         self._last_progress_redraw: float = 0.0
         # Only a batch download builds one. Declared here so the teardown path
         # can ask about it plainly rather than through getattr.

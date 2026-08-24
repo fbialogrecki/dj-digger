@@ -59,20 +59,38 @@ class DownloadMixin:
 
     def _update_track_progress(self, key: str, pct: float) -> None:
         self.download_progress[key] = pct
+        self._dirty_download_rows.add(key)
         now = time.time()
         if now - self._last_progress_redraw >= 0.08:
             self._last_progress_redraw = now
-            self.refresh_rows()
+            dirty_keys = tuple(self._dirty_download_rows)
+            self._dirty_download_rows.clear()
+            for dirty_key in dirty_keys:
+                self._paint_download_row(dirty_key)
+
+    def _paint_download_row(self, key: str) -> None:
+        for index, row in enumerate(self.visible_rows):
+            if row.track.key == key:
+                self._paint_row(index)
+                return
 
     def _download_failed(self, key: str, message: str) -> None:
         self.download_progress.pop(key, None)
-        self.refresh_rows()
+        self._dirty_download_rows.discard(key)
+        self._paint_download_row(key)
+        self.update_status()
         self.notify(f"Download failed: {message}", severity="error", timeout=6)
 
     def _download_finished(self, key: str, path: Path) -> None:
         self.download_progress.pop(key, None)
+        self._dirty_download_rows.discard(key)
+        was_visible = any(row.track.key == key for row in self.visible_rows)
         self.state.set(key, GOT)
-        self.refresh_rows()
+        if self.hide_handled and was_visible:
+            self.refresh_rows()
+        else:
+            self._paint_download_row(key)
+            self.update_status()
         self.notify(f"Downloaded to {path}", timeout=5)
 
     def action_batch_download(self) -> None:
@@ -148,19 +166,31 @@ class DownloadMixin:
     def _on_batch_track_finished(self, row: Row, path_str: str) -> None:
         key = row.track.key
         self.download_progress.pop(key, None)
+        self._dirty_download_rows.discard(key)
+        was_visible = any(visible.track.key == key for visible in self.visible_rows)
         self.state.set(key, GOT)
-        self.refresh_rows()
+        if self.hide_handled and was_visible:
+            self.refresh_rows()
+        else:
+            self._paint_download_row(key)
+            self.update_status()
 
     def _on_batch_track_failed(self, row: Row, message: str) -> None:
         key = row.track.key
         self.download_progress.pop(key, None)
+        self._dirty_download_rows.discard(key)
         if "requires browser completion" not in message:
             self.show_error(f"Batch download failed [{row.track.label}]: {message}")
-        self.refresh_rows()
+        self._paint_download_row(key)
+        self.update_status()
 
     def _on_batch_download_complete(self, completed: int, failed: int, total: int) -> None:
+        stale_keys = tuple(self.download_progress)
         self.download_progress.clear()
-        self.refresh_rows()
+        self._dirty_download_rows.clear()
+        for key in stale_keys:
+            self._paint_download_row(key)
+        self.update_status()
         msg = f"Batch download finished: {completed}/{total} downloaded"
         if failed > 0:
             msg += f" ({failed} require manual browser completion - press 'o' to open)"

@@ -136,6 +136,14 @@ class RenderMixin:
     def refresh_rows(self, *, keep_cursor: bool = True) -> None:
         table = self.query_one("#tracks", TrackTable)
         previous = table.cursor_row if keep_cursor else 0
+        previous_scroll = table.scroll_offset if keep_cursor else None
+        cursor_key = None
+        top_key = None
+        if keep_cursor and self.visible_rows:
+            if 0 <= previous < len(self.visible_rows):
+                cursor_key = self.visible_rows[previous].track.key
+            top_index = min(previous_scroll.y, len(self.visible_rows) - 1)
+            top_key = self.visible_rows[top_index].track.key
         self.visible_rows = self.matching_rows()
         playing_key = self._playing_key()
 
@@ -144,8 +152,24 @@ class RenderMixin:
             table.add_row(*self._cells(row, playing_key))
 
         if self.visible_rows:
-            table.move_cursor(row=min(previous, len(self.visible_rows) - 1))
+            indexes = {row.track.key: index for index, row in enumerate(self.visible_rows)}
+            cursor = indexes.get(cursor_key, min(previous, len(self.visible_rows) - 1))
+            table.move_cursor(row=cursor, scroll=not keep_cursor)
         table.fit_flexible_column()
+        if previous_scroll is not None:
+            scroll_y = indexes.get(top_key, previous_scroll.y) if self.visible_rows else 0
+
+            def restore_scroll() -> None:
+                table.scroll_to(
+                    x=previous_scroll.x,
+                    y=scroll_y,
+                    animate=False,
+                    force=True,
+                    immediate=True,
+                )
+
+            restore_scroll()
+            table.call_after_refresh(restore_scroll)
         self._drop_stale_preparation()
         self.update_status()
 
