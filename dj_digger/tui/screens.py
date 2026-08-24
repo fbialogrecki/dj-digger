@@ -152,6 +152,8 @@ class ConfirmScreen(ModalScreen[bool]):
         width: 62;
         max-width: 90%;
         height: auto;
+        max-height: 90%;
+        overflow-y: auto;
         padding: 1 2;
         border: round $error;
         background: $surface;
@@ -173,7 +175,7 @@ class ConfirmScreen(ModalScreen[bool]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="confirm"):
-            yield Label(self.question)
+            yield Label(self.question, markup=False)
             with Horizontal(id="confirm-buttons"):
                 yield Button("Yes (y)", variant="error", id="confirm-yes")
                 yield Button("No (n)", id="confirm-no")

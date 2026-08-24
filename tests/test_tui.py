@@ -2,6 +2,7 @@ import asyncio
 import io
 import json
 from concurrent.futures import ThreadPoolExecutor
+from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
@@ -9,7 +10,7 @@ from rich.console import Console
 from textual.coordinate import Coordinate
 from textual.widgets import Button, DataTable, Input, Label, ListView, Static
 
-from dj_digger import library, links, tui
+from dj_digger import cart, library, links, tui
 from dj_digger.dig import DigOptions, TargetNotFound
 from dj_digger.models import Crate, LinkRecord, Track
 from dj_digger.player import Loaded, PlaybackUnavailable, PlayerBar, Stream
@@ -300,6 +301,156 @@ def test_enter_opens_the_link_exactly_once(records, state, monkeypatch):
 
     run(scenario)
     assert opened == [records[0].link_url]
+
+
+def cart_plan_for(record, *, already=False):
+    return cart.CartPlan(
+        items=(
+            cart.CartItem(
+                track_key=record.track.key,
+                track_label=record.track.label,
+                store=record.category,
+                source_url=record.link_url,
+                product_url=record.link_url,
+                product_id="123",
+                product_title=record.track.title,
+                price=Decimal("1.25"),
+                currency="GBP",
+                already_in_cart=already,
+            ),
+        )
+    )
+
+
+def test_c_preflights_and_adds_the_selected_track(records, state, monkeypatch):
+    bandcamp_record = next(record for record in records if record.category == "bandcamp")
+    prepared = []
+    executed = []
+
+    def prepare(requests, _cancel):
+        requests = list(requests)
+        prepared.extend(requests)
+        return cart_plan_for(bandcamp_record)
+
+    def execute(plan, _cancel, **_kwargs):
+        executed.append(plan)
+        return (
+            cart.CartResult(
+                bandcamp_record.track.key,
+                bandcamp_record.track.label,
+                "bandcamp",
+                "added",
+            ),
+        )
+
+    monkeypatch.setattr(cart, "prepare_cart", prepare)
+    monkeypatch.setattr(cart, "execute_cart", execute)
+    app = make_app([bandcamp_record], state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("c")
+            for _ in range(10):
+                await pilot.pause()
+                if executed:
+                    break
+
+    run(scenario)
+    assert prepared[0].links == (("bandcamp", bandcamp_record.link_url),)
+    assert len(executed) == 1
+
+
+def test_shift_c_confirms_the_visible_preflight_before_mutating(state, monkeypatch):
+    record = synthetic_records(1)[0]
+    plan = cart_plan_for(record)
+    executed = []
+    monkeypatch.setattr(cart, "prepare_cart", lambda _requests, _cancel: plan)
+    monkeypatch.setattr(
+        cart,
+        "execute_cart",
+        lambda candidate, _cancel, **_kwargs: executed.append(candidate)
+        or (cart.CartResult(record.track.key, record.track.label, "bandcamp", "added"),),
+    )
+    app = make_app([record], state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("C")
+            for _ in range(10):
+                await pilot.pause()
+                if isinstance(app.screen, ConfirmScreen):
+                    break
+            assert isinstance(app.screen, ConfirmScreen)
+            assert executed == []
+            assert "GBP 1.25" in str(app.screen.query_one(Label).render())
+            await pilot.press("y")
+            for _ in range(10):
+                await pilot.pause()
+                if executed:
+                    break
+
+    run(scenario)
+    assert executed == [plan]
+
+
+def test_batch_cart_refuses_a_filter_without_supported_stores(state, monkeypatch):
+    record = synthetic_records(1)[0]
+    monkeypatch.setattr(
+        cart,
+        "prepare_cart",
+        lambda *_args, **_kwargs: pytest.fail("unsupported filter must not open a browser"),
+    )
+    app = make_app([record], state)
+    app.store_filters = {"gate"}
+
+    app.action_cart_visible()
+
+    assert app._cart_busy is False
+
+
+def test_cart_request_keeps_bandcamp_first_when_both_store_filters_are_active(state):
+    track = Track(
+        title="Signal",
+        permalink_url="https://soundcloud.com/a/signal",
+        id=42,
+        purchase_url="https://label.bandcamp.com/album/release",
+        description="https://www.beatport.com/release/release/99",
+    )
+    app = make_app(links.categorise(track), state)
+    app.store_filters = {"beatport", "bandcamp"}
+
+    request = app._cart_request(app.rows[0])
+
+    assert [store for store, _url in request.links] == ["bandcamp", "beatport"]
+
+
+def test_batch_cart_leaves_got_and_skipped_tracks_out(state, monkeypatch):
+    records = synthetic_records(3)
+    state.set(records[0].track.key, GOT)
+    state.set(records[1].track.key, SKIP)
+    seen = []
+
+    def prepare(requests, _cancel):
+        seen.extend(requests)
+        return cart.CartPlan(
+            results=(
+                cart.CartResult(records[2].track.key, records[2].track.label, "bandcamp", "skipped"),
+            )
+        )
+
+    monkeypatch.setattr(cart, "prepare_cart", prepare)
+    app = make_app(records, state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("C")
+            for _ in range(10):
+                await pilot.pause()
+                if seen:
+                    break
+
+    run(scenario)
+    assert [item.track.key for item in seen] == [records[2].track.key]
 
 
 def test_number_keys_select_the_stores_this_crate_actually_has(records, state):
@@ -2001,6 +2152,7 @@ def test_leaving_stops_the_ticker_and_lets_go_of_everything(records, state, monk
         assert closed == ["player"], "the audio device was not handed back"
         assert source.closed, "the prefetched stream was left open"
         assert app._download_executor is None
+        assert app._cart_cancel.is_set(), "the store browser worker was not signalled"
         with pytest.raises(RuntimeError):
             executor.submit(lambda: None)
 

@@ -95,8 +95,7 @@ KEYMAP = [
     ("W", "batch_download", "Batch download", WHOLE_LIST, True, "Download all free & gate tracks in view"),
     ("b", "search_bandcamp", "Bandcamp", SELECTED, True, "Search Bandcamp for highlighted track"),
     ("B", "search_beatport", "Beatport", SELECTED, False, "Search Beatport for highlighted track"),
-    ("c", "cart_bandcamp", "Cart", SELECTED, False, "Add track to Bandcamp cart"),
-    # Not `c`, which is the Bandcamp cart.
+    ("c", "cart_track", "Cart", SELECTED, False, "Add the exact track to its store cart"),
     ("y", "copy_path", "Copy path", SELECTED, False, "Copy the path of the local file that matches"),
     ("g", "mark_got", "Got", SELECTED, True, "Mark as got, press again to undo"),
     ("s", "mark_skip", "Skip", SELECTED, True, "Mark as skipped, press again to undo"),
@@ -112,6 +111,7 @@ KEYMAP = [
     ("equals_sign", "volume(1)", "Louder", PLAYBACK, False, "Turn it up"),
     ("m", "mute", "Mute", PLAYBACK, False, "Mute or unmute"),
     ("a", "open_visible", "Open all", WHOLE_LIST, True, "Open every link shown, asks above 20"),
+    ("C", "cart_visible", "Cart all", WHOLE_LIST, False, "Preflight and add every exact store track shown"),
     ("e", "export", "Export", WHOLE_LIST, False, "Write the rows shown to the export file"),
     ("slash", "start_search", "Search", WHOLE_LIST, True, "Filter by artist or title"),
     ("f", "cycle_store(1)", "Next store", WHOLE_LIST, True, "Step to the next store in this crate"),

@@ -4,6 +4,7 @@ import logging
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Event
 
 from rich.text import Text
 from textual import events
@@ -219,6 +220,8 @@ class DiggerApp(
         self.visible_rows: list[Row] = []
         self.present: list[str] = []
         self._pending_open_all = False
+        self._cart_busy = False
+        self._cart_cancel = Event()
         self._digging = False
         self._undone: list[str] = []
         self._ticker: Timer | None = None
@@ -328,6 +331,9 @@ class DiggerApp(
         8.2.8 it lands before this method is dispatched, not after.
         """
 
+        # Playwright objects stay on their worker thread; teardown only signals
+        # that worker, which closes its own context in ``finally``.
+        self._cart_cancel.set()
         # A tick landing after the widgets have gone would go looking for a
         # player bar that no longer exists. Textual does stop its timers, but
         # only further down the same teardown, so this one goes first.

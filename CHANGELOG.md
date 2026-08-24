@@ -4,6 +4,10 @@
 
 ### Security
 
+- **Store links are verified before cart automation.** The optional Bandcamp and
+  Beatport flow accepts only canonical HTTPS hosts, rejects credentials and
+  custom ports, rechecks redirects, and stops on ambiguous products, changed
+  prices or changed product IDs. Login and checkout remain manual.
 - **A link could run a command under WSL.** Handing a URL to the Windows browser
   went through `powershell.exe -Command Start-Process <url>`, and everything
   after `-Command` is parsed by PowerShell as code rather than taken as an
@@ -39,6 +43,10 @@
 
 ### Added
 
+- **Exact-track Bandcamp and Beatport carts.** `c` preflights one track and `C`
+  shows a batch confirmation with prices and per-item outcomes. A dedicated
+  persistent Chromium profile keeps the cart session without exposing or
+  reusing the user's normal browser profile. Install the optional `shop` extra.
 - **A switch for what gates do with your account.** Every version up to 0.8 sent
   `is_repost` and `is_subscribe` to Hypeddit and a comment to GateRush, hard-coded
   and visible in no interface. It is a checkbox on the Settings screen now — the

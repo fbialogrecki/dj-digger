@@ -21,8 +21,9 @@ dj-digger https://soundcloud.com/someone/sets/that-playlist
 - **🎶 In-Memory Audio Preview**: Zero-latency streaming and seeking powered by `miniaudio`. Pre-fetches upcoming tracks and renders dynamic 16-level block waveforms with reactive audio level meters.
 - **📦 Multi-Crate Local Library**: Save dig sessions as local crates in `~/.local/share/dj-digger/digger.db`. Switch, refresh, or search across crates seamlessly.
 - **🧠 Cross-Crate Track Memory**: Track decisions (`got it` / `skipped`) are stored globally by SoundCloud track ID. Buying a track once marks it across all future playlists.
-- **🔓 Download Gate Automation**: Resolves follow-to-download gates (Hypeddit, ToneDen, GateRush, Droploud) by replaying their step-completion calls. No browser automation, no Playwright. **What this sends on your behalf:** your name and email from Settings, and—unless you turn it off—a repost, a follow and a comment recorded against your SoundCloud account, because that is what the gate is asking for in exchange for the file. The switch is on the Settings screen (`S`), which also opens on the first run. Turning it off keeps your account out of it; some gates then hand over nothing. Note that automating a gate is your call to make against SoundCloud's and the gate operator's terms, and the requests go out with a browser's User-Agent.
+- **🔓 Download Gate Automation**: Resolves follow-to-download gates (Hypeddit, ToneDen, GateRush, Droploud) by replaying their step-completion calls. Gate resolution itself needs no browser automation or Playwright. **What this sends on your behalf:** your name and email from Settings, and—unless you turn it off—a repost, a follow and a comment recorded against your SoundCloud account, because that is what the gate is asking for in exchange for the file. The switch is on the Settings screen (`S`), which also opens on the first run. Turning it off keeps your account out of it; some gates then hand over nothing. Note that automating a gate is your call to make against SoundCloud's and the gate operator's terms, and the requests go out with a browser's User-Agent.
 - **🔗 Link-Hub Expansion**: A purchase link that turns out to be a list of shops rather than a download—an ampsuite release page, a gate running in smart-link mode—is opened, and the Bandcamp and Beatport links behind it are added to the track directly instead of a `gate` badge.
+- **🛒 Verified Store Carts**: An optional, user-triggered Chromium flow finds the exact linked track on Bandcamp or Beatport, shows a price preflight, and verifies the stable product ID in the cart. Login and checkout stay manual.
 - **🆕 New Since Last Refresh**: Refreshing a crate marks whatever the playlist gained with `NEW` and sorts it to the top.
 - **📄 Saved-HTML Fallback**: Fully supports saved HTML pages (`Ctrl+S`) for private or unlisted SoundCloud playlists.
 - **⚙️ CLI & Non-Interactive Mode**: Export crates directly to JSON or CSV for automated pipelines and scripts.
@@ -34,14 +35,16 @@ dj-digger https://soundcloud.com/someone/sets/that-playlist
 ### Recommended (via `uv` or `pipx`)
 
 ```bash
-# Install with audio preview support (requires miniaudio)
-uv tool install 'dj-soundcloud-digger[play]'
+# Install with audio preview and store-cart support
+uv tool install --with-executables-from playwright 'dj-soundcloud-digger[play,shop]'
+playwright install chromium
 ```
 
 or with `pipx`:
 
 ```bash
-pipx install 'dj-soundcloud-digger[play]'
+pipx install --include-deps 'dj-soundcloud-digger[play,shop]'
+playwright install chromium
 ```
 
 ### From Source (Development)
@@ -50,14 +53,16 @@ pipx install 'dj-soundcloud-digger[play]'
 git clone https://github.com/fbialogrecki/dj-soundcloud-digger.git
 cd dj-soundcloud-digger
 uv venv
-uv pip install -e '.[play,dev]'
+uv pip install -e '.[play,shop,dev]'
+uv run playwright install chromium
 ```
 
 > **Requires Python 3.12 or newer.**
 >
 > **Note on optional extras**:
 > - `play`: Enables in-memory audio preview via `miniaudio`.
-> If installed without `[play]`, the tool runs normally and displays an advisory if audio playback is requested.
+> - `shop`: Enables the Bandcamp/Beatport cart flow via a visible Chromium window.
+> If an extra is absent, the rest of the tool still works and explains how to enable the requested feature.
 
 ---
 
@@ -119,6 +124,8 @@ Press `?` inside the TUI at any time to view the full grouped keybinding modal.
 | `0` | Reset store filter (show all tracks) |
 | `h` | Toggle hiding handled tracks (`got` / `skipped`) |
 | `a` | Open all visible store links in browser (asks confirmation for >20 links) |
+| `c` | Verify and add the highlighted exact track to Bandcamp or Beatport |
+| `C` | Preflight visible tracks, then add the confirmed batch sequentially |
 | `e` | Export visible rows to file |
 | `d` | Add a new crate from a SoundCloud URL |
 | `r` | Refresh current crate from SoundCloud (preserves local deletions) |
@@ -144,6 +151,33 @@ Links are parsed and categorized using strict domain-boundary matching:
 | `streaming` | Pure streaming platforms (*Spotify, YouTube, Deezer, Tidal*) |
 | `no-link` | No purchase or download link found |
 | `others` | Unrecognized external web link |
+
+### Bandcamp and Beatport carts
+
+Pressing `c` or `C` starts a visible Chromium window only when you ask for it. The
+app uses a dedicated persistent browser profile, separate from your everyday
+browser, so you may need to log in manually the first time. It never reads or
+fills your password, chooses a payment method, or completes checkout.
+
+- `c` resolves and adds the highlighted track.
+- `C` resolves all currently visible, unhandled tracks, then asks for one batch
+  confirmation. The active Bandcamp or Beatport filter limits the target store.
+- With no store filter, Bandcamp is tried first. Beatport is used only when the
+  exact track is genuinely unavailable for individual purchase on Bandcamp—not
+  when Bandcamp fails technically.
+
+Batch mode resolves every candidate first and shows exact products, prices,
+currencies, existing cart items, and skips before any cart is changed. Store
+pages are rechecked immediately before each click. Ambiguous titles, version
+mismatches, changed prices or product IDs, CAPTCHA, and changed store UI stop the
+affected operation instead of guessing. The browser remains open at the used
+carts for manual format selection and checkout.
+
+Only canonical Bandcamp and Beatport HTTPS domains are automated. Custom artist
+domains and global store search are intentionally outside this first version.
+The feature depends on the stores' current visible interfaces; use it in line
+with their terms. Linux needs a graphical session; WSL users need WSLg or another
+working display.
 
 ---
 
@@ -206,14 +240,17 @@ dj-digger open likes.json --category bandcamp
 
 ## 🧪 Testing & Quality Assurance
 
-The codebase includes an extensive offline test suite covering unit tests, API serialization, player buffering, link parsing, and TUI reactive widgets.
+The codebase includes an extensive offline test suite covering unit tests, API serialization, player buffering, link parsing, cart safety, and TUI reactive widgets.
 
 ```bash
-# Run offline test suite (360+ tests, no network required)
+# Run offline test suite (550+ tests, no network required)
 uv run pytest
 
 # Run live integration tests (verifies SoundCloud API v2 contract stability)
 uv run pytest -m live
+
+# Open public store pages read-only; never logs in or changes a cart
+uv run --extra shop pytest -m shop_live
 ```
 
 ---

@@ -37,6 +37,7 @@ dependencies = [
 # Audio preview. Kept optional so a platform without a miniaudio wheel can still
 # install the link digger; the player degrades with a message when it is absent.
 play = ["miniaudio>=1.59"]
+shop = ["playwright>=1.62,<2"]
 dev = ["pytest>=7.0", "miniaudio>=1.59", "ruff>=0.6"]
 
 [project.scripts]
@@ -63,5 +64,6 @@ select = ["E4", "E7", "E9", "F", "I"]
 [tool.pytest.ini_options]
 markers = [
     "live: hits the real SoundCloud API (deselected by default, run with -m live)",
+    "shop_live: opens public store pages read-only (deselected by default, run with -m shop_live)",
 ]
-addopts = "-m 'not live'"
+addopts = "-m 'not live and not shop_live'"
