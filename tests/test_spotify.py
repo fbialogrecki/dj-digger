@@ -18,6 +18,11 @@ class Response:
         return self.payload
 
 
+class UnreadableResponse(Response):
+    def json(self):
+        raise ValueError("not json")
+
+
 class Session:
     def __init__(self, post=None, put=None):
         self.post_response = post
@@ -108,6 +113,20 @@ def test_pkce_login_rejects_the_wrong_state(tmp_path, monkeypatch):
     assert spotify.load_credentials() == {}
 
 
+def test_pkce_login_reports_a_callback_timeout(tmp_path, monkeypatch):
+    monkeypatch.setattr(spotify, "AUTH_FILE", tmp_path / "spotify.json")
+
+    with pytest.raises(spotify.SpotifyError, match="timed out"):
+        spotify.login(
+            "client-id",
+            timeout=0.01,
+            session=Session(),
+            opener=lambda url, browser: True,
+        )
+
+    assert spotify.load_credentials() == {}
+
+
 def test_spotify_credentials_are_owner_only(tmp_path, monkeypatch):
     path = tmp_path / "spotify.json"
     monkeypatch.setattr(spotify, "AUTH_FILE", path)
@@ -144,6 +163,21 @@ def test_an_expired_access_token_is_refreshed_and_saved(tmp_path, monkeypatch):
         "refresh_token": "refresh",
         "client_id": "client",
     }
+
+
+def test_an_unreadable_refresh_reply_is_actionable(tmp_path, monkeypatch):
+    path = tmp_path / "spotify.json"
+    monkeypatch.setattr(spotify, "AUTH_FILE", path)
+    spotify.save_credentials(
+        {
+            "client_id": "client",
+            "refresh_token": "refresh",
+            "expires_at": 1,
+        }
+    )
+
+    with pytest.raises(spotify.SpotifyError, match="unreadable token refresh reply"):
+        spotify.access_token(session=Session(post=UnreadableResponse()))
 
 
 def test_artist_uris_are_saved_with_the_minimum_scope(tmp_path, monkeypatch):

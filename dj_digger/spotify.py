@@ -31,6 +31,16 @@ def _challenge(verifier: str) -> str:
     return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
 
 
+def _json_payload(response: Any, context: str) -> dict[str, Any]:
+    try:
+        payload = response.json()
+    except (ValueError, AttributeError) as exc:
+        raise SpotifyError(f"Spotify returned an unreadable {context} reply") from exc
+    if not isinstance(payload, dict):
+        raise SpotifyError(f"Spotify returned an unreadable {context} reply")
+    return payload
+
+
 def login(
     client_id: str,
     *,
@@ -88,6 +98,8 @@ def login(
     finally:
         server.server_close()
 
+    if not result:
+        raise SpotifyError("Spotify login timed out before the callback arrived")
     if result.get("path") != "/callback" or result.get("state") != state:
         raise SpotifyError("Spotify login returned an invalid OAuth state")
     if result.get("error"):
@@ -113,7 +125,7 @@ def login(
         raise SpotifyError(
             f"Spotify token exchange returned HTTP {response.status_code}"
         )
-    payload = response.json()
+    payload = _json_payload(response, "token exchange")
     access = str(payload.get("access_token") or "")
     refresh = str(payload.get("refresh_token") or "")
     if not access or not refresh:
@@ -182,7 +194,7 @@ def access_token(*, session=requests, now: float | None = None) -> str:
         raise SpotifyError(
             f"Spotify token refresh returned HTTP {response.status_code}"
         )
-    payload = response.json()
+    payload = _json_payload(response, "token refresh")
     token = str(payload.get("access_token") or "")
     if not token:
         raise SpotifyError("Spotify token refresh returned no access token")
