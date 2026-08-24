@@ -13,6 +13,7 @@ It can also start from nothing: with no records it asks for a link, digs it in a
 worker thread so the interface stays responsive, and fills itself in.
 """
 
+import logging
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -84,9 +85,13 @@ def run_tui(
         dig_options=dig_options,
         crate_record=crate_record,
     )
+    logger = logging.getLogger("dj_digger")
+    previous_level = logger.level
+    logger.setLevel(logging.CRITICAL + 1)
     try:
         app.run()
     finally:
+        logger.setLevel(previous_level)
         player = getattr(app, "player", None)
         if player is not None:
             player.close()

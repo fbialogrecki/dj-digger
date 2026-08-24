@@ -16,13 +16,45 @@ from dj_digger.models import Crate, LinkRecord, Track
 from dj_digger.player import Loaded, PlaybackUnavailable, PlayerBar, Stream
 from dj_digger.scanner import LocalMatch
 from dj_digger.state import GOT, OPENED, SKIP, TrackState
-from dj_digger.tui import AskLinkScreen, ConfirmScreen, DiggerApp, HelpScreen, SettingsScreen
+from dj_digger.tui import (
+    AskLinkScreen,
+    ConfirmScreen,
+    DiggerApp,
+    ErrorBanner,
+    HelpScreen,
+    SettingsScreen,
+)
 
 
 def run(scenario):
     """Drive an async Textual pilot from a plain sync test."""
 
     asyncio.run(scenario())
+
+
+def test_error_banner_keeps_messages_literal_and_has_a_working_x(state):
+    app = make_app(synthetic_records(1), state)
+
+    async def scenario():
+        async with app.run_test(size=(100, 24)) as pilot:
+            banner = app.query_one(ErrorBanner)
+            banner.add_error("Batch failed [Artist - Track]: bad [response]")
+            for index in range(12):
+                banner.add_error(f"Failure {index}: " + "long message " * 8)
+            await pilot.pause()
+
+            close = app.query_one("#error-close", Button)
+            message = app.query_one("#error-text", Static)
+            assert str(close.label) == "X"
+            assert "[Artist - Track]" in str(message.render())
+            assert banner.size.height <= 12
+
+            await pilot.click("#error-close")
+            await pilot.pause()
+            assert banner.errors == []
+            assert not banner.has_class("visible")
+
+    run(scenario)
 
 
 async def scroll_table(pilot, table, y):

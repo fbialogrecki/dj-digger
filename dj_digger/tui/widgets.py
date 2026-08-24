@@ -175,7 +175,7 @@ class ErrorBanner(Widget):
         with Horizontal(id="error-container"):
             with VerticalScroll(id="error-scroll"):
                 yield Static("", id="error-text")
-            yield Button("[X]", id="error-close", tooltip="Close error banner (clear all errors)")
+            yield Button("X", id="error-close", tooltip="Close error banner (clear all errors)")
 
     def add_error(self, message: str) -> None:
         if message and message not in self.errors:
@@ -194,11 +194,18 @@ class ErrorBanner(Widget):
         if not self.errors:
             self.remove_class("visible")
             msg_widget.update("")
-        else:
-            self.add_class("visible")
-            formatted = "\n".join(f"• {e}" for e in self.errors)
-            header = f"[bold yellow]Errors / Debug Log ({len(self.errors)} total, scrollable):[/bold yellow]\n"
-            msg_widget.update(f"{header}{formatted}")
+            return
+
+        self.add_class("visible")
+        content = Text(
+            f"Errors / Debug Log ({len(self.errors)} total, scrollable):\n",
+            style="bold yellow",
+        )
+        for index, message in enumerate(self.errors):
+            if index:
+                content.append("\n")
+            content.append(f"• {message}")
+        msg_widget.update(content)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "error-close":

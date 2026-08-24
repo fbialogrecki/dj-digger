@@ -317,3 +317,17 @@ def test_debug_still_shows_everything():
         logging.getLogger("urllib3.connectionpool").warning("Retrying (Retry(total=1...))")
 
     assert "Retrying" in stderr.getvalue()
+
+
+def test_the_tui_mutes_our_stream_logger_and_restores_it(monkeypatch):
+    from dj_digger import tui
+
+    logger = logging.getLogger("dj_digger")
+    original = logger.level
+    seen = []
+    monkeypatch.setattr(tui.DiggerApp, "run", lambda self: seen.append(logger.level))
+
+    tui.run_tui()
+
+    assert seen == [logging.CRITICAL + 1]
+    assert logger.level == original
