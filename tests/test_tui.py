@@ -25,6 +25,21 @@ def run(scenario):
     asyncio.run(scenario())
 
 
+async def scroll_table(pilot, table, y):
+    """Wait for Textual to size the table before setting a test viewport."""
+
+    deadline = asyncio.get_running_loop().time() + 5
+    await pilot.pause()
+    while table.max_scroll_y <= 0:
+        if asyncio.get_running_loop().time() >= deadline:
+            raise AssertionError("table never became scrollable")
+        await pilot.pause(0.01)
+    target = min(y, table.max_scroll_y)
+    table.scroll_to(y=target, animate=False, force=True, immediate=True)
+    await pilot.pause()
+    assert table.scroll_offset.y == target
+
+
 def bar_text(app, width=200):
     """The bottom bar as plain text - it is a Rich grid, not a bare string."""
 
@@ -1761,8 +1776,7 @@ def test_download_progress_does_not_move_the_viewport(state, monkeypatch):
         async with app.run_test(size=(100, 24)) as pilot:
             table = app.query_one("#tracks", tui.TrackTable)
             table.move_cursor(row=30)
-            table.scroll_to(y=20, animate=False, force=True, immediate=True)
-            await pilot.pause()
+            await scroll_table(pilot, table, 20)
             cursor = table.cursor_row
             viewport = table.scroll_offset
             rebuilds = []
@@ -1817,7 +1831,7 @@ def test_download_results_do_not_move_the_viewport(state, monkeypatch, tmp_path,
         async with app.run_test(size=(100, 24)) as pilot:
             table = app.query_one("#tracks", tui.TrackTable)
             table.move_cursor(row=30)
-            table.scroll_to(y=20, animate=False, force=True, immediate=True)
+            await scroll_table(pilot, table, 20)
             row = app.visible_rows[35]
             key = row.track.key
             app.download_progress[key] = 0.42
@@ -1878,8 +1892,7 @@ def test_refresh_rows_preserves_the_viewport(state, cursor_row, scroll_y):
         async with app.run_test(size=(100, 24)) as pilot:
             table = app.query_one("#tracks", tui.TrackTable)
             table.move_cursor(row=cursor_row)
-            table.scroll_to(y=scroll_y, animate=False, force=True, immediate=True)
-            await pilot.pause()
+            await scroll_table(pilot, table, scroll_y)
             cursor = table.cursor_row
             viewport = table.scroll_offset
 
@@ -1898,10 +1911,8 @@ def test_refresh_rows_keeps_the_same_tracks_after_rows_above_are_removed(state):
     async def scenario():
         async with app.run_test(size=(100, 24)) as pilot:
             table = app.query_one("#tracks", tui.TrackTable)
-            await pilot.pause()
             table.move_cursor(row=45)
-            table.scroll_to(y=40, animate=False, force=True, immediate=True)
-            await pilot.pause()
+            await scroll_table(pilot, table, 40)
             cursor_key = app.visible_rows[table.cursor_row].track.key
             top_key = app.visible_rows[table.scroll_offset.y].track.key
 
@@ -1922,10 +1933,8 @@ def test_back_to_back_refreshes_keep_the_same_tracks(state):
     async def scenario():
         async with app.run_test(size=(100, 24)) as pilot:
             table = app.query_one("#tracks", tui.TrackTable)
-            await pilot.pause()
             table.move_cursor(row=10)
-            table.scroll_to(y=40, animate=False, force=True, immediate=True)
-            await pilot.pause()
+            await scroll_table(pilot, table, 40)
             cursor_key = app.visible_rows[table.cursor_row].track.key
             top_key = app.visible_rows[table.scroll_offset.y].track.key
             assert table.scroll_offset.y > 0
