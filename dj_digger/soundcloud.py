@@ -314,38 +314,52 @@ class SoundCloudClient:
         session = session or self._session
         download_url: str | None = None
 
-        # 1. Try resolving gate URL if provided
         if gate_url:
             download_url = gates.resolve_gate_download_url(
                 gate_url, session, timeout=self._timeout, config=self.config
             )
 
-        # 2. Try authenticated download endpoint
-        if not download_url and self._oauth_token and track.free_download and track.id:
+        if not download_url and track.has_direct_download and track.download_url:
+            download_url = track.download_url
+
+        if not download_url and track.free_download and track.id:
+            if not self._oauth_token:
+                raise SoundCloudError(
+                    "SoundCloud login is required for this artist-provided download; "
+                    "run 'dj-digger auth login'"
+                )
             try:
-                resp = session.get(
+                response = session.get(
                     f"{API_ROOT}/tracks/{track.id}/download",
                     params={"client_id": self.client_id},
                     headers={"Authorization": f"OAuth {self._oauth_token}"},
                     timeout=self._timeout,
                     allow_redirects=False,
                 )
-                if resp.status_code in (200, 302):
-                    redirect = getattr(resp, "headers", {}).get("Location") if hasattr(resp, "headers") else ""
-                    if resp.status_code == 302 and redirect:
-                        download_url = redirect
-                    elif resp.status_code == 200:
-                        try:
-                            data = resp.json()
-                            download_url = data.get("redirectUri") or data.get("url")
-                        except ValueError:
-                            pass
             except requests.RequestException as exc:
-                LOGGER.debug("Authenticated download failed, falling back: %s", exc)
-
-        # 3. Fallback: pre-populated download_url
-        if not download_url and track.has_direct_download and track.download_url:
-            download_url = track.download_url
+                raise SoundCloudError(
+                    f"SoundCloud download resolution failed: {exc}"
+                ) from exc
+            if response.status_code in (401, 403):
+                raise SoundCloudError(
+                    "The saved SoundCloud login expired or was rejected; "
+                    "run 'dj-digger auth login' again"
+                )
+            if response.status_code not in (200, 302):
+                raise SoundCloudError(
+                    f"SoundCloud returned HTTP {response.status_code} while resolving "
+                    "the download"
+                )
+            if response.status_code == 302:
+                download_url = response.headers.get("Location")
+            else:
+                try:
+                    payload = response.json()
+                except ValueError as exc:
+                    raise SoundCloudError(
+                        "SoundCloud returned an unreadable download reply"
+                    ) from exc
+                download_url = payload.get("redirectUri") or payload.get("url")
 
         if not download_url:
             if gate_url:

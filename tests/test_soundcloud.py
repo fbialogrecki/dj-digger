@@ -8,10 +8,11 @@ DUMMY_CLIENT_ID = "0" * 32
 
 
 class FakeResponse:
-    def __init__(self, status_code=200, payload=None, text="{}"):
+    def __init__(self, status_code=200, payload=None, text="{}", headers=None):
         self.status_code = status_code
         self._payload = payload
         self.text = text
+        self.headers = headers or {}
 
     def json(self):
         if self._payload is None:
@@ -26,6 +27,19 @@ class FakeSession:
 
     def get(self, url, params=None, timeout=None, **kwargs):
         self.calls.append((url, dict(params or {})))
+        return self.responses.pop(0)
+
+    def close(self):
+        pass
+
+
+class SequenceSession:
+    def __init__(self, responses):
+        self.responses = list(responses)
+        self.calls = []
+
+    def get(self, url, params=None, timeout=None, **kwargs):
+        self.calls.append((url, dict(params or {}), kwargs))
         return self.responses.pop(0)
 
     def close(self):
@@ -58,6 +72,52 @@ class DownloadSession:
 
 def make_client(session=None):
     return SoundCloudClient(session=session or FakeSession([]), client_id=DUMMY_CLIENT_ID)
+
+
+def medusa_track():
+    return Track(
+        id=343075936,
+        title="DLR & Safire - Medusa [FREE DOWNLOAD]",
+        artist="Ant TC1",
+        permalink_url="https://soundcloud.com/anttc1/dlr-safire-medusa-free-download",
+        downloadable=True,
+        has_downloads_left=True,
+    )
+
+
+def test_a_free_download_without_a_url_explains_that_login_is_required(tmp_path):
+    client = SoundCloudClient(
+        session=SequenceSession([]), client_id=DUMMY_CLIENT_ID, oauth_token=""
+    )
+
+    with pytest.raises(SoundCloudError, match="SoundCloud login is required"):
+        client.download_track(medusa_track(), tmp_path)
+
+
+def test_a_rejected_download_endpoint_explains_that_login_expired(tmp_path):
+    client = SoundCloudClient(
+        session=SequenceSession([FakeResponse(status_code=401)]),
+        client_id=DUMMY_CLIENT_ID,
+        oauth_token="expired",
+    )
+
+    with pytest.raises(SoundCloudError, match="expired or was rejected"):
+        client.download_track(medusa_track(), tmp_path)
+
+
+def test_a_free_download_without_a_url_uses_the_authenticated_endpoint(tmp_path):
+    endpoint = FakeResponse(payload={"redirectUri": "https://cdn.example/medusa.wav"})
+    audio = DownloadResponse([b"RIFF"], headers={"Content-Type": "audio/wav"})
+    session = SequenceSession([endpoint, audio])
+    client = SoundCloudClient(
+        session=session, client_id=DUMMY_CLIENT_ID, oauth_token="valid"
+    )
+
+    path = client.download_track(medusa_track(), tmp_path)
+
+    assert path.suffix == ".wav"
+    assert path.read_bytes() == b"RIFF"
+    assert session.calls[0][0].endswith("/tracks/343075936/download")
 
 
 def test_download_uses_only_the_artist_provided_download_url(tmp_path):
