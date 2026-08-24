@@ -22,6 +22,7 @@ dj-digger https://soundcloud.com/someone/sets/that-playlist
 - **📦 Multi-Crate Local Library**: Save dig sessions as local crates in `~/.local/share/dj-digger/digger.db`. Switch, refresh, or search across crates seamlessly.
 - **🧠 Cross-Crate Track Memory**: Track decisions (`got it` / `skipped`) are stored globally by SoundCloud track ID. Buying a track once marks it across all future playlists.
 - **🔓 Download Gate Automation**: Resolves follow-to-download gates (Hypeddit, ToneDen, GateRush, Droploud) by replaying their step-completion calls. Gate resolution itself needs no browser automation or Playwright. **What this sends on your behalf:** your name and email from Settings, and—unless you turn it off—a repost, a follow and a comment recorded against your SoundCloud account, because that is what the gate is asking for in exchange for the file. The switch is on the Settings screen (`S`), which also opens on the first run. Turning it off keeps your account out of it; some gates then hand over nothing. Note that automating a gate is your call to make against SoundCloud's and the gate operator's terms, and the requests go out with a browser's User-Agent.
+- **🔐 Spotify Gate Login**: Hypeddit gates that explicitly require following a Spotify artist can use an optional one-time PKCE login. No Spotify client secret is stored, and disabling gate social actions keeps these gates manual.
 - **🔗 Link-Hub Expansion**: A purchase link that turns out to be a list of shops rather than a download—an ampsuite release page, a gate running in smart-link mode—is opened, and the Bandcamp and Beatport links behind it are added to the track directly instead of a `gate` badge.
 - **🛒 Verified Store Carts**: An optional, user-triggered Chromium flow finds the exact linked track on Bandcamp or Beatport, shows a price preflight, and verifies the stable product ID in the cart. Login and checkout stay manual.
 - **🆕 New Since Last Refresh**: Refreshing a crate marks whatever the playlist gained with `NEW` and sorts it to the top.
@@ -178,6 +179,50 @@ domains and global store search are intentionally outside this first version.
 The feature depends on the stores' current visible interfaces; use it in line
 with their terms. Linux needs a graphical session; WSL users need WSLg or another
 working display.
+
+---
+
+## 🔐 Authentication for Artist Downloads
+
+Some artist-provided SoundCloud downloads require a logged-in account even when
+the track is public. Run `dj-digger auth login` to detect a Firefox session, or
+provide the SoundCloud OAuth cookie explicitly:
+
+```bash
+dj-digger auth login --token YOUR_SOUNDCLOUD_OAUTH_TOKEN
+dj-digger auth status
+```
+
+### Spotify-backed download gates
+
+Some Hypeddit gates require following an artist on Spotify. Create an app in the
+[Spotify Developer Dashboard](https://developer.spotify.com/dashboard), add
+`http://127.0.0.1/callback` as its redirect URI, and log in once:
+
+```bash
+dj-digger auth spotify login --client-id YOUR_CLIENT_ID
+dj-digger auth spotify status
+```
+
+The login uses Authorization Code with PKCE and requests only
+`user-follow-modify`. It listens temporarily on a dynamically selected
+`127.0.0.1` port; Spotify permits dynamic ports for literal loopback addresses,
+but not for `localhost`. Credentials stay in an owner-only local file. See
+Spotify's [redirect URI rules](https://developer.spotify.com/documentation/web-api/concepts/redirect_uri)
+and [PKCE guide](https://developer.spotify.com/documentation/web-api/tutorials/code-pkce-flow).
+
+Disable **gate social actions** in Settings to prevent the program from changing
+Spotify or SoundCloud. Gates requiring those actions will then remain manual.
+Spotify development apps currently require the owner to have Premium and allow
+up to five authenticated, allowlisted users; each dj-digger user should normally
+supply their own Client ID. See Spotify's current
+[quota modes](https://developer.spotify.com/documentation/web-api/concepts/quota-modes).
+
+Remove the saved login with:
+
+```bash
+dj-digger auth spotify logout
+```
 
 ---
 
