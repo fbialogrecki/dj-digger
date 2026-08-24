@@ -1,5 +1,6 @@
 import html
 import json
+import os
 from dataclasses import replace
 from decimal import Decimal
 from threading import Event
@@ -451,7 +452,8 @@ def test_store_profile_lives_in_private_app_data(tmp_path, monkeypatch):
     path = cart.store_profile_path()
 
     assert path == tmp_path / "dj-digger" / "store-browser"
-    assert path.stat().st_mode & 0o777 == 0o700
+    if os.name != "nt":
+        assert path.stat().st_mode & 0o777 == 0o700
 
 
 class RedirectPage:
