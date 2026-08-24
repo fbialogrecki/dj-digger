@@ -96,6 +96,42 @@ def test_auth_subcommand_parsing():
     assert args.command == "auth"
     assert args.auth_action == "logout"
 
+    args = cli.parse_cli_args(
+        ["auth", "spotify", "login", "--client-id", "client"]
+    )
+    assert args.auth_action == "spotify"
+    assert args.spotify_action == "login"
+    assert args.client_id == "client"
+
+    args = cli.parse_cli_args(["auth", "spotify", "status"])
+    assert args.spotify_action == "status"
+
+    args = cli.parse_cli_args(["auth", "spotify", "logout"])
+    assert args.spotify_action == "logout"
+
+
+def test_spotify_auth_status_and_logout(tmp_path, monkeypatch, capsys):
+    from dj_digger import spotify
+
+    monkeypatch.setattr(spotify, "AUTH_FILE", tmp_path / "spotify.json")
+    spotify.save_credentials({"client_id": "client", "refresh_token": "refresh"})
+
+    assert (
+        cli.handle_auth(
+            argparse.Namespace(auth_action="spotify", spotify_action="status")
+        )
+        == 0
+    )
+    assert "configured" in capsys.readouterr().out
+
+    assert (
+        cli.handle_auth(
+            argparse.Namespace(auth_action="spotify", spotify_action="logout")
+        )
+        == 0
+    )
+    assert spotify.load_credentials() == {}
+
 
 def test_unknown_export_format_is_rejected():
     with pytest.raises(SystemExit):

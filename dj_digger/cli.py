@@ -23,7 +23,7 @@ from rich.progress import (
 )
 from rich.table import Table
 
-from . import __version__, library, links, soundcloud
+from . import __version__, library, links, soundcloud, spotify
 from . import auth as auth_module
 from . import browser as browser_module
 from . import dig as dig_module
@@ -150,7 +150,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     auth_cmd = subparsers.add_parser(
         "auth",
-        help="Manage SoundCloud authentication for direct downloads.",
+        help="Manage authentication for direct downloads.",
     )
     auth_sub = auth_cmd.add_subparsers(dest="auth_action")
 
@@ -162,6 +162,17 @@ def build_parser() -> argparse.ArgumentParser:
 
     auth_sub.add_parser("logout", help="Remove saved credentials.")
     auth_sub.add_parser("status", help="Show current authentication status.")
+
+    spotify_auth = auth_sub.add_parser(
+        "spotify", help="Manage Spotify gate authentication."
+    )
+    spotify_sub = spotify_auth.add_subparsers(dest="spotify_action", required=True)
+    spotify_login = spotify_sub.add_parser("login", help="Log in to Spotify with PKCE.")
+    spotify_login.add_argument(
+        "--client-id", required=True, help="Spotify developer app client ID."
+    )
+    spotify_sub.add_parser("status", help="Show Spotify authentication status.")
+    spotify_sub.add_parser("logout", help="Remove saved Spotify credentials.")
     _add_shared_arguments(auth_cmd)
 
     return parser
@@ -379,6 +390,23 @@ def handle_open(args: argparse.Namespace) -> int:
 def handle_auth(args: argparse.Namespace) -> int:
     console = Console()
     action = getattr(args, "auth_action", None)
+
+    if action == "spotify":
+        spotify_action = args.spotify_action
+        if spotify_action == "login":
+            spotify.login(args.client_id, browser=AppConfig().browser)
+            console.print("[green]Spotify login saved.[/green]")
+            return 0
+        if spotify_action == "logout":
+            spotify.clear_credentials()
+            console.print("[green]Spotify credentials removed.[/green]")
+            return 0
+        credentials = spotify.load_credentials()
+        if credentials.get("refresh_token"):
+            console.print("[green]Spotify authentication: configured.[/green]")
+        else:
+            console.print("[yellow]Spotify authentication: not configured.[/yellow]")
+        return 0
 
     if action == "login":
         token = getattr(args, "token", None)
