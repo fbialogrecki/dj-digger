@@ -1,8 +1,9 @@
 from unittest.mock import MagicMock
 
+import pytest
 import requests
 
-from dj_digger import gates
+from dj_digger import gates, spotify
 from dj_digger.gates import (
     resolve_gate_download_url,
     resolve_gaterush_download_url,
@@ -127,6 +128,11 @@ def _stepping_gate_session():
     post_resp = MagicMock()
     post_resp.status_code = 200
     post_resp.text = ""
+    post_resp.json.return_value = {
+        "status": "T",
+        "download_status": True,
+        "URL": "https://hypeddit.com/download/file.wav",
+    }
     session.post.return_value = post_resp
     return session
 
@@ -139,6 +145,133 @@ def _posted_to(session, endpoint):
         for call in session.post.call_args_list
         if call.args and call.args[0].endswith(endpoint)
     ]
+
+
+def gate_html(*, steps, spotify_value=""):
+    spotify_input = (
+        f'<input name="additional_sp_user_id[]" value="{spotify_value}">'
+        if spotify_value
+        else ""
+    )
+    return (
+        '<html><head><meta name="csrf-token" content="tok123"></head><body>'
+        '<input name="fan_gate_id" value="42">'
+        '<input name="current_download_file_listner" value="gate-file">'
+        f'<input name="nwSteps" value="{steps}">'
+        '<input name="wrndk" value="42x9">'
+        '<input name="gvf" value="0">'
+        f"{spotify_input}</body></html>"
+    )
+
+
+def session_for_gate(page, download_payload=None, email_status="T"):
+    session = MagicMock(spec=requests.Session)
+    session.get.return_value = MagicMock(status_code=200, text=page)
+
+    def post(url, **kwargs):
+        response = MagicMock(status_code=200)
+        if url.endswith("verifyEmailAddress"):
+            response.json.return_value = {"status": email_status}
+        elif url.endswith("/gate/download/ul"):
+            response.json.return_value = download_payload or {
+                "download_status": True,
+                "URL": "https://hypeddit.com/download/file.wav",
+            }
+        else:
+            response.json.return_value = {}
+        return response
+
+    session.post.side_effect = post
+    return session
+
+
+def test_placeholder_email_stops_before_hypeddit_receives_any_post():
+    session = session_for_gate(gate_html(steps="email,sc"))
+
+    with pytest.raises(RuntimeError, match="real email"):
+        resolve_hypeddit_download_url(
+            "https://hypeddit.com/track/zrw7vu",
+            session,
+            config=StubConfig("dj-digger@example.invalid"),
+        )
+
+    session.post.assert_not_called()
+
+
+def test_spotify_artist_is_saved_before_hypeddit_download(monkeypatch):
+    session = session_for_gate(
+        gate_html(steps="sc,sp", spotify_value="ART|0oVDzp5DK2caqb6FuL2mhp")
+    )
+    saved = []
+    monkeypatch.setattr(spotify, "save_uris", lambda uris: saved.extend(uris))
+
+    result = resolve_hypeddit_download_url(
+        "https://hypeddit.com/track/xngfus",
+        session,
+        config=StubConfig("dj@example.com", gate_social_actions=True),
+    )
+
+    assert saved == ["spotify:artist:0oVDzp5DK2caqb6FuL2mhp"]
+    assert result == "https://hypeddit.com/download/file.wav"
+
+
+def test_spotify_step_respects_the_social_actions_switch(monkeypatch):
+    session = session_for_gate(
+        gate_html(steps="sc,sp", spotify_value="ART|0oVDzp5DK2caqb6FuL2mhp")
+    )
+    monkeypatch.setattr(
+        spotify,
+        "save_uris",
+        lambda uris: pytest.fail("Spotify must not be changed"),
+    )
+
+    with pytest.raises(RuntimeError, match="social actions"):
+        resolve_hypeddit_download_url(
+            "https://hypeddit.com/track/xngfus",
+            session,
+            config=StubConfig("dj@example.com", gate_social_actions=False),
+        )
+
+    session.post.assert_not_called()
+
+
+def test_unknown_spotify_gate_action_stays_manual():
+    session = session_for_gate(
+        gate_html(steps="sp", spotify_value="PLAYLIST|abc")
+    )
+
+    with pytest.raises(RuntimeError, match="unsupported Spotify action"):
+        resolve_hypeddit_download_url(
+            "https://hypeddit.com/track/unknown",
+            session,
+            config=StubConfig("dj@example.com"),
+        )
+
+    session.post.assert_not_called()
+
+
+def test_rejected_hypeddit_email_is_actionable():
+    session = session_for_gate(gate_html(steps="email"), email_status="F")
+
+    with pytest.raises(RuntimeError, match="rejected the configured email"):
+        resolve_hypeddit_download_url(
+            "https://hypeddit.com/track/email",
+            session,
+            config=StubConfig("dj@example.com"),
+        )
+
+
+def test_rejected_hypeddit_download_is_actionable():
+    session = session_for_gate(
+        gate_html(steps="sc"), download_payload={"download_status": False}
+    )
+
+    with pytest.raises(RuntimeError, match="did not unlock"):
+        resolve_hypeddit_download_url(
+            "https://hypeddit.com/track/rejected",
+            session,
+            config=StubConfig("dj@example.com"),
+        )
 
 
 def test_a_gate_is_told_about_the_repost_only_when_it_was_allowed():

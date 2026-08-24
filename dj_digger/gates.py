@@ -13,6 +13,7 @@ from typing import Any
 import requests
 from bs4 import BeautifulSoup
 
+from . import spotify
 from .browser import is_fetchable
 from .html_fallback import normalize_link
 from .links import SHOP_CATEGORIES, host_of, store_for_url
@@ -152,6 +153,42 @@ def resolve_hypeddit_download_url(
             if tag.get("name") or tag.get("id")
         }
 
+        steps = [
+            step.strip()
+            for step in inputs.get("nwSteps", "email,sc").split(",")
+            if step.strip()
+        ]
+        social = bool(getattr(config, "gate_social_actions", True))
+        if "email" in steps and not config.has_real_email():
+            raise RuntimeError(
+                "Hypeddit requires a real email; set it in Settings before downloading"
+            )
+        if "sp" in steps:
+            if not social:
+                raise RuntimeError(
+                    "This Hypeddit gate requires Spotify social actions, but they are disabled"
+                )
+            spotify_uris = []
+            for tag in soup.find_all(
+                "input", attrs={"name": "additional_sp_user_id[]"}
+            ):
+                raw = str(tag.get("value") or "")
+                kind, separator, spotify_id = raw.partition("|")
+                if (
+                    kind != "ART"
+                    or not separator
+                    or not re.fullmatch(r"[A-Za-z0-9]{22}", spotify_id)
+                ):
+                    raise RuntimeError(
+                        "Hypeddit requested an unsupported Spotify action"
+                    )
+                spotify_uris.append(f"spotify:artist:{spotify_id}")
+            if not spotify_uris:
+                raise RuntimeError(
+                    "Hypeddit declared Spotify without an artist to follow"
+                )
+            spotify.save_uris(spotify_uris)
+
         fan_gate_id = inputs.get("fan_gate_id") or inputs.get("fangate_id") or gate_id
         download_key = inputs.get("current_download_file_listner") or inputs.get("fangate_id") or fan_gate_id
 
@@ -170,60 +207,140 @@ def resolve_hypeddit_download_url(
         # two that ask first. Off, they go out as 0 and the comment field stays
         # empty - some gates will then refuse the file, which is the trade the
         # setting exists to let you make.
-        social = bool(getattr(config, "gate_social_actions", True))
         sc_comment = comment if social else ""
-        step_calls = [
-            ("https://hypeddit.com/verifyEmailAddress", {"_token": csrf_token, "validateEmailAddress": email, "fan_gate_id": fan_gate_id, "email_name": name}),
-            ("https://hypeddit.com/setSC", {"_token": csrf_token, "fan_gate_id": fan_gate_id, "comment_sc": sc_comment, "is_repost": int(social), "is_subscribe": int(social)}),
-            ("https://hypeddit.com/setYT", {"_token": csrf_token, "fan_gate_id": fan_gate_id, "comment_yt": sc_comment}),
-        ]
-        nw_steps = inputs.get("nwSteps", "email,sc").split(",")
-        for st in nw_steps:
-            st = st.strip()
-            if st:
-                step_calls.append(("https://hypeddit.com/setGatePathway", {"_token": csrf_token, "fan_gate_id": fan_gate_id, "stepName": st}))
-                step_calls.append(("https://hypeddit.com/setGatePathwayOr", {"_token": csrf_token, "fan_gate_id": fan_gate_id, "skipSteps": "", "selectedStep": st}))
+        step_calls = []
+        if "email" in steps:
+            step_calls.append(
+                (
+                    "https://hypeddit.com/verifyEmailAddress",
+                    {
+                        "_token": csrf_token,
+                        "validateEmailAddress": email,
+                        "fan_gate_id": fan_gate_id,
+                        "email_name": name,
+                    },
+                )
+            )
+        if "sc" in steps:
+            step_calls.append(
+                (
+                    "https://hypeddit.com/setSC",
+                    {
+                        "_token": csrf_token,
+                        "fan_gate_id": fan_gate_id,
+                        "comment_sc": sc_comment,
+                        "is_repost": int(social),
+                        "is_subscribe": int(social),
+                    },
+                )
+            )
+        if "yt" in steps:
+            step_calls.append(
+                (
+                    "https://hypeddit.com/setYT",
+                    {
+                        "_token": csrf_token,
+                        "fan_gate_id": fan_gate_id,
+                        "comment_yt": sc_comment,
+                    },
+                )
+            )
+        for step in steps:
+            step_calls.append(
+                (
+                    "https://hypeddit.com/setGatePathway",
+                    {
+                        "_token": csrf_token,
+                        "fan_gate_id": fan_gate_id,
+                        "stepName": step,
+                    },
+                )
+            )
+            step_calls.append(
+                (
+                    "https://hypeddit.com/setGatePathwayOr",
+                    {
+                        "_token": csrf_token,
+                        "fan_gate_id": fan_gate_id,
+                        "skipSteps": "",
+                        "selectedStep": step,
+                    },
+                )
+            )
 
-        for ep_url, payload in step_calls:
+        for endpoint, payload in step_calls:
             try:
-                session.post(ep_url, data=payload, headers=ajax_headers, timeout=timeout)
-            except requests.RequestException:
-                pass
+                step_response = session.post(
+                    endpoint, data=payload, headers=ajax_headers, timeout=timeout
+                )
+            except requests.RequestException as exc:
+                raise RuntimeError(f"Hypeddit step request failed: {exc}") from exc
+            if step_response.status_code >= 400:
+                raise RuntimeError(
+                    f"Hypeddit step returned HTTP {step_response.status_code}"
+                )
+            if endpoint.endswith("verifyEmailAddress"):
+                try:
+                    accepted = step_response.json().get("status") == "T"
+                except (ValueError, AttributeError):
+                    accepted = False
+                if not accepted:
+                    raise RuntimeError(
+                        "Hypeddit rejected the configured email address"
+                    )
 
         # 4. Try resolve full original file via gate/download/ul
         try:
-            dl_resp = session.post(
+            download_response = session.post(
                 "https://hypeddit.com/gate/download/ul",
                 data={
                     "_token": csrf_token,
                     "file": download_key,
                     "download_visit": "true",
                     "profile_downloads": "true",
+                    "time": 0,
+                    "sc_comment_text": sc_comment,
+                    "yt_comment_text": sc_comment,
                     "page": "nonsingle",
                     "is_skippable": inputs.get("is_skippable", "0"),
                     "steps": inputs.get("nwSteps", ""),
                     "email": email,
                     "download_action": "DOWNLOAD",
+                    "skip_gate_steps": [],
                     "wrndk": inputs.get("wrndk", ""),
-                    "gvf": inputs.get("gvf", "0"),
-                    "gvt": inputs.get("gvt", ""),
+                    "is_mobile": inputs.get("is_mobile", ""),
+                    "additional_sp_user_id": [
+                        tag.get("value", "")
+                        for tag in soup.find_all(
+                            "input", attrs={"name": "additional_sp_user_id[]"}
+                        )
+                    ],
                     "external_id": extern_id,
-                    "fan_gate_id": fan_gate_id,
+                    "hypesource": inputs.get("hypesource", ""),
+                    "adcode": inputs.get("adcode", ""),
+                    "gvf": inputs.get("gvf", "0"),
                 },
                 headers=ajax_headers,
                 timeout=timeout,
             )
-            if dl_resp.status_code == 200:
-                try:
-                    data = dl_resp.json()
-                    if isinstance(data, dict) and data.get("download_status") and data.get("URL"):
-                        cleaned = _clean_url(data.get("URL"))
-                        if cleaned:
-                            return cleaned
-                except ValueError:
-                    pass
-        except requests.RequestException:
-            pass
+        except requests.RequestException as exc:
+            raise RuntimeError(f"Hypeddit download request failed: {exc}") from exc
+        if download_response.status_code != 200:
+            raise RuntimeError(
+                f"Hypeddit download returned HTTP {download_response.status_code}"
+            )
+        try:
+            result = download_response.json()
+        except ValueError as exc:
+            raise RuntimeError("Hypeddit returned an unreadable download reply") from exc
+        if not isinstance(result, dict) or not result.get("download_status"):
+            raise RuntimeError("Hypeddit did not unlock the download")
+        cleaned = _clean_url(result.get("URL"))
+        if not cleaned:
+            raise RuntimeError(
+                "Hypeddit unlocked the gate without a safe download URL"
+            )
+        return cleaned
 
     except requests.RequestException as exc:
         LOGGER.debug("Hypeddit gate resolution failed for %s: %s", url, exc)
@@ -560,4 +677,3 @@ def resolve_gate_download_url(
         return url
 
     return None
-
