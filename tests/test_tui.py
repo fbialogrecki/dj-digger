@@ -35,7 +35,18 @@ async def scroll_table(pilot, table, y):
             raise AssertionError("table never became scrollable")
         await pilot.pause(0.01)
     target = min(y, table.max_scroll_y)
-    table.scroll_to(y=target, animate=False, force=True, immediate=True)
+    table.call_after_refresh(
+        table.scroll_to,
+        y=target,
+        animate=False,
+        force=True,
+        immediate=True,
+    )
+    await pilot.pause()
+    while table.scroll_offset.y != target:
+        if asyncio.get_running_loop().time() >= deadline:
+            raise AssertionError(f"table never reached scroll offset {target}")
+        await pilot.pause(0.01)
     await pilot.pause()
     assert table.scroll_offset.y == target
 
