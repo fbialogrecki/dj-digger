@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.1
+
+### Fixed
+
+- Download progress, completion and failure now repaint only the affected track
+  rows, so the list can be freely scrolled during single and batch downloads.
+- Necessary table rebuilds preserve the selected track and the top visible
+  track, including back-to-back completions when handled tracks are hidden.
+- Throttled batch progress repaints every track waiting for an update instead of
+  letting a busy download starve the other progress indicators.
+
 ## 0.9.0
 
 ### Security
