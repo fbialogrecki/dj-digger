@@ -61,8 +61,8 @@ def get_stored_auth_info() -> dict[str, Any]:
         return {}
 
 
-def save_token(token: str, username: str = "", user_id: int | None = None) -> None:
-    """Save an OAuth token so that it is never readable by anyone else.
+def write_private_json(path: Path, payload: dict[str, Any]) -> None:
+    """Atomically write credentials without making them broadly readable.
 
     Not ``write_text`` followed by a chmod: that creates the file with the umask
     default, usually 0644, writes a live token into it, and only then narrows
@@ -72,23 +72,18 @@ def save_token(token: str, username: str = "", user_id: int | None = None) -> No
     which is also how ``config``, ``state`` and ``library`` already write.
     """
 
-    directory = AUTH_FILE.parent
+    directory = path.parent
     directory.mkdir(parents=True, exist_ok=True)
     try:
         os.chmod(directory, 0o700)
     except OSError as exc:
         LOGGER.debug("Could not tighten permissions on %s: %s", directory, exc)
 
-    payload = {
-        "oauth_token": token.strip(),
-        "username": username,
-        "user_id": user_id,
-    }
     descriptor, temporary = tempfile.mkstemp(dir=str(directory), prefix=".auth-", suffix=".tmp")
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
             json.dump(payload, stream, indent=2)
-        os.replace(temporary, AUTH_FILE)
+        os.replace(temporary, path)
     except BaseException:
         # Never leave a temporary holding the token behind on the way out.
         try:
@@ -96,6 +91,19 @@ def save_token(token: str, username: str = "", user_id: int | None = None) -> No
         except OSError:
             pass
         raise
+
+
+def save_token(token: str, username: str = "", user_id: int | None = None) -> None:
+    """Save SoundCloud authentication in the private credential store."""
+
+    write_private_json(
+        AUTH_FILE,
+        {
+            "oauth_token": token.strip(),
+            "username": username,
+            "user_id": user_id,
+        },
+    )
 
 
 def clear_token() -> None:

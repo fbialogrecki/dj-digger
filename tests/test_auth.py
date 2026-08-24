@@ -1,6 +1,21 @@
+import json
 import os
 
 from dj_digger import auth
+
+
+def test_private_json_writer_is_atomic_and_owner_only(tmp_path):
+    target = tmp_path / "credentials" / "spotify.json"
+
+    auth.write_private_json(target, {"refresh_token": "secret"})
+
+    assert json.loads(target.read_text(encoding="utf-8")) == {
+        "refresh_token": "secret"
+    }
+    assert list(target.parent.glob(".auth-*")) == []
+    if os.name == "posix":
+        assert os.stat(target).st_mode & 0o777 == 0o600
+        assert os.stat(target.parent).st_mode & 0o777 == 0o700
 
 
 class DummyResponse:
