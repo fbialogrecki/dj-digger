@@ -1857,6 +1857,60 @@ def test_batch_progress_repaints_every_row_waiting_for_the_throttle(state):
     run(scenario)
 
 
+class ProgressProbeClient:
+    def __init__(self, app, seen, output):
+        self.app = app
+        self.seen = seen
+        self.output = output
+
+    def download_track(self, track, directory, **kwargs):
+        self.seen.append(self.app.download_progress[track.key])
+        return self.output
+
+    def close(self):
+        pass
+
+
+@pytest.mark.parametrize("batch", [False, True])
+def test_download_stays_at_zero_while_the_link_is_being_resolved(
+    state, monkeypatch, tmp_path, batch
+):
+    record = LinkRecord(
+        category="soundcloud",
+        track=Track(
+            title="Free",
+            permalink_url="https://soundcloud.com/a/free",
+            id=7,
+            downloadable=True,
+            has_downloads_left=True,
+        ),
+        link_url="https://soundcloud.com/a/free",
+        link_text=links.FREE_DOWNLOAD,
+    )
+    app = make_app([record], state)
+    seen = []
+    app._client = ProgressProbeClient(app, seen, tmp_path / "free.mp3")
+
+    class Session:
+        def close(self):
+            pass
+
+    monkeypatch.setattr("dj_digger.tui.downloads.soundcloud.create_requests_session", Session)
+
+    async def scenario():
+        async with app.run_test():
+            row = app.visible_rows[0]
+            worker = (
+                app.batch_download_in_background([(row, None)])
+                if batch
+                else app.download_track_in_background(row.track)
+            )
+            await worker.wait()
+
+    run(scenario)
+    assert seen == [0.0]
+
+
 @pytest.mark.parametrize(
     ("outcome", "completed"),
     [

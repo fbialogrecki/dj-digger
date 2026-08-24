@@ -45,7 +45,7 @@ class DownloadMixin:
             self.call_from_thread(self._update_track_progress, key, pct)
 
         try:
-            self.call_from_thread(self._update_track_progress, key, 0.05)
+            self.call_from_thread(self._update_track_progress, key, 0.0)
             path = self.client.download_track(
                 track,
                 Path(self.config.download_directory),
@@ -131,7 +131,7 @@ class DownloadMixin:
             # per track - this path simply never got the fix.
             session = soundcloud.create_requests_session()
             try:
-                self.call_from_thread(self._update_track_progress, key, 0.05)
+                self.call_from_thread(self._update_track_progress, key, 0.0)
                 path = self.client.download_track(
                     row.track,
                     Path(self.config.download_directory),
