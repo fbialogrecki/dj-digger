@@ -416,6 +416,24 @@ def test_a_hub_page_does_not_offer_the_streaming_services_it_lists():
     assert not any("spotify" in url for url, _text in found)
 
 
+def test_hypeddit_smart_link_keeps_only_its_beatport_destination():
+    page = """
+    <html><head><title>Whiplash EP by Sota</title></head><body>
+      <a class="hype-btn" href="https://www.beatport.com/release/whiplash/3629013">Buy</a>
+      <a href="https://open.spotify.com/album/stream-only">Listen</a>
+    </body></html>
+    """
+
+    found = store_links_on_page(
+        "https://hypeddit.com/l87679",
+        HubSession(page, landed="https://hypeddit.com/l87679"),
+    )
+
+    assert found == [
+        ("https://www.beatport.com/release/whiplash/3629013", "Buy")
+    ]
+
+
 def test_a_page_that_hands_over_a_file_is_left_as_a_gate():
     """A real follow-to-download gate keeps its badge, shop link or not."""
 
