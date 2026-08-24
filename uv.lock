@@ -185,6 +185,7 @@ version = "0.9.1"
 source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },
+    { name = "playwright" },
     { name = "requests" },
     { name = "rich" },
     { name = "textual" },
@@ -199,23 +200,20 @@ dev = [
 play = [
     { name = "miniaudio" },
 ]
-shop = [
-    { name = "playwright" },
-]
 
 [package.metadata]
 requires-dist = [
     { name = "beautifulsoup4", specifier = ">=4.11" },
     { name = "miniaudio", marker = "extra == 'dev'", specifier = ">=1.59" },
     { name = "miniaudio", marker = "extra == 'play'", specifier = ">=1.59" },
-    { name = "playwright", marker = "extra == 'shop'", specifier = ">=1.62,<2" },
+    { name = "playwright", specifier = ">=1.62,<2" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0" },
     { name = "requests", specifier = ">=2.28" },
     { name = "rich", specifier = ">=13.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
     { name = "textual", specifier = ">=0.60" },
 ]
-provides-extras = ["play", "shop", "dev"]
+provides-extras = ["play", "dev"]
 
 [[package]]
 name = "greenlet"

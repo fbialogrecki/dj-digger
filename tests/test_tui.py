@@ -418,6 +418,59 @@ def test_c_preflights_and_adds_the_selected_track(records, state, monkeypatch):
     assert len(executed) == 1
 
 
+def test_c_installs_missing_chromium_then_retries_preflight(records, state, monkeypatch):
+    bandcamp_record = next(record for record in records if record.category == "bandcamp")
+    installed = []
+    prepared = []
+    executed = []
+
+    def prepare(requests, _cancel):
+        prepared.append(list(requests))
+        if not installed:
+            raise cart.ChromiumMissing("Chromium is required for store carts")
+        return cart_plan_for(bandcamp_record)
+
+    def install(_cancel):
+        installed.append(True)
+
+    monkeypatch.setattr(cart, "prepare_cart", prepare)
+    monkeypatch.setattr(cart, "install_chromium", install)
+    monkeypatch.setattr(
+        cart,
+        "execute_cart",
+        lambda plan, _cancel, **_kwargs: executed.append(plan)
+        or (
+            cart.CartResult(
+                bandcamp_record.track.key,
+                bandcamp_record.track.label,
+                "bandcamp",
+                "added",
+            ),
+        ),
+    )
+    app = make_app([bandcamp_record], state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("c")
+            for _ in range(20):
+                await pilot.pause()
+                if isinstance(app.screen, ConfirmScreen):
+                    break
+            assert isinstance(app.screen, ConfirmScreen)
+            assert "Chromium" in str(app.screen.query_one(Label).render())
+            await pilot.press("y")
+            for _ in range(30):
+                await pilot.pause()
+                if executed:
+                    break
+
+    run(scenario)
+    assert installed == [True]
+    assert len(prepared) == 2
+    assert len(executed) == 1
+
+
 def test_shift_c_confirms_the_visible_preflight_before_mutating(state, monkeypatch):
     record = synthetic_records(1)[0]
     plan = cart_plan_for(record)

@@ -14,7 +14,7 @@ pytestmark = pytest.mark.shop_live
 @pytest.fixture(scope="module")
 def store_context(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Any]:
     sync_api = pytest.importorskip(
-        "playwright.sync_api", reason="install the shop extra to run store contract tests"
+        "playwright.sync_api", reason="Playwright is required for store contract tests"
     )
     profile = Path(tmp_path_factory.mktemp("shop-live-profile"))
     try:
@@ -29,7 +29,10 @@ def store_context(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Any]:
                 )
             except sync_api.Error as exc:
                 if "executable doesn't exist" in str(exc).lower():
-                    pytest.skip("run 'playwright install chromium' to enable shop_live tests")
+                    pytest.skip(
+                        "run 'uv run python -m playwright install chromium' "
+                        "to enable shop_live tests"
+                    )
                 raise
             try:
                 yield context

@@ -31,13 +31,13 @@ dependencies = [
     "beautifulsoup4>=4.11",
     "textual>=0.60",
     "rich>=13.0",
+    "playwright>=1.62,<2",
 ]
 
 [project.optional-dependencies]
 # Audio preview. Kept optional so a platform without a miniaudio wheel can still
 # install the link digger; the player degrades with a message when it is absent.
 play = ["miniaudio>=1.59"]
-shop = ["playwright>=1.62,<2"]
 dev = ["pytest>=7.0", "miniaudio>=1.59", "ruff>=0.6"]
 
 [project.scripts]

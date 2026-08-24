@@ -149,12 +149,61 @@ class OpeningMixin:
     ) -> None:
         try:
             plan = cart_module.prepare_cart(requests, self._cart_cancel)
+        except cart_module.ChromiumMissing:
+            if not self._cart_cancel.is_set():
+                self.call_from_thread(self._offer_chromium_install, requests, single)
+            return
         except Exception as exc:
             if not self._cart_cancel.is_set():
                 self.call_from_thread(self._cart_failed, str(exc))
             return
         if not self._cart_cancel.is_set():
             self.call_from_thread(self._cart_preflight_finished, plan, single)
+
+    def _offer_chromium_install(
+        self, requests: list[cart_module.CartRequest], single: bool
+    ) -> None:
+        self.push_screen(
+            ConfirmScreen(
+                "Store carts need Playwright Chromium. Download it now? "
+                "This is a one-time download for the installed Playwright version."
+            ),
+            lambda confirmed: self._chromium_install_confirmed(
+                requests, single, bool(confirmed)
+            ),
+        )
+
+    def _chromium_install_confirmed(
+        self,
+        requests: list[cart_module.CartRequest],
+        single: bool,
+        confirmed: bool,
+    ) -> None:
+        if not confirmed:
+            self._cart_busy = False
+            self.notify("Chromium installation cancelled", timeout=3)
+            return
+        self.notify("Installing Chromium in the background...", timeout=4)
+        self.install_chromium_in_background(requests, single)
+
+    @work(thread=True, exclusive=True, group="cart")
+    def install_chromium_in_background(
+        self, requests: list[cart_module.CartRequest], single: bool
+    ) -> None:
+        try:
+            cart_module.install_chromium(self._cart_cancel)
+        except Exception as exc:
+            if not self._cart_cancel.is_set():
+                self.call_from_thread(self._cart_failed, str(exc))
+            return
+        if not self._cart_cancel.is_set():
+            self.call_from_thread(self._chromium_installed, requests, single)
+
+    def _chromium_installed(
+        self, requests: list[cart_module.CartRequest], single: bool
+    ) -> None:
+        self.notify("Chromium installed; checking the store product...", timeout=4)
+        self.cart_preflight_in_background(requests, single)
 
     def _cart_preflight_finished(self, plan: cart_module.CartPlan, single: bool) -> None:
         if not plan.items:

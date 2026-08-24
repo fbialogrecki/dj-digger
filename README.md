@@ -36,16 +36,14 @@ dj-digger https://soundcloud.com/someone/sets/that-playlist
 ### Recommended (via `uv` or `pipx`)
 
 ```bash
-# Install with audio preview and store-cart support
-uv tool install --with-executables-from playwright 'dj-soundcloud-digger[play,shop]'
-playwright install chromium
+# Install with audio preview; store-cart support is included
+uv tool install 'dj-soundcloud-digger[play]'
 ```
 
 or with `pipx`:
 
 ```bash
-pipx install --include-deps 'dj-soundcloud-digger[play,shop]'
-playwright install chromium
+pipx install 'dj-soundcloud-digger[play]'
 ```
 
 ### From Source (Development)
@@ -54,16 +52,15 @@ playwright install chromium
 git clone https://github.com/fbialogrecki/dj-soundcloud-digger.git
 cd dj-soundcloud-digger
 uv venv
-uv pip install -e '.[play,shop,dev]'
-uv run playwright install chromium
+uv pip install -e '.[play,dev]'
 ```
 
 > **Requires Python 3.12 or newer.**
 >
 > **Note on optional extras**:
 > - `play`: Enables in-memory audio preview via `miniaudio`.
-> - `shop`: Enables the Bandcamp/Beatport cart flow via a visible Chromium window.
-> If an extra is absent, the rest of the tool still works and explains how to enable the requested feature.
+> Store-cart support is included. On the first `c` or `C`, the app asks before
+> downloading its matching Chromium build automatically.
 
 ---
 
@@ -155,10 +152,12 @@ Links are parsed and categorized using strict domain-boundary matching:
 
 ### Bandcamp and Beatport carts
 
-Pressing `c` or `C` starts a visible Chromium window only when you ask for it. The
-app uses a dedicated persistent browser profile, separate from your everyday
-browser, so you may need to log in manually the first time. It never reads or
-fills your password, chooses a payment method, or completes checkout.
+Pressing `c` or `C` starts a visible Chromium window only when you ask for it. If
+the matching browser build is absent, the app asks before downloading it in the
+background and then resumes the cart preflight. The app uses a dedicated
+persistent browser profile, separate from your everyday browser, so you may need
+to log in manually the first time. It never reads or fills your password, chooses
+a payment method, or completes checkout.
 
 - `c` resolves and adds the highlighted track.
 - `C` resolves all currently visible, unhandled tracks, then asks for one batch
@@ -295,7 +294,7 @@ uv run pytest
 uv run pytest -m live
 
 # Open public store pages read-only; never logs in or changes a cart
-uv run --extra shop pytest -m shop_live
+uv run pytest -m shop_live
 ```
 
 ---

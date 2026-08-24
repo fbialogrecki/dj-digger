@@ -3,6 +3,8 @@
 import json
 import os
 import re
+import signal
+import subprocess
 import sys
 import time
 import unicodedata
@@ -62,6 +64,10 @@ class UnsafeMatch(RuntimeError):
 
 class AutomationError(RuntimeError):
     """A technical or structural failure which must never trigger store fallback."""
+
+
+class ChromiumMissing(AutomationError):
+    """The Playwright browser required by store carts has not been downloaded."""
 
 
 @dataclass(frozen=True)
@@ -671,14 +677,25 @@ def _first_visible(*locators: Any) -> Any | None:
     return None
 
 
+def _login_visible(page: Any) -> bool:
+    login_name = re.compile(r"^(?:log ?in|sign in)$", re.IGNORECASE)
+    try:
+        for locator in (
+            page.get_by_role("link", name=login_name),
+            page.get_by_role("button", name=login_name),
+        ):
+            for index in range(locator.count()):
+                if locator.nth(index).is_visible():
+                    return True
+    except Exception:
+        return True
+    return False
+
+
 def _is_logged_in(page: Any, store: str) -> bool:
     if not is_store_url(page.url, store):
         return False
-    login_name = re.compile(r"^(?:log ?in|sign in)$", re.IGNORECASE)
-    if _first_visible(
-        page.get_by_role("link", name=login_name),
-        page.get_by_role("button", name=login_name),
-    ) is not None:
+    if _login_visible(page):
         return False
     if store == "bandcamp":
         names = re.compile(r"^(collection|wishlist|log out)$", re.IGNORECASE)
@@ -692,6 +709,16 @@ def _is_logged_in(page: Any, store: str) -> bool:
     ) is not None
 
 
+def _login_complete(page: Any, store: str) -> bool:
+    if _is_logged_in(page, store):
+        return True
+    return (
+        store == "bandcamp"
+        and urlparse(page.url).path in ("", "/")
+        and not _login_visible(page)
+    )
+
+
 def ensure_login(page: Any, store: str, cancel: Event) -> None:
     """Wait for a user-driven login without reading or filling credentials."""
 
@@ -700,6 +727,8 @@ def ensure_login(page: Any, store: str, cancel: Event) -> None:
     if _is_logged_in(page, store):
         return
     navigate_store(page, STORE_LOGIN[store], store)
+    if _login_complete(page, store):
+        return
     deadline = time.monotonic() + LOGIN_TIMEOUT_SECONDS
     while time.monotonic() < deadline:
         _cancelled(cancel)
@@ -707,7 +736,7 @@ def ensure_login(page: Any, store: str, cancel: Event) -> None:
             raise AutomationError(f"{store} login window was closed")
         # The user may temporarily visit an external SSO origin. We do not inspect
         # or touch it; only the canonical store page can complete this wait.
-        if is_store_url(page.url, store) and _is_logged_in(page, store):
+        if is_store_url(page.url, store) and _login_complete(page, store):
             return
         cancel.wait(0.25)
     raise AutomationError(f"timed out waiting for manual {store} login")
@@ -962,6 +991,61 @@ def _add_to_cart(page: Any, item: CartItem, cancel: Event) -> None:
     add_button.click(timeout=ACTION_TIMEOUT_MS)
 
 
+def install_chromium(cancel: Event) -> None:
+    """Download Playwright's matching Chromium build in the current environment."""
+
+    _cancelled(cancel)
+    popen_options = {
+        "stdout": subprocess.DEVNULL,
+        "stderr": subprocess.DEVNULL,
+        "shell": False,
+    }
+    if os.name == "nt":
+        popen_options["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+    else:
+        popen_options["start_new_session"] = True
+    try:
+        process = subprocess.Popen(
+            [sys.executable, "-m", "playwright", "install", "chromium"],
+            **popen_options,
+        )
+    except OSError as exc:
+        raise AutomationError(
+            "could not start Chromium installation; run "
+            f"'{sys.executable} -m playwright install chromium'"
+        ) from exc
+    while process.poll() is None:
+        if not cancel.wait(0.1):
+            continue
+        try:
+            if os.name == "nt":
+                process.send_signal(signal.CTRL_BREAK_EVENT)
+            else:
+                os.killpg(process.pid, signal.SIGTERM)
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            if os.name == "nt":
+                subprocess.run(
+                    ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                    check=False,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    shell=False,
+                )
+            else:
+                os.killpg(process.pid, signal.SIGKILL)
+            process.wait()
+        except OSError:
+            pass
+        _cancelled(cancel)
+    _cancelled(cancel)
+    if process.returncode:
+        raise AutomationError(
+            "Chromium installation failed; run "
+            f"'{sys.executable} -m playwright install chromium'"
+        )
+
+
 @contextmanager
 def _browser_context(profile: Path | None = None):
     if sys.platform.startswith("linux") and not (
@@ -972,12 +1056,13 @@ def _browser_context(profile: Path | None = None):
         from playwright.sync_api import sync_playwright
     except ImportError as exc:
         raise AutomationError(
-            "store cart support is not installed; install .[shop] and run "
-            "'playwright install chromium'"
+            "the required Playwright dependency is missing; reinstall dj-soundcloud-digger"
         ) from exc
 
-    try:
-        with sync_playwright() as playwright:
+    with sync_playwright() as playwright:
+        if not Path(playwright.chromium.executable_path).is_file():
+            raise ChromiumMissing("Chromium is required for store carts")
+        try:
             context = playwright.chromium.launch_persistent_context(
                 str(profile or store_profile_path()),
                 headless=False,
@@ -985,22 +1070,28 @@ def _browser_context(profile: Path | None = None):
                 accept_downloads=False,
                 chromium_sandbox=True,
             )
-            context.set_default_timeout(ACTION_TIMEOUT_MS)
+        except Exception as exc:
+            message = str(exc).lower()
+            if "executable doesn't exist" in message:
+                raise ChromiumMissing("Chromium is required for store carts") from exc
+            elif "singleton" in message or "user data directory is already in use" in message:
+                detail = "the dedicated store browser profile is already open in another process"
+            else:
+                detail = "could not start the dedicated store browser"
+                if sys.platform.startswith("linux"):
+                    detail += (
+                        "; install required system libraries with "
+                        f"'{sys.executable} -m playwright install --with-deps chromium'"
+                    )
+            raise AutomationError(detail) from exc
+        context.set_default_timeout(ACTION_TIMEOUT_MS)
+        try:
+            yield context
+        finally:
             try:
-                yield context
-            finally:
                 context.close()
-    except AutomationError:
-        raise
-    except Exception as exc:
-        message = str(exc).lower()
-        if "executable doesn't exist" in message or "playwright install" in message:
-            detail = "Chromium is missing; run 'playwright install chromium'"
-        elif "singleton" in message or "user data directory is already in use" in message:
-            detail = "the dedicated store browser profile is already open in another process"
-        else:
-            detail = "could not start the dedicated store browser"
-        raise AutomationError(detail) from exc
+            except Exception:
+                pass
 
 
 def prepare_cart(
