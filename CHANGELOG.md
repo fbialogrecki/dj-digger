@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.10.0
+
+### Added
+
+- **Spotify-backed Hypeddit gates.** `dj-digger auth spotify login` uses
+  Authorization Code with PKCE, stores refresh credentials privately and can
+  complete the artist action declared by a gate through Spotify's current
+  library endpoint. Status and logout commands are included.
+- **Chromium installation on demand.** Store-cart support is installed by
+  default. When Playwright's matching browser build is absent, the TUI asks
+  before downloading it in the background and resumes the original preflight.
+
+### Security
+
+- Spotify login binds its temporary callback to `127.0.0.1`, validates OAuth
+  state, requests only `user-follow-modify`, refreshes tokens without a client
+  secret and writes credentials atomically with owner-only permissions.
+- Hypeddit no longer submits the reserved placeholder email or claims unknown
+  Spotify actions. Disabling gate social actions prevents Spotify mutations.
+
+### Fixed
+
+- The TUI error banner keeps bracketed messages literal, has a visible close
+  button and is no longer corrupted by application logs writing behind it.
+- Single and batch downloads stay at `0%` while a link or gate is being
+  resolved instead of reporting fictional progress.
+- SoundCloud artist downloads without a concrete URL use the authenticated
+  download endpoint and distinguish missing, rejected and failed credentials.
+- Hypeddit step and download failures now produce actionable errors. Smart-link
+  pages such as `l87679` keep their Beatport destination without retaining a
+  false gate link.
+- Store carts distinguish a missing Chromium build from missing Linux system
+  libraries, stop the installer process tree on cancellation and recognise an
+  existing Bandcamp session after its login redirect.
+
 ## 0.9.1
 
 ### Fixed
