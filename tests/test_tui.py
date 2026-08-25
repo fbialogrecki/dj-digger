@@ -409,6 +409,28 @@ def test_enter_opens_the_link_exactly_once(records, state, monkeypatch):
     assert opened == [records[0].link_url]
 
 
+def test_single_click_only_selects_the_track(records, state, monkeypatch):
+    opened = []
+    monkeypatch.setattr(
+        "dj_digger.tui.browser_module.open_url",
+        lambda url, browser="default": opened.append(url) or True,
+    )
+    app = make_app(records, state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.click("#tracks", offset=(10, 1))
+            await pilot.pause()
+            assert app.query_one("#tracks", DataTable).cursor_row == 0
+            assert opened == []
+            assert state.get(records[0].track.key) != OPENED
+
+            await pilot.press("enter")
+
+    run(scenario)
+    assert opened == [records[0].link_url]
+
+
 def test_right_click_opens_the_track_menu_without_opening_a_link(
     state, monkeypatch
 ):
@@ -2013,6 +2035,40 @@ class ProfileRetryClient:
         pass
 
 
+def test_single_download_uses_a_playlist_named_subdirectory(state, tmp_path):
+    track = Track(
+        id=80,
+        title="Download",
+        permalink_url="https://soundcloud.com/a/download",
+        downloadable=True,
+        has_downloads_left=True,
+        download_url="https://api-v2.soundcloud.com/tracks/80/download",
+    )
+    app = make_app(links.categorise(track), state)
+    app.crate_title = "Warehouse / Session: 01"
+    app.config.download_directory = str(tmp_path / "Downloads")
+    directories = []
+
+    class Client:
+        def download_track(self, _track, directory, **_kwargs):
+            directories.append(directory)
+            return directory / "track.wav"
+
+        def close(self):
+            pass
+
+    app._client = Client()
+
+    async def scenario():
+        async with app.run_test():
+            worker = app.download_track_in_background(track)
+            await worker.wait()
+
+    run(scenario)
+    assert directories == [tmp_path / "Downloads" / "Warehouse Session 01"]
+    assert state.get(track.key) == GOT
+
+
 @pytest.mark.parametrize("save_profile", [False, True])
 def test_gate_profile_wizard_retries_a_single_download_at_most_once(
     state, tmp_path, save_profile
@@ -2232,6 +2288,73 @@ def test_browser_required_batch_is_one_call_for_several_tracks(
     assert len(calls) == 1
     assert len(calls[0]) == 2
     assert all(state.get(record.track.key) == GOT for record in records)
+
+
+def test_batch_starts_downloads_before_every_hypeddit_preflight_finishes(
+    state, tmp_path, monkeypatch
+):
+    records = []
+    for index in (205, 206):
+        gate_url = f"https://hypeddit.com/track/{index}"
+        track = Track(
+            id=index,
+            title=f"Gate {index}",
+            permalink_url=f"https://soundcloud.com/a/{index}",
+            extra_links=[(gate_url, "Download")],
+        )
+        records.append(
+            LinkRecord(
+                category="gate",
+                track=track,
+                link_url=gate_url,
+                link_text="Download",
+            )
+        )
+    app = make_app(records, state)
+    app.crate = library.CrateRecord(
+        source="https://soundcloud.com/a/sets/batch",
+        title="Batch",
+        tracks=[record.track for record in records],
+    )
+    first_download = Event()
+    started = []
+
+    def normalise(row, gate_url):
+        if row.track.id == 206:
+            assert first_download.wait(2)
+        return gate_url, False
+
+    class Client:
+        def download_track(self, track, directory, **_kwargs):
+            started.append(track.id)
+            if track.id == 205:
+                first_download.set()
+            return directory / f"{track.id}.wav"
+
+        def close(self):
+            pass
+
+    class Session:
+        def close(self):
+            pass
+
+    app._client = Client()
+    monkeypatch.setattr(app, "_normalise_hypeddit_item", normalise)
+    monkeypatch.setattr(
+        "dj_digger.tui.downloads.soundcloud.create_requests_session", Session
+    )
+    monkeypatch.setattr(
+        "dj_digger.tui.downloads.library_module.save", lambda _crate: None
+    )
+
+    async def scenario():
+        async with app.run_test():
+            items = [(row, app._find_gate_url(row)) for row in app.visible_rows]
+            worker = app.batch_download_in_background(items)
+            await worker.wait()
+
+    run(scenario)
+    assert sorted(started) == [205, 206]
 
 
 def test_stop_browser_batch_leaves_unfinished_tracks_new(
@@ -3001,6 +3124,35 @@ def test_batch_download_skips_skipped_tracks(state, monkeypatch):
     assert started[0][0].track.key == rec1.track.key
 
 
+def test_batch_marks_an_existing_local_file_got_without_downloading(
+    state, tmp_path, monkeypatch
+):
+    track = Track(
+        id=303,
+        title="Already here",
+        permalink_url="https://soundcloud.com/a/already-here",
+        downloadable=True,
+        has_downloads_left=True,
+        download_url="https://api-v2.soundcloud.com/tracks/303/download",
+    )
+    local_file = tmp_path / "Already here.wav"
+    local_file.write_bytes(b"RIFF-audio")
+    track.local_path = str(local_file)
+    app = make_app(links.categorise(track), state)
+    started = []
+    monkeypatch.setattr(
+        app, "batch_download_in_background", lambda items: started.extend(items)
+    )
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("W")
+
+    run(scenario)
+    assert started == []
+    assert state.get(track.key) == GOT
+
+
 class ClosingSource:
     """A prepared stream that records whether anybody let go of it."""
 
@@ -3147,6 +3299,23 @@ def test_a_confident_match_marks_an_untouched_track_as_got(records, state):
     run(scenario)
 
 
+def test_a_confident_match_promotes_an_opened_track_to_got(records, state):
+    app = make_app(records, state)
+    key = records[0].track.key
+    state.set(key, OPENED)
+    scanner = StubScanner({key: LocalMatch("/music/a.mp3", confident=True)})
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.apply_local_file_matches(scanner)
+
+            assert state.get(key) == GOT
+            assert app.rows[0].track.local_path == "/music/a.mp3"
+
+    run(scenario)
+
+
 def test_a_loose_match_points_at_the_file_without_claiming_you_have_it(records, state):
     """A title that happens to agree is not evidence you own the track."""
 
@@ -3165,8 +3334,8 @@ def test_a_loose_match_points_at_the_file_without_claiming_you_have_it(records, 
     run(scenario)
 
 
-def test_a_scan_never_overwrites_a_decision_you_made(records, state):
-    """Skipping a track is a judgement; a file in Downloads does not overrule it."""
+def test_a_confident_scan_marks_even_a_skipped_track_as_got(records, state):
+    """A confirmed file on disk is stronger evidence than a stale status."""
 
     app = make_app(records, state)
     key = records[0].track.key
@@ -3178,7 +3347,7 @@ def test_a_scan_never_overwrites_a_decision_you_made(records, state):
             await pilot.pause()
             app.apply_local_file_matches(scanner)
 
-            assert state.get(key) == SKIP
+            assert state.get(key) == GOT
             assert app.rows[0].track.local_path == "/music/a.mp3", "the badge still belongs"
 
     run(scenario)

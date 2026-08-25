@@ -64,6 +64,7 @@ class TrackTable(DataTable):
         super().__init__(**kwargs)
         self.flexible_column: ColumnKey | None = None
         self._right_click_pending = False
+        self._left_click_pending = False
 
     def on_resize(self, event: events.Resize) -> None:
         self.fit_flexible_column()
@@ -91,15 +92,29 @@ class TrackTable(DataTable):
 
     def on_mouse_down(self, event: events.MouseDown) -> None:
         self._right_click_pending = event.button == 3
+        self._left_click_pending = event.button == 1
 
     def _post_selected_message(self) -> None:
         # DataTable.RowSelected no longer carries the mouse button, so suppress
         # it here before the app mistakes a right click for Enter.
-        if not self._right_click_pending:
+        if not self._right_click_pending and not self._left_click_pending:
             super()._post_selected_message()
 
     async def _on_click(self, event: events.Click) -> None:
+        if event.button == 1 and event.chain == 1:
+            row = event.style.meta.get("row")
+            column = event.style.meta.get("column")
+            if isinstance(row, int) and 0 <= row < self.row_count:
+                event.stop()
+                self.move_cursor(
+                    row=row,
+                    column=column if isinstance(column, int) else None,
+                )
+                self.focus()
+                self.call_later(setattr, self, "_left_click_pending", False)
+                return
         if event.button != 3:
+            self._left_click_pending = False
             await super()._on_click(event)
             return
         event.stop()

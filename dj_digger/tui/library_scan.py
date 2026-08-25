@@ -10,13 +10,20 @@ from pathlib import Path
 from textual import work
 
 from ..scanner import LocalScanner, copy_to_clipboard
-from ..state import GOT, NEW
+from ..state import GOT
 
 LOGGER = logging.getLogger(__name__)
 
 
 class LibraryScanMixin:
     """Matching the crate against audio files you already have on disk."""
+
+    def _mark_existing_local_file(self, track) -> bool:
+        if not track.local_path or not Path(track.local_path).is_file():
+            return False
+        if self.state.get(track.key) != GOT:
+            self.state.set(track.key, GOT)
+        return True
 
     @work(thread=True, group="scan")
     def scan_local_files(self) -> None:
@@ -52,8 +59,9 @@ class LibraryScanMixin:
         A loose match is a title that happens to agree, which is enough to point
         at a file and nowhere near enough to overwrite a decision. So the badge
         goes on either way, and the status only moves when artist and title both
-        matched - and only from ``new``, because a deliberate skip is not
-        something a filename in your Downloads folder gets to undo.
+        matched. A confident file match is the strongest available evidence
+        that the track is already owned, so it becomes ``got`` regardless of a
+        stale new, opened or skipped status.
         """
 
         touched = False
@@ -62,14 +70,18 @@ class LibraryScanMixin:
         # the mirror gone a mark is one SQLite write.
         for row in self.rows:
             track = row.track
-            if track.local_path:
+            if self._mark_existing_local_file(track):
+                touched = True
                 continue
+            if track.local_path:
+                track.local_path = None
+                touched = True
             match = scanner.match_track(track)
             if match is None:
                 continue
             track.local_path = match.path
             touched = True
-            if match.confident and self.state.get(track.key) == NEW:
+            if match.confident and self.state.get(track.key) != GOT:
                 self.state.set(track.key, GOT)
         if touched:
             self.refresh_rows()

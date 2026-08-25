@@ -5,6 +5,7 @@ Mixed into ``DiggerApp``; the attributes these reach for are set up in its
 """
 
 import logging
+import re
 import time
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -22,6 +23,14 @@ from .rows import Row
 from .screens import GateProfileScreen, SoundCloudAuthScreen
 
 LOGGER = logging.getLogger(__name__)
+
+_INVALID_FOLDER_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+
+
+def _playlist_folder_name(title: str) -> str:
+    cleaned = _INVALID_FOLDER_CHARS.sub(" ", title)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip(" .")
+    return cleaned[:120].rstrip(" .") or "playlist"
 
 
 def _gate_failure_group(error: Exception) -> str:
@@ -46,12 +55,24 @@ def _gate_failure_group(error: Exception) -> str:
 class DownloadMixin:
     """Fetching artist-provided files, one at a time or the whole visible list."""
 
+    def _download_directory(self) -> Path:
+        base = Path(self.config.download_directory).expanduser()
+        title = self.crate.title if self.crate is not None else self.crate_title
+        if not title.strip():
+            return base
+        folder = _playlist_folder_name(title)
+        return base if base.name.casefold() == folder.casefold() else base / folder
+
     def action_download_track(self) -> None:
         if self._client_refresh_pending:
             self.notify("Finishing active downloads before refreshing SoundCloud login…")
             return
         row = self.current_row()
         if row is None:
+            return
+        if self._mark_existing_local_file(row.track):
+            self.refresh_rows()
+            self.notify(f"Already on disk: {row.track.local_path}", timeout=4)
             return
         self._gate_cancel.clear()
 
@@ -110,7 +131,7 @@ class DownloadMixin:
             self.call_from_thread(self._update_track_progress, key, 0.0)
             path = self.client.download_track(
                 track,
-                Path(self.config.download_directory),
+                self._download_directory(),
                 gate_url=gate_url,
                 on_progress=on_progress,
             )
@@ -122,7 +143,7 @@ class DownloadMixin:
                 path = gates.download_hypeddit_in_browser(
                     track,
                     gate_url,
-                    Path(self.config.download_directory),
+                    self._download_directory(),
                     True,
                     self._gate_cancel,
                 )
@@ -304,7 +325,11 @@ class DownloadMixin:
             self.notify("Finishing active downloads before refreshing SoundCloud login…")
             return
         eligible: list[tuple[Row, str | None]] = []
+        local_matches = False
         for row in self.visible_rows:
+            if self._mark_existing_local_file(row.track):
+                local_matches = True
+                continue
             status = self.status_of(row)
             if status in (GOT, SKIP):
                 continue
@@ -312,12 +337,21 @@ class DownloadMixin:
             if row.track.free_download or gate_url or row.track.has_direct_download:
                 eligible.append((row, gate_url))
 
+        if local_matches:
+            self.refresh_rows()
+
         if not eligible:
             self.notify("No downloadable free or gate tracks in current view", timeout=3)
             return
 
         self._gate_cancel.clear()
-        self.notify(f"Starting parallel batch download for {len(eligible)} tracks...", timeout=4)
+        for row, _gate_url in eligible:
+            self.download_progress[row.track.key] = 0.0
+        self.refresh_rows()
+        self.notify(
+            f"Checking and downloading {len(eligible)} tracks in parallel...",
+            timeout=4,
+        )
         self.batch_download_in_background(eligible)
 
     def action_stop_browser_batch(self) -> None:
@@ -347,15 +381,16 @@ class DownloadMixin:
         items: list[tuple[Row, str | None]],
         allow_prerequisite_retry: bool,
     ) -> None:
-        items = self._normalise_saved_hypeddit_items(items)
         items = [
             (row, gate_url)
             for row, gate_url in items
             if row.track.free_download or row.track.has_direct_download or gate_url
         ]
+        download_directory = self._download_directory()
         completed_count = 0
         failed_count = 0
         total = len(items)
+        hubs_changed = False
         profile_items: list[tuple[Row, str | None]] = []
         auth_items: list[tuple[Row, str | None]] = []
         browser_items: list[tuple[Row, str]] = []
@@ -364,6 +399,14 @@ class DownloadMixin:
         def download_one(item: tuple[Row, str | None]):
             row, gate_url = item
             key = row.track.key
+            self.call_from_thread(self._update_track_progress, key, 0.0)
+            gate_url, changed = self._normalise_hypeddit_item(row, gate_url)
+            if not (
+                row.track.free_download
+                or row.track.has_direct_download
+                or gate_url
+            ):
+                return (row, gate_url, "hub", None, changed)
 
             def on_progress(downloaded: int, total_bytes: int | None) -> None:
                 pct = min(1.0, downloaded / total_bytes) if total_bytes and total_bytes > 0 else 0.5
@@ -375,17 +418,16 @@ class DownloadMixin:
             # per track - this path simply never got the fix.
             session = soundcloud.create_requests_session()
             try:
-                self.call_from_thread(self._update_track_progress, key, 0.0)
                 path = self.client.download_track(
                     row.track,
-                    Path(self.config.download_directory),
+                    download_directory,
                     gate_url=gate_url,
                     on_progress=on_progress,
                     session=session,
                 )
-                return (row, gate_url, True, str(path))
+                return (row, gate_url, "downloaded", str(path), changed)
             except Exception as exc:
-                return (row, gate_url, False, exc)
+                return (row, gate_url, "failed", exc, changed)
             finally:
                 session.close()
 
@@ -393,8 +435,12 @@ class DownloadMixin:
         try:
             futures = [self._download_executor.submit(download_one, item) for item in items]
             for future in as_completed(futures):
-                row, gate_url, success, result = future.result()
-                if success:
+                row, gate_url, outcome, result, changed = future.result()
+                hubs_changed = hubs_changed or changed
+                if outcome == "hub":
+                    total -= 1
+                    self.call_from_thread(self._download_waiting, row.track.key)
+                elif outcome == "downloaded":
                     completed_count += 1
                     self.call_from_thread(self._on_batch_track_finished, row, result)
                 elif allow_prerequisite_retry and isinstance(
@@ -424,6 +470,9 @@ class DownloadMixin:
                 self._download_executor.shutdown(wait=False)
                 self._download_executor = None
 
+        if hubs_changed:
+            self._persist_normalised_hubs()
+
         # One persistent profile cannot be driven by several Playwright threads.
         # All manual gates therefore share this worker's one context and open as
         # separate tabs, with each tab's download bound back to its own row.
@@ -433,7 +482,7 @@ class DownloadMixin:
             try:
                 browser_result = gates.download_hypeddit_batch_in_browser(
                     [(row.track, gate_url) for row, gate_url in browser_items],
-                    Path(self.config.download_directory),
+                    download_directory,
                     self._gate_cancel,
                 )
             except Exception as exc:
@@ -477,38 +526,45 @@ class DownloadMixin:
     ) -> list[tuple[Row, str | None]]:
         """Refresh only known Hypeddit wrappers in an old persisted crate."""
 
-        if self.crate is None:
-            return items
-        tracks = {
-            row.track.key: row.track
-            for row, gate_url in items
-            if gate_url
-            and links_module.host_of(gate_url) in {"hypeddit.com", "hypd.it"}
-        }
-        if not tracks:
-            return items
-        changed = dig_module.expand_link_hubs(
-            tracks.values(), timeout=self.dig_options.timeout
-        )
-        if changed:
-            try:
-                library_module.save(self.crate)
-            except Exception as exc:
-                LOGGER.warning("Could not persist normalised Hypeddit links: %s", exc)
-            self.call_from_thread(self._hub_preflight_finished)
-
+        changed = False
         normalised = []
         for row, gate_url in items:
-            if row.track.key not in tracks:
-                normalised.append((row, gate_url))
-                continue
-            refreshed = Row(
-                row.position,
-                row.track,
-                links_module.categorise(row.track),
-            )
-            normalised.append((row, self._find_gate_url(refreshed)))
+            gate_url, item_changed = self._normalise_hypeddit_item(row, gate_url)
+            changed = changed or item_changed
+            normalised.append((row, gate_url))
+        if changed:
+            self._persist_normalised_hubs()
         return normalised
+
+    def _normalise_hypeddit_item(
+        self, row: Row, gate_url: str | None
+    ) -> tuple[str | None, bool]:
+        if (
+            self.crate is None
+            or not gate_url
+            or links_module.host_of(gate_url) not in {"hypeddit.com", "hypd.it"}
+        ):
+            return gate_url, False
+        changed = bool(
+            dig_module.expand_link_hubs(
+                [row.track], timeout=self.dig_options.timeout
+            )
+        )
+        refreshed = Row(
+            row.position,
+            row.track,
+            links_module.categorise(row.track),
+        )
+        return self._find_gate_url(refreshed), changed
+
+    def _persist_normalised_hubs(self) -> None:
+        if self.crate is None:
+            return
+        try:
+            library_module.save(self.crate)
+        except Exception as exc:
+            LOGGER.warning("Could not persist normalised Hypeddit links: %s", exc)
+        self.call_from_thread(self._hub_preflight_finished)
 
     def _hub_preflight_finished(self) -> None:
         tracks = [row.track for row in self.rows]
@@ -562,7 +618,11 @@ class DownloadMixin:
         for key in stale_keys:
             self._paint_download_row(key)
         self.update_status()
-        msg = f"Batch download finished: {completed}/{total} downloaded"
+        msg = (
+            "Batch check finished: no downloadable tracks remained"
+            if total == 0
+            else f"Batch download finished: {completed}/{total} downloaded"
+        )
         if failed > 0:
             msg += f" ({failed} failed)"
         grouped = [
