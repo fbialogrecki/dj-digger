@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Large internal cleanup after a full audit: dead code removed, duplicated
+  logic consolidated, hand-rolled helpers replaced with standard-library
+  equivalents, the seven largest functions split, and undocumented constants
+  annotated. No user-facing behaviour changed, with the one exception below.
+- `hypd.it` gate links now share the same Chromium fallback route as
+  `hypeddit.com` ones when automatic resolution needs a browser step.
+
+### Removed
+
+- The one-time import of pre-0.9 data files (`state.json`, `crates/*.json`)
+  no longer runs, and a crates table written by 0.8 or earlier is dropped and
+  recreated in the new shape. Upgrading from 0.8 or earlier directly to this
+  version therefore starts with an empty library; go through any 0.9–0.13
+  release first if you need those crates and statuses carried over.
+
 ## 0.13.2
 
 ### Added
