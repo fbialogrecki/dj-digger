@@ -1,5 +1,8 @@
 """The modal screens: asking for a link, help, confirmation and settings."""
 
+from collections.abc import Callable
+from threading import Event
+
 from rich.text import Text
 from textual import work
 from textual.app import ComposeResult
@@ -23,7 +26,6 @@ from .. import browser as browser_module
 from ..config import AppConfig, is_real_email
 from .keymap import (
     CRATES,
-    HELP_EXTRA,
     HELP_SCOPES,
     KEY_DISPLAY,
     KEYMAP,
@@ -59,7 +61,7 @@ class AskLinkScreen(ModalScreen[str | None]):
 
     BINDINGS = [Binding("escape", "cancel", "Cancel")]
 
-    def __init__(self, *, message: str = "Paste a SoundCloud link") -> None:
+    def __init__(self, *, message: str) -> None:
         super().__init__()
         self.message = message
 
@@ -126,7 +128,9 @@ class HelpScreen(ModalScreen[None]):
                 (KEY_DISPLAY.get(key, key), detail)
                 for key, _action, _label, group, _show, detail in KEYMAP
                 if group == section
-            ] + HELP_EXTRA.get(section, [])
+            ]
+            if section == WHOLE_LIST:
+                entries.append(("1-9", "Show only the nth store"))
             if not entries:
                 continue
             body.append(section + "\n", style="bold")
@@ -320,15 +324,10 @@ class SoundCloudAuthScreen(ModalScreen[str | None]):
 
     BINDINGS = [Binding("escape", "cancel", "Cancel")]
 
-    def __init__(self, client_id) -> None:
+    def __init__(self, client_id: Callable[[], str]) -> None:
         super().__init__()
         self.client_id = client_id
-        from threading import Event
-
         self.cancel = Event()
-
-    def _client_id(self) -> str:
-        return self.client_id() if callable(self.client_id) else self.client_id
 
     def compose(self) -> ComposeResult:
         with Vertical(id="soundcloud-auth"):
@@ -375,7 +374,7 @@ class SoundCloudAuthScreen(ModalScreen[str | None]):
     def login_in_browser(self) -> None:
         try:
             token, _username, _user_id = auth_module.login_with_chromium(
-                self._client_id(),
+                self.client_id(),
                 cancel=self.cancel,
                 status=lambda message: self.app.call_from_thread(
                     self._set_status, message
@@ -395,7 +394,7 @@ class SoundCloudAuthScreen(ModalScreen[str | None]):
         self.app.call_from_thread(self._set_status, "Verifying the SoundCloud token…")
         try:
             verified_token, _username, _user_id = auth_module.verify_and_save(
-                token, self._client_id()
+                token, self.client_id()
             )
         except auth_module.SoundCloudAuthError as exc:
             if not self.cancel.is_set():

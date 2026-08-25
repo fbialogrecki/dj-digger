@@ -3009,7 +3009,7 @@ def test_pressing_play_twice_without_audio_does_not_crash(records, state, monkey
 
     async def scenario():
         async with app.run_test() as pilot:
-            app.player._loaded = Loaded(track=track, stream=a_stream(), duration=200.0)
+            app.player._loaded = Loaded(track=track, stream=a_stream(duration=200.0))
             app.player._info = SimpleNamespace(sample_rate=44100, nchannels=2)
             await pilot.press("space")
             await pilot.pause()
@@ -3383,6 +3383,9 @@ class StubScanner:
 
     def match_track(self, track):
         return self.matches.get(track.key)
+
+    def had_stale_match(self, _track):
+        return False
 
 
 def test_a_confident_match_marks_an_untouched_track_as_got(records, state):

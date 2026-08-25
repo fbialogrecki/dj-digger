@@ -41,11 +41,10 @@ class TrackState:
     """
 
     def __init__(self, path: Path | None = None) -> None:
-        self.json_path = Path(path) if path else default_state_path()
-        self.path = self.json_path
+        self.path = Path(path) if path else default_state_path()
         db_path = (
-            self.json_path.parent / "digger.db"
-            if self.json_path.suffix == ".json"
+            self.path.parent / "digger.db"
+            if self.path.suffix == ".json"
             else default_db_path()
         )
         self.db = database(db_path)

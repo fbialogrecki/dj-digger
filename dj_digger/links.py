@@ -18,8 +18,7 @@ from urllib.parse import urlparse
 from .browser import is_fetchable, is_openable
 from .models import LinkRecord, Track
 
-DOWNLOAD_KEYWORDS = {"download", "free download", "free d/l"}
-LINK_KEYWORDS = DOWNLOAD_KEYWORDS | {"buy", "purchase", "premiere", "kup"}
+LINK_KEYWORDS = {"download", "free download", "free d/l", "buy", "purchase", "premiere", "kup"}
 
 # Domains grouped by where a link actually takes you. The membership here comes
 # from surveying purchase_url across 53 playlists / 3497 tracks rather than from
@@ -343,11 +342,6 @@ def present_categories(records: Sequence[LinkRecord]) -> list[str]:
     return [name for name in CATEGORY_NAMES if counts[name]]
 
 
-def default_output_path(export_format: str) -> Path:
-    extension = export_format if export_format in {"json", "csv"} else "json"
-    return Path(f"soundcloud_links.{extension}")
-
-
 def export_records(
     records: Sequence[LinkRecord],
     export_format: str,
@@ -358,7 +352,7 @@ def export_records(
     if export_format == "none":
         return None
 
-    path = Path(output_path) if output_path else default_output_path(export_format)
+    path = Path(output_path) if output_path else Path(f"soundcloud_links.{export_format}")
     if path.parent != Path(""):
         path.parent.mkdir(parents=True, exist_ok=True)
 

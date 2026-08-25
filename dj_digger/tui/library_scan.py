@@ -106,8 +106,7 @@ class LibraryScanMixin:
                 continue
             match = scanner.match_track(track)
             if match is None:
-                stale = getattr(scanner, "had_stale_match", lambda _track: False)
-                if stale(track) and self.state.get(track.key) == GOT:
+                if scanner.had_stale_match(track) and self.state.get(track.key) == GOT:
                     self.state.set(track.key, "new")
                     touched = True
                 continue

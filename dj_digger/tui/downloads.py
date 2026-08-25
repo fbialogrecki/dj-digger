@@ -144,7 +144,6 @@ class DownloadMixin:
                     track,
                     gate_url,
                     self._download_directory(),
-                    True,
                     self._gate_cancel,
                 )
             except Exception as browser_exc:

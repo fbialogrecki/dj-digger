@@ -8,7 +8,6 @@ import glob
 import json
 import logging
 import os
-import re
 import shutil
 import sqlite3
 import tempfile
@@ -21,7 +20,6 @@ import requests
 
 CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME") or (Path.home() / ".config")) / "dj-digger"
 AUTH_FILE = CONFIG_DIR / "auth.json"
-OAUTH_TOKEN_RE = re.compile(r'^[0-9]+-[0-9]+-[A-Za-z0-9_-]+')
 
 LOGGER = logging.getLogger(__name__)
 SOUNDCLOUD_SIGN_IN_URL = "https://soundcloud.com/signin"
@@ -34,14 +32,6 @@ class SoundCloudAuthError(RuntimeError):
 
 class SoundCloudAuthCancelled(SoundCloudAuthError):
     """The user cancelled an in-progress SoundCloud login."""
-
-
-class SoundCloudAuthTimeout(SoundCloudAuthError):
-    """The browser login did not yield a SoundCloud OAuth cookie in time."""
-
-
-def auth_file_path() -> Path:
-    return AUTH_FILE
 
 
 def soundcloud_browser_profile_path() -> Path:
@@ -227,19 +217,16 @@ def find_browser_cookie_paths() -> list[str]:
 
     # Linux / macOS standard paths
     home = Path.home()
+    # Only Firefox stores: _extract_sqlite_cookies queries moz_cookies, and
+    # Chromium-family value columns are encrypted/empty anyway, so probing those
+    # stores only copied the user's cookie database to a temp file for nothing.
     candidate_paths.extend(glob.glob(str(home / ".mozilla/firefox/*/cookies.sqlite")))
-    candidate_paths.extend(glob.glob(str(home / ".config/google-chrome/*/Network/Cookies")))
-    candidate_paths.extend(glob.glob(str(home / ".config/chromium/*/Network/Cookies")))
 
     # WSL Windows paths (/mnt/c/Users/<user>/...)
     if os.path.exists("/mnt/c/Users"):
         for win_user_dir in glob.glob("/mnt/c/Users/*"):
             # Firefox on Windows (unencrypted SQLite)
             candidate_paths.extend(glob.glob(f"{win_user_dir}/AppData/Roaming/Mozilla/Firefox/Profiles/*/cookies.sqlite"))
-            # Chrome / Edge / Brave on Windows
-            candidate_paths.extend(glob.glob(f"{win_user_dir}/AppData/Local/Google/Chrome/User Data/*/Network/Cookies"))
-            candidate_paths.extend(glob.glob(f"{win_user_dir}/AppData/Local/Microsoft/Edge/User Data/*/Network/Cookies"))
-            candidate_paths.extend(glob.glob(f"{win_user_dir}/AppData/Local/BraveSoftware/Brave-Browser/User Data/*/Network/Cookies"))
 
     return candidate_paths
 
@@ -248,8 +235,7 @@ def scan_browser_cookies() -> list[str]:
     """Find any plaintext oauth_token values stored in browser cookie stores."""
     found_tokens: list[str] = []
     for path in find_browser_cookie_paths():
-        if "cookies.sqlite" in path or "Cookies" in path:
-            found_tokens.extend(_extract_sqlite_cookies(path))
+        found_tokens.extend(_extract_sqlite_cookies(path))
 
     # Deduplicate while preserving order
     seen = set()
@@ -353,8 +339,9 @@ def login_with_chromium(
                             "That SoundCloud session is no longer valid. Log in again "
                             "in Chromium…"
                         )
-            raise SoundCloudAuthTimeout(
-                "SoundCloud login timed out after 5 minutes; no credentials were saved."
+            raise SoundCloudAuthError(
+                f"SoundCloud login timed out after {timeout / 60:g} minutes; "
+                "no credentials were saved."
             )
 
         def run_browser(profile: Path):

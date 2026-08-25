@@ -52,6 +52,7 @@ DOWNLOAD_CHUNK = 64 * 1024
 # A two hour set is not a track, and a response that will not declare its size
 # could be anything. Both stream off the socket the way everything used to.
 MAX_BUFFER_BYTES = 50 * 1024 * 1024
+SOURCE_TIMEOUT = 30.0
 
 # Two rows of bottom-anchored blocks give 16 levels instead of 8, which is what
 # stops a loud master from rendering as a solid rectangle.
@@ -303,18 +304,6 @@ def paint_waveform(rows: list[str], played_fraction: float, level: float = 0.0) 
     return text
 
 
-def render_waveform(
-    samples: list[int],
-    width: int,
-    played_fraction: float = 0.0,
-    rows: int = WAVEFORM_ROWS,
-    level: float = 0.0,
-) -> Text:
-    """Draw the samples as a stack of block rows, bottom row filling first."""
-
-    return paint_waveform(waveform_rows(samples, width, rows), played_fraction, level)
-
-
 class HttpSourceMixin:
     """Feeds miniaudio from an HTTP response, keeping a copy of it as it goes.
 
@@ -335,12 +324,11 @@ class HttpSourceMixin:
         self,
         session,
         url: str,
-        timeout: float = 30.0,
         max_buffer: int = MAX_BUFFER_BYTES,
     ) -> None:
         self.session = session
         self.url = url
-        self.timeout = timeout
+        self.timeout = SOURCE_TIMEOUT
         self.offset = 0
         self.length: int | None = None
         self._response = None
@@ -559,8 +547,11 @@ def http_source_type(miniaudio):
 class Loaded:
     track: Track
     stream: Stream
-    duration: float
     waveform: list[int] = field(default_factory=list)
+
+    @property
+    def duration(self) -> float:
+        return self.stream.duration
 
 
 class Player:
@@ -682,12 +673,7 @@ class Player:
         self.stop()
         self._session = session
         self._source = source
-        self._loaded = Loaded(
-            track=track,
-            stream=stream,
-            duration=stream.duration,
-            waveform=waveform or [],
-        )
+        self._loaded = Loaded(track=track, stream=stream, waveform=waveform or [])
         self._frames = 0
         self._offset = 0.0
         return self._loaded
@@ -830,7 +816,7 @@ class Player:
         except Exception as exc:
             LOGGER.debug("Closing the audio device complained: %s", exc)
         self._device = None
-        if hasattr(self, "_session") and self._session is not None:
+        if self._session is not None:
             try:
                 self._session.close()
             except Exception as exc:

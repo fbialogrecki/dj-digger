@@ -151,6 +151,3 @@ KEY_DISPLAY = {
     "o,enter": "o, enter",
     "X": "shift+X",
 }
-HELP_EXTRA = {
-    WHOLE_LIST: [("1-9", "Show only the nth store")],
-}

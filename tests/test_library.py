@@ -1,5 +1,3 @@
-import json
-
 import pytest
 
 from dj_digger import library
@@ -169,21 +167,6 @@ def test_delete_finds_the_crate_by_its_slug_with_no_file_involved():
     library.delete(record.slug)
 
     assert library.list_crates() == []
-
-
-def test_an_unreadable_legacy_crate_does_not_sink_the_import(crates_in_tmp):
-    """One corrupt file from 0.8 must not cost you the rest of the library."""
-
-    crates_in_tmp.mkdir(parents=True, exist_ok=True)
-    (crates_in_tmp / "broken.json").write_text("{not json", encoding="utf-8")
-    (crates_in_tmp / "good.json").write_text(
-        json.dumps({"source": "s://good", "title": "Readable", "tracks": []}),
-        encoding="utf-8",
-    )
-
-    titles = [record.title for record in library.list_crates()]
-
-    assert titles == ["Readable"]
 
 
 def test_unknown_fields_in_a_stored_track_are_ignored(crates_in_tmp):

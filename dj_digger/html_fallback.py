@@ -24,20 +24,6 @@ TRACK_URL_PATTERN = re.compile(
 )
 HYDRATION_RE = re.compile(r"window\.__sc_hydration\s*=\s*")
 
-RESERVED_TRACK_SLUGS = {
-    "sets",
-    "albums",
-    "tracks",
-    "followers",
-    "following",
-    "likes",
-    "reposts",
-    "library",
-    "popular-tracks",
-    "groups",
-    "comments",
-    "events",
-}
 RESERVED_FIRST_SEGMENTS = {
     "about",
     "contributors",
@@ -69,6 +55,8 @@ RESERVED_SECOND_SEGMENTS = {
     "comments",
     "reposts",
     "popular-tracks",
+    "groups",
+    "events",
 }
 
 LOGGER = logging.getLogger(__name__)
@@ -93,8 +81,6 @@ def is_reserved_path(path_segments: list[str]) -> bool:
         return True
     if len(path_segments) >= 2 and path_segments[1].lower() in RESERVED_SECOND_SEGMENTS:
         return True
-    if first_segment.startswith("pages") or first_segment in {"charts", "company", "getstarted"}:
-        return True
     return False
 
 
@@ -107,8 +93,6 @@ def parse_track_links_from_html(html: str) -> set[str]:
             href = urljoin("https://soundcloud.com", href)
         match = TRACK_URL_PATTERN.match(href)
         if not match:
-            continue
-        if match.group(2).lower() in RESERVED_TRACK_SLUGS:
             continue
         cleaned = clean_track_url(href)
         segments = [seg for seg in urlparse(cleaned).path.split("/") if seg]

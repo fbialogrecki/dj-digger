@@ -481,10 +481,9 @@ def products_from_html(html: str, page_url: str, store: str) -> list[StoreProduc
     return products
 
 
-Resolver = Callable[[Track, str, str], CartItem]
-
-
-def plan_requests(requests: Iterable[CartRequest], resolve: Resolver) -> CartPlan:
+def plan_requests(
+    requests: Iterable[CartRequest], resolve: Callable[[Track, str, str], CartItem]
+) -> CartPlan:
     """Resolve requests in preference order, allowing only business fallback."""
 
     items: list[CartItem] = []
@@ -663,10 +662,6 @@ def _only_visible(locator: Any) -> Any | None:
         return visible[0] if len(visible) == 1 else None
     except Exception:
         return None
-
-
-def _visible(locator: Any) -> bool:
-    return _only_visible(locator) is not None
 
 
 def _first_visible(*locators: Any) -> Any | None:
@@ -1132,7 +1127,6 @@ def execute_cart(
     cancel: Event,
     *,
     profile: Path | None = None,
-    keep_open: bool = True,
 ) -> tuple[CartResult, ...]:
     with _browser_context(profile) as context:
         page = context.pages[0] if context.pages else context.new_page()
@@ -1164,6 +1158,6 @@ def execute_cart(
         for item in plan.items:
             if (item.track_key, item.store) in successful_items:
                 cart_targets.setdefault(item.store, item.product_url)
-        if keep_open and cart_targets and not cancel.is_set():
+        if cart_targets and not cancel.is_set():
             _wait_with_carts_open(context, cart_targets, cancel)
         return results

@@ -21,20 +21,15 @@ from .. import browser as browser_module
 from .. import dig as dig_module
 from ..library import CrateRecord
 from ..models import LinkRecord
-from ..player import PlayerBar
 from ..state import TrackState
 from .app import DiggerApp
 from .keymap import (
     CALM_TICK,
     CRATES,
     FLASH,
-    HELP_EXTRA,
-    HELP_SCOPES,
-    KEY_DISPLAY,
     KEYMAP,
     MIN_TITLE_WIDTH,
     OTHER,
-    PLAYBACK,
     PLAYING_GLYPH,
     SELECTED,
     SPINNER,
@@ -57,20 +52,17 @@ from .widgets import (
     CrateButton,
     CrateItem,
     ErrorBanner,
-    FittedFooter,
-    SearchInput,
-    StatusBar,
     TrackTable,
 )
 
 __all__ = [
-    "CALM_TICK", "CRATES", "FLASH", "HELP_EXTRA", "HELP_SCOPES", "KEYMAP",
-    "KEY_DISPLAY", "MIN_TITLE_WIDTH", "OTHER", "PLAYBACK", "PLAYING_GLYPH",
+    "CALM_TICK", "CRATES", "FLASH", "KEYMAP",
+    "MIN_TITLE_WIDTH", "OTHER", "PLAYING_GLYPH",
     "SELECTED", "SPINNER", "SPINNER_EVERY", "STATUS_STYLES", "TICK",
     "WHOLE_LIST", "AskLinkScreen", "ConfirmScreen", "ContextMenuScreen", "GateProfileScreen", "CrateButton", "CrateItem",
-    "DiggerApp", "ErrorBanner", "FittedFooter", "HelpScreen", "PlayerBar",
-    "Prepared", "Row", "SearchInput",
-    "SettingsScreen", "SoundCloudAuthScreen", "StatusBar", "TrackTable", "browser_module", "run_tui",
+    "DiggerApp", "ErrorBanner", "HelpScreen",
+    "Prepared", "Row",
+    "SettingsScreen", "SoundCloudAuthScreen", "TrackTable", "browser_module", "run_tui",
 ]
 
 
@@ -100,9 +92,3 @@ def run_tui(
         app.run()
     finally:
         logger.setLevel(previous_level)
-        player = getattr(app, "player", None)
-        if player is not None:
-            player.close()
-        client = getattr(app, "_client", None)
-        if client is not None:
-            client.close()

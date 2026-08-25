@@ -13,7 +13,6 @@ from dj_digger.gates import (
     resolve_gaterush_download_url,
     resolve_hypeddit_download_url,
     resolve_toneden_download_url,
-    store_links_on_page,
 )
 from dj_digger.models import Track
 
@@ -547,7 +546,6 @@ def test_hypeddit_fallback_shares_the_soundcloud_browser_profile_lock(tmp_path):
                 Track(title="T", permalink_url="https://soundcloud.com/a/t"),
                 "https://hypeddit.com/track/x",
                 tmp_path,
-                False,
                 None,
             )
     finally:
@@ -793,21 +791,26 @@ def test_a_hub_page_gives_up_the_shops_behind_its_own_redirects():
         },
     )
 
-    found = store_links_on_page("https://label.ampsuite.com/releases/links?id=1", session)
+    inspection = inspect_link_page(
+        "https://label.ampsuite.com/releases/links?id=1", session
+    )
 
-    assert [url for url, _text in found] == [
+    assert inspection.keep_original is False
+    assert [url for url, _text in inspection.shops] == [
         "https://www.beatport.com/release/know-your-place/7057750",
         "https://label.bandcamp.com/album/know-your-place",
     ]
-    assert [text for _url, text in found] == ["Beatport", "Bandcamp"]
+    assert [text for _url, text in inspection.shops] == ["Beatport", "Bandcamp"]
 
 
 def test_a_hub_page_does_not_offer_the_streaming_services_it_lists():
     """Spotify is on the page, but you cannot buy the record there."""
 
     session = HubSession(HUB_PAGE)
-    found = store_links_on_page("https://label.ampsuite.com/releases/links?id=1", session)
-    assert not any("spotify" in url for url, _text in found)
+    inspection = inspect_link_page(
+        "https://label.ampsuite.com/releases/links?id=1", session
+    )
+    assert not any("spotify" in url for url, _text in inspection.shops)
 
 
 def test_hypeddit_smart_link_keeps_only_its_beatport_destination():
@@ -818,14 +821,15 @@ def test_hypeddit_smart_link_keeps_only_its_beatport_destination():
     </body></html>
     """
 
-    found = store_links_on_page(
+    inspection = inspect_link_page(
         "https://hypeddit.com/l87679",
         HubSession(page, landed="https://hypeddit.com/l87679"),
     )
 
-    assert found == [
-        ("https://www.beatport.com/release/whiplash/3629013", "Buy")
-    ]
+    assert inspection.keep_original is False
+    assert inspection.shops == (
+        ("https://www.beatport.com/release/whiplash/3629013", "Buy"),
+    )
 
 
 def test_a_page_that_hands_over_a_file_is_left_as_a_gate():
@@ -835,7 +839,9 @@ def test_a_page_that_hands_over_a_file_is_left_as_a_gate():
         '<html><body><a href="https://label.bandcamp.com/track/a">Buy</a>'
         "<button>Free Download</button></body></html>"
     )
-    assert store_links_on_page("https://hypeddit.com/track/abc", HubSession(page)) == []
+    assert inspect_link_page(
+        "https://hypeddit.com/track/abc", HubSession(page)
+    ).keep_original is True
 
     inspection = inspect_link_page(
         "https://hypeddit.com/track/abc",
@@ -875,8 +881,10 @@ def test_a_shop_linked_twice_is_returned_once():
         page,
         redirects={"https://label.ampsuite.com/go?store=1": "https://label.bandcamp.com/album/a"},
     )
-    found = store_links_on_page("https://label.ampsuite.com/releases/links?id=1", session)
-    assert len(found) == 1
+    inspection = inspect_link_page(
+        "https://label.ampsuite.com/releases/links?id=1", session
+    )
+    assert len(inspection.shops) == 1
 
 
 def test_an_unreachable_hub_changes_nothing():
@@ -884,7 +892,7 @@ def test_an_unreachable_hub_changes_nothing():
 
     session = MagicMock(spec=requests.Session)
     session.get.side_effect = requests.RequestException("nope")
-    assert store_links_on_page("https://label.ampsuite.com/x", session) is None
+    assert inspect_link_page("https://label.ampsuite.com/x", session) is None
 
 
 def test_a_host_that_answered_404_is_not_reported_as_unreachable():
@@ -892,10 +900,13 @@ def test_a_host_that_answered_404_is_not_reported_as_unreachable():
 
     session = MagicMock(spec=requests.Session)
     session.get.return_value = MagicMock(status_code=404, text="", url="https://label.ampsuite.com/x")
-    assert store_links_on_page("https://label.ampsuite.com/x", session) == []
+    inspection = inspect_link_page("https://label.ampsuite.com/x", session)
+    assert inspection is not None
+    assert inspection.shops == () and inspection.keep_original is False
 
 
 def test_an_address_on_our_own_network_is_never_fetched():
     session = MagicMock(spec=requests.Session)
-    assert store_links_on_page("http://169.254.169.254/latest/meta-data/", session) == []
+    inspection = inspect_link_page("http://169.254.169.254/latest/meta-data/", session)
+    assert inspection.shops == () and inspection.keep_original is False
     session.get.assert_not_called()

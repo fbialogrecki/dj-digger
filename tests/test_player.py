@@ -27,6 +27,14 @@ class FakeClient:
         return self.authorized
 
 
+
+def render_waveform(samples, width, played_fraction=0.0, rows=player.WAVEFORM_ROWS, level=0.0):
+    """Compose the two real drawing stages the way the app does."""
+
+    return player.paint_waveform(
+        player.waveform_rows(samples, width, rows), played_fraction, level
+    )
+
 def playable_payload(**overrides):
     payload = {
         "id": 1,
@@ -102,20 +110,20 @@ def test_resolve_complains_when_no_url_comes_back():
 def test_the_waveform_is_squashed_to_the_asked_width():
     samples = list(range(100))
     for width in (20, 7):
-        rows = str(player.render_waveform(samples, width, rows=1)).split("\n")
+        rows = str(render_waveform(samples, width, rows=1)).split("\n")
         assert [len(row) for row in rows] == [width]
 
 
 def test_the_waveform_is_two_rows_by_default():
     """One row of eight blocks is what made a loud master look like a rectangle."""
 
-    rows = str(player.render_waveform(list(range(50)), 12)).split("\n")
+    rows = str(render_waveform(list(range(50)), 12)).split("\n")
     assert len(rows) == 2
     assert all(len(row) == 12 for row in rows)
 
 
 def test_the_bottom_row_fills_before_the_top():
-    rendered = str(player.render_waveform([0, 140], 2)).split("\n")
+    rendered = str(render_waveform([0, 140], 2)).split("\n")
     top, bottom = rendered
     # Quiet column: nothing on top, nothing much at the bottom.
     assert top[0] == " "
@@ -124,7 +132,7 @@ def test_the_bottom_row_fills_before_the_top():
 
 
 def test_a_missing_waveform_draws_flat_lines():
-    rows = str(player.render_waveform([], 5)).split("\n")
+    rows = str(render_waveform([], 5)).split("\n")
     assert rows == ["\u2500" * 5, "\u2500" * 5]
 
 
@@ -135,7 +143,7 @@ def styled_width(text, style):
 
 
 def test_the_played_part_is_styled_differently():
-    rendered = player.render_waveform([100] * 10, 10, played_fraction=0.5, rows=1)
+    rendered = render_waveform([100] * 10, 10, played_fraction=0.5, rows=1)
 
     assert styled_width(rendered, player.PLAYED_STYLE) == 5
     assert styled_width(rendered, player.UNPLAYED_STYLE) == 5
@@ -146,20 +154,20 @@ def test_the_played_part_is_styled_differently():
 
 @pytest.mark.parametrize("fraction,expected_played", [(0.0, 0), (0.5, 5), (1.0, 10)])
 def test_the_progress_boundary_follows_the_fraction(fraction, expected_played):
-    rendered = player.render_waveform([100] * 10, 10, played_fraction=fraction, rows=1)
+    rendered = render_waveform([100] * 10, 10, played_fraction=fraction, rows=1)
     assert styled_width(rendered, player.PLAYED_STYLE) == expected_played
 
 
 def test_a_frame_costs_a_handful_of_spans_not_one_per_column():
     """Thirty frames a second is only affordable because of this."""
 
-    rendered = player.render_waveform([100] * 400, 400, played_fraction=0.5, level=1.0)
+    rendered = render_waveform([100] * 400, 400, played_fraction=0.5, level=1.0)
     assert len(rendered.spans) <= 3 * player.WAVEFORM_ROWS
 
 
 def test_the_leading_edge_brightens_with_the_level():
-    quiet = player.render_waveform([100] * 60, 60, played_fraction=0.5, rows=1, level=0.0)
-    loud = player.render_waveform([100] * 60, 60, played_fraction=0.5, rows=1, level=1.0)
+    quiet = render_waveform([100] * 60, 60, played_fraction=0.5, rows=1, level=0.0)
+    loud = render_waveform([100] * 60, 60, played_fraction=0.5, rows=1, level=1.0)
 
     assert styled_width(quiet, player.GLOW_STYLES[-1]) == 0
     assert styled_width(loud, player.GLOW_STYLES[-1]) == player.GLOW_COLUMNS
@@ -168,7 +176,7 @@ def test_the_leading_edge_brightens_with_the_level():
 def test_the_played_history_does_not_flicker_with_it():
     """Only the columns behind the playhead move; the rest is a record."""
 
-    loud = player.render_waveform([100] * 60, 60, played_fraction=0.5, rows=1, level=1.0)
+    loud = render_waveform([100] * 60, 60, played_fraction=0.5, rows=1, level=1.0)
     assert styled_width(loud, player.PLAYED_STYLE) == 30 - player.GLOW_COLUMNS
 
 
@@ -248,17 +256,17 @@ def test_the_glow_never_falls_off_the_end_of_the_palette(level):
 
 def test_a_fraction_outside_the_range_is_clamped():
     for fraction in (-5.0, 7.0):
-        rendered = player.render_waveform([100] * 4, 4, played_fraction=fraction, rows=1)
+        rendered = render_waveform([100] * 4, 4, played_fraction=fraction, rows=1)
         assert len(str(rendered)) == 4
 
 
 def test_loud_and_quiet_samples_map_to_different_glyphs():
-    rendered = str(player.render_waveform([1, 140], 2, rows=1))
+    rendered = str(render_waveform([1, 140], 2, rows=1))
     assert rendered[0] != rendered[1]
 
 
 def test_zero_width_is_not_a_crash():
-    assert str(player.render_waveform([1, 2, 3], 0)) == ""
+    assert str(render_waveform([1, 2, 3], 0)) == ""
 
 
 def test_levels_are_measured_against_the_peak():
@@ -273,7 +281,7 @@ def test_a_loud_master_still_shows_shape():
     levels = player.column_levels(loud, 8)
     # The power curve has to spread the top of the range enough to see.
     assert max(levels) - min(levels) > 0.2
-    assert len(set(str(player.render_waveform(loud, 8, rows=1)))) > 2
+    assert len(set(str(render_waveform(loud, 8, rows=1)))) > 2
 
 
 def test_a_track_with_no_dynamics_is_not_faked_into_having_some():
@@ -406,8 +414,7 @@ def loaded_player(monkeypatch, chunks=None):
     monkeypatch.setattr(subject, "_open_stream", lambda seek_frame: fake_inner())
     subject._loaded = player.Loaded(
         track=Track(title="t", permalink_url="u"),
-        stream=player.Stream(url="https://cdn/x.mp3"),
-        duration=300.0,
+        stream=player.Stream(url="https://cdn/x.mp3", duration=300.0),
     )
     subject._miniaudio = object()
     return subject, device

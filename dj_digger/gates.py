@@ -88,7 +88,6 @@ class HypedditManifest:
 
     csrf: str
     file_id: str
-    fan_gate_id: str
     gvt: str
     gvf: str
     wrndk: str
@@ -99,9 +98,6 @@ class HypedditManifest:
     yt_comment_required: bool = False
     email_download_required: bool = False
     is_skippable: str = "0"
-    lifetime_fan_spotify: bool = False
-    lifetime_fan_deezer: bool = False
-    lifetime_fan_apple: bool = False
     is_mobile: str = ""
     hypesource: str = ""
     adcode: str = ""
@@ -157,7 +153,6 @@ def _identity_for(config: Any | None) -> Any:
         )
     return config
 
-HYPEDDIT_RE = re.compile(r'https?://(?:www\.)?hypeddit\.com/(?:track/)?([a-zA-Z0-9_-]+)')
 TONEDEN_RE = re.compile(r'https?://(?:www\.)?toneden\.io/([^/]+)/post/([a-zA-Z0-9_-]+)')
 
 DEFAULT_HEADERS = {
@@ -171,15 +166,15 @@ DEFAULT_HEADERS = {
 }
 
 
-def _clean_url(raw_url: str | None, *, allow_preview: bool = False) -> str | None:
+def _clean_url(raw_url: str | None) -> str | None:
     """Clean and validate an extracted download URL, rejecting preview clips."""
     if not raw_url or not isinstance(raw_url, str):
         return None
     cleaned = html.unescape(raw_url.replace("\\/", "/")).strip('"\' ')
     lower = cleaned.lower()
-    if not allow_preview and ("_preview" in lower or "/preview/" in lower):
+    if "_preview" in lower or "/preview/" in lower:
         return None
-    if cleaned.startswith("http://") or cleaned.startswith("https://"):
+    if cleaned.startswith(("http://", "https://")):
         return cleaned
     return None
 
@@ -374,7 +369,6 @@ def inspect_hypeddit_html(url: str, text: str) -> HypedditInspection:
         manifest = HypedditManifest(
             csrf=csrf,
             file_id=file_id or fan_gate_id,
-            fan_gate_id=fan_gate_id,
             gvt=_first(fields, "gvt"),
             gvf=_first(fields, "gvf", "0"),
             wrndk=_first(fields, "wrndk"),
@@ -385,9 +379,6 @@ def inspect_hypeddit_html(url: str, text: str) -> HypedditInspection:
             yt_comment_required=_first(fields, "comment_yt") == "1",
             email_download_required="email" in steps,
             is_skippable=_first(fields, "is_skippable", "0"),
-            lifetime_fan_spotify=_first(fields, "lifetime_fan_spotify") == "1",
-            lifetime_fan_deezer=_first(fields, "lifetime_fan_deezer") == "1",
-            lifetime_fan_apple=_first(fields, "lifetime_fan_apple") == "1",
             is_mobile=_first(fields, "is_mobile"),
             hypesource=hypesource or _first(fields, "hypesource"),
             adcode=adcode or _first(fields, "adcode"),
@@ -605,38 +596,10 @@ def resolve_hypeddit_download_url(
     return cleaned
 
 
-def _drive_hypeddit_page(page: Any) -> None:
-    """Advance known Hypeddit controls without touching an external provider page."""
-
-    if not _is_hypeddit_url(str(getattr(page, "url", ""))):
-        return
-    selectors = (
-        "#login_to_sp",
-        "#skipper_sp_next",
-        "#skipper_sc_next",
-        "#skipper_yt_next",
-        "#skipper_ig_next",
-        "#skipper_tw_next",
-        "#skipper_tk_next",
-        "#skipper_bc_next",
-        "#gateDownloadButton",
-        "#download_email_button",
-    )
-    for selector in selectors:
-        try:
-            locator = page.locator(selector)
-            if locator.count() and locator.first.is_visible() and locator.first.is_enabled():
-                locator.first.click(timeout=1000)
-                return
-        except Exception:
-            continue
-
-
 def download_hypeddit_in_browser(
     track: Any,
     url: str,
     directory: Path,
-    interactive: bool,
     cancel: Any,
 ) -> Path:
     """Finish a provider-owned Hypeddit flow in the existing private browser."""
@@ -670,18 +633,15 @@ def download_hypeddit_in_browser(
                 if not _is_hypeddit_url(page.url):
                     raise GateProtocolChanged("Hypeddit redirected outside its canonical hosts")
 
-                deadline = time.monotonic() + (300 if interactive else 30)
+                deadline = time.monotonic() + 300
                 while time.monotonic() < deadline and not downloads:
                     if cancel is not None and cancel.is_set():
                         raise GateManualActionRequired("cancelled")
                     for open_page in context.pages:
                         watch(open_page)
-                        if not interactive:
-                            _drive_hypeddit_page(open_page)
                     page.wait_for_timeout(250)
                 if not downloads:
-                    reason = "manual browser step" if interactive else "provider login or CAPTCHA"
-                    raise GateManualActionRequired(reason)
+                    raise GateManualActionRequired("manual browser step")
                 return soundcloud.save_browser_download(downloads[0], track, directory)
         except GateError:
             raise
@@ -1196,21 +1156,6 @@ def inspect_link_page(
     return LinkPageInspection(
         tuple(unique.values()), gate_urls, keep_original, recognized
     )
-
-
-def store_links_on_page(
-    url: str,
-    session: requests.Session,
-    timeout: float = 10.0,
-) -> list[tuple[str, str]] | None:
-    """Compatibility wrapper returning shops only for a pure link hub."""
-
-    inspection = inspect_link_page(url, session, timeout)
-    if inspection is None:
-        return None
-    if inspection.keep_original:
-        return []
-    return list(inspection.shops)
 
 
 def can_resolve(url: str) -> bool:

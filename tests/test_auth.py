@@ -219,7 +219,7 @@ def test_browser_login_times_out_without_saving_any_cookie(monkeypatch):
         auth, "save_token", lambda *_args: pytest.fail("missing token was saved")
     )
 
-    with pytest.raises(auth.SoundCloudAuthTimeout):
+    with pytest.raises(auth.SoundCloudAuthError, match="timed out"):
         auth.login_with_chromium("client", timeout=0, context_factory=context_factory)
 
 

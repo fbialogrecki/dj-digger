@@ -152,10 +152,8 @@ class StatusBar(Static):
 
     def on_click(self, event: events.Click) -> None:
         app = self.app
-        if not hasattr(app, "_badge_click_regions"):
-            return
         x = event.x
-        for start_x, end_x, store_idx in getattr(app, "_badge_click_regions", []):
+        for start_x, end_x, store_idx in app._badge_click_regions:
             if start_x <= x < end_x:
                 app.action_filter_index(store_idx)
                 break

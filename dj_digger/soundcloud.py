@@ -472,8 +472,6 @@ class SoundCloudClient:
         # evil-soundcloud.com.attacker.net, which would then be handed our
         # client_id along with the request.
         ours = host == "soundcloud.com" or host.endswith(".soundcloud.com")
-        if not (download_url.startswith("http://") or download_url.startswith("https://")):
-            raise SoundCloudError("Invalid or unsafe download URL scheme")
 
         directory = Path(directory)
         directory.mkdir(parents=True, exist_ok=True)
