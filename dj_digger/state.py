@@ -6,8 +6,8 @@ marks it in every crate that contains it.
 Until 0.9 every change was also mirrored into state.json, which nothing ever
 read back - ``get`` has always asked SQLite. The mirror existed to be migrated
 from, and it cost a full rewrite of the file on every single mark, which is why
-a library scan needed ``batched()`` to hold it back. A state.json written by an
-older version is imported once, by ``db.Database``, and then left alone.
+a library scan needed ``batched()`` to hold it back. The current database has no
+JSON import path; a state.json written by an older version is left alone.
 """
 
 import logging

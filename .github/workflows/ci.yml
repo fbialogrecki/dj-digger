@@ -19,6 +19,8 @@ jobs:
       # Pinned to a commit rather than a tag, as in publish.yml: a tag can be
       # moved to point at new code.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check specification section map
+        run: python3 scripts/spec_section_map.py --check
       - name: Install uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
       - name: Ruff

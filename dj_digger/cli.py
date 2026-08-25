@@ -126,7 +126,7 @@ def build_parser() -> argparse.ArgumentParser:
         "open",
         help="Reopen a previously exported summary.",
     )
-    open_cmd.add_argument("summary_file", type=Path, help="Path to an exported JSON/YAML summary")
+    open_cmd.add_argument("summary_file", type=Path, help="Path to an exported JSON summary")
     open_cmd.add_argument(
         "--category",
         choices=links.CATEGORY_CHOICES,

@@ -8,6 +8,10 @@
 > **The ultimate crate-digging companion for DJs and electronic music collectors.**
 > Instantly extract purchase links, free downloads, and download gates from SoundCloud playlists, user likes, or artist profiles—then preview tracks and manage your library in a high-performance terminal interface.
 
+The current implemented behavior, architecture, interfaces, data model, and
+security/privacy boundaries are maintained in
+[PROJECT-SPECIFICATION.md](PROJECT-SPECIFICATION.md).
+
 ```bash
 dj-digger https://soundcloud.com/someone/sets/that-playlist
 ```
