@@ -181,7 +181,7 @@ wheels = [
 
 [[package]]
 name = "dj-soundcloud-digger"
-version = "0.12.0"
+version = "0.12.1"
 source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },
@@ -213,7 +213,7 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
     { name = "textual", specifier = ">=0.60" },
 ]
-provides-extras = ["play", "dev"]
+provides-extras = ["play", "shop", "dev"]
 
 [[package]]
 name = "greenlet"

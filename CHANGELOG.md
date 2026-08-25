@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.12.1
+
+### Fixed
+
+- Restored the legacy `shop` extra as an empty compatibility alias. Playwright
+  remains installed as a core dependency, while existing `pipx` and `uv tool`
+  update commands using `dj-soundcloud-digger[shop]` no longer emit a warning.
+
 ## 0.12.0
 
 ### Added

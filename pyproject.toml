@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dj-soundcloud-digger"
-version = "0.12.0"
+version = "0.12.1"
 description = "Dig purchase and free-download links out of SoundCloud playlists, likes and profiles"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -38,6 +38,8 @@ dependencies = [
 # Audio preview. Kept optional so a platform without a miniaudio wheel can still
 # install the link digger; the player degrades with a message when it is absent.
 play = ["miniaudio>=1.59"]
+# Compatibility for installs created before Playwright became a core dependency.
+shop = []
 dev = ["pytest>=7.0", "miniaudio>=1.59", "ruff>=0.6"]
 
 [project.scripts]
