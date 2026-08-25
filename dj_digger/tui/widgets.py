@@ -160,9 +160,18 @@ class StatusBar(Static):
 
 
 class ErrorBanner(Widget):
-    """Top bar displaying error/debug messages with a scrollable view and an [X] close button."""
+    """Top bar for errors: one summary line, with the messages a click away.
+
+    A batch download that fails on thirteen gates used to open half the screen
+    the moment it finished, over the list you were reading. What is worth that
+    much room at that instant is the count; the messages themselves stay one
+    click - and one scroll - away.
+    """
 
     DEFAULT_CSS = """
+    /* Capped rather than the full width of the terminal: eighty-odd columns is
+       as wide as a line of prose wants to be read at, and a bar that stops
+       short reads as a panel over the list rather than as a new top bar. */
     ErrorBanner {
         display: none;
         background: $error-darken-2;
@@ -170,40 +179,62 @@ class ErrorBanner(Widget):
         height: auto;
         max-height: 12;
         width: 100%;
-        padding: 0 1;
+        max-width: 88;
         dock: top;
         border-bottom: solid $error;
+        border-right: solid $error;
     }
     ErrorBanner.visible {
         display: block;
     }
-    #error-container {
+    #error-head {
+        height: 1;
+        width: 100%;
+    }
+    #error-summary {
+        width: 1fr;
+        height: 1;
+        padding: 0 1;
+        text-style: bold;
+    }
+    #error-summary:hover {
+        background: $error;
+    }
+    /* Hidden until asked for, and then no more than ten lines of it - past that
+       it is a log, and a log belongs in a scroll box rather than on the screen. */
+    #error-scroll {
+        display: none;
         width: 100%;
         height: auto;
-        max-height: 11;
-    }
-    #error-scroll {
-        width: 1fr;
-        height: auto;
         max-height: 10;
-        overflow-y: scroll;
+        padding: 0 1;
+        scrollbar-size-vertical: 1;
+        scrollbar-background: $error-darken-2;
+        scrollbar-color: $error-lighten-2;
+        scrollbar-color-hover: white;
+        scrollbar-color-active: white;
+    }
+    ErrorBanner.expanded #error-scroll {
+        display: block;
     }
     #error-text {
         width: 1fr;
         height: auto;
     }
+    /* Three columns and no border: the old seven-wide yellow block read as the
+       most important thing on a screen it was only there to get out of. */
     #error-close {
-        width: 7;
-        min-width: 7;
+        width: 3;
+        min-width: 3;
         height: 1;
         border: none;
-        background: $error;
+        padding: 0;
+        background: transparent;
         color: white;
-        text-style: bold;
     }
     #error-close:hover {
-        background: yellow;
-        color: black;
+        background: $error;
+        text-style: bold;
     }
     """
 
@@ -212,10 +243,11 @@ class ErrorBanner(Widget):
         self.errors: list[str] = []
 
     def compose(self) -> ComposeResult:
-        with Horizontal(id="error-container"):
-            with VerticalScroll(id="error-scroll"):
-                yield Static("", id="error-text")
-            yield Button("X", id="error-close", tooltip="Close error banner (clear all errors)")
+        with Horizontal(id="error-head"):
+            yield Static("", id="error-summary")
+            yield Button("\u2715", id="error-close", tooltip="Dismiss all errors")
+        with VerticalScroll(id="error-scroll"):
+            yield Static("", id="error-text")
 
     def add_error(self, message: str) -> None:
         if message and message not in self.errors:
@@ -224,25 +256,41 @@ class ErrorBanner(Widget):
 
     def clear_errors(self) -> None:
         self.errors.clear()
+        # Collapsed again, so the next failure does not arrive pre-opened.
+        self.remove_class("expanded")
         self._update_display()
 
     def _update_display(self) -> None:
         try:
-            msg_widget = self.query_one("#error-text", Static)
+            summary = self.query_one("#error-summary", Static)
+            messages = self.query_one("#error-text", Static)
         except Exception:
             return
         if not self.errors:
             self.remove_class("visible")
-            msg_widget.update("")
+            summary.update("")
+            messages.update("")
             return
 
         self.add_class("visible")
-        content = Text(
-            f"Errors / Debug Log ({len(self.errors)} total, scrollable):\n",
-            style="bold yellow",
+        open_now = self.has_class("expanded")
+        arrow, verb = ("\u25be", "hide") if open_now else ("\u25b8", "read")
+        count = len(self.errors)
+        plural = "" if count == 1 else "s"
+        summary.update(
+            Text(f"{arrow} {count} error{plural} - click to {verb}", style="bold yellow")
         )
-        content.append("\n".join(f"• {message}" for message in self.errors))
-        msg_widget.update(content)
+        # Text(), not markup: a failure that quotes a track called "Rido - Sexy
+        # Thing [Clip]" must not lose the bracket to the markup parser.
+        messages.update(Text("\n".join(f"\u2022 {message}" for message in self.errors)))
+
+    def on_click(self, event: events.Click) -> None:
+        # Only the summary toggles. Clicking a message you are trying to read
+        # should not be what closes it.
+        widget = getattr(event, "widget", None)
+        if self.errors and widget is not None and widget.id == "error-summary":
+            self.toggle_class("expanded")
+            self._update_display()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "error-close":

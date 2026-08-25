@@ -2,6 +2,64 @@
 
 ## Unreleased
 
+## 0.14.0
+
+### Added
+
+- The player bar now carries a one-row control strip under the waveform:
+  previous, play/pause and next buttons, the track title, the clock, a volume
+  slider you can click or drag, and a close button. `ctrl+w` closes it from the
+  keyboard. Play/pause there acts on the track that is playing rather than on
+  the row the cursor sits on.
+- `--log-file PATH` writes the log to a file, with timestamps, instead of to the
+  terminal - and the crate browser no longer silences the log when it is given.
+  Textual draws the interface on standard error, so a log line under the browser
+  landed in the middle of the track list and redirecting the shell's stderr to
+  catch it took the interface with it. There was no way to keep a log of a TUI
+  session before this.
+
+### Fixed
+
+- Any exception out of a player operation - not just the ones the player has
+  names for - is now shown as a player message instead of escaping through
+  Textual's message pump and taking the TUI down.
+- A TUI crash is written to `--log-file` with its traceback before the screen
+  is torn down, and the log captures native (segfault-level) crashes too via
+  `faulthandler`. Previously a crash could erase its own report along with the
+  alternate screen, leaving the log ending mid-sentence.
+- A backend that refuses to start or stop the audio device no longer crashes the
+  app. Pressing play twice in quick succession was enough: miniaudio raises its
+  own numbered error out of `device.start`, and nothing on the interface side
+  caught it, so it came out through Textual's message pump. It is now reported
+  the same way a missing audio device already was, and the device is rebuilt on
+  the next attempt.
+- Starting a track no longer opens its stream from the interface thread. The
+  connect waits up to thirty seconds for a slow CDN, and the whole TUI was
+  frozen behind it; it now happens on the worker that already fetches the rest
+  of what the track needs.
+
+### Changed
+
+- The error banner opens collapsed to one summary line with the error count.
+  Click it to read the messages, click it again to fold them away. It used to
+  arrive with every message on screen, taking half the terminal over the list
+  you were reading. Its close control is now a three-column `✕` rather than a
+  yellow block, the bar stops at 88 columns instead of spanning the terminal,
+  and the message list has a thin scrollbar in the banner's own colours.
+- The transport buttons are bold text glyphs (`◀◀`, `▶`/`❚❚`, `▶▶`, `✕`) on
+  three-row translucent chips - no emoji, which every terminal renders in its
+  own colour and size, and no theme-coloured background. A terminal cell cannot
+  be scaled, so chip size and weight are what make them read as controls; the
+  volume slider's speaker went the same way (`♪` / `Ø`).
+- The playhead pulse is two columns in shades of cyan instead of a twelve-column
+  band reaching bold white, which read as the tail of the waveform flickering
+  thirty times a second.
+- The player bar is a row shorter overall and its waveform is twice as tall:
+  the title, the clock and the play/pause glyph moved down into the control
+  strip, and the four rows that frees go to the picture.
+- The crate sidebar heading is centred, with a blank row between it and the
+  first crate name.
+
 ## 0.13.3
 
 ### Changed

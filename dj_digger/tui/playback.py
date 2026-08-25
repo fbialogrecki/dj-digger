@@ -164,6 +164,15 @@ class PlaybackMixin:
         except PlaybackUnavailable as exc:
             self._playback_failed(str(exc))
             return
+        except Exception as exc:
+            # The device guard in Player catches what it has seen before, but a
+            # backend has more ways to fail than anyone has met yet - and from
+            # here an exception goes out through the message pump and takes the
+            # whole TUI with it. logger.exception, so --log-file gets the
+            # traceback the crash screen used to swallow.
+            LOGGER.exception("A player operation failed")
+            self._playback_failed(f"Playback failed ({exc})")
+            return
         self._player_bar().refresh_bar()
 
     def action_play_pause(self) -> None:
@@ -178,6 +187,32 @@ class PlaybackMixin:
         # Playing what the cursor is on re-couples the two.
         self._cursor_follows = True
         self._start_playback(row.track)
+
+    def action_toggle_loaded(self) -> None:
+        """Pause or resume what is playing, wherever the cursor has wandered to.
+
+        ``space`` deliberately plays the row you are looking at. The button
+        under the waveform of another track cannot mean that.
+        """
+
+        if self.player.loaded is None:
+            self.action_play_pause()
+            return
+        self._player_op(self.player.toggle)
+        self._wake()
+
+    def action_close_player(self) -> None:
+        """Stop, forget the track, and let the bar fold itself away.
+
+        The message goes too: a bar left saying "No audio output" is a bar that
+        will not close, since that alone is enough to keep it on screen.
+        """
+
+        self._player_bar().message = ""
+        self._player_op(self.player.unload)
+        self._discard_prepared()
+        self._sleep()
+        self.refresh_rows()
 
     def _start_playback(self, track: Track) -> None:
         if not track.id:
@@ -195,15 +230,22 @@ class PlaybackMixin:
 
     @work(thread=True, exclusive=True, group="audio")
     def fetch_audio(self, track: Track) -> None:
-        """Only resolves the URL - the audio itself is decoded off the socket."""
+        """Everything that touches the network for this track, off the UI thread.
+
+        The source is opened here rather than left to ``Player.play`` - that runs
+        on the interface thread, and the connect inside it waits up to thirty
+        seconds for a CDN that is slow to answer with the whole app frozen behind
+        it. This is the same call the prefetch path has always made off-thread.
+        """
 
         try:
             stream = resolve_stream(self.client, track.id)
             samples = fetch_waveform(self.client, stream.waveform_url)
+            source = open_source(self.client.session, stream.url)
         except (SoundCloudError, PlaybackUnavailable, OSError) as exc:
             self.call_from_thread(self._playback_failed, str(exc))
             return
-        self.call_from_thread(self._audio_ready, track, stream, samples)
+        self.call_from_thread(self._audio_ready, track, stream, samples, source)
 
     def _audio_ready(
         self, track: Track, stream: Stream, samples: list[int], source=None

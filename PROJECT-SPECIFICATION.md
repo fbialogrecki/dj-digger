@@ -2,11 +2,11 @@
 
 - Status: current implemented system
 - Document version: 1.0
-- Product version verified: 0.13.3
+- Product version verified: 0.14.0
 - Owner: Filip Białogrecki
-- Updated: 2026-08-25
-- Document lines: <!-- SPEC TOTAL LINES -->836<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->836<!-- END SPEC MAP LIMIT -->
+- Updated: 2026-08-26
+- Document lines: <!-- SPEC TOTAL LINES -->861<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->861<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,64 +51,64 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 143–175 |
 | 2.1 | ↳ Problem and product boundary | 145–156 |
 | 2.2 | ↳ Execution modes | 157–175 |
-| 3 | User-visible capabilities | 176–297 |
+| 3 | User-visible capabilities | 176–316 |
 | 3.1 | ↳ Track collection and saved HTML | 178–197 |
 | 3.2 | ↳ Link classification and exports | 198–216 |
-| 3.3 | ↳ TUI crate library and interaction | 217–237 |
-| 3.4 | ↳ Audio preview | 238–256 |
-| 3.5 | ↳ Downloads and local-file matching | 257–279 |
-| 3.6 | ↳ Store cart assistance | 280–297 |
-| 4 | System context and data flow | 298–335 |
-| 4.1 | ↳ Context diagram | 300–322 |
-| 4.2 | ↳ Collection-to-library flow | 323–335 |
-| 5 | Repository layout and component ownership | 336–376 |
-| 5.1 | ↳ Entry, orchestration, and models | 338–348 |
-| 5.2 | ↳ Network and external-system adapters | 349–362 |
-| 5.3 | ↳ Persistence, local media, and UI | 363–376 |
-| 6 | Runtime architecture and environments | 377–426 |
-| 6.1 | ↳ Runtime and dependencies | 379–391 |
-| 6.2 | ↳ Concurrency and lifecycle | 392–411 |
-| 6.3 | ↳ Local paths and environment variables | 412–426 |
-| 7 | Data model and persistence | 427–484 |
-| 7.1 | ↳ Domain objects and identity | 429–440 |
-| 7.2 | ↳ SQLite schema and invariants | 441–458 |
-| 7.3 | ↳ Crate persistence and deletion | 459–470 |
-| 7.4 | ↳ Configuration and credential stores | 471–484 |
-| 8 | Public interfaces and contracts | 485–523 |
-| 8.1 | ↳ CLI arguments and exit behavior | 487–501 |
-| 8.2 | ↳ JSON and CSV summary input | 502–514 |
-| 8.3 | ↳ URL-opening contract | 515–523 |
-| 9 | Authentication and authorization | 524–570 |
-| 9.1 | ↳ SoundCloud authentication | 526–543 |
-| 9.2 | ↳ Spotify PKCE and scopes | 544–555 |
-| 9.3 | ↳ Gate action consent | 556–570 |
-| 10 | External integrations | 571–648 |
-| 10.1 | ↳ SoundCloud API and media | 573–584 |
-| 10.2 | ↳ Link hubs and download gates | 585–616 |
-| 10.2 · block | ↳ ↳ Hypeddit | 593–602 |
-| 10.2 · block | ↳ ↳ Other resolvers | 604–609 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 611–616 |
-| 10.3 | ↳ Browsers and clipboard | 617–627 |
-| 10.4 | ↳ Spotify | 628–634 |
-| 10.5 | ↳ Bandcamp and Beatport carts | 635–648 |
-| 11 | Security requirements and threat model | 649–695 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 651–669 |
-| 11.2 | ↳ Secret and personal-data handling | 670–682 |
-| 11.3 | ↳ File and mutation safety | 683–695 |
-| 12 | Privacy, lifecycle, and retention | 696–727 |
-| 12.1 | ↳ Data stored locally | 698–709 |
-| 12.2 | ↳ Data sent to third parties | 710–719 |
-| 12.3 | ↳ User-controlled deletion | 720–727 |
-| 13 | Failure behavior and current limitations | 728–757 |
-| 13.1 | ↳ Error isolation and reporting | 730–742 |
-| 13.2 | ↳ Confirmed limitations | 743–757 |
-| 14 | Verification, CI, and release | 758–814 |
-| 14.1 | ↳ Offline and live test suites | 760–783 |
-| 14.2 | ↳ Continuous integration and publishing | 784–799 |
-| 14.3 | ↳ Specification-map verification | 800–814 |
-| 15 | Evidence and operational references | 815–836 |
-| 15.1 | ↳ Primary implementation evidence | 817–829 |
-| 15.2 | ↳ User and historical documentation | 830–836 |
+| 3.3 | ↳ TUI crate library and interaction | 217–242 |
+| 3.4 | ↳ Audio preview | 243–275 |
+| 3.5 | ↳ Downloads and local-file matching | 276–298 |
+| 3.6 | ↳ Store cart assistance | 299–316 |
+| 4 | System context and data flow | 317–354 |
+| 4.1 | ↳ Context diagram | 319–341 |
+| 4.2 | ↳ Collection-to-library flow | 342–354 |
+| 5 | Repository layout and component ownership | 355–395 |
+| 5.1 | ↳ Entry, orchestration, and models | 357–367 |
+| 5.2 | ↳ Network and external-system adapters | 368–381 |
+| 5.3 | ↳ Persistence, local media, and UI | 382–395 |
+| 6 | Runtime architecture and environments | 396–445 |
+| 6.1 | ↳ Runtime and dependencies | 398–410 |
+| 6.2 | ↳ Concurrency and lifecycle | 411–430 |
+| 6.3 | ↳ Local paths and environment variables | 431–445 |
+| 7 | Data model and persistence | 446–503 |
+| 7.1 | ↳ Domain objects and identity | 448–459 |
+| 7.2 | ↳ SQLite schema and invariants | 460–477 |
+| 7.3 | ↳ Crate persistence and deletion | 478–489 |
+| 7.4 | ↳ Configuration and credential stores | 490–503 |
+| 8 | Public interfaces and contracts | 504–548 |
+| 8.1 | ↳ CLI arguments and exit behavior | 506–526 |
+| 8.2 | ↳ JSON and CSV summary input | 527–539 |
+| 8.3 | ↳ URL-opening contract | 540–548 |
+| 9 | Authentication and authorization | 549–595 |
+| 9.1 | ↳ SoundCloud authentication | 551–568 |
+| 9.2 | ↳ Spotify PKCE and scopes | 569–580 |
+| 9.3 | ↳ Gate action consent | 581–595 |
+| 10 | External integrations | 596–673 |
+| 10.1 | ↳ SoundCloud API and media | 598–609 |
+| 10.2 | ↳ Link hubs and download gates | 610–641 |
+| 10.2 · block | ↳ ↳ Hypeddit | 618–627 |
+| 10.2 · block | ↳ ↳ Other resolvers | 629–634 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 636–641 |
+| 10.3 | ↳ Browsers and clipboard | 642–652 |
+| 10.4 | ↳ Spotify | 653–659 |
+| 10.5 | ↳ Bandcamp and Beatport carts | 660–673 |
+| 11 | Security requirements and threat model | 674–720 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 676–694 |
+| 11.2 | ↳ Secret and personal-data handling | 695–707 |
+| 11.3 | ↳ File and mutation safety | 708–720 |
+| 12 | Privacy, lifecycle, and retention | 721–752 |
+| 12.1 | ↳ Data stored locally | 723–734 |
+| 12.2 | ↳ Data sent to third parties | 735–744 |
+| 12.3 | ↳ User-controlled deletion | 745–752 |
+| 13 | Failure behavior and current limitations | 753–782 |
+| 13.1 | ↳ Error isolation and reporting | 755–767 |
+| 13.2 | ↳ Confirmed limitations | 768–782 |
+| 14 | Verification, CI, and release | 783–839 |
+| 14.1 | ↳ Offline and live test suites | 785–808 |
+| 14.2 | ↳ Continuous integration and publishing | 809–824 |
+| 14.3 | ↳ Specification-map verification | 825–839 |
+| 15 | Evidence and operational references | 840–861 |
+| 15.1 | ↳ Primary implementation evidence | 842–854 |
+| 15.2 | ↳ User and historical documentation | 855–861 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -235,6 +235,11 @@ run, settings are shown before the initial library scan. Terminals below 110
 columns automatically collapse the sidebar; the full help remains available.
 Opening more than 20 visible links requires a repeated confirmation action.
 
+The error banner is docked above the layout, capped at 88 columns wide, and
+opens collapsed to a single summary line carrying the error count. Clicking that line expands the scrollable
+message list and clicking it again collapses it; the close control discards every
+message and returns the banner to its collapsed state.
+
 ### 3.4 Audio preview
 
 Playback is optional and requires the `play` extra containing `miniaudio`.
@@ -242,17 +247,31 @@ Playback is optional and requires the `play` extra containing `miniaudio`.
 snippet-only policy, chooses a progressive MP3 transcoding, authorizes its signed
 URL, and returns duration and waveform location.
 
+The audio worker resolves the stream, fetches the waveform, and opens the HTTP
+source before handing the track to the UI thread, so no connection is opened from
+the interface thread.
+
 Audio is decoded from an HTTP source and is not persisted to disk. A declared
 source at or below 50 MiB is buffered progressively in memory; larger or
 undeclared sources stream directly. Range requests support seeking. Waveforms
-are cached in memory for the process, rendered as two block rows, and accompanied
-by an output-sample level meter.
+are cached in memory for the process, rendered as four block rows filling the
+player bar, and accompanied by an output-sample level meter.
+
+A three-row control strip sits under the waveform whenever a track is loaded:
+previous track, play/pause, next track, the track title, elapsed and total time,
+a click-and-drag volume slider, and a close control. Play/pause here acts on the
+loaded track rather than on the cursor row. A player message replaces the title
+while it stands; with no track loaded the bar shows the message alone.
+Closing stops playback, clears the loaded track and any player message, discards
+prepared audio, and folds the player away; `ctrl+w` does the same.
 
 The next visible track is prepared during the last 20 seconds of playback. A
 filter change discards preparation that no longer matches the next row. Tracks
 advance automatically at end of stream. Missing `miniaudio`, an unavailable
-audio device, bad media, or a missing track ID produces a user-visible degraded
-state rather than terminating the TUI.
+audio device, a backend that refuses to start or stop an open device, bad media,
+or a missing track ID produces a user-visible degraded state rather than
+terminating the TUI. A device that fails after having worked is closed and
+rebuilt on the next attempt rather than disabling playback for the session.
 
 ### 3.5 Downloads and local-file matching
 
@@ -486,7 +505,13 @@ restricted to 0700 on non-Windows systems.
 
 ### 8.1 CLI arguments and exit behavior
 
-Shared flags are `--version`, `--log-level`, and `--no-tui`. Dig adds
+Shared flags are `--version`, `--log-level`, `--log-file`, and `--no-tui`.
+`--log-file` writes timestamped records to the given path, creating parent
+directories, instead of writing to the terminal, and enables `faulthandler` on
+the same file so native crashes leave a trace. Unhandled TUI exceptions are
+logged with their traceback before Textual's crash handling runs. The TUI silences the `dj_digger`
+and root loggers for as long as it owns the screen unless `--log-file` was given,
+because Textual draws the interface on standard error. Dig adds
 `--format {json,csv,none}`, `--output`, `--limit`, `--timeout` (20 seconds by
 default), and HTML fallback `--delay` (0.5 seconds by default). Open adds
 `--category`, `--skip`, `--limit`, `--no-open`, and a summary path.

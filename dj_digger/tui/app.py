@@ -22,6 +22,7 @@ from ..models import LinkRecord
 from ..player import (
     Player,
     PlayerBar,
+    PlayerControls,
 )
 from ..soundcloud import SoundCloudClient
 from ..state import TrackState
@@ -100,8 +101,12 @@ class DiggerApp(
     #sidebar.collapsed {
         display: none;
     }
+    /* Centred over the list it heads, with a blank row under it: the crate
+       names started immediately below and read as one more crate. */
     #sidebar-title {
         padding: 0 1;
+        margin-bottom: 1;
+        text-align: center;
         color: $text-muted;
     }
     /* Auto height so the add button sits right under the last crate, not pinned
@@ -253,6 +258,7 @@ class DiggerApp(
     def compose(self) -> ComposeResult:
         yield ErrorBanner(id="error-banner")
         yield PlayerBar(self.player, id="player")
+        yield PlayerControls(self.player, id="player-controls")
         with Horizontal(id="body"):
             with Vertical(id="sidebar"):
                 yield Static("Crates", id="sidebar-title")
@@ -282,6 +288,18 @@ class DiggerApp(
         # binding Textual's Footer sets up on its own keys.
         footer = self.query_one(FittedFooter)
         footer.call_next(footer.recompose)
+
+    def _handle_exception(self, error: Exception) -> None:
+        """Put the crash in the log before Textual tears the screen down.
+
+        A crash report printed to the alternate screen is gone the moment the
+        terminal is restored, which is how a session could die with nothing to
+        show for it - the log file ended at the last ordinary record. Private
+        API, pinned by the test that mounts and crashes an app on purpose.
+        """
+
+        LOGGER.exception("Unhandled exception in the TUI", exc_info=error)
+        super()._handle_exception(error)
 
     def show_error(self, message: str) -> None:
         """Display an error/debug message in the top ErrorBanner."""

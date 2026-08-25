@@ -27,7 +27,9 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 
 from rich.text import Text
-from textual.widgets import Static
+from textual.app import ComposeResult
+from textual.containers import Horizontal
+from textual.widgets import Button, Static
 
 from .models import Track
 from .soundcloud import SoundCloudClient, SoundCloudError
@@ -54,21 +56,25 @@ DOWNLOAD_CHUNK = 64 * 1024
 MAX_BUFFER_BYTES = 50 * 1024 * 1024
 SOURCE_TIMEOUT = 30.0
 
-# Two rows of bottom-anchored blocks give 16 levels instead of 8, which is what
-# stops a loud master from rendering as a solid rectangle.
+# Rows of bottom-anchored blocks, eight levels each. Two of them gave 16 and
+# stopped a loud master rendering as a solid rectangle; four give 32 and are
+# what the bar spends the row the title used to have on.
 BLOCKS = " \u2581\u2582\u2583\u2584\u2585\u2586\u2587\u2588"
-WAVEFORM_ROWS = 2
+WAVEFORM_ROWS = 4
 # Loud tracks sit in the top tenth of the range, so the curve has to expand it.
 WAVEFORM_GAMMA = 3.0
 
 PLAYED_STYLE = "cyan"
 UNPLAYED_STYLE = "bright_black"
 # How far back from the playhead the sound of this instant is allowed to show.
-GLOW_COLUMNS = 12
-# Four steps, not a continuum: a colour that changes on every frame reads as
-# flicker rather than as a pulse. The first is the ordinary played colour, so a
-# silent or paused track looks exactly as it did before any of this.
-GLOW_STYLES = (PLAYED_STYLE, "bold cyan", "bold bright_cyan", "bold white")
+# Two columns: twelve was a band wide enough that its 30fps pulsing read as the
+# whole tail of the played waveform flickering.
+GLOW_COLUMNS = 2
+# Steps within one hue, no white: a colour that changes on every frame reads as
+# flicker rather than as a pulse, and white against cyan was the harshest jump
+# of all. The first is the ordinary played colour, so a silent or paused track
+# looks exactly as it did before any of this.
+GLOW_STYLES = (PLAYED_STYLE, "bold cyan", "bold bright_cyan", "bold bright_cyan")
 
 
 class PlaybackUnavailable(RuntimeError):
@@ -736,6 +742,34 @@ class Player:
             chunk = None
             required = yield out
 
+    def _stop_device(self) -> None:
+        """Stop the output, and let go of a device that will not stop."""
+
+        if self._device is None:
+            return
+        try:
+            self._device.stop()
+        except Exception as exc:
+            LOGGER.debug("Stopping the audio device complained: %s", exc)
+            self._drop_device()
+
+    def _drop_device(self) -> None:
+        """Let go of a device that has misbehaved, so the next play rebuilds it.
+
+        Not ``unavailable_reason``: that is for a machine with no output at all,
+        and stands until the app is restarted. A device that fails once after
+        working deserves another try.
+        """
+
+        if self._device is not None:
+            try:
+                self._device.close()
+            except Exception as exc:
+                LOGGER.debug("Closing a failed audio device complained: %s", exc)
+        self._device = None
+        self._playing = False
+        self._silence()
+
     def play(self) -> None:
         if self._loaded is None:
             return
@@ -749,13 +783,23 @@ class Player:
             # miniaudio sends into the generator without priming it first, and
             # its own docstring says the caller must start it.
             next(self._generator)
-        device.start(self._generator)
+        try:
+            device.start(self._generator)
+        except Exception as exc:
+            # miniaudio answers with a numbered failure nobody can act on, and a
+            # device that has just been stopped is enough to produce one -
+            # pressing play twice in quick succession did it. Raised as the
+            # degraded state the app already knows how to show, rather than out
+            # through the message pump, where it took the whole TUI with it.
+            LOGGER.debug("Could not start the audio device: %s", exc)
+            self._drop_device()
+            raise PlaybackUnavailable("The audio device would not start - try again") from exc
         self._playing = True
         self._finished = False
 
     def pause(self) -> None:
-        if self._device is not None and self._playing:
-            self._device.stop()
+        if self._playing:
+            self._stop_device()
         self._playing = False
         self._silence()
 
@@ -763,8 +807,7 @@ class Player:
         self.pause() if self._playing else self.play()
 
     def stop(self) -> None:
-        if self._device is not None:
-            self._device.stop()
+        self._stop_device()
         self._close_source()
         self._playing = False
         self._finished = False
@@ -779,8 +822,7 @@ class Player:
         # immediate end-of-stream and the track reads as finished.
         target = max(0.0, min(max(0.0, self.duration - 0.5), seconds))
         was_playing = self._playing
-        if self._device is not None:
-            self._device.stop()
+        self._stop_device()
         # Only the decoder is rebuilt at the new frame. The source stays, and
         # with it the copy of the track, which is what makes this instant.
         self._drop_generator()
@@ -805,6 +847,16 @@ class Player:
     def toggle_mute(self) -> None:
         self._muted = not self._muted
 
+    def unload(self) -> None:
+        """Stop and forget the track, so the bar has nothing left to say.
+
+        ``stop`` on its own rewinds and keeps the track loaded, which is what
+        the end of a track wants; closing the player wants it gone.
+        """
+
+        self.stop()
+        self._loaded = None
+
     def close(self) -> None:
         try:
             self.stop()
@@ -825,12 +877,19 @@ def format_time(seconds: float) -> str:
     return f"{seconds // 60}:{seconds % 60:02d}"
 
 
-PLAYER_HEIGHT = 3
+# The bar is the waveform and nothing else, so this is one and the same number.
+PLAYER_HEIGHT = WAVEFORM_ROWS
 PLAYER_GROW = 0.2
 
 
 class PlayerBar(Static):
-    """Title, clock, volume and a clickable waveform that moves with the music."""
+    """The clickable waveform, and whatever the player has to say for itself.
+
+    The title, the clock and the play state used to head this widget on a line
+    of their own. They sit in ``PlayerControls`` now, beside the buttons that
+    change them, which is a row this has to draw anyway - so the waveform got
+    that row instead.
+    """
 
     DEFAULT_CSS = """
     PlayerBar {
@@ -855,10 +914,16 @@ class PlayerBar(Static):
 
     def refresh_bar(self) -> None:
         self.update(self._content())
-        self._want(PLAYER_HEIGHT if self._has_something_to_say() else 0)
-
-    def _has_something_to_say(self) -> bool:
-        return self.player.loaded is not None or bool(self.message)
+        loaded = self.player.loaded is not None
+        # A message with nothing loaded - "Loading X", or a dead audio device -
+        # is one line of text and does not need the waveform's four rows.
+        self._want(PLAYER_HEIGHT if loaded else (1 if self.message else 0))
+        # The controls are a sibling widget rather than part of this one, because
+        # buttons cannot live inside a Static that repaints thirty times a second.
+        for controls in self.screen.query(PlayerControls):
+            controls.display = loaded
+            if loaded:
+                controls.refresh_controls(self.message)
 
     def _want(self, height: int) -> None:
         """Grow or fold away, rather than blinking in and out of existence."""
@@ -873,21 +938,8 @@ class PlayerBar(Static):
         if loaded is None:
             self.meter.reset()
             return Text(self.message, style="bright_black")
-
-        head = Text()
-        head.append("\u25b6 " if self.player.playing else "\u23f8 ", style="bold cyan")
-        head.append(loaded.track.label)
-        head.append(
-            f"  {format_time(self.player.position)} / {format_time(self.player.duration)}",
-            style="bright_black",
-        )
-        head.append(f"  vol {int(self.player.volume * 100)}%", style="bright_black")
-        if self.message:
-            head.append(f"  {self.message}", style="yellow")
-        head.append("\n")
         level = self.meter.feed(self.player.take_level())
-        head.append_text(paint_waveform(self._rows(loaded), self.player.fraction, level))
-        return head
+        return paint_waveform(self._rows(loaded), self.player.fraction, level)
 
     def _rows(self, loaded: Loaded) -> list[str]:
         width = self._bar_width()
@@ -908,12 +960,201 @@ class PlayerBar(Static):
         return fraction * self.player.duration
 
     def on_click(self, event) -> None:
-        # Only the waveform rows seek; the text row above them is not a scrubber.
-        if self.player.loaded is None or event.y == 0:
+        if self.player.loaded is None:
             return
         event.stop()
         try:
             self.player.seek(self.seconds_at(event.x))
         except PlaybackUnavailable as exc:
             self.message = str(exc)
+        except Exception as exc:  # a bad backend must not take the app down
+            LOGGER.exception("Seeking failed")
+            self.message = f"Seek failed ({exc})"
         self.refresh_bar()
+
+
+# Text presentation throughout - no emoji, which every terminal draws in its
+# own colour and at its own size. A glyph cannot be made larger than its cell,
+# so the buttons read as controls through their chip background and bold weight
+# instead. Doubled arrows for the steps: two cells of glyph in a six-cell chip.
+PREVIOUS_GLYPH = "\u25c0\u25c0"
+PLAY_GLYPH = "\u25b6"
+PAUSE_GLYPH = "\u275a\u275a"
+NEXT_GLYPH = "\u25b6\u25b6"
+CLOSE_GLYPH = "\u2715"
+
+# Twelve cells to aim at. Under about ten a click lands two steps from where you
+# meant it, and the whole row still has to fit beside the transport buttons.
+VOLUME_TRACK = 12
+# Volume glyph and the space after it: where the draggable track starts.
+VOLUME_TRACK_START = 2
+
+
+class VolumeSlider(Static):
+    """The speaker and its track. Click or drag anywhere along it to set the volume."""
+
+    DEFAULT_CSS = """
+    VolumeSlider {
+        width: 22;
+        height: 3;
+        content-align: left middle;
+    }
+    """
+
+    def __init__(self, player: Player, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.player = player
+
+    def render(self) -> Text:
+        volume = self.player.volume
+        filled = round(volume * VOLUME_TRACK)
+        bar = Text("\u00d8 " if volume <= 0 else "\u266a ", style="bold")
+        bar.append("━" * filled, style="cyan")
+        bar.append("●", style="bold cyan")
+        bar.append("─" * (VOLUME_TRACK - filled), style="bright_black")
+        bar.append(f" {int(volume * 100):>3}%", style="bright_black")
+        return bar
+
+    def set_from_x(self, x: int) -> None:
+        fraction = (x - VOLUME_TRACK_START) / VOLUME_TRACK
+        # Rounded to the step the track can actually draw, so the number beside
+        # it does not read 63% on a knob sitting exactly where 60% was.
+        self.player.set_volume(round(min(1.0, max(0.0, fraction)) * VOLUME_TRACK) / VOLUME_TRACK)
+        self.refresh()
+
+    def on_mouse_down(self, event) -> None:
+        event.stop()
+        # Captured so the knob keeps following once the pointer leaves the row,
+        # which is what tells a slider apart from a row of buttons.
+        self.capture_mouse()
+        self.set_from_x(event.x)
+
+    def on_mouse_move(self, event) -> None:
+        if self.app.mouse_captured is not self:
+            return
+        if not event.button:
+            # The release went missing - a drag that ended off the terminal, say.
+            # Left captured, this widget would swallow every click in the app.
+            self.release_mouse()
+            return
+        self.set_from_x(event.x)
+
+    def on_mouse_up(self, event) -> None:
+        self.release_mouse()
+
+
+class PlayerControls(Horizontal):
+    """Transport, volume and the way out, under the waveform.
+
+    Every one of these has a key already; the buttons are for the hand that is
+    on the mouse anyway, having just clicked the waveform to seek.
+    """
+
+    DEFAULT_CSS = """
+    PlayerControls {
+        display: none;
+        height: 3;
+        width: 100%;
+        padding: 0 1;
+    }
+    /* One row, no border: a Textual button is three rows tall by default, which
+       spent more of the terminal on three glyphs than on the track list.
+       By id rather than `PlayerControls Button`, because Textual keys its own
+       button borders on a class - which out-specifies a plain type selector, so
+       a `border: none` there loses and every button keeps its border row. */
+    #player-prev, #player-play, #player-next, #player-close {
+        height: 3;
+        /* Six against a two-cell glyph: both even, so the icon lands dead
+           centre. An odd width either way leaves it half a cell off. */
+        width: 6;
+        min-width: 6;
+        margin: 0 1 0 0;
+        border: none;
+        /* $boost, not $panel: a translucent lift of whatever is under it, so
+           the chip reads in any theme instead of committing to a colour. */
+        background: $boost;
+        color: $text;
+        text-style: bold;
+    }
+    #player-prev:hover, #player-play:hover, #player-next:hover, #player-close:hover {
+        background: $accent;
+    }
+    /* Takes the slack, and gives the title up an ellipsis at a time rather than
+       pushing the clock and the volume off the row. */
+    #player-title {
+        width: 1fr;
+        height: 3;
+        content-align: left middle;
+        padding: 0 2;
+        text-wrap: nowrap;
+        text-overflow: ellipsis;
+    }
+    #player-time {
+        width: 14;
+        height: 3;
+        content-align: right middle;
+        padding: 0 2 0 0;
+    }
+    """
+
+    def __init__(self, player: Player, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.player = player
+        # What the buttons were last drawn for. A tick repaints the bar thirty
+        # times a second and none of that reaches the DOM unless this changes.
+        self._shown: tuple | None = None
+
+    def compose(self) -> ComposeResult:
+        yield Button(PREVIOUS_GLYPH, id="player-prev", tooltip="Previous track (p)")
+        yield Button(PLAY_GLYPH, id="player-play", tooltip="Play or pause (space)")
+        yield Button(NEXT_GLYPH, id="player-next", tooltip="Next track (n)")
+        yield Static("", id="player-title")
+        yield Static("", id="player-time")
+        yield VolumeSlider(self.player, id="player-volume")
+        yield Button(CLOSE_GLYPH, id="player-close", tooltip="Stop and close the player (ctrl+w)")
+
+    def refresh_controls(self, message: str = "") -> None:
+        loaded = self.player.loaded
+        if loaded is None:
+            return
+        # The clock is the only part of this that moves on its own, and it moves
+        # once a second - the other twenty-nine ticks have nothing to write.
+        state = (
+            self.player.playing,
+            self.player.volume,
+            int(self.player.position),
+            loaded.track.key,
+            message,
+        )
+        if state == self._shown:
+            return
+        self._shown = state
+        self.query_one("#player-play", Button).label = (
+            PAUSE_GLYPH if self.player.playing else PLAY_GLYPH
+        )
+        # Text(), not markup: a title like "Rido - Sexy Thing [Clip]" keeps its
+        # brackets, and a message is the one thing worth the room over a title.
+        self.query_one("#player-title", Static).update(
+            Text(message, style="yellow")
+            if message
+            else Text(loaded.track.label, no_wrap=True, overflow="ellipsis")
+        )
+        self.query_one("#player-time", Static).update(
+            Text(
+                f"{format_time(self.player.position)} / {format_time(self.player.duration)}",
+                style="bright_black",
+            )
+        )
+        self.query_one(VolumeSlider).refresh()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        event.stop()
+        actions = {
+            "player-prev": lambda: self.app.action_play_step(-1),
+            "player-play": self.app.action_toggle_loaded,
+            "player-next": lambda: self.app.action_play_step(1),
+            "player-close": self.app.action_close_player,
+        }
+        action = actions.get(event.button.id or "")
+        if action is not None:
+            action()

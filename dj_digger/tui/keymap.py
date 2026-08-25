@@ -111,6 +111,7 @@ KEYMAP = [
     ("minus", "volume(-1)", "Quieter", PLAYBACK, False, "Turn it down"),
     ("equals_sign", "volume(1)", "Louder", PLAYBACK, False, "Turn it up"),
     ("m", "mute", "Mute", PLAYBACK, False, "Mute or unmute"),
+    ("ctrl+w", "close_player", "Close player", PLAYBACK, False, "Stop and fold the player away"),
     ("a", "open_visible", "Open all", WHOLE_LIST, True, "Open every link shown, asks above 20"),
     ("C", "cart_visible", "Cart all", WHOLE_LIST, False, "Preflight and add every exact store track shown"),
     ("e", "export", "Export", WHOLE_LIST, False, "Write the rows shown to the export file"),

@@ -114,17 +114,17 @@ def test_the_waveform_is_squashed_to_the_asked_width():
         assert [len(row) for row in rows] == [width]
 
 
-def test_the_waveform_is_two_rows_by_default():
+def test_the_waveform_fills_every_row_of_the_bar():
     """One row of eight blocks is what made a loud master look like a rectangle."""
 
     rows = str(render_waveform(list(range(50)), 12)).split("\n")
-    assert len(rows) == 2
+    assert len(rows) == player.WAVEFORM_ROWS
     assert all(len(row) == 12 for row in rows)
 
 
 def test_the_bottom_row_fills_before_the_top():
     rendered = str(render_waveform([0, 140], 2)).split("\n")
-    top, bottom = rendered
+    top, bottom = rendered[0], rendered[-1]
     # Quiet column: nothing on top, nothing much at the bottom.
     assert top[0] == " "
     # Loud column: both rows full.
@@ -133,7 +133,7 @@ def test_the_bottom_row_fills_before_the_top():
 
 def test_a_missing_waveform_draws_flat_lines():
     rows = str(render_waveform([], 5)).split("\n")
-    assert rows == ["\u2500" * 5, "\u2500" * 5]
+    assert rows == ["\u2500" * 5] * player.WAVEFORM_ROWS
 
 
 def styled_width(text, style):
@@ -394,6 +394,33 @@ class FakeDevice:
 
     def close(self):
         pass
+
+
+def test_a_device_that_will_not_start_degrades_instead_of_crashing(monkeypatch):
+    """Pressing play twice in quick succession was enough, and it took the app down.
+
+    miniaudio raises its own numbered error out of ``device.start``, which the
+    interface catches nowhere - so it came out through Textual's message pump.
+    """
+
+    subject, device = loaded_player(monkeypatch)
+    closed = []
+
+    def refuse(generator):
+        raise RuntimeError("failed to start audio device")
+
+    monkeypatch.setattr(device, "start", refuse)
+    monkeypatch.setattr(device, "close", lambda: closed.append(True))
+
+    with pytest.raises(player.PlaybackUnavailable, match="would not start"):
+        subject.play()
+
+    assert subject.playing is False
+    # Dropped rather than kept: the next attempt builds a fresh device instead
+    # of asking the broken one again, and nothing is disabled for good.
+    assert subject._device is None
+    assert subject.unavailable_reason is None
+    assert closed == [True]
 
 
 def loaded_player(monkeypatch, chunks=None):

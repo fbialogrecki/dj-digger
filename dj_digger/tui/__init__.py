@@ -75,6 +75,7 @@ def run_tui(
     export_path: Path | None = None,
     dig_options: dig_module.DigOptions | None = None,
     crate_record: CrateRecord | None = None,
+    keep_logging: bool = False,
 ) -> None:
     app = DiggerApp(
         records,
@@ -85,10 +86,18 @@ def run_tui(
         dig_options=dig_options,
         crate_record=crate_record,
     )
-    logger = logging.getLogger("dj_digger")
-    previous_level = logger.level
-    logger.setLevel(logging.CRITICAL + 1)
+    # Textual draws the interface on stderr, so anything logged to the terminal
+    # lands in the middle of the crate list: our own records at any level, and at
+    # DEBUG the libraries' too, since that level puts a handler on the root
+    # logger. Both are muted for as long as the app owns the screen - unless
+    # ``keep_logging`` says --log-file has given the log somewhere else to go, in
+    # which case silencing it is the opposite of what was asked for.
+    silenced = [] if keep_logging else [logging.getLogger("dj_digger"), logging.getLogger()]
+    levels = [(logger, logger.level) for logger in silenced]
+    for logger in silenced:
+        logger.setLevel(logging.CRITICAL + 1)
     try:
         app.run()
     finally:
-        logger.setLevel(previous_level)
+        for logger, level in levels:
+            logger.setLevel(level)

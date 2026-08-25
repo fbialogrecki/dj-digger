@@ -1,6 +1,8 @@
 import asyncio
 import io
 import json
+import logging
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
 from threading import Event
@@ -14,7 +16,18 @@ from textual.widgets import Button, DataTable, Input, Label, ListView, Static
 from dj_digger import cart, gates, library, links, soundcloud, tui
 from dj_digger.dig import DigOptions, TargetNotFound
 from dj_digger.models import Crate, LinkRecord, Track
-from dj_digger.player import Loaded, PlaybackUnavailable, PlayerBar, Stream
+from dj_digger.player import (
+    PAUSE_GLYPH,
+    PLAYER_HEIGHT,
+    VOLUME_TRACK,
+    VOLUME_TRACK_START,
+    Loaded,
+    PlaybackUnavailable,
+    PlayerBar,
+    PlayerControls,
+    Stream,
+    VolumeSlider,
+)
 from dj_digger.scanner import LocalMatch
 from dj_digger.state import GOT, OPENED, SKIP, TrackState
 from dj_digger.tui import (
@@ -54,7 +67,9 @@ def test_batch_gate_failures_have_actionable_summary_groups(error, group):
     assert _gate_failure_group(error) == group
 
 
-def test_error_banner_keeps_messages_literal_and_has_a_working_x(state):
+def test_error_banner_starts_collapsed_and_opens_on_the_summary(state):
+    """Thirteen gate failures must not take half the screen the moment they land."""
+
     app = make_app(synthetic_records(1), state)
 
     async def scenario():
@@ -65,9 +80,16 @@ def test_error_banner_keeps_messages_literal_and_has_a_working_x(state):
                 banner.add_error(f"Failure {index}: " + "long message " * 8)
             await pilot.pause()
 
-            close = app.query_one("#error-close", Button)
+            summary = app.query_one("#error-summary", Static)
+            assert "13 errors" in str(summary.render())
+            assert not banner.has_class("expanded")
+            # One summary line and the border under it, not a wall of log.
+            assert banner.size.height <= 2
+
+            await pilot.click("#error-summary")
+            await pilot.pause()
+            assert banner.has_class("expanded")
             message = app.query_one("#error-text", Static)
-            assert str(close.label) == "X"
             assert "[Artist - Track]" in str(message.render())
             assert banner.size.height <= 12
 
@@ -75,6 +97,7 @@ def test_error_banner_keeps_messages_literal_and_has_a_working_x(state):
             await pilot.pause()
             assert banner.errors == []
             assert not banner.has_class("visible")
+            assert not banner.has_class("expanded")
 
     run(scenario)
 
@@ -1539,6 +1562,10 @@ class FakePlayer:
     def stop(self):
         self.playing = False
 
+    def unload(self):
+        self.stop()
+        self.loaded = None
+
     def seek(self, seconds):
         self.seeks.append(seconds)
         self.position = seconds
@@ -1546,8 +1573,11 @@ class FakePlayer:
     def nudge(self, seconds):
         self.seek(self.position + seconds)
 
+    def set_volume(self, volume):
+        self.volume = max(0.0, min(1.0, volume))
+
     def change_volume(self, delta):
-        self.volume = max(0.0, min(1.0, self.volume + delta))
+        self.set_volume(self.volume + delta)
 
     def toggle_mute(self):
         self.muted = not self.muted
@@ -2887,8 +2917,118 @@ def test_the_player_bar_grows_instead_of_appearing_from_nothing(state, monkeypat
 
             await pilot.press("space")
             await pilot.pause()
-            assert bar.wanted_height == 3
-            assert bar.styles.height.value == 3
+            assert bar.wanted_height == PLAYER_HEIGHT
+            assert bar.styles.height.value == PLAYER_HEIGHT
+
+    run(scenario)
+
+
+def test_any_player_failure_becomes_a_message_not_a_crash(state, monkeypatch):
+    """miniaudio raises its own numbered errors, which the pump would die on."""
+
+    app = player_app(synthetic_records(1), state)
+
+    async def scenario():
+        async with app.run_test(notifications=True) as pilot:
+            def refuse():
+                raise RuntimeError("failed to start audio device, -1")
+
+            app.player.load(app.visible_rows[0].track, a_stream(), None)
+            app.player.toggle = refuse
+            await pilot.press("space")
+            await pilot.pause()
+            # Still alive, and the failure is on screen rather than a traceback.
+            assert "failed to start audio device" in str(
+                app.query_one("#player-title", Static).render()
+            )
+
+    run(scenario)
+
+
+def test_a_tui_crash_reaches_the_log_before_the_screen_is_torn_down(state, caplog):
+    app = make_app(synthetic_records(1), state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            with caplog.at_level(logging.ERROR, logger="dj_digger"):
+                app.call_later(_boom)
+                await pilot.pause()
+
+    def _boom():
+        raise RuntimeError("wires crossed")
+
+    with pytest.raises(RuntimeError, match="wires crossed"):
+        run(scenario)
+    assert "Unhandled exception in the TUI" in caplog.text
+    assert "wires crossed" in caplog.text
+
+
+def test_the_audio_worker_opens_the_stream_off_the_ui_thread(state, monkeypatch):
+    """A connect on the interface thread freezes the whole app until it answers."""
+
+    app = player_app(synthetic_records(1), state)
+    threads = []
+
+    def fake_open(session, url):
+        threads.append(threading.current_thread() is threading.main_thread())
+        return SimpleNamespace(close=lambda: None)
+
+    monkeypatch.setattr("dj_digger.tui.playback.resolve_stream", lambda client, tid: a_stream())
+    monkeypatch.setattr("dj_digger.tui.playback.fetch_waveform", lambda client, url: [1, 2, 3])
+    monkeypatch.setattr("dj_digger.tui.playback.open_source", fake_open)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("space")
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            assert threads == [False]
+            assert app.player.source is not None
+
+    run(scenario)
+
+
+def test_the_transport_row_comes_and_goes_with_the_bar_and_closes_it(state, monkeypatch):
+    """The waveform had no way out: nothing stopped it short of quitting."""
+
+    app = player_app(synthetic_records(2), state)
+    monkeypatch.setattr(app, "fetch_audio", loading_fetch(app, []))
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            controls = app.query_one(PlayerControls)
+            assert not controls.display
+
+            await pilot.press("space")
+            await pilot.pause()
+            assert controls.display
+            assert str(app.query_one("#player-play", Button).label) == PAUSE_GLYPH
+
+            await pilot.click("#player-close")
+            await pilot.pause()
+            assert app.player.loaded is None
+            assert not app.player.playing
+            assert not controls.display
+            assert app.query_one("#player", PlayerBar).wanted_height == 0
+
+    run(scenario)
+
+
+def test_the_volume_slider_maps_a_click_to_a_level(state):
+    app = player_app(synthetic_records(1), state)
+
+    async def scenario():
+        async with app.run_test():
+            slider = app.query_one(VolumeSlider)
+            slider.set_from_x(VOLUME_TRACK_START)
+            assert app.player.volume == pytest.approx(0.0)
+            slider.set_from_x(VOLUME_TRACK_START + VOLUME_TRACK)
+            assert app.player.volume == pytest.approx(1.0)
+            slider.set_from_x(VOLUME_TRACK_START + VOLUME_TRACK // 2)
+            assert app.player.volume == pytest.approx(0.5)
+            # Off either end of the track is the end of the track, not an error.
+            slider.set_from_x(0)
+            assert app.player.volume == pytest.approx(0.0)
 
     run(scenario)
 
@@ -3013,7 +3153,9 @@ def test_pressing_play_twice_without_audio_does_not_crash(records, state, monkey
             await pilot.pause()
             await pilot.press("space")
             await pilot.pause()
-            assert "No audio output" in str(app.query_one("#player", PlayerBar).render())
+            # Loaded, so the bar itself is the waveform; the message goes where
+            # the title would be.
+            assert "No audio output" in str(app.query_one("#player-title", Static).render())
 
     run(scenario)
 

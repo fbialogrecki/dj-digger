@@ -509,6 +509,45 @@ def test_debug_still_shows_everything():
     assert "Retrying" in stderr.getvalue()
 
 
+def test_a_log_file_takes_the_log_off_the_screen(tmp_path):
+    """Textual draws on stderr, so a stream handler writes over the crate list."""
+
+    path = tmp_path / "logs" / "dj.log"
+    stderr = io.StringIO()
+    logger = logging.getLogger("dj_digger")
+    try:
+        with contextlib.redirect_stderr(stderr):
+            cli._configure_logging("INFO", str(path))
+            logging.getLogger("dj_digger.dig").info("Collected 484 tracks.")
+    finally:
+        for handler in list(logger.handlers):
+            logger.removeHandler(handler)
+            handler.close()
+
+    assert stderr.getvalue() == ""
+    assert "INFO dj_digger.dig: Collected 484 tracks." in path.read_text(encoding="utf-8")
+
+
+def test_the_tui_keeps_logging_when_it_has_a_file_to_write_to(tmp_path, monkeypatch):
+    """Muting the log under a --log-file is the opposite of what was asked for."""
+
+    from dj_digger import tui
+
+    logger = logging.getLogger("dj_digger")
+    handler = logging.FileHandler(tmp_path / "dj.log", encoding="utf-8")
+    logger.addHandler(handler)
+    before = logger.level
+    seen = []
+    monkeypatch.setattr(tui.DiggerApp, "run", lambda self: seen.append(logger.level))
+    try:
+        tui.run_tui(keep_logging=True)
+    finally:
+        logger.removeHandler(handler)
+        handler.close()
+
+    assert seen == [before]
+
+
 def test_the_tui_mutes_our_stream_logger_and_restores_it(monkeypatch):
     from dj_digger import tui
 

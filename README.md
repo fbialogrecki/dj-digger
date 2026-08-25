@@ -59,6 +59,27 @@ uv venv
 uv pip install -e '.[play,dev]'
 ```
 
+Run the working tree without installing or releasing anything:
+
+```bash
+uv run --extra play dj-digger
+```
+
+The browser is drawn on standard error, so `2>file` would redirect the interface
+itself and leave you looking at a blank terminal. To keep a log while it is up,
+use `--log-file`:
+
+```bash
+uv run --extra play dj-digger --log-level DEBUG --log-file /tmp/dj-digger.log
+```
+
+To try it against a throwaway library instead of your real crates, point the XDG
+directories somewhere temporary for that one run:
+
+```bash
+XDG_DATA_HOME=/tmp/dj-dev XDG_CONFIG_HOME=/tmp/dj-dev XDG_CACHE_HOME=/tmp/dj-dev uv run --extra play dj-digger
+```
+
 > **Requires Python 3.12 or newer.**
 >
 > **Note on optional extras**:
@@ -86,7 +107,7 @@ uv pip install -e '.[play,dev]'
 Launching `dj-digger` opens an interactive Textual browser divided into three key areas:
 1. **Crate Sidebar (`Ctrl+B`)**: Switch between saved crates, add new links (`d`), or refresh existing crates (`r`).
 2. **Track Table**: Displays tracks with status badges (`·` untouched, `○` opened, `✓` got, `✗` skipped), position, artist/title, available store badges, genre, and duration.
-3. **Player & Waveform Bar**: Shows playback state, position, volume, real-time VU level meter, and a 16-level waveform display.
+3. **Player & Waveform Bar**: A four-row, 32-level waveform with a real-time VU level meter, over a one-row control strip: previous / play-pause / next buttons, track title, clock, a drag-to-set volume slider, and a close button.
 
 ```
 ▸ 0 all  1 soundcloud·18  2 bandcamp·12  3 gate·53      83/83 tracks · got 0 · skipped 4
@@ -117,7 +138,8 @@ Press `?` inside the TUI at any time to view the full grouped keybinding modal.
 | `[` / `]` | Seek backward / forward 10 seconds |
 | `n` / `p` | Advance to Next / Previous track |
 | `-` / `=` | Decrease / Increase playback volume (`m` to mute/unmute) |
-| *Mouse Click* | Click anywhere on the waveform display to seek immediately |
+| `Ctrl+W` | Stop playback and close the player bar |
+| *Mouse Click* | Click anywhere on the waveform display to seek immediately, or use the buttons and volume slider under it |
 
 #### Filtering, Stores & Library
 | Key | Action |
@@ -269,7 +291,7 @@ dj-digger auth spotify logout
 
 - **Zero-Latency Playback**: Decodes audio chunks directly off the network socket in memory via `miniaudio`.
 - **Pre-Fetching & Gapless Transitions**: While listening to a track, the next track's stream URL, waveform data, and initial MBs are buffered 20 seconds prior to track completion.
-- **SoundCloud Waveform Rendering**: Renders SoundCloud's 1800-sample waveform data into a 2-row block ASCII visualizer with logarithmic loudness scaling.
+- **SoundCloud Waveform Rendering**: Renders SoundCloud's 1800-sample waveform data into a 4-row block ASCII visualizer with logarithmic loudness scaling.
 - **Reactive Audio VU Metering**: Real-time RMS audio signal measurement rendered at 30 FPS.
 - **Remote SSH / Headless Systems**: Automatically degrades to 4 FPS under `TEXTUAL_ANIMATIONS=none` for smooth operation over SSH connections.
 

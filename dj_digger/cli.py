@@ -8,6 +8,7 @@ no arguments at all opens the browser and asks for a link.
 """
 
 import argparse
+import faulthandler
 import getpass
 import logging
 import os
@@ -52,6 +53,14 @@ def _add_shared_arguments(parser: argparse.ArgumentParser) -> None:
         default="INFO",
         choices=LOG_LEVELS,
         help="Logging verbosity (default: INFO)",
+    )
+    parser.add_argument(
+        "--log-file",
+        metavar="PATH",
+        help=(
+            "Write the log here instead of to the terminal. Textual draws the "
+            "browser on stderr, so this is the only way to keep a log while it is up"
+        ),
     )
     parser.add_argument(
         "--no-tui",
@@ -275,6 +284,7 @@ def handle_dig(args: argparse.Namespace) -> int:
             export_format=args.export_format,
             export_path=args.output,
             dig_options=_dig_options(args),
+            keep_logging=bool(args.log_file),
         )
         return 0
 
@@ -310,6 +320,7 @@ def handle_dig(args: argparse.Namespace) -> int:
             export_path=export_path or args.output,
             dig_options=_dig_options(args),
             crate_record=record,
+            keep_logging=bool(args.log_file),
         )
     return 0
 
@@ -385,6 +396,7 @@ def handle_open(args: argparse.Namespace) -> int:
         export_format="json",
         export_path=path,
         crate_record=record,
+        keep_logging=bool(args.log_file),
     )
     return 0
 
@@ -540,8 +552,8 @@ def _auth_status(console: Console) -> int:
     return 0
 
 
-def _configure_logging(level_name: str) -> None:
-    """Put our own log on screen, and nobody else's.
+def _configure_logging(level_name: str, log_path: str | None = None) -> None:
+    """Put our own log on screen - or in a file - and nobody else's.
 
     ``logging.basicConfig`` configures the root logger, so urllib3's retry
     warnings came out with ours: a dig across 484 tracks printed dozens of
@@ -551,11 +563,31 @@ def _configure_logging(level_name: str) -> None:
 
     ``--log-level DEBUG`` is the one case where somebody does want to see them,
     so that level lets them back through.
+
+    ``--log-file`` sends the whole thing to a file instead. The crate browser
+    draws itself on stderr, which is where a stream handler writes too, so a log
+    line under the browser lands in the middle of the track list - and
+    redirecting the shell's stderr to catch it takes the interface with it.
+    Timestamps come with the file: the question a log answers after a freeze is
+    where it stopped, and that needs a clock.
     """
 
     level = getattr(logging, level_name.upper(), logging.INFO)
-    handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
+    if log_path:
+        destination = Path(log_path).expanduser()
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        handler = logging.FileHandler(destination, encoding="utf-8")
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+        )
+        # A native crash - miniaudio is C - kills the process without a Python
+        # traceback, which from the outside is an app that vanished without a
+        # word. This writes the interpreter's stacks to the same file on the
+        # way down, so the log names the call that did it.
+        faulthandler.enable(handler.stream)
+    else:
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
 
     root = logging.getLogger()
     ours = logging.getLogger("dj_digger")
@@ -584,7 +616,7 @@ def _configure_logging(level_name: str) -> None:
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_cli_args(argv)
 
-    _configure_logging(args.log_level)
+    _configure_logging(args.log_level, args.log_file)
 
     try:
         if args.command == "dig":
