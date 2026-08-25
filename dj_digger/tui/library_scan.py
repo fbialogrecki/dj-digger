@@ -5,10 +5,14 @@ Mixed into ``DiggerApp``; the attributes these reach for are set up in its
 """
 
 import logging
+import os
+import shutil
+import tempfile
 from pathlib import Path
 
 from textual import work
 
+from .. import library as library_module
 from ..scanner import LocalScanner, copy_to_clipboard
 from ..state import GOT
 
@@ -18,12 +22,34 @@ LOGGER = logging.getLogger(__name__)
 class LibraryScanMixin:
     """Matching the crate against audio files you already have on disk."""
 
-    def _mark_existing_local_file(self, track) -> bool:
-        if not track.local_path or not Path(track.local_path).is_file():
+    def _forget_missing_local_file(self, track) -> bool:
+        if not track.local_path or Path(track.local_path).is_file():
             return False
-        if self.state.get(track.key) != GOT:
-            self.state.set(track.key, GOT)
+        was_file_backed = self.state.clear_local_file(track.key)
+        if not was_file_backed and self.state.get(track.key) == GOT:
+            # Compatibility with auto-GOT rows created before file provenance
+            # was stored separately.
+            self.state.set(track.key, "new")
+        track.local_path = None
         return True
+
+    def _mark_existing_local_file(self, track) -> bool:
+        remembered = self.state.local_file(track.key)
+        if remembered:
+            track.local_path = remembered
+        if self._forget_missing_local_file(track) or not track.local_path:
+            return False
+        if self.state.get(track.key) != GOT or remembered != track.local_path:
+            self.state.set_local_file(track.key, track.local_path)
+        return True
+
+    def _local_file_needs_copy(self, track) -> bool:
+        if not track.local_path:
+            return False
+        source = Path(track.local_path)
+        if not source.is_file():
+            return False
+        return not source.resolve().is_relative_to(self._download_directory().resolve())
 
     @work(thread=True, group="scan")
     def scan_local_files(self) -> None:
@@ -70,19 +96,25 @@ class LibraryScanMixin:
         # the mirror gone a mark is one SQLite write.
         for row in self.rows:
             track = row.track
+            remembered = self.state.local_file(track.key)
+            if remembered:
+                track.local_path = remembered
+            if self._forget_missing_local_file(track):
+                touched = True
             if self._mark_existing_local_file(track):
                 touched = True
                 continue
-            if track.local_path:
-                track.local_path = None
-                touched = True
             match = scanner.match_track(track)
             if match is None:
+                stale = getattr(scanner, "had_stale_match", lambda _track: False)
+                if stale(track) and self.state.get(track.key) == GOT:
+                    self.state.set(track.key, "new")
+                    touched = True
                 continue
             track.local_path = match.path
             touched = True
-            if match.confident and self.state.get(track.key) != GOT:
-                self.state.set(track.key, GOT)
+            if match.confident:
+                self.state.set_local_file(track.key, match.path)
         if touched:
             self.refresh_rows()
 
@@ -90,7 +122,8 @@ class LibraryScanMixin:
         row = self.current_row()
         if row is None:
             return
-        if not row.track.local_path:
+        if self._forget_missing_local_file(row.track) or not row.track.local_path:
+            self.refresh_rows()
             self.notify("No local file matched for this track", timeout=3)
             return
         if copy_to_clipboard(row.track.local_path):
@@ -99,3 +132,67 @@ class LibraryScanMixin:
             self.notify(
                 "Could not reach a clipboard tool", severity="warning", timeout=5
             )
+
+    def action_copy_local_file(self) -> None:
+        row = self.current_row()
+        if row is None or not self._local_file_needs_copy(row.track):
+            self.notify("The local file is unavailable or already in this playlist folder", timeout=4)
+            return
+        self.notify(f"Copying {row.track.label} to the playlist folder…", timeout=3)
+        self.copy_local_file_in_background(row.track)
+
+    @work(thread=True, exclusive=True, group="copy_local_file")
+    def copy_local_file_in_background(self, track) -> None:
+        source = Path(track.local_path or "")
+        try:
+            target = _copy_local_file(source, self._download_directory())
+        except (OSError, ValueError) as exc:
+            self.call_from_thread(
+                self.notify,
+                f"Could not copy local file: {exc}",
+                severity="error",
+                timeout=6,
+            )
+            return
+        self.call_from_thread(self._local_file_copied, track, target)
+
+    def _local_file_copied(self, track, target: Path) -> None:
+        track.local_path = str(target)
+        self.state.set_local_file(track.key, target)
+        if self.crate is not None:
+            try:
+                library_module.save(self.crate)
+            except Exception as exc:
+                LOGGER.warning("Could not persist copied local path: %s", exc)
+        self.refresh_rows()
+        self.notify(f"Copied to {target}", timeout=5)
+
+
+def _copy_local_file(source: Path, directory: Path) -> Path:
+    source = source.resolve(strict=True)
+    directory.mkdir(parents=True, exist_ok=True)
+    directory = directory.resolve()
+    if source.is_relative_to(directory):
+        return source
+
+    target = directory / source.name
+    counter = 1
+    while target.exists():
+        target = directory / f"{source.stem} ({counter}){source.suffix}"
+        counter += 1
+
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=".dj-digger-copy-", suffix=".part", dir=directory
+    )
+    os.close(descriptor)
+    temporary = Path(temporary_name)
+    try:
+        shutil.copy2(source, temporary)
+        os.replace(temporary, target)
+        return target
+    finally:
+        if temporary.exists():
+            try:
+                temporary.unlink()
+            except OSError:
+                pass

@@ -90,6 +90,12 @@ class Database:
                     normalized_stem TEXT NOT NULL
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS track_local_files (
+                    key TEXT PRIMARY KEY,
+                    path TEXT NOT NULL
+                )
+            """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_local_normalized ON local_files(normalized_stem);")
             version = conn.execute("PRAGMA user_version").fetchone()[0]
             if version < SCHEMA_VERSION:
@@ -232,6 +238,24 @@ class Database:
                     (str(key), status, updated)
                 )
 
+    def get_track_local_file(self, key: str) -> str | None:
+        with self.connection() as conn:
+            row = conn.execute(
+                "SELECT path FROM track_local_files WHERE key = ?", (str(key),)
+            ).fetchone()
+            return row["path"] if row else None
+
+    def set_track_local_file(self, key: str, path: str) -> None:
+        with self.connection() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO track_local_files (key, path) VALUES (?, ?)",
+                (str(key), path),
+            )
+
+    def delete_track_local_file(self, key: str) -> None:
+        with self.connection() as conn:
+            conn.execute("DELETE FROM track_local_files WHERE key = ?", (str(key),))
+
     # --- Crates API ---
     def save_crate(self, record: dict[str, Any]) -> None:
         """Store a whole ``CrateRecord.to_json()``.
@@ -292,6 +316,15 @@ class Database:
                 """INSERT OR REPLACE INTO local_files (path, mtime, size, artist, title, normalized_stem)
                    VALUES (?, ?, ?, ?, ?, ?)""",
                 (path, mtime, size, artist, title, normalized_stem)
+            )
+
+    def delete_local_files(self, paths: list[str]) -> None:
+        if not paths:
+            return
+        with self.connection() as conn:
+            conn.executemany(
+                "DELETE FROM local_files WHERE path = ?",
+                ((path,) for path in paths),
             )
 
     def find_local_match(self, normalized_stem: str) -> str | None:

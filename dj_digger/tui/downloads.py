@@ -311,7 +311,11 @@ class DownloadMixin:
         self.download_progress.pop(key, None)
         self._dirty_download_rows.discard(key)
         was_visible = any(row.track.key == key for row in self.visible_rows)
-        self.state.set(key, GOT)
+        for row in self.rows:
+            if row.track.key == key:
+                row.track.local_path = str(path)
+                break
+        self.state.set_local_file(key, path)
         if self.hide_handled and was_visible:
             self.refresh_rows()
         else:
@@ -576,7 +580,8 @@ class DownloadMixin:
         self.download_progress.pop(key, None)
         self._dirty_download_rows.discard(key)
         was_visible = any(visible.track.key == key for visible in self.visible_rows)
-        self.state.set(key, GOT)
+        row.track.local_path = path_str
+        self.state.set_local_file(key, path_str)
         if self.hide_handled and was_visible:
             self.refresh_rows()
         else:

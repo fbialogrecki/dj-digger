@@ -68,6 +68,24 @@ def test_the_scan_only_counts_files_it_has_not_seen(tmp_path: Path) -> None:
     assert local.scan() == 0, "an unchanged file should not be rewritten"
 
 
+def test_a_deleted_file_is_removed_from_the_cache_and_never_matches(
+    tmp_path: Path,
+) -> None:
+    local = scanner_over(tmp_path, "Artist - Song.mp3")
+    path = Path(
+        local.match_track(
+            Track(title="Song", artist="Artist", permalink_url="http://sc/1")
+        ).path
+    )
+    path.unlink()
+
+    assert local.scan() == 0
+    assert local.match_track(
+        Track(title="Song", artist="Artist", permalink_url="http://sc/1")
+    ) is None
+    assert str(path) not in local.db.get_cached_files()
+
+
 def test_copy_to_clipboard_is_false_when_no_tool_exists(monkeypatch) -> None:
     """It used to return True even with nothing installed to copy with."""
 

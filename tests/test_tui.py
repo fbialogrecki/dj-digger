@@ -2014,6 +2014,8 @@ class ProgressProbeClient:
 
     def download_track(self, track, directory, **kwargs):
         self.seen.append(self.app.download_progress[track.key])
+        self.output.parent.mkdir(parents=True, exist_ok=True)
+        self.output.write_bytes(b"audio")
         return self.output
 
     def close(self):
@@ -2052,7 +2054,10 @@ def test_single_download_uses_a_playlist_named_subdirectory(state, tmp_path):
     class Client:
         def download_track(self, _track, directory, **_kwargs):
             directories.append(directory)
-            return directory / "track.wav"
+            directory.mkdir(parents=True, exist_ok=True)
+            path = directory / "track.wav"
+            path.write_bytes(b"audio")
+            return path
 
         def close(self):
             pass
@@ -2191,7 +2196,9 @@ def test_batch_finishes_independent_tracks_before_prompting_and_retries_only_pen
             self.calls[track.id] += 1
             if track.id == 91 and self.calls[91] == 1:
                 raise gates.GateProfileRequired("email")
-            return tmp_path / f"{track.id}.mp3"
+            path = tmp_path / f"{track.id}.mp3"
+            path.write_bytes(b"audio")
+            return path
 
         def close(self):
             pass
@@ -2329,7 +2336,10 @@ def test_batch_starts_downloads_before_every_hypeddit_preflight_finishes(
             started.append(track.id)
             if track.id == 205:
                 first_download.set()
-            return directory / f"{track.id}.wav"
+            directory.mkdir(parents=True, exist_ok=True)
+            path = directory / f"{track.id}.wav"
+            path.write_bytes(b"audio")
+            return path
 
         def close(self):
             pass
@@ -2518,7 +2528,9 @@ def test_soundcloud_login_refreshes_the_client_then_retries_once(
 
         def download_track(self, *_args, **_kwargs):
             self.calls += 1
-            return tmp_path / "account.mp3"
+            path = tmp_path / "account.mp3"
+            path.write_bytes(b"audio")
+            return path
 
         def close(self):
             pass
@@ -3138,6 +3150,7 @@ def test_batch_marks_an_existing_local_file_got_without_downloading(
     local_file = tmp_path / "Already here.wav"
     local_file.write_bytes(b"RIFF-audio")
     track.local_path = str(local_file)
+    state.set_local_file(track.key, local_file)
     app = make_app(links.categorise(track), state)
     started = []
     monkeypatch.setattr(
@@ -3151,6 +3164,95 @@ def test_batch_marks_an_existing_local_file_got_without_downloading(
     run(scenario)
     assert started == []
     assert state.get(track.key) == GOT
+
+
+def test_a_missing_file_clears_its_path_and_file_backed_got(state, tmp_path):
+    track = Track(
+        id=304,
+        title="Gone",
+        permalink_url="https://soundcloud.com/a/gone",
+    )
+    missing = tmp_path / "deleted.wav"
+    track.local_path = str(missing)
+    state.set_local_file(track.key, missing)
+    app = make_app(links.categorise(track), state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            app.apply_local_file_matches(StubScanner({}))
+            await pilot.pause()
+
+            assert track.local_path is None
+            assert state.local_file(track.key) is None
+            assert state.get(track.key) == "new"
+
+            await pilot.click("#tracks", offset=(10, 1), button=3)
+            await pilot.pause()
+            assert isinstance(app.screen, ContextMenuScreen)
+            assert not any(
+                action in {"copy", "copy_file"}
+                for action, _label in app.screen.options
+            )
+
+    run(scenario)
+
+
+def test_a_legacy_stale_cache_match_clears_its_old_got_status(records, state):
+    app = make_app(records, state)
+    key = records[0].track.key
+    state.set(key, GOT)
+
+    class StaleScanner:
+        def match_track(self, _track):
+            return None
+
+        def had_stale_match(self, track):
+            return track.key == key
+
+    async def scenario():
+        async with app.run_test():
+            app.apply_local_file_matches(StaleScanner())
+
+    run(scenario)
+    assert state.get(key) == "new"
+    assert records[0].track.local_path is None
+
+
+def test_context_menu_can_copy_a_local_track_into_the_playlist_folder(
+    state, tmp_path
+):
+    source = tmp_path / "Music" / "Artist - Track.wav"
+    source.parent.mkdir()
+    source.write_bytes(b"RIFF-local-audio")
+    track = Track(
+        id=305,
+        title="Track",
+        artist="Artist",
+        permalink_url="https://soundcloud.com/a/track",
+        local_path=str(source),
+    )
+    state.set_local_file(track.key, source)
+    app = make_app(links.categorise(track), state)
+    app.crate_title = "Playlist / One"
+    app.config.download_directory = str(tmp_path / "Downloads")
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.click("#tracks", offset=(10, 1), button=3)
+            await pilot.pause()
+            assert isinstance(app.screen, ContextMenuScreen)
+            assert ("copy_file", "Copy file to playlist folder") in app.screen.options
+            await pilot.press("escape")
+
+            worker = app.copy_local_file_in_background(track)
+            await worker.wait()
+            await pilot.pause()
+
+    run(scenario)
+    target = tmp_path / "Downloads" / "Playlist One" / source.name
+    assert target.read_bytes() == b"RIFF-local-audio"
+    assert track.local_path == str(target)
+    assert state.local_file(track.key) == str(target)
 
 
 class ClosingSource:
@@ -3371,9 +3473,11 @@ def test_a_matched_track_is_badged_in_the_table(records, state):
     run(scenario)
 
 
-def test_copying_the_path_says_so_either_way(records, state, monkeypatch):
+def test_copying_the_path_says_so_either_way(records, state, monkeypatch, tmp_path):
     app = make_app(records, state)
     key = records[0].track.key
+    local_file = tmp_path / "a.mp3"
+    local_file.write_bytes(b"audio")
     said = []
     monkeypatch.setattr(DiggerApp, "notify", lambda self, msg, **kw: said.append(msg))
 
@@ -3384,13 +3488,13 @@ def test_copying_the_path_says_so_either_way(records, state, monkeypatch):
             assert "No local file matched" in said[-1]
 
             app.apply_local_file_matches(
-                StubScanner({key: LocalMatch("/music/a.mp3", confident=True)})
+                StubScanner({key: LocalMatch(str(local_file), confident=True)})
             )
             monkeypatch.setattr(
                 "dj_digger.tui.library_scan.copy_to_clipboard", lambda text: True
             )
             await pilot.press("y")
-            assert "/music/a.mp3" in said[-1]
+            assert str(local_file) in said[-1]
 
     run(scenario)
 

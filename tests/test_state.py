@@ -16,6 +16,20 @@ def test_status_survives_a_reload(tmp_path):
     assert TrackState(path).get("12345") == GOT
 
 
+def test_file_backed_got_remembers_its_path_and_manual_status_forgets_it(tmp_path):
+    path = tmp_path / "state.json"
+    audio = tmp_path / "track.wav"
+    state = TrackState(path)
+
+    state.set_local_file("1", audio)
+    assert state.get("1") == GOT
+    assert TrackState(path).local_file("1") == str(audio)
+
+    state.set("1", GOT)
+    assert state.get("1") == GOT
+    assert state.local_file("1") is None
+
+
 def test_marking_new_again_forgets_the_track(tmp_path):
     path = tmp_path / "state.json"
     state = TrackState(path)

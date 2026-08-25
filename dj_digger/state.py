@@ -62,3 +62,28 @@ class TrackState:
         updated = datetime.now(UTC).isoformat(timespec="seconds")
         with self._lock:
             self.db.set_track_status(key, status, updated)
+            # A direct user decision is no longer contingent on a particular
+            # file. Automated scans/downloads use set_local_file instead.
+            self.db.delete_track_local_file(key)
+
+    def local_file(self, key: str) -> str | None:
+        with self._lock:
+            return self.db.get_track_local_file(key)
+
+    def set_local_file(self, key: str, path: str | Path) -> None:
+        updated = datetime.now(UTC).isoformat(timespec="seconds")
+        with self._lock:
+            self.db.set_track_status(key, GOT, updated)
+            self.db.set_track_local_file(key, str(path))
+
+    def clear_local_file(self, key: str) -> bool:
+        """Forget a missing file and undo only the GOT that depended on it."""
+
+        updated = datetime.now(UTC).isoformat(timespec="seconds")
+        with self._lock:
+            if self.db.get_track_local_file(key) is None:
+                return False
+            self.db.delete_track_local_file(key)
+            if self.db.get_track_status(key) == GOT:
+                self.db.set_track_status(key, NEW, updated)
+            return True

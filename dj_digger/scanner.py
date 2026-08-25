@@ -88,10 +88,17 @@ class LocalScanner:
     def __init__(self, directories: list[Path] | None = None, db: Database | None = None) -> None:
         self.directories = directories or default_scan_directories()
         self.db = db or Database()
+        self._stale_stems: set[str] = set()
 
     def scan(self) -> int:
         """Scan configured directories, updating the local_files cache in SQLite."""
         cached = self.db.get_cached_files()
+        self._stale_stems.clear()
+        missing = [path for path in cached if not Path(path).is_file()]
+        for path in missing:
+            self._stale_stems.add(cached[path][1])
+            cached.pop(path)
+        self.db.delete_local_files(missing)
         scanned = 0
 
         for root_dir in self.directories:
@@ -130,7 +137,9 @@ class LocalScanner:
         if not track.title:
             return None
 
-        both = self.db.find_local_match(normalize_string(f"{track.artist}{track.title}"))
+        both = self._existing_match(
+            normalize_string(f"{track.artist}{track.title}")
+        )
         if both:
             return LocalMatch(both, confident=True)
 
@@ -139,8 +148,23 @@ class LocalScanner:
         # is enough to even point at a file.
         title_stem = normalize_string(track.title)
         if len(title_stem) >= 6:
-            loose = self.db.find_local_match(title_stem)
+            loose = self._existing_match(title_stem)
             if loose:
                 return LocalMatch(loose, confident=False)
 
         return None
+
+    def _existing_match(self, normalized_stem: str) -> str | None:
+        while path := self.db.find_local_match(normalized_stem):
+            if Path(path).is_file():
+                return path
+            self._stale_stems.add(normalized_stem)
+            self.db.delete_local_files([path])
+        return None
+
+    def had_stale_match(self, track: Track) -> bool:
+        exact = normalize_string(f"{track.artist}{track.title}")
+        title = normalize_string(track.title)
+        return exact in self._stale_stems or (
+            len(title) >= 6 and title in self._stale_stems
+        )
