@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.13.3
+
 ### Changed
 
 - Large internal cleanup after a full audit: dead code removed, duplicated

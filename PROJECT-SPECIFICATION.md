@@ -2,7 +2,7 @@
 
 - Status: current implemented system
 - Document version: 1.0
-- Product version verified: 0.13.2
+- Product version verified: 0.13.3
 - Owner: Filip Białogrecki
 - Updated: 2026-08-25
 - Document lines: <!-- SPEC TOTAL LINES -->836<!-- END SPEC TOTAL LINES -->
