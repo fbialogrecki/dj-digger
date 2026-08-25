@@ -1,5 +1,51 @@
 # Changelog
 
+## 0.12.0
+
+### Added
+
+- **Current Hypeddit desktop-gate support.** One parser now distinguishes gates,
+  smartlinks, hybrid pages, nested gates, direct files, expired pages and
+  challenges. SoundCloud and other link-only steps are completed without
+  mutating provider APIs; Spotify artist and public-playlist steps use their
+  documented OAuth endpoints.
+- **Safe Chromium fallback.** CAPTCHA, provider OAuth and unknown future steps
+  can continue in the existing private Playwright profile. Interactive and
+  batch downloads share one profile lock and never copy API tokens into pages.
+- **Guided SoundCloud login.** CLI and TUI flows can open the private Chromium
+  profile, verify its OAuth cookie and retry only downloads waiting for login.
+- **Read-only Hypeddit contract suite.** An opt-in live test classifies all 60
+  reported pages using GET requests only, with no profile, OAuth or download
+  submission.
+- **Track context menu.** Right-clicking a row opens its Open, Copy path, Got,
+  Skip, Clear and Remove actions instead of opening the link immediately.
+
+### Security
+
+- Gate and download URLs reject credentials, lookalike hosts, unsafe schemes
+  and private or link-local literal addresses. Every page and file redirect is
+  checked before the next request and capped at five hops.
+- Downloads use owner-only temporary files, enforce the byte limit while
+  streaming, sniff HTML masquerading as audio, serialize final-name selection
+  and atomically replace only fully validated files.
+- CSRF values, OAuth state, email, comments, query strings and signed download
+  URLs are excluded from diagnostics. Hypeddit telemetry is best-effort and
+  mutating POSTs are never retried.
+
+### Fixed
+
+- Hypeddit no longer calls obsolete mobile endpoints or performs SoundCloud
+  follow, like, repost or comment actions that the current desktop gate does not
+  verify. Declared link steps are represented exactly in `skip_gate_steps[]`.
+- Hybrid smartlinks retain their downloadable gate while exposing shop links;
+  wrappers such as `link/ky9i8z` become the nested gate plus Beatport and
+  Bandcamp destinations.
+- Batch downloads serialize gate resolution per provider, stream up to four
+  validated files concurrently, keep failed tracks new and summarize failures
+  as authentication, CAPTCHA, manual, protocol or rejection errors.
+- Email and comment data are submitted only when the manifest requires them;
+  lifetime-fan options default to opt-out.
+
 ## 0.10.0
 
 ### Added
