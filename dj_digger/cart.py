@@ -170,6 +170,8 @@ def store_profile_path() -> Path:
     """Create the private, persistent Chromium profile outside the repository."""
 
     path = data_dir() / "store-browser"
+    # mkdir's mode is masked by the umask and ignored when the directory already
+    # exists, so the explicit chmod is what actually guarantees 0700.
     path.mkdir(parents=True, exist_ok=True, mode=0o700)
     if os.name != "nt":
         path.chmod(0o700)
@@ -575,6 +577,9 @@ def execute_items(
             if in_cart(current):
                 record("already_in_cart")
                 continue
+            # A second refresh, not paranoia: the cart check navigated the page
+            # away to the cart, so the product page must be reloaded before the
+            # add click has anything to land on.
             ready = refresh(item)
             if not _same_snapshot(item, ready):
                 record("skipped", "product identity or price changed after cart inspection")
@@ -612,6 +617,9 @@ def _beatport_track_id(url: str) -> str:
 def _only_visible(locator: Any) -> Any | None:
     try:
         visible = [match for match in _each(locator) if match.is_visible()]
+        # Exactly one, or nothing: two visible "Add to cart" controls mean the
+        # page changed shape, and clicking either could charge the wrong
+        # product - ambiguity has to degrade to "no control found".
         return visible[0] if len(visible) == 1 else None
     except Exception:
         return None
@@ -754,6 +762,9 @@ def _beatport_cart_contains(page: Any, product_id: str) -> bool:
     for anchor in _each(anchors):
         if not anchor.is_visible():
             continue
+        # Nearest ancestor containing any button = the smallest DOM region that
+        # is one cart row, so a neighbouring row's Remove cannot be mistaken
+        # for this product's.
         region = anchor.locator("xpath=ancestor::*[.//button][1]")
         if _first_visible(region.get_by_role("button", name=remove_name)) is not None:
             return True
@@ -778,6 +789,7 @@ def _bandcamp_cart_contains(page: Any, item: CartItem) -> bool:
         url = urljoin(item.product_url, anchor.get_attribute("href") or "")
         if not is_store_url(url, "bandcamp") or urlparse(url).path != expected_path:
             continue
+        # Same smallest-region rule as the Beatport check above, with links.
         region = anchor.locator("xpath=ancestor::*[.//a][1]")
         if _first_visible(region.get_by_role("link", name=remove_name)) is not None:
             return True
@@ -877,6 +889,8 @@ def _beatport_add_control(page: Any, item: CartItem) -> Any | None:
     amount = format(item.price, "f")
     if "." in amount:
         whole, fraction = amount.split(".", 1)
+        # [.,]: the button renders the price with a locale-dependent decimal
+        # separator. The lookarounds stop 9.99 from matching inside 19.99.
         amount_pattern = rf".*(?<!\d){re.escape(whole)}[.,]{re.escape(fraction)}(?!\d).*"
     else:
         amount_pattern = rf".*(?<!\d){re.escape(amount)}(?!\d).*"

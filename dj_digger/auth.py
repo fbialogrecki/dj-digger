@@ -40,6 +40,8 @@ def soundcloud_browser_profile_path() -> Path:
     """Return the private app-managed browser profile used only for SoundCloud."""
 
     path = data_dir() / "soundcloud-browser"
+    # mkdir's mode is masked by the umask and ignored when the directory already
+    # exists, so the explicit chmod below is what guarantees 0700.
     path.mkdir(parents=True, exist_ok=True, mode=0o700)
     if os.name != "nt":
         path.chmod(0o700)
@@ -174,7 +176,7 @@ def _extract_sqlite_cookies(db_path: str) -> list[str]:
     try:
         with tempfile.NamedTemporaryFile(suffix=".sqlite", delete=False) as tmp_file:
             tmp_path = tmp_file.name
-        os.chmod(tmp_path, 0o600)
+        # NamedTemporaryFile already creates at 0600; no chmod needed.
         shutil.copyfile(db_path, tmp_path)
 
         conn = sqlite3.connect(tmp_path)

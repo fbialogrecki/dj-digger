@@ -21,6 +21,9 @@ AUTHORIZE_URL = "https://accounts.spotify.com/authorize"
 TOKEN_URL = "https://accounts.spotify.com/api/token"
 API_ROOT = "https://api.spotify.com/v1"
 DASHBOARD_URL = "https://developer.spotify.com/dashboard"
+# Not freely changeable: the derived REDIRECT_URI must byte-match the redirect
+# URI registered in the user's Spotify dashboard, so changing the port breaks
+# every existing install.
 CALLBACK_PORT = 43821
 REDIRECT_URI = f"http://127.0.0.1:{CALLBACK_PORT}/callback"
 SCOPE = "user-follow-modify playlist-modify-public"
@@ -195,6 +198,7 @@ def access_token(*, session=requests, now: float | None = None) -> str:
     credentials = load_credentials()
     current_time = time.time() if now is None else now
     token = str(credentials.get("access_token") or "")
+    # 30 s of slack so a token that expires mid-request is refreshed up front.
     if token and float(credentials.get("expires_at") or 0) > current_time + 30:
         return token
 
@@ -234,6 +238,7 @@ def save_uris(uris: list[str], *, session=requests) -> None:
     allowed = ("spotify:artist:", "spotify:playlist:")
     if not uris or any(
         not uri.startswith(allowed)
+        # 22 is the fixed length of a Spotify base-62 object id.
         or not re.fullmatch(r"[A-Za-z0-9]{22}", uri.rsplit(":", 1)[-1])
         for uri in uris
     ):

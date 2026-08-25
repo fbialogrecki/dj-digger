@@ -728,6 +728,8 @@ class Player:
             volume = self.volume
             out = (
                 chunk
+                # >= 0.999 rather than == 1.0: a float comparison guard, and at
+                # full volume the per-sample rescale loop is skipped entirely.
                 if volume >= 0.999
                 else array.array("h", [int(sample * volume) for sample in chunk])
             )
@@ -773,6 +775,8 @@ class Player:
     def seek(self, seconds: float) -> None:
         if self._loaded is None:
             return
+        # Half a second short of the end: seeking to the exact end delivers an
+        # immediate end-of-stream and the track reads as finished.
         target = max(0.0, min(max(0.0, self.duration - 0.5), seconds))
         was_playing = self._playing
         if self._device is not None:

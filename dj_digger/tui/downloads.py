@@ -31,6 +31,8 @@ _INVALID_FOLDER_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 def _playlist_folder_name(title: str) -> str:
     cleaned = _INVALID_FOLDER_CHARS.sub(" ", title)
     cleaned = re.sub(r"\s+", " ", cleaned).strip(" .")
+    # 120 keeps stem + suffix inside common 255-byte filename limits with room
+    # for the " (n)" uniqueness counter.
     return cleaned[:120].rstrip(" .") or "playlist"
 
 
@@ -141,6 +143,8 @@ class DownloadMixin:
                 return
 
         def on_progress(downloaded: int, total_bytes: int | None) -> None:
+            # 0.5 when the server sent no Content-Length: visibly moving
+            # without pretending to know how far along it is.
             pct = min(1.0, downloaded / total_bytes) if total_bytes and total_bytes > 0 else 0.5
             self.call_from_thread(self._update_track_progress, key, pct)
 
@@ -299,6 +303,8 @@ class DownloadMixin:
         self.download_progress[key] = pct
         self._dirty_download_rows.add(key)
         now = time.time()
+        # ~12 repaints/s, below the 1/30 s UI ticker (keymap.TICK), so a fast
+        # download can never outrun the frame budget with row repaints.
         if now - self._last_progress_redraw >= 0.08:
             self._last_progress_redraw = now
             dirty_keys = tuple(self._dirty_download_rows)
@@ -462,6 +468,8 @@ class DownloadMixin:
             return (row, gate_url, "hub", None, changed)
 
         def on_progress(downloaded: int, total_bytes: int | None) -> None:
+            # 0.5 when the server sent no Content-Length: visibly moving
+            # without pretending to know how far along it is.
             pct = min(1.0, downloaded / total_bytes) if total_bytes and total_bytes > 0 else 0.5
             self.call_from_thread(self._update_track_progress, key, pct)
 
@@ -493,6 +501,8 @@ class DownloadMixin:
         """Run the pool downloads and sort every outcome into the progress bag."""
 
         progress = _BatchProgress(total=len(items))
+        # Four workers: enough to overlap gate waits, few enough to stay polite
+        # to SoundCloud and the gate providers (each worker owns one session).
         self._download_executor = ThreadPoolExecutor(max_workers=4)
         try:
             futures = [

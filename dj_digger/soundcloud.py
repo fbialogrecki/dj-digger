@@ -60,6 +60,9 @@ DISCOVER_URL = "https://soundcloud.com/discover"
 # 10-minute WAV at 24/96 is under 400 MB - by a wide margin.
 MAX_DOWNLOAD_BYTES = 2 * 1024 * 1024 * 1024
 MAX_DOWNLOAD_REDIRECTS = 5
+# Concurrent downloads in the TUI pool race between target.exists() and
+# os.replace when two tracks sanitise to the same stem; the lock makes
+# pick-a-unique-name-and-rename one atomic step.
 _DOWNLOAD_NAME_LOCK = threading.Lock()
 
 # The /tracks endpoint answers 400 for more than 50 ids.
@@ -198,6 +201,8 @@ def _stream_to_file(
     prefix = bytearray()
     with temporary.open("wb") as handle:
         try:
+            # 128 KB: disk writes want fewer, larger chunks than the 64 KB the
+            # player streams with, where latency to first audio matters instead.
             for chunk in response.iter_content(chunk_size=1024 * 128):
                 if chunk:
                     handle.write(chunk)

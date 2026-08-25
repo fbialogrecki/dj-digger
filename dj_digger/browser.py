@@ -236,6 +236,8 @@ def open_urls(
     urls: Iterable[str],
     browser: str = SYSTEM_DEFAULT,
     *,
+    # Browsers quietly drop tabs opened back-to-back; a short gap between
+    # open_url calls lets each one register.
     pause: float = 0.1,
     controller: webbrowser.BaseBrowser | None = None,
     on_success: Callable[[int, str], None] | None = None,

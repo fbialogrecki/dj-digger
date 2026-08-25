@@ -182,6 +182,8 @@ def extract_declared_track_count(html: str) -> int | None:
             pass
 
     text = soup.get_text(" ", strip=True)
+    # {1,4}: a playlist has at most thousands of tracks, and a wider match
+    # would swallow years and track ids that happen to precede "tracks".
     for pattern in (r"Contains tracks\s*(\d+)", r"\b(\d{1,4})\s+tracks?\b"):
         match = re.search(pattern, text, flags=re.IGNORECASE)
         if match:

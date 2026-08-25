@@ -196,6 +196,8 @@ PROVIDER_OAUTH_STEPS = {"dz": "Deezer", "ap": "Apple Music", "th": "Threads"}
 # while still serializing whole flows across worker threads.
 _HYPEDDIT_FLOW_LOCK = threading.RLock()
 MAX_GATE_REDIRECTS = 5
+# How deep a chain of gates-inside-gates is followed before calling it a cycle.
+MAX_NESTED_GATES = 5
 
 
 class _UnsafeGateRedirect(ValueError):
@@ -444,7 +446,7 @@ def resolve_hypeddit_download_url(
         if not _is_hypeddit_url(url) or not is_fetchable(url):
             return None
         canonical = url.rstrip("/")
-        if canonical in _visited or len(_visited) >= 5:
+        if canonical in _visited or len(_visited) >= MAX_NESTED_GATES:
             raise GateProtocolChanged("Hypeddit nested-gate cycle or redirect limit reached")
         visited = _visited | {canonical}
         config = _identity_for(config)
@@ -543,6 +545,9 @@ def _post_download(
         ajax_headers["X-CSRF-TOKEN"] = manifest.csrf
 
     comment = config.random_comment() if social else ""
+    # The fixed values below ("time": 0, "page": "nonsingle" - not a typo,
+    # "download_visit": "true") mirror what the desktop web flow sends verbatim;
+    # the endpoint rejects requests that deviate from them.
     payload: dict[str, Any] = {
         "file": urllib.parse.quote(manifest.file_id, safe=""),
         "download_visit": "true",
@@ -925,6 +930,9 @@ def resolve_gaterush_download_url(
             session.post(f"https://gaterush.me/save-email/{slug}", data={"email": email, "_csrf": csrf}, headers=ajax_headers, timeout=timeout)
 
             steps_m = re.findall(r'id["\']:\s*["\']([^"\']+)["\']', text)
+            # The scraped ids are unioned with the six stock providers because
+            # the regex misses steps rendered client-side; GateRush ignores a
+            # stepId the gate did not declare, so over-posting is harmless.
             for st in set(steps_m) | {"instagram", "spotify", "youtube", "soundcloud", "email", "tiktok"}:
                 session.post(f"https://gaterush.me/gate-step/{slug}", data={"stepId": st, "_csrf": csrf}, headers=ajax_headers, timeout=timeout)
 

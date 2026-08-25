@@ -55,6 +55,9 @@ class Database:
         """Get or create a thread-local SQLite connection."""
         conn = getattr(self._local, "conn", None)
         if conn is None:
+            # SQLite busy-timeout: the background library scan and the UI
+            # thread write concurrently, so a briefly locked database waits
+            # instead of raising.
             conn = sqlite3.connect(str(self.path), timeout=10.0)
             conn.row_factory = sqlite3.Row
             conn.execute("PRAGMA journal_mode=WAL;")
