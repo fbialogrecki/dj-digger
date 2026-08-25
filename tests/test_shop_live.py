@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from dj_digger import cart
+from dj_digger import cart, links
 
 pytestmark = pytest.mark.shop_live
 
@@ -46,7 +46,7 @@ def _public_html(context: Any, url: str, store: str) -> str:
     page = context.new_page()
     try:
         page.goto(url, wait_until="domcontentloaded", timeout=60_000)
-        assert cart.is_store_url(page.url, store), f"unsafe redirect to {cart.redact_url(page.url)}"
+        assert cart.is_store_url(page.url, store), f"unsafe redirect to {links.redact_url(page.url)}"
         return page.content()
     finally:
         page.close()

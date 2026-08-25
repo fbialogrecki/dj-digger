@@ -21,7 +21,7 @@ from bs4 import BeautifulSoup
 from . import spotify
 from .browser import is_fetchable
 from .html_fallback import normalize_link
-from .links import SHOP_CATEGORIES, host_of, store_for_url
+from .links import HYPEDDIT_HOSTS, SHOP_CATEGORIES, host_of, redact_url, store_for_url
 
 LOGGER = logging.getLogger(__name__)
 
@@ -179,22 +179,22 @@ def _clean_url(raw_url: str | None) -> str | None:
     return None
 
 
-def _url_for_log(url: str) -> str:
-    """Keep host/path for diagnostics while dropping credentials and query secrets."""
-
-    try:
-        parsed = urllib.parse.urlparse(url)
-    except ValueError:
-        return "<invalid-url>"
-    host = parsed.hostname or "<unknown-host>"
-    return urllib.parse.urlunparse((parsed.scheme, host, parsed.path, "", "", ""))
+def _log_gate_failure(provider: str, url: str, exc: Exception) -> None:
+    LOGGER.debug(
+        "%s gate resolution failed for %s (%s)",
+        provider,
+        redact_url(url),
+        type(exc).__name__,
+    )
 
 
 CLICK_THROUGH_STEPS = frozenset(
     {"sc", "yt", "ig", "tw", "fb", "tk", "bc", "mc", "dn", "fbmsgr"}
 )
 PROVIDER_OAUTH_STEPS = {"dz": "Deezer", "ap": "Apple Music", "th": "Threads"}
-_HYPEDDIT_FLOW_LOCK = threading.Lock()
+# RLock: manifest resolution recurses into nested gates on the same thread
+# while still serializing whole flows across worker threads.
+_HYPEDDIT_FLOW_LOCK = threading.RLock()
 MAX_GATE_REDIRECTS = 5
 
 
@@ -238,13 +238,8 @@ def _is_hypeddit_url(url: str) -> bool:
         parsed = urllib.parse.urlparse(url)
     except ValueError:
         return False
-    host = (parsed.hostname or "").lower()
-    return parsed.scheme in {"http", "https"} and host in {
-        "hypeddit.com",
-        "www.hypeddit.com",
-        "hypd.it",
-        "www.hypd.it",
-    }
+    host = (parsed.hostname or "").lower().removeprefix("www.")
+    return parsed.scheme in {"http", "https"} and host in HYPEDDIT_HOSTS
 
 
 def _input_fields(soup: BeautifulSoup) -> dict[str, tuple[str, ...]]:
@@ -257,8 +252,7 @@ def _input_fields(soup: BeautifulSoup) -> dict[str, tuple[str, ...]]:
 
 
 def _first(fields: dict[str, tuple[str, ...]], name: str, default: str = "") -> str:
-    values = fields.get(name, ())
-    return values[0] if values else default
+    return next(iter(fields.get(name, ())), default)
 
 
 def _is_hidden(tag: Any) -> bool:
@@ -443,157 +437,146 @@ def resolve_hypeddit_download_url(
     timeout: float = 10.0,
     config: Any | None = None,
     _visited: frozenset[str] = frozenset(),
-    _flow_locked: bool = False,
 ) -> str | None:
     """Resolve the current desktop Hypeddit flow without faking provider writes."""
 
-    if not _flow_locked:
-        with _HYPEDDIT_FLOW_LOCK:
-            return resolve_hypeddit_download_url(
-                url,
-                session,
-                timeout=timeout,
-                config=config,
-                _visited=_visited,
-                _flow_locked=True,
-            )
-    if not _is_hypeddit_url(url) or not is_fetchable(url):
-        return None
-    canonical = url.rstrip("/")
-    if canonical in _visited or len(_visited) >= 5:
-        raise GateProtocolChanged("Hypeddit nested-gate cycle or redirect limit reached")
-    visited = _visited | {canonical}
-    config = _identity_for(config)
-    headers = {**DEFAULT_HEADERS, "Referer": url}
-
-    try:
-        response, landed = _safe_page_get(
-            session, url, headers=headers, timeout=timeout
-        )
-    except _UnsafeGateRedirect as exc:
-        raise GateProtocolChanged(str(exc)) from exc
-    except requests.RequestException as exc:
-        raise GateUnavailable("Hypeddit page could not be reached") from exc
-    if response.status_code != 200:
-        raise GateUnavailable(f"Hypeddit page returned HTTP {response.status_code}")
-    if not _is_hypeddit_url(landed):
-        raise GateProtocolChanged("Hypeddit redirected outside its canonical hosts")
-
-    inspection = inspect_hypeddit_html(landed, response.text)
-    if inspection.kind == "challenge":
-        raise GateCaptchaRequired("Hypeddit CAPTCHA requires browser completion")
-    if inspection.manifest is None:
-        for nested in inspection.nested_gates:
-            resolved = resolve_hypeddit_download_url(
-                nested,
-                session,
-                timeout=timeout,
-                config=config,
-                _visited=frozenset(visited),
-                _flow_locked=True,
-            )
-            if resolved:
-                return resolved
-        if inspection.kind == "hub":
+    with _HYPEDDIT_FLOW_LOCK:
+        if not _is_hypeddit_url(url) or not is_fetchable(url):
             return None
-        raise GateProtocolChanged("Hypeddit page has no supported download manifest")
+        canonical = url.rstrip("/")
+        if canonical in _visited or len(_visited) >= 5:
+            raise GateProtocolChanged("Hypeddit nested-gate cycle or redirect limit reached")
+        visited = _visited | {canonical}
+        config = _identity_for(config)
+        headers = {**DEFAULT_HEADERS, "Referer": url}
 
-    manifest = inspection.manifest
-    if not manifest.file_id or not manifest.steps:
-        raise GateProtocolChanged("Hypeddit gate manifest is incomplete")
-    if "email" in manifest.steps and not config.has_real_email():
-        raise GateProfileRequired(
-            "Hypeddit requires a real email; set it in Settings before downloading"
-        )
+        try:
+            response, landed = _safe_page_get(
+                session, url, headers=headers, timeout=timeout
+            )
+        except _UnsafeGateRedirect as exc:
+            raise GateProtocolChanged(str(exc)) from exc
+        except requests.RequestException as exc:
+            raise GateUnavailable("Hypeddit page could not be reached") from exc
+        if response.status_code != 200:
+            raise GateUnavailable(f"Hypeddit page returned HTTP {response.status_code}")
+        if not _is_hypeddit_url(landed):
+            raise GateProtocolChanged("Hypeddit redirected outside its canonical hosts")
 
-    social_steps = [step for step in manifest.steps if step != "email"]
-    social = bool(getattr(config, "gate_social_actions", True))
-    if social_steps and not social:
-        raise GateSocialActionsDisabled(
-            "This Hypeddit gate requires social steps, but they are disabled"
-        )
-
-    completed: list[str] = []
-    for step in social_steps:
-        if step in CLICK_THROUGH_STEPS:
-            completed.append(step)
-        elif step == "sp":
-            try:
-                spotify.save_uris(_spotify_uris(manifest))
-            except spotify.SpotifyError as exc:
-                raise GateAuthenticationRequired("Spotify") from exc
-            completed.append(step)
-        elif step in PROVIDER_OAUTH_STEPS:
-            raise GateAuthenticationRequired(PROVIDER_OAUTH_STEPS[step])
-        else:
-            raise GateManualActionRequired(step)
-
-    ajax_headers = {
-        **headers,
-        "X-Requested-With": "XMLHttpRequest",
-        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-    }
-    if manifest.csrf:
-        ajax_headers["X-CSRF-TOKEN"] = manifest.csrf
-
-    comment = config.random_comment() if social else ""
-    payload: dict[str, Any] = {
-        "file": urllib.parse.quote(manifest.file_id, safe=""),
-        "download_visit": "true",
-        "profile_downloads": "true",
-        "time": 0,
-        "sc_comment_text": comment if manifest.sc_comment_required else "",
-        "yt_comment_text": comment if manifest.yt_comment_required else "",
-        "page": "nonsingle",
-        "is_skippable": manifest.is_skippable,
-        "steps": ",".join(manifest.steps),
-        "email": config.user_email if "email" in manifest.steps else "",
-        "download_action": "DOWNLOAD",
-        "skip_gate_steps[]": completed,
-        "wrndk": manifest.wrndk,
-        "is_mobile": manifest.is_mobile,
-        "external_id": manifest.external_id,
-        "hypesource": manifest.hypesource,
-        "adcode": manifest.adcode,
-        "lifetime_fan_spotify": "0",
-        "lifetime_fan_deezer": "0",
-        "lifetime_fan_apple": "0",
-        "gvf": manifest.gvf,
-        **{name: list(values) for name, values in manifest.fields.items()},
-    }
-    try:
-        if manifest.gvt:
-            try:
-                session.post(
-                    "https://hypeddit.com/gate/ge",
-                    data={"vt": manifest.gvt, "uid": manifest.file_id},
-                    headers=ajax_headers,
+        inspection = inspect_hypeddit_html(landed, response.text)
+        if inspection.kind == "challenge":
+            raise GateCaptchaRequired("Hypeddit CAPTCHA requires browser completion")
+        if inspection.manifest is None:
+            for nested in inspection.nested_gates:
+                resolved = resolve_hypeddit_download_url(
+                    nested,
+                    session,
                     timeout=timeout,
+                    config=config,
+                    _visited=frozenset(visited),
                 )
-            except requests.RequestException:
-                LOGGER.debug("Hypeddit telemetry failed for %s", _url_for_log(url))
-        download = session.post(
-            "https://hypeddit.com/gate/download/ul",
-            data=payload,
-            headers=ajax_headers,
-            timeout=timeout,
-        )
-    except requests.RequestException as exc:
-        raise GateRejected("Hypeddit download request failed") from exc
-    if download.status_code != 200:
-        raise GateRejected(f"Hypeddit download returned HTTP {download.status_code}")
-    try:
-        result = download.json()
-    except ValueError as exc:
-        raise GateProtocolChanged("Hypeddit returned an unreadable download reply") from exc
-    if isinstance(result, dict) and _reply_requests_captcha(result):
-        raise GateCaptchaRequired("Hypeddit CAPTCHA requires browser completion")
-    if not isinstance(result, dict) or not result.get("download_status"):
-        raise GateRejected("Hypeddit did not unlock the download")
-    cleaned = _clean_url(result.get("URL") or result.get("url"))
-    if not cleaned or not is_fetchable(cleaned):
-        raise GateProtocolChanged("Hypeddit returned an unsafe download URL")
-    return cleaned
+                if resolved:
+                    return resolved
+            if inspection.kind == "hub":
+                return None
+            raise GateProtocolChanged("Hypeddit page has no supported download manifest")
+
+        manifest = inspection.manifest
+        if not manifest.file_id or not manifest.steps:
+            raise GateProtocolChanged("Hypeddit gate manifest is incomplete")
+        if "email" in manifest.steps and not config.has_real_email():
+            raise GateProfileRequired(
+                "Hypeddit requires a real email; set it in Settings before downloading"
+            )
+
+        social_steps = [step for step in manifest.steps if step != "email"]
+        social = bool(getattr(config, "gate_social_actions", True))
+        if social_steps and not social:
+            raise GateSocialActionsDisabled(
+                "This Hypeddit gate requires social steps, but they are disabled"
+            )
+
+        completed: list[str] = []
+        for step in social_steps:
+            if step in CLICK_THROUGH_STEPS:
+                completed.append(step)
+            elif step == "sp":
+                try:
+                    spotify.save_uris(_spotify_uris(manifest))
+                except spotify.SpotifyError as exc:
+                    raise GateAuthenticationRequired("Spotify") from exc
+                completed.append(step)
+            elif step in PROVIDER_OAUTH_STEPS:
+                raise GateAuthenticationRequired(PROVIDER_OAUTH_STEPS[step])
+            else:
+                raise GateManualActionRequired(step)
+
+        ajax_headers = {
+            **headers,
+            "X-Requested-With": "XMLHttpRequest",
+            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        }
+        if manifest.csrf:
+            ajax_headers["X-CSRF-TOKEN"] = manifest.csrf
+
+        comment = config.random_comment() if social else ""
+        payload: dict[str, Any] = {
+            "file": urllib.parse.quote(manifest.file_id, safe=""),
+            "download_visit": "true",
+            "profile_downloads": "true",
+            "time": 0,
+            "sc_comment_text": comment if manifest.sc_comment_required else "",
+            "yt_comment_text": comment if manifest.yt_comment_required else "",
+            "page": "nonsingle",
+            "is_skippable": manifest.is_skippable,
+            "steps": ",".join(manifest.steps),
+            "email": config.user_email if "email" in manifest.steps else "",
+            "download_action": "DOWNLOAD",
+            "skip_gate_steps[]": completed,
+            "wrndk": manifest.wrndk,
+            "is_mobile": manifest.is_mobile,
+            "external_id": manifest.external_id,
+            "hypesource": manifest.hypesource,
+            "adcode": manifest.adcode,
+            "lifetime_fan_spotify": "0",
+            "lifetime_fan_deezer": "0",
+            "lifetime_fan_apple": "0",
+            "gvf": manifest.gvf,
+            **{name: list(values) for name, values in manifest.fields.items()},
+        }
+        try:
+            if manifest.gvt:
+                try:
+                    session.post(
+                        "https://hypeddit.com/gate/ge",
+                        data={"vt": manifest.gvt, "uid": manifest.file_id},
+                        headers=ajax_headers,
+                        timeout=timeout,
+                    )
+                except requests.RequestException:
+                    LOGGER.debug("Hypeddit telemetry failed for %s", redact_url(url))
+            download = session.post(
+                "https://hypeddit.com/gate/download/ul",
+                data=payload,
+                headers=ajax_headers,
+                timeout=timeout,
+            )
+        except requests.RequestException as exc:
+            raise GateRejected("Hypeddit download request failed") from exc
+        if download.status_code != 200:
+            raise GateRejected(f"Hypeddit download returned HTTP {download.status_code}")
+        try:
+            result = download.json()
+        except ValueError as exc:
+            raise GateProtocolChanged("Hypeddit returned an unreadable download reply") from exc
+        if isinstance(result, dict) and _reply_requests_captcha(result):
+            raise GateCaptchaRequired("Hypeddit CAPTCHA requires browser completion")
+        if not isinstance(result, dict) or not result.get("download_status"):
+            raise GateRejected("Hypeddit did not unlock the download")
+        cleaned = _clean_url(result.get("URL") or result.get("url"))
+        if not cleaned or not is_fetchable(cleaned):
+            raise GateProtocolChanged("Hypeddit returned an unsafe download URL")
+        return cleaned
 
 
 def download_hypeddit_in_browser(
@@ -851,11 +834,7 @@ def resolve_toneden_download_url(url: str, session: requests.Session, timeout: f
                 except ValueError:
                     pass
     except requests.RequestException as exc:
-        LOGGER.debug(
-            "ToneDen gate resolution failed for %s (%s)",
-            _url_for_log(url),
-            type(exc).__name__,
-        )
+        _log_gate_failure("ToneDen", url, exc)
 
     return None
 
@@ -884,11 +863,7 @@ def resolve_droploud_download_url(
                     return stream_path
                 return f"https://api.droploud.com{stream_path}"
     except requests.RequestException as exc:
-        LOGGER.debug(
-            "Droploud gate resolution failed for %s (%s)",
-            _url_for_log(url),
-            type(exc).__name__,
-        )
+        _log_gate_failure("Droploud", url, exc)
     return None
 
 
@@ -936,11 +911,7 @@ def resolve_gaterush_download_url(
             elif dl_resp.status_code == 200:
                 return f"https://gaterush.me/download/{slug}"
     except requests.RequestException as exc:
-        LOGGER.debug(
-            "GateRush gate resolution failed for %s (%s)",
-            _url_for_log(url),
-            type(exc).__name__,
-        )
+        _log_gate_failure("GateRush", url, exc)
     return None
 
 
@@ -974,28 +945,59 @@ def resolve_google_drive_download_url(url: str) -> str:
     return url
 
 
-# Every host the routing below knows how to unwrap. It lives here rather than
-# beside the caller that has to pick a candidate link, because a second copy of
-# this list is a second copy that drifts.
-RESOLVABLE_HOSTS = (
-    "hypeddit.com",
-    "www.hypeddit.com",
-    "hypd.it",
-    "www.hypd.it",
-    "droploud.com",
-    "www.droploud.com",
-    "gaterush.me",
-    "www.gaterush.me",
-    "toneden.io",
-    "www.toneden.io",
-    "mediafire.com",
-    "www.mediafire.com",
-    "dropbox.com",
-    "www.dropbox.com",
-    "dl.dropboxusercontent.com",
-    "drive.google.com",
-    "docs.google.com",
-)
+# One table drives host routing: each resolver keeps its own signature (the
+# dropbox/gdrive ones are pure URL rewrites, some take a config), so entries
+# are small lambdas over a uniform (url, session, timeout, config). The exact
+# host spellings matter - www. variants are listed deliberately, and hosts
+# without one (drive.google.com) must NOT gain one via normalisation.
+_RESOLVERS: dict[str, Any] = {
+    host: resolver
+    for hosts, resolver in (
+        (
+            ("hypeddit.com", "www.hypeddit.com", "hypd.it", "www.hypd.it"),
+            lambda url, session, timeout, config: resolve_hypeddit_download_url(
+                url, session, timeout=timeout, config=config
+            ),
+        ),
+        (
+            ("droploud.com", "www.droploud.com"),
+            lambda url, session, timeout, config: resolve_droploud_download_url(
+                url, session, timeout=timeout
+            ),
+        ),
+        (
+            ("gaterush.me", "www.gaterush.me"),
+            lambda url, session, timeout, config: resolve_gaterush_download_url(
+                url, session, timeout=timeout, config=config
+            ),
+        ),
+        (
+            ("toneden.io", "www.toneden.io"),
+            lambda url, session, timeout, config: resolve_toneden_download_url(
+                url, session, timeout=timeout
+            ),
+        ),
+        (
+            ("mediafire.com", "www.mediafire.com"),
+            lambda url, session, timeout, config: resolve_mediafire_download_url(
+                url, session, timeout=timeout
+            ),
+        ),
+        (
+            ("dropbox.com", "www.dropbox.com", "dl.dropboxusercontent.com"),
+            lambda url, session, timeout, config: resolve_dropbox_download_url(url),
+        ),
+        (
+            ("drive.google.com", "docs.google.com"),
+            lambda url, session, timeout, config: resolve_google_drive_download_url(url),
+        ),
+    )
+    for host in hosts
+}
+
+# Every host the routing knows how to unwrap. Derived from the table so a
+# caller picking a candidate link can never drift from the routing itself.
+RESOLVABLE_HOSTS = tuple(_RESOLVERS)
 
 
 # Hubs wrap each shop in their own redirect (ampsuite's link-redirect, most
@@ -1069,7 +1071,7 @@ def inspect_link_page(
     if not is_fetchable(url):
         LOGGER.debug(
             "Refusing to read %s - not an address worth reaching out to.",
-            _url_for_log(url),
+            redact_url(url),
         )
         return LinkPageInspection()
 
@@ -1078,11 +1080,11 @@ def inspect_link_page(
             session, url, headers=DEFAULT_HEADERS, timeout=timeout
         )
     except _UnsafeGateRedirect as exc:
-        LOGGER.debug("Refusing redirect from %s: %s", _url_for_log(url), exc)
+        LOGGER.debug("Refusing redirect from %s: %s", redact_url(url), exc)
         return LinkPageInspection()
     except requests.RequestException as exc:
         LOGGER.debug(
-            "Could not read %s (%s)", _url_for_log(url), type(exc).__name__
+            "Could not read %s (%s)", redact_url(url), type(exc).__name__
         )
         return None
     if response.status_code >= 400:
@@ -1179,24 +1181,14 @@ def resolve_gate_download_url(
         return None
 
     host = (urllib.parse.urlparse(url).hostname or "").lower()
-    if host in {"hypeddit.com", "www.hypeddit.com", "hypd.it", "www.hypd.it"}:
-        return resolve_hypeddit_download_url(url, session, timeout=timeout, config=config)
-    if host in {"droploud.com", "www.droploud.com"}:
-        return resolve_droploud_download_url(url, session, timeout=timeout)
-    if host in {"gaterush.me", "www.gaterush.me"}:
-        return resolve_gaterush_download_url(url, session, timeout=timeout, config=config)
-    if host in {"toneden.io", "www.toneden.io"}:
-        return resolve_toneden_download_url(url, session, timeout=timeout)
-    if host in {"mediafire.com", "www.mediafire.com"}:
-        return resolve_mediafire_download_url(url, session, timeout=timeout)
-    if host in {"dropbox.com", "www.dropbox.com", "dl.dropboxusercontent.com"}:
-        return resolve_dropbox_download_url(url)
-    if host in {"drive.google.com", "docs.google.com"}:
-        return resolve_google_drive_download_url(url)
+    resolver = _RESOLVERS.get(host)
+    if resolver is not None:
+        return resolver(url, session, timeout, config)
 
-    # Direct audio file links (S3, R2, CDN, raw audio files)
-    lower_url = url.lower()
-    if any(lower_url.endswith(ext) or f"{ext}?" in lower_url for ext in (".mp3", ".wav", ".flac", ".zip", ".aiff")):
+    # Direct audio file links (S3, R2, CDN, raw audio files). urlparse strips
+    # the query and fragment, so "...mp3?sig=..." still matches. Deliberately
+    # not part of RESOLVABLE_HOSTS - this is a shape check, not a host route.
+    if urllib.parse.urlparse(url).path.lower().endswith((".mp3", ".wav", ".flac", ".zip", ".aiff")):
         return url
 
     return None

@@ -16,7 +16,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from threading import Event
 from typing import Any, Literal
-from urllib.parse import urljoin, urlparse, urlunparse
+from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup
 
@@ -163,19 +163,6 @@ def is_store_url(url: str, store: str) -> bool:
         and port in (None, 443)
         and (host == base_host or host.endswith("." + base_host))
     )
-
-
-def redact_url(url: str) -> str:
-    """A log-safe URL without credentials, query data, or fragments."""
-
-    try:
-        parsed = urlparse(url or "")
-        host = parsed.hostname or ""
-        port = parsed.port
-    except ValueError:
-        return "[invalid URL]"
-    netloc = host if port in (None, 443) else f"{host}:{port}"
-    return urlunparse((parsed.scheme, netloc, parsed.path, "", "", ""))
 
 
 def store_profile_path() -> Path:
@@ -387,7 +374,7 @@ def _structured_products(soup: BeautifulSoup, store: str) -> list[StoreProduct]:
             if not is_store_url(url, store) or "/track/" not in urlparse(url).path:
                 continue
             if store == "beatport":
-                product_id = urlparse(url).path.rstrip("/").rsplit("/", 1)[-1]
+                product_id = _beatport_track_id(url)
                 if not product_id.isdigit():
                     continue
             else:
@@ -466,7 +453,7 @@ def products_from_html(html: str, page_url: str, store: str) -> list[StoreProduc
             url = urljoin(page_url, str(anchor.get("href") or "")).split("#", 1)[0]
             if not is_store_url(url, store) or "/track/" not in urlparse(url).path:
                 continue
-            product_id = urlparse(url).path.rstrip("/").rsplit("/", 1)[-1]
+            product_id = _beatport_track_id(url)
             title = str(
                 anchor.get("aria-label") or anchor.get("title") or anchor.get_text(" ", strip=True)
             ).strip()
@@ -491,18 +478,16 @@ def plan_requests(
     broken_stores: set[str] = set()
     for request in requests:
         track_label = _display_text(request.track.label)
+
+        def record(store: str, status: str, reason: str = "") -> None:
+            results.append(
+                CartResult(request.track.key, track_label, store, status, reason)
+            )
+
         unavailable: list[str] = []
         for store, url in request.links:
             if store in broken_stores:
-                results.append(
-                    CartResult(
-                        request.track.key,
-                        track_label,
-                        store,
-                        "failed",
-                        "store automation stopped after an earlier structural failure",
-                    )
-                )
+                record(store, "failed", "store automation stopped after an earlier structural failure")
                 break
             try:
                 item = resolve(request.track, store, url)
@@ -510,39 +495,23 @@ def plan_requests(
                 unavailable.append(str(exc))
                 continue
             except UnsafeMatch as exc:
-                results.append(
-                    CartResult(request.track.key, track_label, store, "skipped", str(exc))
-                )
+                record(store, "skipped", str(exc))
                 break
             except AutomationError as exc:
                 broken_stores.add(store)
-                results.append(
-                    CartResult(request.track.key, track_label, store, "failed", str(exc))
-                )
+                record(store, "failed", str(exc))
                 break
             except Exception:
                 broken_stores.add(store)
-                results.append(
-                    CartResult(
-                        request.track.key,
-                        track_label,
-                        store,
-                        "failed",
-                        "unexpected store interaction failure",
-                    )
-                )
+                record(store, "failed", "unexpected store interaction failure")
                 break
             items.append(item)
             break
         else:
-            results.append(
-                CartResult(
-                    request.track.key,
-                    track_label,
-                    request.links[-1][0] if request.links else "",
-                    "skipped",
-                    unavailable[-1] if unavailable else "no eligible Bandcamp or Beatport link",
-                )
+            record(
+                request.links[-1][0] if request.links else "",
+                "skipped",
+                unavailable[-1] if unavailable else "no eligible Bandcamp or Beatport link",
             )
     return CartPlan(tuple(items), tuple(results))
 
@@ -569,84 +538,39 @@ def execute_items(
     results = list(plan.results)
     broken_stores: set[str] = set()
     for item in plan.items:
-        if item.store in broken_stores:
+
+        def record(status: str, reason: str = "") -> None:
             results.append(
-                CartResult(
-                    item.track_key,
-                    item.track_label,
-                    item.store,
-                    "failed",
-                    "store automation stopped after an earlier structural failure",
-                )
+                CartResult(item.track_key, item.track_label, item.store, status, reason)
             )
+
+        if item.store in broken_stores:
+            record("failed", "store automation stopped after an earlier structural failure")
             continue
         try:
             current = refresh(item)
             if not _same_snapshot(item, current):
-                results.append(
-                    CartResult(
-                        item.track_key,
-                        item.track_label,
-                        item.store,
-                        "skipped",
-                        "product identity or price changed after preflight",
-                    )
-                )
+                record("skipped", "product identity or price changed after preflight")
                 continue
             if in_cart(current):
-                results.append(
-                    CartResult(
-                        item.track_key,
-                        item.track_label,
-                        item.store,
-                        "already_in_cart",
-                    )
-                )
+                record("already_in_cart")
                 continue
             ready = refresh(item)
             if not _same_snapshot(item, ready):
-                results.append(
-                    CartResult(
-                        item.track_key,
-                        item.track_label,
-                        item.store,
-                        "skipped",
-                        "product identity or price changed after cart inspection",
-                    )
-                )
+                record("skipped", "product identity or price changed after cart inspection")
                 continue
             add(ready)
             if in_cart(ready):
-                results.append(
-                    CartResult(item.track_key, item.track_label, item.store, "added")
-                )
+                record("added")
             else:
                 broken_stores.add(item.store)
-                results.append(
-                    CartResult(
-                        item.track_key,
-                        item.track_label,
-                        item.store,
-                        "failed",
-                        "cart click was not verified; it was not retried",
-                    )
-                )
+                record("failed", "cart click was not verified; it was not retried")
         except AutomationError as exc:
             broken_stores.add(item.store)
-            results.append(
-                CartResult(item.track_key, item.track_label, item.store, "failed", str(exc))
-            )
+            record("failed", str(exc))
         except Exception:
             broken_stores.add(item.store)
-            results.append(
-                CartResult(
-                    item.track_key,
-                    item.track_label,
-                    item.store,
-                    "failed",
-                    "unexpected store interaction failure",
-                )
-            )
+            record("failed", "unexpected store interaction failure")
     return tuple(results)
 
 
@@ -655,10 +579,19 @@ def _cancelled(cancel: Event) -> None:
         raise AutomationError("cart operation was cancelled")
 
 
+def _each(locator: Any) -> Any:
+    """Lazy Playwright locator iteration; failure handling stays at the caller."""
+
+    return (locator.nth(index) for index in range(locator.count()))
+
+
+def _beatport_track_id(url: str) -> str:
+    return urlparse(url).path.rstrip("/").rsplit("/", 1)[-1]
+
+
 def _only_visible(locator: Any) -> Any | None:
     try:
-        matches = [locator.nth(index) for index in range(locator.count())]
-        visible = [match for match in matches if match.is_visible()]
+        visible = [match for match in _each(locator) if match.is_visible()]
         return visible[0] if len(visible) == 1 else None
     except Exception:
         return None
@@ -679,9 +612,8 @@ def _login_visible(page: Any) -> bool:
             page.get_by_role("link", name=login_name),
             page.get_by_role("button", name=login_name),
         ):
-            for index in range(locator.count()):
-                if locator.nth(index).is_visible():
-                    return True
+            if any(match.is_visible() for match in _each(locator)):
+                return True
     except Exception:
         return True
     return False
@@ -799,8 +731,7 @@ def _beatport_cart_contains(page: Any, product_id: str) -> bool:
         f'a[href*="/track/"][href$="/{product_id}/"]'
     )
     remove_name = re.compile(r"^remove(?: track)?(?: from cart)?$", re.IGNORECASE)
-    for index in range(anchors.count()):
-        anchor = anchors.nth(index)
+    for anchor in _each(anchors):
         if not anchor.is_visible():
             continue
         region = anchor.locator("xpath=ancestor::*[.//button][1]")
@@ -821,8 +752,7 @@ def _bandcamp_cart_contains(page: Any, item: CartItem) -> bool:
     expected_path = urlparse(item.product_url).path
     anchors = page.locator("#sidecartContents #item_list a[href]")
     remove_name = re.compile(r"^remove$", re.IGNORECASE)
-    for index in range(anchors.count()):
-        anchor = anchors.nth(index)
+    for anchor in _each(anchors):
         if not anchor.is_visible():
             continue
         url = urljoin(item.product_url, anchor.get_attribute("href") or "")
@@ -841,16 +771,12 @@ def _cart_contains(page: Any, item: CartItem, cancel: Event) -> bool:
     product_id = item.product_id
     if not product_id.isdigit():
         raise AutomationError(f"{item.store} product has no stable numeric ID")
-    if item.store == "beatport":
-        try:
+    try:
+        if item.store == "beatport":
             return _beatport_cart_contains(page, product_id)
-        except Exception as exc:
-            raise AutomationError("could not verify the beatport cart") from exc
-    else:
-        try:
-            return _bandcamp_cart_contains(page, item)
-        except Exception as exc:
-            raise AutomationError("could not verify the bandcamp cart") from exc
+        return _bandcamp_cart_contains(page, item)
+    except Exception as exc:
+        raise AutomationError(f"could not verify the {item.store} cart") from exc
 
 
 def resolve_cart_item(
@@ -867,11 +793,7 @@ def resolve_cart_item(
         if store == "bandcamp" and _bandcamp_individual_unavailable(page):
             raise ProductUnavailable("exact Bandcamp track is not sold individually")
         raise AutomationError(f"{store} did not expose a verifiable price and currency")
-    price = (
-        _bandcamp_positive_price(page, chosen.price)
-        if store == "bandcamp"
-        else purchase_price(chosen.price, None, None)
-    )
+    price = _verified_price(page, store, chosen.price)
     unresolved = CartItem(
         track_key=track.key,
         track_label=_display_text(track.label),
@@ -899,28 +821,28 @@ def prepare_on_page(page: Any, requests: Iterable[CartRequest], cancel: Event) -
     return plan_requests(requests, resolve)
 
 
+def _verified_price(page: Any, store: str, price: Any) -> Any:
+    return (
+        _bandcamp_positive_price(page, price)
+        if store == "bandcamp"
+        else purchase_price(price, None, None)
+    )
+
+
 def _refresh_item(page: Any, expected: CartItem, cancel: Event) -> CartItem:
     _cancelled(cancel)
     navigate_store(page, expected.product_url, expected.store)
     product = _product_by_id(_page_products(page, expected.store), expected.product_id)
     if product is None or product.price is None or not product.currency:
         raise AutomationError(f"{expected.store} product can no longer be verified")
-    price = (
-        _bandcamp_positive_price(page, product.price)
-        if expected.store == "bandcamp"
-        else purchase_price(product.price, None, None)
-    )
-    return CartItem(
-        track_key=expected.track_key,
-        track_label=expected.track_label,
-        store=expected.store,
-        source_url=expected.source_url,
+    # Looked up by expected.product_id, so only the product-derived fields can
+    # differ from the preflight snapshot.
+    return replace(
+        expected,
         product_url=product.url,
-        product_id=product.product_id,
         product_title=product.title,
-        price=price,
+        price=_verified_price(page, expected.store, product.price),
         currency=product.currency,
-        already_in_cart=expected.already_in_cart,
     )
 
 

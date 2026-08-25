@@ -13,7 +13,7 @@ import logging
 import re
 from collections.abc import Iterable, Sequence
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 from .browser import is_fetchable, is_openable
 from .models import LinkRecord, Track
@@ -148,6 +148,27 @@ FREE_DOWNLOAD = "Free download on SoundCloud"
 LOGGER = logging.getLogger(__name__)
 
 
+# The only gate provider worth chasing out of a track description rather than
+# just purchase_url; shared so the TUI, the digger and the gate router all
+# recognise the same hosts (compare via host_of, which strips www.).
+HYPEDDIT_HOSTS = frozenset({"hypeddit.com", "hypd.it"})
+
+
+def redact_url(url: str) -> str:
+    """A log-safe URL: host and path only - never credentials, query or fragment.
+
+    Built from ``hostname`` rather than ``netloc`` so ``user:pass@`` can never
+    reach a log line; the port is dropped with it.
+    """
+
+    try:
+        parsed = urlparse(url or "")
+    except ValueError:
+        return "<invalid-url>"
+    host = parsed.hostname or "<unknown-host>"
+    return urlunparse((parsed.scheme, host, parsed.path, "", "", ""))
+
+
 def host_of(url: str) -> str:
     host = urlparse(url).netloc.lower().partition(":")[0]
     return host[4:] if host.startswith("www.") else host
@@ -221,10 +242,7 @@ def hub_links(track: Track) -> list[str]:
 
     found: list[str] = []
     for url, _text, source in candidate_links(track):
-        known_hypeddit = host_of(url) in {
-            "hypeddit.com",
-            "hypd.it",
-        }
+        known_hypeddit = host_of(url) in HYPEDDIT_HOSTS
         if source != PURCHASE_FIELD and not known_hypeddit:
             continue
         category = store_for_url(url)

@@ -357,8 +357,10 @@ def test_preflight_summary_flattens_untrusted_track_labels():
 
 
 def test_redacted_urls_drop_credentials_queries_and_fragments():
+    from dj_digger.links import redact_url
+
     assert (
-        cart.redact_url("https://user:pass@bandcamp.com/track/a?token=secret#frag")
+        redact_url("https://user:pass@bandcamp.com/track/a?token=secret#frag")
         == "https://bandcamp.com/track/a"
     )
 
