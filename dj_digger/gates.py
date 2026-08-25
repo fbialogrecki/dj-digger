@@ -496,87 +496,110 @@ def resolve_hypeddit_download_url(
                 "This Hypeddit gate requires social steps, but they are disabled"
             )
 
-        completed: list[str] = []
-        for step in social_steps:
-            if step in CLICK_THROUGH_STEPS:
-                completed.append(step)
-            elif step == "sp":
-                try:
-                    spotify.save_uris(_spotify_uris(manifest))
-                except spotify.SpotifyError as exc:
-                    raise GateAuthenticationRequired("Spotify") from exc
-                completed.append(step)
-            elif step in PROVIDER_OAUTH_STEPS:
-                raise GateAuthenticationRequired(PROVIDER_OAUTH_STEPS[step])
-            else:
-                raise GateManualActionRequired(step)
+        completed = _complete_social_steps(manifest, social_steps)
+        return _post_download(
+            session, manifest, config, completed, social, headers, url, timeout
+        )
 
-        ajax_headers = {
-            **headers,
-            "X-Requested-With": "XMLHttpRequest",
-            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-        }
-        if manifest.csrf:
-            ajax_headers["X-CSRF-TOKEN"] = manifest.csrf
 
-        comment = config.random_comment() if social else ""
-        payload: dict[str, Any] = {
-            "file": urllib.parse.quote(manifest.file_id, safe=""),
-            "download_visit": "true",
-            "profile_downloads": "true",
-            "time": 0,
-            "sc_comment_text": comment if manifest.sc_comment_required else "",
-            "yt_comment_text": comment if manifest.yt_comment_required else "",
-            "page": "nonsingle",
-            "is_skippable": manifest.is_skippable,
-            "steps": ",".join(manifest.steps),
-            "email": config.user_email if "email" in manifest.steps else "",
-            "download_action": "DOWNLOAD",
-            "skip_gate_steps[]": completed,
-            "wrndk": manifest.wrndk,
-            "is_mobile": manifest.is_mobile,
-            "external_id": manifest.external_id,
-            "hypesource": manifest.hypesource,
-            "adcode": manifest.adcode,
-            "lifetime_fan_spotify": "0",
-            "lifetime_fan_deezer": "0",
-            "lifetime_fan_apple": "0",
-            "gvf": manifest.gvf,
-            **{name: list(values) for name, values in manifest.fields.items()},
-        }
-        try:
-            if manifest.gvt:
-                try:
-                    session.post(
-                        "https://hypeddit.com/gate/ge",
-                        data={"vt": manifest.gvt, "uid": manifest.file_id},
-                        headers=ajax_headers,
-                        timeout=timeout,
-                    )
-                except requests.RequestException:
-                    LOGGER.debug("Hypeddit telemetry failed for %s", redact_url(url))
-            download = session.post(
-                "https://hypeddit.com/gate/download/ul",
-                data=payload,
-                headers=ajax_headers,
-                timeout=timeout,
-            )
-        except requests.RequestException as exc:
-            raise GateRejected("Hypeddit download request failed") from exc
-        if download.status_code != 200:
-            raise GateRejected(f"Hypeddit download returned HTTP {download.status_code}")
-        try:
-            result = download.json()
-        except ValueError as exc:
-            raise GateProtocolChanged("Hypeddit returned an unreadable download reply") from exc
-        if isinstance(result, dict) and _reply_requests_captcha(result):
-            raise GateCaptchaRequired("Hypeddit CAPTCHA requires browser completion")
-        if not isinstance(result, dict) or not result.get("download_status"):
-            raise GateRejected("Hypeddit did not unlock the download")
-        cleaned = _clean_url(result.get("URL") or result.get("url"))
-        if not cleaned or not is_fetchable(cleaned):
-            raise GateProtocolChanged("Hypeddit returned an unsafe download URL")
-        return cleaned
+def _complete_social_steps(manifest: HypedditManifest, social_steps: list[str]) -> list[str]:
+    """Which declared steps can be satisfied without faking provider writes."""
+
+    completed: list[str] = []
+    for step in social_steps:
+        if step in CLICK_THROUGH_STEPS:
+            completed.append(step)
+        elif step == "sp":
+            try:
+                spotify.save_uris(_spotify_uris(manifest))
+            except spotify.SpotifyError as exc:
+                raise GateAuthenticationRequired("Spotify") from exc
+            completed.append(step)
+        elif step in PROVIDER_OAUTH_STEPS:
+            raise GateAuthenticationRequired(PROVIDER_OAUTH_STEPS[step])
+        else:
+            raise GateManualActionRequired(step)
+    return completed
+
+
+def _post_download(
+    session: requests.Session,
+    manifest: HypedditManifest,
+    config: Any,
+    completed: list[str],
+    social: bool,
+    headers: dict[str, str],
+    url: str,
+    timeout: float,
+) -> str:
+    """The wire protocol: telemetry ping, then the /gate/download/ul unlock."""
+
+    ajax_headers = {
+        **headers,
+        "X-Requested-With": "XMLHttpRequest",
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+    }
+    if manifest.csrf:
+        ajax_headers["X-CSRF-TOKEN"] = manifest.csrf
+
+    comment = config.random_comment() if social else ""
+    payload: dict[str, Any] = {
+        "file": urllib.parse.quote(manifest.file_id, safe=""),
+        "download_visit": "true",
+        "profile_downloads": "true",
+        "time": 0,
+        "sc_comment_text": comment if manifest.sc_comment_required else "",
+        "yt_comment_text": comment if manifest.yt_comment_required else "",
+        "page": "nonsingle",
+        "is_skippable": manifest.is_skippable,
+        "steps": ",".join(manifest.steps),
+        "email": config.user_email if "email" in manifest.steps else "",
+        "download_action": "DOWNLOAD",
+        "skip_gate_steps[]": completed,
+        "wrndk": manifest.wrndk,
+        "is_mobile": manifest.is_mobile,
+        "external_id": manifest.external_id,
+        "hypesource": manifest.hypesource,
+        "adcode": manifest.adcode,
+        "lifetime_fan_spotify": "0",
+        "lifetime_fan_deezer": "0",
+        "lifetime_fan_apple": "0",
+        "gvf": manifest.gvf,
+        **{name: list(values) for name, values in manifest.fields.items()},
+    }
+    try:
+        if manifest.gvt:
+            try:
+                session.post(
+                    "https://hypeddit.com/gate/ge",
+                    data={"vt": manifest.gvt, "uid": manifest.file_id},
+                    headers=ajax_headers,
+                    timeout=timeout,
+                )
+            except requests.RequestException:
+                LOGGER.debug("Hypeddit telemetry failed for %s", redact_url(url))
+        download = session.post(
+            "https://hypeddit.com/gate/download/ul",
+            data=payload,
+            headers=ajax_headers,
+            timeout=timeout,
+        )
+    except requests.RequestException as exc:
+        raise GateRejected("Hypeddit download request failed") from exc
+    if download.status_code != 200:
+        raise GateRejected(f"Hypeddit download returned HTTP {download.status_code}")
+    try:
+        result = download.json()
+    except ValueError as exc:
+        raise GateProtocolChanged("Hypeddit returned an unreadable download reply") from exc
+    if isinstance(result, dict) and _reply_requests_captcha(result):
+        raise GateCaptchaRequired("Hypeddit CAPTCHA requires browser completion")
+    if not isinstance(result, dict) or not result.get("download_status"):
+        raise GateRejected("Hypeddit did not unlock the download")
+    cleaned = _clean_url(result.get("URL") or result.get("url"))
+    if not cleaned or not is_fetchable(cleaned):
+        raise GateProtocolChanged("Hypeddit returned an unsafe download URL")
+    return cleaned
 
 
 def download_hypeddit_in_browser(

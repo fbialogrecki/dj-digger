@@ -430,42 +430,45 @@ def load_summary(path: Path) -> list[LinkRecord]:
     for category, items in data.items():
         if not isinstance(items, list):
             raise ValueError(f"Category '{category}' in {path} should contain a list")
-        for item in items:
-            if not isinstance(item, dict):
-                raise ValueError(f"Items in category '{category}' should be mappings")
-            track_url = item.get("track_url")
-            if not track_url:
-                raise ValueError(f"Items in category '{category}' need a 'track_url'")
-            link_url = item.get("shop_link") or track_url
-            # Categorisation is skipped for a summary - the category is read off
-            # the file - so this is the only place these two are checked before
-            # they reach the browser. Loud rather than quiet: this file is
-            # written by the digger itself, so anything else in it is either
-            # corruption or someone hoping you will press 'o'.
-            for field, value in (("track_url", track_url), ("shop_link", link_url)):
-                if not is_openable(value):
-                    raise ValueError(
-                        f"'{field}' in category '{category}' is not an http or https "
-                        f"link: {value!r}"
-                    )
-            track = Track(
-                title=item.get("title") or "Unknown title",
-                permalink_url=track_url,
-                id=item.get("track_id"),
-                artist=item.get("artist") or "",
-                # Carried on the track so a summary can round-trip into a crate
-                # and still categorise the same way.
-                extra_links=[] if link_url == track_url else [(link_url, item.get("link_text") or "")],
-            )
-            records.append(
-                LinkRecord(
-                    category=category if category in CATEGORY_NAMES else "others",
-                    track=track,
-                    link_url=link_url,
-                    link_text=item.get("link_text") or "",
-                )
-            )
+        records.extend(_record_from_item(category, item) for item in items)
     return records
+
+
+def _record_from_item(category: str, item: object) -> LinkRecord:
+    """One summary entry validated into a record; raises on anything off-shape."""
+
+    if not isinstance(item, dict):
+        raise ValueError(f"Items in category '{category}' should be mappings")
+    track_url = item.get("track_url")
+    if not track_url:
+        raise ValueError(f"Items in category '{category}' need a 'track_url'")
+    link_url = item.get("shop_link") or track_url
+    # Categorisation is skipped for a summary - the category is read off
+    # the file - so this is the only place these two are checked before
+    # they reach the browser. Loud rather than quiet: this file is
+    # written by the digger itself, so anything else in it is either
+    # corruption or someone hoping you will press 'o'.
+    for field, value in (("track_url", track_url), ("shop_link", link_url)):
+        if not is_openable(value):
+            raise ValueError(
+                f"'{field}' in category '{category}' is not an http or https "
+                f"link: {value!r}"
+            )
+    track = Track(
+        title=item.get("title") or "Unknown title",
+        permalink_url=track_url,
+        id=item.get("track_id"),
+        artist=item.get("artist") or "",
+        # Carried on the track so a summary can round-trip into a crate
+        # and still categorise the same way.
+        extra_links=[] if link_url == track_url else [(link_url, item.get("link_text") or "")],
+    )
+    return LinkRecord(
+        category=category if category in CATEGORY_NAMES else "others",
+        track=track,
+        link_url=link_url,
+        link_text=item.get("link_text") or "",
+    )
 
 
 def tracks_from_records(records: Sequence[LinkRecord]) -> list[Track]:

@@ -65,6 +65,33 @@ def login(
 
     verifier = secrets.token_urlsafe(64)
     state = secrets.token_urlsafe(32)
+    code = _await_callback(client_id, state, verifier, browser, timeout, opener)
+    payload = _exchange_code(session, client_id, code, verifier)
+    access = str(payload.get("access_token") or "")
+    refresh = str(payload.get("refresh_token") or "")
+    if not access or not refresh:
+        raise SpotifyError("Spotify token exchange returned incomplete credentials")
+    save_credentials(
+        {
+            "client_id": client_id,
+            "access_token": access,
+            "refresh_token": refresh,
+            "expires_at": time.time() + int(payload.get("expires_in") or 3600),
+            "scope": payload.get("scope") or SCOPE,
+        }
+    )
+
+
+def _await_callback(
+    client_id: str,
+    state: str,
+    verifier: str,
+    browser: str,
+    timeout: float,
+    opener: Callable[[str, str], bool],
+) -> str:
+    """Open the authorize page and serve exactly one loopback callback."""
+
     result: dict[str, str] = {}
 
     class Callback(BaseHTTPRequestHandler):
@@ -120,6 +147,10 @@ def login(
     code = result.get("code")
     if not code:
         raise SpotifyError("Spotify login timed out before the callback arrived")
+    return code
+
+
+def _exchange_code(session, client_id: str, code: str, verifier: str) -> dict:
     try:
         response = session.post(
             TOKEN_URL,
@@ -134,20 +165,7 @@ def login(
         )
     except requests.RequestException as exc:
         raise SpotifyError(f"Spotify token exchange failed: {exc}") from exc
-    payload = _json_payload(response, "token exchange")
-    access = str(payload.get("access_token") or "")
-    refresh = str(payload.get("refresh_token") or "")
-    if not access or not refresh:
-        raise SpotifyError("Spotify token exchange returned incomplete credentials")
-    save_credentials(
-        {
-            "client_id": client_id,
-            "access_token": access,
-            "refresh_token": refresh,
-            "expires_at": time.time() + int(payload.get("expires_in") or 3600),
-            "scope": payload.get("scope") or SCOPE,
-        }
-    )
+    return _json_payload(response, "token exchange")
 
 
 def load_credentials() -> dict[str, Any]:

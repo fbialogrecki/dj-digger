@@ -9,6 +9,7 @@ import re
 import time
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from textual import work
@@ -53,6 +54,20 @@ def _gate_failure_group(error: Exception) -> str:
     return next(
         (name for name, types in FAILURE_GROUPS if isinstance(error, types)), "other"
     )
+
+
+@dataclass
+class _BatchProgress:
+    """What one batch pass has produced so far, shared between its two stages."""
+
+    total: int = 0
+    completed: int = 0
+    failed: int = 0
+    hubs_changed: bool = False
+    profile_items: list[tuple[Row, str | None]] = field(default_factory=list)
+    auth_items: list[tuple[Row, str | None]] = field(default_factory=list)
+    browser_items: list[tuple[Row, str]] = field(default_factory=list)
+    failure_groups: Counter = field(default_factory=Counter)
 
 
 class DownloadMixin:
@@ -404,139 +419,154 @@ class DownloadMixin:
             if row.track.free_download or row.track.has_direct_download or gate_url
         ]
         download_directory = self._download_directory()
-        completed_count = 0
-        failed_count = 0
-        total = len(items)
-        hubs_changed = False
-        profile_items: list[tuple[Row, str | None]] = []
-        auth_items: list[tuple[Row, str | None]] = []
-        browser_items: list[tuple[Row, str]] = []
-        failure_groups: Counter[str] = Counter()
+        progress = self._batch_pool_pass(
+            items, download_directory, allow_prerequisite_retry
+        )
 
-        def download_one(item: tuple[Row, str | None]):
-            row, gate_url = item
-            key = row.track.key
-            self.call_from_thread(self._update_track_progress, key, 0.0)
-            gate_url, changed = self._normalise_hypeddit_item(row, gate_url)
-            if not (
-                row.track.free_download
-                or row.track.has_direct_download
-                or gate_url
-            ):
-                return (row, gate_url, "hub", None, changed)
+        if progress.hubs_changed:
+            self._persist_normalised_hubs()
+        if progress.browser_items:
+            self._batch_browser_pass(progress, download_directory)
 
-            def on_progress(downloaded: int, total_bytes: int | None) -> None:
-                pct = min(1.0, downloaded / total_bytes) if total_bytes and total_bytes > 0 else 0.5
-                self.call_from_thread(self._update_track_progress, key, pct)
+        pending = len(progress.profile_items) + len(progress.auth_items)
+        self.call_from_thread(
+            self._on_batch_download_complete,
+            progress.completed,
+            progress.failed,
+            progress.total,
+            pending,
+            dict(progress.failure_groups),
+        )
+        if pending:
+            self.call_from_thread(
+                self._resolve_download_prerequisites,
+                progress.profile_items,
+                progress.auth_items,
+                lambda ready: self.batch_download_in_background(
+                    ready, allow_prerequisite_retry=False
+                ),
+            )
 
-            # Its own session, not the client's: a gate is a multi-step flow held
-            # together by its own cookies, and four of them sharing one jar
-            # overwrite each other's state. Same reason dig._expand_one builds one
-            # per track - this path simply never got the fix.
-            session = soundcloud.create_requests_session()
-            try:
-                path = self.client.download_track(
-                    row.track,
-                    download_directory,
-                    gate_url=gate_url,
-                    on_progress=on_progress,
-                    session=session,
-                )
-                return (row, gate_url, "downloaded", str(path), changed)
-            except Exception as exc:
-                return (row, gate_url, "failed", exc, changed)
-            finally:
-                session.close()
+    def _batch_download_one(
+        self, item: tuple[Row, str | None], download_directory: Path
+    ):
+        row, gate_url = item
+        key = row.track.key
+        self.call_from_thread(self._update_track_progress, key, 0.0)
+        gate_url, changed = self._normalise_hypeddit_item(row, gate_url)
+        if not (
+            row.track.free_download
+            or row.track.has_direct_download
+            or gate_url
+        ):
+            return (row, gate_url, "hub", None, changed)
 
+        def on_progress(downloaded: int, total_bytes: int | None) -> None:
+            pct = min(1.0, downloaded / total_bytes) if total_bytes and total_bytes > 0 else 0.5
+            self.call_from_thread(self._update_track_progress, key, pct)
+
+        # Its own session, not the client's: a gate is a multi-step flow held
+        # together by its own cookies, and four of them sharing one jar
+        # overwrite each other's state. Same reason dig._expand_one builds one
+        # per track - this path simply never got the fix.
+        session = soundcloud.create_requests_session()
+        try:
+            path = self.client.download_track(
+                row.track,
+                download_directory,
+                gate_url=gate_url,
+                on_progress=on_progress,
+                session=session,
+            )
+            return (row, gate_url, "downloaded", str(path), changed)
+        except Exception as exc:
+            return (row, gate_url, "failed", exc, changed)
+        finally:
+            session.close()
+
+    def _batch_pool_pass(
+        self,
+        items: list[tuple[Row, str | None]],
+        download_directory: Path,
+        allow_prerequisite_retry: bool,
+    ) -> "_BatchProgress":
+        """Run the pool downloads and sort every outcome into the progress bag."""
+
+        progress = _BatchProgress(total=len(items))
         self._download_executor = ThreadPoolExecutor(max_workers=4)
         try:
-            futures = [self._download_executor.submit(download_one, item) for item in items]
+            futures = [
+                self._download_executor.submit(
+                    self._batch_download_one, item, download_directory
+                )
+                for item in items
+            ]
             for future in as_completed(futures):
                 row, gate_url, outcome, result, changed = future.result()
-                hubs_changed = hubs_changed or changed
+                progress.hubs_changed = progress.hubs_changed or changed
                 if outcome == "hub":
-                    total -= 1
+                    progress.total -= 1
                     self.call_from_thread(self._download_waiting, row.track.key)
                 elif outcome == "downloaded":
-                    completed_count += 1
+                    progress.completed += 1
                     self.call_from_thread(self._download_finished, row.track.key, result, toast=False)
                 elif allow_prerequisite_retry and isinstance(
                     result, gates.GateProfileRequired
                 ):
-                    profile_items.append((row, gate_url))
+                    progress.profile_items.append((row, gate_url))
                     self.call_from_thread(self._download_waiting, row.track.key)
                 elif allow_prerequisite_retry and isinstance(
                     result, soundcloud.SoundCloudLoginRequired
                 ):
-                    auth_items.append((row, gate_url))
+                    progress.auth_items.append((row, gate_url))
                     self.call_from_thread(self._download_waiting, row.track.key)
                 elif (
                     isinstance(result, gates.BROWSER_REQUIRED_ERRORS)
-                    and gate_url
-                    and "hypeddit" in gate_url.lower()
+                    and _is_hypeddit(gate_url)
                 ):
-                    browser_items.append((row, gate_url))
+                    progress.browser_items.append((row, gate_url))
                     self.call_from_thread(self._download_waiting, row.track.key)
                 else:
-                    failed_count += 1
+                    progress.failed += 1
                     if isinstance(result, Exception):
-                        failure_groups[_gate_failure_group(result)] += 1
+                        progress.failure_groups[_gate_failure_group(result)] += 1
                     self.call_from_thread(self._download_failed, row.track.key, str(result), banner_label=row.track.label)
         finally:
             if self._download_executor is not None:
                 self._download_executor.shutdown(wait=False)
                 self._download_executor = None
+        return progress
 
-        if hubs_changed:
-            self._persist_normalised_hubs()
-
+    def _batch_browser_pass(
+        self, progress: "_BatchProgress", download_directory: Path
+    ) -> None:
         # One persistent profile cannot be driven by several Playwright threads.
         # All manual gates therefore share this worker's one context and open as
         # separate tabs, with each tab's download bound back to its own row.
-        if browser_items:
-            rows_by_key = {row.track.key: row for row, _url in browser_items}
-            self.call_from_thread(self._browser_batch_started, len(browser_items))
-            try:
-                browser_result = gates.download_hypeddit_batch_in_browser(
-                    [(row.track, gate_url) for row, gate_url in browser_items],
-                    download_directory,
-                    self._gate_cancel,
-                )
-            except Exception as exc:
-                browser_result = gates.HypedditBrowserBatchResult(
-                    failures=tuple((key, gates.GateUnavailable(str(exc))) for key in rows_by_key)
-                )
-            finally:
-                self.call_from_thread(self._browser_batch_finished)
-
-            for key, path in browser_result.completed:
-                row = rows_by_key[key]
-                completed_count += 1
-                self.call_from_thread(self._download_finished, row.track.key, str(path), toast=False)
-            for key, exc in browser_result.failures:
-                row = rows_by_key[key]
-                failed_count += 1
-                failure_groups[_gate_failure_group(exc)] += 1
-                self.call_from_thread(self._download_failed, row.track.key, str(exc), banner_label=row.track.label)
-
-        pending = len(profile_items) + len(auth_items)
-        self.call_from_thread(
-            self._on_batch_download_complete,
-            completed_count,
-            failed_count,
-            total,
-            pending,
-            dict(failure_groups),
-        )
-        if pending:
-            self.call_from_thread(
-                self._resolve_download_prerequisites,
-                profile_items,
-                auth_items,
-                lambda ready: self.batch_download_in_background(
-                    ready, allow_prerequisite_retry=False
-                ),
+        rows_by_key = {row.track.key: row for row, _url in progress.browser_items}
+        self.call_from_thread(self._browser_batch_started, len(progress.browser_items))
+        try:
+            browser_result = gates.download_hypeddit_batch_in_browser(
+                [(row.track, gate_url) for row, gate_url in progress.browser_items],
+                download_directory,
+                self._gate_cancel,
             )
+        except Exception as exc:
+            browser_result = gates.HypedditBrowserBatchResult(
+                failures=tuple((key, gates.GateUnavailable(str(exc))) for key in rows_by_key)
+            )
+        finally:
+            self.call_from_thread(self._browser_batch_finished)
+
+        for key, path in browser_result.completed:
+            row = rows_by_key[key]
+            progress.completed += 1
+            self.call_from_thread(self._download_finished, row.track.key, str(path), toast=False)
+        for key, exc in browser_result.failures:
+            row = rows_by_key[key]
+            progress.failed += 1
+            progress.failure_groups[_gate_failure_group(exc)] += 1
+            self.call_from_thread(self._download_failed, row.track.key, str(exc), banner_label=row.track.label)
 
     def _normalise_hypeddit_item(
         self, row: Row, gate_url: str | None

@@ -168,6 +168,57 @@ def _looks_like_html(prefix: bytes) -> bool:
     return sample.startswith((b"<!doctype html", b"<html", b"<head", b"<body"))
 
 
+def _extension_for(content_disp: str, content_type: str) -> str:
+    """Pick a file suffix from the response headers; .mp3 when nothing matches."""
+
+    cd_lower = content_disp.lower()
+    ct_lower = content_type.lower()
+    for candidate, disp_needles, type_needles in (
+        (".wav", (".wav",), ("wav",)),
+        (".flac", (".flac",), ("flac",)),
+        (".aiff", (".aiff", ".aif"), ("aiff", "aif")),
+        (".zip", (".zip",), ("zip",)),
+    ):
+        if any(n in cd_lower for n in disp_needles) or any(
+            n in ct_lower for n in type_needles
+        ):
+            return candidate
+    return ".mp3"
+
+
+def _stream_to_file(
+    response: Any,
+    temporary: Path,
+    on_progress: Callable[[int, int | None], None] | None,
+    total_size: int | None,
+) -> bytes:
+    """Stream the body to the temp file; returns the first 512 bytes for sniffing."""
+
+    downloaded = 0
+    prefix = bytearray()
+    with temporary.open("wb") as handle:
+        try:
+            for chunk in response.iter_content(chunk_size=1024 * 128):
+                if chunk:
+                    handle.write(chunk)
+                    if len(prefix) < 512:
+                        prefix.extend(chunk[: 512 - len(prefix)])
+                    downloaded += len(chunk)
+                    # Content-Length is a claim, and a gate that never
+                    # stops sending would otherwise fill the disk: the
+                    # loop above had no end but the server's goodwill.
+                    if downloaded > MAX_DOWNLOAD_BYTES:
+                        raise SoundCloudError(
+                            "Download exceeded "
+                            f"{MAX_DOWNLOAD_BYTES // (1024 * 1024)} MB - stopped"
+                        )
+                    if on_progress:
+                        on_progress(downloaded, total_size)
+        except Exception as stream_exc:
+            raise SoundCloudError(f"Download stream read failed: {stream_exc}") from stream_exc
+    return bytes(prefix)
+
+
 def _claim_target(directory: Path, track: Track, suffix: str, temporary: Path) -> Path:
     """Move a finished temp file to a unique final name under the shared lock."""
 
@@ -391,25 +442,11 @@ class SoundCloudClient:
             raise SoundCloudError(f"Unexpected reply from {url}")
         return payload
 
-    def download_track(
-        self,
-        track: Track,
-        directory: Path,
-        *,
-        gate_url: str | None = None,
-        on_progress: Callable[[int, int | None], None] | None = None,
-        session: requests.Session | None = None,
-    ) -> Path:
-        """Save artist-provided download file directly or via resolved gate URL.
+    def _resolve_download_url(
+        self, track: Track, gate_url: str | None, session: requests.Session
+    ) -> tuple[str, bool]:
+        """The URL to fetch and whether a gate produced it (which recolours errors)."""
 
-        ``session`` exists for callers downloading several tracks at once. A gate
-        is a multi-step flow held together by its own cookies, so two of them
-        sharing one jar overwrite each other's state - the same reason
-        ``dig._expand_one`` builds a session per track. Left out, this uses the
-        client's own, which is right for a single download.
-        """
-
-        session = session or self._session
         download_url: str | None = None
         gate_derived = False
 
@@ -467,6 +504,28 @@ class SoundCloudClient:
                     "Gate link requires browser completion - press 'o' to open"
                 )
             raise SoundCloudError("This track has no active direct download or resolved gate link")
+        return download_url, gate_derived
+
+    def download_track(
+        self,
+        track: Track,
+        directory: Path,
+        *,
+        gate_url: str | None = None,
+        on_progress: Callable[[int, int | None], None] | None = None,
+        session: requests.Session | None = None,
+    ) -> Path:
+        """Save artist-provided download file directly or via resolved gate URL.
+
+        ``session`` exists for callers downloading several tracks at once. A gate
+        is a multi-step flow held together by its own cookies, so two of them
+        sharing one jar overwrite each other's state - the same reason
+        ``dig._expand_one`` builds a session per track. Left out, this uses the
+        client's own, which is right for a single download.
+        """
+
+        session = session or self._session
+        download_url, gate_derived = self._resolve_download_url(track, gate_url, session)
 
         host = (urlparse(download_url).hostname or "").lower()
         # Domain-boundary match: "soundcloud.com" in host is also true of
@@ -504,30 +563,16 @@ class SoundCloudClient:
                     f"the limit is {MAX_DOWNLOAD_BYTES // (1024 * 1024)} MB"
                 )
 
-            extension = ".mp3"
-            cd_lower = content_disp.lower()
-            ct_lower = content_type.lower()
-
             # A gate that has not been satisfied answers 200 with its own page
             # rather than a file. Without this that page was saved as a perfectly
             # ordinary .mp3, and the first sign of trouble was a player refusing
             # to open a track you thought you owned.
-            if ct_lower.startswith(("text/html", "application/xhtml")):
+            if content_type.lower().startswith(("text/html", "application/xhtml")):
                 message = "That link returned a web page rather than a file"
                 if gate_derived:
                     raise gates.GateProtocolChanged(message)
                 raise SoundCloudError(message)
-            for candidate, disp_needles, type_needles in (
-                (".wav", (".wav",), ("wav",)),
-                (".flac", (".flac",), ("flac",)),
-                (".aiff", (".aiff", ".aif"), ("aiff", "aif")),
-                (".zip", (".zip",), ("zip",)),
-            ):
-                if any(n in cd_lower for n in disp_needles) or any(
-                    n in ct_lower for n in type_needles
-                ):
-                    extension = candidate
-                    break
+            extension = _extension_for(content_disp, content_type)
 
             descriptor, temporary_name = tempfile.mkstemp(
                 prefix=".dj-digger-", suffix=".part", dir=directory
@@ -536,31 +581,9 @@ class SoundCloudClient:
             temporary = Path(temporary_name)
             if os.name != "nt":
                 temporary.chmod(0o600)
-            downloaded = 0
-            prefix = bytearray()
+            prefix = _stream_to_file(response, temporary, on_progress, total_size)
 
-            with temporary.open("wb") as handle:
-                try:
-                    for chunk in response.iter_content(chunk_size=1024 * 128):
-                        if chunk:
-                            handle.write(chunk)
-                            if len(prefix) < 512:
-                                prefix.extend(chunk[: 512 - len(prefix)])
-                            downloaded += len(chunk)
-                            # Content-Length is a claim, and a gate that never
-                            # stops sending would otherwise fill the disk: the
-                            # loop above had no end but the server's goodwill.
-                            if downloaded > MAX_DOWNLOAD_BYTES:
-                                raise SoundCloudError(
-                                    "Download exceeded "
-                                    f"{MAX_DOWNLOAD_BYTES // (1024 * 1024)} MB - stopped"
-                                )
-                            if on_progress:
-                                on_progress(downloaded, total_size)
-                except Exception as stream_exc:
-                    raise SoundCloudError(f"Download stream read failed: {stream_exc}") from stream_exc
-
-            if _looks_like_html(bytes(prefix)):
+            if _looks_like_html(prefix):
                 message = "That link returned a web page rather than an audio file"
                 if gate_derived:
                     raise gates.GateProtocolChanged(message)

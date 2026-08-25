@@ -418,21 +418,8 @@ def products_from_html(html: str, page_url: str, store: str) -> list[StoreProduc
     by_id: dict[str, StoreProduct] = {}
     tralbum_minimum: Decimal | None = None
     if store == "bandcamp":
-        tralbum_node = soup.find(attrs={"data-tralbum": True})
-        if tralbum_node is not None:
-            try:
-                tralbum = json.loads(tralbum_node.get("data-tralbum") or "{}")
-            except (TypeError, ValueError) as exc:
-                raise AutomationError("Bandcamp product metadata is invalid") from exc
-            current = tralbum.get("current") or {}
-            tralbum_minimum = _decimal(current.get("minimum_price"))
-            artist = str(current.get("artist") or "")
-            for item in tralbum.get("trackinfo") or []:
-                product_id = str(item.get("track_id") or item.get("id") or "")
-                url = urljoin(page_url, str(item.get("title_link") or ""))
-                title = str(item.get("title") or "").strip()
-                if product_id.isdigit() and title and is_store_url(url, store) and "/track/" in urlparse(url).path:
-                    by_id[product_id] = StoreProduct(store, url, product_id, title, artist)
+        tralbum_products, tralbum_minimum = _bandcamp_tralbum_products(soup, page_url)
+        by_id.update(tralbum_products)
 
     for product in _structured_products(soup, store):
         earlier = by_id.get(product.product_id)
@@ -449,16 +436,8 @@ def products_from_html(html: str, page_url: str, store: str) -> list[StoreProduc
         by_id[product.product_id] = product
 
     if store == "beatport":
-        for anchor in soup.find_all("a", href=True):
-            url = urljoin(page_url, str(anchor.get("href") or "")).split("#", 1)[0]
-            if not is_store_url(url, store) or "/track/" not in urlparse(url).path:
-                continue
-            product_id = _beatport_track_id(url)
-            title = str(
-                anchor.get("aria-label") or anchor.get("title") or anchor.get_text(" ", strip=True)
-            ).strip()
-            if product_id.isdigit() and title and product_id not in by_id:
-                by_id[product_id] = StoreProduct(store, url, product_id, title)
+        for product_id, product in _beatport_anchor_products(soup, page_url).items():
+            by_id.setdefault(product_id, product)
 
     products = list(by_id.values())
     if store == "bandcamp" and "/track/" in urlparse(page_url).path and tralbum_minimum is not None:
@@ -466,6 +445,47 @@ def products_from_html(html: str, page_url: str, store: str) -> list[StoreProduc
         if current is not None and current.price is not None and current.price != tralbum_minimum:
             raise AutomationError("Bandcamp price metadata disagrees with the product page")
     return products
+
+
+def _bandcamp_tralbum_products(
+    soup: Any, page_url: str
+) -> tuple[dict[str, StoreProduct], Decimal | None]:
+    """Products and the page minimum price out of Bandcamp's data-tralbum blob."""
+
+    by_id: dict[str, StoreProduct] = {}
+    tralbum_node = soup.find(attrs={"data-tralbum": True})
+    if tralbum_node is None:
+        return by_id, None
+    try:
+        tralbum = json.loads(tralbum_node.get("data-tralbum") or "{}")
+    except (TypeError, ValueError) as exc:
+        raise AutomationError("Bandcamp product metadata is invalid") from exc
+    current = tralbum.get("current") or {}
+    artist = str(current.get("artist") or "")
+    for item in tralbum.get("trackinfo") or []:
+        product_id = str(item.get("track_id") or item.get("id") or "")
+        url = urljoin(page_url, str(item.get("title_link") or ""))
+        title = str(item.get("title") or "").strip()
+        if product_id.isdigit() and title and is_store_url(url, "bandcamp") and "/track/" in urlparse(url).path:
+            by_id[product_id] = StoreProduct("bandcamp", url, product_id, title, artist)
+    return by_id, _decimal(current.get("minimum_price"))
+
+
+def _beatport_anchor_products(soup: Any, page_url: str) -> dict[str, StoreProduct]:
+    """Track products scraped straight off Beatport anchors."""
+
+    by_id: dict[str, StoreProduct] = {}
+    for anchor in soup.find_all("a", href=True):
+        url = urljoin(page_url, str(anchor.get("href") or "")).split("#", 1)[0]
+        if not is_store_url(url, "beatport") or "/track/" not in urlparse(url).path:
+            continue
+        product_id = _beatport_track_id(url)
+        title = str(
+            anchor.get("aria-label") or anchor.get("title") or anchor.get_text(" ", strip=True)
+        ).strip()
+        if product_id.isdigit() and title and product_id not in by_id:
+            by_id[product_id] = StoreProduct("beatport", url, product_id, title)
+    return by_id
 
 
 def plan_requests(
