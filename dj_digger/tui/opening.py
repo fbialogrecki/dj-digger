@@ -7,6 +7,7 @@ Mixed into ``DiggerApp``; the attributes these reach for are set up in its
 import logging
 import urllib.parse
 from collections import Counter
+from threading import Event
 
 from textual import work
 
@@ -137,16 +138,48 @@ class OpeningMixin:
         self._cart_busy = True
         self._cart_cancel.clear()
         self.notify(f"Checking {len(requests)} track{'s' if len(requests) != 1 else ''}...", timeout=3)
-        self._start_cart_preflight_worker(requests, single)
+        self._start_cart_worker(requests, single)
 
-    def _start_cart_preflight_worker(
+    def _start_cart_worker(
         self, requests: list[cart_module.CartRequest], single: bool
     ) -> None:
         self._cart_worker(
-            lambda: cart_module.prepare_cart(requests, self._cart_cancel),
-            lambda plan: self._cart_preflight_finished(plan, single),
+            lambda: cart_module.run_cart(
+                requests,
+                self._cart_cancel,
+                approve=lambda plan: self._approve_cart(plan, single),
+            ),
+            self._cart_session_finished,
             chromium_missing=lambda: self._offer_chromium_install(requests, single),
         )
+
+    def _approve_cart(self, plan: cart_module.CartPlan, single: bool) -> bool:
+        """Keep the browser worker alive while Textual collects the decision."""
+
+        if single:
+            item = plan.items[0]
+            self.call_from_thread(
+                self.notify,
+                f"Adding {item.track_label} — {item.currency} {item.price:.2f}",
+                timeout=4,
+            )
+            return True
+
+        answered = Event()
+        decision: list[bool] = []
+
+        def record_decision(confirmed) -> None:
+            decision.append(bool(confirmed))
+            answered.set()
+
+        def show_confirmation() -> None:
+            self.push_screen(ConfirmScreen(plan.summary()), record_decision)
+
+        self.call_from_thread(show_confirmation)
+        while not answered.wait(0.25):
+            if self._cart_cancel.is_set():
+                return False
+        return decision[0]
 
     @work(thread=True, exclusive=True, group="cart")
     def _cart_worker(self, job, done, chromium_missing=None) -> None:
@@ -198,49 +231,16 @@ class OpeningMixin:
         self, requests: list[cart_module.CartRequest], single: bool
     ) -> None:
         self.notify("Chromium installed; checking the store product...", timeout=4)
-        self._start_cart_preflight_worker(requests, single)
+        self._start_cart_worker(requests, single)
 
-    def _cart_preflight_finished(self, plan: cart_module.CartPlan, single: bool) -> None:
-        if not plan.items:
-            self._cart_results_finished(plan.results)
-            return
-        if single:
-            item = plan.items[0]
-            self.notify(
-                f"Adding {item.track_label} — {item.currency} {item.price:.2f}", timeout=4
-            )
-            self._execute_cart_worker(plan)
-            return
-        if all(item.already_in_cart for item in plan.items):
-            results = plan.results + tuple(
-                cart_module.CartResult(
-                    item.track_key,
-                    item.track_label,
-                    item.store,
-                    "already_in_cart",
-                )
-                for item in plan.items
-            )
-            self._cart_results_finished(results)
-            return
-        self.push_screen(
-            ConfirmScreen(plan.summary()),
-            lambda confirmed: self._cart_confirmed(plan, bool(confirmed)),
-        )
-
-    def _cart_confirmed(self, plan: cart_module.CartPlan, confirmed: bool) -> None:
-        if not confirmed:
+    def _cart_session_finished(
+        self, results: tuple[cart_module.CartResult, ...] | None
+    ) -> None:
+        if results is None:
             self._cart_busy = False
             self.notify("Cart addition cancelled", timeout=3)
             return
-        self.notify("Adding verified products to the store carts...", timeout=4)
-        self._execute_cart_worker(plan)
-
-    def _execute_cart_worker(self, plan: cart_module.CartPlan) -> None:
-        self._cart_worker(
-            lambda: cart_module.execute_cart(plan, self._cart_cancel),
-            self._cart_results_finished,
-        )
+        self._cart_results_finished(results)
 
     def _cart_failed(self, message: str) -> None:
         self._cart_busy = False

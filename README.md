@@ -176,8 +176,11 @@ Batch mode resolves every candidate first and shows exact products, prices,
 currencies, existing cart items, and skips before any cart is changed. Store
 pages are rechecked immediately before each click. Ambiguous titles, version
 mismatches, changed prices or product IDs, CAPTCHA, and changed store UI stop the
-affected operation instead of guessing. The browser remains open at the used
-carts for manual format selection and checkout.
+affected operation instead of guessing. Every candidate gets its own tab before
+the first page starts loading, and the same Chromium window stays open through
+manual login, preflight, confirmation, revalidation, and cart addition. Manual
+login has up to five minutes; the used tabs then remain open at their carts for
+format selection and checkout.
 
 Only canonical Bandcamp and Beatport HTTPS domains are automated. Custom artist
 domains and global store search are intentionally outside this first version.

@@ -674,27 +674,42 @@ def _login_complete(page: Any, store: str) -> bool:
     )
 
 
-def ensure_login(page: Any, store: str, cancel: Event) -> None:
-    """Wait for a user-driven login without reading or filling credentials."""
+def ensure_logins(pages: dict[str, Any], cancel: Event) -> None:
+    """Open every required login before waiting for user-driven completion."""
 
-    _cancelled(cancel)
-    navigate_store(page, STORE_HOME[store], store)
-    if _is_logged_in(page, store):
-        return
-    navigate_store(page, STORE_LOGIN[store], store)
-    if _login_complete(page, store):
-        return
-    deadline = time.monotonic() + LOGIN_TIMEOUT_SECONDS
-    while time.monotonic() < deadline:
+    pending: dict[str, Any] = {}
+    for store, page in pages.items():
         _cancelled(cancel)
-        if page.is_closed():
-            raise AutomationError(f"{store} login window was closed")
-        # The user may temporarily visit an external SSO origin. We do not inspect
-        # or touch it; only the canonical store page can complete this wait.
-        if is_store_url(page.url, store) and _login_complete(page, store):
-            return
-        cancel.wait(0.25)
-    raise AutomationError(f"timed out waiting for manual {store} login")
+        navigate_store(page, STORE_HOME[store], store)
+        if _is_logged_in(page, store):
+            continue
+        navigate_store(page, STORE_LOGIN[store], store)
+        if not _login_complete(page, store):
+            pending[store] = page
+
+    # One shared deadline starts only after every required store has its login
+    # tab. The user can therefore complete Bandcamp and Beatport in either order.
+    deadline = time.monotonic() + LOGIN_TIMEOUT_SECONDS
+    while pending and time.monotonic() < deadline:
+        _cancelled(cancel)
+        for store, page in tuple(pending.items()):
+            if page.is_closed():
+                raise AutomationError(f"{store} login window was closed")
+            # The user may temporarily visit an external SSO origin. We do not
+            # inspect or touch it; only the canonical store can complete the wait.
+            if is_store_url(page.url, store) and _login_complete(page, store):
+                del pending[store]
+        if pending:
+            cancel.wait(0.25)
+    if pending:
+        stores = " and ".join(sorted(pending))
+        raise AutomationError(f"timed out waiting for manual {stores} login")
+
+
+def ensure_login(page: Any, store: str, cancel: Event) -> None:
+    """Wait for one user-driven login without reading or filling credentials."""
+
+    ensure_logins({store: page}, cancel)
 
 
 def _page_products(page: Any, store: str) -> list[StoreProduct]:
@@ -840,17 +855,38 @@ def resolve_cart_item(
     return replace(unresolved, already_in_cart=_cart_contains(page, unresolved, cancel or Event()))
 
 
-def prepare_on_page(page: Any, requests: Iterable[CartRequest], cancel: Event) -> CartPlan:
+def _prepare_on_pages(
+    request_pages: Iterable[tuple[CartRequest, Any]], cancel: Event
+) -> tuple[CartPlan, dict[tuple[str, str], Any]]:
+    pairs = tuple(request_pages)
+    page_by_track: dict[str, Any] = {}
+    for request, page in pairs:
+        if request.track.key in page_by_track:
+            raise AutomationError("cart batch contains the same track more than once")
+        page_by_track[request.track.key] = page
+
     logged_in: set[str] = set()
 
     def resolve(track: Track, store: str, url: str) -> CartItem:
         _cancelled(cancel)
+        page = page_by_track[track.key]
         if store not in logged_in:
             ensure_login(page, store, cancel)
             logged_in.add(store)
         return resolve_cart_item(page, track, store, url, cancel)
 
-    return plan_requests(requests, resolve)
+    plan = plan_requests((request for request, _page in pairs), resolve)
+    pages = {
+        (item.track_key, item.store): page_by_track[item.track_key]
+        for item in plan.items
+    }
+    return plan, pages
+
+
+def prepare_on_page(page: Any, requests: Iterable[CartRequest], cancel: Event) -> CartPlan:
+    pairs = ((request, page) for request in requests)
+    plan, _pages = _prepare_on_pages(pairs, cancel)
+    return plan
 
 
 def _verified_price(page: Any, store: str, price: Any) -> Any:
@@ -1045,23 +1081,63 @@ def _browser_context(profile: Path | None = None, *, accept_downloads: bool = Fa
                 pass
 
 
+def _tabs(context: Any, count: int) -> list[Any]:
+    """Create the whole batch before its first tab starts navigating."""
+
+    if count <= 0:
+        return []
+    pages = [context.pages[0] if context.pages else context.new_page()]
+    while len(pages) < count:
+        pages.append(context.new_page())
+    return pages
+
+
+def _prepare_cart_in_context(
+    context: Any, requests: Iterable[CartRequest], cancel: Event
+) -> tuple[CartPlan, dict[tuple[str, str], Any]]:
+    request_list = tuple(requests)
+    pages = _tabs(context, len(request_list))
+    return _prepare_on_pages(zip(request_list, pages, strict=True), cancel)
+
+
+def _stage_item_pages(
+    context: Any, items: Iterable[CartItem], cancel: Event
+) -> dict[tuple[str, str], Any]:
+    item_list = tuple(items)
+    pages = _tabs(context, len(item_list))
+    staged: dict[tuple[str, str], Any] = {}
+    for item, page in zip(item_list, pages, strict=True):
+        _cancelled(cancel)
+        key = (item.track_key, item.store)
+        if key in staged:
+            raise AutomationError("cart plan contains the same store item more than once")
+        staged[key] = page
+        navigate_store(page, item.product_url, item.store)
+    return staged
+
+
 def prepare_cart(
     requests: Iterable[CartRequest], cancel: Event, *, profile: Path | None = None
 ) -> CartPlan:
     with _browser_context(profile) as context:
-        page = context.pages[0] if context.pages else context.new_page()
-        return prepare_on_page(page, requests, cancel)
+        plan, _pages = _prepare_cart_in_context(context, requests, cancel)
+        return plan
 
 
-def _wait_with_carts_open(context: Any, targets: dict[str, str], cancel: Event) -> None:
-    pages = []
-    for store, product_url in sorted(targets.items()):
+def _wait_with_carts_open(
+    targets: Iterable[tuple[Any, CartItem]], cancel: Event
+) -> None:
+    pages: list[Any] = []
+    for page, item in targets:
+        pages.append(page)
         try:
-            page = context.new_page()
-            pages.append(page)
-            destination = product_url if store == "bandcamp" else STORE_CART[store]
-            navigate_store(page, destination, store)
-            if store == "bandcamp":
+            destination = (
+                item.product_url
+                if item.store == "bandcamp"
+                else STORE_CART[item.store]
+            )
+            navigate_store(page, destination, item.store)
+            if item.store == "bandcamp":
                 cart_control = _only_visible(page.locator("#menubar-cart-icon"))
                 if cart_control is not None:
                     cart_control.click(timeout=ACTION_TIMEOUT_MS)
@@ -1078,6 +1154,76 @@ def _wait_with_carts_open(context: Any, targets: dict[str, str], cancel: Event) 
             return
 
 
+def _execute_cart_in_context(
+    plan: CartPlan,
+    cancel: Event,
+    pages: dict[tuple[str, str], Any],
+    *,
+    login: bool,
+) -> tuple[CartResult, ...]:
+    def page_for(item: CartItem) -> Any:
+        try:
+            return pages[(item.track_key, item.store)]
+        except KeyError as exc:
+            raise AutomationError("cart plan is missing its browser tab") from exc
+
+    if login:
+        store_pages: dict[str, Any] = {}
+        for item in plan.items:
+            store_pages.setdefault(item.store, page_for(item))
+        ensure_logins(store_pages, cancel)
+
+    def refresh(item: CartItem) -> CartItem:
+        return _refresh_item(page_for(item), item, cancel)
+
+    def in_cart(item: CartItem) -> bool:
+        _cancelled(cancel)
+        return _cart_contains(page_for(item), item, cancel)
+
+    def add(item: CartItem) -> None:
+        _add_to_cart(page_for(item), item, cancel)
+
+    results = execute_items(plan, refresh=refresh, in_cart=in_cart, add=add)
+    successful_items = {
+        (result.track_key, result.store)
+        for result in results
+        if result.status in {"added", "already_in_cart"}
+        and result.store in STORE_HOSTS
+    }
+    cart_targets = [
+        (page_for(item), item)
+        for item in plan.items
+        if (item.track_key, item.store) in successful_items
+    ]
+    if cart_targets and not cancel.is_set():
+        _wait_with_carts_open(cart_targets, cancel)
+    return results
+
+
+def run_cart(
+    requests: Iterable[CartRequest],
+    cancel: Event,
+    *,
+    approve: Callable[[CartPlan], bool] | None = None,
+    profile: Path | None = None,
+) -> tuple[CartResult, ...] | None:
+    """Preflight, approve, and execute in one browser context and worker thread."""
+
+    with _browser_context(profile) as context:
+        plan, pages = _prepare_cart_in_context(context, requests, cancel)
+        if not plan.items:
+            return plan.results
+        if (
+            approve is not None
+            and any(not item.already_in_cart for item in plan.items)
+            and not approve(plan)
+        ):
+            return None
+        # Preflight already completed every required manual login in this same
+        # persistent context, so execution can revalidate without closing tabs.
+        return _execute_cart_in_context(plan, cancel, pages, login=False)
+
+
 def execute_cart(
     plan: CartPlan,
     cancel: Event,
@@ -1085,35 +1231,5 @@ def execute_cart(
     profile: Path | None = None,
 ) -> tuple[CartResult, ...]:
     with _browser_context(profile) as context:
-        page = context.pages[0] if context.pages else context.new_page()
-        logged_in: set[str] = set()
-
-        def login(store: str) -> None:
-            if store not in logged_in:
-                ensure_login(page, store, cancel)
-                logged_in.add(store)
-
-        def refresh(item: CartItem) -> CartItem:
-            login(item.store)
-            return _refresh_item(page, item, cancel)
-
-        def in_cart(item: CartItem) -> bool:
-            _cancelled(cancel)
-            return _cart_contains(page, item, cancel)
-
-        def add(item: CartItem) -> None:
-            _add_to_cart(page, item, cancel)
-
-        results = execute_items(plan, refresh=refresh, in_cart=in_cart, add=add)
-        successful_items = {
-            (result.track_key, result.store)
-            for result in results
-            if result.status in {"added", "already_in_cart"} and result.store in STORE_HOSTS
-        }
-        cart_targets: dict[str, str] = {}
-        for item in plan.items:
-            if (item.track_key, item.store) in successful_items:
-                cart_targets.setdefault(item.store, item.product_url)
-        if cart_targets and not cancel.is_set():
-            _wait_with_carts_open(context, cart_targets, cancel)
-        return results
+        pages = _stage_item_pages(context, plan.items, cancel)
+        return _execute_cart_in_context(plan, cancel, pages, login=True)

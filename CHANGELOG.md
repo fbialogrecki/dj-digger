@@ -11,6 +11,13 @@
 - `hypd.it` gate links now share the same Chromium fallback route as
   `hypeddit.com` ones when automatic resolution needs a browser step.
 
+### Fixed
+
+- Bandcamp and Beatport batches now keep one Chromium session from manual login
+  through preflight, confirmation and cart addition. All candidate tabs are
+  created up front and reused, so the browser no longer closes between phases or
+  replaces the whole batch in one short-lived tab.
+
 ### Removed
 
 - The one-time import of pre-0.9 data files (`state.json`, `crates/*.json`)

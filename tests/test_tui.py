@@ -481,12 +481,11 @@ def test_c_preflights_and_adds_the_selected_track(records, state, monkeypatch):
     prepared = []
     executed = []
 
-    def prepare(requests, _cancel):
+    def run_cart(requests, _cancel, *, approve, **_kwargs):
         requests = list(requests)
         prepared.extend(requests)
-        return cart_plan_for(bandcamp_record)
-
-    def execute(plan, _cancel, **_kwargs):
+        plan = cart_plan_for(bandcamp_record)
+        assert approve(plan)
         executed.append(plan)
         return (
             cart.CartResult(
@@ -497,8 +496,7 @@ def test_c_preflights_and_adds_the_selected_track(records, state, monkeypatch):
             ),
         )
 
-    monkeypatch.setattr(cart, "prepare_cart", prepare)
-    monkeypatch.setattr(cart, "execute_cart", execute)
+    monkeypatch.setattr(cart, "run_cart", run_cart)
     app = make_app([bandcamp_record], state)
 
     async def scenario():
@@ -520,30 +518,27 @@ def test_c_installs_missing_chromium_then_retries_preflight(records, state, monk
     prepared = []
     executed = []
 
-    def prepare(requests, _cancel):
+    def run_cart(requests, _cancel, *, approve, **_kwargs):
         prepared.append(list(requests))
         if not installed:
             raise cart.ChromiumMissing("Chromium is required for store carts")
-        return cart_plan_for(bandcamp_record)
-
-    def install(_cancel):
-        installed.append(True)
-
-    monkeypatch.setattr(cart, "prepare_cart", prepare)
-    monkeypatch.setattr(cart, "install_chromium", install)
-    monkeypatch.setattr(
-        cart,
-        "execute_cart",
-        lambda plan, _cancel, **_kwargs: executed.append(plan)
-        or (
+        plan = cart_plan_for(bandcamp_record)
+        assert approve(plan)
+        executed.append(plan)
+        return (
             cart.CartResult(
                 bandcamp_record.track.key,
                 bandcamp_record.track.label,
                 "bandcamp",
                 "added",
             ),
-        ),
-    )
+        )
+
+    def install(_cancel):
+        installed.append(True)
+
+    monkeypatch.setattr(cart, "run_cart", run_cart)
+    monkeypatch.setattr(cart, "install_chromium", install)
     app = make_app([bandcamp_record], state)
 
     async def scenario():
@@ -571,13 +566,13 @@ def test_shift_c_confirms_the_visible_preflight_before_mutating(state, monkeypat
     record = synthetic_records(1)[0]
     plan = cart_plan_for(record)
     executed = []
-    monkeypatch.setattr(cart, "prepare_cart", lambda _requests, _cancel: plan)
-    monkeypatch.setattr(
-        cart,
-        "execute_cart",
-        lambda candidate, _cancel, **_kwargs: executed.append(candidate)
-        or (cart.CartResult(record.track.key, record.track.label, "bandcamp", "added"),),
-    )
+    def run_cart(_requests, _cancel, *, approve, **_kwargs):
+        if not approve(plan):
+            return None
+        executed.append(plan)
+        return (cart.CartResult(record.track.key, record.track.label, "bandcamp", "added"),)
+
+    monkeypatch.setattr(cart, "run_cart", run_cart)
     app = make_app([record], state)
 
     async def scenario():
@@ -604,7 +599,7 @@ def test_batch_cart_refuses_a_filter_without_supported_stores(state, monkeypatch
     record = synthetic_records(1)[0]
     monkeypatch.setattr(
         cart,
-        "prepare_cart",
+        "run_cart",
         lambda *_args, **_kwargs: pytest.fail("unsupported filter must not open a browser"),
     )
     app = make_app([record], state)
@@ -637,15 +632,18 @@ def test_batch_cart_leaves_got_and_skipped_tracks_out(state, monkeypatch):
     state.set(records[1].track.key, SKIP)
     seen = []
 
-    def prepare(requests, _cancel):
+    def run_cart(requests, _cancel, **_kwargs):
         seen.extend(requests)
-        return cart.CartPlan(
-            results=(
-                cart.CartResult(records[2].track.key, records[2].track.label, "bandcamp", "skipped"),
-            )
+        return (
+            cart.CartResult(
+                records[2].track.key,
+                records[2].track.label,
+                "bandcamp",
+                "skipped",
+            ),
         )
 
-    monkeypatch.setattr(cart, "prepare_cart", prepare)
+    monkeypatch.setattr(cart, "run_cart", run_cart)
     app = make_app(records, state)
 
     async def scenario():

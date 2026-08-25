@@ -2,6 +2,7 @@ import html
 import json
 import os
 import signal
+from contextlib import contextmanager
 from dataclasses import replace
 from decimal import Decimal
 from threading import Event
@@ -988,3 +989,189 @@ def test_preflight_logs_in_to_fallback_store_after_business_unavailability(monke
 
     assert plan.items[0].store == "beatport"
     assert logins == ["bandcamp", "beatport"]
+
+
+class BatchTab:
+    def __init__(self, name):
+        self.name = name
+        self.url = "about:blank"
+
+
+class BatchContext:
+    def __init__(self):
+        self.pages = [BatchTab("first")]
+        self.closed = False
+
+    def new_page(self):
+        page = BatchTab(f"tab-{len(self.pages) + 1}")
+        self.pages.append(page)
+        return page
+
+
+def two_store_plan():
+    first = resolved_item("bandcamp")
+    second = replace(
+        resolved_item("beatport", price="2.49", currency="EUR"),
+        track_key="20",
+        track_label="Artist - Second",
+        product_id="2",
+        source_url="https://www.beatport.com/track/second/2",
+        product_url="https://www.beatport.com/track/second/2",
+        product_title="Second",
+    )
+    return cart.CartPlan(items=(first, second))
+
+
+def test_preflight_creates_every_track_tab_before_starting_the_batch(monkeypatch):
+    context = BatchContext()
+    requests = (
+        request("bandcamp"),
+        cart.CartRequest(
+            replace(track("Second"), id=20),
+            (("beatport", "https://www.beatport.com/track/second/2"),),
+        ),
+    )
+
+    def prepare(request_pages, _cancel):
+        pairs = tuple(request_pages)
+        assert len(context.pages) == len(requests)
+        assert [page for _request, page in pairs] == context.pages
+        return cart.CartPlan(), {}
+
+    monkeypatch.setattr(cart, "_prepare_on_pages", prepare)
+
+    cart._prepare_cart_in_context(context, requests, Event())
+
+
+def test_required_store_logins_are_all_open_before_the_shared_wait(monkeypatch):
+    pages = {"bandcamp": BatchTab("bandcamp"), "beatport": BatchTab("beatport")}
+    navigated = []
+
+    def navigate(page, url, store):
+        page.url = url
+        navigated.append((store, url))
+
+    class LoginWait:
+        def is_set(self):
+            return False
+
+        def wait(self, _timeout):
+            assert pages["bandcamp"].url == cart.STORE_LOGIN["bandcamp"]
+            assert pages["beatport"].url == cart.STORE_LOGIN["beatport"]
+            for page in pages.values():
+                page.complete = True
+            return False
+
+    for page in pages.values():
+        page.complete = False
+        page.is_closed = lambda: False
+    monkeypatch.setattr(cart, "navigate_store", navigate)
+    monkeypatch.setattr(cart, "_is_logged_in", lambda _page, _store: False)
+    monkeypatch.setattr(cart, "_login_complete", lambda page, _store: page.complete)
+
+    cart.ensure_logins(pages, LoginWait())
+
+    assert navigated == [
+        ("bandcamp", cart.STORE_HOME["bandcamp"]),
+        ("bandcamp", cart.STORE_LOGIN["bandcamp"]),
+        ("beatport", cart.STORE_HOME["beatport"]),
+        ("beatport", cart.STORE_LOGIN["beatport"]),
+    ]
+
+
+def test_run_cart_keeps_one_context_open_through_approval_and_execution(monkeypatch):
+    context = BatchContext()
+    plan = two_store_plan()
+    pages = {
+        (plan.items[0].track_key, plan.items[0].store): context.pages[0],
+        (plan.items[1].track_key, plan.items[1].store): context.new_page(),
+    }
+    executed = []
+
+    @contextmanager
+    def browser_context(_profile=None):
+        try:
+            yield context
+        finally:
+            context.closed = True
+
+    monkeypatch.setattr(cart, "_browser_context", browser_context)
+    monkeypatch.setattr(
+        cart,
+        "_prepare_cart_in_context",
+        lambda candidate, _requests, _cancel: (plan, pages)
+        if candidate is context
+        else pytest.fail("preflight changed browser contexts"),
+    )
+
+    def approve(candidate):
+        assert candidate is plan
+        assert not context.closed
+        assert len(context.pages) == 2
+        return True
+
+    def execute(candidate, _cancel, candidate_pages, *, login):
+        assert candidate is plan
+        assert candidate_pages is pages
+        assert login is False
+        assert not context.closed
+        executed.append(candidate)
+        return (cart.CartResult("10", "Artist - Signal", "bandcamp", "added"),)
+
+    monkeypatch.setattr(cart, "_execute_cart_in_context", execute)
+
+    results = cart.run_cart([request("bandcamp")], Event(), approve=approve)
+
+    assert results[0].status == "added"
+    assert executed == [plan]
+    assert context.closed
+
+
+def test_execution_logs_into_all_stores_before_the_first_cart_action(monkeypatch):
+    plan = two_store_plan()
+    pages = {
+        (item.track_key, item.store): BatchTab(item.store)
+        for item in plan.items
+    }
+    logged_in = []
+    checks = {key: 0 for key in pages}
+    clicks = []
+    open_targets = []
+
+    def ensure(candidate_pages, _cancel):
+        logged_in.extend(candidate_pages)
+        assert candidate_pages == {
+            "bandcamp": pages[("10", "bandcamp")],
+            "beatport": pages[("20", "beatport")],
+        }
+
+    def refresh(page, item, _cancel):
+        assert logged_in == ["bandcamp", "beatport"]
+        assert page is pages[(item.track_key, item.store)]
+        return item
+
+    def in_cart(page, item, _cancel):
+        key = (item.track_key, item.store)
+        assert page is pages[key]
+        checks[key] += 1
+        return checks[key] == 2
+
+    monkeypatch.setattr(cart, "ensure_logins", ensure)
+    monkeypatch.setattr(cart, "_refresh_item", refresh)
+    monkeypatch.setattr(cart, "_cart_contains", in_cart)
+    monkeypatch.setattr(
+        cart,
+        "_add_to_cart",
+        lambda page, item, _cancel: clicks.append((page, item)),
+    )
+    monkeypatch.setattr(
+        cart,
+        "_wait_with_carts_open",
+        lambda targets, _cancel: open_targets.extend(targets),
+    )
+
+    results = cart._execute_cart_in_context(plan, Event(), pages, login=True)
+
+    assert [result.status for result in results] == ["added", "added"]
+    assert [page for page, _item in clicks] == list(pages.values())
+    assert [page for page, _item in open_targets] == list(pages.values())

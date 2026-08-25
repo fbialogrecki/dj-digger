@@ -5,8 +5,8 @@
 - Product version verified: 0.13.2
 - Owner: Filip Białogrecki
 - Updated: 2026-08-25
-- Document lines: <!-- SPEC TOTAL LINES -->829<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->829<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->836<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->836<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,64 +51,64 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 143–175 |
 | 2.1 | ↳ Problem and product boundary | 145–156 |
 | 2.2 | ↳ Execution modes | 157–175 |
-| 3 | User-visible capabilities | 176–295 |
+| 3 | User-visible capabilities | 176–297 |
 | 3.1 | ↳ Track collection and saved HTML | 178–197 |
 | 3.2 | ↳ Link classification and exports | 198–216 |
 | 3.3 | ↳ TUI crate library and interaction | 217–237 |
 | 3.4 | ↳ Audio preview | 238–256 |
 | 3.5 | ↳ Downloads and local-file matching | 257–279 |
-| 3.6 | ↳ Store cart assistance | 280–295 |
-| 4 | System context and data flow | 296–333 |
-| 4.1 | ↳ Context diagram | 298–320 |
-| 4.2 | ↳ Collection-to-library flow | 321–333 |
-| 5 | Repository layout and component ownership | 334–374 |
-| 5.1 | ↳ Entry, orchestration, and models | 336–346 |
-| 5.2 | ↳ Network and external-system adapters | 347–360 |
-| 5.3 | ↳ Persistence, local media, and UI | 361–374 |
-| 6 | Runtime architecture and environments | 375–421 |
-| 6.1 | ↳ Runtime and dependencies | 377–389 |
-| 6.2 | ↳ Concurrency and lifecycle | 390–406 |
-| 6.3 | ↳ Local paths and environment variables | 407–421 |
-| 7 | Data model and persistence | 422–479 |
-| 7.1 | ↳ Domain objects and identity | 424–435 |
-| 7.2 | ↳ SQLite schema and invariants | 436–453 |
-| 7.3 | ↳ Crate persistence and deletion | 454–465 |
-| 7.4 | ↳ Configuration and credential stores | 466–479 |
-| 8 | Public interfaces and contracts | 480–518 |
-| 8.1 | ↳ CLI arguments and exit behavior | 482–496 |
-| 8.2 | ↳ JSON and CSV summary input | 497–509 |
-| 8.3 | ↳ URL-opening contract | 510–518 |
-| 9 | Authentication and authorization | 519–565 |
-| 9.1 | ↳ SoundCloud authentication | 521–538 |
-| 9.2 | ↳ Spotify PKCE and scopes | 539–550 |
-| 9.3 | ↳ Gate action consent | 551–565 |
-| 10 | External integrations | 566–641 |
-| 10.1 | ↳ SoundCloud API and media | 568–579 |
-| 10.2 | ↳ Link hubs and download gates | 580–611 |
-| 10.2 · block | ↳ ↳ Hypeddit | 588–597 |
-| 10.2 · block | ↳ ↳ Other resolvers | 599–604 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 606–611 |
-| 10.3 | ↳ Browsers and clipboard | 612–622 |
-| 10.4 | ↳ Spotify | 623–629 |
-| 10.5 | ↳ Bandcamp and Beatport carts | 630–641 |
-| 11 | Security requirements and threat model | 642–688 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 644–662 |
-| 11.2 | ↳ Secret and personal-data handling | 663–675 |
-| 11.3 | ↳ File and mutation safety | 676–688 |
-| 12 | Privacy, lifecycle, and retention | 689–720 |
-| 12.1 | ↳ Data stored locally | 691–702 |
-| 12.2 | ↳ Data sent to third parties | 703–712 |
-| 12.3 | ↳ User-controlled deletion | 713–720 |
-| 13 | Failure behavior and current limitations | 721–750 |
-| 13.1 | ↳ Error isolation and reporting | 723–735 |
-| 13.2 | ↳ Confirmed limitations | 736–750 |
-| 14 | Verification, CI, and release | 751–807 |
-| 14.1 | ↳ Offline and live test suites | 753–776 |
-| 14.2 | ↳ Continuous integration and publishing | 777–792 |
-| 14.3 | ↳ Specification-map verification | 793–807 |
-| 15 | Evidence and operational references | 808–829 |
-| 15.1 | ↳ Primary implementation evidence | 810–822 |
-| 15.2 | ↳ User and historical documentation | 823–829 |
+| 3.6 | ↳ Store cart assistance | 280–297 |
+| 4 | System context and data flow | 298–335 |
+| 4.1 | ↳ Context diagram | 300–322 |
+| 4.2 | ↳ Collection-to-library flow | 323–335 |
+| 5 | Repository layout and component ownership | 336–376 |
+| 5.1 | ↳ Entry, orchestration, and models | 338–348 |
+| 5.2 | ↳ Network and external-system adapters | 349–362 |
+| 5.3 | ↳ Persistence, local media, and UI | 363–376 |
+| 6 | Runtime architecture and environments | 377–426 |
+| 6.1 | ↳ Runtime and dependencies | 379–391 |
+| 6.2 | ↳ Concurrency and lifecycle | 392–411 |
+| 6.3 | ↳ Local paths and environment variables | 412–426 |
+| 7 | Data model and persistence | 427–484 |
+| 7.1 | ↳ Domain objects and identity | 429–440 |
+| 7.2 | ↳ SQLite schema and invariants | 441–458 |
+| 7.3 | ↳ Crate persistence and deletion | 459–470 |
+| 7.4 | ↳ Configuration and credential stores | 471–484 |
+| 8 | Public interfaces and contracts | 485–523 |
+| 8.1 | ↳ CLI arguments and exit behavior | 487–501 |
+| 8.2 | ↳ JSON and CSV summary input | 502–514 |
+| 8.3 | ↳ URL-opening contract | 515–523 |
+| 9 | Authentication and authorization | 524–570 |
+| 9.1 | ↳ SoundCloud authentication | 526–543 |
+| 9.2 | ↳ Spotify PKCE and scopes | 544–555 |
+| 9.3 | ↳ Gate action consent | 556–570 |
+| 10 | External integrations | 571–648 |
+| 10.1 | ↳ SoundCloud API and media | 573–584 |
+| 10.2 | ↳ Link hubs and download gates | 585–616 |
+| 10.2 · block | ↳ ↳ Hypeddit | 593–602 |
+| 10.2 · block | ↳ ↳ Other resolvers | 604–609 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 611–616 |
+| 10.3 | ↳ Browsers and clipboard | 617–627 |
+| 10.4 | ↳ Spotify | 628–634 |
+| 10.5 | ↳ Bandcamp and Beatport carts | 635–648 |
+| 11 | Security requirements and threat model | 649–695 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 651–669 |
+| 11.2 | ↳ Secret and personal-data handling | 670–682 |
+| 11.3 | ↳ File and mutation safety | 683–695 |
+| 12 | Privacy, lifecycle, and retention | 696–727 |
+| 12.1 | ↳ Data stored locally | 698–709 |
+| 12.2 | ↳ Data sent to third parties | 710–719 |
+| 12.3 | ↳ User-controlled deletion | 720–727 |
+| 13 | Failure behavior and current limitations | 728–757 |
+| 13.1 | ↳ Error isolation and reporting | 730–742 |
+| 13.2 | ↳ Confirmed limitations | 743–757 |
+| 14 | Verification, CI, and release | 758–814 |
+| 14.1 | ↳ Offline and live test suites | 760–783 |
+| 14.2 | ↳ Continuous integration and publishing | 784–799 |
+| 14.3 | ↳ Specification-map verification | 800–814 |
+| 15 | Evidence and operational references | 815–836 |
+| 15.1 | ↳ Primary implementation evidence | 817–829 |
+| 15.2 | ↳ User and historical documentation | 830–836 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -281,10 +281,12 @@ only attach a path. Missing files are removed from the cache and only undo a
 
 Cart automation is explicitly initiated by the user and supports Bandcamp and
 Beatport product links. A persistent, dedicated Chromium profile may require
-manual login. The preflight loads linked pages, resolves an exact product,
-checks individual availability and price, verifies current cart membership, and
-returns a plan. Batch execution requires confirmation unless every item is
-already present.
+manual login. One cart run keeps the same headed Chromium context from login
+and preflight through confirmation and execution. Every requested track gets a
+tab before the first tab starts navigating. The preflight resolves an exact
+product, checks individual availability and price, verifies current cart
+membership, and returns a plan. Batch execution requires confirmation unless
+every item is already present.
 
 Before each mutation the page is reloaded and product identity and price are
 compared with the preflight snapshot. Ambiguous matches, version mismatch,
@@ -403,6 +405,9 @@ late bytes after close or seek.
 On TUI unmount, cart/gate cancellation is signalled, the ticker stops, pending
 download futures are cancelled when possible, prepared media is closed, and the
 player and SoundCloud session are released.
+
+The cart worker remains alive while Textual collects batch confirmation, so its
+Playwright context and per-track tabs stay owned by the same background thread.
 
 ### 6.3 Local paths and environment variables
 
@@ -635,9 +640,11 @@ at 2,000,000 bytes. Matching compares normalized title, artist, version tokens,
 stable product IDs, availability, price, and currency.
 
 The dedicated browser launches as a persistent, headed context with sandboxing
-enabled where supported. Store login is manual. Cart mutation is limited to an
-identified add-to-cart control; the code does not fill a password, choose payment
-details, or invoke checkout.
+enabled where supported. Store login is manual and each required store receives
+up to five minutes before any cart mutation. Preflight, confirmation, immediate
+revalidation, mutation, and final cart display reuse the same per-track tabs.
+Cart mutation is limited to an identified add-to-cart control; the code does not
+fill a password, choose payment details, or invoke checkout.
 
 ## 11. Security requirements and threat model
 
