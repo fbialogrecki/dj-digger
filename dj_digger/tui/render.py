@@ -5,6 +5,7 @@ Mixed into ``DiggerApp``; the attributes these reach for are set up in its
 """
 
 import logging
+from collections import Counter
 
 from rich.table import Table
 from rich.text import Text
@@ -197,9 +198,7 @@ class RenderMixin:
         bar.update(grid)
 
     def _progress_line(self) -> Text:
-        counts: dict[str, int] = {status: 0 for status in STATUS_STYLES}
-        for row in self.rows:
-            counts[self.status_of(row)] += 1
+        counts = Counter(self.status_of(row) for row in self.rows)
 
         pieces = [f"{len(self.visible_rows)}/{len(self.rows)} tracks"]
         pieces += [
@@ -233,37 +232,24 @@ class RenderMixin:
             [record for row in self.soft_matching_rows() for record in row.records]
         )
         showing_all = not self.store_filters
-        current_x = 0
 
-        prefix_str = "\u25b8 " if showing_all else "  "
-        line.append(prefix_str, style="bold")
-        current_x += len(prefix_str)
+        # Click regions are terminal-cell offsets (on_click compares event.x),
+        # so spans come from cell_len of what has actually been appended.
+        line.append("\u25b8 " if showing_all else "  ", style="bold")
 
-        all_btn_text = "0 all"
-        all_btn_start = current_x
-        all_btn_end = current_x + len(all_btn_text)
-        line.append(all_btn_text, style="bold reverse" if showing_all else "bright_black")
-        self._badge_click_regions.append((all_btn_start, all_btn_end, 0))
-        current_x = all_btn_end
+        start = line.cell_len
+        line.append("0 all", style="bold reverse" if showing_all else "bright_black")
+        self._badge_click_regions.append((start, line.cell_len, 0))
 
         for index, category in enumerate(self.present, start=1):
             active = category in self.store_filters
-            cat_prefix = "  \u25b8" if active else "   "
-            line.append(cat_prefix, style="bold")
-            current_x += len(cat_prefix)
+            line.append("  \u25b8" if active else "   ", style="bold")
 
             label = f"{index} {category}" if index <= QUICK_FILTER_KEYS else category
-            count_str = f"\u00b7{by_category[category]}"
-            full_span_text = label + count_str
-
-            badge_start = current_x
-            badge_end = current_x + len(full_span_text)
-
+            start = line.cell_len
             line.append(label, style="bold reverse cyan" if active else "cyan")
-            line.append(count_str, style="bright_black")
-
-            self._badge_click_regions.append((badge_start, badge_end, index))
-            current_x = badge_end
+            line.append(f"\u00b7{by_category[category]}", style="bright_black")
+            self._badge_click_regions.append((start, line.cell_len, index))
 
         return line
 
@@ -297,12 +283,6 @@ class RenderMixin:
             # with you rather than finishing something you already ruled on.
             self.action_play_step(1)
 
-    def _set_status(self, status: str, message: str) -> None:
-        row = self.current_row()
-        if row is None:
-            return
-        self._mark(row, self.query_one("#tracks", DataTable).cursor_row, status, message)
-
     def _advance_cursor(self) -> None:
         table = self.query_one("#tracks", DataTable)
         if self.visible_rows and table.cursor_row < len(self.visible_rows) - 1:
@@ -315,4 +295,7 @@ class RenderMixin:
         self._toggle_status(SKIP, "Skipped")
 
     def action_mark_new(self) -> None:
-        self._set_status(NEW, "Unmarked")
+        row = self.current_row()
+        if row is None:
+            return
+        self._mark(row, self.query_one("#tracks", DataTable).cursor_row, NEW, "Unmarked")

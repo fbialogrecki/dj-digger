@@ -33,23 +33,26 @@ def _playlist_folder_name(title: str) -> str:
     return cleaned[:120].rstrip(" .") or "playlist"
 
 
+# Classification and summary order in one place. GateProfileRequired is
+# deliberately absent - it pauses for configuration instead of failing.
+FAILURE_GROUPS = (
+    ("auth", (gates.GateAuthenticationRequired,)),
+    ("captcha", (gates.GateCaptchaRequired,)),
+    ("manual", (gates.GateManualActionRequired, gates.GateSocialActionsDisabled)),
+    ("protocol", (gates.GateProtocolChanged, gates.GateUnavailable)),
+    ("rejected", (gates.GateRejected,)),
+    ("download", (gates.GateDownloadError, soundcloud.SoundCloudError)),
+)
+
+
+def _is_hypeddit(url: str | None) -> bool:
+    return bool(url) and links_module.host_of(url) in links_module.HYPEDDIT_HOSTS
+
+
 def _gate_failure_group(error: Exception) -> str:
-    if isinstance(error, gates.GateAuthenticationRequired):
-        return "auth"
-    if isinstance(error, gates.GateCaptchaRequired):
-        return "captcha"
-    if isinstance(
-        error,
-        (gates.GateManualActionRequired, gates.GateSocialActionsDisabled),
-    ):
-        return "manual"
-    if isinstance(error, (gates.GateProtocolChanged, gates.GateUnavailable)):
-        return "protocol"
-    if isinstance(error, gates.GateRejected):
-        return "rejected"
-    if isinstance(error, (gates.GateDownloadError, soundcloud.SoundCloudError)):
-        return "download"
-    return "other"
+    return next(
+        (name for name, types in FAILURE_GROUPS if isinstance(error, types)), "other"
+    )
 
 
 class DownloadMixin:
@@ -108,13 +111,12 @@ class DownloadMixin:
     ) -> None:
         key = track.key
 
-        if self.crate is not None and gate_url and links_module.host_of(gate_url) in {
-            "hypeddit.com",
-            "hypd.it",
-        }:
-            gate_url = self._normalise_saved_hypeddit_items(
-                [(Row(0, track, links_module.categorise(track)), gate_url)]
-            )[0][1]
+        if self.crate is not None and gate_url:
+            gate_url, changed = self._normalise_hypeddit_item(
+                Row(0, track, links_module.categorise(track)), gate_url
+            )
+            if changed:
+                self._persist_normalised_hubs()
             if not gate_url and not track.free_download and not track.has_direct_download:
                 self.call_from_thread(
                     self._download_failed,
@@ -136,7 +138,7 @@ class DownloadMixin:
                 on_progress=on_progress,
             )
         except gates.BROWSER_REQUIRED_ERRORS as exc:
-            if not gate_url or "hypeddit" not in gate_url.lower():
+            if not _is_hypeddit(gate_url):
                 self.call_from_thread(self._download_failed, key, str(exc))
                 return
             try:
@@ -163,6 +165,17 @@ class DownloadMixin:
             return
         self.call_from_thread(self._download_finished, key, path)
 
+    def _retire_client(self, old) -> None:
+        if old is None:
+            return
+        try:
+            old.close()
+        except Exception as exc:
+            LOGGER.debug("Could not close retired SoundCloud client: %s", exc)
+
+    def _new_client(self, oauth_token: str) -> soundcloud.SoundCloudClient:
+        return soundcloud.SoundCloudClient(config=self.config, oauth_token=oauth_token)
+
     def _begin_download_worker(self) -> None:
         with self._download_worker_lock:
             self._active_download_workers += 1
@@ -181,11 +194,7 @@ class DownloadMixin:
                 self._client_refresh_token = None
                 callbacks = self._client_refresh_callbacks
                 self._client_refresh_callbacks = []
-        if old_client is not None:
-            try:
-                old_client.close()
-            except Exception as exc:
-                LOGGER.debug("Could not close retired SoundCloud client: %s", exc)
+        self._retire_client(old_client)
         if callbacks:
             self.call_from_thread(
                 self._complete_client_refresh, callbacks, oauth_token
@@ -201,31 +210,20 @@ class DownloadMixin:
                 return
             old_client = self._client
             self._client = None
-        if old_client is not None:
-            try:
-                old_client.close()
-            except Exception as exc:
-                LOGGER.debug("Could not close retired SoundCloud client: %s", exc)
-        self._client = soundcloud.SoundCloudClient(
-            config=self.config, oauth_token=oauth_token
-        )
+        self._retire_client(old_client)
+        self._client = self._new_client(oauth_token)
         self.call_later(callback)
 
     def _complete_client_refresh(
         self, callbacks: list, oauth_token: str | None
     ) -> None:
         if oauth_token:
-            self._client = soundcloud.SoundCloudClient(
-                config=self.config, oauth_token=oauth_token
-            )
+            self._client = self._new_client(oauth_token)
         for callback in callbacks:
             callback()
 
     def _download_waiting(self, key: str) -> None:
-        self.download_progress.pop(key, None)
-        self._dirty_download_rows.discard(key)
-        self._paint_download_row(key)
-        self.update_status()
+        self._settle_download_row(key)
 
     def _offer_single_retry(
         self, track: Track, gate_url: str | None, error: Exception
@@ -299,14 +297,29 @@ class DownloadMixin:
                 self._paint_row(index)
                 return
 
-    def _download_failed(self, key: str, message: str) -> None:
+    def _settle_download_row(self, key: str) -> None:
+        """Drop the progress bookkeeping for a row and repaint it."""
+
         self.download_progress.pop(key, None)
         self._dirty_download_rows.discard(key)
         self._paint_download_row(key)
         self.update_status()
+
+    def _download_failed(
+        self, key: str, message: str, *, banner_label: str | None = None
+    ) -> None:
+        if banner_label is not None:
+            # Batch failures go to the error banner so one bad gate does not
+            # bury the toast stream.
+            self.show_error(f"Batch download failed [{banner_label}]: {message}")
+            self._settle_download_row(key)
+            return
+        self._settle_download_row(key)
         self.notify(f"Download failed: {message}", severity="error", timeout=6)
 
-    def _download_finished(self, key: str, path: Path) -> None:
+    def _download_finished(
+        self, key: str, path: Path | str, *, toast: bool = True
+    ) -> None:
         self.download_progress.pop(key, None)
         self._dirty_download_rows.discard(key)
         was_visible = any(row.track.key == key for row in self.visible_rows)
@@ -320,7 +333,8 @@ class DownloadMixin:
         else:
             self._paint_download_row(key)
             self.update_status()
-        self.notify(f"Downloaded to {path}", timeout=5)
+        if toast:
+            self.notify(f"Downloaded to {path}", timeout=5)
 
     def action_batch_download(self) -> None:
         """Download all eligible tracks in current view (SoundCloud direct + Hypeddit/ToneDen gates) in parallel."""
@@ -445,7 +459,7 @@ class DownloadMixin:
                     self.call_from_thread(self._download_waiting, row.track.key)
                 elif outcome == "downloaded":
                     completed_count += 1
-                    self.call_from_thread(self._on_batch_track_finished, row, result)
+                    self.call_from_thread(self._download_finished, row.track.key, result, toast=False)
                 elif allow_prerequisite_retry and isinstance(
                     result, gates.GateProfileRequired
                 ):
@@ -467,7 +481,7 @@ class DownloadMixin:
                     failed_count += 1
                     if isinstance(result, Exception):
                         failure_groups[_gate_failure_group(result)] += 1
-                    self.call_from_thread(self._on_batch_track_failed, row, result)
+                    self.call_from_thread(self._download_failed, row.track.key, str(result), banner_label=row.track.label)
         finally:
             if self._download_executor is not None:
                 self._download_executor.shutdown(wait=False)
@@ -498,12 +512,12 @@ class DownloadMixin:
             for key, path in browser_result.completed:
                 row = rows_by_key[key]
                 completed_count += 1
-                self.call_from_thread(self._on_batch_track_finished, row, str(path))
+                self.call_from_thread(self._download_finished, row.track.key, str(path), toast=False)
             for key, exc in browser_result.failures:
                 row = rows_by_key[key]
                 failed_count += 1
                 failure_groups[_gate_failure_group(exc)] += 1
-                self.call_from_thread(self._on_batch_track_failed, row, exc)
+                self.call_from_thread(self._download_failed, row.track.key, str(exc), banner_label=row.track.label)
 
         pending = len(profile_items) + len(auth_items)
         self.call_from_thread(
@@ -524,29 +538,10 @@ class DownloadMixin:
                 ),
             )
 
-    def _normalise_saved_hypeddit_items(
-        self, items: list[tuple[Row, str | None]]
-    ) -> list[tuple[Row, str | None]]:
-        """Refresh only known Hypeddit wrappers in an old persisted crate."""
-
-        changed = False
-        normalised = []
-        for row, gate_url in items:
-            gate_url, item_changed = self._normalise_hypeddit_item(row, gate_url)
-            changed = changed or item_changed
-            normalised.append((row, gate_url))
-        if changed:
-            self._persist_normalised_hubs()
-        return normalised
-
     def _normalise_hypeddit_item(
         self, row: Row, gate_url: str | None
     ) -> tuple[str | None, bool]:
-        if (
-            self.crate is None
-            or not gate_url
-            or links_module.host_of(gate_url) not in {"hypeddit.com", "hypd.it"}
-        ):
+        if self.crate is None or not _is_hypeddit(gate_url):
             return gate_url, False
         changed = bool(
             dig_module.expand_link_hubs(
@@ -573,28 +568,6 @@ class DownloadMixin:
         tracks = [row.track for row in self.rows]
         self._set_records(links_module.categorise_all(tracks))
         self.refresh_rows()
-
-    def _on_batch_track_finished(self, row: Row, path_str: str) -> None:
-        key = row.track.key
-        self.download_progress.pop(key, None)
-        self._dirty_download_rows.discard(key)
-        was_visible = any(visible.track.key == key for visible in self.visible_rows)
-        row.track.local_path = path_str
-        self.state.set_local_file(key, path_str)
-        if self.hide_handled and was_visible:
-            self.refresh_rows()
-        else:
-            self._paint_download_row(key)
-            self.update_status()
-
-    def _on_batch_track_failed(self, row: Row, error: Exception | str) -> None:
-        key = row.track.key
-        message = str(error)
-        self.download_progress.pop(key, None)
-        self._dirty_download_rows.discard(key)
-        self.show_error(f"Batch download failed [{row.track.label}]: {message}")
-        self._paint_download_row(key)
-        self.update_status()
 
     def _browser_batch_started(self, count: int) -> None:
         self._browser_batch_active = True
@@ -631,15 +604,7 @@ class DownloadMixin:
             msg += f" ({failed} failed)"
         grouped = [
             f"{name}={count}"
-            for name in (
-                "auth",
-                "captcha",
-                "manual",
-                "protocol",
-                "rejected",
-                "download",
-                "other",
-            )
+            for name in [name for name, _types in FAILURE_GROUPS] + ["other"]
             if (count := (failure_groups or {}).get(name, 0))
         ]
         if grouped:

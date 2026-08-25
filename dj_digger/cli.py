@@ -180,13 +180,19 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _run_tui(*args, **kwargs) -> None:
+    # Imported here rather than at module top on purpose: textual and its
+    # dependency tree stay entirely off the --no-tui and export-only paths.
+    from .tui import run_tui
+
+    run_tui(*args, **kwargs)
+
+
 def inject_default_command(argv: Sequence[str]) -> list[str]:
     """Let ``dj-digger <link>`` mean ``dj-digger dig <link>``, and bare mean ``dig``."""
 
     tokens = list(argv)
-    if any(token in SUBCOMMANDS for token in tokens):
-        return tokens
-    if any(token in HELP_FLAGS for token in tokens):
+    if set(tokens) & (set(SUBCOMMANDS) | set(HELP_FLAGS)):
         return tokens
     return ["dig", *tokens]
 
@@ -263,9 +269,7 @@ def handle_dig(args: argparse.Namespace) -> int:
                 "Nothing to dig. Pass a SoundCloud link, or run without --no-tui "
                 "to be asked for one."
             )
-        from .tui import run_tui
-
-        run_tui(
+        _run_tui(
             [],
             state=TrackState(),
             export_format=args.export_format,
@@ -298,9 +302,7 @@ def handle_dig(args: argparse.Namespace) -> int:
     _print_summary(console, records, crate)
 
     if _should_use_tui(args):
-        from .tui import run_tui
-
-        run_tui(
+        _run_tui(
             records,
             state=TrackState(),
             crate_title=crate.title,
@@ -318,13 +320,13 @@ def prompt_category_selection() -> str:
         + ", ".join(links.CATEGORY_CHOICES)
         + " (default: all): "
     )
+    by_lower = {option.lower(): option for option in links.CATEGORY_CHOICES}
     while True:
         choice = input(prompt).strip().lower()
         if not choice:
             return "all"
-        for option in links.CATEGORY_CHOICES:
-            if option.lower() == choice:
-                return option
+        if choice in by_lower:
+            return by_lower[choice]
         print("Please choose a valid category name.")
 
 
@@ -373,9 +375,7 @@ def handle_open(args: argparse.Namespace) -> int:
         partial=True,
     )
 
-    from .tui import run_tui
-
-    run_tui(
+    _run_tui(
         # Re-derived from the URLs rather than trusting the category names in
         # the file, so a summary written by an older version still groups the
         # way this one does.
@@ -391,7 +391,8 @@ def handle_open(args: argparse.Namespace) -> int:
 
 def handle_auth(args: argparse.Namespace) -> int:
     console = Console()
-    action = getattr(args, "auth_action", None)
+    # No action given means status; argparse leaves auth_action as None then.
+    action = getattr(args, "auth_action", None) or "status"
 
     if action == "spotify":
         spotify_action = args.spotify_action
@@ -531,8 +532,7 @@ def handle_auth(args: argparse.Namespace) -> int:
                 console.print("[red]Token status: Expired or invalid.[/red]")
         return 0
 
-    else:
-        return handle_auth(argparse.Namespace(auth_action="status"))
+    return 0
 
 
 def _configure_logging(level_name: str) -> None:

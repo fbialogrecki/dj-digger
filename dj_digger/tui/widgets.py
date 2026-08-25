@@ -241,10 +241,7 @@ class ErrorBanner(Widget):
             f"Errors / Debug Log ({len(self.errors)} total, scrollable):\n",
             style="bold yellow",
         )
-        for index, message in enumerate(self.errors):
-            if index:
-                content.append("\n")
-            content.append(f"• {message}")
+        content.append("\n".join(f"• {message}" for message in self.errors))
         msg_widget.update(content)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:

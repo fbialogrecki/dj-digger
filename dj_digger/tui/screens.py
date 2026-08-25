@@ -1,7 +1,9 @@
 """The modal screens: asking for a link, help, confirmation and settings."""
 
+import re
 from collections.abc import Callable
 from threading import Event
+from typing import TypeVar
 
 from rich.text import Text
 from textual import work
@@ -37,21 +39,42 @@ from .keymap import (
     WHOLE_LIST,
 )
 
+ResultType = TypeVar("ResultType")
 
-class AskLinkScreen(ModalScreen[str | None]):
-    """Asks for a SoundCloud link (or a saved HTML file)."""
 
-    CSS = """
-    AskLinkScreen {
+class _Modal(ModalScreen[ResultType]):
+    """Shared shell for the dialogs: centred, with the common box styling.
+
+    DEFAULT_CSS rather than CSS, and the selector is literally ``_Modal``, on
+    purpose: an inherited ``CSS`` attribute is registered once per subclass
+    with the subclass name as a *descendant* scope, so it silently stops
+    matching the screen itself and every dialog renders top-left. DEFAULT_CSS
+    is collected across the MRO and a type selector matches subclasses.
+    """
+
+    DEFAULT_CSS = """
+    _Modal {
         align: center middle;
     }
-    #ask {
-        width: 78;
+    _Modal .modal-box {
         max-width: 90%;
         height: auto;
         padding: 1 2;
-        border: round $accent;
         background: $surface;
+    }
+    """
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class AskLinkScreen(_Modal[str | None]):
+    """Asks for a SoundCloud link (or a saved HTML file)."""
+
+    CSS = """
+    #ask {
+        width: 78;
+        border: round $accent;
     }
     #ask-hint {
         color: $text-muted;
@@ -66,7 +89,7 @@ class AskLinkScreen(ModalScreen[str | None]):
         self.message = message
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="ask"):
+        with Vertical(id="ask", classes="modal-box"):
             yield Label(self.message)
             yield Label(
                 "Playlist, artist profile, /likes, one track, or a saved .html file.",
@@ -84,17 +107,11 @@ class AskLinkScreen(ModalScreen[str | None]):
         if target:
             self.dismiss(target)
 
-    def action_cancel(self) -> None:
-        self.dismiss(None)
 
-
-class HelpScreen(ModalScreen[None]):
+class HelpScreen(_Modal[None]):
     """Every key, grouped by what it acts on."""
 
     CSS = """
-    HelpScreen {
-        align: center middle;
-    }
     /* 64, not 56: the widest line this builds is 60 columns, and at 56 every
        description longer than the box wrapped back to column 0, leaving
        "store" and "matches" hanging underneath as if they were keys. Width auto
@@ -103,20 +120,16 @@ class HelpScreen(ModalScreen[None]):
        small terminal, where it wraps again but has nowhere else to go. */
     #help {
         width: 66;
-        max-width: 90%;
-        height: auto;
         max-height: 90%;
         overflow-y: auto;
-        padding: 1 2;
         border: round $accent;
-        background: $surface;
     }
     """
 
     BINDINGS = [Binding("escape,question_mark,q", "dismiss", "Close")]
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="help"):
+        with Vertical(id="help", classes="modal-box"):
             yield Static(self._body())
         yield Footer()
 
@@ -157,22 +170,15 @@ class HelpScreen(ModalScreen[None]):
         self.dismiss(None)
 
 
-class ConfirmScreen(ModalScreen[bool]):
+class ConfirmScreen(_Modal[bool]):
     """Yes/no, for the one action here that cannot be undone."""
 
     CSS = """
-    ConfirmScreen {
-        align: center middle;
-    }
     #confirm {
         width: 62;
-        max-width: 90%;
-        height: auto;
         max-height: 90%;
         overflow-y: auto;
-        padding: 1 2;
         border: round $error;
-        background: $surface;
     }
     #confirm-buttons {
         height: auto;
@@ -190,7 +196,7 @@ class ConfirmScreen(ModalScreen[bool]):
         self.question = question
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="confirm"):
+        with Vertical(id="confirm", classes="modal-box"):
             yield Label(self.question, markup=False)
             with Horizontal(id="confirm-buttons"):
                 yield Button("Yes (y)", variant="error", id="confirm-yes")
@@ -207,15 +213,11 @@ class ConfirmScreen(ModalScreen[bool]):
         self.dismiss(False)
 
 
-class ContextMenuScreen(ModalScreen[str | None]):
+class ContextMenuScreen(_Modal[str | None]):
     """Actions for the row selected with the right mouse button."""
 
     CSS = """
-    ContextMenuScreen { align: center middle; }
-    #context-menu {
-        width: 58; max-width: 90%; height: auto; max-height: 90%;
-        padding: 1 2; border: round $accent; background: $surface;
-    }
+    #context-menu { width: 58; max-height: 90%; border: round $accent; }
     #context-menu-title { margin-bottom: 1; }
     #context-menu-options { height: auto; max-height: 12; }
     """
@@ -228,7 +230,7 @@ class ContextMenuScreen(ModalScreen[str | None]):
         self.options = options
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="context-menu"):
+        with Vertical(id="context-menu", classes="modal-box"):
             yield Label(self.title, id="context-menu-title")
             yield OptionList(
                 *(Option(label, id=action) for action, label in self.options),
@@ -240,19 +242,12 @@ class ContextMenuScreen(ModalScreen[str | None]):
     ) -> None:
         self.dismiss(str(event.option.id))
 
-    def action_cancel(self) -> None:
-        self.dismiss(None)
 
-
-class GateProfileScreen(ModalScreen[bool]):
+class GateProfileScreen(_Modal[bool]):
     """Ask only for the identity a download gate is about to submit."""
 
     CSS = """
-    GateProfileScreen { align: center middle; }
-    #gate-profile {
-        width: 68; max-width: 90%; height: auto; padding: 1 2;
-        border: round $warning; background: $surface;
-    }
+    #gate-profile { width: 68; border: round $warning; }
     #gate-profile-hint, #gate-profile-error { color: $text-muted; margin-bottom: 1; }
     #gate-profile-error { color: $error; }
     #gate-profile-buttons { height: auto; margin-top: 1; }
@@ -265,7 +260,7 @@ class GateProfileScreen(ModalScreen[bool]):
         self.config = config
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="gate-profile"):
+        with Vertical(id="gate-profile", classes="modal-box"):
             yield Label("This download gate requires your profile", id="gate-profile-title")
             yield Label(
                 "Your name and email will be sent to Hypeddit or GateRush and may "
@@ -309,15 +304,11 @@ class GateProfileScreen(ModalScreen[bool]):
         self.dismiss(False)
 
 
-class SoundCloudAuthScreen(ModalScreen[str | None]):
+class SoundCloudAuthScreen(_Modal[str | None]):
     """Verify SoundCloud through app-managed Chromium or a hidden token field."""
 
     CSS = """
-    SoundCloudAuthScreen { align: center middle; }
-    #soundcloud-auth {
-        width: 72; max-width: 90%; height: auto; padding: 1 2;
-        border: round $accent; background: $surface;
-    }
+    #soundcloud-auth { width: 72; border: round $accent; }
     #soundcloud-auth-hint, #soundcloud-auth-status { color: $text-muted; margin-bottom: 1; }
     #soundcloud-auth-buttons { height: auto; margin-top: 1; }
     """
@@ -330,7 +321,7 @@ class SoundCloudAuthScreen(ModalScreen[str | None]):
         self.cancel = Event()
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="soundcloud-auth"):
+        with Vertical(id="soundcloud-auth", classes="modal-box"):
             yield Label("SoundCloud login required")
             yield Label(
                 "Chromium uses a private dj-digger profile. Only the oauth_token "
@@ -359,27 +350,32 @@ class SoundCloudAuthScreen(ModalScreen[str | None]):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "soundcloud-browser":
             self._set_busy(True)
-            self.login_in_browser()
+            self._authenticate(
+                lambda: auth_module.login_with_chromium(
+                    self.client_id(),
+                    cancel=self.cancel,
+                    status=lambda message: self.app.call_from_thread(
+                        self._set_status, message
+                    ),
+                )
+            )
         elif event.button.id == "soundcloud-paste":
             token = self.query_one("#soundcloud-token", Input).value.strip()
             if not token:
                 self._set_status("Paste a token first; its value stays hidden.")
             else:
                 self._set_busy(True)
-                self.verify_pasted_token(token)
+                self._set_status("Verifying the SoundCloud token…")
+                self._authenticate(
+                    lambda: auth_module.verify_and_save(token, self.client_id())
+                )
         else:
             self.action_cancel()
 
     @work(thread=True, exclusive=True, group="soundcloud-auth")
-    def login_in_browser(self) -> None:
+    def _authenticate(self, action: Callable[[], tuple[str, str, int | None]]) -> None:
         try:
-            token, _username, _user_id = auth_module.login_with_chromium(
-                self.client_id(),
-                cancel=self.cancel,
-                status=lambda message: self.app.call_from_thread(
-                    self._set_status, message
-                ),
-            )
+            token, _username, _user_id = action()
         except auth_module.SoundCloudAuthCancelled:
             return
         except auth_module.SoundCloudAuthError as exc:
@@ -389,20 +385,6 @@ class SoundCloudAuthScreen(ModalScreen[str | None]):
         if not self.cancel.is_set():
             self.app.call_from_thread(self.dismiss, token)
 
-    @work(thread=True, exclusive=True, group="soundcloud-auth")
-    def verify_pasted_token(self, token: str) -> None:
-        self.app.call_from_thread(self._set_status, "Verifying the SoundCloud token…")
-        try:
-            verified_token, _username, _user_id = auth_module.verify_and_save(
-                token, self.client_id()
-            )
-        except auth_module.SoundCloudAuthError as exc:
-            if not self.cancel.is_set():
-                self.app.call_from_thread(self._show_auth_error, str(exc))
-            return
-        if not self.cancel.is_set():
-            self.app.call_from_thread(self.dismiss, verified_token)
-
     def action_cancel(self) -> None:
         self.cancel.set()
         self.dismiss(None)
@@ -411,26 +393,19 @@ class SoundCloudAuthScreen(ModalScreen[str | None]):
         self.cancel.set()
 
 
-class SettingsScreen(ModalScreen[None]):
+class SettingsScreen(_Modal[None]):
     """Modal dialog for editing user profile (Name, Email) and gate automation comments."""
 
     CSS = """
-    SettingsScreen {
-        align: center middle;
-    }
     /* Six fields and a button row come to 34 lines, which is taller than an
        80x24 terminal - and this is the screen a first run opens on, so Save was
        simply off the bottom of the screen with no way to reach it. It scrolls
        now, and stays inside the terminal it is drawn in. */
     #settings-dialog {
         width: 72;
-        max-width: 90%;
-        height: auto;
         max-height: 90%;
         overflow-y: auto;
-        padding: 1 2;
         border: round $accent;
-        background: $surface;
     }
     #settings-title {
         text-style: bold;
@@ -466,7 +441,7 @@ class SettingsScreen(ModalScreen[None]):
         self.config = config
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="settings-dialog"):
+        with Vertical(id="settings-dialog", classes="modal-box"):
             yield Label("Gate Automation & Profile Settings", id="settings-title")
             yield Label("Your Name (for gate forms):", classes="settings-label")
             yield Input(value=self.config.user_name, id="input-name")
@@ -509,26 +484,24 @@ class SettingsScreen(ModalScreen[None]):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-save-settings":
-            name = self.query_one("#input-name", Input).value.strip()
-            email = self.query_one("#input-email", Input).value.strip()
-            comments_text = self.query_one("#input-comments", Input).value
-            raw_list = comments_text.split("|") if "|" in comments_text else comments_text.splitlines()
-            comments = [c.strip() for c in raw_list if c.strip()]
-
             self.config.browser = self.query_one("#input-browser", Select).value
 
-            if name:
-                self.config.user_name = name
-            if email:
-                self.config.user_email = email
+            # Blank fields keep their previous value.
+            for widget_id, attribute in (
+                ("#input-name", "user_name"),
+                ("#input-email", "user_email"),
+                ("#input-download-dir", "download_directory"),
+            ):
+                value = self.query_one(widget_id, Input).value.strip()
+                if value:
+                    setattr(self.config, attribute, value)
+            comments_text = self.query_one("#input-comments", Input).value
+            comments = [c.strip() for c in re.split(r"[|\n]", comments_text) if c.strip()]
             if comments:
                 self.config.custom_comments = comments
             scan_dirs = [d.strip() for d in self.query_one("#input-scan-dirs", Input).value.split("|") if d.strip()]
             if scan_dirs:
                 self.config.scan_directories = scan_dirs
-            download_dir = self.query_one("#input-download-dir", Input).value.strip()
-            if download_dir:
-                self.config.download_directory = download_dir
             self.config.gate_social_actions = self.query_one("#input-gate-social", Checkbox).value
 
             self.config.first_run = False

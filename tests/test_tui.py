@@ -2673,9 +2673,9 @@ def test_download_results_do_not_move_the_viewport(state, monkeypatch, tmp_path,
             elif outcome == "single_failure":
                 app._download_failed(key, "network broke")
             elif outcome == "batch_success":
-                app._on_batch_track_finished(row, str(tmp_path / "track.mp3"))
+                app._download_finished(key, str(tmp_path / "track.mp3"), toast=False)
             elif outcome == "batch_failure":
-                app._on_batch_track_failed(row, "network broke")
+                app._download_failed(key, "network broke", banner_label=row.track.label)
             else:
                 app._on_batch_download_complete(0, 1, 1)
             await pilot.pause()

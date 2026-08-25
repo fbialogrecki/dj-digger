@@ -407,28 +407,24 @@ class DiggerApp(
             return
         if self._forget_missing_local_file(row.track):
             self.refresh_rows()
-        options = [
-            ("open", "Open best link"),
-            ("got", "Mark as got"),
-            ("skip", "Mark as skipped"),
-            ("new", "Clear mark"),
-            ("remove", "Remove track"),
+        entries = [
+            ("open", "Open best link", self.action_open_link),
+            ("got", "Mark as got", self.action_mark_got),
+            ("skip", "Mark as skipped", self.action_mark_skip),
+            ("new", "Clear mark", self.action_mark_new),
+            ("remove", "Remove track", self.action_remove_track),
         ]
         if row.track.local_path and Path(row.track.local_path).is_file():
-            options.insert(1, ("copy", "Copy local file path"))
+            entries.insert(1, ("copy", "Copy local file path", self.action_copy_path))
             if self._local_file_needs_copy(row.track):
-                options.insert(2, ("copy_file", "Copy file to playlist folder"))
+                entries.insert(
+                    2, ("copy_file", "Copy file to playlist folder", self.action_copy_local_file)
+                )
 
-        actions = {
-            "open": self.action_open_link,
-            "copy": self.action_copy_path,
-            "copy_file": self.action_copy_local_file,
-            "got": self.action_mark_got,
-            "skip": self.action_mark_skip,
-            "new": self.action_mark_new,
-            "remove": self.action_remove_track,
-        }
+        actions = {key: handler for key, _label, handler in entries}
         self.push_screen(
-            ContextMenuScreen(row.track.label, tuple(options)),
+            ContextMenuScreen(
+                row.track.label, tuple((key, label) for key, label, _handler in entries)
+            ),
             lambda action: actions.get(action, lambda: None)(),
         )

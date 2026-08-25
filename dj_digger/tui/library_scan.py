@@ -8,6 +8,7 @@ import logging
 import os
 import shutil
 import tempfile
+from contextlib import suppress
 from pathlib import Path
 
 from textual import work
@@ -190,8 +191,5 @@ def _copy_local_file(source: Path, directory: Path) -> Path:
         os.replace(temporary, target)
         return target
     finally:
-        if temporary.exists():
-            try:
-                temporary.unlink()
-            except OSError:
-                pass
+        with suppress(OSError):
+            temporary.unlink(missing_ok=True)

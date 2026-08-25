@@ -6,6 +6,7 @@ Mixed into ``DiggerApp``; the attributes these reach for are set up in its
 
 import logging
 import urllib.parse
+from collections import Counter
 
 from textual import work
 
@@ -22,6 +23,11 @@ from .rows import Row
 from .screens import ConfirmScreen
 
 LOGGER = logging.getLogger(__name__)
+
+SEARCH_URLS = {
+    "bandcamp": "https://bandcamp.com/search?q={query}",
+    "beatport": "https://www.beatport.com/search?q={query}",
+}
 
 
 class OpeningMixin:
@@ -73,23 +79,13 @@ class OpeningMixin:
                 return record.link_url
         return None
 
-    def action_search_bandcamp(self) -> None:
+    def action_search(self, store: str) -> None:
         row = self.current_row()
         if row is None:
             return
         query = urllib.parse.quote_plus(row.track.label)
-        url = f"https://bandcamp.com/search?q={query}"
-        self.notify(f"Searching Bandcamp for {row.track.label}...", timeout=3)
-        browser_module.open_url(url, self.browser)
-
-    def action_search_beatport(self) -> None:
-        row = self.current_row()
-        if row is None:
-            return
-        query = urllib.parse.quote_plus(row.track.label)
-        url = f"https://www.beatport.com/search?q={query}"
-        self.notify(f"Searching Beatport for {row.track.label}...", timeout=3)
-        browser_module.open_url(url, self.browser)
+        self.notify(f"Searching {store.capitalize()} for {row.track.label}...", timeout=3)
+        browser_module.open_url(SEARCH_URLS[store].format(query=query), self.browser)
 
     def _cart_store_order(self) -> tuple[str, ...]:
         supported = {"bandcamp", "beatport"}
@@ -141,24 +137,33 @@ class OpeningMixin:
         self._cart_busy = True
         self._cart_cancel.clear()
         self.notify(f"Checking {len(requests)} track{'s' if len(requests) != 1 else ''}...", timeout=3)
-        self.cart_preflight_in_background(requests, single)
+        self._start_cart_preflight_worker(requests, single)
 
-    @work(thread=True, exclusive=True, group="cart")
-    def cart_preflight_in_background(
+    def _start_cart_preflight_worker(
         self, requests: list[cart_module.CartRequest], single: bool
     ) -> None:
+        self._cart_worker(
+            lambda: cart_module.prepare_cart(requests, self._cart_cancel),
+            lambda plan: self._cart_preflight_finished(plan, single),
+            chromium_missing=lambda: self._offer_chromium_install(requests, single),
+        )
+
+    @work(thread=True, exclusive=True, group="cart")
+    def _cart_worker(self, job, done, chromium_missing=None) -> None:
+        """One cart operation off the UI thread, with the shared error scaffolding."""
+
         try:
-            plan = cart_module.prepare_cart(requests, self._cart_cancel)
-        except cart_module.ChromiumMissing:
-            if not self._cart_cancel.is_set():
-                self.call_from_thread(self._offer_chromium_install, requests, single)
-            return
+            outcome = job()
         except Exception as exc:
+            if isinstance(exc, cart_module.ChromiumMissing) and chromium_missing is not None:
+                if not self._cart_cancel.is_set():
+                    self.call_from_thread(chromium_missing)
+                return
             if not self._cart_cancel.is_set():
                 self.call_from_thread(self._cart_failed, str(exc))
             return
         if not self._cart_cancel.is_set():
-            self.call_from_thread(self._cart_preflight_finished, plan, single)
+            self.call_from_thread(done, outcome)
 
     def _offer_chromium_install(
         self, requests: list[cart_module.CartRequest], single: bool
@@ -184,26 +189,16 @@ class OpeningMixin:
             self.notify("Chromium installation cancelled", timeout=3)
             return
         self.notify("Installing Chromium in the background...", timeout=4)
-        self.install_chromium_in_background(requests, single)
-
-    @work(thread=True, exclusive=True, group="cart")
-    def install_chromium_in_background(
-        self, requests: list[cart_module.CartRequest], single: bool
-    ) -> None:
-        try:
-            cart_module.install_chromium(self._cart_cancel)
-        except Exception as exc:
-            if not self._cart_cancel.is_set():
-                self.call_from_thread(self._cart_failed, str(exc))
-            return
-        if not self._cart_cancel.is_set():
-            self.call_from_thread(self._chromium_installed, requests, single)
+        self._cart_worker(
+            lambda: cart_module.install_chromium(self._cart_cancel),
+            lambda _result: self._chromium_installed(requests, single),
+        )
 
     def _chromium_installed(
         self, requests: list[cart_module.CartRequest], single: bool
     ) -> None:
         self.notify("Chromium installed; checking the store product...", timeout=4)
-        self.cart_preflight_in_background(requests, single)
+        self._start_cart_preflight_worker(requests, single)
 
     def _cart_preflight_finished(self, plan: cart_module.CartPlan, single: bool) -> None:
         if not plan.items:
@@ -214,7 +209,7 @@ class OpeningMixin:
             self.notify(
                 f"Adding {item.track_label} — {item.currency} {item.price:.2f}", timeout=4
             )
-            self.cart_execute_in_background(plan)
+            self._execute_cart_worker(plan)
             return
         if all(item.already_in_cart for item in plan.items):
             results = plan.results + tuple(
@@ -239,18 +234,13 @@ class OpeningMixin:
             self.notify("Cart addition cancelled", timeout=3)
             return
         self.notify("Adding verified products to the store carts...", timeout=4)
-        self.cart_execute_in_background(plan)
+        self._execute_cart_worker(plan)
 
-    @work(thread=True, exclusive=True, group="cart")
-    def cart_execute_in_background(self, plan: cart_module.CartPlan) -> None:
-        try:
-            results = cart_module.execute_cart(plan, self._cart_cancel)
-        except Exception as exc:
-            if not self._cart_cancel.is_set():
-                self.call_from_thread(self._cart_failed, str(exc))
-            return
-        if not self._cart_cancel.is_set():
-            self.call_from_thread(self._cart_results_finished, results)
+    def _execute_cart_worker(self, plan: cart_module.CartPlan) -> None:
+        self._cart_worker(
+            lambda: cart_module.execute_cart(plan, self._cart_cancel),
+            self._cart_results_finished,
+        )
 
     def _cart_failed(self, message: str) -> None:
         self._cart_busy = False
@@ -259,9 +249,8 @@ class OpeningMixin:
 
     def _cart_results_finished(self, results: tuple[cart_module.CartResult, ...]) -> None:
         self._cart_busy = False
-        counts = {status: 0 for status in ("added", "already_in_cart", "skipped", "failed")}
+        counts = Counter(result.status for result in results)
         for result in results:
-            counts[result.status] += 1
             if result.status in {"skipped", "failed"}:
                 self.show_error(
                     f"{result.track_label} [{result.store or 'no store'}]: {result.reason}"
