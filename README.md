@@ -3,7 +3,7 @@
 [![Python Version](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
 [![Built with Textual](https://img.shields.io/badge/TUI-Textual-ff69b4.svg)](https://textual.textualize.io/)
-[![Version](https://img.shields.io/badge/version-0.10.0-orange.svg)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-0.13.0-orange.svg)](pyproject.toml)
 
 > **The ultimate crate-digging companion for DJs and electronic music collectors.**
 > Instantly extract purchase links, free downloads, and download gates from SoundCloud playlists, user likes, or artist profiles—then preview tracks and manage your library in a high-performance terminal interface.
@@ -21,8 +21,8 @@ dj-digger https://soundcloud.com/someone/sets/that-playlist
 - **🎶 In-Memory Audio Preview**: Zero-latency streaming and seeking powered by `miniaudio`. Pre-fetches upcoming tracks and renders dynamic 16-level block waveforms with reactive audio level meters.
 - **📦 Multi-Crate Local Library**: Save dig sessions as local crates in `~/.local/share/dj-digger/digger.db`. Switch, refresh, or search across crates seamlessly.
 - **🧠 Cross-Crate Track Memory**: Track decisions (`got it` / `skipped`) are stored globally by SoundCloud track ID. Buying a track once marks it across all future playlists.
-- **🔓 Download Gate Automation**: Resolves follow-to-download gates (Hypeddit, ToneDen, GateRush, Droploud) by replaying their step-completion calls. Gate resolution itself needs no browser automation or Playwright. **What this sends on your behalf:** your name and email from Settings, and—unless you turn it off—a repost, a follow and a comment recorded against your SoundCloud account, because that is what the gate is asking for in exchange for the file. The switch is on the Settings screen (`S`), which also opens on the first run. Turning it off keeps your account out of it; some gates then hand over nothing. Note that automating a gate is your call to make against SoundCloud's and the gate operator's terms, and the requests go out with a browser's User-Agent.
-- **🔐 Spotify Gate Login**: Hypeddit gates that explicitly require following a Spotify artist can use an optional one-time PKCE login. No Spotify client secret is stored, and disabling gate social actions keeps these gates manual.
+- **🔓 Download Gate Automation**: Resolves follow-to-download gates (Hypeddit, ToneDen, GateRush, Droploud) through their supported download flows. SoundCloud, Instagram, YouTube and similar link steps are click-through markers: the app does not call their follow, like, repost, comment APIs or open external social links to simulate a click. A gate may receive the name or email configured in Settings when its manifest requires them, and an explicit Spotify ART/PLAY step can modify the user's Spotify library after OAuth. CAPTCHA and unknown provider steps remain manual in the private Chromium profile. Gate automation remains subject to the provider's terms.
+- **🔐 Spotify Gate Login**: Hypeddit gates that explicitly require saving a Spotify artist or public playlist can use an optional one-time PKCE login. No Spotify client secret is stored, and disabling gate social actions keeps these gates manual.
 - **🔗 Link-Hub Expansion**: A purchase link that turns out to be a list of shops rather than a download—an ampsuite release page, a gate running in smart-link mode—is opened, and the Bandcamp and Beatport links behind it are added to the track directly instead of a `gate` badge.
 - **🛒 Verified Store Carts**: An optional, user-triggered Chromium flow finds the exact linked track on Bandcamp or Beatport, shows a price preflight, and verifies the stable product ID in the cart. Login and checkout stay manual.
 - **🆕 New Since Last Refresh**: Refreshing a crate marks whatever the playlist gained with `NEW` and sorts it to the top.
@@ -97,7 +97,9 @@ Press `?` inside the TUI at any time to view the full grouped keybinding modal.
 | --- | --- |
 | `Up` / `Down` / `j` / `k` | Navigate track rows |
 | `o` or `Enter` | Open the best link (or active store filter) in your default web browser |
-| `w` | Download artist-provided SoundCloud MP3/WAV to your download folder (set it with `S`) |
+| `w` | Download the highlighted artist-provided or gate file to your download folder (set it with `S`) |
+| `W` | Batch-download all eligible tracks in the current view |
+| `Ctrl+X` | Stop an active Hypeddit browser batch; unfinished tracks remain new |
 | `g` | Mark track as **Got** (`✓`) and move to next track |
 | `s` | Mark track as **Skipped** (`✗`) and move to next track |
 | `u` | Clear track status mark (`·`) |

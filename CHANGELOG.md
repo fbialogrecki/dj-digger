@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.13.0
+
+### Changed
+
+- Hypeddit browser fallbacks now share one private Chromium context and open
+  every required gate in its own tab. The batch remains open for manual work,
+  can be stopped with `Ctrl+X`, and only marks tracks as got after a validated
+  atomic file save.
+- Spotify ART and PLAY gate actions now use the post-February-2026
+  `PUT /me/library` API with validated Spotify URIs. Three-part PLAY values are
+  supported, missing scopes require reauthorization, and each URI gets one
+  non-retried mutating request.
+
+### Fixed
+
+- Hypeddit gate pages no longer mistake audio URLs from Hot-or-Not
+  recommendations, advertisements, widgets or SoundCloud previews for the
+  current track. Active gates obtain their file only from `/gate/download/ul`.
+- Dormant CAPTCHA assets no longer turn smartlinks into challenges. Visible
+  challenges and explicit flow responses remain typed manual CAPTCHA outcomes
+  and are never bypassed.
+- Hypeddit hubs are expanded from purchase fields, extra links and descriptions,
+  including persisted crates immediately before download. Pure wrappers are
+  replaced with purchase stores, nested gates or `no-link` as appropriate.
+- Gate failures retain authentication, CAPTCHA, manual, protocol, rejection and
+  download types through the batch summary. All errors are shown, and bracketed
+  Textual notifications render literally instead of raising `MarkupError`.
+
+### Security
+
+- SoundCloud, Instagram, YouTube and other click-through gate steps are recorded
+  only in `skip_gate_steps[]`; no external social link is opened and no
+  click-through provider follow, like, repost, comment or CAPTCHA bypass is
+  attempted. Spotify ART/PLAY remains the explicit OAuth-backed exception above.
+- SSRF and redirect checks, download size limits, HTML sniffing, owner-only
+  temporary files, atomic finalization, telemetry best-effort limits and the ban
+  on retrying mutating Hypeddit or Spotify requests remain in force.
+
 ## 0.12.1
 
 ### Fixed
