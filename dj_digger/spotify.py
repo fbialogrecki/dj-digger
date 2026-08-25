@@ -237,30 +237,18 @@ def save_uris(uris: list[str], *, session=requests) -> None:
         )
     token = access_token(session=session)
     for uri in uris:
-        kind, spotify_id = (
-            ("artist", uri.removeprefix("spotify:artist:"))
-            if uri.startswith("spotify:artist:")
-            else ("playlist", uri.removeprefix("spotify:playlist:"))
-        )
         try:
-            kwargs = {
-                "headers": {"Authorization": f"Bearer {token}"},
-                "timeout": 20,
-            }
-            if kind == "artist":
-                response = session.put(
-                    f"{API_ROOT}/me/following",
-                    params={"type": "artist", "ids": spotify_id},
-                    **kwargs,
-                )
-            else:
-                response = session.put(
-                    f"{API_ROOT}/playlists/{spotify_id}/followers",
-                    **kwargs,
-                )
+            # One URI per mutating call. Requests made through this module have
+            # no retry adapter, so a dropped response cannot duplicate a write.
+            response = session.put(
+                f"{API_ROOT}/me/library",
+                params={"uris": uri},
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=20,
+            )
         except requests.RequestException as exc:
             raise SpotifyError(f"Spotify library request failed: {exc}") from exc
-        if response.status_code not in (200, 204):
+        if response.status_code != 200:
             raise SpotifyError(
                 f"Spotify library request returned HTTP {response.status_code}"
             )

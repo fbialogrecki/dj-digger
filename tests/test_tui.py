@@ -3,6 +3,7 @@ import io
 import json
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
+from threading import Event
 from types import SimpleNamespace
 
 import pytest
@@ -43,6 +44,8 @@ def run(scenario):
         (gates.GateManualActionRequired("future"), "manual"),
         (gates.GateProtocolChanged("changed"), "protocol"),
         (gates.GateRejected("rejected"), "rejected"),
+        (gates.GateDownloadError("download"), "download"),
+        (soundcloud.SoundCloudError("download"), "download"),
     ],
 )
 def test_batch_gate_failures_have_actionable_summary_groups(error, group):
@@ -72,6 +75,32 @@ def test_error_banner_keeps_messages_literal_and_has_a_working_x(state):
             await pilot.pause()
             assert banner.errors == []
             assert not banner.has_class("visible")
+
+    run(scenario)
+
+
+def test_batch_summary_toast_renders_literal_failure_groups(state):
+    app = make_app(synthetic_records(1), state)
+
+    async def scenario():
+        async with app.run_test(notifications=True) as pilot:
+            app._on_batch_download_complete(
+                1,
+                5,
+                6,
+                failure_groups={"manual": 2, "download": 2, "other": 1},
+            )
+            toasts = []
+            for _ in range(20):
+                await pilot.pause(0.05)
+                toasts = list(app.query("Toast"))
+                if toasts:
+                    break
+            assert toasts
+            rendered = str(toasts[-1].render())
+            assert "manual=2" in rendered
+            assert "download=2" in rendered
+            assert "other=1" in rendered
 
     run(scenario)
 
@@ -2112,6 +2141,9 @@ def test_batch_finishes_independent_tracks_before_prompting_and_retries_only_pen
             pass
 
     class Session:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
         def close(self):
             pass
 
@@ -2139,6 +2171,193 @@ def test_batch_finishes_independent_tracks_before_prompting_and_retries_only_pen
 
     run(scenario)
     assert client.calls == {91: 2, 92: 1}
+
+
+def test_browser_required_batch_is_one_call_for_several_tracks(
+    state, tmp_path, monkeypatch
+):
+    records = [
+        LinkRecord(
+            category="gate",
+            track=Track(
+                id=index,
+                title=f"Gate {index}",
+                permalink_url=f"https://soundcloud.com/a/{index}",
+            ),
+            link_url=f"https://hypeddit.com/track/{index}",
+            link_text="Download",
+        )
+        for index in (201, 202)
+    ]
+    app = make_app(records, state)
+
+    class Client:
+        def download_track(self, *_args, **_kwargs):
+            raise gates.GateManualActionRequired("browser")
+
+        def close(self):
+            pass
+
+    class Session:
+        def close(self):
+            pass
+
+    calls = []
+
+    def browser_batch(items, _directory, _cancel):
+        calls.append(items)
+        completed = []
+        for track, _url in items:
+            path = tmp_path / f"{track.id}.mp3"
+            path.write_bytes(b"audio")
+            completed.append((track.key, path))
+        return gates.HypedditBrowserBatchResult(completed=tuple(completed))
+
+    app._client = Client()
+    monkeypatch.setattr(
+        "dj_digger.tui.downloads.soundcloud.create_requests_session", Session
+    )
+    monkeypatch.setattr(
+        "dj_digger.tui.downloads.gates.download_hypeddit_batch_in_browser",
+        browser_batch,
+    )
+
+    async def scenario():
+        async with app.run_test():
+            items = [(row, app._find_gate_url(row)) for row in app.visible_rows]
+            worker = app.batch_download_in_background(items)
+            await worker.wait()
+
+    run(scenario)
+    assert len(calls) == 1
+    assert len(calls[0]) == 2
+    assert all(state.get(record.track.key) == GOT for record in records)
+
+
+def test_stop_browser_batch_leaves_unfinished_tracks_new(
+    state, tmp_path, monkeypatch
+):
+    record = LinkRecord(
+        category="gate",
+        track=Track(
+            id=203,
+            title="Manual gate",
+            permalink_url="https://soundcloud.com/a/203",
+        ),
+        link_url="https://hypeddit.com/track/203",
+        link_text="Download",
+    )
+    app = make_app([record], state)
+
+    class Client:
+        def download_track(self, *_args, **_kwargs):
+            raise gates.GateManualActionRequired("browser")
+
+        def close(self):
+            pass
+
+    class Session:
+        def close(self):
+            pass
+
+    entered = Event()
+
+    def browser_batch(items, _directory, cancel):
+        entered.set()
+        assert cancel.wait(2), "the UI did not signal the browser worker"
+        return gates.HypedditBrowserBatchResult(
+            failures=((items[0][0].key, gates.GateManualActionRequired("cancelled")),),
+            cancelled=True,
+        )
+
+    app._client = Client()
+    monkeypatch.setattr(
+        "dj_digger.tui.downloads.soundcloud.create_requests_session", Session
+    )
+    monkeypatch.setattr(
+        "dj_digger.tui.downloads.gates.download_hypeddit_batch_in_browser",
+        browser_batch,
+    )
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            row = app.visible_rows[0]
+            worker = app.batch_download_in_background([(row, record.link_url)])
+            assert await asyncio.to_thread(entered.wait, 2)
+            for _ in range(20):
+                await pilot.pause(0.01)
+                if app._browser_batch_active:
+                    break
+            app.action_stop_browser_batch()
+            await worker.wait()
+            await pilot.pause()
+
+    run(scenario)
+    assert app._gate_cancel.is_set()
+    assert state.get(record.track.key) != GOT
+    assert app._browser_batch_active is False
+
+
+def test_saved_hypeddit_hub_is_normalised_before_batch_and_never_opens_chromium(
+    state, monkeypatch
+):
+    wrapper = "https://hypeddit.com/duxnbass/epitome"
+    track = Track(
+        id=204,
+        title="Epitome",
+        permalink_url="https://soundcloud.com/duxnbass/epitome",
+        description=f"Download: {wrapper}",
+    )
+    app = make_app(links.categorise(track), state)
+    app.crate = library.CrateRecord(source="saved", title="Saved", tracks=[track])
+
+    class Client:
+        def download_track(self, *_args, **_kwargs):
+            pytest.fail("a pure hub is not a downloadable gate")
+
+        def close(self):
+            pass
+
+    class Session:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(
+        "dj_digger.tui.downloads.gates.inspect_link_page",
+        lambda *_args, **_kwargs: gates.LinkPageInspection(
+            shops=(
+                ("https://www.beatport.com/release/epitome/4194268", "Beatport"),
+                ("https://duxnbass.bandcamp.com/album/epitome", "Bandcamp"),
+            ),
+            recognized=True,
+        ),
+    )
+    monkeypatch.setattr(
+        "dj_digger.tui.downloads.soundcloud.create_requests_session", Session
+    )
+    monkeypatch.setattr(
+        "dj_digger.tui.downloads.library_module.save", lambda _crate: None
+    )
+    monkeypatch.setattr(
+        "dj_digger.tui.downloads.gates.download_hypeddit_batch_in_browser",
+        lambda *_args, **_kwargs: pytest.fail("a hub must not enter Chromium"),
+    )
+    app._client = Client()
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            row = app.visible_rows[0]
+            worker = app.batch_download_in_background([(row, wrapper)])
+            await worker.wait()
+            await pilot.pause()
+
+    run(scenario)
+    assert sorted(app.rows[0].categories) == ["bandcamp", "beatport"]
+    assert wrapper not in track.description
+    assert state.get(track.key) != GOT
 
 
 def test_soundcloud_login_refreshes_the_client_then_retries_once(

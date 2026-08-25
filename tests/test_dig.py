@@ -242,6 +242,68 @@ def test_hypeddit_smartlink_becomes_nested_gate_and_shops(monkeypatch):
     ]
 
 
+def test_hypeddit_in_a_description_is_expanded_without_scraping_other_description_links(
+    monkeypatch,
+):
+    from dj_digger import links
+
+    hypeddit = "https://hypeddit.com/duxnbass/epitome"
+    inspected = []
+
+    def inspect(url, *_args, **_kwargs):
+        inspected.append(url)
+        return gates.LinkPageInspection(
+            shops=(
+                ("https://www.beatport.com/release/epitome/4194268", "Beatport"),
+                ("https://duxnbass.bandcamp.com/album/epitome", "Bandcamp"),
+            ),
+            recognized=True,
+        )
+
+    monkeypatch.setattr("dj_digger.gates.inspect_link_page", inspect)
+    monkeypatch.setattr(
+        "dj_digger.soundcloud.create_requests_session", lambda **kw: FakeSession()
+    )
+    track = Track(
+        title="Epitome",
+        permalink_url="https://soundcloud.com/duxnbass/epitome",
+        description=(
+            f"Download: {hypeddit}\n"
+            "Label boilerplate: https://linktr.ee/duxnbass"
+        ),
+    )
+
+    assert dig.expand_link_hubs([track]) == 1
+    assert inspected == [hypeddit]
+    assert hypeddit not in track.description
+    assert sorted(record.category for record in links.categorise(track)) == [
+        "bandcamp",
+        "beatport",
+    ]
+
+
+def test_a_recognised_empty_hypeddit_hub_becomes_no_link(monkeypatch):
+    from dj_digger import links
+
+    wrapper = "https://hypeddit.com/empty"
+    monkeypatch.setattr(
+        "dj_digger.gates.inspect_link_page",
+        lambda *_args, **_kwargs: gates.LinkPageInspection(recognized=True),
+    )
+    monkeypatch.setattr(
+        "dj_digger.soundcloud.create_requests_session", lambda **kw: FakeSession()
+    )
+    track = Track(
+        title="Empty hub",
+        permalink_url="https://soundcloud.com/a/empty",
+        extra_links=[(wrapper, "Download")],
+    )
+
+    assert dig.expand_link_hubs([track]) == 1
+    assert track.extra_links == []
+    assert [record.category for record in links.categorise(track)] == ["no-link"]
+
+
 def test_a_crate_of_plain_shop_links_costs_no_requests(monkeypatch):
     """Nothing to expand means no session, no page fetch, no progress noise."""
 

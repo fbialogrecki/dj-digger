@@ -223,6 +223,7 @@ class DiggerApp(
         self._cart_busy = False
         self._cart_cancel = Event()
         self._gate_cancel = Event()
+        self._browser_batch_active = False
         self._digging = False
         self._undone: list[str] = []
         self._ticker: Timer | None = None

@@ -208,15 +208,14 @@ def test_artist_uris_are_saved_with_the_minimum_scope(tmp_path, monkeypatch):
     spotify.save_uris(["spotify:artist:0oVDzp5DK2caqb6FuL2mhp"], session=session)
 
     url, kwargs = session.puts[0]
-    assert url == "https://api.spotify.com/v1/me/following"
+    assert url == "https://api.spotify.com/v1/me/library"
     assert kwargs["params"] == {
-        "type": "artist",
-        "ids": "0oVDzp5DK2caqb6FuL2mhp",
+        "uris": "spotify:artist:0oVDzp5DK2caqb6FuL2mhp"
     }
     assert kwargs["headers"] == {"Authorization": "Bearer access"}
 
 
-def test_playlist_uri_uses_the_playlist_follow_endpoint(tmp_path, monkeypatch):
+def test_playlist_uri_uses_the_current_library_endpoint(tmp_path, monkeypatch):
     path = tmp_path / "spotify.json"
     monkeypatch.setattr(spotify, "AUTH_FILE", path)
     spotify.save_credentials(
@@ -233,11 +232,58 @@ def test_playlist_uri_uses_the_playlist_follow_endpoint(tmp_path, monkeypatch):
     spotify.save_uris(["spotify:playlist:37i9dQZF1DXcBWIGoYBM5M"], session=session)
 
     url, kwargs = session.puts[0]
-    assert url == (
-        "https://api.spotify.com/v1/playlists/37i9dQZF1DXcBWIGoYBM5M/followers"
-    )
-    assert "params" not in kwargs
+    assert url == "https://api.spotify.com/v1/me/library"
+    assert kwargs["params"] == {
+        "uris": "spotify:playlist:37i9dQZF1DXcBWIGoYBM5M"
+    }
     assert kwargs["headers"] == {"Authorization": "Bearer access"}
+
+
+def test_each_spotify_uri_gets_one_non_retried_mutating_request(tmp_path, monkeypatch):
+    monkeypatch.setattr(spotify, "AUTH_FILE", tmp_path / "spotify.json")
+    spotify.save_credentials(
+        {
+            "client_id": "client",
+            "refresh_token": "refresh",
+            "access_token": "access",
+            "expires_at": time.time() + 3600,
+            "scope": spotify.SCOPE,
+        }
+    )
+    session = Session(put=Response(status_code=200))
+    uris = [
+        "spotify:artist:0oVDzp5DK2caqb6FuL2mhp",
+        "spotify:playlist:37i9dQZF1DXcBWIGoYBM5M",
+    ]
+
+    spotify.save_uris(uris, session=session)
+
+    assert [kwargs["params"] for _url, kwargs in session.puts] == [
+        {"uris": uri} for uri in uris
+    ]
+
+
+def test_missing_current_scope_requires_reauthorization_before_any_put(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(spotify, "AUTH_FILE", tmp_path / "spotify.json")
+    spotify.save_credentials(
+        {
+            "client_id": "client",
+            "refresh_token": "refresh",
+            "access_token": "access",
+            "expires_at": time.time() + 3600,
+            "scope": "user-library-read",
+        }
+    )
+    session = Session(put=Response(status_code=200))
+
+    with pytest.raises(spotify.SpotifyError, match="scope.*log in again"):
+        spotify.save_uris(
+            ["spotify:playlist:37i9dQZF1DXcBWIGoYBM5M"], session=session
+        )
+
+    assert session.puts == []
 
 
 def test_spotify_failures_never_include_the_response_body(tmp_path, monkeypatch):

@@ -66,6 +66,10 @@ class GateRejected(GateError):
     """The provider understood the request but refused to unlock the file."""
 
 
+class GateDownloadError(GateError):
+    """A resolved gate file could not be transferred or validated."""
+
+
 class GateUnavailable(GateError):
     """The provider or the requested gate is unavailable."""
 
@@ -122,6 +126,16 @@ class LinkPageInspection:
     shops: tuple[tuple[str, str], ...] = ()
     gate_urls: tuple[str, ...] = ()
     keep_original: bool = False
+    recognized: bool = False
+
+
+@dataclass(frozen=True)
+class HypedditBrowserBatchResult:
+    """Files and typed failures produced by one shared Chromium context."""
+
+    completed: tuple[tuple[str, Path], ...] = ()
+    failures: tuple[tuple[str, GateError], ...] = ()
+    cancelled: bool = False
 
 
 def _identity_for(config: Any | None) -> Any:
@@ -158,11 +172,12 @@ DEFAULT_HEADERS = {
 
 
 def _clean_url(raw_url: str | None, *, allow_preview: bool = False) -> str | None:
-    """Clean and validate an extracted download URL. Rejects audio preview clips (_preview)."""
+    """Clean and validate an extracted download URL, rejecting preview clips."""
     if not raw_url or not isinstance(raw_url, str):
         return None
     cleaned = html.unescape(raw_url.replace("\\/", "/")).strip('"\' ')
-    if not allow_preview and "_preview" in cleaned.lower():
+    lower = cleaned.lower()
+    if not allow_preview and ("_preview" in lower or "/preview/" in lower):
         return None
     if cleaned.startswith("http://") or cleaned.startswith("https://"):
         return cleaned
@@ -179,13 +194,6 @@ def _url_for_log(url: str) -> str:
     host = parsed.hostname or "<unknown-host>"
     return urllib.parse.urlunparse((parsed.scheme, host, parsed.path, "", "", ""))
 
-
-HYPEDDIT_DIRECT_PATTERNS = (
-    r'var\s+(?:download_url|s3_url|file_url|file_download)\s*=\s*["\']([^"\']+)["\']',
-    r'data-(?:download-url|s3-url)=["\']([^"\']+)["\']',
-    r'["\'](?:download_url|s3_url)["\']\s*:\s*["\']([^"\']+)["\']',
-    r'["\'](https?://[^"\']+\.(?:mp3|wav|zip|flac|aiff|aif)(?:\?[^"\']*)?)["\']',
-)
 
 CLICK_THROUGH_STEPS = frozenset(
     {"sc", "yt", "ig", "tw", "fb", "tk", "bc", "mc", "dn", "fbmsgr"}
@@ -244,17 +252,6 @@ def _is_hypeddit_url(url: str) -> bool:
     }
 
 
-def _direct_url_from_html(text: str) -> str | None:
-    for pattern in HYPEDDIT_DIRECT_PATTERNS:
-        found = re.search(pattern, text or "", re.IGNORECASE)
-        if not found:
-            continue
-        cleaned = _clean_url(found.group(1))
-        if cleaned and is_fetchable(cleaned):
-            return cleaned
-    return None
-
-
 def _input_fields(soup: BeautifulSoup) -> dict[str, tuple[str, ...]]:
     found: dict[str, list[str]] = {}
     for tag in soup.find_all("input"):
@@ -269,12 +266,49 @@ def _first(fields: dict[str, tuple[str, ...]], name: str, default: str = "") -> 
     return values[0] if values else default
 
 
+def _is_hidden(tag: Any) -> bool:
+    for node in (tag, *tag.parents):
+        if not getattr(node, "attrs", None):
+            continue
+        style = str(node.get("style") or "").replace(" ", "").lower()
+        if (
+            node.has_attr("hidden")
+            or str(node.get("aria-hidden") or "").lower() == "true"
+            or "display:none" in style
+            or "visibility:hidden" in style
+        ):
+            return True
+    return False
+
+
+def _has_active_captcha(soup: BeautifulSoup) -> bool:
+    """Find a rendered challenge, not a library used by a dormant modal."""
+
+    for tag in soup.select(
+        ".g-recaptcha, .h-captcha, .cf-turnstile, form [data-sitekey]"
+    ):
+        if tag.name != "script" and not _is_hidden(tag):
+            return True
+    return False
+
+
+def _reply_requests_captcha(reply: dict[str, Any]) -> bool:
+    """Recognise explicit challenge flags from the download flow reply."""
+
+    for name in ("captcha_required", "requires_captcha", "show_captcha"):
+        value = reply.get(name)
+        if value is True or value == 1:
+            return True
+        if isinstance(value, str) and value.strip().lower() in {"1", "true", "yes"}:
+            return True
+    return False
+
+
 def inspect_hypeddit_html(url: str, text: str) -> HypedditInspection:
     """Classify a Hypeddit document and parse its short-lived desktop manifest."""
 
     soup = BeautifulSoup(text or "", "html.parser")
     landed = url
-    direct = _direct_url_from_html(text)
 
     shops: list[tuple[str, str]] = []
     nested: list[str] = []
@@ -359,18 +393,20 @@ def inspect_hypeddit_html(url: str, text: str) -> HypedditInspection:
             adcode=adcode or _first(fields, "adcode"),
         )
 
-    captcha = bool(
-        soup.select_one(".g-recaptcha, .h-captcha, .cf-turnstile, [data-sitekey]")
+    smartlink = bool(
+        re.search(
+            r"\bisSmartLink\s*=\s*['\"]1['\"]",
+            text or "",
+            re.IGNORECASE,
+        )
     )
-    if direct:
-        kind = "direct"
-    elif captcha:
+    if _has_active_captcha(soup):
         kind = "challenge"
     elif manifest and (shops or nested):
         kind = "hybrid"
     elif manifest:
         kind = "gate"
-    elif shops or nested:
+    elif smartlink or shops or nested:
         kind = "hub"
     else:
         kind = "unknown"
@@ -379,7 +415,10 @@ def inspect_hypeddit_html(url: str, text: str) -> HypedditInspection:
         url=landed,
         shops=tuple(shops),
         nested_gates=tuple(nested),
-        direct_url=direct,
+        # Hypeddit pages contain unrelated recommendations and preview assets.
+        # Only /gate/download/ul is scoped to the current fan_gate_id, so the
+        # landing document is never trusted as a file source.
+        direct_url=None,
         manifest=manifest,
     )
 
@@ -387,15 +426,21 @@ def inspect_hypeddit_html(url: str, text: str) -> HypedditInspection:
 def _spotify_uris(manifest: HypedditManifest) -> list[str]:
     uris: list[str] = []
     for raw in manifest.fields.get("additional_sp_user_id[]", ()):
-        kind, separator, spotify_id = raw.partition("|")
-        if not separator or not re.fullmatch(r"[A-Za-z0-9]{22}", spotify_id):
-            raise GateManualActionRequired("sp")
-        if kind == "ART":
-            uris.append(f"spotify:artist:{spotify_id}")
-        elif kind == "PLAY":
-            uris.append(f"spotify:playlist:{spotify_id}")
+        parts = raw.split("|")
+        kind = parts[0] if parts else ""
+        if kind == "ART" and len(parts) == 2:
+            spotify_id = parts[1]
+            uri_kind = "artist"
+        elif kind == "PLAY" and len(parts) in {2, 3}:
+            if len(parts) == 3 and not re.fullmatch(r"[A-Za-z0-9_-]+", parts[1]):
+                raise GateManualActionRequired("sp")
+            spotify_id = parts[-1]
+            uri_kind = "playlist"
         else:
             raise GateManualActionRequired("sp")
+        if not re.fullmatch(r"[A-Za-z0-9]{22}", spotify_id):
+            raise GateManualActionRequired("sp")
+        uris.append(f"spotify:{uri_kind}:{spotify_id}")
     if not uris:
         raise GateAuthenticationRequired("Spotify")
     return uris
@@ -444,8 +489,6 @@ def resolve_hypeddit_download_url(
         raise GateProtocolChanged("Hypeddit redirected outside its canonical hosts")
 
     inspection = inspect_hypeddit_html(landed, response.text)
-    if inspection.direct_url:
-        return inspection.direct_url
     if inspection.kind == "challenge":
         raise GateCaptchaRequired("Hypeddit CAPTCHA requires browser completion")
     if inspection.manifest is None:
@@ -552,6 +595,8 @@ def resolve_hypeddit_download_url(
         result = download.json()
     except ValueError as exc:
         raise GateProtocolChanged("Hypeddit returned an unreadable download reply") from exc
+    if isinstance(result, dict) and _reply_requests_captcha(result):
+        raise GateCaptchaRequired("Hypeddit CAPTCHA requires browser completion")
     if not isinstance(result, dict) or not result.get("download_status"):
         raise GateRejected("Hypeddit did not unlock the download")
     cleaned = _clean_url(result.get("URL") or result.get("url"))
@@ -646,6 +691,161 @@ def download_hypeddit_in_browser(
             raise GateUnavailable(str(exc)) from exc
     finally:
         auth.BROWSER_PROFILE_LOCK.release()
+
+
+def download_hypeddit_batch_in_browser(
+    items: list[tuple[Any, str]],
+    directory: Path,
+    cancel: Any,
+) -> HypedditBrowserBatchResult:
+    """Open every manual Hypeddit gate in one persistent browser context."""
+
+    keyed = {track.key: (track, url) for track, url in items}
+    failures: dict[str, GateError] = {}
+    completed: dict[str, Path] = {}
+    if cancel is not None and cancel.is_set():
+        return HypedditBrowserBatchResult(
+            failures=tuple(
+                (key, GateManualActionRequired("browser batch cancelled"))
+                for key in keyed
+            ),
+            cancelled=True,
+        )
+    for key, (_track, url) in keyed.items():
+        if not _is_hypeddit_url(url) or not is_fetchable(url):
+            failures[key] = GateProtocolChanged(
+                "Refusing an unsafe Hypeddit browser URL"
+            )
+    pending = {key: value for key, value in keyed.items() if key not in failures}
+    if not pending:
+        return HypedditBrowserBatchResult(failures=tuple(failures.items()))
+
+    from . import auth, cart, soundcloud
+
+    if not auth.BROWSER_PROFILE_LOCK.acquire(blocking=False):
+        error = GateUnavailable("The private browser profile is already in use")
+        return HypedditBrowserBatchResult(
+            failures=tuple((key, error) for key in pending)
+        )
+    cancelled = False
+    try:
+        watched: set[int] = set()
+        owners: dict[int, str] = {}
+
+        def save(key: str, download: Any) -> None:
+            if (
+                key in completed
+                or key in failures
+                or (cancel is not None and cancel.is_set())
+            ):
+                return
+            track, _url = pending[key]
+            try:
+                completed[key] = soundcloud.save_browser_download(
+                    download, track, directory
+                )
+            except Exception as exc:
+                failures[key] = GateDownloadError(str(exc))
+
+        def watch(page: Any, key: str) -> None:
+            marker = id(page)
+            if marker in watched:
+                return
+            watched.add(marker)
+            owners[marker] = key
+            page.on("download", lambda download, owner=key: save(owner, download))
+            page.on("popup", lambda popup, owner=key: watch(popup, owner))
+
+        def watch_popup(page: Any) -> None:
+            try:
+                opener = page.opener
+            except Exception:
+                opener = None
+            key = owners.get(id(opener)) if opener is not None else None
+            if key is not None:
+                watch(page, key)
+
+        try:
+            with cart._browser_context(
+                auth.soundcloud_browser_profile_path(), accept_downloads=True
+            ) as context:
+                context.on("page", watch_popup)
+                existing = list(context.pages)
+                pages: list[tuple[str, Any, str]] = []
+                for index, (key, (_track, url)) in enumerate(pending.items()):
+                    page = (
+                        existing[index]
+                        if index < len(existing)
+                        else context.new_page()
+                    )
+                    watch(page, key)
+                    pages.append((key, page, url))
+
+                # Every tab exists before the first navigation begins. A slow
+                # page therefore cannot serialize the user's whole queue into
+                # one short-lived context per track.
+                for key, page, url in pages:
+                    if cancel is not None and cancel.is_set():
+                        cancelled = True
+                        break
+                    try:
+                        page.goto(
+                            url, wait_until="domcontentloaded", timeout=30_000
+                        )
+                        if not _is_hypeddit_url(str(page.url)):
+                            failures[key] = GateProtocolChanged(
+                                "Hypeddit redirected outside its canonical hosts"
+                            )
+                    except Exception as exc:
+                        failures[key] = GateUnavailable(
+                            f"Could not open Hypeddit in Chromium: {exc}"
+                        )
+
+                while len(completed) + len(failures) < len(pending):
+                    if cancel is not None and cancel.is_set():
+                        cancelled = True
+                        break
+                    try:
+                        open_pages = [
+                            page
+                            for page in context.pages
+                            if id(page) in owners
+                        ]
+                    except Exception:
+                        break
+                    if not open_pages:
+                        break
+                    try:
+                        open_pages[0].wait_for_timeout(250)
+                    except Exception:
+                        # Closing the whole window races the last short wait.
+                        # Treat it exactly like context.pages becoming empty.
+                        break
+
+                reason = (
+                    "browser batch cancelled"
+                    if cancelled
+                    else "browser tab closed before the download finished"
+                )
+                for key in pending:
+                    if key not in completed and key not in failures:
+                        failures[key] = GateManualActionRequired(reason)
+        except cart.ChromiumMissing:
+            error = GateUnavailable("Playwright Chromium is not installed")
+            for key in pending:
+                failures.setdefault(key, error)
+        except cart.AutomationError as exc:
+            error = GateUnavailable(str(exc))
+            for key in pending:
+                failures.setdefault(key, error)
+    finally:
+        auth.BROWSER_PROFILE_LOCK.release()
+
+    return HypedditBrowserBatchResult(
+        completed=tuple(completed.items()),
+        failures=tuple(failures.items()),
+        cancelled=cancelled,
+    )
 
 
 def resolve_toneden_download_url(url: str, session: requests.Session, timeout: float = 10.0) -> str | None:
@@ -977,15 +1177,25 @@ def inspect_link_page(
     unique: dict[str, tuple[str, str]] = {}
     for pair in found:
         unique.setdefault(pair[0], pair)
-    keep_original = bool(
-        (hypeddit and hypeddit.manifest is not None)
-        or (
-            _offers_a_download(response.text)
-            and (not hypeddit or not hypeddit.nested_gates)
+    if hypeddit:
+        # Unknown means protocol drift, not a proven empty wrapper. Keep it so
+        # the caller has a diagnostic/manual fallback instead of losing a link.
+        keep_original = hypeddit.kind in {
+            "gate",
+            "hybrid",
+            "challenge",
+            "unknown",
+        } or (
+            _offers_a_download(response.text) and not hypeddit.nested_gates
         )
-    )
+        recognized = hypeddit.kind != "unknown"
+    else:
+        keep_original = _offers_a_download(response.text)
+        recognized = bool(unique) or keep_original
     gate_urls = hypeddit.nested_gates if hypeddit else ()
-    return LinkPageInspection(tuple(unique.values()), gate_urls, keep_original)
+    return LinkPageInspection(
+        tuple(unique.values()), gate_urls, keep_original, recognized
+    )
 
 
 def store_links_on_page(

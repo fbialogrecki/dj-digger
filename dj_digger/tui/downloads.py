@@ -12,7 +12,10 @@ from pathlib import Path
 
 from textual import work
 
+from .. import dig as dig_module
 from .. import gates, soundcloud
+from .. import library as library_module
+from .. import links as links_module
 from ..models import Track
 from ..state import GOT, SKIP
 from .rows import Row
@@ -35,6 +38,8 @@ def _gate_failure_group(error: Exception) -> str:
         return "protocol"
     if isinstance(error, gates.GateRejected):
         return "rejected"
+    if isinstance(error, (gates.GateDownloadError, soundcloud.SoundCloudError)):
+        return "download"
     return "other"
 
 
@@ -48,6 +53,7 @@ class DownloadMixin:
         row = self.current_row()
         if row is None:
             return
+        self._gate_cancel.clear()
 
         gate_url = self._find_gate_url(row)
 
@@ -80,6 +86,21 @@ class DownloadMixin:
         allow_prerequisite_retry: bool,
     ) -> None:
         key = track.key
+
+        if self.crate is not None and gate_url and links_module.host_of(gate_url) in {
+            "hypeddit.com",
+            "hypd.it",
+        }:
+            gate_url = self._normalise_saved_hypeddit_items(
+                [(Row(0, track, links_module.categorise(track)), gate_url)]
+            )[0][1]
+            if not gate_url and not track.free_download and not track.has_direct_download:
+                self.call_from_thread(
+                    self._download_failed,
+                    key,
+                    "Hypeddit link is a store hub rather than a download gate",
+                )
+                return
 
         def on_progress(downloaded: int, total_bytes: int | None) -> None:
             pct = min(1.0, downloaded / total_bytes) if total_bytes and total_bytes > 0 else 0.5
@@ -295,8 +316,19 @@ class DownloadMixin:
             self.notify("No downloadable free or gate tracks in current view", timeout=3)
             return
 
+        self._gate_cancel.clear()
         self.notify(f"Starting parallel batch download for {len(eligible)} tracks...", timeout=4)
         self.batch_download_in_background(eligible)
+
+    def action_stop_browser_batch(self) -> None:
+        if not self._browser_batch_active:
+            self.notify("No browser download batch is active", timeout=2)
+            return
+        self._gate_cancel.set()
+        self.notify(
+            "Stopping browser batch; completed files are kept and unfinished tracks stay new",
+            timeout=4,
+        )
 
     @work(thread=True, exclusive=True, group="batch_download")
     def batch_download_in_background(
@@ -315,6 +347,12 @@ class DownloadMixin:
         items: list[tuple[Row, str | None]],
         allow_prerequisite_retry: bool,
     ) -> None:
+        items = self._normalise_saved_hypeddit_items(items)
+        items = [
+            (row, gate_url)
+            for row, gate_url in items
+            if row.track.free_download or row.track.has_direct_download or gate_url
+        ]
         completed_count = 0
         failed_count = 0
         total = len(items)
@@ -380,30 +418,40 @@ class DownloadMixin:
                     failed_count += 1
                     if isinstance(result, Exception):
                         failure_groups[_gate_failure_group(result)] += 1
-                    self.call_from_thread(self._on_batch_track_failed, row, str(result))
+                    self.call_from_thread(self._on_batch_track_failed, row, result)
         finally:
             if self._download_executor is not None:
                 self._download_executor.shutdown(wait=False)
                 self._download_executor = None
 
         # One persistent profile cannot be driven by several Playwright threads.
-        # Browser fallbacks therefore run after the parallel HTTP/file phase.
-        for row, gate_url in browser_items:
+        # All manual gates therefore share this worker's one context and open as
+        # separate tabs, with each tab's download bound back to its own row.
+        if browser_items:
+            rows_by_key = {row.track.key: row for row, _url in browser_items}
+            self.call_from_thread(self._browser_batch_started, len(browser_items))
             try:
-                path = gates.download_hypeddit_in_browser(
-                    row.track,
-                    gate_url,
+                browser_result = gates.download_hypeddit_batch_in_browser(
+                    [(row.track, gate_url) for row, gate_url in browser_items],
                     Path(self.config.download_directory),
-                    False,
                     self._gate_cancel,
                 )
             except Exception as exc:
-                failed_count += 1
-                failure_groups[_gate_failure_group(exc)] += 1
-                self.call_from_thread(self._on_batch_track_failed, row, str(exc))
-            else:
+                browser_result = gates.HypedditBrowserBatchResult(
+                    failures=tuple((key, gates.GateUnavailable(str(exc))) for key in rows_by_key)
+                )
+            finally:
+                self.call_from_thread(self._browser_batch_finished)
+
+            for key, path in browser_result.completed:
+                row = rows_by_key[key]
                 completed_count += 1
                 self.call_from_thread(self._on_batch_track_finished, row, str(path))
+            for key, exc in browser_result.failures:
+                row = rows_by_key[key]
+                failed_count += 1
+                failure_groups[_gate_failure_group(exc)] += 1
+                self.call_from_thread(self._on_batch_track_failed, row, exc)
 
         pending = len(profile_items) + len(auth_items)
         self.call_from_thread(
@@ -424,6 +472,49 @@ class DownloadMixin:
                 ),
             )
 
+    def _normalise_saved_hypeddit_items(
+        self, items: list[tuple[Row, str | None]]
+    ) -> list[tuple[Row, str | None]]:
+        """Refresh only known Hypeddit wrappers in an old persisted crate."""
+
+        if self.crate is None:
+            return items
+        tracks = {
+            row.track.key: row.track
+            for row, gate_url in items
+            if gate_url
+            and links_module.host_of(gate_url) in {"hypeddit.com", "hypd.it"}
+        }
+        if not tracks:
+            return items
+        changed = dig_module.expand_link_hubs(
+            tracks.values(), timeout=self.dig_options.timeout
+        )
+        if changed:
+            try:
+                library_module.save(self.crate)
+            except Exception as exc:
+                LOGGER.warning("Could not persist normalised Hypeddit links: %s", exc)
+            self.call_from_thread(self._hub_preflight_finished)
+
+        normalised = []
+        for row, gate_url in items:
+            if row.track.key not in tracks:
+                normalised.append((row, gate_url))
+                continue
+            refreshed = Row(
+                row.position,
+                row.track,
+                links_module.categorise(row.track),
+            )
+            normalised.append((row, self._find_gate_url(refreshed)))
+        return normalised
+
+    def _hub_preflight_finished(self) -> None:
+        tracks = [row.track for row in self.rows]
+        self._set_records(links_module.categorise_all(tracks))
+        self.refresh_rows()
+
     def _on_batch_track_finished(self, row: Row, path_str: str) -> None:
         key = row.track.key
         self.download_progress.pop(key, None)
@@ -436,14 +527,26 @@ class DownloadMixin:
             self._paint_download_row(key)
             self.update_status()
 
-    def _on_batch_track_failed(self, row: Row, message: str) -> None:
+    def _on_batch_track_failed(self, row: Row, error: Exception | str) -> None:
         key = row.track.key
+        message = str(error)
         self.download_progress.pop(key, None)
         self._dirty_download_rows.discard(key)
-        if "requires browser completion" not in message:
-            self.show_error(f"Batch download failed [{row.track.label}]: {message}")
+        self.show_error(f"Batch download failed [{row.track.label}]: {message}")
         self._paint_download_row(key)
         self.update_status()
+
+    def _browser_batch_started(self, count: int) -> None:
+        self._browser_batch_active = True
+        self.notify(
+            f"Opened {count} Hypeddit tab{'s' if count != 1 else ''}. "
+            "Complete them, close Chromium when finished, or press ctrl+x to stop.",
+            timeout=8,
+            markup=False,
+        )
+
+    def _browser_batch_finished(self) -> None:
+        self._browser_batch_active = False
 
     def _on_batch_download_complete(
         self,
@@ -464,11 +567,19 @@ class DownloadMixin:
             msg += f" ({failed} failed)"
         grouped = [
             f"{name}={count}"
-            for name in ("auth", "captcha", "manual", "protocol", "rejected", "other")
+            for name in (
+                "auth",
+                "captcha",
+                "manual",
+                "protocol",
+                "rejected",
+                "download",
+                "other",
+            )
             if (count := (failure_groups or {}).get(name, 0))
         ]
         if grouped:
             msg += f" [{', '.join(grouped)}]"
         if pending:
             msg += f" ({pending} waiting for configuration)"
-        self.notify(msg, timeout=6)
+        self.notify(msg, timeout=6, markup=False)

@@ -410,11 +410,13 @@ class SoundCloudClient:
 
         session = session or self._session
         download_url: str | None = None
+        gate_derived = False
 
         if gate_url:
             download_url = gates.resolve_gate_download_url(
                 gate_url, session, timeout=self._timeout, config=self.config
             )
+            gate_derived = download_url is not None
 
         if not download_url and track.has_direct_download and track.download_url:
             download_url = track.download_url
@@ -484,9 +486,10 @@ class SoundCloudClient:
                 timeout=(self._timeout, self._timeout),
             )
             if response.status_code >= 400:
-                raise SoundCloudError(
-                    f"Server returned HTTP {response.status_code} for download"
-                )
+                message = f"Server returned HTTP {response.status_code} for download"
+                if gate_derived:
+                    raise gates.GateDownloadError(message)
+                raise SoundCloudError(message)
 
             headers = getattr(response, "headers", {})
             content_disp = ""
@@ -515,10 +518,10 @@ class SoundCloudClient:
             # ordinary .mp3, and the first sign of trouble was a player refusing
             # to open a track you thought you owned.
             if ct_lower.startswith(("text/html", "application/xhtml")):
-                raise SoundCloudError(
-                    "That link returned a web page rather than a file - "
-                    "press 'o' to finish it in a browser"
-                )
+                message = "That link returned a web page rather than a file"
+                if gate_derived:
+                    raise gates.GateProtocolChanged(message)
+                raise SoundCloudError(message)
             if ".wav" in cd_lower or "wav" in ct_lower:
                 extension = ".wav"
             elif ".flac" in cd_lower or "flac" in ct_lower:
@@ -565,9 +568,10 @@ class SoundCloudClient:
                     raise SoundCloudError(f"Download stream read failed: {stream_exc}") from stream_exc
 
             if _looks_like_html(bytes(prefix)):
-                raise SoundCloudError(
-                    "That link returned a web page rather than an audio file"
-                )
+                message = "That link returned a web page rather than an audio file"
+                if gate_derived:
+                    raise gates.GateProtocolChanged(message)
+                raise SoundCloudError(message)
 
             stem = _sanitize_filename(_download_stem(track))
             with _DOWNLOAD_NAME_LOCK:
@@ -578,6 +582,22 @@ class SoundCloudClient:
                     counter += 1
                 os.replace(temporary, target)
             return target
+        except gates.GateError:
+            if 'temporary' in locals() and temporary.exists():
+                try:
+                    temporary.unlink()
+                except OSError:
+                    pass
+            raise
+        except SoundCloudError as exc:
+            if 'temporary' in locals() and temporary.exists():
+                try:
+                    temporary.unlink()
+                except OSError:
+                    pass
+            if gate_derived:
+                raise gates.GateDownloadError(str(exc)) from exc
+            raise
         except Exception as exc:
             if 'temporary' in locals() and temporary.exists():
                 try:

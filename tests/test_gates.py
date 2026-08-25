@@ -1,4 +1,5 @@
 import json
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -16,17 +17,44 @@ from dj_digger.gates import (
 )
 from dj_digger.models import Track
 
+FIXTURES = Path(__file__).parent / "fixtures"
 
-def test_resolve_hypeddit_var_in_html():
-    session = MagicMock(spec=requests.Session)
-    resp = MagicMock()
-    resp.status_code = 200
-    resp.text = '<html><script>var download_url = "https://s3.amazonaws.com/bucket/track.wav";</script></html>'
-    session.get.return_value = resp
 
-    url = "https://hypeddit.com/track/abc1234"
-    result = resolve_hypeddit_download_url(url, session)
-    assert result == "https://s3.amazonaws.com/bucket/track.wav"
+def fixture_html(name):
+    return (FIXTURES / name).read_text(encoding="utf-8")
+
+
+def test_hypeddit_gate_ignores_foreign_hot_or_not_audio_and_soundcloud_preview():
+    inspection = gates.inspect_hypeddit_html(
+        "https://hypeddit.com/sinexvsylum/starryeyed",
+        fixture_html("hypeddit_gate_hot_or_not.html"),
+    )
+
+    assert inspection.kind == "gate"
+    assert inspection.manifest is not None
+    assert inspection.direct_url is None
+
+
+def test_hypeddit_gate_uses_its_manifest_post_not_a_recommendation_file():
+    session = session_for_gate(fixture_html("hypeddit_gate_hot_or_not.html"))
+
+    result = resolve_hypeddit_download_url(
+        "https://hypeddit.com/sinexvsylum/starryeyed",
+        session,
+        config=StubConfig("dj@example.com"),
+    )
+
+    assert result == "https://hypeddit.com/download/file.wav"
+    assert len(_posted_to(session, "/gate/download/ul")) == 1
+
+
+def test_soundcloud_preview_path_is_never_a_gate_file():
+    assert (
+        gates._clean_url(
+            "https://cf-preview-media.sndcdn.com/preview/example.128.mp3"
+        )
+        is None
+    )
 
 
 def test_resolve_toneden_api():
@@ -42,13 +70,13 @@ def test_resolve_toneden_api():
 
 
 def test_resolve_gate_download_url_routing():
-    session = MagicMock(spec=requests.Session)
-    resp = MagicMock()
-    resp.status_code = 200
-    resp.text = 'var download_url = "https://s3.amazonaws.com/test.flac";'
-    session.get.return_value = resp
+    session = session_for_gate(gate_html(steps="sc"))
 
-    assert resolve_gate_download_url("https://hypeddit.com/test", session) == "https://s3.amazonaws.com/test.flac"
+    assert resolve_gate_download_url(
+        "https://hypeddit.com/test",
+        session,
+        config=StubConfig("dj@example.com"),
+    ) == "https://hypeddit.com/download/file.wav"
     assert resolve_gate_download_url("https://example.com/other", session) is None
 
 
@@ -81,12 +109,7 @@ class StubConfig:
 
 
 def _gate_session():
-    session = MagicMock(spec=requests.Session)
-    resp = MagicMock()
-    resp.status_code = 200
-    resp.text = 'var download_url = "https://s3.amazonaws.com/bucket/track.wav";'
-    session.get.return_value = resp
-    return session
+    return session_for_gate(gate_html(steps="sc"))
 
 
 def test_a_placeholder_email_is_warned_about_before_it_reaches_a_gate(caplog):
@@ -114,11 +137,7 @@ def test_an_address_the_user_set_is_submitted_without_complaint(caplog):
 
 
 def _stepping_gate_session():
-    """A gate page with no download URL in it, so the step calls actually run.
-
-    ``_gate_session`` hands over an S3 link straight from the HTML, which is the
-    shortcut this resolver takes before it posts anything at all.
-    """
+    """A gate page used to exercise exact request payloads."""
 
     session = MagicMock(spec=requests.Session)
     resp = MagicMock()
@@ -354,6 +373,22 @@ def test_rejected_hypeddit_download_is_actionable():
         )
 
 
+def test_download_flow_captcha_reply_is_typed_for_browser_completion():
+    session = session_for_gate(
+        gate_html(steps="sc"),
+        download_payload={"download_status": False, "captcha_required": True},
+    )
+
+    with pytest.raises(gates.GateCaptchaRequired, match="CAPTCHA"):
+        resolve_hypeddit_download_url(
+            "https://hypeddit.com/track/captcha-reply",
+            session,
+            config=StubConfig("dj@example.com"),
+        )
+
+    assert len(_posted_to(session, "/gate/download/ul")) == 1
+
+
 def test_gate_telemetry_is_best_effort_and_never_blocks_download():
     page = gate_html(steps="sc").replace(
         '<input name="gvf" value="0">',
@@ -384,6 +419,64 @@ def test_missing_steps_is_a_hub_not_an_invented_email_soundcloud_gate():
 
     assert inspection.kind == "hub"
     assert inspection.manifest is None
+
+
+def test_global_captcha_asset_does_not_turn_a_smartlink_into_a_challenge():
+    inspection = gates.inspect_hypeddit_html(
+        "https://hypeddit.com/duxnbass/epitome",
+        fixture_html("hypeddit_smartlink_captcha_asset.html"),
+    )
+
+    assert inspection.kind == "hub"
+    assert {gates.store_for_url(url) for url, _label in inspection.shops} == {
+        "bandcamp",
+        "beatport",
+    }
+
+
+def test_duxnbass_fixture_is_a_removable_hub_with_only_purchase_stores():
+    inspection = inspect_link_page(
+        "https://hypeddit.com/duxnbass/epitome",
+        HubSession(
+            fixture_html("hypeddit_hub_shops.html"),
+            landed="https://hypeddit.com/duxnbass/epitome",
+        ),
+    )
+
+    assert inspection.recognized is True
+    assert inspection.keep_original is False
+    assert {gates.store_for_url(url) for url, _label in inspection.shops} == {
+        "bandcamp",
+        "beatport",
+    }
+
+
+def test_real_spotify_art_and_three_part_play_values_are_parsed():
+    art = gates.inspect_hypeddit_html(
+        "https://hypeddit.com/track/art",
+        fixture_html("hypeddit_spotify_art.html"),
+    )
+    play = gates.inspect_hypeddit_html(
+        "https://hypeddit.com/track/play",
+        fixture_html("hypeddit_spotify_play.html"),
+    )
+
+    assert gates._spotify_uris(art.manifest) == [
+        "spotify:artist:0oVDzp5DK2caqb6FuL2mhp"
+    ]
+    assert gates._spotify_uris(play.manifest) == [
+        "spotify:playlist:7utX94fPdnTQ4lab0UA999"
+    ]
+
+
+def test_a_recognised_empty_smartlink_is_still_a_hub():
+    inspection = gates.inspect_hypeddit_html(
+        "https://hypeddit.com/empty",
+        fixture_html("hypeddit_hub_empty.html"),
+    )
+
+    assert inspection.kind == "hub"
+    assert inspection.shops == ()
 
 
 def test_unknown_hypeddit_page_is_a_protocol_error_not_no_download():
@@ -461,6 +554,88 @@ def test_hypeddit_fallback_shares_the_soundcloud_browser_profile_lock(tmp_path):
         auth.BROWSER_PROFILE_LOCK.release()
 
 
+def test_hypeddit_browser_batch_uses_one_context_and_maps_each_tab_download(
+    tmp_path, monkeypatch
+):
+    contexts = []
+
+    class Download:
+        def __init__(self, name, body):
+            self.suggested_filename = name
+            self.body = body
+
+        def save_as(self, destination):
+            Path(destination).write_bytes(self.body)
+
+    class Page:
+        def __init__(self, context):
+            self.context = context
+            self.url = "about:blank"
+            self.handlers = {}
+            self.opener = None
+
+        def on(self, event, callback):
+            self.handlers[event] = callback
+
+        def goto(self, url, **_kwargs):
+            self.url = url
+            marker = url.rsplit("/", 1)[-1]
+            self.handlers["download"](
+                Download(f"{marker}.wav", f"RIFF-{marker}".encode())
+            )
+
+        def wait_for_timeout(self, _timeout):
+            pass
+
+    class Context:
+        def __init__(self):
+            self.pages = [Page(self)]
+            self.handlers = {}
+
+        def on(self, event, callback):
+            self.handlers[event] = callback
+
+        def new_page(self):
+            page = Page(self)
+            self.pages.append(page)
+            self.handlers["page"](page)
+            return page
+
+    @contextmanager
+    def browser_context(*_args, **_kwargs):
+        context = Context()
+        contexts.append(context)
+        yield context
+
+    monkeypatch.setattr("dj_digger.cart._browser_context", browser_context)
+    tracks = [
+        Track(
+            id=index,
+            title=f"Track {index}",
+            permalink_url=f"https://soundcloud.com/a/{index}",
+        )
+        for index in (1, 2)
+    ]
+
+    result = gates.download_hypeddit_batch_in_browser(
+        [
+            (tracks[0], "https://hypeddit.com/track/one"),
+            (tracks[1], "https://hypeddit.com/track/two"),
+        ],
+        tmp_path,
+        None,
+    )
+
+    assert len(contexts) == 1
+    assert len(contexts[0].pages) == 2
+    assert result.failures == ()
+    assert [key for key, _path in result.completed] == ["1", "2"]
+    assert [path.read_bytes() for _key, path in result.completed] == [
+        b"RIFF-one",
+        b"RIFF-two",
+    ]
+
+
 def test_soundcloud_click_through_never_calls_soundcloud_or_mobile_step_endpoints():
 
     session = _stepping_gate_session()
@@ -474,6 +649,45 @@ def test_soundcloud_click_through_never_calls_soundcloud_or_mobile_step_endpoint
     assert _posted_to(session, "/setYT") == []
     payloads = _posted_to(session, "/gate/download/ul")
     assert payloads[0]["skip_gate_steps[]"] == ["sc"]
+
+
+def test_all_social_click_through_steps_are_skipped_without_external_requests():
+    session = session_for_gate(gate_html(steps="sc,ig,yt"))
+    gate_url = "https://hypeddit.com/track/click-through"
+
+    resolve_hypeddit_download_url(
+        gate_url,
+        session,
+        config=StubConfig("dj@example.com", gate_social_actions=True),
+    )
+
+    assert [call.args[0] for call in session.get.call_args_list] == [gate_url]
+    assert _posted_to(session, "/gate/download/ul")[0]["skip_gate_steps[]"] == [
+        "sc",
+        "ig",
+        "yt",
+    ]
+    assert len(session.post.call_args_list) == 1
+
+
+def test_spotify_failure_is_typed_as_auth_before_hypeddit_posts(monkeypatch):
+    session = session_for_gate(
+        gate_html(steps="sp", spotify_value="ART|0oVDzp5DK2caqb6FuL2mhp")
+    )
+    monkeypatch.setattr(
+        spotify,
+        "save_uris",
+        lambda _uris: (_ for _ in ()).throw(spotify.SpotifyError("scope missing")),
+    )
+
+    with pytest.raises(gates.GateAuthenticationRequired):
+        resolve_hypeddit_download_url(
+            "https://hypeddit.com/track/spotify-auth",
+            session,
+            config=StubConfig("dj@example.com"),
+        )
+
+    session.post.assert_not_called()
 
 
 def test_social_steps_stop_before_any_post_when_they_were_refused():

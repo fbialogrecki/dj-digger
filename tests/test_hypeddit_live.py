@@ -100,8 +100,46 @@ def test_public_hypeddit_contract_is_still_parseable(url, hypeddit_session):
         "www.hypeddit.com",
     }
     inspection = gates.inspect_hypeddit_html(response.url, response.text)
-    assert inspection.kind in {"gate", "hub", "hybrid", "direct", "challenge"}
+    assert inspection.kind in {"gate", "hub", "hybrid", "challenge"}
     if inspection.kind in {"gate", "hybrid"}:
         assert inspection.manifest is not None
         assert inspection.manifest.steps
         assert inspection.manifest.file_id
+
+
+def _live_inspection(url, session):
+    response = session.get(url, timeout=(10, 20))
+    assert response.status_code == 200
+    return gates.inspect_hypeddit_html(response.url, response.text)
+
+
+def test_known_gate_has_a_manifest_and_no_recommendation_direct_url(hypeddit_session):
+    inspection = _live_inspection(HYPEDDIT_URLS[0], hypeddit_session)
+    assert inspection.kind in {"gate", "hybrid"}
+    assert inspection.manifest is not None
+    assert inspection.manifest.steps
+    assert inspection.manifest.file_id
+    assert inspection.direct_url is None
+
+
+def test_duxnbass_is_a_shop_hub_despite_the_global_captcha_asset(hypeddit_session):
+    inspection = _live_inspection(
+        "https://hypeddit.com/duxnbass/epitome", hypeddit_session
+    )
+    assert inspection.kind == "hub"
+    assert {gates.store_for_url(url) for url, _label in inspection.shops} >= {
+        "bandcamp",
+        "beatport",
+    }
+
+
+def test_ky9i8z_keeps_its_nested_gate_and_purchase_stores(hypeddit_session):
+    inspection = _live_inspection(
+        "https://hypeddit.com/link/ky9i8z", hypeddit_session
+    )
+    assert inspection.kind == "hub"
+    assert inspection.nested_gates
+    assert {gates.store_for_url(url) for url, _label in inspection.shops} >= {
+        "bandcamp",
+        "beatport",
+    }

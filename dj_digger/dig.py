@@ -184,23 +184,35 @@ def _expand_one(track: Track, timeout: float, dead: DeadHosts) -> bool:
             if inspection is None:
                 dead.failed(url)
                 continue
-            if not inspection.shops and not inspection.gate_urls:
+            if (
+                not inspection.recognized
+                and not inspection.shops
+                and not inspection.gate_urls
+            ):
                 continue
             for pair in inspection.shops:
                 if pair not in track.extra_links:
                     track.extra_links.append(pair)
+                    changed = True
             for gate_url in inspection.gate_urls:
                 pair = (gate_url, "Free download")
                 if pair not in track.extra_links:
                     track.extra_links.append(pair)
+                    changed = True
             # A gate that also sells the release stays beside its shops. A pure
             # smart-link wrapper goes once its concrete shops/nested gate exist.
             if not inspection.keep_original:
                 if track.purchase_url == url:
                     track.purchase_url = None
                     track.purchase_title = None
+                    changed = True
+                old_links = track.extra_links
                 track.extra_links = [pair for pair in track.extra_links if pair[0] != url]
-            changed = True
+                if track.extra_links != old_links:
+                    changed = True
+                if url in track.description:
+                    track.description = track.description.replace(url, "")
+                    changed = True
     finally:
         session.close()
     return changed

@@ -1,6 +1,6 @@
 import pytest
 
-from dj_digger import soundcloud
+from dj_digger import gates, soundcloud
 from dj_digger.models import Track
 from dj_digger.soundcloud import (
     SoundCloudClient,
@@ -222,6 +222,30 @@ def test_html_is_rejected_even_when_the_gate_lies_about_its_content_type(tmp_pat
 
     with pytest.raises(soundcloud.SoundCloudError, match="web page"):
         client.download_track(track, tmp_path / "downloads")
+
+
+def test_gate_derived_html_keeps_a_typed_protocol_failure(tmp_path, monkeypatch):
+    session = DownloadSession(
+        DownloadResponse(
+            [b"<html>foreign recommendation</html>"],
+            headers={"Content-Type": "text/html"},
+        )
+    )
+    client = make_client(session)
+    track = Track(title="T", artist="A", permalink_url="https://soundcloud.com/a/t")
+    monkeypatch.setattr(
+        "dj_digger.gates.resolve_gate_download_url",
+        lambda *_args, **_kwargs: "https://www.dropbox.com/foreign.wav?dl=0",
+    )
+
+    with pytest.raises(gates.GateProtocolChanged, match="web page"):
+        client.download_track(
+            track,
+            tmp_path / "downloads",
+            gate_url="https://hypeddit.com/track/current",
+        )
+
+    assert list((tmp_path / "downloads").iterdir()) == []
 
 
 def test_a_public_download_cannot_redirect_to_localhost(tmp_path):

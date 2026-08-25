@@ -215,16 +215,23 @@ def hub_links(track: Track) -> list[str]:
 
     A gate, a smart link, or a host nobody recognises: any of the three can turn
     out to hand over no file at all and just point at Bandcamp and Beatport.
-    Description links are left out - they are promo boilerplate, and one request
-    each for a linktree the label pastes onto every track is not worth it.
+    Description links are left out except for known Hypeddit hosts. That keeps
+    generic promo boilerplate cheap while ensuring a download wrapper is
+    inspected regardless of which SoundCloud field carried it.
     """
 
     found: list[str] = []
     for url, _text, source in candidate_links(track):
-        if source != PURCHASE_FIELD:
+        known_hypeddit = host_of(url) in {
+            "hypeddit.com",
+            "hypd.it",
+        }
+        if source != PURCHASE_FIELD and not known_hypeddit:
             continue
         category = store_for_url(url)
-        if category in HUB_CATEGORIES or (category is None and is_openable(url)):
+        if known_hypeddit or category in HUB_CATEGORIES or (
+            category is None and is_openable(url)
+        ):
             found.append(url)
     # Openable is the wrong bar for a list that exists to be fetched: nobody
     # pressed a key for these, a dig reads them by itself, and the addresses came

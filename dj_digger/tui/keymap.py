@@ -93,6 +93,7 @@ KEYMAP = [
     ("o,enter", "open_link", "Open", SELECTED, True, "Open its best link, or the filtered store"),
     ("w", "download_track", "Download", SELECTED, True, "Download an artist-provided SoundCloud file"),
     ("W", "batch_download", "Batch download", WHOLE_LIST, True, "Download all free & gate tracks in view"),
+    ("ctrl+x", "stop_browser_batch", "Stop browser batch", WHOLE_LIST, False, "Stop the active Chromium gate batch; unfinished tracks stay new"),
     ("b", "search_bandcamp", "Bandcamp", SELECTED, True, "Search Bandcamp for highlighted track"),
     ("B", "search_beatport", "Beatport", SELECTED, False, "Search Beatport for highlighted track"),
     ("c", "cart_track", "Cart", SELECTED, False, "Add the exact track to its store cart"),
