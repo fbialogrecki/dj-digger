@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.13.2
+
+### Added
+
+- The track context menu can copy a matched file from another library folder,
+  such as `Music`, into the current playlist's download folder. The copy runs
+  off the UI thread, preserves the source, avoids overwrites and is finalized
+  atomically.
+
+### Fixed
+
+- The local-file cache now removes deleted paths and validates every cached
+  match before exposing it, so missing files no longer retain a folder badge or
+  a copyable dead path.
+- Automatic `got` statuses now remember the exact backing file. Deleting that
+  file clears only the status that depended on it, while a manually assigned
+  `got` remains an independent ownership decision.
+- Legacy stale cache matches from earlier releases are reconciled during the
+  next scan, including playlists removed and imported again.
+
 ## 0.13.1
 
 ### Fixed

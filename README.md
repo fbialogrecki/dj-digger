@@ -3,7 +3,7 @@
 [![Python Version](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
 [![Built with Textual](https://img.shields.io/badge/TUI-Textual-ff69b4.svg)](https://textual.textualize.io/)
-[![Version](https://img.shields.io/badge/version-0.13.1-orange.svg)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-0.13.2-orange.svg)](pyproject.toml)
 
 > **The ultimate crate-digging companion for DJs and electronic music collectors.**
 > Instantly extract purchase links, free downloads, and download gates from SoundCloud playlists, user likes, or artist profiles—then preview tracks and manage your library in a high-performance terminal interface.
