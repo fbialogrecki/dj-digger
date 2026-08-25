@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.13.1
+
+### Fixed
+
+- Batch downloads no longer wait for every Hypeddit preflight before starting.
+  Each worker checks its own link and immediately continues with that track,
+  while all queued rows show progress as soon as the batch begins.
+- A single left click now only selects a track. Opening remains available via
+  `o`, `Enter` or a double click.
+- Confident local-file matches automatically mark tracks as `got`, including
+  stale `opened` or `skipped` statuses, and `w`/`W` avoid downloading verified
+  files that are already on disk.
+- Downloads are stored below the configured root in a safely named playlist
+  folder instead of placing every file directly in the root Downloads folder.
+
 ## 0.13.0
 
 ### Changed
