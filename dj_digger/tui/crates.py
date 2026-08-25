@@ -49,9 +49,9 @@ class CrateMixin:
         for record in self.crates:
             listing.append(CrateItem(record))
         if self.crate is not None:
-            slugs = [record.slug for record in self.crates]
-            if self.crate.slug in slugs:
-                listing.index = slugs.index(self.crate.slug)
+            sources = [record.source for record in self.crates]
+            if self.crate.source in sources:
+                listing.index = sources.index(self.crate.source)
 
     def highlighted_crate(self) -> CrateRecord | None:
         highlighted = self.query_one("#crates", ListView).highlighted_child
@@ -116,8 +116,8 @@ class CrateMixin:
         for track in record.tracks:
             self.state.set(track.key, NEW)
 
-        library_module.delete(record.slug)
-        if self.crate is not None and self.crate.slug == record.slug:
+        library_module.delete(record.source)
+        if self.crate is not None and self.crate.source == record.source:
             self.crate = None
             self.crate_title = ""
             self.load_records([])

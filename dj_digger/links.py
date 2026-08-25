@@ -11,7 +11,9 @@ import csv
 import json
 import logging
 import re
+from collections import Counter
 from collections.abc import Iterable, Sequence
+from itertools import chain
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
@@ -174,7 +176,7 @@ def host_of(url: str) -> str:
     return host[4:] if host.startswith("www.") else host
 
 
-def _host_matches(host: str, domain: str) -> bool:
+def host_matches(host: str, domain: str) -> bool:
     """Match on domain boundaries, so evil-bandcamp.com.attacker.net does not."""
 
     return host == domain or host.endswith("." + domain)
@@ -188,7 +190,7 @@ def store_for_url(url: str) -> str | None:
         return None
     host = host_of(url)
     for category, domains in STORE_DOMAINS.items():
-        if any(_host_matches(host, domain) for domain in domains):
+        if any(host_matches(host, domain) for domain in domains):
             return category
     if host.endswith(SMARTLINK_TLD):
         return "smartlink"
@@ -307,10 +309,7 @@ def categorise(track: Track) -> list[LinkRecord]:
 
 
 def categorise_all(tracks: Iterable[Track]) -> list[LinkRecord]:
-    records: list[LinkRecord] = []
-    for track in tracks:
-        records.extend(categorise(track))
-    return records
+    return list(chain.from_iterable(categorise(track) for track in tracks))
 
 
 def group_by_track(records: Sequence[LinkRecord]) -> list[list[LinkRecord]]:
@@ -331,21 +330,22 @@ def group_by_track(records: Sequence[LinkRecord]) -> list[list[LinkRecord]]:
     ]
 
 
+def _bucket(record: LinkRecord) -> str:
+    return record.category if record.category in CATEGORY_NAMES else "others"
+
+
 def build_summary(records: Sequence[LinkRecord]) -> dict[str, list[dict[str, object]]]:
     """Group records into the export shape, keyed by category."""
 
     summary: dict[str, list[dict[str, object]]] = {name: [] for name in CATEGORY_NAMES}
     for record in records:
-        category = record.category if record.category in CATEGORY_NAMES else "others"
-        summary[category].append(record.as_dict())
+        summary[_bucket(record)].append(record.as_dict())
     return summary
 
 
 def count_by_category(records: Sequence[LinkRecord]) -> dict[str, int]:
     counts = {name: 0 for name in CATEGORY_NAMES}
-    for record in records:
-        category = record.category if record.category in CATEGORY_NAMES else "others"
-        counts[category] += 1
+    counts.update(Counter(_bucket(record) for record in records))
     return counts
 
 

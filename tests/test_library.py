@@ -1,6 +1,7 @@
 import pytest
 
 from dj_digger import library
+from dj_digger.db import database
 from dj_digger.models import Crate, Track
 
 
@@ -31,7 +32,7 @@ def test_a_crate_survives_a_round_trip():
     record = library.CrateRecord.from_crate(a_crate())
     library.save(record)
 
-    reloaded = library.load(record.slug)
+    reloaded = library.load(record.source)
     assert reloaded.title == "A crate"
     assert [track.id for track in reloaded.tracks] == [100, 101, 102]
     assert reloaded.tracks[0].genre == "Techno"
@@ -47,19 +48,6 @@ def test_the_same_source_overwrites_instead_of_duplicating():
     assert len(crates[0].tracks) == 5
 
 
-def test_different_sources_get_different_slugs():
-    first = library.slug_for("https://soundcloud.com/a/sets/b")
-    second = library.slug_for("https://soundcloud.com/a/sets/c")
-    assert first != second
-    assert first == library.slug_for("https://soundcloud.com/a/sets/b")
-
-
-def test_slugs_stay_readable_and_filesystem_safe():
-    slug = library.slug_for("https://soundcloud.com/antarcticae/sets/techno-vinyl")
-    assert slug.startswith("antarcticae-sets-techno-vinyl-")
-    assert "/" not in slug and " " not in slug
-
-
 def test_crates_are_listed_by_title():
     library.save(library.CrateRecord.from_crate(a_crate(1, source="s://z", title="Zulu")))
     library.save(library.CrateRecord.from_crate(a_crate(1, source="s://a", title="alpha")))
@@ -72,7 +60,7 @@ def test_removed_tracks_disappear_from_active_tracks():
 
     assert [track.id for track in record.active_tracks] == [100, 102]
     library.save(record)
-    assert library.load(record.slug).removed_track_keys == ["101"]
+    assert library.load(record.source).removed_track_keys == ["101"]
 
 
 def test_restoring_brings_a_track_back():
@@ -130,7 +118,7 @@ def test_the_new_marks_survive_a_round_trip():
     library.refresh(record, a_crate(3))
     library.save(record)
 
-    assert library.load(record.slug).new_track_keys == ["102"]
+    assert library.load(record.source).new_track_keys == ["102"]
 
 
 def test_refresh_clears_the_partial_flag():
@@ -143,7 +131,7 @@ def test_refresh_clears_the_partial_flag():
 def test_delete_removes_the_crate():
     record = library.CrateRecord.from_crate(a_crate())
     library.save(record)
-    library.delete(record.slug)
+    library.delete(record.source)
     assert library.list_crates() == []
 
 
@@ -151,20 +139,19 @@ def test_deleting_something_that_is_not_there_is_harmless():
     library.delete("no-such-crate")
 
 
-def test_delete_finds_the_crate_by_its_slug_with_no_file_involved():
+def test_delete_finds_the_crate_by_its_source_with_no_file_involved():
     """Delete used to happen entirely inside `if the JSON file exists`.
 
     A crate whose row outlived its file could not be removed at all: the sidebar
     drew it, X ran and changed nothing, and it was back on the next reload. Since
-    0.9 there is no file, so the slug is looked up against the stored records -
-    which is the path that used to be unreachable.
+    0.9 there is no file - the source is the primary key of the stored records.
     """
 
     record = library.CrateRecord.from_crate(a_crate())
     library.save(record)
     assert [rec.source for rec in library.list_crates()] == [record.source]
 
-    library.delete(record.slug)
+    library.delete(record.source)
 
     assert library.list_crates() == []
 
@@ -175,9 +162,9 @@ def test_unknown_fields_in_a_stored_track_are_ignored(crates_in_tmp):
     record = library.CrateRecord.from_crate(a_crate(1))
     raw = record.to_json()
     raw["tracks"][0]["something_from_the_future"] = 42
-    library._db().save_crate(raw)
+    database().save_crate(raw)
 
-    assert library.load(record.slug).tracks[0].id == 100
+    assert library.load(record.source).tracks[0].id == 100
 
 
 def test_scraped_extra_links_come_back_as_tuples():
@@ -186,6 +173,6 @@ def test_scraped_extra_links_come_back_as_tuples():
     record = library.CrateRecord.from_crate(crate)
     library.save(record)
 
-    assert library.load(record.slug).tracks[0].extra_links == [
+    assert library.load(record.source).tracks[0].extra_links == [
         ("https://x.bandcamp.com/track/y", "Buy")
     ]

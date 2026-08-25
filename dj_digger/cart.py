@@ -21,6 +21,7 @@ from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup
 
 from .models import Track
+from .paths import data_dir
 
 STORE_HOSTS = {"bandcamp": "bandcamp.com", "beatport": "beatport.com"}
 VERSION_PHRASES = (
@@ -168,8 +169,7 @@ def is_store_url(url: str, store: str) -> bool:
 def store_profile_path() -> Path:
     """Create the private, persistent Chromium profile outside the repository."""
 
-    data_home = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share"))
-    path = data_home / "dj-digger" / "store-browser"
+    path = data_dir() / "store-browser"
     path.mkdir(parents=True, exist_ok=True, mode=0o700)
     if os.name != "nt":
         path.chmod(0o700)

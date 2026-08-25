@@ -7,10 +7,12 @@ opens links.
 
 import json
 import logging
-import os
 import random
 import re
 from pathlib import Path
+
+from .auth import write_private_json
+from .paths import config_dir
 
 LOGGER = logging.getLogger(__name__)
 
@@ -25,6 +27,17 @@ RETIRED_EMAILS = frozenset({"music.listener@yahoo.com"})
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 DEFAULT_COMMENTS = ["Love it!", "Amazing track!", "Dope tune!", "Fire!", "Banger!", "Great tune!"]
 
+# The attributes save() persists; load() coerces each one on the way back in.
+PERSISTED_FIELDS = (
+    "user_name",
+    "user_email",
+    "custom_comments",
+    "scan_directories",
+    "browser",
+    "download_directory",
+    "gate_social_actions",
+)
+
 
 def is_real_email(value: str) -> bool:
     email = value.strip()
@@ -32,8 +45,7 @@ def is_real_email(value: str) -> bool:
 
 
 def default_config_path() -> Path:
-    config_dir = Path(os.environ.get("XDG_CONFIG_HOME") or (Path.home() / ".config")) / "dj-digger"
-    return config_dir / "config.json"
+    return config_dir() / "config.json"
 
 
 class AppConfig:
@@ -100,22 +112,10 @@ class AppConfig:
             LOGGER.warning("Could not load config from %s: %s", self.path, exc)
 
     def save(self) -> None:
-        payload = {
-            "user_name": self.user_name,
-            "user_email": self.user_email,
-            "custom_comments": self.custom_comments,
-            "scan_directories": self.scan_directories,
-            "browser": self.browser,
-            "download_directory": self.download_directory,
-            "gate_social_actions": self.gate_social_actions,
-        }
+        payload = {name: getattr(self, name) for name in PERSISTED_FIELDS}
         try:
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            temporary = self.path.with_suffix(".json.tmp")
-            temporary.write_text(
-                json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
-            )
-            os.replace(temporary, self.path)
+            # The 0600 write is deliberate: the profile email lives here.
+            write_private_json(self.path, payload, ensure_ascii=False)
         except OSError as exc:
             LOGGER.warning("Could not save config to %s: %s", self.path, exc)
 

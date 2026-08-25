@@ -36,6 +36,10 @@ def _challenge(verifier: str) -> str:
 
 
 def _json_payload(response: Any, context: str) -> dict[str, Any]:
+    # Status first, before .json(): an HTTP error must never be reported as an
+    # unreadable reply, and error bodies are not worth parsing.
+    if response.status_code != 200:
+        raise SpotifyError(f"Spotify {context} returned HTTP {response.status_code}")
     try:
         payload = response.json()
     except (ValueError, AttributeError) as exc:
@@ -89,12 +93,11 @@ def login(
             "close the process using it and try again"
         ) from exc
     server.timeout = timeout
-    redirect_uri = REDIRECT_URI
     query = urllib.parse.urlencode(
         {
             "client_id": client_id,
             "response_type": "code",
-            "redirect_uri": redirect_uri,
+            "redirect_uri": REDIRECT_URI,
             "scope": SCOPE,
             "state": state,
             "code_challenge_method": "S256",
@@ -124,17 +127,13 @@ def login(
                 "client_id": client_id,
                 "grant_type": "authorization_code",
                 "code": code,
-                "redirect_uri": redirect_uri,
+                "redirect_uri": REDIRECT_URI,
                 "code_verifier": verifier,
             },
             timeout=20,
         )
     except requests.RequestException as exc:
         raise SpotifyError(f"Spotify token exchange failed: {exc}") from exc
-    if response.status_code != 200:
-        raise SpotifyError(
-            f"Spotify token exchange returned HTTP {response.status_code}"
-        )
     payload = _json_payload(response, "token exchange")
     access = str(payload.get("access_token") or "")
     refresh = str(payload.get("refresh_token") or "")
@@ -199,10 +198,6 @@ def access_token(*, session=requests, now: float | None = None) -> str:
         )
     except requests.RequestException as exc:
         raise SpotifyError(f"Could not refresh Spotify login: {exc}") from exc
-    if response.status_code != 200:
-        raise SpotifyError(
-            f"Spotify token refresh returned HTTP {response.status_code}"
-        )
     payload = _json_payload(response, "token refresh")
     token = str(payload.get("access_token") or "")
     if not token:

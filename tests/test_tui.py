@@ -1046,7 +1046,7 @@ def test_refreshing_redigs_the_saved_source_and_keeps_deletions(state, monkeypat
 
     run(scenario)
 
-    reloaded = library.load(record.slug)
+    reloaded = library.load(record.source)
     assert reloaded.refreshed_at
     assert len(reloaded.tracks) == 4
     assert reloaded.removed_track_keys == ["501"]
@@ -1066,7 +1066,7 @@ def test_deleting_a_crate_asks_first(state):
             await pilot.pause()
 
     run(scenario)
-    assert library.load(record.slug).title == "Saved crate"
+    assert library.load(record.source).title == "Saved crate"
 
 
 def test_confirming_deletes_the_crate(state):
@@ -1247,12 +1247,12 @@ def test_removing_a_track_persists_and_undo_brings_it_back(state):
             await pilot.press("x")
             await pilot.pause()
             assert app.query_one("#tracks", DataTable).row_count == 2
-            assert library.load(record.slug).removed_track_keys == ["500"]
+            assert library.load(record.source).removed_track_keys == ["500"]
 
             await pilot.press("ctrl+z")
             await pilot.pause()
             assert app.query_one("#tracks", DataTable).row_count == 3
-            assert library.load(record.slug).removed_track_keys == []
+            assert library.load(record.source).removed_track_keys == []
 
     run(scenario)
 

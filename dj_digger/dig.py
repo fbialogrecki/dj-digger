@@ -8,6 +8,7 @@ an ``on_progress`` hook.
 import logging
 import threading
 import time
+from collections import Counter
 from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -64,22 +65,6 @@ class TargetNotFound(ValueError):
 def _notify(on_progress: ProgressHook | None, stage: str, done: int, total: int | None) -> None:
     if on_progress:
         on_progress(stage, done, total)
-
-
-def dig_url(
-    url: str,
-    *,
-    limit: int | None = None,
-    timeout: float = 20.0,
-    on_progress: ProgressHook | None = None,
-) -> Crate:
-    _notify(on_progress, STAGE_LINK, 0, None)
-    return soundcloud.collect_tracks(
-        url,
-        limit=limit,
-        timeout=timeout,
-        on_progress=lambda done, total: _notify(on_progress, STAGE_TRACKS, done, total),
-    )
 
 
 def dig_html(
@@ -149,17 +134,17 @@ class DeadHosts:
     """
 
     def __init__(self) -> None:
-        self._failures: dict[str, int] = {}
+        self._failures: Counter[str] = Counter()
         self._lock = threading.Lock()
 
     def written_off(self, url: str) -> bool:
         with self._lock:
-            return self._failures.get(links.host_of(url), 0) >= HOST_FAILURE_LIMIT
+            return self._failures[links.host_of(url)] >= HOST_FAILURE_LIMIT
 
     def failed(self, url: str) -> None:
         host = links.host_of(url)
         with self._lock:
-            self._failures[host] = self._failures.get(host, 0) + 1
+            self._failures[host] += 1
             count = self._failures[host]
         if count == HOST_FAILURE_LIMIT:
             LOGGER.info("%s is not answering - skipping it for the rest of this dig.", host)
@@ -260,7 +245,13 @@ def dig(
 
     target = target.strip()
     if soundcloud.is_soundcloud_url(target):
-        crate = dig_url(target, limit=limit, timeout=timeout, on_progress=on_progress)
+        _notify(on_progress, STAGE_LINK, 0, None)
+        crate = soundcloud.collect_tracks(
+            target,
+            limit=limit,
+            timeout=timeout,
+            on_progress=lambda done, total: _notify(on_progress, STAGE_TRACKS, done, total),
+        )
     else:
         path = Path(target).expanduser()
         if not path.exists():

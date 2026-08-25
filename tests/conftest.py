@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from dj_digger import auth, config, db, library, state
+from dj_digger import auth, config, db, state
 from dj_digger.models import Track
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -42,7 +42,6 @@ def isolate_user_data(tmp_path, monkeypatch):
         json.dumps({"scan_directories": [str(scan_dir)]}), encoding="utf-8"
     )
 
-    monkeypatch.setattr(library, "crates_dir", lambda: tmp_path / "crates")
     monkeypatch.setattr(state, "default_state_path", lambda: tmp_path / "state.json")
     monkeypatch.setattr(config, "default_config_path", lambda: config_path)
     monkeypatch.setattr(db, "default_db_path", lambda: tmp_path / "digger.db")

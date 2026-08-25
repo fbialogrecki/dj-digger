@@ -16,7 +16,9 @@ import os
 import re
 import tempfile
 import threading
-from collections.abc import Callable, Iterable, Iterator, Sequence
+from collections.abc import Callable, Iterable, Sequence
+from contextlib import suppress
+from itertools import batched
 from pathlib import Path
 from typing import Any, Self
 from urllib.parse import urljoin, urlparse
@@ -27,6 +29,7 @@ from urllib3.util.retry import Retry
 
 from . import auth, gates
 from .browser import is_fetchable
+from .links import host_matches
 from .models import Crate, Track
 
 # Windows refuses these as a filename whatever the extension - CON.mp3 is as
@@ -165,6 +168,20 @@ def _looks_like_html(prefix: bytes) -> bool:
     return sample.startswith((b"<!doctype html", b"<html", b"<head", b"<body"))
 
 
+def _claim_target(directory: Path, track: Track, suffix: str, temporary: Path) -> Path:
+    """Move a finished temp file to a unique final name under the shared lock."""
+
+    stem = _sanitize_filename(_download_stem(track))
+    with _DOWNLOAD_NAME_LOCK:
+        target = directory / f"{stem}{suffix}"
+        counter = 1
+        while target.exists():
+            target = directory / f"{stem} ({counter}){suffix}"
+            counter += 1
+        os.replace(temporary, target)
+    return target
+
+
 def save_browser_download(download: Any, track: Track, directory: Path) -> Path:
     """Validate and atomically keep a Playwright download."""
 
@@ -190,21 +207,10 @@ def save_browser_download(download: Any, track: Track, directory: Path) -> Path:
             prefix = stream.read(512)
         if _looks_like_html(prefix):
             raise SoundCloudError("Browser downloaded a web page rather than an audio file")
-        stem = _sanitize_filename(_download_stem(track))
-        with _DOWNLOAD_NAME_LOCK:
-            target = directory / f"{stem}{suffix}"
-            counter = 1
-            while target.exists():
-                target = directory / f"{stem} ({counter}){suffix}"
-                counter += 1
-            os.replace(temporary, target)
-        return target
+        return _claim_target(directory, track, suffix, temporary)
     finally:
-        if temporary.exists():
-            try:
-                temporary.unlink()
-            except OSError:
-                pass
+        with suppress(OSError):
+            temporary.unlink(missing_ok=True)
 
 
 def is_soundcloud_url(value: str) -> bool:
@@ -212,17 +218,12 @@ def is_soundcloud_url(value: str) -> bool:
     if parsed.scheme not in {"http", "https"}:
         return False
     host = parsed.netloc.lower().partition(":")[0]
-    return host == "soundcloud.com" or host.endswith(".soundcloud.com")
+    return host_matches(host, "soundcloud.com")
 
 
 def _client_id_cache() -> Path:
     cache_dir = Path(os.environ.get("XDG_CACHE_HOME") or (Path.home() / ".cache")) / "dj-digger"
     return cache_dir / "client_id.txt"
-
-
-def _chunks(values: Sequence[Any], size: int) -> Iterator[Sequence[Any]]:
-    for start in range(0, len(values), size):
-        yield values[start : start + size]
 
 
 def split_user_collection(url: str) -> tuple[str | None, str]:
@@ -468,13 +469,14 @@ class SoundCloudClient:
             raise SoundCloudError("This track has no active direct download or resolved gate link")
 
         host = (urlparse(download_url).hostname or "").lower()
-        # Suffix, not substring: "soundcloud.com" in host is also true of
+        # Domain-boundary match: "soundcloud.com" in host is also true of
         # evil-soundcloud.com.attacker.net, which would then be handed our
         # client_id along with the request.
-        ours = host == "soundcloud.com" or host.endswith(".soundcloud.com")
+        ours = host_matches(host, "soundcloud.com")
 
         directory = Path(directory)
         directory.mkdir(parents=True, exist_ok=True)
+        temporary: Path | None = None
 
         try:
             response = _download_response(
@@ -489,17 +491,12 @@ class SoundCloudClient:
                     raise gates.GateDownloadError(message)
                 raise SoundCloudError(message)
 
-            headers = getattr(response, "headers", {})
-            content_disp = ""
-            content_type = ""
-            total_size: int | None = None
-            if isinstance(headers, dict) or hasattr(headers, "get"):
-                content_disp = headers.get("Content-Disposition", "")
-                content_type = headers.get("Content-Type", "")
-                try:
-                    total_size = int(headers.get("Content-Length", 0)) or None
-                except ValueError:
-                    total_size = None
+            content_disp = response.headers.get("Content-Disposition", "")
+            content_type = response.headers.get("Content-Type", "")
+            try:
+                total_size = int(response.headers.get("Content-Length", 0)) or None
+            except ValueError:
+                total_size = None
 
             if total_size and total_size > MAX_DOWNLOAD_BYTES:
                 raise SoundCloudError(
@@ -520,14 +517,17 @@ class SoundCloudClient:
                 if gate_derived:
                     raise gates.GateProtocolChanged(message)
                 raise SoundCloudError(message)
-            if ".wav" in cd_lower or "wav" in ct_lower:
-                extension = ".wav"
-            elif ".flac" in cd_lower or "flac" in ct_lower:
-                extension = ".flac"
-            elif ".aiff" in cd_lower or ".aif" in cd_lower or "aiff" in ct_lower or "aif" in ct_lower:
-                extension = ".aiff"
-            elif ".zip" in cd_lower or "zip" in ct_lower:
-                extension = ".zip"
+            for candidate, disp_needles, type_needles in (
+                (".wav", (".wav",), ("wav",)),
+                (".flac", (".flac",), ("flac",)),
+                (".aiff", (".aiff", ".aif"), ("aiff", "aif")),
+                (".zip", (".zip",), ("zip",)),
+            ):
+                if any(n in cd_lower for n in disp_needles) or any(
+                    n in ct_lower for n in type_needles
+                ):
+                    extension = candidate
+                    break
 
             descriptor, temporary_name = tempfile.mkstemp(
                 prefix=".dj-digger-", suffix=".part", dir=directory
@@ -558,11 +558,6 @@ class SoundCloudClient:
                             if on_progress:
                                 on_progress(downloaded, total_size)
                 except Exception as stream_exc:
-                    if temporary.exists():
-                        try:
-                            temporary.unlink()
-                        except OSError:
-                            pass
                     raise SoundCloudError(f"Download stream read failed: {stream_exc}") from stream_exc
 
             if _looks_like_html(bytes(prefix)):
@@ -571,38 +566,23 @@ class SoundCloudClient:
                     raise gates.GateProtocolChanged(message)
                 raise SoundCloudError(message)
 
-            stem = _sanitize_filename(_download_stem(track))
-            with _DOWNLOAD_NAME_LOCK:
-                target = directory / f"{stem}{extension}"
-                counter = 1
-                while target.exists():
-                    target = directory / f"{stem} ({counter}){extension}"
-                    counter += 1
-                os.replace(temporary, target)
+            target = _claim_target(directory, track, extension, temporary)
+            # The temp name is gone after the rename; None keeps the finally
+            # below from turning a successful return into a PermissionError.
+            temporary = None
             return target
         except gates.GateError:
-            if 'temporary' in locals() and temporary.exists():
-                try:
-                    temporary.unlink()
-                except OSError:
-                    pass
             raise
         except SoundCloudError as exc:
-            if 'temporary' in locals() and temporary.exists():
-                try:
-                    temporary.unlink()
-                except OSError:
-                    pass
             if gate_derived:
                 raise gates.GateDownloadError(str(exc)) from exc
             raise
         except Exception as exc:
-            if 'temporary' in locals() and temporary.exists():
-                try:
-                    temporary.unlink()
-                except OSError:
-                    pass
             raise SoundCloudError(f"Download failed: {exc}") from exc
+        finally:
+            if temporary is not None:
+                with suppress(OSError):
+                    temporary.unlink(missing_ok=True)
 
     def resolve(self, url: str) -> dict[str, Any]:
         payload = self._get("/resolve", url=url)
@@ -624,7 +604,7 @@ class SoundCloudClient:
 
         position = {track_id: index for index, track_id in enumerate(ids)}
         tracks: list[Track] = []
-        for chunk in _chunks(ids, HYDRATE_BATCH):
+        for chunk in batched(ids, HYDRATE_BATCH):
             payload = self._get("/tracks", ids=",".join(str(i) for i in chunk))
             if isinstance(payload, list):
                 tracks.extend(Track.from_api(item) for item in payload if isinstance(item, dict))

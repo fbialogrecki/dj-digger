@@ -167,9 +167,7 @@ def extract_from_hydration(dataset: list | None) -> tuple[list[int], set[str], i
                 urls.add(clean_track_url(permalink))
 
     # Preserve playlist order while removing repeats.
-    seen: set[int] = set()
-    ordered_ids = [tid for tid in track_ids if not (tid in seen or seen.add(tid))]
-    return ordered_ids, urls, declared
+    return list(dict.fromkeys(track_ids)), urls, declared
 
 
 def extract_declared_track_count(html: str) -> int | None:
@@ -231,13 +229,8 @@ def extract_title(soup: BeautifulSoup) -> str:
 
 
 def normalize_link(track_url: str, href: str) -> str:
-    if href.startswith("//"):
-        return f"{urlparse(track_url).scheme}:{href}"
-    if href.startswith("/"):
-        parsed = urlparse(track_url)
-        return f"{parsed.scheme}://{parsed.netloc}{href}"
-    if href.startswith(("http://", "https://")):
-        return href
+    # urljoin already covers every branch this used to spell out by hand:
+    # scheme-relative //host, absolute /path, full http(s) URLs and relatives.
     return urljoin(track_url, href)
 
 

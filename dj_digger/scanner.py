@@ -13,7 +13,7 @@ import subprocess
 from pathlib import Path
 from typing import NamedTuple
 
-from .db import Database
+from .db import Database, database
 from .models import Track
 
 LOGGER = logging.getLogger(__name__)
@@ -87,7 +87,9 @@ class LocalScanner:
 
     def __init__(self, directories: list[Path] | None = None, db: Database | None = None) -> None:
         self.directories = directories or default_scan_directories()
-        self.db = db or Database()
+        # database(), not Database(): the scan runs on a worker thread and must
+        # share the one process-wide instance the UI thread is already using.
+        self.db = db or database()
         self._stale_stems: set[str] = set()
 
     def scan(self) -> int:

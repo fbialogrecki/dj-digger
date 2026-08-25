@@ -11,12 +11,12 @@ older version is imported once, by ``db.Database``, and then left alone.
 """
 
 import logging
-import os
 import threading
 from datetime import UTC, datetime
 from pathlib import Path
 
 from .db import database, default_db_path
+from .paths import data_dir
 
 NEW = "new"
 OPENED = "opened"
@@ -28,8 +28,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 def default_state_path() -> Path:
-    data_dir = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share")) / "dj-digger"
-    return data_dir / "state.json"
+    return data_dir() / "state.json"
 
 
 class TrackState:

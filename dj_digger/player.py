@@ -523,24 +523,17 @@ class HttpSourceMixin:
         return offset
 
 
-_http_source_type = None
-
-
 def open_source(session, url: str):
     """Start pulling a track into memory before anything has asked to hear it."""
 
     return http_source_type(_import_miniaudio())(session, url)
 
 
+@lru_cache(maxsize=None)
 def http_source_type(miniaudio):
     """The mixin welded onto miniaudio's StreamableSource, built once."""
 
-    global _http_source_type
-    if _http_source_type is None:
-        _http_source_type = type(
-            "HttpSource", (HttpSourceMixin, miniaudio.StreamableSource), {}
-        )
-    return _http_source_type
+    return type("HttpSource", (HttpSourceMixin, miniaudio.StreamableSource), {})
 
 
 @dataclass
@@ -684,7 +677,7 @@ class Player:
         # The source outlives a seek. Replacing it is what used to throw away
         # the buffered track and put a connection in front of every seek.
         if self._source is None:
-            self._source = http_source_type(miniaudio)(self._session, self._loaded.stream.url)
+            self._source = open_source(self._session, self._loaded.stream.url)
         return miniaudio.stream_any(
             self._source,
             source_format=miniaudio.FileFormat.MP3,

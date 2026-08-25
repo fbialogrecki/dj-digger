@@ -18,7 +18,9 @@ from typing import Any
 
 import requests
 
-CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME") or (Path.home() / ".config")) / "dj-digger"
+from .paths import config_dir, data_dir
+
+CONFIG_DIR = config_dir()
 AUTH_FILE = CONFIG_DIR / "auth.json"
 
 LOGGER = logging.getLogger(__name__)
@@ -37,8 +39,7 @@ class SoundCloudAuthCancelled(SoundCloudAuthError):
 def soundcloud_browser_profile_path() -> Path:
     """Return the private app-managed browser profile used only for SoundCloud."""
 
-    data_home = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share"))
-    path = data_home / "dj-digger" / "soundcloud-browser"
+    path = data_dir() / "soundcloud-browser"
     path.mkdir(parents=True, exist_ok=True, mode=0o700)
     if os.name != "nt":
         path.chmod(0o700)
@@ -50,19 +51,9 @@ def get_stored_token() -> str | None:
     env_token = os.environ.get("SOUNDCLOUD_OAUTH_TOKEN", "").strip()
     if env_token:
         return env_token
-
-    if not AUTH_FILE.exists():
-        return None
-
-    try:
-        data = json.loads(AUTH_FILE.read_text(encoding="utf-8"))
-        if isinstance(data, dict):
-            token = data.get("oauth_token")
-            if isinstance(token, str) and token.strip():
-                return token.strip()
-    except Exception as exc:
-        LOGGER.debug("Failed to read auth.json: %s", exc)
-
+    token = get_stored_auth_info().get("oauth_token")
+    if isinstance(token, str) and token.strip():
+        return token.strip()
     return None
 
 
@@ -78,7 +69,9 @@ def get_stored_auth_info() -> dict[str, Any]:
         return {}
 
 
-def write_private_json(path: Path, payload: dict[str, Any]) -> None:
+def write_private_json(
+    path: Path, payload: dict[str, Any], *, ensure_ascii: bool = True
+) -> None:
     """Atomically write credentials without making them broadly readable.
 
     Not ``write_text`` followed by a chmod: that creates the file with the umask
@@ -99,7 +92,7 @@ def write_private_json(path: Path, payload: dict[str, Any]) -> None:
     descriptor, temporary = tempfile.mkstemp(dir=str(directory), prefix=".auth-", suffix=".tmp")
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-            json.dump(payload, stream, indent=2)
+            json.dump(payload, stream, indent=2, ensure_ascii=ensure_ascii)
         os.replace(temporary, path)
     except BaseException:
         # Never leave a temporary holding the token behind on the way out.
@@ -238,13 +231,7 @@ def scan_browser_cookies() -> list[str]:
         found_tokens.extend(_extract_sqlite_cookies(path))
 
     # Deduplicate while preserving order
-    seen = set()
-    result = []
-    for t in found_tokens:
-        if t not in seen:
-            seen.add(t)
-            result.append(t)
-    return result
+    return list(dict.fromkeys(found_tokens))
 
 
 def auto_detect_and_verify(client_id: str) -> tuple[str, str, int] | None:

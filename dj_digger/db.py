@@ -6,13 +6,14 @@ Supports WAL mode for concurrent background worker writes without UI thread lock
 
 import json
 import logging
-import os
 import sqlite3
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
+
+from .paths import data_dir
 
 LOGGER = logging.getLogger(__name__)
 
@@ -26,8 +27,7 @@ _LOCK = threading.Lock()
 
 
 def default_db_path() -> Path:
-    data_dir = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share")) / "dj-digger"
-    return data_dir / "digger.db"
+    return data_dir() / "digger.db"
 
 
 def database(db_path: Path | None = None) -> "Database":
