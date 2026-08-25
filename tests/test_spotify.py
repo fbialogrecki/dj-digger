@@ -80,12 +80,23 @@ def test_pkce_login_opens_the_browser_validates_state_and_saves_tokens(
     assert opened[0][1] == "firefox"
     assert query["scope"] == [spotify.SCOPE]
     assert query["code_challenge_method"] == ["S256"]
-    assert query["redirect_uri"][0].startswith("http://127.0.0.1:")
+    assert query["redirect_uri"] == ["http://127.0.0.1:43821/callback"]
     exchange = session.posts[0][1]["data"]
     assert exchange["grant_type"] == "authorization_code"
     assert exchange["code"] == "authorization-code"
     assert exchange["code_verifier"]
     assert spotify.load_credentials()["refresh_token"] == "refresh"
+
+
+def test_pkce_login_reports_a_busy_callback_port(monkeypatch):
+    class BusyServer:
+        def __init__(self, *_args, **_kwargs):
+            raise OSError("address in use")
+
+    monkeypatch.setattr(spotify, "HTTPServer", BusyServer)
+
+    with pytest.raises(spotify.SpotifyError, match="43821.*already in use"):
+        spotify.login("client-id")
 
 
 def test_pkce_login_rejects_the_wrong_state(tmp_path, monkeypatch):
@@ -197,8 +208,35 @@ def test_artist_uris_are_saved_with_the_minimum_scope(tmp_path, monkeypatch):
     spotify.save_uris(["spotify:artist:0oVDzp5DK2caqb6FuL2mhp"], session=session)
 
     url, kwargs = session.puts[0]
-    assert url == "https://api.spotify.com/v1/me/library"
-    assert kwargs["params"] == {"uris": "spotify:artist:0oVDzp5DK2caqb6FuL2mhp"}
+    assert url == "https://api.spotify.com/v1/me/following"
+    assert kwargs["params"] == {
+        "type": "artist",
+        "ids": "0oVDzp5DK2caqb6FuL2mhp",
+    }
+    assert kwargs["headers"] == {"Authorization": "Bearer access"}
+
+
+def test_playlist_uri_uses_the_playlist_follow_endpoint(tmp_path, monkeypatch):
+    path = tmp_path / "spotify.json"
+    monkeypatch.setattr(spotify, "AUTH_FILE", path)
+    spotify.save_credentials(
+        {
+            "client_id": "client",
+            "refresh_token": "refresh",
+            "access_token": "access",
+            "expires_at": time.time() + 3600,
+            "scope": spotify.SCOPE,
+        }
+    )
+    session = Session(put=Response(status_code=200))
+
+    spotify.save_uris(["spotify:playlist:37i9dQZF1DXcBWIGoYBM5M"], session=session)
+
+    url, kwargs = session.puts[0]
+    assert url == (
+        "https://api.spotify.com/v1/playlists/37i9dQZF1DXcBWIGoYBM5M/followers"
+    )
+    assert "params" not in kwargs
     assert kwargs["headers"] == {"Authorization": "Bearer access"}
 
 

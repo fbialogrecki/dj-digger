@@ -100,7 +100,10 @@ def is_fetchable(url: str) -> bool:
 
     if not is_openable(url):
         return False
-    host = (urlparse(url).hostname or "").lower()
+    parsed = urlparse(url)
+    if parsed.username is not None or parsed.password is not None:
+        return False
+    host = (parsed.hostname or "").lower()
     # RFC 6761 reserves these for the local machine, so they need no lookup.
     if host == "localhost" or host.endswith(".localhost"):
         return False

@@ -184,29 +184,60 @@ working display.
 ## 🔐 Authentication for Artist Downloads
 
 Some artist-provided SoundCloud downloads require a logged-in account even when
-the track is public. Run `dj-digger auth login` to detect a Firefox session, or
-provide the SoundCloud OAuth cookie explicitly:
+the track is public. Run `dj-digger auth login`: an existing valid login or a
+readable Firefox session is used first, otherwise dj-digger opens a dedicated
+Playwright Chromium profile and waits up to five minutes for you to log in. Only
+the verified `oauth_token` cookie is copied to dj-digger; passwords and other
+cookies are not written to its credential file. If Chromium cannot start, the
+command offers a hidden token-paste fallback:
 
 ```bash
+dj-digger auth login
 dj-digger auth login --token YOUR_SOUNDCLOUD_OAUTH_TOKEN
 dj-digger auth status
+dj-digger auth logout
 ```
+
+The TUI opens the same choice automatically when a download needs SoundCloud.
+Cancelling leaves the track untouched. A successful login recreates the API
+client after active downloads finish and retries the waiting track once.
+
+SoundCloud's private browser profile lives in
+`~/.local/share/dj-digger/soundcloud-browser`; its verified API credential lives
+in the owner-only `~/.config/dj-digger/auth.json` (the standard XDG environment
+variables override both base directories).
+If `SOUNDCLOUD_OAUTH_TOKEN` is set, it deliberately overrides that file; an
+invalid value must be unset or updated before the CLI wizard can replace a login.
+
+When Hypeddit or GateRush requires an email address, the TUI asks for a real
+name and email before it submits the gate. It explains who receives those data,
+rejects placeholders and malformed addresses, and retries only the downloads
+that were waiting for the profile. Cancelling sends no retry request.
 
 ### Spotify-backed download gates
 
-Some Hypeddit gates require following an artist on Spotify. Create an app in the
-[Spotify Developer Dashboard](https://developer.spotify.com/dashboard), add
-`http://127.0.0.1/callback` as its redirect URI, and log in once:
+Some Hypeddit gates require following an artist or public playlist on Spotify. The first command
+opens the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
+and walks you through creating a Web API app. Add this exact redirect URI:
+
+```text
+http://127.0.0.1:43821/callback
+```
+
+Then paste the public Client ID when prompted. `--client-id` remains available
+for scripts and skips the Dashboard step:
 
 ```bash
+dj-digger auth spotify login
 dj-digger auth spotify login --client-id YOUR_CLIENT_ID
 dj-digger auth spotify status
 ```
 
 The login uses Authorization Code with PKCE and requests only
-`user-follow-modify`. It listens temporarily on a dynamically selected
-`127.0.0.1` port; Spotify permits dynamic ports for literal loopback addresses,
-but not for `localhost`. Credentials stay in an owner-only local file. See
+`user-follow-modify playlist-modify-public`. It listens temporarily on the fixed loopback callback
+above; if port `43821` is occupied it stops before opening the authorization
+page. A Client Secret is neither requested nor stored. Credentials stay in the
+owner-only `~/.config/dj-digger/spotify.json`. See
 Spotify's [redirect URI rules](https://developer.spotify.com/documentation/web-api/concepts/redirect_uri)
 and [PKCE guide](https://developer.spotify.com/documentation/web-api/tutorials/code-pkce-flow).
 

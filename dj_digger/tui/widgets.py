@@ -5,6 +5,7 @@ from textual import events
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, VerticalScroll
+from textual.message import Message
 from textual.widget import Widget
 from textual.widgets import Button, DataTable, Footer, Input, Label, ListItem, Static
 from textual.widgets._footer import FooterKey
@@ -62,6 +63,7 @@ class TrackTable(DataTable):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self.flexible_column: ColumnKey | None = None
+        self._right_click_pending = False
 
     def on_resize(self, event: events.Resize) -> None:
         self.fit_flexible_column()
@@ -83,6 +85,31 @@ class TrackTable(DataTable):
         width = available - spent - 2 * self.cell_padding
         column.width = max(MIN_TITLE_WIDTH, width)
         self.refresh(layout=True)
+
+    class ContextMenuRequested(Message):
+        pass
+
+    def on_mouse_down(self, event: events.MouseDown) -> None:
+        self._right_click_pending = event.button == 3
+
+    def _post_selected_message(self) -> None:
+        # DataTable.RowSelected no longer carries the mouse button, so suppress
+        # it here before the app mistakes a right click for Enter.
+        if not self._right_click_pending:
+            super()._post_selected_message()
+
+    async def _on_click(self, event: events.Click) -> None:
+        if event.button != 3:
+            await super()._on_click(event)
+            return
+        event.stop()
+        row = event.style.meta.get("row")
+        column = event.style.meta.get("column")
+        if not isinstance(row, int) or not 0 <= row < self.row_count:
+            return
+        self.move_cursor(row=row, column=column if isinstance(column, int) else None)
+        self.post_message(self.ContextMenuRequested())
+        self.call_later(setattr, self, "_right_click_pending", False)
 
 
 class SearchInput(Input):

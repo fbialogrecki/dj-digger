@@ -71,6 +71,17 @@ def test_an_address_the_user_chose_is_left_alone(tmp_path):
     assert config.has_real_email() is True
 
 
+def test_gate_email_rejects_whitespace_and_malformed_addresses(tmp_path):
+    config = AppConfig(tmp_path / "config.json")
+
+    for address in ("listener", "listener @example.com", "@example.com", "listener@"):
+        config.user_email = address
+        assert config.has_real_email() is False
+
+    config.user_email = "listener+gates@example.com"
+    assert config.has_real_email() is True
+
+
 def test_the_browser_choice_round_trips(tmp_path):
     path = tmp_path / "config.json"
     config = AppConfig(path)

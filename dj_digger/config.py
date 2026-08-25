@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import random
+import re
 from pathlib import Path
 
 LOGGER = logging.getLogger(__name__)
@@ -21,7 +22,13 @@ DEFAULT_NAME = "Music Listener"
 # artist mailing lists - so it is retired rather than merely changed.
 DEFAULT_EMAIL = "dj-digger@example.invalid"
 RETIRED_EMAILS = frozenset({"music.listener@yahoo.com"})
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 DEFAULT_COMMENTS = ["Love it!", "Amazing track!", "Dope tune!", "Fire!", "Banger!", "Great tune!"]
+
+
+def is_real_email(value: str) -> bool:
+    email = value.strip()
+    return bool(EMAIL_RE.fullmatch(email)) and not email.lower().endswith(".invalid")
 
 
 def default_config_path() -> Path:
@@ -119,4 +126,4 @@ class AppConfig:
     def has_real_email(self) -> bool:
         """False while the profile still carries the unroutable placeholder."""
 
-        return bool(self.user_email) and not self.user_email.lower().endswith(".invalid")
+        return is_real_email(self.user_email)

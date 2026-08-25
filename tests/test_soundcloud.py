@@ -2,7 +2,12 @@ import pytest
 
 from dj_digger import soundcloud
 from dj_digger.models import Track
-from dj_digger.soundcloud import SoundCloudClient, SoundCloudError
+from dj_digger.soundcloud import (
+    SoundCloudClient,
+    SoundCloudError,
+    SoundCloudLoginRequired,
+    SoundCloudTokenRejected,
+)
 
 DUMMY_CLIENT_ID = "0" * 32
 
@@ -90,7 +95,7 @@ def test_a_free_download_without_a_url_explains_that_login_is_required(tmp_path)
         session=SequenceSession([]), client_id=DUMMY_CLIENT_ID, oauth_token=""
     )
 
-    with pytest.raises(SoundCloudError, match="SoundCloud login is required"):
+    with pytest.raises(SoundCloudLoginRequired, match="SoundCloud login is required"):
         client.download_track(medusa_track(), tmp_path)
 
 
@@ -101,7 +106,7 @@ def test_a_rejected_download_endpoint_explains_that_login_expired(tmp_path):
         oauth_token="expired",
     )
 
-    with pytest.raises(SoundCloudError, match="expired or was rejected"):
+    with pytest.raises(SoundCloudTokenRejected, match="expired or was rejected"):
         client.download_track(medusa_track(), tmp_path)
 
 
@@ -196,6 +201,47 @@ def test_a_gate_answering_with_a_web_page_is_not_saved_as_a_track(tmp_path):
         client.download_track(track, destination)
 
     assert list(destination.iterdir()) == []
+
+
+def test_html_is_rejected_even_when_the_gate_lies_about_its_content_type(tmp_path):
+    session = DownloadSession(
+        DownloadResponse(
+            [b"  <!doctype html><html>not unlocked</html>"],
+            headers={"Content-Type": "audio/mpeg"},
+        )
+    )
+    client = make_client(session)
+    track = Track(
+        title="T",
+        artist="A",
+        permalink_url="https://soundcloud.com/a/t",
+        downloadable=True,
+        has_downloads_left=True,
+        download_url="https://gate.example/file",
+    )
+
+    with pytest.raises(soundcloud.SoundCloudError, match="web page"):
+        client.download_track(track, tmp_path / "downloads")
+
+
+def test_a_public_download_cannot_redirect_to_localhost(tmp_path):
+    redirect = DownloadResponse([], headers={"Location": "http://127.0.0.1/private"})
+    redirect.status_code = 302
+    session = DownloadSession(redirect)
+    client = make_client(session)
+    track = Track(
+        title="T",
+        artist="A",
+        permalink_url="https://soundcloud.com/a/t",
+        downloadable=True,
+        has_downloads_left=True,
+        download_url="https://cdn.example/file.mp3",
+    )
+
+    with pytest.raises(soundcloud.SoundCloudError, match="unsafe address"):
+        client.download_track(track, tmp_path / "downloads")
+
+    assert len(session.calls) == 1
 
 
 def test_a_download_runs_on_the_session_it_was_given(tmp_path, monkeypatch):

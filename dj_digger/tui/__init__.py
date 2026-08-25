@@ -44,7 +44,15 @@ from .keymap import (
     WHOLE_LIST,
 )
 from .rows import Prepared, Row
-from .screens import AskLinkScreen, ConfirmScreen, HelpScreen, SettingsScreen
+from .screens import (
+    AskLinkScreen,
+    ConfirmScreen,
+    ContextMenuScreen,
+    GateProfileScreen,
+    HelpScreen,
+    SettingsScreen,
+    SoundCloudAuthScreen,
+)
 from .widgets import (
     CrateButton,
     CrateItem,
@@ -59,10 +67,10 @@ __all__ = [
     "CALM_TICK", "CRATES", "FLASH", "HELP_EXTRA", "HELP_SCOPES", "KEYMAP",
     "KEY_DISPLAY", "MIN_TITLE_WIDTH", "OTHER", "PLAYBACK", "PLAYING_GLYPH",
     "SELECTED", "SPINNER", "SPINNER_EVERY", "STATUS_STYLES", "TICK",
-    "WHOLE_LIST", "AskLinkScreen", "ConfirmScreen", "CrateButton", "CrateItem",
+    "WHOLE_LIST", "AskLinkScreen", "ConfirmScreen", "ContextMenuScreen", "GateProfileScreen", "CrateButton", "CrateItem",
     "DiggerApp", "ErrorBanner", "FittedFooter", "HelpScreen", "PlayerBar",
     "Prepared", "Row", "SearchInput",
-    "SettingsScreen", "StatusBar", "TrackTable", "browser_module", "run_tui",
+    "SettingsScreen", "SoundCloudAuthScreen", "StatusBar", "TrackTable", "browser_module", "run_tui",
 ]
 
 

@@ -103,6 +103,9 @@ def test_auth_subcommand_parsing():
     assert args.spotify_action == "login"
     assert args.client_id == "client"
 
+    args = cli.parse_cli_args(["auth", "spotify", "login"])
+    assert args.client_id is None
+
     args = cli.parse_cli_args(["auth", "spotify", "status"])
     assert args.spotify_action == "status"
 
@@ -131,6 +134,157 @@ def test_spotify_auth_status_and_logout(tmp_path, monkeypatch, capsys):
         == 0
     )
     assert spotify.load_credentials() == {}
+
+
+def test_spotify_login_reuses_the_saved_client_id(tmp_path, monkeypatch):
+    from dj_digger import spotify
+
+    monkeypatch.setattr(spotify, "AUTH_FILE", tmp_path / "spotify.json")
+    spotify.save_credentials({"client_id": "saved-client", "refresh_token": "refresh"})
+    calls = []
+    monkeypatch.setattr(spotify, "login", lambda client_id, **kwargs: calls.append(client_id))
+    monkeypatch.setattr(
+        cli.browser_module,
+        "open_url",
+        lambda *_args: pytest.fail("configured login must not reopen the dashboard"),
+    )
+
+    assert cli.handle_auth(
+        argparse.Namespace(auth_action="spotify", spotify_action="login", client_id=None)
+    ) == 0
+    assert calls == ["saved-client"]
+
+
+def test_spotify_login_guides_an_interactive_first_run(tmp_path, monkeypatch, capsys):
+    from dj_digger import spotify
+
+    monkeypatch.setattr(spotify, "AUTH_FILE", tmp_path / "spotify.json")
+    monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr("builtins.input", lambda _prompt: "new-client")
+    opened = []
+    monkeypatch.setattr(cli.browser_module, "open_url", lambda url, browser: opened.append(url) or True)
+    calls = []
+    monkeypatch.setattr(spotify, "login", lambda client_id, **kwargs: calls.append(client_id))
+
+    assert cli.handle_auth(
+        argparse.Namespace(auth_action="spotify", spotify_action="login", client_id=None)
+    ) == 0
+
+    output = capsys.readouterr().out
+    assert spotify.REDIRECT_URI in output
+    assert opened == [spotify.DASHBOARD_URL]
+    assert calls == ["new-client"]
+
+
+def test_spotify_login_without_a_tty_requires_an_explicit_client_id(
+    tmp_path, monkeypatch, capsys
+):
+    from dj_digger import spotify
+
+    monkeypatch.setattr(spotify, "AUTH_FILE", tmp_path / "spotify.json")
+    monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: False)
+    monkeypatch.setattr(
+        spotify,
+        "login",
+        lambda *_args, **_kwargs: pytest.fail("non-interactive login must not block"),
+    )
+
+    assert cli.handle_auth(
+        argparse.Namespace(auth_action="spotify", spotify_action="login", client_id=None)
+    ) == 1
+    assert "--client-id" in capsys.readouterr().out
+
+
+def test_soundcloud_login_opens_managed_chromium_after_detection_fails(
+    monkeypatch, capsys
+):
+    monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(cli.auth_module, "get_stored_token", lambda: None)
+    monkeypatch.setattr(cli.auth_module, "auto_detect_and_verify", lambda _id: None)
+    monkeypatch.setattr(
+        cli.auth_module,
+        "login_with_chromium",
+        lambda client_id, **_kwargs: ("secret", "DJ Test", 42),
+    )
+    monkeypatch.setattr(
+        cli.soundcloud.SoundCloudClient,
+        "client_id",
+        property(lambda _self: "client-id"),
+    )
+
+    assert cli.handle_auth(argparse.Namespace(auth_action="login", token=None)) == 0
+    output = capsys.readouterr().out
+    assert "DJ Test" in output
+    assert "secret" not in output
+
+
+def test_soundcloud_login_uses_hidden_manual_fallback_when_browser_cannot_start(
+    monkeypatch, capsys
+):
+    monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(cli.auth_module, "get_stored_token", lambda: None)
+    monkeypatch.setattr(cli.auth_module, "auto_detect_and_verify", lambda _id: None)
+    monkeypatch.setattr(
+        cli.auth_module,
+        "login_with_chromium",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            cli.auth_module.SoundCloudAuthError("browser unavailable")
+        ),
+    )
+    monkeypatch.setattr(cli.getpass, "getpass", lambda _prompt: "pasted-token")
+    monkeypatch.setattr(
+        cli.auth_module,
+        "verify_and_save",
+        lambda token, client_id: (token, "Manual DJ", 8),
+    )
+    monkeypatch.setattr(
+        cli.soundcloud.SoundCloudClient,
+        "client_id",
+        property(lambda _self: "client-id"),
+    )
+
+    assert cli.handle_auth(argparse.Namespace(auth_action="login", token=None)) == 0
+    output = capsys.readouterr().out
+    assert "Manual DJ" in output
+    assert "pasted-token" not in output
+
+
+def test_soundcloud_login_does_not_wait_for_browser_without_a_tty(monkeypatch):
+    monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: False)
+    monkeypatch.setattr(cli.auth_module, "get_stored_token", lambda: None)
+    monkeypatch.setattr(cli.auth_module, "auto_detect_and_verify", lambda _id: None)
+    monkeypatch.setattr(
+        cli.auth_module,
+        "login_with_chromium",
+        lambda *_args, **_kwargs: pytest.fail("must not open interactive browser"),
+    )
+    monkeypatch.setattr(
+        cli.soundcloud.SoundCloudClient,
+        "client_id",
+        property(lambda _self: "client-id"),
+    )
+
+    assert cli.handle_auth(argparse.Namespace(auth_action="login", token=None)) == 1
+
+
+def test_invalid_soundcloud_environment_override_is_reported_before_wizard(
+    monkeypatch, capsys
+):
+    monkeypatch.setenv("SOUNDCLOUD_OAUTH_TOKEN", "stale-env-token")
+    monkeypatch.setattr(cli.auth_module, "verify_token", lambda *_args: None)
+    monkeypatch.setattr(
+        cli.auth_module,
+        "login_with_chromium",
+        lambda *_args, **_kwargs: pytest.fail("shadowed login must not be offered"),
+    )
+    monkeypatch.setattr(
+        cli.soundcloud.SoundCloudClient,
+        "client_id",
+        property(lambda _self: "client-id"),
+    )
+
+    assert cli.handle_auth(argparse.Namespace(auth_action="login", token=None)) == 1
+    assert "SOUNDCLOUD_OAUTH_TOKEN" in capsys.readouterr().out
 
 
 def test_unknown_export_format_is_rejected():

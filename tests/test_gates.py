@@ -1,3 +1,5 @@
+import json
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -5,12 +7,14 @@ import requests
 
 from dj_digger import gates, spotify
 from dj_digger.gates import (
+    inspect_link_page,
     resolve_gate_download_url,
     resolve_gaterush_download_url,
     resolve_hypeddit_download_url,
     resolve_toneden_download_url,
     store_links_on_page,
 )
+from dj_digger.models import Track
 
 
 def test_resolve_hypeddit_var_in_html():
@@ -164,15 +168,13 @@ def gate_html(*, steps, spotify_value=""):
     )
 
 
-def session_for_gate(page, download_payload=None, email_status="T"):
+def session_for_gate(page, download_payload=None):
     session = MagicMock(spec=requests.Session)
     session.get.return_value = MagicMock(status_code=200, text=page)
 
     def post(url, **kwargs):
         response = MagicMock(status_code=200)
-        if url.endswith("verifyEmailAddress"):
-            response.json.return_value = {"status": email_status}
-        elif url.endswith("/gate/download/ul"):
+        if url.endswith("/gate/download/ul"):
             response.json.return_value = download_payload or {
                 "download_status": True,
                 "URL": "https://hypeddit.com/download/file.wav",
@@ -188,13 +190,71 @@ def session_for_gate(page, download_payload=None, email_status="T"):
 def test_placeholder_email_stops_before_hypeddit_receives_any_post():
     session = session_for_gate(gate_html(steps="email,sc"))
 
-    with pytest.raises(RuntimeError, match="real email"):
+    with pytest.raises(RuntimeError, match="real email") as caught:
         resolve_hypeddit_download_url(
             "https://hypeddit.com/track/zrw7vu",
             session,
             config=StubConfig("dj-digger@example.invalid"),
         )
 
+    assert type(caught.value).__name__ == "GateProfileRequired"
+    session.post.assert_not_called()
+
+
+def test_hypeddit_captcha_stays_an_actionable_manual_case():
+    session = session_for_gate(
+        gate_html(steps="email,sc").replace(
+            "</body>", '<div class="g-recaptcha"></div></body>'
+        )
+    )
+
+    with pytest.raises(RuntimeError, match="CAPTCHA.*browser completion"):
+        resolve_hypeddit_download_url(
+            "https://hypeddit.com/track/captcha",
+            session,
+            config=StubConfig("dj@example.com"),
+        )
+
+    session.post.assert_not_called()
+
+
+def test_makeba_marks_desktop_social_steps_complete_without_pathway_posts():
+    fixtures = Path(__file__).parent / "fixtures"
+    page = (fixtures / "hypeddit_makeba.html").read_text(encoding="utf-8")
+    response = json.loads(
+        (fixtures / "hypeddit_makeba_download.json").read_text(encoding="utf-8")
+    )
+    session = session_for_gate(page, response)
+
+    result = resolve_hypeddit_download_url(
+        "https://hypeddit.com/corruptedmind/makeba",
+        session,
+        config=StubConfig("dj@example.com", gate_social_actions=True),
+    )
+
+    assert result == "https://hypeddit.com/download/fixture-makeba.wav"
+    payload = _posted_to(session, "/gate/download/ul")[0]
+    assert payload["skip_gate_steps[]"] == ["ig", "sc"]
+    assert payload["additional_ig_user_id[]"] == ["fixture-instagram-user"]
+    assert payload["additional_sc_user_id[]"] == ["fixture-soundcloud-user"]
+    assert payload["external_id"] == "fixture-external-id"
+    assert payload["wrndk"] == "fixture-wrndk"
+    assert _posted_to(session, "/setGatePathway") == []
+    assert _posted_to(session, "/setGatePathwayOr") == []
+
+
+def test_gaterush_never_submits_a_placeholder_email():
+    session = MagicMock(spec=requests.Session)
+
+    with pytest.raises(RuntimeError, match="real email") as caught:
+        resolve_gaterush_download_url(
+            "https://gaterush.me/a-gate",
+            session,
+            config=StubConfig("dj-digger@example.invalid"),
+        )
+
+    assert type(caught.value).__name__ == "GateProfileRequired"
+    session.get.assert_not_called()
     session.post.assert_not_called()
 
 
@@ -215,6 +275,22 @@ def test_spotify_artist_is_saved_before_hypeddit_download(monkeypatch):
     assert result == "https://hypeddit.com/download/file.wav"
 
 
+def test_spotify_playlist_is_saved_before_hypeddit_download(monkeypatch):
+    session = session_for_gate(
+        gate_html(steps="sc,sp", spotify_value="PLAY|37i9dQZF1DXcBWIGoYBM5M")
+    )
+    saved = []
+    monkeypatch.setattr(spotify, "save_uris", lambda uris: saved.extend(uris))
+
+    resolve_hypeddit_download_url(
+        "https://hypeddit.com/track/playlist",
+        session,
+        config=StubConfig("dj@example.com"),
+    )
+
+    assert saved == ["spotify:playlist:37i9dQZF1DXcBWIGoYBM5M"]
+
+
 def test_spotify_step_respects_the_social_actions_switch(monkeypatch):
     session = session_for_gate(
         gate_html(steps="sc,sp", spotify_value="ART|0oVDzp5DK2caqb6FuL2mhp")
@@ -225,7 +301,7 @@ def test_spotify_step_respects_the_social_actions_switch(monkeypatch):
         lambda uris: pytest.fail("Spotify must not be changed"),
     )
 
-    with pytest.raises(RuntimeError, match="social actions"):
+    with pytest.raises(RuntimeError, match="social steps"):
         resolve_hypeddit_download_url(
             "https://hypeddit.com/track/xngfus",
             session,
@@ -240,7 +316,7 @@ def test_unknown_spotify_gate_action_stays_manual():
         gate_html(steps="sp", spotify_value="PLAYLIST|abc")
     )
 
-    with pytest.raises(RuntimeError, match="unsupported Spotify action"):
+    with pytest.raises(RuntimeError, match="browser completion"):
         resolve_hypeddit_download_url(
             "https://hypeddit.com/track/unknown",
             session,
@@ -250,15 +326,19 @@ def test_unknown_spotify_gate_action_stays_manual():
     session.post.assert_not_called()
 
 
-def test_rejected_hypeddit_email_is_actionable():
-    session = session_for_gate(gate_html(steps="email"), email_status="F")
+def test_email_is_submitted_only_in_the_single_desktop_download_post():
+    session = session_for_gate(gate_html(steps="email"))
 
-    with pytest.raises(RuntimeError, match="rejected the configured email"):
-        resolve_hypeddit_download_url(
-            "https://hypeddit.com/track/email",
-            session,
-            config=StubConfig("dj@example.com"),
-        )
+    resolve_hypeddit_download_url(
+        "https://hypeddit.com/track/email",
+        session,
+        config=StubConfig("dj@example.com"),
+    )
+
+    assert _posted_to(session, "/verifyEmailAddress") == []
+    payloads = _posted_to(session, "/gate/download/ul")
+    assert len(payloads) == 1
+    assert payloads[0]["email"] == "dj@example.com"
 
 
 def test_rejected_hypeddit_download_is_actionable():
@@ -274,8 +354,114 @@ def test_rejected_hypeddit_download_is_actionable():
         )
 
 
-def test_a_gate_is_told_about_the_repost_only_when_it_was_allowed():
-    """Every version up to 0.8 sent these, and said so in no interface at all."""
+def test_gate_telemetry_is_best_effort_and_never_blocks_download():
+    page = gate_html(steps="sc").replace(
+        '<input name="gvf" value="0">',
+        '<input name="gvf" value="0"><input name="gvt" value="visit-token">',
+    )
+    session = session_for_gate(page)
+
+    original = session.post.side_effect
+
+    def post(url, **kwargs):
+        if url.endswith("/gate/ge"):
+            raise requests.RequestException("telemetry down")
+        return original(url, **kwargs)
+
+    session.post.side_effect = post
+    assert resolve_hypeddit_download_url(
+        "https://hypeddit.com/track/telemetry",
+        session,
+        config=StubConfig("dj@example.com"),
+    ) == "https://hypeddit.com/download/file.wav"
+    assert len(_posted_to(session, "/gate/ge")) == 1
+    assert len(_posted_to(session, "/gate/download/ul")) == 1
+
+
+def test_missing_steps_is_a_hub_not_an_invented_email_soundcloud_gate():
+    page = '<html><body><a href="https://label.bandcamp.com/track/a">Buy</a></body></html>'
+    inspection = gates.inspect_hypeddit_html("https://hypeddit.com/a", page)
+
+    assert inspection.kind == "hub"
+    assert inspection.manifest is None
+
+
+def test_unknown_hypeddit_page_is_a_protocol_error_not_no_download():
+    session = session_for_gate("<html><body>new client-rendered gate</body></html>")
+
+    with pytest.raises(gates.GateProtocolChanged, match="no supported download manifest"):
+        resolve_hypeddit_download_url(
+            "https://hypeddit.com/future/gate", session, config=StubConfig("dj@example.com")
+        )
+
+    session.post.assert_not_called()
+
+
+def test_ky9i8z_smartlink_id_does_not_turn_the_wrapper_into_a_gate():
+    page = """
+    <html><body>
+      <input name="fan_gate_id" value="806138">
+      <a href="https://hypeddit.com/track/nmqt0z" data-button_type="DOWNLOAD">Free 320kbps</a>
+      <a href="https://www.beatport.com/release/ghetto-bass/2470877">Beatport</a>
+      <a href="https://terrenceandphillip.bandcamp.com/">Bandcamp</a>
+    </body></html>
+    """
+
+    inspection = gates.inspect_hypeddit_html(
+        "https://hypeddit.com/link/ky9i8z", page
+    )
+
+    assert inspection.kind == "hub"
+    assert inspection.manifest is None
+    assert inspection.nested_gates == ("https://hypeddit.com/track/nmqt0z",)
+    assert [url for url, _label in inspection.shops] == [
+        "https://www.beatport.com/release/ghetto-bass/2470877",
+        "https://terrenceandphillip.bandcamp.com/",
+    ]
+
+
+def test_gate_hosts_must_match_exactly():
+    assert gates.can_resolve("https://www.hypeddit.com/track/ok") is True
+    assert gates.can_resolve("https://hypeddit.com.attacker.example/track/no") is False
+    assert gates.can_resolve("https://evil.toneden.io/post/no") is False
+
+
+def test_hypeddit_page_redirect_to_localhost_is_blocked_before_second_get():
+    session = MagicMock(spec=requests.Session)
+    redirect = MagicMock(
+        status_code=302,
+        headers={"Location": "http://127.0.0.1:8080/admin"},
+    )
+    session.get.return_value = redirect
+
+    with pytest.raises(gates.GateProtocolChanged, match="unsafe address"):
+        resolve_hypeddit_download_url(
+            "https://hypeddit.com/track/x",
+            session,
+            config=StubConfig("dj@example.com"),
+        )
+
+    assert session.get.call_count == 1
+
+
+def test_hypeddit_fallback_shares_the_soundcloud_browser_profile_lock(tmp_path):
+    from dj_digger import auth
+
+    assert auth.BROWSER_PROFILE_LOCK.acquire(blocking=False)
+    try:
+        with pytest.raises(gates.GateUnavailable, match="profile is already in use"):
+            gates.download_hypeddit_in_browser(
+                Track(title="T", permalink_url="https://soundcloud.com/a/t"),
+                "https://hypeddit.com/track/x",
+                tmp_path,
+                False,
+                None,
+            )
+    finally:
+        auth.BROWSER_PROFILE_LOCK.release()
+
+
+def test_soundcloud_click_through_never_calls_soundcloud_or_mobile_step_endpoints():
 
     session = _stepping_gate_session()
     resolve_hypeddit_download_url(
@@ -284,28 +470,22 @@ def test_a_gate_is_told_about_the_repost_only_when_it_was_allowed():
         config=StubConfig("dj@example.com", gate_social_actions=True),
     )
 
-    payloads = _posted_to(session, "/setSC")
-    assert payloads, "the SoundCloud step should still run"
-    assert payloads[0]["is_repost"] == 1
-    assert payloads[0]["is_subscribe"] == 1
-    assert payloads[0]["comment_sc"] == "Fire!"
+    assert _posted_to(session, "/setSC") == []
+    assert _posted_to(session, "/setYT") == []
+    payloads = _posted_to(session, "/gate/download/ul")
+    assert payloads[0]["skip_gate_steps[]"] == ["sc"]
 
 
-def test_a_gate_gets_no_repost_no_follow_and_no_comment_when_it_was_refused():
+def test_social_steps_stop_before_any_post_when_they_were_refused():
     session = _stepping_gate_session()
-    resolve_hypeddit_download_url(
-        "https://hypeddit.com/track/abc1234",
-        session,
-        config=StubConfig("dj@example.com", gate_social_actions=False),
-    )
+    with pytest.raises(gates.GateSocialActionsDisabled):
+        resolve_hypeddit_download_url(
+            "https://hypeddit.com/track/abc1234",
+            session,
+            config=StubConfig("dj@example.com", gate_social_actions=False),
+        )
 
-    payloads = _posted_to(session, "/setSC")
-    assert payloads, "the step itself still runs - the gate counts it"
-    assert payloads[0]["is_repost"] == 0
-    assert payloads[0]["is_subscribe"] == 0
-    assert payloads[0]["comment_sc"] == ""
-    # And nothing is written under your name on the YouTube step either.
-    assert all(payload["comment_yt"] == "" for payload in _posted_to(session, "/setYT"))
+    session.post.assert_not_called()
 
 
 def test_gaterush_posts_no_comment_when_social_actions_are_refused():
@@ -442,6 +622,34 @@ def test_a_page_that_hands_over_a_file_is_left_as_a_gate():
         "<button>Free Download</button></body></html>"
     )
     assert store_links_on_page("https://hypeddit.com/track/abc", HubSession(page)) == []
+
+    inspection = inspect_link_page(
+        "https://hypeddit.com/track/abc",
+        HubSession(page, landed="https://hypeddit.com/track/abc"),
+    )
+    assert inspection.keep_original is True
+    assert inspection.shops == (("https://label.bandcamp.com/track/a", "Buy"),)
+
+
+def test_hypeddit_hybrid_keeps_shops_and_replaces_wrapper_with_nested_gate():
+    page = """
+    <html><body>
+      <a href="https://www.beatport.com/release/ghetto-bass/2470877">Beatport</a>
+      <a href="https://terrenceandphillip.bandcamp.com/">Bandcamp</a>
+      <a href="https://hypeddit.com/track/nmqt0z">Free Download</a>
+    </body></html>
+    """
+    inspection = inspect_link_page(
+        "https://hypeddit.com/link/ky9i8z",
+        HubSession(page, landed="https://hypeddit.com/link/ky9i8z"),
+    )
+
+    assert inspection.keep_original is False
+    assert inspection.gate_urls == ("https://hypeddit.com/track/nmqt0z",)
+    assert {url for url, _text in inspection.shops} == {
+        "https://www.beatport.com/release/ghetto-bass/2470877",
+        "https://terrenceandphillip.bandcamp.com/",
+    }
 
 
 def test_a_shop_linked_twice_is_returned_once():

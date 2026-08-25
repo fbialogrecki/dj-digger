@@ -8,7 +8,9 @@ no arguments at all opens the browser and asks for a link.
 """
 
 import argparse
+import getpass
 import logging
+import os
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -169,7 +171,7 @@ def build_parser() -> argparse.ArgumentParser:
     spotify_sub = spotify_auth.add_subparsers(dest="spotify_action", required=True)
     spotify_login = spotify_sub.add_parser("login", help="Log in to Spotify with PKCE.")
     spotify_login.add_argument(
-        "--client-id", required=True, help="Spotify developer app client ID."
+        "--client-id", help="Spotify developer app client ID."
     )
     spotify_sub.add_parser("status", help="Show Spotify authentication status.")
     spotify_sub.add_parser("logout", help="Remove saved Spotify credentials.")
@@ -394,7 +396,27 @@ def handle_auth(args: argparse.Namespace) -> int:
     if action == "spotify":
         spotify_action = args.spotify_action
         if spotify_action == "login":
-            spotify.login(args.client_id, browser=AppConfig().browser)
+            config = AppConfig()
+            client_id = (getattr(args, "client_id", None) or "").strip()
+            if not client_id:
+                client_id = str(spotify.load_credentials().get("client_id") or "").strip()
+            if not client_id:
+                if not sys.stdin.isatty():
+                    console.print(
+                        "[red]Spotify Client ID is required without an interactive "
+                        "terminal; use --client-id CLIENT_ID.[/red]"
+                    )
+                    return 1
+                console.print("Create a Spotify Web API app in the Developer Dashboard.")
+                console.print("Add this exact Redirect URI:")
+                console.print(f"  [bold]{spotify.REDIRECT_URI}[/bold]")
+                console.print("Client Secret is not needed.")
+                browser_module.open_url(spotify.DASHBOARD_URL, config.browser)
+                client_id = input("Paste Spotify Client ID: ").strip()
+                if not client_id:
+                    console.print("[red]Spotify Client ID cannot be empty.[/red]")
+                    return 1
+            spotify.login(client_id, browser=config.browser)
             console.print("[green]Spotify login saved.[/green]")
             return 0
         if spotify_action == "logout":
@@ -411,34 +433,82 @@ def handle_auth(args: argparse.Namespace) -> int:
     if action == "login":
         token = getattr(args, "token", None)
         if token and token.strip():
+            env_token = os.environ.get("SOUNDCLOUD_OAUTH_TOKEN", "").strip()
+            if env_token and env_token != token.strip():
+                console.print(
+                    "[red]SOUNDCLOUD_OAUTH_TOKEN overrides --token. Unset or "
+                    "update the environment variable first.[/red]"
+                )
+                return 1
             with soundcloud.SoundCloudClient(oauth_token=token.strip()) as client:
-                user_data = auth_module.verify_token(token.strip(), client.client_id)
-                if user_data:
-                    username = user_data.get("username") or "User"
-                    user_id = user_data.get("id")
-                    auth_module.save_token(token.strip(), username, user_id)
+                try:
+                    _, username, user_id = auth_module.verify_and_save(
+                        token.strip(), client.client_id
+                    )
                     console.print(f"[green]Logged in as [bold]{username}[/bold] (ID: {user_id or 'N/A'}). Credentials saved securely.[/green]")
                     return 0
-                else:
+                except auth_module.SoundCloudAuthError:
                     console.print("[red]Verification failed. The provided OAuth token is invalid.[/red]")
                     return 1
         else:
-            console.print("Scanning local browser cookie databases for SoundCloud session...")
             with soundcloud.SoundCloudClient() as client:
+                stored_token = auth_module.get_stored_token()
+                if stored_token:
+                    user_data = auth_module.verify_token(stored_token, client.client_id)
+                    if user_data:
+                        username = user_data.get("username") or "User"
+                        console.print(
+                            f"[green]Already logged in as [bold]{username}[/bold].[/green]"
+                        )
+                        return 0
+                    if os.environ.get("SOUNDCLOUD_OAUTH_TOKEN", "").strip():
+                        console.print(
+                            "[red]SOUNDCLOUD_OAUTH_TOKEN is invalid and overrides "
+                            "saved logins. Unset or update it before logging in.[/red]"
+                        )
+                        return 1
+
+                console.print("Scanning Firefox for an active SoundCloud session...")
                 res = auth_module.auto_detect_and_verify(client.client_id)
                 if res:
                     _, username, user_id = res
                     console.print(f"[green]Successfully detected session for [bold]{username}[/bold] (ID: {user_id or 'N/A'}). Credentials saved securely.[/green]")
                     return 0
-                else:
-                    console.print("[yellow]No active SoundCloud login found in local browser cookies.[/yellow]")
-                    # Said out loud rather than left to be guessed: Chromium keeps
-                    # its cookies encrypted behind the system keyring, so there is
-                    # nothing here to find and no amount of retrying will help.
-                    console.print("Only Firefox cookies can be read - Chrome and Edge keep theirs encrypted.")
-                    console.print("To log in manually, find your 'oauth_token' cookie on soundcloud.com and run:")
-                    console.print("  [bold]dj-digger auth login --token <YOUR_OAUTH_TOKEN>[/bold]")
+
+                if not sys.stdin.isatty():
+                    console.print(
+                        "[red]Interactive SoundCloud login needs a terminal; use "
+                        "--token TOKEN in scripts.[/red]"
+                    )
                     return 1
+
+                try:
+                    _, username, user_id = auth_module.login_with_chromium(
+                        client.client_id,
+                        status=lambda message: console.print(message),
+                    )
+                except auth_module.SoundCloudAuthError as exc:
+                    console.print(f"[yellow]{exc}[/yellow]")
+                    token = getpass.getpass(
+                        "Paste oauth_token instead (input is hidden; blank cancels): "
+                    ).strip()
+                    if not token:
+                        console.print("[yellow]SoundCloud login cancelled.[/yellow]")
+                        return 1
+                    try:
+                        _, username, user_id = auth_module.verify_and_save(
+                            token, client.client_id
+                        )
+                    except auth_module.SoundCloudAuthError:
+                        console.print(
+                            "[red]Verification failed. The provided OAuth token is invalid.[/red]"
+                        )
+                        return 1
+                console.print(
+                    f"[green]Logged in as [bold]{username}[/bold] "
+                    f"(ID: {user_id or 'N/A'}). Credentials saved securely.[/green]"
+                )
+                return 0
 
     elif action == "logout":
         auth_module.clear_token()

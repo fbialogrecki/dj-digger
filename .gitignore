@@ -6,6 +6,7 @@ graphify-out/
 
 # Test fixtures are real API payloads and have to be committed.
 !tests/fixtures/*.json
+!tests/fixtures/*.html
 
 __pycache__/
 *.py[cod]

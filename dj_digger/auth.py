@@ -12,7 +12,9 @@ import re
 import shutil
 import sqlite3
 import tempfile
+import time
 from pathlib import Path
+from threading import Event, Lock
 from typing import Any
 
 import requests
@@ -22,10 +24,35 @@ AUTH_FILE = CONFIG_DIR / "auth.json"
 OAUTH_TOKEN_RE = re.compile(r'^[0-9]+-[0-9]+-[A-Za-z0-9_-]+')
 
 LOGGER = logging.getLogger(__name__)
+SOUNDCLOUD_SIGN_IN_URL = "https://soundcloud.com/signin"
+BROWSER_PROFILE_LOCK = Lock()
+
+
+class SoundCloudAuthError(RuntimeError):
+    """SoundCloud login could not be completed safely."""
+
+
+class SoundCloudAuthCancelled(SoundCloudAuthError):
+    """The user cancelled an in-progress SoundCloud login."""
+
+
+class SoundCloudAuthTimeout(SoundCloudAuthError):
+    """The browser login did not yield a SoundCloud OAuth cookie in time."""
 
 
 def auth_file_path() -> Path:
     return AUTH_FILE
+
+
+def soundcloud_browser_profile_path() -> Path:
+    """Return the private app-managed browser profile used only for SoundCloud."""
+
+    data_home = Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share"))
+    path = data_home / "dj-digger" / "soundcloud-browser"
+    path.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if os.name != "nt":
+        path.chmod(0o700)
+    return path
 
 
 def get_stored_token() -> str | None:
@@ -248,3 +275,105 @@ def auto_detect_and_verify(client_id: str) -> tuple[str, str, int] | None:
             save_token(token, username, user_id)
             return token, username, user_id
     return None
+
+
+def verify_and_save(token: str, client_id: str) -> tuple[str, str, int]:
+    """Verify a token before replacing the currently working credentials."""
+
+    user_data = verify_token(token, client_id)
+    if not user_data:
+        raise SoundCloudAuthError("SoundCloud rejected the login token.")
+    username = str(user_data.get("username") or "User")
+    user_id = user_data.get("id")
+    save_token(token, username, user_id)
+    return token, username, user_id
+
+
+def login_with_chromium(
+    client_id: str,
+    *,
+    timeout: float = 300.0,
+    cancel: Event | None = None,
+    context_factory=None,
+    status=None,
+) -> tuple[str, str, int]:
+    """Open an isolated browser and persist only its verified ``oauth_token``.
+
+    The persistent Chromium profile keeps the browser login across runs, while
+    ``auth.json`` receives only the single cookie needed by the API. Passwords
+    and unrelated cookies never cross this boundary.
+    """
+
+    cancel = cancel or Event()
+    status = status or (lambda _message: None)
+    if cancel.is_set():
+        raise SoundCloudAuthCancelled("SoundCloud login was cancelled.")
+    if not BROWSER_PROFILE_LOCK.acquire(blocking=False):
+        raise SoundCloudAuthError("The private browser profile is already in use.")
+
+    try:
+        install_chromium = None
+        chromium_missing = ()
+        if context_factory is None:
+            # The cart already owns the small Playwright lifecycle layer. Importing
+            # lazily keeps Playwright optional for every non-browser command.
+            from . import cart
+
+            context_factory = cart._browser_context
+            install_chromium = cart.install_chromium
+            chromium_missing = (cart.ChromiumMissing,)
+
+        status("Opening the private SoundCloud browser…")
+
+        def wait_for_cookie(context) -> tuple[str, str, int]:
+            page = context.pages[0] if context.pages else context.new_page()
+            page.goto(SOUNDCLOUD_SIGN_IN_URL)
+            deadline = time.monotonic() + timeout
+            status("Log in to SoundCloud in Chromium. Waiting for completion…")
+            rejected_tokens: set[str] = set()
+            while time.monotonic() < deadline:
+                if cancel.wait(0.25):
+                    raise SoundCloudAuthCancelled("SoundCloud login was cancelled.")
+                cookies = context.cookies(["https://soundcloud.com"])
+                token = next(
+                    (
+                        str(cookie.get("value") or "").strip()
+                        for cookie in cookies
+                        if cookie.get("name") == "oauth_token"
+                    ),
+                    "",
+                )
+                if token and token not in rejected_tokens:
+                    status("Verifying the SoundCloud login…")
+                    try:
+                        return verify_and_save(token, client_id)
+                    except SoundCloudAuthError:
+                        rejected_tokens.add(token)
+                        status(
+                            "That SoundCloud session is no longer valid. Log in again "
+                            "in Chromium…"
+                        )
+            raise SoundCloudAuthTimeout(
+                "SoundCloud login timed out after 5 minutes; no credentials were saved."
+            )
+
+        def run_browser(profile: Path):
+            with context_factory(profile) as context:
+                return wait_for_cookie(context)
+
+        try:
+            profile = soundcloud_browser_profile_path()
+            try:
+                return run_browser(profile)
+            except chromium_missing:
+                status("Installing the matching Playwright Chromium build…")
+                install_chromium(cancel)
+                return run_browser(profile)
+        except (SoundCloudAuthError, KeyboardInterrupt):
+            raise
+        except Exception as exc:
+            # Do not include the browser exception: Playwright diagnostics can echo
+            # page state and must not become a path by which credentials reach logs.
+            raise SoundCloudAuthError("Could not start the SoundCloud login browser.") from exc
+    finally:
+        BROWSER_PROFILE_LOCK.release()

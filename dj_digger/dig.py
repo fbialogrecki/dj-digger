@@ -180,21 +180,26 @@ def _expand_one(track: Track, timeout: float, dead: DeadHosts) -> bool:
         for url in links.hub_links(track):
             if dead.written_off(url):
                 continue
-            found = gates.store_links_on_page(url, session, timeout=hub_timeout)
-            if found is None:
+            inspection = gates.inspect_link_page(url, session, timeout=hub_timeout)
+            if inspection is None:
                 dead.failed(url)
                 continue
-            if not found:
+            if not inspection.shops and not inspection.gate_urls:
                 continue
-            for pair in found:
+            for pair in inspection.shops:
                 if pair not in track.extra_links:
                     track.extra_links.append(pair)
-            # The hub goes: its shops are on the track directly now, and leaving
-            # it would badge the track as a gate that gates nothing.
-            if track.purchase_url == url:
-                track.purchase_url = None
-                track.purchase_title = None
-            track.extra_links = [pair for pair in track.extra_links if pair[0] != url]
+            for gate_url in inspection.gate_urls:
+                pair = (gate_url, "Free download")
+                if pair not in track.extra_links:
+                    track.extra_links.append(pair)
+            # A gate that also sells the release stays beside its shops. A pure
+            # smart-link wrapper goes once its concrete shops/nested gate exist.
+            if not inspection.keep_original:
+                if track.purchase_url == url:
+                    track.purchase_url = None
+                    track.purchase_title = None
+                track.extra_links = [pair for pair in track.extra_links if pair[0] != url]
             changed = True
     finally:
         session.close()

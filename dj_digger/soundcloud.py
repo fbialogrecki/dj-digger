@@ -14,16 +14,19 @@ whenever a request comes back unauthorised.
 import logging
 import os
 import re
+import tempfile
+import threading
 from collections.abc import Callable, Iterable, Iterator, Sequence
 from pathlib import Path
 from typing import Any, Self
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from . import auth, gates
+from .browser import is_fetchable
 from .models import Crate, Track
 
 # Windows refuses these as a filename whatever the extension - CON.mp3 is as
@@ -53,6 +56,8 @@ DISCOVER_URL = "https://soundcloud.com/discover"
 # when the server decides it does. Two gigabytes clears any real DJ file - a
 # 10-minute WAV at 24/96 is under 400 MB - by a wide margin.
 MAX_DOWNLOAD_BYTES = 2 * 1024 * 1024 * 1024
+MAX_DOWNLOAD_REDIRECTS = 5
+_DOWNLOAD_NAME_LOCK = threading.Lock()
 
 # The /tracks endpoint answers 400 for more than 50 ids.
 HYDRATE_BATCH = 50
@@ -79,6 +84,14 @@ ProgressCallback = Callable[[int, int | None], None]
 
 class SoundCloudError(RuntimeError):
     """Raised when SoundCloud cannot be reached or gives us nothing usable."""
+
+
+class SoundCloudLoginRequired(SoundCloudError):
+    """An artist download requires a SoundCloud account session."""
+
+
+class SoundCloudTokenRejected(SoundCloudLoginRequired):
+    """The saved SoundCloud token expired or was rejected."""
 
 
 def _download_stem(track: Track) -> str:
@@ -108,6 +121,90 @@ def create_requests_session(max_retries: int = 5, backoff_factor: float = 0.5) -
     session.mount("http://", adapter)
     session.mount("https://", adapter)
     return session
+
+
+def _download_response(
+    session: requests.Session,
+    url: str,
+    *,
+    params: dict[str, str] | None,
+    timeout: tuple[float, float],
+):
+    """Follow a short public redirect chain without forwarding query credentials."""
+
+    current = url
+    current_params = params
+    for _hop in range(MAX_DOWNLOAD_REDIRECTS + 1):
+        if not is_fetchable(current):
+            raise SoundCloudError("Download redirected to an unsafe address")
+        try:
+            response = session.get(
+                current,
+                params=current_params,
+                timeout=timeout,
+                stream=True,
+                allow_redirects=False,
+            )
+        except requests.RequestException as exc:
+            raise SoundCloudError("Download request failed") from exc
+        if response.status_code not in {301, 302, 303, 307, 308}:
+            return response
+        location = response.headers.get("Location", "")
+        close = getattr(response, "close", None)
+        if callable(close):
+            close()
+        if not location:
+            raise SoundCloudError("Download redirect had no destination")
+        current = urljoin(current, location)
+        current_params = None
+    raise SoundCloudError("Download exceeded the redirect limit")
+
+
+def _looks_like_html(prefix: bytes) -> bool:
+    sample = prefix.lstrip().lower()
+    return sample.startswith((b"<!doctype html", b"<html", b"<head", b"<body"))
+
+
+def save_browser_download(download: Any, track: Track, directory: Path) -> Path:
+    """Validate and atomically keep a Playwright download."""
+
+    directory = Path(directory)
+    directory.mkdir(parents=True, exist_ok=True)
+    suggested = Path(str(getattr(download, "suggested_filename", "") or ""))
+    suffix = suggested.suffix.lower()
+    if suffix not in {".mp3", ".wav", ".flac", ".aiff", ".aif", ".zip"}:
+        suffix = ".mp3"
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=".dj-digger-browser-", suffix=".part", dir=directory
+    )
+    os.close(descriptor)
+    temporary = Path(temporary_name)
+    try:
+        download.save_as(str(temporary))
+        size = temporary.stat().st_size
+        if size > MAX_DOWNLOAD_BYTES:
+            raise SoundCloudError(
+                f"Browser download exceeded {MAX_DOWNLOAD_BYTES // (1024 * 1024)} MB"
+            )
+        with temporary.open("rb") as stream:
+            prefix = stream.read(512)
+        if _looks_like_html(prefix):
+            raise SoundCloudError("Browser downloaded a web page rather than an audio file")
+        stem = _sanitize_filename(_download_stem(track))
+        with _DOWNLOAD_NAME_LOCK:
+            target = directory / f"{stem}{suffix}"
+            counter = 1
+            while target.exists():
+                target = directory / f"{stem} ({counter}){suffix}"
+                counter += 1
+            os.replace(temporary, target)
+        return target
+    finally:
+        if temporary.exists():
+            try:
+                temporary.unlink()
+            except OSError:
+                pass
 
 
 def is_soundcloud_url(value: str) -> bool:
@@ -324,7 +421,7 @@ class SoundCloudClient:
 
         if not download_url and track.free_download and track.id:
             if not self._oauth_token:
-                raise SoundCloudError(
+                raise SoundCloudLoginRequired(
                     "SoundCloud login is required for this artist-provided download; "
                     "run 'dj-digger auth login'"
                 )
@@ -341,7 +438,7 @@ class SoundCloudClient:
                     f"SoundCloud download resolution failed: {exc}"
                 ) from exc
             if response.status_code in (401, 403):
-                raise SoundCloudError(
+                raise SoundCloudTokenRejected(
                     "The saved SoundCloud login expired or was rejected; "
                     "run 'dj-digger auth login' again"
                 )
@@ -363,7 +460,9 @@ class SoundCloudClient:
 
         if not download_url:
             if gate_url:
-                raise SoundCloudError(f"Gate link requires browser completion ({gate_url}) - press 'o' to open")
+                raise SoundCloudError(
+                    "Gate link requires browser completion - press 'o' to open"
+                )
             raise SoundCloudError("This track has no active direct download or resolved gate link")
 
         host = (urlparse(download_url).hostname or "").lower()
@@ -378,11 +477,11 @@ class SoundCloudClient:
         directory.mkdir(parents=True, exist_ok=True)
 
         try:
-            response = session.get(
+            response = _download_response(
+                session,
                 download_url,
                 params={"client_id": self.client_id} if ours else None,
                 timeout=(self._timeout, self._timeout),
-                stream=True,
             )
             if response.status_code >= 400:
                 raise SoundCloudError(
@@ -426,23 +525,26 @@ class SoundCloudClient:
                 extension = ".flac"
             elif ".aiff" in cd_lower or ".aif" in cd_lower or "aiff" in ct_lower or "aif" in ct_lower:
                 extension = ".aiff"
+            elif ".zip" in cd_lower or "zip" in ct_lower:
+                extension = ".zip"
 
-            stem = _sanitize_filename(_download_stem(track))
-            target = directory / f"{stem}{extension}"
-
-            counter = 1
-            while target.exists():
-                target = directory / f"{stem} ({counter}){extension}"
-                counter += 1
-
-            temporary = target.with_name(target.name + ".part")
+            descriptor, temporary_name = tempfile.mkstemp(
+                prefix=".dj-digger-", suffix=".part", dir=directory
+            )
+            os.close(descriptor)
+            temporary = Path(temporary_name)
+            if os.name != "nt":
+                temporary.chmod(0o600)
             downloaded = 0
+            prefix = bytearray()
 
             with temporary.open("wb") as handle:
                 try:
                     for chunk in response.iter_content(chunk_size=1024 * 128):
                         if chunk:
                             handle.write(chunk)
+                            if len(prefix) < 512:
+                                prefix.extend(chunk[: 512 - len(prefix)])
                             downloaded += len(chunk)
                             # Content-Length is a claim, and a gate that never
                             # stops sending would otherwise fill the disk: the
@@ -462,7 +564,19 @@ class SoundCloudClient:
                             pass
                     raise SoundCloudError(f"Download stream read failed: {stream_exc}") from stream_exc
 
-            os.replace(temporary, target)
+            if _looks_like_html(bytes(prefix)):
+                raise SoundCloudError(
+                    "That link returned a web page rather than an audio file"
+                )
+
+            stem = _sanitize_filename(_download_stem(track))
+            with _DOWNLOAD_NAME_LOCK:
+                target = directory / f"{stem}{extension}"
+                counter = 1
+                while target.exists():
+                    target = directory / f"{stem} ({counter}){extension}"
+                    counter += 1
+                os.replace(temporary, target)
             return target
         except Exception as exc:
             if 'temporary' in locals() and temporary.exists():

@@ -1047,7 +1047,7 @@ def install_chromium(cancel: Event) -> None:
 
 
 @contextmanager
-def _browser_context(profile: Path | None = None):
+def _browser_context(profile: Path | None = None, *, accept_downloads: bool = False):
     if sys.platform.startswith("linux") and not (
         os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")
     ):
@@ -1067,7 +1067,7 @@ def _browser_context(profile: Path | None = None):
                 str(profile or store_profile_path()),
                 headless=False,
                 locale="en-US",
-                accept_downloads=False,
+                accept_downloads=accept_downloads,
                 chromium_sandbox=True,
             )
         except Exception as exc:

@@ -10,7 +10,7 @@ from rich.console import Console
 from textual.coordinate import Coordinate
 from textual.widgets import Button, DataTable, Input, Label, ListView, Static
 
-from dj_digger import cart, library, links, tui
+from dj_digger import cart, gates, library, links, soundcloud, tui
 from dj_digger.dig import DigOptions, TargetNotFound
 from dj_digger.models import Crate, LinkRecord, Track
 from dj_digger.player import Loaded, PlaybackUnavailable, PlayerBar, Stream
@@ -19,10 +19,13 @@ from dj_digger.state import GOT, OPENED, SKIP, TrackState
 from dj_digger.tui import (
     AskLinkScreen,
     ConfirmScreen,
+    ContextMenuScreen,
     DiggerApp,
     ErrorBanner,
+    GateProfileScreen,
     HelpScreen,
     SettingsScreen,
+    SoundCloudAuthScreen,
 )
 
 
@@ -30,6 +33,22 @@ def run(scenario):
     """Drive an async Textual pilot from a plain sync test."""
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("error", "group"),
+    [
+        (gates.GateAuthenticationRequired("Spotify"), "auth"),
+        (gates.GateCaptchaRequired("captcha"), "captcha"),
+        (gates.GateManualActionRequired("future"), "manual"),
+        (gates.GateProtocolChanged("changed"), "protocol"),
+        (gates.GateRejected("rejected"), "rejected"),
+    ],
+)
+def test_batch_gate_failures_have_actionable_summary_groups(error, group):
+    from dj_digger.tui.downloads import _gate_failure_group
+
+    assert _gate_failure_group(error) == group
 
 
 def test_error_banner_keeps_messages_literal_and_has_a_working_x(state):
@@ -359,6 +378,32 @@ def test_enter_opens_the_link_exactly_once(records, state, monkeypatch):
 
     run(scenario)
     assert opened == [records[0].link_url]
+
+
+def test_right_click_opens_the_track_menu_without_opening_a_link(
+    state, monkeypatch
+):
+    opened = []
+    monkeypatch.setattr(
+        "dj_digger.tui.browser_module.open_url",
+        lambda url, browser="default": opened.append(url) or True,
+    )
+    records = synthetic_records(2)
+    app = make_app(records, state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.click("#tracks", offset=(10, 2), button=3)
+            await pilot.pause()
+            assert isinstance(app.screen, ContextMenuScreen)
+            assert "Track 1" in str(app.screen.query_one(Label).render())
+            assert opened == []
+
+            await pilot.press("enter")
+            await pilot.pause()
+
+    run(scenario)
+    assert opened == [records[1].link_url]
 
 
 def cart_plan_for(record, *, already=False):
@@ -1922,6 +1967,283 @@ class ProgressProbeClient:
 
     def close(self):
         pass
+
+
+class ProfileRetryClient:
+    def __init__(self, output):
+        self.output = output
+        self.calls = 0
+
+    def download_track(self, *_args, **_kwargs):
+        self.calls += 1
+        if self.calls == 1:
+            raise gates.GateProfileRequired("real email required")
+        return self.output
+
+    def close(self):
+        pass
+
+
+@pytest.mark.parametrize("save_profile", [False, True])
+def test_gate_profile_wizard_retries_a_single_download_at_most_once(
+    state, tmp_path, save_profile
+):
+    record = LinkRecord(
+        category="gate",
+        track=Track(
+            title="Gate", artist="Artist",
+            permalink_url="https://soundcloud.com/a/gate", id=81,
+        ),
+        link_url="https://hypeddit.com/a/gate",
+        link_text="Download",
+    )
+    app = make_app([record], state)
+    client = ProfileRetryClient(tmp_path / "gate.mp3")
+    app._client = client
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            row = app.visible_rows[0]
+            worker = app.download_track_in_background(row.track, record.link_url)
+            await worker.wait()
+            await pilot.pause()
+            assert isinstance(app.screen, GateProfileScreen)
+            if save_profile:
+                app.screen.query_one("#gate-profile-name", Input).value = "Filip"
+                app.screen.query_one("#gate-profile-email", Input).value = "filip@example.com"
+                await pilot.click("#gate-profile-save")
+                for _ in range(20):
+                    await pilot.pause()
+                    if state.get(row.track.key) == GOT:
+                        break
+            else:
+                await pilot.click("#gate-profile-cancel")
+                await pilot.pause()
+
+    run(scenario)
+    assert client.calls == (2 if save_profile else 1)
+    assert (state.get(record.track.key) == GOT) is save_profile
+
+
+def test_a_repeated_prerequisite_error_does_not_open_a_wizard_loop(state, tmp_path):
+    record = LinkRecord(
+        category="gate",
+        track=Track(
+            title="Gate", permalink_url="https://soundcloud.com/a/gate-loop", id=82
+        ),
+        link_url="https://hypeddit.com/a/gate-loop",
+        link_text="Download",
+    )
+    app = make_app([record], state)
+
+    class Client:
+        calls = 0
+
+        def download_track(self, *_args, **_kwargs):
+            self.calls += 1
+            raise gates.GateProfileRequired("still missing")
+
+        def close(self):
+            pass
+
+    client = Client()
+    app._client = client
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            worker = app.download_track_in_background(
+                app.visible_rows[0].track, record.link_url
+            )
+            await worker.wait()
+            await pilot.pause()
+            app.screen.query_one("#gate-profile-name", Input).value = "Filip"
+            app.screen.query_one("#gate-profile-email", Input).value = "filip@example.com"
+            await pilot.click("#gate-profile-save")
+            for _ in range(25):
+                await pilot.pause()
+                if client.calls == 2:
+                    break
+            await pilot.pause()
+            assert not isinstance(app.screen, GateProfileScreen)
+
+    run(scenario)
+    assert client.calls == 2
+    assert state.get(record.track.key) != GOT
+
+
+def test_batch_finishes_independent_tracks_before_prompting_and_retries_only_pending(
+    state, tmp_path, monkeypatch
+):
+    records = [
+        LinkRecord(
+            category="gate",
+            track=Track(
+                title="Needs email", artist="Artist",
+                permalink_url="https://soundcloud.com/a/1", id=91,
+            ),
+            link_url="https://hypeddit.com/a/1",
+            link_text="Download",
+        ),
+        LinkRecord(
+            category="soundcloud",
+            track=Track(
+                title="Ready", artist="Artist",
+                permalink_url="https://soundcloud.com/a/2", id=92,
+                downloadable=True, has_downloads_left=True,
+                download_url="https://api-v2.soundcloud.com/tracks/92/download",
+            ),
+            link_url="https://api-v2.soundcloud.com/tracks/92/download",
+            link_text=links.FREE_DOWNLOAD,
+        ),
+    ]
+    app = make_app(records, state)
+
+    class Client:
+        def __init__(self):
+            self.calls = {91: 0, 92: 0}
+
+        def download_track(self, track, *_args, **_kwargs):
+            self.calls[track.id] += 1
+            if track.id == 91 and self.calls[91] == 1:
+                raise gates.GateProfileRequired("email")
+            return tmp_path / f"{track.id}.mp3"
+
+        def close(self):
+            pass
+
+    class Session:
+        def close(self):
+            pass
+
+    client = Client()
+    app._client = client
+    monkeypatch.setattr("dj_digger.tui.downloads.soundcloud.create_requests_session", Session)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            items = [(row, app._find_gate_url(row)) for row in app.visible_rows]
+            worker = app.batch_download_in_background(items)
+            await worker.wait()
+            await pilot.pause()
+            assert state.get(records[1].track.key) == GOT
+            assert state.get(records[0].track.key) != GOT
+            assert isinstance(app.screen, GateProfileScreen)
+
+            app.screen.query_one("#gate-profile-name", Input).value = "Filip"
+            app.screen.query_one("#gate-profile-email", Input).value = "filip@example.com"
+            await pilot.click("#gate-profile-save")
+            for _ in range(20):
+                await pilot.pause()
+                if state.get(records[0].track.key) == GOT:
+                    break
+
+    run(scenario)
+    assert client.calls == {91: 2, 92: 1}
+
+
+def test_soundcloud_login_refreshes_the_client_then_retries_once(
+    state, tmp_path, monkeypatch
+):
+    record = LinkRecord(
+        category="soundcloud",
+        track=Track(
+            title="Account download", artist="Artist",
+            permalink_url="https://soundcloud.com/a/account", id=101,
+            downloadable=True, has_downloads_left=True,
+        ),
+        link_url="https://soundcloud.com/a/account",
+        link_text=links.FREE_DOWNLOAD,
+    )
+    app = make_app([record], state)
+
+    class OldClient:
+        client_id = "client-id"
+
+        def __init__(self):
+            self.calls = 0
+            self.closed = False
+
+        def download_track(self, *_args, **_kwargs):
+            self.calls += 1
+            raise soundcloud.SoundCloudLoginRequired("login")
+
+        def close(self):
+            self.closed = True
+
+    class NewClient:
+        def __init__(self, **_kwargs):
+            self.calls = 0
+
+        def download_track(self, *_args, **_kwargs):
+            self.calls += 1
+            return tmp_path / "account.mp3"
+
+        def close(self):
+            pass
+
+    old = OldClient()
+    new = NewClient()
+    refreshed_with = []
+    app._client = old
+    monkeypatch.setattr(
+        "dj_digger.tui.downloads.soundcloud.SoundCloudClient",
+        lambda **kwargs: refreshed_with.append(kwargs.get("oauth_token")) or new,
+    )
+    monkeypatch.setattr(
+        "dj_digger.tui.screens.auth_module.verify_and_save",
+        lambda token, client_id: (token, "DJ", 1),
+    )
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            row = app.visible_rows[0]
+            worker = app.download_track_in_background(row.track)
+            await worker.wait()
+            await pilot.pause()
+            assert isinstance(app.screen, SoundCloudAuthScreen)
+            app.screen.query_one("#soundcloud-token", Input).value = "hidden-token"
+            await pilot.click("#soundcloud-paste")
+            for _ in range(30):
+                await pilot.pause()
+                if state.get(row.track.key) == GOT:
+                    break
+
+    run(scenario)
+    assert old.calls == 1
+    assert old.closed is True
+    assert new.calls == 1
+    assert refreshed_with == ["hidden-token"]
+    assert state.get(record.track.key) == GOT
+
+
+def test_soundcloud_client_refresh_waits_for_every_active_download_worker(state):
+    app = make_app(synthetic_records(1), state)
+
+    class Client:
+        closed = False
+
+        def close(self):
+            self.closed = True
+
+    client = Client()
+    app._client = client
+    resumed = []
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            app._begin_download_worker()
+            app._request_client_refresh("fresh-token", lambda: resumed.append(True))
+            assert app._client is client
+            assert client.closed is False
+            assert resumed == []
+
+            await asyncio.to_thread(app._end_download_worker)
+            await pilot.pause()
+            assert app._client.oauth_token == "fresh-token"
+            assert client.closed is True
+            assert resumed == [True]
+
+    run(scenario)
 
 
 @pytest.mark.parametrize("batch", [False, True])

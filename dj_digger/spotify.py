@@ -3,6 +3,7 @@
 import base64
 import hashlib
 import json
+import re
 import secrets
 import time
 import urllib.parse
@@ -19,7 +20,10 @@ AUTH_FILE = CONFIG_DIR / "spotify.json"
 AUTHORIZE_URL = "https://accounts.spotify.com/authorize"
 TOKEN_URL = "https://accounts.spotify.com/api/token"
 API_ROOT = "https://api.spotify.com/v1"
-SCOPE = "user-follow-modify"
+DASHBOARD_URL = "https://developer.spotify.com/dashboard"
+CALLBACK_PORT = 43821
+REDIRECT_URI = f"http://127.0.0.1:{CALLBACK_PORT}/callback"
+SCOPE = "user-follow-modify playlist-modify-public"
 
 
 class SpotifyError(RuntimeError):
@@ -77,9 +81,15 @@ def login(
         def log_message(self, format_string: str, *args: object) -> None:
             return
 
-    server = HTTPServer(("127.0.0.1", 0), Callback)
+    try:
+        server = HTTPServer(("127.0.0.1", CALLBACK_PORT), Callback)
+    except OSError as exc:
+        raise SpotifyError(
+            f"Spotify callback port {CALLBACK_PORT} is already in use; "
+            "close the process using it and try again"
+        ) from exc
     server.timeout = timeout
-    redirect_uri = f"http://127.0.0.1:{server.server_port}/callback"
+    redirect_uri = REDIRECT_URI
     query = urllib.parse.urlencode(
         {
             "client_id": client_id,
@@ -175,8 +185,7 @@ def access_token(*, session=requests, now: float | None = None) -> str:
     refresh_token = str(credentials.get("refresh_token") or "")
     if not client_id or not refresh_token:
         raise SpotifyError(
-            "Spotify login required; run "
-            "'dj-digger auth spotify login --client-id ...'"
+            "Spotify login required; run 'dj-digger auth spotify login'"
         )
     try:
         response = session.post(
@@ -209,19 +218,49 @@ def access_token(*, session=requests, now: float | None = None) -> str:
 
 
 def save_uris(uris: list[str], *, session=requests) -> None:
-    if not uris or any(not uri.startswith("spotify:artist:") for uri in uris):
+    allowed = ("spotify:artist:", "spotify:playlist:")
+    if not uris or any(
+        not uri.startswith(allowed)
+        or not re.fullmatch(r"[A-Za-z0-9]{22}", uri.rsplit(":", 1)[-1])
+        for uri in uris
+    ):
         raise SpotifyError("Hypeddit requested an unsupported Spotify action")
-    token = access_token(session=session)
-    try:
-        response = session.put(
-            f"{API_ROOT}/me/library",
-            params={"uris": ",".join(uris)},
-            headers={"Authorization": f"Bearer {token}"},
-            timeout=20,
-        )
-    except requests.RequestException as exc:
-        raise SpotifyError(f"Spotify library request failed: {exc}") from exc
-    if response.status_code not in (200, 204):
+    credentials = load_credentials()
+    granted = set(str(credentials.get("scope") or "").split())
+    required = {
+        "user-follow-modify" if uri.startswith("spotify:artist:") else "playlist-modify-public"
+        for uri in uris
+    }
+    if not required.issubset(granted):
         raise SpotifyError(
-            f"Spotify library request returned HTTP {response.status_code}"
+            "Spotify login is missing a scope required by this Hypeddit gate; log in again"
         )
+    token = access_token(session=session)
+    for uri in uris:
+        kind, spotify_id = (
+            ("artist", uri.removeprefix("spotify:artist:"))
+            if uri.startswith("spotify:artist:")
+            else ("playlist", uri.removeprefix("spotify:playlist:"))
+        )
+        try:
+            kwargs = {
+                "headers": {"Authorization": f"Bearer {token}"},
+                "timeout": 20,
+            }
+            if kind == "artist":
+                response = session.put(
+                    f"{API_ROOT}/me/following",
+                    params={"type": "artist", "ids": spotify_id},
+                    **kwargs,
+                )
+            else:
+                response = session.put(
+                    f"{API_ROOT}/playlists/{spotify_id}/followers",
+                    **kwargs,
+                )
+        except requests.RequestException as exc:
+            raise SpotifyError(f"Spotify library request failed: {exc}") from exc
+        if response.status_code not in (200, 204):
+            raise SpotifyError(
+                f"Spotify library request returned HTTP {response.status_code}"
+            )

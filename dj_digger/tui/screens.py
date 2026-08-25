@@ -1,14 +1,26 @@
 """The modal screens: asking for a link, help, confirmation and settings."""
 
 from rich.text import Text
+from textual import work
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, Checkbox, Footer, Input, Label, Select, Static
+from textual.widgets import (
+    Button,
+    Checkbox,
+    Footer,
+    Input,
+    Label,
+    OptionList,
+    Select,
+    Static,
+)
+from textual.widgets.option_list import Option
 
+from .. import auth as auth_module
 from .. import browser as browser_module
-from ..config import AppConfig
+from ..config import AppConfig, is_real_email
 from .keymap import (
     CRATES,
     HELP_EXTRA,
@@ -189,6 +201,215 @@ class ConfirmScreen(ModalScreen[bool]):
 
     def action_refuse(self) -> None:
         self.dismiss(False)
+
+
+class ContextMenuScreen(ModalScreen[str | None]):
+    """Actions for the row selected with the right mouse button."""
+
+    CSS = """
+    ContextMenuScreen { align: center middle; }
+    #context-menu {
+        width: 58; max-width: 90%; height: auto; max-height: 90%;
+        padding: 1 2; border: round $accent; background: $surface;
+    }
+    #context-menu-title { margin-bottom: 1; }
+    #context-menu-options { height: auto; max-height: 12; }
+    """
+
+    BINDINGS = [Binding("escape", "cancel", "Close")]
+
+    def __init__(self, title: str, options: tuple[tuple[str, str], ...]) -> None:
+        super().__init__()
+        self.title = title
+        self.options = options
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="context-menu"):
+            yield Label(self.title, id="context-menu-title")
+            yield OptionList(
+                *(Option(label, id=action) for action, label in self.options),
+                id="context-menu-options",
+            )
+
+    def on_option_list_option_selected(
+        self, event: OptionList.OptionSelected
+    ) -> None:
+        self.dismiss(str(event.option.id))
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
+class GateProfileScreen(ModalScreen[bool]):
+    """Ask only for the identity a download gate is about to submit."""
+
+    CSS = """
+    GateProfileScreen { align: center middle; }
+    #gate-profile {
+        width: 68; max-width: 90%; height: auto; padding: 1 2;
+        border: round $warning; background: $surface;
+    }
+    #gate-profile-hint, #gate-profile-error { color: $text-muted; margin-bottom: 1; }
+    #gate-profile-error { color: $error; }
+    #gate-profile-buttons { height: auto; margin-top: 1; }
+    """
+
+    BINDINGS = [Binding("escape", "cancel", "Cancel")]
+
+    def __init__(self, config: AppConfig) -> None:
+        super().__init__()
+        self.config = config
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="gate-profile"):
+            yield Label("This download gate requires your profile", id="gate-profile-title")
+            yield Label(
+                "Your name and email will be sent to Hypeddit or GateRush and may "
+                "also be shared with the track's author.",
+                id="gate-profile-hint",
+            )
+            yield Label("Name")
+            yield Input(value=self.config.user_name, id="gate-profile-name")
+            yield Label("Email")
+            yield Input(value="" if not self.config.has_real_email() else self.config.user_email,
+                        id="gate-profile-email")
+            yield Label("", id="gate-profile-error")
+            with Horizontal(id="gate-profile-buttons"):
+                yield Button("Save and continue", variant="primary", id="gate-profile-save")
+                yield Button("Cancel", id="gate-profile-cancel")
+        yield Footer()
+
+    def on_mount(self) -> None:
+        self.query_one("#gate-profile-email", Input).focus()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id != "gate-profile-save":
+            self.dismiss(False)
+            return
+        name = self.query_one("#gate-profile-name", Input).value.strip()
+        email = self.query_one("#gate-profile-email", Input).value.strip()
+        if not name:
+            self.query_one("#gate-profile-error", Label).update("Enter your name.")
+            return
+        if not is_real_email(email):
+            self.query_one("#gate-profile-error", Label).update(
+                "Enter a valid email address without spaces."
+            )
+            return
+        self.config.user_name = name
+        self.config.user_email = email
+        self.config.save()
+        self.dismiss(True)
+
+    def action_cancel(self) -> None:
+        self.dismiss(False)
+
+
+class SoundCloudAuthScreen(ModalScreen[str | None]):
+    """Verify SoundCloud through app-managed Chromium or a hidden token field."""
+
+    CSS = """
+    SoundCloudAuthScreen { align: center middle; }
+    #soundcloud-auth {
+        width: 72; max-width: 90%; height: auto; padding: 1 2;
+        border: round $accent; background: $surface;
+    }
+    #soundcloud-auth-hint, #soundcloud-auth-status { color: $text-muted; margin-bottom: 1; }
+    #soundcloud-auth-buttons { height: auto; margin-top: 1; }
+    """
+
+    BINDINGS = [Binding("escape", "cancel", "Cancel")]
+
+    def __init__(self, client_id) -> None:
+        super().__init__()
+        self.client_id = client_id
+        from threading import Event
+
+        self.cancel = Event()
+
+    def _client_id(self) -> str:
+        return self.client_id() if callable(self.client_id) else self.client_id
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="soundcloud-auth"):
+            yield Label("SoundCloud login required")
+            yield Label(
+                "Chromium uses a private dj-digger profile. Only the oauth_token "
+                "cookie is verified and copied; your password is never stored.",
+                id="soundcloud-auth-hint",
+            )
+            yield Label("Ready", id="soundcloud-auth-status")
+            yield Input(placeholder="Paste oauth_token", password=True, id="soundcloud-token")
+            with Horizontal(id="soundcloud-auth-buttons"):
+                yield Button("Open Chromium", variant="primary", id="soundcloud-browser")
+                yield Button("Paste token", id="soundcloud-paste")
+                yield Button("Cancel", id="soundcloud-cancel")
+        yield Footer()
+
+    def _set_status(self, message: str) -> None:
+        self.query_one("#soundcloud-auth-status", Label).update(message)
+
+    def _set_busy(self, busy: bool) -> None:
+        self.query_one("#soundcloud-browser", Button).disabled = busy
+        self.query_one("#soundcloud-paste", Button).disabled = busy
+
+    def _show_auth_error(self, message: str) -> None:
+        self._set_status(message)
+        self._set_busy(False)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "soundcloud-browser":
+            self._set_busy(True)
+            self.login_in_browser()
+        elif event.button.id == "soundcloud-paste":
+            token = self.query_one("#soundcloud-token", Input).value.strip()
+            if not token:
+                self._set_status("Paste a token first; its value stays hidden.")
+            else:
+                self._set_busy(True)
+                self.verify_pasted_token(token)
+        else:
+            self.action_cancel()
+
+    @work(thread=True, exclusive=True, group="soundcloud-auth")
+    def login_in_browser(self) -> None:
+        try:
+            token, _username, _user_id = auth_module.login_with_chromium(
+                self._client_id(),
+                cancel=self.cancel,
+                status=lambda message: self.app.call_from_thread(
+                    self._set_status, message
+                ),
+            )
+        except auth_module.SoundCloudAuthCancelled:
+            return
+        except auth_module.SoundCloudAuthError as exc:
+            if not self.cancel.is_set():
+                self.app.call_from_thread(self._show_auth_error, str(exc))
+            return
+        if not self.cancel.is_set():
+            self.app.call_from_thread(self.dismiss, token)
+
+    @work(thread=True, exclusive=True, group="soundcloud-auth")
+    def verify_pasted_token(self, token: str) -> None:
+        self.app.call_from_thread(self._set_status, "Verifying the SoundCloud token…")
+        try:
+            verified_token, _username, _user_id = auth_module.verify_and_save(
+                token, self._client_id()
+            )
+        except auth_module.SoundCloudAuthError as exc:
+            if not self.cancel.is_set():
+                self.app.call_from_thread(self._show_auth_error, str(exc))
+            return
+        if not self.cancel.is_set():
+            self.app.call_from_thread(self.dismiss, verified_token)
+
+    def action_cancel(self) -> None:
+        self.cancel.set()
+        self.dismiss(None)
+
+    def on_unmount(self) -> None:
+        self.cancel.set()
 
 
 class SettingsScreen(ModalScreen[None]):

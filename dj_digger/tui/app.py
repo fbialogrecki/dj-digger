@@ -4,7 +4,7 @@ import logging
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from threading import Event
+from threading import Event, Lock
 
 from rich.text import Text
 from textual import events
@@ -46,7 +46,7 @@ from .opening import OpeningMixin
 from .playback import PlaybackMixin
 from .render import RenderMixin
 from .rows import Prepared, Row
-from .screens import HelpScreen, SettingsScreen
+from .screens import ContextMenuScreen, HelpScreen, SettingsScreen
 from .widgets import ErrorBanner, FittedFooter, SearchInput, StatusBar, TrackTable
 
 LOGGER = logging.getLogger(__name__)
@@ -222,6 +222,7 @@ class DiggerApp(
         self._pending_open_all = False
         self._cart_busy = False
         self._cart_cancel = Event()
+        self._gate_cancel = Event()
         self._digging = False
         self._undone: list[str] = []
         self._ticker: Timer | None = None
@@ -237,6 +238,11 @@ class DiggerApp(
         # Only a batch download builds one. Declared here so the teardown path
         # can ask about it plainly rather than through getattr.
         self._download_executor: ThreadPoolExecutor | None = None
+        self._download_worker_lock = Lock()
+        self._active_download_workers = 0
+        self._client_refresh_pending = False
+        self._client_refresh_token: str | None = None
+        self._client_refresh_callbacks: list = []
         # None until the first resize, so the first one always applies.
         self._narrow: bool | None = None
         self.player = Player()
@@ -335,6 +341,7 @@ class DiggerApp(
         # Playwright objects stay on their worker thread; teardown only signals
         # that worker, which closes its own context in ``finally``.
         self._cart_cancel.set()
+        self._gate_cancel.set()
         # A tick landing after the widgets have gone would go looking for a
         # player bar that no longer exists. Textual does stop its timers, but
         # only further down the same teardown, so this one goes first.
@@ -389,3 +396,33 @@ class DiggerApp(
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         event.stop()
         self.action_open_link()
+
+    def on_track_table_context_menu_requested(
+        self, event: TrackTable.ContextMenuRequested
+    ) -> None:
+        event.stop()
+        row = self.current_row()
+        if row is None:
+            return
+        options = [
+            ("open", "Open best link"),
+            ("got", "Mark as got"),
+            ("skip", "Mark as skipped"),
+            ("new", "Clear mark"),
+            ("remove", "Remove track"),
+        ]
+        if row.track.local_path:
+            options.insert(1, ("copy", "Copy local file path"))
+
+        actions = {
+            "open": self.action_open_link,
+            "copy": self.action_copy_path,
+            "got": self.action_mark_got,
+            "skip": self.action_mark_skip,
+            "new": self.action_mark_new,
+            "remove": self.action_remove_track,
+        }
+        self.push_screen(
+            ContextMenuScreen(row.track.label, tuple(options)),
+            lambda action: actions.get(action, lambda: None)(),
+        )

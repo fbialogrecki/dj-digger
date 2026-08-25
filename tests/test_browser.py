@@ -76,6 +76,10 @@ def test_addresses_on_our_own_network_are_not_fetched(url):
     assert browser.is_openable(url) is True
 
 
+def test_embedded_credentials_are_not_fetched():
+    assert browser.is_fetchable("https://user:secret@hypeddit.com/track/x") is False
+
+
 @pytest.mark.parametrize("url", ["https://bandcamp.com/a", "https://8.8.8.8/x"])
 def test_the_open_internet_is_still_fetchable(url):
     assert browser.is_fetchable(url) is True
