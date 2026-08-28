@@ -4,6 +4,7 @@ import json
 import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from decimal import Decimal
 from threading import Event
 from types import SimpleNamespace
@@ -32,6 +33,8 @@ from dj_digger.scanner import LocalMatch
 from dj_digger.state import GOT, OPENED, SKIP, TrackState
 from dj_digger.tui import (
     AskLinkScreen,
+    CartPlanScreen,
+    CartResultScreen,
     ConfirmScreen,
     ContextMenuScreen,
     DiggerApp,
@@ -41,6 +44,7 @@ from dj_digger.tui import (
     SettingsScreen,
     SoundCloudAuthScreen,
 )
+from dj_digger.tui import opening as opening_module
 
 
 def run(scenario):
@@ -83,8 +87,10 @@ def test_error_banner_starts_collapsed_and_opens_on_the_summary(state):
             summary = app.query_one("#error-summary", Static)
             assert "13 errors" in str(summary.render())
             assert not banner.has_class("expanded")
-            # One summary line and the border under it, not a wall of log.
-            assert banner.size.height <= 2
+            assert banner.region.y == 0
+            assert banner.size.width == app.size.width
+            assert banner.size.height == 1
+            assert app.query_one("#body").region.y >= banner.region.bottom
 
             await pilot.click("#error-summary")
             await pilot.pause()
@@ -163,7 +169,7 @@ def bar_text(app, width=200):
     return console.file.getvalue()
 
 
-# Cell offsets into a table row: playing, mark, number, title, stores, genre, time.
+# Cell offsets into a table row: local/playing, mark, number, title, stores, genre, time.
 MARK_CELL = 1
 TITLE_CELL = 3
 STORES_CELL = 4
@@ -499,27 +505,36 @@ def cart_plan_for(record, *, already=False):
     )
 
 
+def patch_cart_session(monkeypatch, handler):
+    async def run_batch(_self, requests, cancel, *, approve, progress=None):
+        return await handler(list(requests), cancel, approve, progress)
+
+    monkeypatch.setattr(cart.CartBrowserSession, "run_batch", run_batch)
+
+
 def test_c_preflights_and_adds_the_selected_track(records, state, monkeypatch):
     bandcamp_record = next(record for record in records if record.category == "bandcamp")
     prepared = []
     executed = []
 
-    def run_cart(requests, _cancel, *, approve, **_kwargs):
-        requests = list(requests)
+    async def run_cart(requests, _cancel, approve, _progress):
         prepared.extend(requests)
         plan = cart_plan_for(bandcamp_record)
-        assert approve(plan)
+        assert await approve(plan)
         executed.append(plan)
-        return (
-            cart.CartResult(
-                bandcamp_record.track.key,
-                bandcamp_record.track.label,
-                "bandcamp",
-                "added",
+        return cart.CartBatchOutcome(
+            (
+                cart.CartResult(
+                    bandcamp_record.track.key,
+                    bandcamp_record.track.label,
+                    "bandcamp",
+                    "added",
+                ),
             ),
+            ("bandcamp",),
         )
 
-    monkeypatch.setattr(cart, "run_cart", run_cart)
+    patch_cart_session(monkeypatch, run_cart)
     app = make_app([bandcamp_record], state)
 
     async def scenario():
@@ -535,32 +550,160 @@ def test_c_preflights_and_adds_the_selected_track(records, state, monkeypatch):
     assert len(executed) == 1
 
 
+def test_beatport_result_creates_playlist_and_opens_supported_transfer(
+    state, monkeypatch, tmp_path
+):
+    candidate = Track(
+        title="Signal",
+        artist="Artist",
+        permalink_url="https://soundcloud.com/artist/signal",
+        id=4242,
+    )
+    record = LinkRecord(
+        "beatport",
+        candidate,
+        "https://www.beatport.com/track/signal/123?token=secret",
+        "Buy",
+    )
+    outcome = cart.CartBatchOutcome(
+        (
+            cart.CartResult(
+                candidate.key,
+                candidate.label,
+                "beatport",
+                "playlist_ready",
+                "ready for Beatport playlist transfer",
+                "playlist_ready",
+                record.link_url,
+            ),
+        )
+    )
+    opened = []
+    copied = []
+
+    async def run_cart(_requests, _cancel, _approve, _progress):
+        return outcome
+
+    def open_url(url, browser):
+        opened.append((url, browser))
+        return True
+
+    patch_cart_session(monkeypatch, run_cart)
+    monkeypatch.setattr("dj_digger.tui.opening.browser_module.open_url", open_url)
+    monkeypatch.setattr(
+        "dj_digger.tui.opening.copy_to_clipboard",
+        lambda text: copied.append(text) or True,
+    )
+    app = make_app([record], state)
+    app.config.download_directory = str(tmp_path)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("c")
+            for _ in range(20):
+                await pilot.pause()
+                if isinstance(app.screen, CartResultScreen):
+                    break
+            assert isinstance(app.screen, CartResultScreen)
+            assert app.screen.query_one("#cart-result-playlist", Button)
+            app.screen.dismiss("playlist")
+            for _ in range(20):
+                await pilot.pause()
+                if opened:
+                    break
+
+    run(scenario)
+    safe_url = "https://www.beatport.com/track/signal/123"
+    assert copied == [safe_url]
+    assert opened[0][0] == "https://soundiiz.com/beatport/import-playlist"
+    playlist = next(tmp_path.rglob("Beatport playlist.txt"))
+    assert playlist.read_text(encoding="utf-8") == safe_url + "\n"
+
+
+def test_beatport_playlist_uses_metadata_for_a_release_link(tmp_path):
+    candidate = Track(
+        title="Lights On",
+        artist="Revan",
+        permalink_url="https://soundcloud.com/revan/lights-on",
+        id=4243,
+    )
+    request = cart.CartRequest(
+        candidate,
+        (("beatport", "https://www.beatport.com/release/lights-on/123"),),
+    )
+    outcome = cart.CartBatchOutcome(
+        (
+            cart.CartResult(
+                candidate.key,
+                candidate.label,
+                "beatport",
+                "playlist_ready",
+                "ready for Beatport playlist transfer",
+                "playlist_ready",
+                request.links[0][1],
+            ),
+        )
+    )
+
+    lines = opening_module._beatport_playlist_lines([request], outcome)
+    first = opening_module._write_beatport_playlist(lines, tmp_path)
+    second = opening_module._write_beatport_playlist(lines, tmp_path)
+
+    assert lines == ("Revan - Lights On",)
+    assert first.name == "Beatport playlist.txt"
+    assert second.name == "Beatport playlist (2).txt"
+
+
+def test_store_settings_only_open_the_bandcamp_session(records, state, monkeypatch):
+    stores_seen = []
+
+    async def setup(_self, stores, _cancel, _progress):
+        stores_seen.append(tuple(stores))
+
+    monkeypatch.setattr(cart.CartBrowserSession, "setup_logins", setup)
+    app = make_app(records, state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            app.action_setup_store_logins()
+            for _ in range(20):
+                await pilot.pause()
+                if not app._cart_busy:
+                    break
+
+    run(scenario)
+    assert stores_seen == [("bandcamp",)]
+
+
 def test_c_installs_missing_chromium_then_retries_preflight(records, state, monkeypatch):
     bandcamp_record = next(record for record in records if record.category == "bandcamp")
     installed = []
     prepared = []
     executed = []
 
-    def run_cart(requests, _cancel, *, approve, **_kwargs):
-        prepared.append(list(requests))
+    async def run_cart(requests, _cancel, approve, _progress):
+        prepared.append(requests)
         if not installed:
             raise cart.ChromiumMissing("Chromium is required for store carts")
         plan = cart_plan_for(bandcamp_record)
-        assert approve(plan)
+        assert await approve(plan)
         executed.append(plan)
-        return (
-            cart.CartResult(
-                bandcamp_record.track.key,
-                bandcamp_record.track.label,
-                "bandcamp",
-                "added",
+        return cart.CartBatchOutcome(
+            (
+                cart.CartResult(
+                    bandcamp_record.track.key,
+                    bandcamp_record.track.label,
+                    "bandcamp",
+                    "added",
+                ),
             ),
+            ("bandcamp",),
         )
 
     def install(_cancel):
         installed.append(True)
 
-    monkeypatch.setattr(cart, "run_cart", run_cart)
+    patch_cart_session(monkeypatch, run_cart)
     monkeypatch.setattr(cart, "install_chromium", install)
     app = make_app([bandcamp_record], state)
 
@@ -589,13 +732,18 @@ def test_shift_c_confirms_the_visible_preflight_before_mutating(state, monkeypat
     record = synthetic_records(1)[0]
     plan = cart_plan_for(record)
     executed = []
-    def run_cart(_requests, _cancel, *, approve, **_kwargs):
-        if not approve(plan):
-            return None
-        executed.append(plan)
-        return (cart.CartResult(record.track.key, record.track.label, "bandcamp", "added"),)
 
-    monkeypatch.setattr(cart, "run_cart", run_cart)
+    async def run_cart(_requests, _cancel, approve, _progress):
+        approved = await approve(plan)
+        if approved is None:
+            return cart.CartBatchOutcome((), cancelled=True)
+        executed.append(approved)
+        return cart.CartBatchOutcome(
+            (cart.CartResult(record.track.key, record.track.label, "bandcamp", "added"),),
+            ("bandcamp",),
+        )
+
+    patch_cart_session(monkeypatch, run_cart)
     app = make_app([record], state)
 
     async def scenario():
@@ -603,11 +751,12 @@ def test_shift_c_confirms_the_visible_preflight_before_mutating(state, monkeypat
             await pilot.press("C")
             for _ in range(10):
                 await pilot.pause()
-                if isinstance(app.screen, ConfirmScreen):
+                if isinstance(app.screen, CartPlanScreen):
                     break
-            assert isinstance(app.screen, ConfirmScreen)
+            assert isinstance(app.screen, CartPlanScreen)
             assert executed == []
-            assert "GBP 1.25" in str(app.screen.query_one(Label).render())
+            row = app.screen.query_one("#cart-plan-table", DataTable).get_row_at(0)
+            assert "GBP 1.25" in str(row)
             await pilot.press("y")
             for _ in range(10):
                 await pilot.pause()
@@ -618,13 +767,76 @@ def test_shift_c_confirms_the_visible_preflight_before_mutating(state, monkeypat
     assert executed == [plan]
 
 
+def test_cart_plan_accepts_a_comma_price_and_recalculates_the_total(state):
+    record = synthetic_records(1)[0]
+    base = cart_plan_for(record).items[0]
+    plan = cart.CartPlan(
+        items=(
+            replace(
+                base,
+                price=Decimal("1.00"),
+                minimum_price=Decimal("1.00"),
+                price_step=Decimal("0.25"),
+                price_editable=True,
+            ),
+        )
+    )
+    app = make_app([record], state)
+    answer = []
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            screen = CartPlanScreen(plan)
+            app.push_screen(screen, answer.append)
+            await pilot.pause()
+            price = screen.query_one("#cart-plan-price", Input)
+            await pilot.press("e")
+            await pilot.pause()
+            assert price.has_focus
+            price.value = "1,50"
+            screen.action_approve()
+            await pilot.pause()
+
+    run(scenario)
+    assert answer[0].items[0].price == Decimal("1.50")
+
+
+def test_cart_plan_keeps_continue_visible_in_a_short_terminal(state):
+    record = synthetic_records(1)[0]
+    base = cart_plan_for(record).items[0]
+    plan = cart.CartPlan(
+        tuple(
+            replace(base, track_key=str(index), track_label=f"Track {index}")
+            for index in range(6)
+        )
+    )
+    app = make_app([record], state)
+    answer = []
+
+    async def scenario():
+        async with app.run_test(size=(90, 20)) as pilot:
+            screen = CartPlanScreen(plan)
+            app.push_screen(screen, answer.append)
+            await pilot.pause()
+            button = screen.query_one("#cart-plan-add", Button)
+            assert button.region.y + button.region.height <= app.size.height
+            await pilot.press("enter")
+            for _ in range(5):
+                await pilot.pause()
+                if answer:
+                    break
+
+    run(scenario)
+    assert answer == [plan]
+
+
 def test_batch_cart_refuses_a_filter_without_supported_stores(state, monkeypatch):
     record = synthetic_records(1)[0]
-    monkeypatch.setattr(
-        cart,
-        "run_cart",
-        lambda *_args, **_kwargs: pytest.fail("unsupported filter must not open a browser"),
-    )
+
+    async def fail(*_args, **_kwargs):
+        pytest.fail("unsupported filter must not open a browser")
+
+    monkeypatch.setattr(cart.CartBrowserSession, "run_batch", fail)
     app = make_app([record], state)
     app.store_filters = {"gate"}
 
@@ -633,7 +845,7 @@ def test_batch_cart_refuses_a_filter_without_supported_stores(state, monkeypatch
     assert app._cart_busy is False
 
 
-def test_cart_request_keeps_bandcamp_first_when_both_store_filters_are_active(state):
+def test_cart_fallback_request_keeps_bandcamp_first(state):
     track = Track(
         title="Signal",
         permalink_url="https://soundcloud.com/a/signal",
@@ -649,24 +861,45 @@ def test_cart_request_keeps_bandcamp_first_when_both_store_filters_are_active(st
     assert [store for store, _url in request.links] == ["bandcamp", "beatport"]
 
 
+def test_explicit_bandcamp_and_beatport_filters_create_independent_requests(state):
+    track = Track(
+        title="Signal",
+        permalink_url="https://soundcloud.com/a/signal",
+        id=43,
+        purchase_url="https://label.bandcamp.com/album/release",
+        description="https://www.beatport.com/release/release/99",
+    )
+    app = make_app(links.categorise(track), state)
+    app.store_filters = {"beatport", "bandcamp"}
+
+    requests = app._cart_requests(app.rows[0])
+
+    assert [request.links for request in requests] == [
+        (("bandcamp", "https://label.bandcamp.com/album/release"),),
+        (("beatport", "https://www.beatport.com/release/release/99"),),
+    ]
+
+
 def test_batch_cart_leaves_got_and_skipped_tracks_out(state, monkeypatch):
     records = synthetic_records(3)
     state.set(records[0].track.key, GOT)
     state.set(records[1].track.key, SKIP)
     seen = []
 
-    def run_cart(requests, _cancel, **_kwargs):
+    async def run_cart(requests, _cancel, _approve, _progress):
         seen.extend(requests)
-        return (
-            cart.CartResult(
-                records[2].track.key,
-                records[2].track.label,
-                "bandcamp",
-                "skipped",
-            ),
+        return cart.CartBatchOutcome(
+            (
+                cart.CartResult(
+                    records[2].track.key,
+                    records[2].track.label,
+                    "bandcamp",
+                    "skipped",
+                ),
+            )
         )
 
-    monkeypatch.setattr(cart, "run_cart", run_cart)
+    patch_cart_session(monkeypatch, run_cart)
     app = make_app(records, state)
 
     async def scenario():
@@ -791,9 +1024,9 @@ def test_open_all_asks_before_flooding_the_browser(state, monkeypatch):
 
     async def scenario():
         async with app.run_test() as pilot:
-            await pilot.press("a")
+            await pilot.press("O")
             assert opened == []  # first press only warns
-            await pilot.press("a")
+            await pilot.press("O")
             assert len(opened) == 25
 
     run(scenario)
@@ -810,6 +1043,8 @@ def test_open_all_goes_straight_through_for_a_short_list(state, monkeypatch):
     async def scenario():
         async with app.run_test() as pilot:
             await pilot.press("a")
+            assert opened == []
+            await pilot.press("O")
             assert len(opened) == 3
 
     run(scenario)
@@ -1543,6 +1778,12 @@ class FakePlayer:
         finished, self.finished = self.finished, False
         return finished
 
+    def take_event(self):
+        if not self.finished:
+            return None
+        self.finished = False
+        return SimpleNamespace(kind="finished", message="")
+
     def load(self, track, stream, session, waveform=None, source=None):
         self.loaded = SimpleNamespace(
             track=track, stream=stream, duration=self.duration, waveform=waveform or []
@@ -1744,7 +1985,7 @@ def test_the_playing_row_carries_a_marker(state, monkeypatch):
             await pilot.press("space")
             await pilot.pause()
             markers = [str(table.get_row_at(index)[0]) for index in range(3)]
-            assert markers == [tui.PLAYING_GLYPH, "", ""]
+            assert markers == [" " + tui.PLAYING_GLYPH, "  ", "  "]
 
     run(scenario)
 
@@ -3610,8 +3851,10 @@ def test_a_matched_track_is_badged_in_the_table(records, state):
             await pilot.pause()
 
             table = app.query_one("#tracks", DataTable)
+            leading = table.get_cell_at(Coordinate(0, 0))
             title = table.get_cell_at(Coordinate(0, TITLE_CELL))
-            assert "\U0001f4c1" in str(title)
+            assert str(leading) == tui.LOCAL_FILE_GLYPH + " "
+            assert "\U0001f4c1" not in str(title)
 
     run(scenario)
 

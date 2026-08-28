@@ -25,6 +25,8 @@ import time
 from collections import deque
 from dataclasses import dataclass, field
 from functools import lru_cache
+from queue import Empty, SimpleQueue
+from typing import Literal
 
 from rich.text import Text
 from textual.app import ComposeResult
@@ -553,6 +555,15 @@ class Loaded:
         return self.stream.duration
 
 
+@dataclass(frozen=True)
+class PlaybackEvent:
+    """One terminal event from the audio callback, tagged against stale playback."""
+
+    kind: Literal["finished", "error"]
+    generation: int
+    message: str = ""
+
+
 class Player:
     """Play, pause, seek and volume over an MP3 streamed straight from SoundCloud."""
 
@@ -566,7 +577,9 @@ class Player:
         self._frames = 0
         self._offset = 0.0
         self._playing = False
-        self._finished = False
+        self._ended = False
+        self._generation = 0
+        self._events: SimpleQueue[PlaybackEvent] = SimpleQueue()
         self._volume = 0.8
         self._muted = False
         self._level = 0.0
@@ -604,15 +617,22 @@ class Player:
     def playing(self) -> bool:
         return self._playing
 
+    def take_event(self) -> PlaybackEvent | None:
+        """Return the next terminal event for the current playback generation."""
+
+        while True:
+            try:
+                event = self._events.get_nowait()
+            except Empty:
+                return None
+            if event.generation == self._generation:
+                return event
+
     def take_finished(self) -> bool:
-        """True once for each track that ran to its end, then False again.
+        """Compatibility helper for callers interested only in a clean EOF."""
 
-        Clearing on read is what stops a caller polling on a timer from firing
-        the same end-of-track over and over while the next one loads.
-        """
-
-        finished, self._finished = self._finished, False
-        return finished
+        event = self.take_event()
+        return event is not None and event.kind == "finished"
 
     @property
     def duration(self) -> float:
@@ -716,30 +736,47 @@ class Player:
             if len(window):
                 self._levels.append(max(max(window), -min(window)) / FULL_SCALE)
 
-    def _feed(self, stream):
-        chunk = next(stream)
+    def _feed(self, stream, generation: int):
+        # miniaudio sends a frame count into the callback generator, so the first
+        # yield must happen before any decoding. It also makes an empty stream end
+        # on the callback thread rather than raising while ``play`` primes us.
         required = yield b""
+        first = True
         while True:
-            # miniaudio can send 0; asking the decoder for nothing reads as EOF.
-            required = required or 1024
-            if chunk is None:
-                chunk = stream.send(required)
-            if not len(chunk):
-                self._playing = False
-                self._finished = True
-                self._silence()
+            if generation != self._generation:
                 return
-            self._frames += len(chunk) // CHANNELS
-            self._measure(chunk)
-            volume = self.volume
-            out = (
-                chunk
-                # >= 0.999 rather than == 1.0: a float comparison guard, and at
-                # full volume the per-sample rescale loop is skipped entirely.
-                if volume >= 0.999
-                else array.array("h", [int(sample * volume) for sample in chunk])
-            )
-            chunk = None
+            try:
+                # miniaudio can send 0; asking the decoder for nothing reads as EOF.
+                frames = required or 1024
+                chunk = next(stream) if first else stream.send(frames)
+                first = False
+                if not len(chunk):
+                    raise StopIteration
+                self._frames += len(chunk) // CHANNELS
+                self._measure(chunk)
+                volume = self.volume
+                out = (
+                    chunk
+                    # >= 0.999 rather than == 1.0: a float comparison guard, and at
+                    # full volume the per-sample rescale loop is skipped entirely.
+                    if volume >= 0.999
+                    else array.array("h", [int(sample * volume) for sample in chunk])
+                )
+            except StopIteration:
+                if generation == self._generation:
+                    self._playing = False
+                    self._ended = True
+                    self._generator = None
+                    self._silence()
+                    self._events.put(PlaybackEvent("finished", generation))
+                return
+            except Exception as exc:
+                if generation == self._generation:
+                    self._playing = False
+                    self._generator = None
+                    self._silence()
+                    self._events.put(PlaybackEvent("error", generation, str(exc)))
+                return
             required = yield out
 
     def _stop_device(self) -> None:
@@ -774,15 +811,29 @@ class Player:
         if self._loaded is None:
             return
         device = self._device_for(SAMPLE_RATE, CHANNELS)
+        if self._ended:
+            # At the end of the list, pressing play means replay this track rather
+            # than asking an exhausted decoder to seek to its own end again.
+            self._drop_generator()
+            self._offset = 0.0
+            self._frames = 0
+            self._ended = False
         if self._generator is None:
             # Reopening the socket costs about half a second, so a plain resume
             # keeps the existing generator and only a seek reopens it.
             self._offset = self.position
             self._frames = 0
-            self._generator = self._feed(self._open_stream(int(self._offset * SAMPLE_RATE)))
+            self._generation += 1
+            self._generator = self._feed(
+                self._open_stream(int(self._offset * SAMPLE_RATE)), self._generation
+            )
             # miniaudio sends into the generator without priming it first, and
             # its own docstring says the caller must start it.
             next(self._generator)
+        # A very short or broken stream can finish before ``start`` returns, so
+        # publish the intended state first and let the callback have the last word.
+        self._playing = True
+        self._ended = False
         try:
             device.start(self._generator)
         except Exception as exc:
@@ -794,8 +845,6 @@ class Player:
             LOGGER.debug("Could not start the audio device: %s", exc)
             self._drop_device()
             raise PlaybackUnavailable("The audio device would not start - try again") from exc
-        self._playing = True
-        self._finished = False
 
     def pause(self) -> None:
         if self._playing:
@@ -807,10 +856,13 @@ class Player:
         self.pause() if self._playing else self.play()
 
     def stop(self) -> None:
+        # Invalidate a callback before asking the device to stop. A late EOF from
+        # the old generator must not advance whatever is loaded next.
+        self._generation += 1
         self._stop_device()
         self._close_source()
         self._playing = False
-        self._finished = False
+        self._ended = False
         self._frames = 0
         self._offset = 0.0
         self._silence()
@@ -822,6 +874,7 @@ class Player:
         # immediate end-of-stream and the track reads as finished.
         target = max(0.0, min(max(0.0, self.duration - 0.5), seconds))
         was_playing = self._playing
+        self._generation += 1
         self._stop_device()
         # Only the decoder is rebuilt at the new frame. The source stays, and
         # with it the copy of the track, which is what makes this instant.
@@ -829,7 +882,7 @@ class Player:
         self._offset = target
         self._frames = 0
         self._playing = False
-        self._finished = False
+        self._ended = False
         self._silence()
         if was_playing:
             self.play()

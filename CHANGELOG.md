@@ -2,6 +2,75 @@
 
 ## Unreleased
 
+## 0.15.0
+
+### Added
+
+- Beatport results can now be saved as a non-overwriting plain-text playlist,
+  copied for a Soundiiz plain-text import, and handed to Beatport's official
+  Soundiiz transfer page. Exact track URLs are preferred; release-page and
+  blocked lookups fall back to artist/title matching.
+- Explicitly selecting both Bandcamp and Beatport now sends each eligible track
+  to both workflows instead of treating Beatport only as Bandcamp's fallback.
+- Store-cart batches now have live progress, an editable review screen, grouped
+  results, safe retry for failures known to precede a click, and Settings actions
+  for checking, opening, or explicitly resetting the dedicated store session.
+- Cart diagnostics now record lifecycle phases, redacted navigation/status,
+  per-track outcomes, browser HTTP/console signals, and aggregate counts in
+  `--log-file` without recording URL queries, credentials, or raw console text.
+- Bandcamp moved-link recovery now uses its visible autocomplete, accepts only an
+  exact canonical track, and inspects at most three returned album pages without
+  entering the CAPTCHA-protected full search page.
+
+### Fixed
+
+- The purchase-review table now shrinks in short terminals instead of pushing
+  its Continue button off-screen. A visible instruction and `Enter` shortcut
+  make the intentional review pause distinct from a stalled batch.
+- Natural decoder EOF no longer escapes through miniaudio's CFFI callback as
+  `RuntimeError: generator raised StopIteration`. Playback events are tagged by
+  generation, so a late callback after seek or stop cannot advance the wrong row.
+- Bandcamp product discovery now tolerates its current split between public DOM,
+  `TralbumData`, and structured metadata. It also dismisses the necessary-cookie
+  footer, accepts an exact unique trailing title across artist aliases, and does
+  not require an account login for a cookie-backed cart.
+- Bandcamp storefront homepages and undeclared name-your-price values no longer
+  masquerade as global structure failures and stop the remaining queue. Current
+  DOM identity/price now wins over stale `?action=download` metadata, safe plain
+  HTTP store links are upgraded after domain validation, and common `//`, quoted
+  premiere, and `feat.` title forms can be matched exactly.
+- Beatport's production verification no longer loops in managed Chromium or
+  aborts an unrelated Bandcamp batch when its server rejects Playwright.
+- Bandcamp cart verification now checks the post-click item count, opens the real
+  side-cart control instead of the SVG sprite, inspects its current rows, and
+  performs one final reload check. A still-unverified page stays open instead of
+  disappearing, and no second add click is issued.
+- Bandcamp cart membership now requires a visible removable row with the exact
+  canonical track, preventing hidden page data from marking the rest of a batch
+  as already added. Flexible prices default to the verified minimum, remain
+  editable with `E`, and fail before mutation if Bandcamp withdraws its price
+  input.
+- Bandcamp storefront recovery now reaches the global autocomplete instead of
+  reopening the same label homepage. Beatport release rows can use their track
+  slug to preserve an exact mix or remix before the target page is revalidated.
+
+### Changed
+
+- Whole-list opening now follows the existing Shift convention: `o` opens the
+  highlighted track and `Shift+O` opens all visible tracks. The local-file marker
+  is a monochrome `▣` at the start of the first marker column, and the collapsed
+  error banner occupies the full first row above the TUI.
+- Store work uses one persistent Chromium profile: preflight and Bandcamp
+  mutation stay headless with two bounded pages, then the same profile is
+  relaunched visibly only for the final Bandcamp cart.
+- Beatport public metadata is preflighted only to improve playlist accuracy.
+  Managed login and cart mutation are no longer attempted; Settings now exposes
+  only the Bandcamp store session. Exact numeric Beatport track URLs go straight
+  to the transfer playlist without starting Chromium.
+- Product-checking progress now says that nothing is added until review, and an
+  album-only Bandcamp track is reported explicitly rather than substituting a
+  full album purchase.
+
 ## 0.14.0
 
 ### Added

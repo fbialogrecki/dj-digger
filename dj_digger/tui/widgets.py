@@ -169,9 +169,6 @@ class ErrorBanner(Widget):
     """
 
     DEFAULT_CSS = """
-    /* Capped rather than the full width of the terminal: eighty-odd columns is
-       as wide as a line of prose wants to be read at, and a bar that stops
-       short reads as a panel over the list rather than as a new top bar. */
     ErrorBanner {
         display: none;
         background: $error-darken-2;
@@ -179,13 +176,13 @@ class ErrorBanner(Widget):
         height: auto;
         max-height: 12;
         width: 100%;
-        max-width: 88;
-        dock: top;
-        border-bottom: solid $error;
-        border-right: solid $error;
     }
     ErrorBanner.visible {
         display: block;
+        height: 1;
+    }
+    ErrorBanner.visible.expanded {
+        height: auto;
     }
     #error-head {
         height: 1;

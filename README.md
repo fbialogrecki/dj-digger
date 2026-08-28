@@ -3,7 +3,7 @@
 [![Python Version](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
 [![Built with Textual](https://img.shields.io/badge/TUI-Textual-ff69b4.svg)](https://textual.textualize.io/)
-[![Version](https://img.shields.io/badge/version-0.13.3-orange.svg)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-0.15.0-orange.svg)](pyproject.toml)
 
 > **The ultimate crate-digging companion for DJs and electronic music collectors.**
 > Instantly extract purchase links, free downloads, and download gates from SoundCloud playlists, user likes, or artist profiles—then preview tracks and manage your library in a high-performance terminal interface.
@@ -28,7 +28,7 @@ dj-digger https://soundcloud.com/someone/sets/that-playlist
 - **🔓 Download Gate Automation**: Resolves follow-to-download gates (Hypeddit, ToneDen, GateRush, Droploud) through their supported download flows. SoundCloud, Instagram, YouTube and similar link steps are click-through markers: the app does not call their follow, like, repost, comment APIs or open external social links to simulate a click. A gate may receive the name or email configured in Settings when its manifest requires them, and an explicit Spotify ART/PLAY step can modify the user's Spotify library after OAuth. CAPTCHA and unknown provider steps remain manual in the private Chromium profile. Gate automation remains subject to the provider's terms.
 - **🔐 Spotify Gate Login**: Hypeddit gates that explicitly require saving a Spotify artist or public playlist can use an optional one-time PKCE login. No Spotify client secret is stored, and disabling gate social actions keeps these gates manual.
 - **🔗 Link-Hub Expansion**: A purchase link that turns out to be a list of shops rather than a download—an ampsuite release page, a gate running in smart-link mode—is opened, and the Bandcamp and Beatport links behind it are added to the track directly instead of a `gate` badge.
-- **🛒 Verified Store Carts**: An optional, user-triggered Chromium flow finds the exact linked track on Bandcamp or Beatport, shows a price preflight, and verifies the stable product ID in the cart. Login and checkout stay manual.
+- **🛒 Store Purchase Assistance**: An optional, user-triggered flow verifies Bandcamp additions and prepares Beatport tracks as an importable playlist. Login, playlist transfer, and checkout stay manual.
 - **🆕 New Since Last Refresh**: Refreshing a crate marks whatever the playlist gained with `NEW` and sorts it to the top.
 - **📄 Saved-HTML Fallback**: Fully supports saved HTML pages (`Ctrl+S`) for private or unlisted SoundCloud playlists.
 - **⚙️ CLI & Non-Interactive Mode**: Export crates directly to JSON or CSV for automated pipelines and scripts.
@@ -129,7 +129,7 @@ Press `?` inside the TUI at any time to view the full grouped keybinding modal.
 | `s` | Mark track as **Skipped** (`✗`) and move to next track |
 | `u` | Clear track status mark (`·`) |
 | `x` | Remove track from current crate (`Ctrl+Z` to undo) |
-| `y` | Copy the path of the local file that matches this track (`📁` in the row) |
+| `y` | Copy the path of the local file that matches this track (`▣` in the first column) |
 
 #### Audio Preview Controls
 | Key | Action |
@@ -149,9 +149,9 @@ Press `?` inside the TUI at any time to view the full grouped keybinding modal.
 | `1` – `9` | Jump directly to store category filter |
 | `0` | Reset store filter (show all tracks) |
 | `h` | Toggle hiding handled tracks (`got` / `skipped`) |
-| `a` | Open all visible store links in browser (asks confirmation for >20 links) |
-| `c` | Verify and add the highlighted exact track to Bandcamp or Beatport |
-| `C` | Preflight visible tracks, then add the confirmed batch sequentially |
+| `Shift+O` | Open all visible store links in browser (asks confirmation for >20 links) |
+| `c` | Add the highlighted track to Bandcamp, or prepare it for a Beatport playlist |
+| `C` | Review visible store tracks, add Bandcamp items, and prepare a Beatport playlist |
 | `e` | Export visible rows to file |
 | `d` | Add a new crate from a SoundCloud URL |
 | `r` | Refresh current crate from SoundCloud (preserves local deletions) |
@@ -178,37 +178,68 @@ Links are parsed and categorized using strict domain-boundary matching:
 | `no-link` | No purchase or download link found |
 | `others` | Unrecognized external web link |
 
-### Bandcamp and Beatport carts
+### Bandcamp carts and Beatport playlists
 
-Pressing `c` or `C` starts a visible Chromium window only when you ask for it. If
-the matching browser build is absent, the app asks before downloading it in the
-background and then resumes the cart preflight. The app uses a dedicated
-persistent browser profile, separate from your everyday browser, so you may need
-to log in manually the first time. It never reads or fills your password, chooses
-a payment method, or completes checkout.
+Pressing `c` or `C` performs product checks in hidden Chromium and shows its
+window only when the completed Bandcamp cart is ready. If the matching browser
+build is absent, the app asks before downloading it in the background and then
+resumes the cart preflight. The app uses a dedicated persistent browser profile,
+separate from your everyday browser. A Bandcamp account is not required for its
+cookie-backed cart; opening a manual Bandcamp session in Settings is optional.
+Beatport login is never attempted there. The app never reads or fills your
+password, chooses a payment method, or completes checkout.
 
-- `c` resolves and adds the highlighted track.
+- `c` resolves the highlighted track, then adds it to Bandcamp or prepares it for
+  a Beatport playlist.
 - `C` resolves all currently visible, unhandled tracks, then asks for one batch
   confirmation. The active Bandcamp or Beatport filter limits the target store.
+- When both Bandcamp and Beatport filters are explicitly active, each track is
+  handled for both destinations: Bandcamp is added to its cart and Beatport is
+  retained for the transfer playlist.
 - With no store filter, Bandcamp is tried first. Beatport is used only when the
   exact track is genuinely unavailable for individual purchase on Bandcamp—not
   when Bandcamp fails technically.
 
 Batch mode resolves every candidate first and shows exact products, prices,
-currencies, existing cart items, and skips before any cart is changed. Store
+currencies, existing cart items, and skips before Bandcamp is changed. Bandcamp
+rows with seller-approved flexible pricing show their minimum; highlight one and
+press `E` to enter a higher value. Fixed-price rows cannot be edited. Bandcamp
 pages are rechecked immediately before each click. Ambiguous titles, version
 mismatches, changed prices or product IDs, CAPTCHA, and changed store UI stop the
-affected operation instead of guessing. Every candidate gets its own tab before
-the first page starts loading, and the same Chromium window stays open through
-manual login, preflight, confirmation, revalidation, and cart addition. Manual
-login has up to five minutes; the used tabs then remain open at their carts for
-format selection and checkout.
+affected Bandcamp operation instead of guessing. Two reusable work tabs bound
+preflight; Bandcamp mutation is serial, and only its successful final cart tab
+remains open for format selection and checkout.
 
-Only canonical Bandcamp and Beatport HTTPS domains are automated. Custom artist
-domains and global store search are intentionally outside this first version.
-The feature depends on the stores' current visible interfaces; use it in line
-with their terms. Linux needs a graphical session; WSL users need WSLg or another
-working display.
+If a Bandcamp link moved or points only to an artist/label page, the app uses the
+site's visible autocomplete as a bounded fallback. It accepts only canonical,
+exact track matches and inspects at most three returned album pages; it never
+enters the CAPTCHA-protected full results page. A track sold only as part of a
+full album is reported as album-only instead of silently adding the whole album.
+After a click, verification uses the cart count, a visible removable row in the
+opened side cart, and one reload check. An uncertain cart remains open for
+inspection and is never clicked again automatically.
+
+Beatport login and cart mutation are not automated. The result screen creates a
+new `Beatport playlist.txt` in the crate's download folder, copies its contents,
+and opens Beatport's official Soundiiz transfer page. Choose **Import playlist →
+Plain text** and paste; if the clipboard is unavailable, upload the saved file.
+Exact Beatport track URLs are preferred. Release links and blocked public pages
+are looked up for the exact title/remix and fall back to `artist - title`, which
+Soundiiz presents for review before writing the Beatport playlist. Already-exact
+numeric track URLs bypass Chromium. In Beatport DJ, that playlist can then be
+added to the default cart in one action.
+
+Only canonical Bandcamp and Beatport HTTPS domains are inspected. Custom artist
+domains remain outside this version. The feature depends on the stores' and
+Soundiiz's current visible interfaces; use it in line with their terms. Showing
+the completed Bandcamp cart or opening its manual session needs a graphical
+session; WSL users need WSLg or another working display.
+
+For a timestamped diagnostic log that does not interfere with Textual, run:
+
+```bash
+uv run --extra play dj-digger --log-level DEBUG --log-file /tmp/dj-digger-cart.log
+```
 
 ---
 

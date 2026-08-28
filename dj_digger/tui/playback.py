@@ -45,10 +45,14 @@ class PlaybackMixin:
         self._frame += 1
         if self._digging:
             self._spin()
-        if self.player.take_finished():
-            # Auditioning a crate means hearing all of it, not pressing a key
-            # between every track.
-            self._advance_playback()
+        if event := self.player.take_event():
+            if event.kind == "error":
+                self._player_op(self.player.stop)
+                self._playback_failed(f"Playback failed ({event.message})")
+            else:
+                # Auditioning a crate means hearing all of it, not pressing a key
+                # between every track.
+                self._advance_playback()
             return
         if self.player.playing:
             self._player_bar().refresh_bar()

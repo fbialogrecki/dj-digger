@@ -17,6 +17,8 @@ STATUS_STYLES = {
 }
 
 PLAYING_GLYPH = "\u25b6"
+LOCAL_FILE_GLYPH = "\u25a3"
+LEADING_WIDTH = 2
 OPEN_ALL_CONFIRM_THRESHOLD = 20
 # How long before the end of a track we start getting the next one ready. Long
 # enough to cover a signed URL, a waveform and the first megabytes of audio on a
@@ -112,7 +114,7 @@ KEYMAP = [
     ("equals_sign", "volume(1)", "Louder", PLAYBACK, False, "Turn it up"),
     ("m", "mute", "Mute", PLAYBACK, False, "Mute or unmute"),
     ("ctrl+w", "close_player", "Close player", PLAYBACK, False, "Stop and fold the player away"),
-    ("a", "open_visible", "Open all", WHOLE_LIST, True, "Open every link shown, asks above 20"),
+    ("O", "open_visible", "Open all", WHOLE_LIST, True, "Open every link shown, asks above 20"),
     ("C", "cart_visible", "Cart all", WHOLE_LIST, False, "Preflight and add every exact store track shown"),
     ("e", "export", "Export", WHOLE_LIST, False, "Write the rows shown to the export file"),
     ("slash", "start_search", "Search", WHOLE_LIST, True, "Filter by artist or title"),
@@ -150,5 +152,6 @@ KEY_DISPLAY = {
     "left_square_bracket": "[",
     "right_square_bracket": "]",
     "o,enter": "o, enter",
+    "O": "shift+O",
     "X": "shift+X",
 }

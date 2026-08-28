@@ -1,5 +1,6 @@
 """The crate browser application itself: state, actions and workers."""
 
+import asyncio
 import logging
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
@@ -14,6 +15,7 @@ from textual.containers import Horizontal, Vertical
 from textual.timer import Timer
 from textual.widgets import Button, DataTable, ListView, Static
 
+from .. import cart as cart_module
 from .. import dig as dig_module
 from .. import links as links_module
 from ..config import AppConfig
@@ -35,6 +37,8 @@ from .keymap import (
     INDEX_WIDTH,
     KEY_DISPLAY,
     KEYMAP,
+    LEADING_WIDTH,
+    LOCAL_FILE_GLYPH,
     MARK_WIDTH,
     MIN_TITLE_WIDTH,
     PLAYING_GLYPH,
@@ -83,13 +87,8 @@ class DiggerApp(
     TITLE = "dj-digger"
 
     CSS = """
-    DiggerApp {
-        layers: base top;
-    }
     #error-banner {
         width: 100%;
-        dock: top;
-        layer: top;
     }
     #body {
         height: 1fr;
@@ -226,7 +225,10 @@ class DiggerApp(
         self.present: list[str] = []
         self._pending_open_all = False
         self._cart_busy = False
-        self._cart_cancel = Event()
+        self._cart_cancel = asyncio.Event()
+        self._cart_session = cart_module.CartBrowserSession()
+        self._cart_progress_screen = None
+        self._cart_decision_screen = None
         self._gate_cancel = Event()
         self._browser_batch_active = False
         self._digging = False
@@ -312,7 +314,10 @@ class DiggerApp(
 
     async def on_mount(self) -> None:
         table = self.query_one("#tracks", TrackTable)
-        table.add_column(Text(PLAYING_GLYPH, style="bright_black"), width=MARK_WIDTH)
+        table.add_column(
+            Text(LOCAL_FILE_GLYPH + PLAYING_GLYPH, style="bright_black"),
+            width=LEADING_WIDTH,
+        )
         table.add_column("", width=MARK_WIDTH)
         table.add_column("#", width=INDEX_WIDTH)
         table.flexible_column = table.add_column("Track", width=MIN_TITLE_WIDTH)
@@ -346,7 +351,7 @@ class DiggerApp(
         if not self.rows:
             self.action_dig_link()
 
-    def on_unmount(self) -> None:
+    async def on_unmount(self) -> None:
         """Let go of everything this screen owns, in one place.
 
         There were two of these, and Python kept the second - so the ticker went
@@ -357,8 +362,8 @@ class DiggerApp(
         8.2.8 it lands before this method is dispatched, not after.
         """
 
-        # Playwright objects stay on their worker thread; teardown only signals
-        # that worker, which closes its own context in ``finally``.
+        # The async Playwright context lives on this same event loop. Textual has
+        # cancelled its workers by now; close the persistent profile explicitly.
         self._cart_cancel.set()
         self._gate_cancel.set()
         # A tick landing after the widgets have gone would go looking for a
@@ -372,6 +377,7 @@ class DiggerApp(
             self._download_executor = None
         self._discard_prepared()
         self.player.close()
+        await self._cart_session.close()
         if self._client is not None:
             self._client.close()
             self._client = None

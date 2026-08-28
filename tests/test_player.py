@@ -467,6 +467,73 @@ def test_a_zero_frame_request_does_not_end_playback(monkeypatch):
     assert len(device.started_with.send(0)) > 0
 
 
+def test_a_decoder_eof_is_a_finished_event_not_a_callback_runtime_error(monkeypatch):
+    subject, device = loaded_player(monkeypatch)
+
+    def finite_inner():
+        requested = yield array.array("h", [100] * 2048)
+        assert requested
+        return
+
+    monkeypatch.setattr(subject, "_open_stream", lambda _seek_frame: finite_inner())
+    subject.play()
+
+    assert len(device.started_with.send(1024)) > 0
+    with pytest.raises(StopIteration):
+        device.started_with.send(1024)
+
+    event = subject.take_event()
+    assert event is not None and event.kind == "finished"
+    assert subject.playing is False
+
+
+def test_a_decoder_failure_becomes_an_event_without_crossing_the_callback(monkeypatch):
+    subject, device = loaded_player(monkeypatch)
+
+    def broken_inner():
+        yield array.array("h", [100] * 2048)
+        raise RuntimeError("bad media")
+
+    monkeypatch.setattr(subject, "_open_stream", lambda _seek_frame: broken_inner())
+    subject.play()
+    device.started_with.send(1024)
+    with pytest.raises(StopIteration):
+        device.started_with.send(1024)
+
+    event = subject.take_event()
+    assert event is not None and event.kind == "error"
+    assert event.message == "bad media"
+
+
+def test_an_old_eof_after_seek_cannot_finish_the_new_generation(monkeypatch):
+    subject, device = loaded_player(monkeypatch)
+    subject.play()
+    old_generation = subject._generation
+
+    subject.seek(20.0)
+    subject._events.put(player.PlaybackEvent("finished", old_generation))
+
+    assert subject.take_event() is None
+
+
+def test_play_after_a_finished_last_track_restarts_from_zero(monkeypatch):
+    subject, device = loaded_player(monkeypatch)
+    subject._ended = True
+    subject._offset = subject.duration
+    subject._frames = 0
+    seeks = []
+    original_open = subject._open_stream
+
+    def record_open(seek_frame):
+        seeks.append(seek_frame)
+        return original_open(seek_frame)
+
+    monkeypatch.setattr(subject, "_open_stream", record_open)
+    subject.play()
+
+    assert seeks == [0]
+
+
 def test_frames_fed_move_the_position(monkeypatch):
     subject, device = loaded_player(monkeypatch)
     subject.play()
