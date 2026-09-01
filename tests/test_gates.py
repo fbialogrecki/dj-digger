@@ -659,7 +659,7 @@ def test_hypeddit_browser_batch_uses_one_context_and_maps_each_tab_download(
         contexts.append(context)
         yield context
 
-    monkeypatch.setattr("dj_digger.cart._browser_context", browser_context)
+    monkeypatch.setattr("dj_digger.browser_session.sync_browser_context", browser_context)
     tracks = [
         Track(
             id=index,

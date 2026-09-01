@@ -290,13 +290,13 @@ def login_with_chromium(
         install_chromium = None
         chromium_missing = ()
         if context_factory is None:
-            # The cart already owns the small Playwright lifecycle layer. Importing
-            # lazily keeps Playwright optional for every non-browser command.
-            from . import cart
+            # Imported lazily so Playwright stays optional for every command
+            # that never opens a browser.
+            from . import browser_session
 
-            context_factory = cart._browser_context
-            install_chromium = cart.install_chromium
-            chromium_missing = (cart.ChromiumMissing,)
+            context_factory = browser_session.sync_browser_context
+            install_chromium = browser_session.install_chromium
+            chromium_missing = (browser_session.ChromiumMissing,)
 
         status("Opening the private SoundCloud browser…")
 

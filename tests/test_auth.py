@@ -249,7 +249,7 @@ def test_browser_profile_permission_failure_is_a_safe_auth_error(monkeypatch):
 
 
 def test_browser_login_installs_missing_playwright_chromium_once(monkeypatch):
-    from dj_digger import cart
+    from dj_digger import browser_session
 
     attempts = []
     installs = []
@@ -264,11 +264,11 @@ def test_browser_login_installs_missing_playwright_chromium_once(monkeypatch):
     def browser_context(_profile):
         attempts.append(True)
         if len(attempts) == 1:
-            raise cart.ChromiumMissing("missing")
+            raise browser_session.ChromiumMissing("missing")
         yield Context()
 
-    monkeypatch.setattr(cart, "_browser_context", browser_context)
-    monkeypatch.setattr(cart, "install_chromium", lambda cancel: installs.append(cancel))
+    monkeypatch.setattr(browser_session, "sync_browser_context", browser_context)
+    monkeypatch.setattr(browser_session, "install_chromium", lambda cancel: installs.append(cancel))
     monkeypatch.setattr(
         auth, "verify_and_save", lambda token, client_id: (token, "DJ", 1)
     )

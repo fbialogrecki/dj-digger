@@ -5,8 +5,8 @@
 - Product version verified: 0.15.0
 - Owner: Filip Białogrecki
 - Updated: 2026-08-28
-- Document lines: <!-- SPEC TOTAL LINES -->979<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->979<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->981<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->981<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -61,52 +61,52 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 4 | System context and data flow | 371–407 |
 | 4.1 | ↳ Context diagram | 373–394 |
 | 4.2 | ↳ Collection-to-library flow | 395–407 |
-| 5 | Repository layout and component ownership | 408–446 |
+| 5 | Repository layout and component ownership | 408–448 |
 | 5.1 | ↳ Entry, orchestration, and models | 410–420 |
-| 5.2 | ↳ Network and external-system adapters | 421–432 |
-| 5.3 | ↳ Persistence, local media, and UI | 433–446 |
-| 6 | Runtime architecture and environments | 447–518 |
-| 6.1 | ↳ Runtime and dependencies | 449–462 |
-| 6.2 | ↳ Concurrency and lifecycle | 463–503 |
-| 6.3 | ↳ Local paths and environment variables | 504–518 |
-| 7 | Data model and persistence | 519–581 |
-| 7.1 | ↳ Domain objects and identity | 521–532 |
-| 7.2 | ↳ SQLite schema and invariants | 533–556 |
-| 7.3 | ↳ Crate persistence and deletion | 557–568 |
-| 7.4 | ↳ Configuration and credential stores | 569–581 |
-| 8 | Public interfaces and contracts | 582–625 |
-| 8.1 | ↳ CLI arguments and exit behavior | 584–603 |
-| 8.2 | ↳ JSON and CSV summary input | 604–616 |
-| 8.3 | ↳ URL-opening contract | 617–625 |
-| 9 | Authentication and authorization | 626–662 |
-| 9.1 | ↳ SoundCloud authentication | 628–645 |
-| 9.2 | ↳ Gate action consent | 646–662 |
-| 10 | External integrations | 663–766 |
-| 10.1 | ↳ SoundCloud API and media | 665–676 |
-| 10.2 | ↳ Link hubs and download gates | 677–714 |
-| 10.2 · block | ↳ ↳ Hypeddit | 685–700 |
-| 10.2 · block | ↳ ↳ Other resolvers | 702–707 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 709–714 |
-| 10.3 | ↳ Browsers and clipboard | 715–726 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 727–766 |
-| 11 | Security requirements and threat model | 767–813 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 769–787 |
-| 11.2 | ↳ Secret and personal-data handling | 788–800 |
-| 11.3 | ↳ File and mutation safety | 801–813 |
-| 12 | Privacy, lifecycle, and retention | 814–850 |
-| 12.1 | ↳ Data stored locally | 816–829 |
-| 12.2 | ↳ Data sent to third parties | 830–841 |
-| 12.3 | ↳ User-controlled deletion | 842–850 |
-| 13 | Failure behavior and current limitations | 851–900 |
-| 13.1 | ↳ Error isolation and reporting | 853–872 |
-| 13.2 | ↳ Confirmed limitations | 873–900 |
-| 14 | Verification, CI, and release | 901–957 |
-| 14.1 | ↳ Offline and live test suites | 903–926 |
-| 14.2 | ↳ Continuous integration and publishing | 927–942 |
-| 14.3 | ↳ Specification-map verification | 943–957 |
-| 15 | Evidence and operational references | 958–979 |
-| 15.1 | ↳ Primary implementation evidence | 960–972 |
-| 15.2 | ↳ User and historical documentation | 973–979 |
+| 5.2 | ↳ Network and external-system adapters | 421–434 |
+| 5.3 | ↳ Persistence, local media, and UI | 435–448 |
+| 6 | Runtime architecture and environments | 449–520 |
+| 6.1 | ↳ Runtime and dependencies | 451–464 |
+| 6.2 | ↳ Concurrency and lifecycle | 465–505 |
+| 6.3 | ↳ Local paths and environment variables | 506–520 |
+| 7 | Data model and persistence | 521–583 |
+| 7.1 | ↳ Domain objects and identity | 523–534 |
+| 7.2 | ↳ SQLite schema and invariants | 535–558 |
+| 7.3 | ↳ Crate persistence and deletion | 559–570 |
+| 7.4 | ↳ Configuration and credential stores | 571–583 |
+| 8 | Public interfaces and contracts | 584–627 |
+| 8.1 | ↳ CLI arguments and exit behavior | 586–605 |
+| 8.2 | ↳ JSON and CSV summary input | 606–618 |
+| 8.3 | ↳ URL-opening contract | 619–627 |
+| 9 | Authentication and authorization | 628–664 |
+| 9.1 | ↳ SoundCloud authentication | 630–647 |
+| 9.2 | ↳ Gate action consent | 648–664 |
+| 10 | External integrations | 665–768 |
+| 10.1 | ↳ SoundCloud API and media | 667–678 |
+| 10.2 | ↳ Link hubs and download gates | 679–716 |
+| 10.2 · block | ↳ ↳ Hypeddit | 687–702 |
+| 10.2 · block | ↳ ↳ Other resolvers | 704–709 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 711–716 |
+| 10.3 | ↳ Browsers and clipboard | 717–728 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 729–768 |
+| 11 | Security requirements and threat model | 769–815 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 771–789 |
+| 11.2 | ↳ Secret and personal-data handling | 790–802 |
+| 11.3 | ↳ File and mutation safety | 803–815 |
+| 12 | Privacy, lifecycle, and retention | 816–852 |
+| 12.1 | ↳ Data stored locally | 818–831 |
+| 12.2 | ↳ Data sent to third parties | 832–843 |
+| 12.3 | ↳ User-controlled deletion | 844–852 |
+| 13 | Failure behavior and current limitations | 853–902 |
+| 13.1 | ↳ Error isolation and reporting | 855–874 |
+| 13.2 | ↳ Confirmed limitations | 875–902 |
+| 14 | Verification, CI, and release | 903–959 |
+| 14.1 | ↳ Offline and live test suites | 905–928 |
+| 14.2 | ↳ Continuous integration and publishing | 929–944 |
+| 14.3 | ↳ Specification-map verification | 945–959 |
+| 15 | Evidence and operational references | 960–981 |
+| 15.1 | ↳ Primary implementation evidence | 962–974 |
+| 15.2 | ↳ User and historical documentation | 975–981 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -427,8 +427,10 @@ crate record.
 - `dj_digger/gates.py` owns link-hub inspection, gate protocols, typed gate
   failures, and manual Hypeddit Chromium fallback.
 - `dj_digger/browser.py` owns URL handoff policy, browser selection, and WSL
-  bridging. `dj_digger/cart.py` separately owns Playwright lifecycle and store
-  cart safety.
+  bridging. `dj_digger/browser_session.py` owns the managed Chromium lifecycle
+  shared by carts, gate fallback, and SoundCloud login: profile path, display
+  check, launch-error classification, and the Chromium installer.
+  `dj_digger/cart.py` owns store cart safety on top of it.
 
 ### 5.3 Persistence, local media, and UI
 

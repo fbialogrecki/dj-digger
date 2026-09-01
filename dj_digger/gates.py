@@ -696,7 +696,7 @@ def download_hypeddit_in_browser(
 
     if not _is_hypeddit_url(url) or not is_fetchable(url):
         raise GateProtocolChanged("Refusing an unsafe Hypeddit browser URL")
-    from . import auth, cart, soundcloud
+    from . import auth, browser_session, soundcloud
 
     if not auth.BROWSER_PROFILE_LOCK.acquire(blocking=False):
         raise GateUnavailable("The private browser profile is already in use")
@@ -712,7 +712,7 @@ def download_hypeddit_in_browser(
             page.on("download", lambda item: downloads.append(item))
 
         try:
-            with cart._browser_context(
+            with browser_session.sync_browser_context(
                 auth.soundcloud_browser_profile_path(), accept_downloads=True
             ) as context:
                 context.on("page", watch)
@@ -735,9 +735,9 @@ def download_hypeddit_in_browser(
                 return soundcloud.save_browser_download(downloads[0], track, directory)
         except GateError:
             raise
-        except cart.ChromiumMissing:
+        except browser_session.ChromiumMissing:
             raise GateUnavailable("Playwright Chromium is not installed")
-        except cart.AutomationError as exc:
+        except browser_session.AutomationError as exc:
             raise GateUnavailable(str(exc)) from exc
     finally:
         auth.BROWSER_PROFILE_LOCK.release()
@@ -770,7 +770,7 @@ def download_hypeddit_batch_in_browser(
     if not pending:
         return HypedditBrowserBatchResult(failures=tuple(failures.items()))
 
-    from . import auth, cart, soundcloud
+    from . import auth, browser_session, soundcloud
 
     if not auth.BROWSER_PROFILE_LOCK.acquire(blocking=False):
         error = GateUnavailable("The private browser profile is already in use")
@@ -816,7 +816,7 @@ def download_hypeddit_batch_in_browser(
                 watch(page, key)
 
         try:
-            with cart._browser_context(
+            with browser_session.sync_browser_context(
                 auth.soundcloud_browser_profile_path(), accept_downloads=True
             ) as context:
                 context.on("page", watch_popup)
@@ -880,11 +880,11 @@ def download_hypeddit_batch_in_browser(
                 for key in pending:
                     if key not in completed and key not in failures:
                         failures[key] = GateManualActionRequired(reason)
-        except cart.ChromiumMissing:
+        except browser_session.ChromiumMissing:
             error = GateUnavailable("Playwright Chromium is not installed")
             for key in pending:
                 failures.setdefault(key, error)
-        except cart.AutomationError as exc:
+        except browser_session.AutomationError as exc:
             error = GateUnavailable(str(exc))
             for key in pending:
                 failures.setdefault(key, error)

@@ -6,14 +6,10 @@ import logging
 import os
 import re
 import shutil
-import signal
-import subprocess
-import sys
 import time
 import unicodedata
 from collections import defaultdict
 from collections.abc import Awaitable, Callable, Iterable
-from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -23,6 +19,16 @@ from urllib.parse import urljoin, urlparse, urlunparse
 
 from bs4 import BeautifulSoup
 
+from .browser_session import (  # noqa: F401 - re-exported for callers and tests
+    AutomationError,
+    ChromiumMissing,
+    classify_launch_error,
+    install_chromium,
+    launch_persistent_context,
+    require_display,
+    store_profile_path,
+    sync_browser_context,
+)
 from .links import redact_url
 from .models import Track
 from .paths import data_dir
@@ -80,12 +86,8 @@ class UnsafeMatch(RuntimeError):
     """The candidates are too ambiguous to mutate a cart safely."""
 
 
-class AutomationError(RuntimeError):
-    """A technical or structural failure which must never trigger store fallback."""
-
-
-class ChromiumMissing(AutomationError):
-    """The Playwright browser required by store carts has not been downloaded."""
+# The sync context manager keeps its old name for gates.py and auth.py.
+_browser_context = sync_browser_context
 
 
 class StoreStructureError(AutomationError):
@@ -351,16 +353,7 @@ def canonical_store_url(url: str, store: str) -> str | None:
     return urlunparse(("https", host, parsed.path or "/", "", parsed.query, ""))
 
 
-def store_profile_path() -> Path:
-    """Create the private, persistent Chromium profile outside the repository."""
 
-    path = data_dir() / "store-browser"
-    # mkdir's mode is masked by the umask and ignored when the directory already
-    # exists, so the explicit chmod is what actually guarantees 0700.
-    path.mkdir(parents=True, exist_ok=True, mode=0o700)
-    if os.name != "nt":
-        path.chmod(0o700)
-    return path
 
 
 
@@ -834,107 +827,7 @@ def _first_visible(*locators: Any) -> Any | None:
 
 
 
-def install_chromium(cancel: Event) -> None:
-    """Download Playwright's matching Chromium build in the current environment."""
 
-    _cancelled(cancel)
-    popen_options = {
-        "stdout": subprocess.DEVNULL,
-        "stderr": subprocess.DEVNULL,
-        "shell": False,
-    }
-    if os.name == "nt":
-        popen_options["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
-    else:
-        popen_options["start_new_session"] = True
-    try:
-        process = subprocess.Popen(
-            [sys.executable, "-m", "playwright", "install", "chromium"],
-            **popen_options,
-        )
-    except OSError as exc:
-        raise AutomationError(
-            "could not start Chromium installation; run "
-            f"'{sys.executable} -m playwright install chromium'"
-        ) from exc
-    while process.poll() is None:
-        if not cancel.wait(0.1):
-            continue
-        try:
-            if os.name == "nt":
-                process.send_signal(signal.CTRL_BREAK_EVENT)
-            else:
-                os.killpg(process.pid, signal.SIGTERM)
-            process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            if os.name == "nt":
-                subprocess.run(
-                    ["taskkill", "/PID", str(process.pid), "/T", "/F"],
-                    check=False,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    shell=False,
-                )
-            else:
-                os.killpg(process.pid, signal.SIGKILL)
-            process.wait()
-        except OSError:
-            pass
-        _cancelled(cancel)
-    _cancelled(cancel)
-    if process.returncode:
-        raise AutomationError(
-            "Chromium installation failed; run "
-            f"'{sys.executable} -m playwright install chromium'"
-        )
-
-
-@contextmanager
-def _browser_context(profile: Path | None = None, *, accept_downloads: bool = False):
-    if sys.platform.startswith("linux") and not (
-        os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")
-    ):
-        raise AutomationError("store cart needs a desktop display (on WSL, enable WSLg)")
-    try:
-        from playwright.sync_api import sync_playwright
-    except ImportError as exc:
-        raise AutomationError(
-            "the required Playwright dependency is missing; reinstall dj-soundcloud-digger"
-        ) from exc
-
-    with sync_playwright() as playwright:
-        if not Path(playwright.chromium.executable_path).is_file():
-            raise ChromiumMissing("Chromium is required for store carts")
-        try:
-            context = playwright.chromium.launch_persistent_context(
-                str(profile or store_profile_path()),
-                headless=False,
-                locale="en-US",
-                accept_downloads=accept_downloads,
-                chromium_sandbox=True,
-            )
-        except Exception as exc:
-            message = str(exc).lower()
-            if "executable doesn't exist" in message:
-                raise ChromiumMissing("Chromium is required for store carts") from exc
-            elif "singleton" in message or "user data directory is already in use" in message:
-                detail = "the dedicated store browser profile is already open in another process"
-            else:
-                detail = "could not start the dedicated store browser"
-                if sys.platform.startswith("linux"):
-                    detail += (
-                        "; install required system libraries with "
-                        f"'{sys.executable} -m playwright install --with-deps chromium'"
-                    )
-            raise AutomationError(detail) from exc
-        context.set_default_timeout(ACTION_TIMEOUT_MS)
-        try:
-            yield context
-        finally:
-            try:
-                context.close()
-            except Exception:
-                pass
 
 
 
@@ -1892,47 +1785,27 @@ class CartBrowserSession:
                 return self._context
             await self._close_context()
         self.state = "STARTING"
-        if not headless and sys.platform.startswith("linux") and not (
-            os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")
-        ):
-            self.state = "FAILED"
-            raise AutomationError("store cart needs a desktop display (on WSL, enable WSLg)")
         try:
+            if not headless:
+                require_display()
             from playwright.async_api import async_playwright
         except ImportError as exc:
             self.state = "FAILED"
             raise AutomationError(
                 "the required Playwright dependency is missing; reinstall dj-soundcloud-digger"
             ) from exc
+        except AutomationError:
+            self.state = "FAILED"
+            raise
         if self._playwright is None:
             self._playwright = await async_playwright().start()
-        if not Path(self._playwright.chromium.executable_path).is_file():
-            self.state = "FAILED"
-            raise ChromiumMissing("Chromium is required for store carts")
         try:
-            context = await self._playwright.chromium.launch_persistent_context(
-                str(self.profile or store_profile_path()),
-                headless=headless,
-                locale="en-US",
-                accept_downloads=False,
-                chromium_sandbox=True,
+            context = await launch_persistent_context(
+                self._playwright, self.profile, headless=headless, accept_downloads=False
             )
-        except Exception as exc:
+        except AutomationError:
             self.state = "FAILED"
-            message = str(exc).lower()
-            if "executable doesn't exist" in message:
-                raise ChromiumMissing("Chromium is required for store carts") from exc
-            if "singleton" in message or "user data directory is already in use" in message:
-                detail = "the dedicated store browser profile is already open in another process"
-            else:
-                detail = "could not start the dedicated store browser"
-                if sys.platform.startswith("linux"):
-                    detail += (
-                        "; install required system libraries with "
-                        f"'{sys.executable} -m playwright install --with-deps chromium'"
-                    )
-            raise AutomationError(detail) from exc
-        context.set_default_timeout(ACTION_TIMEOUT_MS)
+            raise
         context.on("close", self._context_closed)
         self._context = context
         self._context_headless = headless
