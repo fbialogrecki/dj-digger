@@ -9,6 +9,8 @@
 
 ### Changed
 
+- Opening a link or a store search no longer freezes the interface while the
+  browser is being reached; on WSL that handoff could take twenty seconds.
 - Opening a link, starting or stopping playback, and a batch download starting
   repaint the rows involved instead of rebuilding the whole table.
 - The crate sidebar lists headers and reads a crate's tracks only when it is

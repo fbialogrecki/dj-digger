@@ -441,6 +441,31 @@ def test_opening_a_link_repaints_only_that_row(records, state, monkeypatch):
     assert clears == [], "opening a link must not rebuild the table"
 
 
+def test_a_slow_browser_does_not_block_the_interface(records, state, monkeypatch):
+    """On WSL the handoff to Windows can take seconds; the cursor must keep moving."""
+
+    release = Event()
+    monkeypatch.setattr(
+        "dj_digger.tui.browser_module.open_url",
+        lambda url, browser="default": release.wait(5),
+    )
+    app = make_app(records, state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await pilot.press("o")
+            await pilot.press("down")
+            await pilot.pause()
+            assert app.query_one("#tracks", DataTable).cursor_row == 1
+            release.set()
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+
+    run(scenario)
+    assert state.get(records[0].track.key) == OPENED
+
+
 def test_enter_opens_the_link_exactly_once(records, state, monkeypatch):
     """The table binds enter itself, so the app binding must not fire as well."""
 

@@ -103,13 +103,28 @@ class OpeningMixin:
             if record.link_text in {links_module.NO_STORE_LINK, links_module.FREE_DOWNLOAD}
             else record.link_url
         )
-        if browser_module.open_url(url, self.browser):
-            if self.status_of(row) == NEW:
-                self.state.set(row.track.key, OPENED)
-            self._paint_key(row.track.key)
-            self.update_status()
-        else:
+        self.open_link_in_background(row, url)
+
+    @work(thread=True, group="open_link")
+    def open_link_in_background(self, row: Row, url: str) -> None:
+        """Hand one link to the browser off the interface thread.
+
+        On WSL the handoff is a subprocess that can take seconds - twenty at
+        the limit - and while it ran nothing on screen answered, Ctrl+C
+        included. The mark is written back on the UI thread as before.
+        """
+
+        opened = browser_module.open_url(url, self.browser)
+        self.call_from_thread(self._link_opened, row, opened)
+
+    def _link_opened(self, row: Row, opened: bool) -> None:
+        if not opened:
             self.notify("Could not open the link", severity="error")
+            return
+        if self.status_of(row) == NEW:
+            self.state.set(row.track.key, OPENED)
+        self._paint_key(row.track.key)
+        self.update_status()
 
     def _find_gate_url(self, row: Row) -> str | None:
         """The link ``w`` hands to the gate resolvers, surest bet first.
@@ -142,7 +157,12 @@ class OpeningMixin:
             return
         query = urllib.parse.quote_plus(row.track.label)
         self.notify(f"Searching {store.capitalize()} for {row.track.label}...", timeout=3)
-        browser_module.open_url(SEARCH_URLS[store].format(query=query), self.browser)
+        self.open_search_in_background(SEARCH_URLS[store].format(query=query))
+
+    @work(thread=True, group="open_link")
+    def open_search_in_background(self, url: str) -> None:
+        if not browser_module.open_url(url, self.browser):
+            self.call_from_thread(self.notify, "Could not open the search", severity="error")
 
     def _cart_store_order(self) -> tuple[str, ...]:
         supported = {"bandcamp", "beatport"}
