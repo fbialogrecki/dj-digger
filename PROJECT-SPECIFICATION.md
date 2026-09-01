@@ -5,8 +5,8 @@
 - Product version verified: 0.15.0
 - Owner: Filip Białogrecki
 - Updated: 2026-08-28
-- Document lines: <!-- SPEC TOTAL LINES -->1028<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1028<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1033<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1033<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -61,52 +61,52 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 4 | System context and data flow | 402–438 |
 | 4.1 | ↳ Context diagram | 404–425 |
 | 4.2 | ↳ Collection-to-library flow | 426–438 |
-| 5 | Repository layout and component ownership | 439–479 |
+| 5 | Repository layout and component ownership | 439–484 |
 | 5.1 | ↳ Entry, orchestration, and models | 441–451 |
-| 5.2 | ↳ Network and external-system adapters | 452–465 |
-| 5.3 | ↳ Persistence, local media, and UI | 466–479 |
-| 6 | Runtime architecture and environments | 480–552 |
-| 6.1 | ↳ Runtime and dependencies | 482–495 |
-| 6.2 | ↳ Concurrency and lifecycle | 496–537 |
-| 6.3 | ↳ Local paths and environment variables | 538–552 |
-| 7 | Data model and persistence | 553–621 |
-| 7.1 | ↳ Domain objects and identity | 555–569 |
-| 7.2 | ↳ SQLite schema and invariants | 570–593 |
-| 7.3 | ↳ Crate persistence and deletion | 594–605 |
-| 7.4 | ↳ Configuration and credential stores | 606–621 |
-| 8 | Public interfaces and contracts | 622–667 |
-| 8.1 | ↳ CLI arguments and exit behavior | 624–643 |
-| 8.2 | ↳ JSON and CSV summary input | 644–658 |
-| 8.3 | ↳ URL-opening contract | 659–667 |
-| 9 | Authentication and authorization | 668–704 |
-| 9.1 | ↳ SoundCloud authentication | 670–687 |
-| 9.2 | ↳ Gate action consent | 688–704 |
-| 10 | External integrations | 705–812 |
-| 10.1 | ↳ SoundCloud API and media | 707–718 |
-| 10.2 | ↳ Link hubs and download gates | 719–761 |
-| 10.2 · block | ↳ ↳ Hypeddit | 727–747 |
-| 10.2 · block | ↳ ↳ Other resolvers | 749–754 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 756–761 |
-| 10.3 | ↳ Browsers and clipboard | 762–773 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 774–812 |
-| 11 | Security requirements and threat model | 813–859 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 815–833 |
-| 11.2 | ↳ Secret and personal-data handling | 834–846 |
-| 11.3 | ↳ File and mutation safety | 847–859 |
-| 12 | Privacy, lifecycle, and retention | 860–898 |
-| 12.1 | ↳ Data stored locally | 862–877 |
-| 12.2 | ↳ Data sent to third parties | 878–889 |
-| 12.3 | ↳ User-controlled deletion | 890–898 |
-| 13 | Failure behavior and current limitations | 899–949 |
-| 13.1 | ↳ Error isolation and reporting | 901–920 |
-| 13.2 | ↳ Confirmed limitations | 921–949 |
-| 14 | Verification, CI, and release | 950–1006 |
-| 14.1 | ↳ Offline and live test suites | 952–975 |
-| 14.2 | ↳ Continuous integration and publishing | 976–991 |
-| 14.3 | ↳ Specification-map verification | 992–1006 |
-| 15 | Evidence and operational references | 1007–1028 |
-| 15.1 | ↳ Primary implementation evidence | 1009–1021 |
-| 15.2 | ↳ User and historical documentation | 1022–1028 |
+| 5.2 | ↳ Network and external-system adapters | 452–470 |
+| 5.3 | ↳ Persistence, local media, and UI | 471–484 |
+| 6 | Runtime architecture and environments | 485–557 |
+| 6.1 | ↳ Runtime and dependencies | 487–500 |
+| 6.2 | ↳ Concurrency and lifecycle | 501–542 |
+| 6.3 | ↳ Local paths and environment variables | 543–557 |
+| 7 | Data model and persistence | 558–626 |
+| 7.1 | ↳ Domain objects and identity | 560–574 |
+| 7.2 | ↳ SQLite schema and invariants | 575–598 |
+| 7.3 | ↳ Crate persistence and deletion | 599–610 |
+| 7.4 | ↳ Configuration and credential stores | 611–626 |
+| 8 | Public interfaces and contracts | 627–672 |
+| 8.1 | ↳ CLI arguments and exit behavior | 629–648 |
+| 8.2 | ↳ JSON and CSV summary input | 649–663 |
+| 8.3 | ↳ URL-opening contract | 664–672 |
+| 9 | Authentication and authorization | 673–709 |
+| 9.1 | ↳ SoundCloud authentication | 675–692 |
+| 9.2 | ↳ Gate action consent | 693–709 |
+| 10 | External integrations | 710–817 |
+| 10.1 | ↳ SoundCloud API and media | 712–723 |
+| 10.2 | ↳ Link hubs and download gates | 724–766 |
+| 10.2 · block | ↳ ↳ Hypeddit | 732–752 |
+| 10.2 · block | ↳ ↳ Other resolvers | 754–759 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 761–766 |
+| 10.3 | ↳ Browsers and clipboard | 767–778 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 779–817 |
+| 11 | Security requirements and threat model | 818–864 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 820–838 |
+| 11.2 | ↳ Secret and personal-data handling | 839–851 |
+| 11.3 | ↳ File and mutation safety | 852–864 |
+| 12 | Privacy, lifecycle, and retention | 865–903 |
+| 12.1 | ↳ Data stored locally | 867–882 |
+| 12.2 | ↳ Data sent to third parties | 883–894 |
+| 12.3 | ↳ User-controlled deletion | 895–903 |
+| 13 | Failure behavior and current limitations | 904–954 |
+| 13.1 | ↳ Error isolation and reporting | 906–925 |
+| 13.2 | ↳ Confirmed limitations | 926–954 |
+| 14 | Verification, CI, and release | 955–1011 |
+| 14.1 | ↳ Offline and live test suites | 957–980 |
+| 14.2 | ↳ Continuous integration and publishing | 981–996 |
+| 14.3 | ↳ Specification-map verification | 997–1011 |
+| 15 | Evidence and operational references | 1012–1033 |
+| 15.1 | ↳ Primary implementation evidence | 1014–1026 |
+| 15.2 | ↳ User and historical documentation | 1027–1033 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -461,7 +461,12 @@ crate record.
   bridging. `dj_digger/browser_session.py` owns the managed Chromium lifecycle
   shared by carts, gate fallback, and SoundCloud login: profile path, display
   check, launch-error classification, and the Chromium installer.
-  `dj_digger/cart.py` owns store cart safety on top of it.
+  `dj_digger/cart.py` owns the Bandcamp page adapter and the batch session on
+  top of it, and re-exports the pure pieces it was split into:
+  `cart_models.py` (errors, items, results, plans, callbacks), `store_urls.py`
+  (store domain checks and canonical URLs), `store_match.py` (exact product
+  matching), `store_parse.py` (products and prices out of page HTML), and
+  `beatport_playlist.py` (playlist results, lines, and the file writer).
 
 ### 5.3 Persistence, local media, and UI
 

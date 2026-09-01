@@ -7,18 +7,16 @@ import os
 import re
 import shutil
 import time
-import unicodedata
 from collections import defaultdict
-from collections.abc import Awaitable, Callable, Iterable
-from dataclasses import dataclass, replace
-from decimal import Decimal, InvalidOperation
+from collections.abc import Iterable
+from dataclasses import replace
+from decimal import Decimal
 from pathlib import Path
 from threading import Event
 from typing import Any, Literal
 from urllib.parse import urljoin, urlparse, urlunparse
 
-from bs4 import BeautifulSoup
-
+from .beatport_playlist import _beatport_playlist_result  # noqa: F401
 from .browser_session import (  # noqa: F401 - re-exported for callers and tests
     AutomationError,
     ChromiumMissing,
@@ -29,740 +27,74 @@ from .browser_session import (  # noqa: F401 - re-exported for callers and tests
     store_profile_path,
     sync_browser_context,
 )
+from .cart_models import (  # noqa: F401 - re-exported: callers and tests import them from here
+    CART_DIAGNOSTICS_KEEP,
+    LOG_SECRET,
+    LOG_URL,
+    MANUAL_AFTER_UNVERIFIED,
+    MANUAL_TABS_MAX,
+    VERIFY_BUDGET_SECONDS,
+    VERIFY_STAGES,
+    ApprovalCallback,
+    BrowserNavigationError,
+    CartBatchOutcome,
+    CartCancelled,
+    CartItem,
+    CartPhase,
+    CartPlan,
+    CartProgress,
+    CartRequest,
+    CartResult,
+    CartResultCode,
+    CartStatus,
+    CartUnverified,
+    ManualCallback,
+    PriceQuote,
+    ProductUnavailable,
+    ProgressCallback,
+    SecurityChallengeBlocked,
+    StoreProduct,
+    StoreStructureError,
+    UnsafeMatch,
+    UnsafeRedirect,
+    UserActionTimeout,
+    VerifyOutcome,
+    _display_text,
+    log_safe_text,
+)
 from .links import redact_url
 from .models import Track
 from .paths import data_dir
+from .store_match import (  # noqa: F401
+    _normalise,
+    _same_product,
+    _title_variants,
+    _version_tokens,
+    match_product,
+)
+from .store_parse import (  # noqa: F401
+    MAX_HTML_BYTES,
+    _currency_from_text,
+    _decimal,
+    products_from_html,
+    purchase_price,
+)
+from .store_urls import (  # noqa: F401
+    STORE_HOME,
+    STORE_HOSTS,
+    STORE_LOGIN,
+    _beatport_track_id,
+    _direct_beatport_track_url,
+    canonical_store_url,
+    is_store_url,
+)
 
 LOGGER = logging.getLogger(__name__)
-LOG_URL = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
-LOG_SECRET = re.compile(
-    r"\b([a-z0-9_-]*(?:token|password|authorization|cookie|session)[a-z0-9_-]*)"
-    r"\s*[:=]\s*[^\s,;]+",
-    re.IGNORECASE,
-)
-
-STORE_HOSTS = {"bandcamp": "bandcamp.com", "beatport": "beatport.com"}
-VERSION_PHRASES = (
-    "original mix",
-    "instrumental",
-    "bootleg",
-    "remix",
-    "vip",
-    "edit",
-    "dub",
-    "cut",
-)
-ARTIST_STOP_WORDS = {"and", "feat", "featuring", "ft", "the", "versus", "vs", "with"}
-PROMO_TAG = re.compile(
-    r"[\[(](?:premiere|free\s+(?:dl|download)|official\s+(?:audio|video)|out\s+now)[^\])]*[\])]",
-    re.IGNORECASE,
-)
-PROMO_PREFIX = re.compile(
-    r"^\s*(?:premiere|free\s+(?:dl|download)|official\s+(?:audio|video))\s*[:\-]\s*",
-    re.IGNORECASE,
-)
-MAX_HTML_BYTES = 2_000_000
 NAVIGATION_TIMEOUT_MS = 30_000
 ACTION_TIMEOUT_MS = 15_000
 LOGIN_TIMEOUT_SECONDS = 300
-STORE_HOME = {
-    "bandcamp": "https://bandcamp.com/",
-    "beatport": "https://www.beatport.com/",
-}
-STORE_LOGIN = {
-    "bandcamp": "https://bandcamp.com/login",
-}
-
-
-class ProductUnavailable(RuntimeError):
-    """The linked release has no exact, individually purchasable track."""
-
-
-class UnsafeMatch(RuntimeError):
-    """The candidates are too ambiguous to mutate a cart safely."""
-
-
 # The sync context manager keeps its old name for gates.py and auth.py.
 _browser_context = sync_browser_context
-
-
-class StoreStructureError(AutomationError):
-    """A store page no longer exposes the bounded identity/control contract."""
-
-
-class BrowserNavigationError(AutomationError):
-    """A validated store page could not be loaded after the bounded retry."""
-
-
-class CartUnverified(AutomationError):
-    """A cart click may have happened and must never be repeated automatically."""
-
-
-class UnsafeRedirect(AutomationError):
-    """A store navigation escaped the canonical HTTPS boundary."""
-
-
-class CartCancelled(AutomationError):
-    """The user stopped a cart operation before its next mutation."""
-
-
-class UserActionTimeout(AutomationError):
-    """A manual login or challenge was not completed before its deadline."""
-
-
-class SecurityChallengeBlocked(AutomationError):
-    """A production anti-bot challenge refuses the automated browser."""
-
-
-@dataclass(frozen=True)
-class StoreProduct:
-    store: str
-    url: str
-    product_id: str
-    title: str
-    artist: str = ""
-    price: Decimal | None = None
-    currency: str = ""
-
-
-@dataclass(frozen=True)
-class CartRequest:
-    track: Track
-    links: tuple[tuple[str, str], ...]
-
-
-@dataclass(frozen=True)
-class CartItem:
-    track_key: str
-    track_label: str
-    store: str
-    source_url: str
-    product_url: str
-    product_id: str
-    product_title: str
-    price: Decimal
-    currency: str
-    already_in_cart: bool = False
-    minimum_price: Decimal | None = None
-    suggested_price: Decimal | None = None
-    price_step: Decimal | None = None
-    price_editable: bool = False
-
-
-CartStatus = Literal[
-    "added",
-    "already_in_cart",
-    "playlist_ready",
-    "skipped",
-    "failed",
-    "manual",
-]
-CartResultCode = Literal[
-    "",
-    "unavailable",
-    "unsafe_match",
-    "price_changed",
-    "store_structure",
-    "user_action_timeout",
-    "browser_failure",
-    "cart_unverified",
-    "cancelled",
-    "unsafe_redirect",
-    "cart_view_incomplete",
-    "cart_view_failed",
-    "not_selected",
-    "playlist_ready",
-    "manual_verified",
-    "manual_unverified",
-]
-
-# After this many unverified clicks in one store the batch stops clicking and
-# hands the rest to the person at the browser window instead.
-MANUAL_AFTER_UNVERIFIED = 2
-# How many product pages the manual mode opens at once.
-MANUAL_TABS_MAX = 8
-# Verification runs in stages, each with its own budget, so a slow reload
-# cannot eat the whole allowance: (name, seconds).
-VERIFY_STAGES = (("count", 5.0), ("sidecart", 10.0), ("reload", 25.0))
-VERIFY_BUDGET_SECONDS = 45.0
-# Diagnostics saved when a click could not be verified or a page lost its
-# shape: the last N folders under data_dir()/cart-diagnostics are kept.
-CART_DIAGNOSTICS_KEEP = 10
-
-
-def _display_text(value: str) -> str:
-    return " ".join((value or "").split())
-
-
-def log_safe_text(value: object) -> str:
-    """Bound an external diagnostic and remove URL queries and obvious secrets."""
-
-    text = _display_text(str(value))
-    text = LOG_URL.sub(lambda match: redact_url(match.group(0)), text)
-    text = LOG_SECRET.sub(lambda match: f"{match.group(1)}=<redacted>", text)
-    return text[:1000]
-
-
-@dataclass(frozen=True)
-class CartResult:
-    track_key: str
-    track_label: str
-    store: str
-    status: CartStatus
-    reason: str = ""
-    code: CartResultCode = ""
-    url: str = ""
-
-    @property
-    def retryable(self) -> bool:
-        return self.code in {
-            "price_changed",
-            "user_action_timeout",
-            "browser_failure",
-            "cancelled",
-        }
-
-
-def _beatport_playlist_result(
-    request: CartRequest,
-    label: str,
-    reason: str,
-    url: str = "",
-) -> CartResult:
-    """Keep a Beatport request useful when read-only product lookup is blocked."""
-
-    return CartResult(
-        request.track.key,
-        label,
-        "beatport",
-        "playlist_ready",
-        reason,
-        "playlist_ready",
-        canonical_store_url(url, "beatport") or "",
-    )
-
-
-@dataclass(frozen=True)
-class PriceQuote:
-    currency: str
-    minimum: Decimal
-    selected: Decimal
-    suggested: Decimal | None = None
-    step: Decimal | None = None
-    editable: bool = False
-
-
-CartPhase = Literal["starting", "login", "preflight", "approval", "adding", "manual", "ready"]
-
-
-@dataclass(frozen=True)
-class CartProgress:
-    phase: CartPhase
-    completed: int
-    total: int
-    store: str = ""
-    track_label: str = ""
-    message: str = ""
-
-
-@dataclass(frozen=True)
-class VerifyOutcome:
-    verified: bool
-    stage: str
-    elapsed: float
-
-
-@dataclass(frozen=True)
-class CartBatchOutcome:
-    results: tuple[CartResult, ...]
-    cart_stores: tuple[str, ...] = ()
-    cancelled: bool = False
-    # Items whose click could not be verified and which the manual mode did
-    # not settle; the result screen offers to finish them in the browser.
-    manual_candidates: tuple[CartItem, ...] = ()
-
-    @property
-    def beatport_playlist_ready(self) -> bool:
-        return any(
-            result.store == "beatport"
-            and result.code == "playlist_ready"
-            for result in self.results
-        )
-
-    @property
-    def retryable_keys(self) -> frozenset[str]:
-        return frozenset(result.track_key for result in self.results if result.retryable)
-
-    @property
-    def retryable_targets(self) -> frozenset[tuple[str, str]]:
-        return frozenset(
-            (result.track_key, result.store)
-            for result in self.results
-            if result.retryable
-        )
-
-
-@dataclass(frozen=True)
-class CartPlan:
-    items: tuple[CartItem, ...] = ()
-    results: tuple[CartResult, ...] = ()
-
-    def summary(self) -> str:
-        totals: dict[str, Decimal] = defaultdict(Decimal)
-        lines = ["Purchase preflight", ""]
-        for item in self.items:
-            suffix = " — already in cart" if item.already_in_cart else ""
-            lines.append(
-                f"{_display_text(item.track_label)} — {item.store} — "
-                f"{item.currency} {item.price:.2f}{suffix}"
-            )
-            if not item.already_in_cart:
-                totals[item.currency] += item.price
-        for result in self.results:
-            lines.append(
-                f"{_display_text(result.track_label)} — {result.store or 'no store'} — "
-                f"{result.status}: {_display_text(result.reason)}"
-            )
-        if totals:
-            lines.extend(["", "Selected estimate (taxes and checkout fees excluded):"])
-            lines.extend(f"{currency} {amount:.2f}" for currency, amount in sorted(totals.items()))
-        return "\n".join(lines)
-
-
-def is_store_url(url: str, store: str) -> bool:
-    """Whether *url* is an HTTPS page owned by the requested store."""
-
-    base_host = STORE_HOSTS.get(store)
-    if base_host is None:
-        return False
-    try:
-        parsed = urlparse((url or "").strip())
-        host = (parsed.hostname or "").lower().rstrip(".")
-        port = parsed.port
-    except ValueError:
-        return False
-    return (
-        parsed.scheme.lower() == "https"
-        and parsed.username is None
-        and parsed.password is None
-        and port in (None, 443)
-        and (host == base_host or host.endswith("." + base_host))
-    )
-
-
-def canonical_store_url(url: str, store: str) -> str | None:
-    """Return a validated HTTPS store URL, upgrading only a plain HTTP origin."""
-
-    value = (url or "").strip()
-    if is_store_url(value, store):
-        return value
-    base_host = STORE_HOSTS.get(store)
-    if base_host is None:
-        return None
-    try:
-        parsed = urlparse(value)
-        host = (parsed.hostname or "").lower().rstrip(".")
-        port = parsed.port
-    except ValueError:
-        return None
-    if not (
-        parsed.scheme.lower() == "http"
-        and parsed.username is None
-        and parsed.password is None
-        and port in (None, 80)
-        and (host == base_host or host.endswith("." + base_host))
-    ):
-        return None
-    return urlunparse(("https", host, parsed.path or "/", "", parsed.query, ""))
-
-
-
-
-
-
-
-def _normalise(value: str) -> str:
-    value = unicodedata.normalize("NFKC", value or "").casefold()
-    value = PROMO_TAG.sub(" ", value)
-    value = re.sub(r"\b(?:feat(?:uring)?|ft)\.?\b", "ft", value)
-    value = value.replace("–", "-").replace("—", "-")
-    return " ".join(re.sub(r"[^\w]+", " ", value, flags=re.UNICODE).split())
-
-
-def _without_nonversion_context(title: str) -> str:
-    return re.sub(
-        r"\[([^\]]+)\]",
-        lambda match: (
-            match.group(0)
-            if any(phrase in _normalise(match.group(1)) for phrase in VERSION_PHRASES)
-            else " "
-        ),
-        title or "",
-    )
-
-
-def _title_variants(title: str, artist: str = "") -> set[str]:
-    cleaned = PROMO_PREFIX.sub("", PROMO_TAG.sub(" ", title or "")).strip()
-    variants = {_normalise(cleaned)}
-    without_context = _without_nonversion_context(cleaned)
-    variants.add(_normalise(without_context))
-    for quoted in re.findall(r"[\"'‘’“”]([^\"'‘’“”]{4,})[\"'‘’“”]", cleaned):
-        variants.add(_normalise(quoted))
-    for segment in re.split(r"\s+//\s+", cleaned):
-        normalised = _normalise(segment)
-        if len(normalised) >= 4 and not re.fullmatch(r"[a-z]{1,8}\d{2,}", normalised):
-            variants.add(normalised)
-    if artist:
-        for separator in (" - ", " – ", " — ", " | "):
-            if separator not in cleaned:
-                continue
-            left, right = cleaned.split(separator, 1)
-            if _artist_tokens(left) & _artist_tokens(artist):
-                variants.add(_normalise(right))
-    return {variant for variant in variants if variant}
-
-
-def _version_tokens(title: str) -> frozenset[str]:
-    normalised = _normalise(title)
-    return frozenset(
-        phrase
-        for phrase in VERSION_PHRASES
-        if re.search(rf"\b{re.escape(phrase)}\b", normalised)
-    )
-
-
-def _without_version_context(title: str) -> str:
-    return re.sub(
-        r"[\[(]([^\])]+)[\])]",
-        lambda match: " " if _version_tokens(match.group(1)) else match.group(0),
-        title or "",
-    )
-
-
-def _base_title(title: str) -> str:
-    normalised = _normalise(title)
-    for phrase in VERSION_PHRASES:
-        normalised = re.sub(rf"\b{re.escape(phrase)}\b", " ", normalised)
-    return " ".join(normalised.split())
-
-
-def _trailing_title(title: str) -> tuple[str, bool]:
-    """A release title after a possible artist prefix, without fuzzy matching."""
-
-    cleaned = _without_nonversion_context(PROMO_TAG.sub(" ", title or "")).strip()
-    for separator in (" - ", " – ", " — ", " | "):
-        if separator in cleaned:
-            return _normalise(cleaned.rsplit(separator, 1)[1]), True
-    return _normalise(cleaned), False
-
-
-def _artist_tokens(artist: str) -> set[str]:
-    return {
-        token
-        for token in _normalise(artist).split()
-        if len(token) > 1 and token not in ARTIST_STOP_WORDS
-    }
-
-
-def _artists_compatible(source: str, candidate: str) -> bool:
-    source_tokens = _artist_tokens(source)
-    candidate_tokens = _artist_tokens(candidate)
-    return bool(
-        source_tokens
-        and candidate_tokens
-        and (source_tokens <= candidate_tokens or candidate_tokens <= source_tokens)
-    )
-
-
-def _product_title_variants(product: StoreProduct) -> set[str]:
-    variants = _title_variants(product.title, product.artist)
-    if product.store == "beatport" and not _version_tokens(product.title):
-        parts = [part for part in urlparse(product.url).path.split("/") if part]
-        if len(parts) >= 3 and parts[0] == "track":
-            variants.update(_title_variants(parts[1].replace("-", " ")))
-    return variants
-
-
-def match_product(track: Track, products: list[StoreProduct]) -> StoreProduct:
-    """Return the one exact product, refusing fuzzy or version-incompatible matches."""
-
-    targets = _title_variants(track.title, track.artist)
-    exact = [
-        product
-        for product in products
-        if targets & _product_title_variants(product)
-    ]
-    if len(exact) == 1:
-        return exact[0]
-    if len(exact) > 1:
-        source_artist = _artist_tokens(track.artist)
-        same_artist = [
-            product for product in exact if _normalise(product.artist) == _normalise(track.artist)
-        ]
-        if len(same_artist) == 1:
-            return same_artist[0]
-        by_artist = [
-            product
-            for product in exact
-            if source_artist and _artists_compatible(track.artist, product.artist)
-        ]
-        if len(by_artist) == 1:
-            return by_artist[0]
-        raise UnsafeMatch("ambiguous exact product title")
-
-    # Promo uploaders and labels often name the same recording with different
-    # artist aliases ("Phil:osophy - Remember" vs "Philth Tangent - Remember").
-    # The linked release still gives us a safe exact fallback when one and only
-    # one product has the same complete trailing title and version qualifier.
-    target_tail, target_stripped = _trailing_title(track.title)
-    trailing = [
-        product
-        for product in products
-        if len(target_tail) >= 4
-        and _trailing_title(product.title)[0] == target_tail
-        and (target_stripped or _trailing_title(product.title)[1])
-        and _version_tokens(product.title) == _version_tokens(track.title)
-    ]
-    if len(trailing) == 1:
-        return trailing[0]
-    if len(trailing) > 1:
-        raise UnsafeMatch("ambiguous exact trailing product title")
-    target_version_core = _trailing_title(_without_version_context(track.title))[0]
-    version_conflicts = [
-        product
-        for product in products
-        if len(target_tail) >= 4
-        and _trailing_title(_without_version_context(product.title))[0]
-        == target_version_core
-        and _version_tokens(product.title) != _version_tokens(track.title)
-    ]
-    if version_conflicts:
-        raise UnsafeMatch("version qualifier does not match")
-
-    target_bases = {_base_title(variant) for variant in targets}
-    version_conflicts = [
-        product
-        for product in products
-        if _base_title(product.title) in target_bases
-        and _version_tokens(product.title) != _version_tokens(track.title)
-    ]
-    if version_conflicts:
-        raise UnsafeMatch("version qualifier does not match")
-    raise ProductUnavailable("linked release has no exact track")
-
-
-def _decimal(value: Any) -> Decimal | None:
-    if value is None or value == "":
-        return None
-    try:
-        result = Decimal(str(value))
-    except (InvalidOperation, ValueError):
-        return None
-    return result if result.is_finite() and result >= 0 else None
-
-
-def purchase_price(
-    minimum: Decimal, default: Decimal | None, step: Decimal | None
-) -> Decimal:
-    """Choose a declared positive price without probing the seller's form."""
-
-    if minimum > 0:
-        return minimum
-    if default is not None and default > 0:
-        return default
-    if step is not None and step > 0:
-        return step
-    raise AutomationError("store did not declare a positive purchase price")
-
-
-def _json_objects(value: Any):
-    if isinstance(value, dict):
-        yield value
-        for child in value.values():
-            yield from _json_objects(child)
-    elif isinstance(value, list):
-        for child in value:
-            yield from _json_objects(child)
-
-
-def _property_value(item: dict[str, Any], *names: str) -> str:
-    wanted = set(names)
-    properties = item.get("additionalProperty") or []
-    if isinstance(properties, dict):
-        properties = [properties]
-    for prop in properties:
-        if isinstance(prop, dict) and prop.get("name") in wanted:
-            value = prop.get("value")
-            if value is not None:
-                return str(value)
-    return ""
-
-
-def _artist_name(value: Any) -> str:
-    if isinstance(value, str):
-        return value.strip()
-    if isinstance(value, dict):
-        return str(value.get("name") or "").strip()
-    if isinstance(value, list):
-        return ", ".join(filter(None, (_artist_name(item) for item in value)))
-    return ""
-
-
-def _offer_values(offer: dict[str, Any]) -> tuple[Decimal | None, str]:
-    specification = offer.get("priceSpecification") or {}
-    minimum = specification.get("minPrice") if isinstance(specification, dict) else None
-    price = _decimal(minimum if minimum is not None else offer.get("price"))
-    currency = str(offer.get("priceCurrency") or "").upper()
-    if not re.fullmatch(r"[A-Z]{3}", currency):
-        currency = ""
-    return price, currency
-
-
-def _offer(item: dict[str, Any]) -> tuple[Decimal | None, str]:
-    offers = item.get("offers") or {}
-    if isinstance(offers, list):
-        values = {_offer_values(offer) for offer in offers if isinstance(offer, dict)}
-        return values.pop() if len(values) == 1 else (None, "")
-    if not isinstance(offers, dict):
-        return None, ""
-    return _offer_values(offers)
-
-
-def _structured_products(soup: BeautifulSoup, store: str) -> list[StoreProduct]:
-    products: list[StoreProduct] = []
-    for script in soup.find_all("script", attrs={"type": "application/ld+json"}):
-        try:
-            data = json.loads(script.get_text() or "")
-        except (TypeError, ValueError):
-            continue
-        for item in _json_objects(data):
-            url = str(item.get("url") or item.get("@id") or "").split("#", 1)[0]
-            if not is_store_url(url, store) or "/track/" not in urlparse(url).path:
-                continue
-            if store == "beatport":
-                product_id = _beatport_track_id(url)
-                if not product_id.isdigit():
-                    continue
-            else:
-                product_id = _property_value(item, "track_id", "item_id")
-            title = str(item.get("name") or "").strip()
-            if not product_id.isdigit() or not title:
-                continue
-            price, currency = _offer(item)
-            products.append(
-                StoreProduct(
-                    store=store,
-                    url=url,
-                    product_id=product_id,
-                    title=title,
-                    artist=_artist_name(item.get("byArtist")),
-                    price=price,
-                    currency=currency,
-                )
-            )
-    return products
-
-
-def products_from_html(html: str, page_url: str, store: str) -> list[StoreProduct]:
-    """Extract bounded, public product metadata from an already loaded store page."""
-
-    if not is_store_url(page_url, store):
-        raise AutomationError("store redirected outside its canonical HTTPS domain")
-    if len((html or "").encode("utf-8")) > MAX_HTML_BYTES:
-        raise AutomationError("store page is too large to inspect safely")
-
-    soup = BeautifulSoup(html or "", "html.parser")
-    title = soup.title.get_text(" ", strip=True).casefold() if soup.title else ""
-    visible_text = soup.get_text(" ", strip=True).casefold()
-    if (
-        "just a moment" in title
-        or "client challenge" in title
-        or "captcha" in title
-        or "performing security verification" in visible_text
-        or "verify you are human" in visible_text
-        or "cf-turnstile" in (html or "").casefold()
-        or "/_fs-ch-" in (html or "").casefold()
-    ):
-        raise SecurityChallengeBlocked(
-            "store security verification does not support an automated browser"
-        )
-    by_id: dict[str, StoreProduct] = {}
-    tralbum_minimum: Decimal | None = None
-    if store == "bandcamp":
-        tralbum_products, tralbum_minimum = _bandcamp_tralbum_products(soup, page_url)
-        by_id.update(tralbum_products)
-
-    for product in _structured_products(soup, store):
-        earlier = by_id.get(product.product_id)
-        if earlier is not None:
-            product = StoreProduct(
-                store=store,
-                url=product.url or earlier.url,
-                product_id=product.product_id,
-                title=product.title or earlier.title,
-                artist=product.artist or earlier.artist,
-                price=product.price,
-                currency=product.currency,
-            )
-        by_id[product.product_id] = product
-
-    if store == "beatport":
-        for product_id, product in _beatport_anchor_products(soup, page_url).items():
-            by_id.setdefault(product_id, product)
-
-    products = list(by_id.values())
-    if store == "bandcamp" and "/track/" in urlparse(page_url).path and tralbum_minimum is not None:
-        current = next((item for item in products if urlparse(item.url).path == urlparse(page_url).path), None)
-        if current is not None and current.price is not None and current.price != tralbum_minimum:
-            raise AutomationError("Bandcamp price metadata disagrees with the product page")
-    return products
-
-
-def _bandcamp_tralbum_products(
-    soup: Any, page_url: str
-) -> tuple[dict[str, StoreProduct], Decimal | None]:
-    """Products and the page minimum price out of Bandcamp's data-tralbum blob."""
-
-    by_id: dict[str, StoreProduct] = {}
-    tralbum_node = soup.find(attrs={"data-tralbum": True})
-    if tralbum_node is None:
-        return by_id, None
-    try:
-        tralbum = json.loads(tralbum_node.get("data-tralbum") or "{}")
-    except (TypeError, ValueError) as exc:
-        raise AutomationError("Bandcamp product metadata is invalid") from exc
-    current = tralbum.get("current") or {}
-    artist = str(current.get("artist") or "")
-    for item in tralbum.get("trackinfo") or []:
-        product_id = str(item.get("track_id") or item.get("id") or "")
-        url = urljoin(page_url, str(item.get("title_link") or ""))
-        title = str(item.get("title") or "").strip()
-        if product_id.isdigit() and title and is_store_url(url, "bandcamp") and "/track/" in urlparse(url).path:
-            by_id[product_id] = StoreProduct("bandcamp", url, product_id, title, artist)
-    return by_id, _decimal(current.get("minimum_price"))
-
-
-def _beatport_anchor_products(soup: Any, page_url: str) -> dict[str, StoreProduct]:
-    """Track products scraped straight off Beatport anchors."""
-
-    by_id: dict[str, StoreProduct] = {}
-    for anchor in soup.find_all("a", href=True):
-        url = urljoin(page_url, str(anchor.get("href") or "")).split("#", 1)[0]
-        if not is_store_url(url, "beatport") or "/track/" not in urlparse(url).path:
-            continue
-        product_id = _beatport_track_id(url)
-        title = str(
-            anchor.get("aria-label") or anchor.get("title") or anchor.get_text(" ", strip=True)
-        ).strip()
-        if product_id.isdigit() and title and product_id not in by_id:
-            by_id[product_id] = StoreProduct("beatport", url, product_id, title)
-    return by_id
-
-
-
-
-
-
 
 
 def _cancelled(cancel: Event) -> None:
@@ -774,21 +106,6 @@ def _each(locator: Any) -> Any:
     """Lazy Playwright locator iteration; failure handling stays at the caller."""
 
     return (locator.nth(index) for index in range(locator.count()))
-
-
-def _beatport_track_id(url: str) -> str:
-    return urlparse(url).path.rstrip("/").rsplit("/", 1)[-1]
-
-
-def _direct_beatport_track_url(url: str) -> str | None:
-    canonical = canonical_store_url(url, "beatport")
-    if canonical is None:
-        return None
-    parsed = urlparse(canonical)
-    parts = [part for part in parsed.path.split("/") if part]
-    if len(parts) != 3 or parts[0] != "track" or not parts[2].isdigit():
-        return None
-    return urlunparse(("https", parsed.hostname or "", parsed.path, "", "", ""))
 
 
 def _only_visible(locator: Any) -> Any | None:
@@ -867,13 +184,6 @@ def _first_visible(*locators: Any) -> Any | None:
 
 
 
-
-
-ProgressCallback = Callable[[CartProgress], None]
-ApprovalCallback = Callable[[CartPlan], Awaitable[CartPlan | None]]
-# Asked to let the person finish the given items in the browser window; True
-# once they say they are done, False to give up on them.
-ManualCallback = Callable[[list[CartItem]], Awaitable[bool]]
 
 
 def _emit_progress(callback: ProgressCallback | None, progress: CartProgress) -> None:
@@ -1360,16 +670,6 @@ async def _ensure_logins_async(
         raise AutomationError(f"timed out waiting for manual {stores} login")
 
 
-def _currency_from_text(value: str) -> str:
-    match = re.search(r"\b(GBP|USD|EUR|AUD|CAD|JPY|PLN|CHF|SEK|NOK|DKK)\b", value.upper())
-    if match:
-        return match.group(1)
-    for symbol, currency in (("£", "GBP"), ("€", "EUR"), ("$", "USD")):
-        if symbol in value:
-            return currency
-    return ""
-
-
 async def _bandcamp_quote_async(page: Any, product: StoreProduct) -> PriceQuote:
     minimum = product.price or Decimal(0)
     name = re.compile(r"^buy digital (?:track|album)$", re.IGNORECASE)
@@ -1456,12 +756,6 @@ async def _quote_async(page: Any, store: str, product: StoreProduct) -> PriceQuo
         suggested=product.price,
         editable=False,
     )
-
-
-def _same_product(expected: CartItem, product: StoreProduct) -> bool:
-    if expected.product_id and product.product_id:
-        return expected.product_id == product.product_id
-    return urlparse(expected.product_url).path == urlparse(product.url).path
 
 
 async def _open_bandcamp_cart_async(page: Any) -> bool:

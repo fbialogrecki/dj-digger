@@ -8,9 +8,7 @@ import asyncio
 import logging
 import urllib.parse
 from collections import Counter
-from pathlib import Path
 from threading import Event
-from urllib.parse import urlparse
 
 from textual import work
 
@@ -18,6 +16,11 @@ from .. import browser as browser_module
 from .. import cart as cart_module
 from .. import gates
 from .. import links as links_module
+from ..beatport_playlist import (  # noqa: F401 - re-exported for tests
+    SOUNDIIZ_BEATPORT_TRANSFER_URL,
+    _beatport_playlist_lines,
+    _write_beatport_playlist,
+)
 from ..scanner import copy_to_clipboard
 from ..state import GOT, NEW, OPENED, SKIP
 from .keymap import (
@@ -39,57 +42,6 @@ SEARCH_URLS = {
     "bandcamp": "https://bandcamp.com/search?q={query}",
     "beatport": "https://www.beatport.com/search?q={query}",
 }
-SOUNDIIZ_BEATPORT_TRANSFER_URL = "https://soundiiz.com/beatport/import-playlist"
-
-
-def _beatport_playlist_lines(
-    requests: list[cart_module.CartRequest], outcome: cart_module.CartBatchOutcome
-) -> tuple[str, ...]:
-    """Soundiiz-compatible entries, exact when Beatport exposed a track URL."""
-
-    requests_by_target = {
-        (request.track.key, store): request
-        for request in requests
-        for store, _url in request.links
-    }
-    lines: list[str] = []
-    seen_keys: set[str] = set()
-    for result in outcome.results:
-        if (
-            result.store != "beatport"
-            or result.code != "playlist_ready"
-            or result.track_key in seen_keys
-        ):
-            continue
-        request = requests_by_target.get((result.track_key, "beatport"))
-        if request is None:
-            continue
-        seen_keys.add(result.track_key)
-        url = cart_module.canonical_store_url(result.url, "beatport")
-        if url and "/track/" in urlparse(url).path:
-            lines.append(links_module.redact_url(url))
-            continue
-        artist = " ".join(request.track.artist.split())
-        title = " ".join(request.track.title.split())
-        lines.append(f"{artist} - {title}" if artist else title)
-    return tuple(line for line in lines if line)
-
-
-def _write_beatport_playlist(lines: tuple[str, ...], directory: Path) -> Path:
-    """Create, never overwrite, a plain-text playlist accepted by Soundiiz."""
-
-    directory.mkdir(parents=True, exist_ok=True)
-    index = 1
-    while True:
-        suffix = "" if index == 1 else f" ({index})"
-        path = directory / f"Beatport playlist{suffix}.txt"
-        try:
-            with path.open("x", encoding="utf-8", newline="\n") as handle:
-                handle.write("\n".join(lines) + "\n")
-        except FileExistsError:
-            index += 1
-            continue
-        return path
 
 
 class OpeningMixin:
