@@ -234,6 +234,27 @@ def test_help_documents_every_key(records, state):
     run(scenario)
 
 
+def test_optional_columns_follow_the_settings(records, state):
+    app = make_app(records, state)
+    records[0].track.bpm = 128.0
+    records[0].track.release_year = 2024
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            table = app.query_one("#tracks", DataTable)
+            assert len(table.columns) == 7
+            app.config.columns = ["bpm", "year"]
+            app.rebuild_columns()
+            await pilot.pause()
+            assert len(table.columns) == 9
+            row = table.get_row_at(0)
+            assert str(row[6]) == "128" and str(row[7]) == "2024"
+            assert str(row[8]) == records[0].track.duration_label or str(row[8]) == "-"
+
+    run(scenario)
+
+
 def test_readme_lists_every_keymap_key():
     """The README tables are prose, so they are checked against the keymap, not generated."""
 

@@ -35,6 +35,7 @@ from .keymap import (
     HELP_SCOPES,
     KEY_DISPLAY,
     KEYMAP,
+    OPTIONAL_COLUMN_SPECS,
     OTHER,
     PLAYBACK,
     PLAYING_GLYPH,
@@ -729,9 +730,14 @@ class SettingsScreen(_Modal[None]):
         padding: 0;
         background: transparent;
     }
-    #settings-store-buttons, #settings-buttons {
+    #settings-store-buttons, #settings-buttons, #settings-columns {
         height: auto;
         margin-top: 1;
+    }
+    #settings-columns Checkbox {
+        border: none;
+        padding: 0 1 0 0;
+        background: transparent;
     }
     """
 
@@ -770,6 +776,10 @@ class SettingsScreen(_Modal[None]):
                 "over nothing without it.",
                 classes="settings-hint",
             )
+            yield Label("Extra track columns:", classes="settings-label")
+            with Horizontal(id="settings-columns"):
+                for name, header, _width in OPTIONAL_COLUMN_SPECS:
+                    yield Checkbox(header, value=name in self.config.columns, id=f"column-{name}")
             yield Label("Open links with:", classes="settings-label")
             # Only what this machine reported. The saved value names a program
             # that gets executed, so the list is the whitelist.
@@ -824,11 +834,19 @@ class SettingsScreen(_Modal[None]):
             if scan_dirs:
                 self.config.scan_directories = scan_dirs
             self.config.gate_social_actions = self.query_one("#input-gate-social", Checkbox).value
+            columns_before = list(self.config.columns)
+            self.config.columns = [
+                name
+                for name, _header, _width in OPTIONAL_COLUMN_SPECS
+                if self.query_one(f"#column-{name}", Checkbox).value
+            ]
 
             self.config.first_run = False
             self.config.save()
             self.app.notify("Settings saved!", timeout=4)
             self.dismiss()
+            if self.config.columns != columns_before:
+                self.app.rebuild_columns()
         else:
             self.dismiss()
 

@@ -168,6 +168,33 @@ def test_delete_finds_the_crate_by_its_source_with_no_file_involved():
     assert library.list_crates() == []
 
 
+def test_new_track_fields_survive_a_round_trip(crates_in_tmp):
+    crate = a_crate(1)
+    crate.tracks[0].bpm = 128.0
+    crate.tracks[0].key_signature = "F#m"
+    crate.tracks[0].release_year = 2024
+    crate.tracks[0].label_name = "Fixture Records"
+    record = library.CrateRecord.from_crate(crate)
+    library.save(record)
+
+    track = library.load(record.source).tracks[0]
+    assert (track.bpm, track.key_signature, track.release_year, track.label_name) == (
+        128.0, "F#m", 2024, "Fixture Records"
+    )
+
+
+def test_an_old_crate_without_bpm_loads(crates_in_tmp):
+    record = library.CrateRecord.from_crate(a_crate(1))
+    raw = record.to_json()
+    for name in ("bpm", "key_signature", "release_year", "label_name"):
+        raw["tracks"][0].pop(name)
+    database().save_crate(raw)
+
+    track = library.load(record.source).tracks[0]
+    assert track.bpm is None and track.release_year is None
+    assert track.key_signature == "" and track.label_name == ""
+
+
 def test_unknown_fields_in_a_stored_track_are_ignored(crates_in_tmp):
     """A crate written by a newer version must still load."""
 

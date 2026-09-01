@@ -7,7 +7,6 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Event, Lock
 
-from rich.text import Text
 from textual import events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -33,18 +32,9 @@ from .digging import DiggingMixin
 from .downloads import DownloadMixin
 from .filters import FilterMixin
 from .keymap import (
-    GENRE_WIDTH,
-    INDEX_WIDTH,
     KEY_DISPLAY,
     KEYMAP,
-    LEADING_WIDTH,
-    LOCAL_FILE_GLYPH,
-    MARK_WIDTH,
-    MIN_TITLE_WIDTH,
-    PLAYING_GLYPH,
     QUICK_FILTER_KEYS,
-    STORES_WIDTH,
-    TIME_WIDTH,
 )
 from .library_scan import LibraryScanMixin
 from .opening import OpeningMixin
@@ -322,16 +312,7 @@ class DiggerApp(
 
     async def on_mount(self) -> None:
         table = self.query_one("#tracks", TrackTable)
-        table.add_column(
-            Text(LOCAL_FILE_GLYPH + PLAYING_GLYPH, style="bright_black"),
-            width=LEADING_WIDTH,
-        )
-        table.add_column("", width=MARK_WIDTH)
-        table.add_column("#", width=INDEX_WIDTH)
-        table.flexible_column = table.add_column("Track", width=MIN_TITLE_WIDTH)
-        table.add_column("Stores", width=STORES_WIDTH)
-        table.add_column("Genre", width=GENRE_WIDTH)
-        table.add_column("Time", width=TIME_WIDTH)
+        self.build_columns(table)
         await self.reload_sidebar()
         if not self.rows:
             # Someone with a library wants to see it, not be interrogated.

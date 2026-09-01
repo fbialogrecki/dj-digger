@@ -59,6 +59,12 @@ class Track:
     # Links found outside the structured fields, e.g. scraped from a track page.
     extra_links: list[tuple[str, str]] = field(default_factory=list)
     local_path: str | None = None
+    # What a DJ sorts a crate by. SoundCloud fills these in for many uploads
+    # and leaves them empty for the rest, so every one has an "unknown" value.
+    bpm: float | None = None
+    key_signature: str = ""
+    release_year: int | None = None
+    label_name: str = ""
 
     @property
     def key(self) -> str:
@@ -118,7 +124,34 @@ class Track:
             duration=int(payload.get("full_duration") or payload.get("duration") or 0),
             genre=clean(payload.get("genre")),
             tags=parse_tags(payload.get("tag_list") or ""),
+            bpm=_number(payload.get("bpm")),
+            key_signature=clean(payload.get("key_signature")),
+            release_year=_year(payload.get("release_date")) or _year(payload.get("created_at")),
+            label_name=clean(payload.get("label_name")),
         )
+
+    @property
+    def bpm_label(self) -> str:
+        if not self.bpm:
+            return ""
+        return f"{self.bpm:g}"
+
+
+def _number(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number > 0 else None
+
+
+def _year(value: Any) -> int | None:
+    """The year off an ISO-ish date; SoundCloud sends '2024/03/01 00:00:00 +0000' too."""
+
+    if not isinstance(value, str) or len(value) < 4 or not value[:4].isdigit():
+        return None
+    year = int(value[:4])
+    return year if 1900 <= year <= 2100 else None
 
 
 @dataclass
@@ -150,4 +183,8 @@ class LinkRecord:
             "artist": self.track.artist,
             "track_id": self.track.id,
             "link_text": self.link_text,
+            "bpm": self.track.bpm,
+            "key": self.track.key_signature,
+            "release_year": self.track.release_year,
+            "label": self.track.label_name,
         }

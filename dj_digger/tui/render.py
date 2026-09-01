@@ -17,11 +17,18 @@ from ..state import GOT, NEW, OPENED, SKIP
 from .keymap import (
     DOMAIN_BADGE_CATEGORIES,
     FLASH,
+    GENRE_WIDTH,
+    INDEX_WIDTH,
+    LEADING_WIDTH,
     LOCAL_FILE_GLYPH,
+    MARK_WIDTH,
+    MIN_TITLE_WIDTH,
+    OPTIONAL_COLUMN_SPECS,
     PLAYING_GLYPH,
     QUICK_FILTER_KEYS,
     STATUS_STYLES,
     STORES_WIDTH,
+    TIME_WIDTH,
 )
 from .rows import Row
 from .widgets import TrackTable
@@ -119,6 +126,7 @@ class RenderMixin:
             label_cell,
             self._store_badges(row),
             Text(row.track.genre_label or "-", style="bright_black"),
+            *self._optional_cells(row),
             Text(row.track.duration_label or "-", style="bright_black"),
         ]
 
@@ -134,6 +142,48 @@ class RenderMixin:
             if flash:
                 cell.stylize(flash)
             table.update_cell_at(Coordinate(index, column), cell, update_width=False)
+
+    def enabled_columns(self) -> list[tuple[str, str, int]]:
+        """The optional column specs switched on in Settings, in table order."""
+
+        wanted = set(self.config.columns)
+        return [spec for spec in OPTIONAL_COLUMN_SPECS if spec[0] in wanted]
+
+    def build_columns(self, table: TrackTable) -> None:
+        table.add_column(
+            Text(LOCAL_FILE_GLYPH + PLAYING_GLYPH, style="bright_black"),
+            width=LEADING_WIDTH,
+        )
+        table.add_column("", width=MARK_WIDTH)
+        table.add_column("#", width=INDEX_WIDTH)
+        table.flexible_column = table.add_column("Track", width=MIN_TITLE_WIDTH)
+        table.add_column("Stores", width=STORES_WIDTH)
+        table.add_column("Genre", width=GENRE_WIDTH)
+        for _name, header, width in self.enabled_columns():
+            table.add_column(header, width=width)
+        table.add_column("Time", width=TIME_WIDTH)
+
+    def rebuild_columns(self) -> None:
+        """Settings changed which columns show; start the table over."""
+
+        table = self.query_one("#tracks", TrackTable)
+        table.clear(columns=True)
+        self.build_columns(table)
+        self.refresh_rows()
+        self.call_after_refresh(table.fit_flexible_column)
+
+    def _optional_cells(self, row: Row) -> list[Text]:
+        track = row.track
+        values = {
+            "bpm": track.bpm_label,
+            "key": track.key_signature,
+            "year": str(track.release_year or ""),
+            "label": track.label_name,
+        }
+        return [
+            Text(values[name] or "-", style="bright_black")
+            for name, _header, _width in self.enabled_columns()
+        ]
 
     def _paint_key(self, key: str) -> None:
         """Repaint the row showing this track, if it is on screen."""

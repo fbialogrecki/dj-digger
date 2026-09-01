@@ -377,7 +377,11 @@ def export_records(
     if export_format == "csv":
         with path.open("w", encoding="utf-8", newline="") as handle:
             writer = csv.writer(handle)
-            writer.writerow(["category", "artist", "title", "track_url", "shop_link"])
+            # New columns go on the end: a script reading this by position
+            # still finds what it read before.
+            writer.writerow(
+                ["category", "artist", "title", "track_url", "shop_link", "bpm", "key", "release_year", "label"]
+            )
             for record in records:
                 writer.writerow(
                     [
@@ -386,6 +390,10 @@ def export_records(
                         record.track.title,
                         record.track.permalink_url,
                         record.link_url,
+                        record.track.bpm_label,
+                        record.track.key_signature,
+                        record.track.release_year or "",
+                        record.track.label_name,
                     ]
                 )
         LOGGER.info("Saved %s links to %s", len(records), path)
@@ -459,6 +467,10 @@ def _record_from_item(category: str, item: object) -> LinkRecord:
         permalink_url=track_url,
         id=item.get("track_id"),
         artist=item.get("artist") or "",
+        bpm=item.get("bpm") if isinstance(item.get("bpm"), (int, float)) else None,
+        key_signature=str(item.get("key") or ""),
+        release_year=item.get("release_year") if isinstance(item.get("release_year"), int) else None,
+        label_name=str(item.get("label") or ""),
         # Carried on the track so a summary can round-trip into a crate
         # and still categorise the same way.
         extra_links=[] if link_url == track_url else [(link_url, item.get("link_text") or "")],

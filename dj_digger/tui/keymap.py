@@ -65,6 +65,13 @@ INDEX_WIDTH = 4
 STORES_WIDTH = 22
 GENRE_WIDTH = 14
 TIME_WIDTH = 5
+# The optional columns, switched on in Settings: (config name, header, width).
+OPTIONAL_COLUMN_SPECS = (
+    ("bpm", "BPM", 5),
+    ("key", "Key", 4),
+    ("year", "Year", 4),
+    ("label", "Label", 14),
+)
 # 16, not 20: an 80-column terminal has 17 columns left for the title once the
 # fixed ones, their padding and the vertical scrollbar are paid for, so a higher
 # floor pushed the table past the screen and hung a horizontal scrollbar under
