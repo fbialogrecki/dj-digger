@@ -209,7 +209,7 @@ class OpeningMixin:
             )
             return
         rows = [
-            row for row in self.visible_rows if self.status_of(row) not in (GOT, SKIP)
+            row for row in self.targets() if self.status_of(row) not in (GOT, SKIP)
         ]
         if not rows:
             self.notify("No unhandled visible tracks to add", timeout=3)
@@ -527,7 +527,7 @@ class OpeningMixin:
             self._cart_busy = False
 
     def action_open_visible(self) -> None:
-        target_rows = [row for row in self.visible_rows if self.status_of(row) not in (GOT, OPENED)]
+        target_rows = [row for row in self.targets() if self.status_of(row) not in (GOT, OPENED)]
         if not target_rows:
             self.notify("Nothing to open (all visible tracks are marked as 'got' or already opened)", timeout=3)
             return

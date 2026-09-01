@@ -14,6 +14,7 @@ from textual.widgets import DataTable, Static
 
 from .. import links as links_module
 from ..state import GOT, NEW, OPENED, SKIP
+from .filters import SORT_COLUMN
 from .keymap import (
     DOMAIN_BADGE_CATEGORIES,
     FLASH,
@@ -113,6 +114,9 @@ class RenderMixin:
         if self.crate is not None and row.track.key in self.crate.new_track_keys:
             # Sorted to the top of the crate by CrateRecord.active_tracks.
             label_cell = Text("NEW ", style="bold yellow").append_text(label_cell)
+        selected = row.track.key in self.selected
+        if selected:
+            label_cell = Text("\u258c", style="bold cyan").append_text(label_cell)
 
         leading = Text(
             LOCAL_FILE_GLYPH if row.track.local_path else " ",
@@ -126,7 +130,7 @@ class RenderMixin:
         return [
             leading,
             Text(glyph, style=style),
-            Text(str(row.position), style=self.muted),
+            Text(str(row.position), style="reverse" if selected else self.muted),
             label_cell,
             self._store_badges(row),
             Text(row.track.genre_label or "-", style=self.muted),
@@ -159,18 +163,36 @@ class RenderMixin:
         return [spec for spec in OPTIONAL_COLUMN_SPECS if spec[0] in wanted]
 
     def build_columns(self, table: TrackTable) -> None:
-        table.add_column(
+        keys = self._column_keys = {}
+        keys["leading"] = table.add_column(
             Text(LOCAL_FILE_GLYPH + PLAYING_GLYPH, style=self.muted),
             width=LEADING_WIDTH,
         )
-        table.add_column("", width=MARK_WIDTH)
-        table.add_column("#", width=INDEX_WIDTH)
-        table.flexible_column = table.add_column("Track", width=MIN_TITLE_WIDTH)
-        table.add_column("Stores", width=STORES_WIDTH)
-        table.add_column("Genre", width=GENRE_WIDTH)
+        keys["mark"] = table.add_column("", width=MARK_WIDTH)
+        keys["#"] = table.add_column("#", width=INDEX_WIDTH)
+        table.flexible_column = keys["Track"] = table.add_column("Track", width=MIN_TITLE_WIDTH)
+        keys["Stores"] = table.add_column("Stores", width=STORES_WIDTH)
+        keys["Genre"] = table.add_column("Genre", width=GENRE_WIDTH)
         for _name, header, width in self.enabled_columns():
-            table.add_column(header, width=width)
-        table.add_column("Time", width=TIME_WIDTH)
+            keys[header] = table.add_column(header, width=width)
+        keys["Time"] = table.add_column("Time", width=TIME_WIDTH)
+        self._paint_headers(table)
+
+    def _paint_headers(self, table: TrackTable | None = None) -> None:
+        """Put the sort arrow on the sorted column's header and nowhere else."""
+
+        table = table or self.query_one("#tracks", TrackTable)
+        arrow = " \u25bc" if self.sort_reverse else " \u25b2"
+        sorted_header = SORT_COLUMN.get(self.sort_key or "", "")
+        for name, key in self._column_keys.items():
+            if key not in table.columns or name == "leading":
+                continue
+            base = "" if name == "mark" else name
+            table.columns[key].label = Text(base + (arrow if name == sorted_header else ""))
+        # The header is cached per column; the label change alone does not
+        # redraw it. Private, like _post_selected_message in widgets.py.
+        table._clear_caches()
+        table.refresh()
 
     def rebuild_columns(self) -> None:
         """Settings changed which columns show; start the table over."""
@@ -287,6 +309,10 @@ class RenderMixin:
             glyph = SPINNER[(self._frame // SPINNER_EVERY) % len(SPINNER)]
             pieces.append(f"{glyph} {self._dig_message}")
         pieces.append(f"{len(self.visible_rows)}/{len(self.rows)} tracks")
+        if self.selected:
+            pieces.append(f"{len(self.selected)} selected")
+        if self.sort_key:
+            pieces.append(f"sort: {self.sort_key}{' \u25bc' if self.sort_reverse else ' \u25b2'}")
         pieces += [
             f"got {counts[GOT]}",
             f"skipped {counts[SKIP]}",
@@ -349,9 +375,23 @@ class RenderMixin:
         self._flash_row(index, self._themed(STATUS_STYLES[status][1]))
         self.update_status()
 
+    def _mark_selected(self, status: str, message: str) -> bool:
+        """Mark every selected row at once. False when nothing is selected."""
+
+        rows = self.selected_rows()
+        if not rows:
+            return False
+        for row in rows:
+            self.state.set(row.track.key, status)
+        self.notify(f"{message}: {len(rows)} tracks", timeout=2)
+        self.refresh_rows()
+        return True
+
     def _toggle_status(self, status: str, message: str) -> None:
         """Pressing the same key again clears the mark, which is what people try."""
 
+        if self._mark_selected(status, message):
+            return
         row = self.current_row()
         if row is None:
             return
@@ -381,6 +421,8 @@ class RenderMixin:
         self._toggle_status(SKIP, "Skipped")
 
     def action_mark_new(self) -> None:
+        if self._mark_selected(NEW, "Unmarked"):
+            return
         row = self.current_row()
         if row is None:
             return

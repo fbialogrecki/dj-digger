@@ -144,12 +144,14 @@ Press `?` inside the TUI at any time to view the full grouped keybinding modal.
 #### Filtering, Stores & Library
 | Key | Action |
 | --- | --- |
-| `/` | Live search/filter by artist or title |
-| `f` / `Shift+F` | Step forward / backward through store filters |
+| `/` | Live search/filter by artist, title, genre, tag or label (every word must match, any order) |
+| `f` / `Shift+F` | Step forward / backward through store filters (from the store toggled last) |
+| `t` / `Shift+T` | Sort by title, time, genre, status or store (`t` cycles, `Shift+T` reverses); the header shows the arrow |
+| `v` / `Shift+V` / `Ctrl+A` | Select a row / extend the selection to here / select everything shown; batch keys then act on the selection |
 | `1` – `9` | Jump directly to store category filter |
 | `0` | Reset store filter (show all tracks) |
 | `h` | Toggle hiding handled tracks (`got` / `skipped`) |
-| `Escape` | Clear the store filter, search and hiding at once |
+| `Escape` | Clear the selection; then the search; then the store filter and hiding |
 | `Shift+O` | Open all visible store links in browser (asks confirmation for >20 links) |
 | `c` | Add the highlighted track to Bandcamp, or prepare it for a Beatport playlist |
 | `Shift+C` | Review visible store tracks, add Bandcamp items, and prepare a Beatport playlist |

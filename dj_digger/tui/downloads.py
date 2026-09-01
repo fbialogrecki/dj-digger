@@ -379,7 +379,7 @@ class DownloadMixin:
             return
         eligible: list[tuple[Row, str | None]] = []
         local_matches = False
-        for row in self.visible_rows:
+        for row in self.targets():
             if self._mark_existing_local_file(row.track):
                 local_matches = True
                 continue

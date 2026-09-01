@@ -1160,6 +1160,176 @@ def test_search_filters_by_artist_and_title(records, state):
     run(scenario)
 
 
+def test_search_matches_any_word_in_any_order(state):
+    records = synthetic_records(3)
+    records[1].track.artist = "Bonobo"
+    records[1].track.title = "Kerala (Extended Mix)"
+    app = make_app(records, state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("slash")
+            app.query_one("#search").value = "extended bonobo"
+            await pilot.pause()
+            assert [row.track.artist for row in app.visible_rows] == ["Bonobo"]
+
+    run(scenario)
+
+
+def test_search_reaches_genre_and_tags(state):
+    records = synthetic_records(3)
+    records[2].track.genre = "Dub Techno"
+    records[0].track.tags = ["minimal", "berlin"]
+    app = make_app(records, state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("slash")
+            app.query_one("#search").value = "dub"
+            await pilot.pause()
+            assert [row.position for row in app.visible_rows] == [3]
+            app.query_one("#search").value = "berlin"
+            await pilot.pause()
+            assert [row.position for row in app.visible_rows] == [1]
+
+    run(scenario)
+
+
+def test_escape_drops_the_selection_before_the_search(state):
+    records = synthetic_records(3)
+    app = make_app(records, state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("slash")
+            app.query_one("#search").value = "track"
+            await pilot.pause()
+            await pilot.press("escape")  # leaves the box, keeps the term
+            await pilot.pause()
+            await pilot.press("v")
+            assert app.selected == {records[0].track.key}
+            await pilot.press("escape")
+            assert app.selected == set() and app.search_term == "track"
+            await pilot.press("escape")
+            assert app.search_term == ""
+
+    run(scenario)
+
+
+def test_cycling_from_a_multi_select_steps_from_the_last_store(records, state):
+    app = make_app(records, state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("1")
+            await pilot.press("2")
+            assert app.store_filters == {app.present[0], app.present[1]}
+            await pilot.press("f")
+            assert app.store_filters == {app.present[2]}, "one step on from the store toggled last"
+
+    run(scenario)
+
+
+def test_t_sorts_by_time_and_shows_it_in_the_header(state):
+    records = synthetic_records(3)
+    records[0].track.duration = 300_000
+    records[1].track.duration = 100_000
+    records[2].track.duration = 200_000
+    app = make_app(records, state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("t")  # title
+            await pilot.press("t")  # time
+            await pilot.pause()
+            assert [row.position for row in app.visible_rows] == [2, 3, 1]
+            table = app.query_one("#tracks", DataTable)
+            assert "\u25b2" in str(table.columns[app._column_keys["Time"]].label)
+            await pilot.press("T")
+            await pilot.pause()
+            assert [row.position for row in app.visible_rows] == [1, 3, 2]
+            assert "\u25bc" in str(table.columns[app._column_keys["Time"]].label)
+            assert "sort: time" in str(app._progress_line())
+
+    run(scenario)
+
+
+def test_sorting_survives_a_mark(state):
+    records = synthetic_records(3)
+    records[0].track.duration = 300_000
+    records[1].track.duration = 100_000
+    records[2].track.duration = 200_000
+    app = make_app(records, state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("t")
+            await pilot.press("t")
+            await pilot.press("g")
+            await pilot.pause()
+            assert [row.position for row in app.visible_rows] == [2, 3, 1]
+
+    run(scenario)
+
+
+def test_v_selects_and_shift_v_extends(state):
+    records = synthetic_records(4)
+    app = make_app(records, state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("v")
+            await pilot.press("down")
+            await pilot.press("down")
+            await pilot.press("V")
+            await pilot.pause()
+            assert app.selected == {records[i].track.key for i in range(3)}
+            assert "3 selected" in bar_text(app)
+            await pilot.press("ctrl+a")
+            assert len(app.selected) == 4
+            await pilot.press("ctrl+a")
+            assert app.selected == set()
+
+    run(scenario)
+
+
+def test_batch_download_uses_the_selection_when_there_is_one(state, monkeypatch):
+    records = synthetic_records(3, category="soundcloud")
+    for record in records:
+        record.track.downloadable = True
+        record.track.has_downloads_left = True
+    app = make_app(records, state)
+    started = []
+    monkeypatch.setattr(app, "batch_download_in_background", lambda items: started.extend(items))
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("down")
+            await pilot.press("v")
+            await pilot.press("W")
+            await pilot.pause()
+
+    run(scenario)
+    assert [row.position for row, _url in started] == [2]
+
+
+def test_marking_a_selection_marks_every_selected_row(state):
+    records = synthetic_records(3)
+    app = make_app(records, state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("v")
+            await pilot.press("down")
+            await pilot.press("down")
+            await pilot.press("v")
+            await pilot.press("g")
+            await pilot.pause()
+
+    run(scenario)
+    assert [state.get(r.track.key) for r in records] == [GOT, "new", GOT]
+
+
 def test_escape_clears_every_filter(records, state):
     app = make_app(records, state)
 

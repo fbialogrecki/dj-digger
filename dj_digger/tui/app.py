@@ -13,6 +13,7 @@ from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.timer import Timer
 from textual.widgets import Button, DataTable, ListView, Static
+from textual.widgets.data_table import ColumnKey
 
 from .. import cart as cart_module
 from .. import dig as dig_module
@@ -228,6 +229,14 @@ class DiggerApp(
         self._badge_click_regions: list[tuple[int, int, int]] = []
         self.search_term: str = ""
         self.hide_handled: bool = False
+        # Track keys chosen with v / V / ctrl+a; whole-list actions prefer them.
+        self.selected: set[str] = set()
+        self._anchor: int | None = None
+        self.sort_key: str | None = None
+        self.sort_reverse: bool = False
+        # The store toggled last by a number key, so f/F know where to step from.
+        self._last_store: str = ""
+        self._column_keys: dict[str, ColumnKey] = {}
         self.visible_rows: list[Row] = []
         self.present: list[str] = []
         self._pending_open_all = False
@@ -280,7 +289,7 @@ class DiggerApp(
                 yield ListView(id="crates")
                 yield Button("+ Add crate", id="crate-add", tooltip="Add a crate (d)")
             with Vertical(id="main"):
-                yield SearchInput(placeholder="Filter by artist or title", id="search")
+                yield SearchInput(placeholder="Filter by artist, title, genre, tag or label", id="search")
                 yield TrackTable(id="tracks", cursor_type="row", zebra_stripes=True)
         yield StatusBar(id="status")
         yield FittedFooter()
@@ -443,7 +452,7 @@ class DiggerApp(
         if self.export_format == "none":
             self.notify("Export is disabled for this run", timeout=3)
             return
-        records = [record for row in self.visible_rows for record in row.records]
+        records = [record for row in self.targets() for record in row.records]
         if not records:
             self.notify("Nothing to export", timeout=2)
             return

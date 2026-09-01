@@ -136,7 +136,7 @@ class SearchInput(Input):
     it was simply never on screen.
     """
 
-    BINDINGS = [Binding("escape", "app.clear_filters", "Clear search")]
+    BINDINGS = [Binding("escape", "app.leave_search", "Back to the list")]
 
 
 class StatusBar(Static):

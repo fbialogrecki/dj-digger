@@ -84,6 +84,8 @@ class CrateMixin:
 
     def load_records(self, records: Sequence[LinkRecord], *, title: str = "") -> None:
         self._set_records(records)
+        self.selected.clear()
+        self._anchor = None
         if title:
             self.crate_title = title
             self.sub_title = title
@@ -187,18 +189,23 @@ class CrateMixin:
     def action_remove_track(self) -> None:
         """Drop a track from your copy. SoundCloud is read-only to us."""
 
-        row = self.current_row()
-        if row is None:
+        rows = self.selected_rows() or [self.current_row()]
+        if rows == [None]:
             return
         if self.crate is None:
             self.notify("This list is not a saved crate, nothing to remove from", timeout=4)
             return
-        track = row.track
-        self.crate.remove(track.key)
+        for row in rows:
+            self.crate.remove(row.track.key)
+            # ctrl+z puts them back one at a time, newest first.
+            self._undone.append(row.track.key)
         library_module.save(self.crate)
-        self._undone.append(track.key)
+        self.selected.clear()
         self._reload_from_crate()
-        self.notify(f"Removed {track.label} - ctrl+z to undo", timeout=4)
+        if len(rows) == 1:
+            self.notify(f"Removed {rows[0].track.label} - ctrl+z to undo", timeout=4)
+        else:
+            self.notify(f"Removed {len(rows)} tracks - ctrl+z puts them back one by one", timeout=4)
 
     def action_undo_remove(self) -> None:
         if self.crate is None or not self._undone:

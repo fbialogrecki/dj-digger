@@ -8,11 +8,38 @@ import logging
 
 from textual.widgets import DataTable, Input
 
+from ..links import CATEGORY_NAMES
 from ..models import LinkRecord
-from ..state import GOT, SKIP
+from ..state import GOT, NEW, OPENED, SKIP
 from .rows import Row
 
 LOGGER = logging.getLogger(__name__)
+
+# What ``t`` cycles through, in order. The last three only when their column
+# is switched on in Settings.
+SORT_ORDER = ("title", "time", "genre", "status", "store", "bpm", "key", "year")
+SORT_BASE = frozenset({"title", "time", "genre", "status", "store"})
+_STATUS_RANK = {NEW: 0, OPENED: 1, SKIP: 2, GOT: 3}
+SORT_KEYS = {
+    "title": lambda app: (lambda row: row.track.label.lower()),
+    "time": lambda app: (lambda row: row.track.duration),
+    "genre": lambda app: (lambda row: row.track.genre_label.lower()),
+    "status": lambda app: (lambda row: _STATUS_RANK.get(app.status_of(row), 0)),
+    "store": lambda app: (
+        lambda row: min(
+            (CATEGORY_NAMES.index(c) for c in row.categories if c in CATEGORY_NAMES),
+            default=len(CATEGORY_NAMES),
+        )
+    ),
+    "bpm": lambda app: (lambda row: row.track.bpm or 0.0),
+    "key": lambda app: (lambda row: row.track.key_signature.lower()),
+    "year": lambda app: (lambda row: row.track.release_year or 0),
+}
+# Which table column carries each sort key's arrow.
+SORT_COLUMN = {
+    "title": "Track", "time": "Time", "genre": "Genre", "status": "mark",
+    "store": "Stores", "bpm": "BPM", "key": "Key", "year": "Year",
+}
 
 
 class FilterMixin:
@@ -24,23 +51,41 @@ class FilterMixin:
         Split out because the store legend counts these: see ``_store_line``.
         """
 
-        term = self.search_term.strip().lower()
+        # Every word must appear somewhere, in any order: "techno dub" finds a
+        # dub techno track whether the genre or the title says so.
+        tokens = self.search_term.lower().split()
         rows = []
         for row in self.rows:
             if self.hide_handled and self.status_of(row) in (GOT, SKIP):
                 continue
-            if term and term not in row.track.label.lower():
-                continue
+            if tokens:
+                haystack = row.haystack
+                if not all(token in haystack for token in tokens):
+                    continue
             rows.append(row)
         return rows
 
     def matching_rows(self) -> list[Row]:
-        return [
+        rows = [
             row
             for row in self.soft_matching_rows()
             if not self.store_filters
             or any(cat in row.categories for cat in self.store_filters)
         ]
+        if self.sort_key:
+            # sorted is stable, so the crate's own order survives inside ties.
+            rows.sort(key=SORT_KEYS[self.sort_key](self), reverse=self.sort_reverse)
+        return rows
+
+    def targets(self) -> list[Row]:
+        """What a whole-list action works on: the selection, else every row shown."""
+
+        if self.selected:
+            return [row for row in self.visible_rows if row.track.key in self.selected]
+        return list(self.visible_rows)
+
+    def selected_rows(self) -> list[Row]:
+        return [row for row in self.visible_rows if row.track.key in self.selected]
 
     def status_of(self, row: Row) -> str:
         return self.state.get(row.track.key)
@@ -73,6 +118,7 @@ class FilterMixin:
                 self.store_filters.remove(category)
             else:
                 self.store_filters.add(category)
+                self._last_store = category
         self._pending_open_all = False
         self.refresh_rows(keep_cursor=False)
 
@@ -88,19 +134,102 @@ class FilterMixin:
             self.notify(f"This crate has no store {index}", timeout=2)
 
     def action_cycle_store(self, step: int) -> None:
-        """Step through the stores this crate actually has, plus 'all'."""
+        """Step through the stores this crate actually has, plus 'all'.
+
+        From a multi-select (number keys) it steps from the store toggled last
+        and collapses to that one, rather than silently jumping to the first.
+        """
 
         if not self.present:
             return
         options = [""] + self.present
-        current_single = list(self.store_filters)[0] if len(self.store_filters) == 1 else ""
+        if len(self.store_filters) == 1:
+            current_single = next(iter(self.store_filters))
+        elif len(self.store_filters) > 1 and self._last_store in self.store_filters:
+            current_single = self._last_store
+        else:
+            current_single = ""
         current = options.index(current_single) if current_single in options else 0
         next_cat = options[(current + step) % len(options)]
         self.store_filters.clear()
         if next_cat:
             self.store_filters.add(next_cat)
+        self._last_store = next_cat
         self._pending_open_all = False
         self.refresh_rows(keep_cursor=False)
+
+    # Sorting
+
+    def action_sort_next(self) -> None:
+        """Cycle the sort: source order, then each key in turn."""
+
+        options = [None, *self._sort_options()]
+        current = options.index(self.sort_key) if self.sort_key in options else 0
+        self.sort_key = options[(current + 1) % len(options)]
+        self.sort_reverse = False
+        self._resort()
+
+    def action_sort_flip(self) -> None:
+        if self.sort_key is None:
+            self.notify("Press t to choose what to sort by first", timeout=3)
+            return
+        self.sort_reverse = not self.sort_reverse
+        self._resort()
+
+    def _sort_options(self) -> list[str]:
+        enabled = {name for name, _header, _width in self.enabled_columns()}
+        return [name for name in SORT_ORDER if name in SORT_BASE or name in enabled]
+
+    def _resort(self) -> None:
+        self.refresh_rows(keep_cursor=False)
+        self._paint_headers()
+        label = self.sort_key or "crate order"
+        self.notify(f"Sorted by {label}{' (reversed)' if self.sort_reverse else ''}", timeout=2)
+
+    # Selection
+
+    def action_toggle_select(self) -> None:
+        row = self.current_row()
+        if row is None:
+            return
+        index = self.query_one("#tracks", DataTable).cursor_row
+        if row.track.key in self.selected:
+            self.selected.discard(row.track.key)
+        else:
+            self.selected.add(row.track.key)
+            self._anchor = index
+        self._paint_row(index)
+        self.update_status()
+
+    def action_select_range(self) -> None:
+        """Select from the row selected last to the cursor, inclusive."""
+
+        row = self.current_row()
+        if row is None:
+            return
+        cursor = self.query_one("#tracks", DataTable).cursor_row
+        start = self._anchor if self._anchor is not None else cursor
+        low, high = sorted((start, cursor))
+        for index in range(low, min(high, len(self.visible_rows) - 1) + 1):
+            self.selected.add(self.visible_rows[index].track.key)
+            self._paint_row(index)
+        self._anchor = cursor
+        self.update_status()
+
+    def action_select_visible(self) -> None:
+        if self.selected >= {row.track.key for row in self.visible_rows}:
+            self.selected.clear()
+            self.notify("Selection cleared", timeout=2)
+        else:
+            self.selected.update(row.track.key for row in self.visible_rows)
+        self.refresh_rows()
+
+    def clear_selection(self) -> None:
+        if not self.selected:
+            return
+        self.selected.clear()
+        self._anchor = None
+        self.refresh_rows()
 
     def action_toggle_handled(self) -> None:
         self.hide_handled = not self.hide_handled
@@ -111,15 +240,34 @@ class FilterMixin:
         search.add_class("visible")
         search.focus()
 
-    def action_clear_filters(self) -> None:
+    def action_leave_search(self) -> None:
+        """Escape in the search box: back to the list, the filter still applied.
+
+        Clearing it is one more Escape from the table; typing a term and losing
+        it on the way back to the rows was the old behaviour.
+        """
+
         search = self.query_one("#search", Input)
-        search.value = ""
-        search.remove_class("visible")
-        self.search_term = ""
-        self.store_filters.clear()
-        self.hide_handled = False
-        self._pending_open_all = False
-        self.refresh_rows(keep_cursor=False)
+        if not self.search_term:
+            search.remove_class("visible")
+        self.query_one("#tracks", DataTable).focus()
+
+    def action_clear_filters(self) -> None:
+        """Escape peels one layer at a time: selection, then search, then the filters."""
+
+        search = self.query_one("#search", Input)
+        if self.selected:
+            self.clear_selection()
+        elif self.search_term or search.has_class("visible"):
+            search.value = ""
+            search.remove_class("visible")
+            self.search_term = ""
+            self.refresh_rows(keep_cursor=False)
+        else:
+            self.store_filters.clear()
+            self.hide_handled = False
+            self._pending_open_all = False
+            self.refresh_rows(keep_cursor=False)
         self.query_one("#tracks", DataTable).focus()
 
     def on_input_changed(self, event: Input.Changed) -> None:
