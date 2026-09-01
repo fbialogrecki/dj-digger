@@ -55,7 +55,7 @@ async def _serve(state: str):
 
     async def answer(route, request):
         if request.url.split("?")[0] in {product_url, "https://bandcamp.com/cart"}:
-            await route.fulfill(status=200, content_type="text/html", body=body)
+            await route.fulfill(status=200, content_type="text/html; charset=utf-8", body=body)
         else:
             await route.abort()
 
@@ -69,11 +69,11 @@ def _run(coro):
     return asyncio.run(coro)
 
 
-def test_dom_products_read_tralbum_and_price_button():
+def test_page_products_read_tralbum_and_price_button():
     async def scenario():
         playwright, browser, page, product_url = await _serve("track_page")
         try:
-            products = await cart._bandcamp_dom_products(page)
+            products = await cart._page_products_async(page, "bandcamp")
         finally:
             await browser.close()
             await playwright.stop()
@@ -88,10 +88,14 @@ def test_dom_products_read_tralbum_and_price_button():
 
 def test_quote_reads_user_price_min_and_step():
     async def scenario():
-        playwright, browser, page, _url = await _serve("buy_open")
+        playwright, browser, page, product_url = await _serve("buy_open")
         try:
-            products = await cart._bandcamp_dom_products(page)
-            quote = await cart._bandcamp_quote_async(page, products[0])
+            products = await cart._page_products_async(page, "bandcamp")
+            product = next(
+                p for p in products
+                if cart.canonical_store_url(p.url, "bandcamp") == cart.canonical_store_url(product_url, "bandcamp")
+            )
+            quote = await cart._bandcamp_quote_async(page, product)
         finally:
             await browser.close()
             await playwright.stop()
@@ -106,8 +110,11 @@ def test_add_click_then_sidecart_row_verifies():
     async def scenario():
         playwright, browser, page, product_url = await _serve("sidecart")
         try:
-            products = await cart._bandcamp_dom_products(page)
-            product = products[0]
+            products = await cart._page_products_async(page, "bandcamp")
+            product = next(
+                p for p in products
+                if cart.canonical_store_url(p.url, "bandcamp") == cart.canonical_store_url(product_url, "bandcamp")
+            )
             track = Track(title=product.title, artist=product.artist, permalink_url="https://soundcloud.com/x/y")
             item = cart.CartItem(
                 track_key=track.key,
@@ -121,10 +128,12 @@ def test_add_click_then_sidecart_row_verifies():
                 currency=product.currency or "USD",
             )
             present = await cart._bandcamp_cart_contains_async(page, item)
+            count = await cart._bandcamp_cart_count_async(page)
         finally:
             await browser.close()
             await playwright.stop()
         assert present, "the recorded side cart shows a removable row for the product"
+        assert count == 1
 
     _run(scenario())
 

@@ -759,8 +759,14 @@ async def _quote_async(page: Any, store: str, product: StoreProduct) -> PriceQuo
 
 
 async def _open_bandcamp_cart_async(page: Any) -> bool:
+    sidecart = page.locator("#sidecart")
+    try:
+        if await sidecart.count() and await sidecart.is_visible():
+            return True  # artist pages keep it open once something is in it
+    except Exception:
+        pass
     cart_link = await _first_visible_match_async(
-        page.locator('[data-test="mb-cart"] a[title="cart"]')
+        page.locator('[data-test="mb-cart"] a[title="cart"], a[href="https://bandcamp.com/cart"]')
     )
     if cart_link is None:
         return False
@@ -783,41 +789,47 @@ async def _open_bandcamp_cart_async(page: Any) -> bool:
     return True
 
 
+# The side cart as Bandcamp renders it (recorded in tests/fixtures/bandcamp):
+#   <div id="sidecart_item_N" class="item"> <a class="itemName" href=PRODUCT>…</a>
+#   <a class="delete" href="#"><span>x</span></a> <span class="price">…</span>
+# The remove control is an anchor with class "delete" and the text "x", not a
+# link named "remove" - which is what every verification looked for until the
+# first diagnostics dump showed the rows sitting there unrecognised.
+SIDECART_ROWS = "#sidecartContents #item_list .item, #item_list .item"
+SIDECART_REMOVE = "a.delete"
+
+
 async def _bandcamp_cart_contains_async(page: Any, item: CartItem) -> bool:
     async def contains_row() -> bool:
-        remove_name = re.compile(r"^remove$", re.IGNORECASE)
-        if item.product_id:
-            by_id = page.locator(
-                f'#sidecartContents #item_list [data-item-id="{item.product_id}"], '
-                f'#sidecartContents #item_list [data-track-id="{item.product_id}"]'
-            )
-            for node in await _visible_async(by_id):
-                region = node.locator("xpath=ancestor-or-self::*[.//a][1]")
-                if await _first_visible_async(
-                    region.get_by_role("link", name=remove_name)
-                ):
-                    return True
+        remove_name = re.compile(r"^(remove|x)$", re.IGNORECASE)
         expected = urlparse(item.product_url)
-        selectors = ["#sidecartContents #item_list a[href]"]
-        if urlparse(page.url).hostname == "bandcamp.com" and urlparse(page.url).path == "/cart":
-            selectors.append('[data-test*="cart"] a[href]')
-        anchors = page.locator(", ".join(selectors))
-        for index in range(min(await anchors.count(), 500)):
-            anchor = anchors.nth(index)
-            if not await anchor.is_visible():
+        rows = page.locator(SIDECART_ROWS)
+        for index in range(min(await rows.count(), 500)):
+            row = rows.nth(index)
+            try:
+                if not await row.is_visible():
+                    continue
+                anchors = row.locator("a[href]")
+                matched = False
+                for position in range(min(await anchors.count(), 10)):
+                    href = await anchors.nth(position).get_attribute("href") or ""
+                    url = urljoin(page.url, href)
+                    found = urlparse(url)
+                    if is_store_url(url, "bandcamp") and (found.hostname, found.path) == (
+                        expected.hostname,
+                        expected.path,
+                    ):
+                        matched = True
+                        break
+                if not matched:
+                    continue
+                removable = row.locator(SIDECART_REMOVE)
+                if await removable.count() and await removable.first.is_visible():
+                    return True
+                if await _first_visible_async(row.get_by_role("link", name=remove_name)):
+                    return True
+            except Exception:
                 continue
-            url = urljoin(page.url, await anchor.get_attribute("href") or "")
-            found = urlparse(url)
-            if not is_store_url(url, "bandcamp") or (
-                found.hostname,
-                found.path,
-            ) != (expected.hostname, expected.path):
-                continue
-            region = anchor.locator("xpath=ancestor::*[.//a][1]")
-            if await _first_visible_async(
-                region.get_by_role("link", name=remove_name)
-            ):
-                return True
         return False
 
     if await contains_row():
@@ -834,6 +846,19 @@ async def _bandcamp_cart_contains_async(page: Any, item: CartItem) -> bool:
 
 
 async def _bandcamp_cart_count_async(page: Any) -> int | None:
+    """How many rows the side cart shows; the menubar badge as a fallback.
+
+    Artist pages have no menubar cart badge at all, so the badge-only count
+    was always None there and the count stage never ran.
+    """
+
+    try:
+        rows = page.locator(SIDECART_ROWS)
+        total = await rows.count()
+        if total or await page.locator("#sidecart").count():
+            return total
+    except Exception:
+        pass
     locator = page.locator('[data-test="mb-cart"] .menubar-cart-icon text')
     try:
         values = []

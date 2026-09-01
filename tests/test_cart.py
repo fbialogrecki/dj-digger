@@ -1243,28 +1243,27 @@ def test_bandcamp_click_is_verified_by_cart_count_without_reload(monkeypatch):
 def test_async_bandcamp_membership_requires_a_visible_removable_row(
     visible, removable, expected, monkeypatch
 ):
-    class Visible:
-        async def is_visible(self):
-            return removable
+    """The side cart row: a product anchor plus the "x" delete anchor, both visible."""
 
-    class RemoveLinks:
+    class Element:
+        def __init__(self, shown=True, href=None):
+            self.shown, self.href = shown, href
+
+        async def is_visible(self):
+            return self.shown
+
+        async def get_attribute(self, _name):
+            return self.href
+
         async def count(self):
             return 1
 
         def nth(self, _index):
-            return Visible()
+            return self
 
-    class Region:
-        def get_by_role(self, _role, *, name):
-            assert name.fullmatch("Remove")
-            return RemoveLinks()
-
-    class Node:
-        async def is_visible(self):
-            return visible
-
-        def locator(self, _selector):
-            return Region()
+        @property
+        def first(self):
+            return self
 
     class Nodes:
         def __init__(self, nodes):
@@ -1276,11 +1275,28 @@ def test_async_bandcamp_membership_requires_a_visible_removable_row(
         def nth(self, index):
             return self.nodes[index]
 
+        @property
+        def first(self):
+            return self.nodes[0]
+
+    class Row(Element):
+        def locator(self, selector):
+            if selector == "a[href]":
+                return Nodes([Element(href="https://artist.bandcamp.com/track/signal/1")])
+            if selector == cart.SIDECART_REMOVE:
+                return Nodes([Element(shown=True)]) if removable else Nodes([])
+            return Nodes([])
+
+        def get_by_role(self, _role, *, name):
+            return Nodes([])
+
     class Page:
         url = "https://artist.bandcamp.com/track/signal/1"
 
         def locator(self, selector):
-            return Nodes([Node()]) if "data-item-id" in selector else Nodes([])
+            if selector == cart.SIDECART_ROWS:
+                return Nodes([Row(shown=visible)])
+            return Nodes([])
 
     async def cart_closed(_page):
         return False
@@ -1288,9 +1304,7 @@ def test_async_bandcamp_membership_requires_a_visible_removable_row(
     monkeypatch.setattr(cart, "_open_bandcamp_cart_async", cart_closed)
 
     assert (
-        asyncio.run(
-            cart._bandcamp_cart_contains_async(Page(), resolved_item("bandcamp"))
-        )
+        asyncio.run(cart._bandcamp_cart_contains_async(Page(), resolved_item("bandcamp")))
         is expected
     )
 

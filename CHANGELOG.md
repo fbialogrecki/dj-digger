@@ -46,6 +46,15 @@
 
 ### Fixed
 
+- Bandcamp cart verification now recognises the side cart as Bandcamp renders
+  it (a row with the product link and an `x` delete control) and counts its
+  rows, instead of looking for a "remove" link and a menubar badge that artist
+  pages do not have. The first diagnostics dump from a real batch showed both
+  additions sitting in the cart unrecognised. The manual-finish step also no
+  longer crashes the batch on its progress label.
+- Recorded Bandcamp pages (`tests/fixtures/bandcamp/`) now back the
+  `bandcamp_dom` suite, and the test run keeps its data under a temporary
+  directory instead of writing diagnostics into the real data folder.
 - A Hypeddit gate that refuses the first unlock is retried once the way its own
   skip buttons do (`is_skippable=1`); pages offering alternative steps get the
   cheapest one (direct download, then click-through, then email). Gate flows

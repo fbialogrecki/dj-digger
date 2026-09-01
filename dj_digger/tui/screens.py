@@ -253,6 +253,7 @@ class CartProgressScreen(_Modal[None]):
             "preflight": "Checking products — nothing is added until review",
             "approval": "Ready for review",
             "adding": "Adding to Bandcamp",
+            "manual": "Finish these in the browser window",
             "ready": "Results ready",
         }[progress.phase]
         count = f" {progress.completed}/{progress.total}" if progress.total else ""

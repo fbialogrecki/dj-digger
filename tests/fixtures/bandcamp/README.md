@@ -21,12 +21,15 @@ seller-approved name-your-price pricing (so no money is involved), and save
 
 Then, for every file:
 
-- remove each `<script src=...>` tag; keep inline scripts (`TralbumData` is
-  what the adapter reads);
+- drop the `src="..."` attribute from every `<script>` tag but keep the tag:
+  Bandcamp carries `TralbumData` in that tag's `data-tralbum` attribute, and
+  the adapter reads it from there;
+- empty the `data-blob` of `#collectors-data` and the `page-context` of
+  `<page-footer>` (other fans' public data and page telemetry);
 - make sure this prints nothing:
 
   ```bash
-  grep -niE "fan_id|identity|set-cookie|@[a-z0-9-]+\.[a-z]{2,}" tests/fixtures/bandcamp/*.html
+  grep -niE "fan_id|identity|set-cookie|[a-z0-9._-]+@[a-z0-9-]+\.[a-z]{2,}" tests/fixtures/bandcamp/*.html
   ```
 
 - note the product URL the pages came from in `product_url.txt` (one line),
