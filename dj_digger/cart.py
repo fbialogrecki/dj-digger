@@ -363,21 +363,6 @@ def store_profile_path() -> Path:
     return path
 
 
-def navigate_store(page: Any, url: str, store: str) -> None:
-    """Navigate read-only once (one network retry) and validate the final origin."""
-
-    destination = canonical_store_url(url, store)
-    if destination is None:
-        raise AutomationError("refusing a non-canonical store URL")
-    try:
-        page.goto(destination, wait_until="domcontentloaded", timeout=NAVIGATION_TIMEOUT_MS)
-    except Exception:
-        try:
-            page.goto(destination, wait_until="domcontentloaded", timeout=NAVIGATION_TIMEOUT_MS)
-        except Exception as exc:
-            raise AutomationError(f"could not load {store} product page") from exc
-    if not is_store_url(page.url, store):
-        raise AutomationError(f"{store} redirected outside its canonical HTTPS domain")
 
 
 def _normalise(value: str) -> str:
@@ -758,113 +743,10 @@ def _beatport_anchor_products(soup: Any, page_url: str) -> dict[str, StoreProduc
     return by_id
 
 
-def plan_requests(
-    requests: Iterable[CartRequest], resolve: Callable[[Track, str, str], CartItem]
-) -> CartPlan:
-    """Resolve requests in preference order, allowing only business fallback."""
-
-    items: list[CartItem] = []
-    results: list[CartResult] = []
-    broken_stores: set[str] = set()
-    for request in requests:
-        track_label = _display_text(request.track.label)
-
-        def record(store: str, status: str, reason: str = "") -> None:
-            results.append(
-                CartResult(request.track.key, track_label, store, status, reason)
-            )
-
-        unavailable: list[str] = []
-        for store, url in request.links:
-            if store in broken_stores:
-                record(store, "failed", "store automation stopped after an earlier structural failure")
-                break
-            try:
-                item = resolve(request.track, store, url)
-            except ProductUnavailable as exc:
-                unavailable.append(str(exc))
-                continue
-            except UnsafeMatch as exc:
-                record(store, "skipped", str(exc))
-                break
-            except AutomationError as exc:
-                broken_stores.add(store)
-                record(store, "failed", str(exc))
-                break
-            except Exception:
-                broken_stores.add(store)
-                record(store, "failed", "unexpected store interaction failure")
-                break
-            items.append(item)
-            break
-        else:
-            record(
-                request.links[-1][0] if request.links else "",
-                "skipped",
-                unavailable[-1] if unavailable else "no eligible Bandcamp or Beatport link",
-            )
-    return CartPlan(tuple(items), tuple(results))
 
 
-def _same_snapshot(expected: CartItem, current: CartItem) -> bool:
-    return (
-        expected.store == current.store
-        and expected.product_id == current.product_id
-        and _normalise(expected.product_title) == _normalise(current.product_title)
-        and expected.price == current.price
-        and expected.currency == current.currency
-    )
 
 
-def execute_items(
-    plan: CartPlan,
-    *,
-    refresh: Callable[[CartItem], CartItem],
-    in_cart: Callable[[CartItem], bool],
-    add: Callable[[CartItem], None],
-) -> tuple[CartResult, ...]:
-    """Execute a preflight snapshot once, verifying identity before and after mutation."""
-
-    results = list(plan.results)
-    broken_stores: set[str] = set()
-    for item in plan.items:
-
-        def record(status: str, reason: str = "") -> None:
-            results.append(
-                CartResult(item.track_key, item.track_label, item.store, status, reason)
-            )
-
-        if item.store in broken_stores:
-            record("failed", "store automation stopped after an earlier structural failure")
-            continue
-        try:
-            current = refresh(item)
-            if not _same_snapshot(item, current):
-                record("skipped", "product identity or price changed after preflight")
-                continue
-            if in_cart(current):
-                record("already_in_cart")
-                continue
-            # A second refresh, not paranoia: the cart check navigated the page
-            # away to the cart, so the product page must be reloaded before the
-            # add click has anything to land on.
-            ready = refresh(item)
-            if not _same_snapshot(item, ready):
-                record("skipped", "product identity or price changed after cart inspection")
-                continue
-            add(ready)
-            if in_cart(ready):
-                record("added")
-            else:
-                broken_stores.add(item.store)
-                record("failed", "cart click was not verified; it was not retried")
-        except AutomationError as exc:
-            broken_stores.add(item.store)
-            record("failed", str(exc))
-        except Exception:
-            broken_stores.add(item.store)
-            record("failed", "unexpected store interaction failure")
-    return tuple(results)
 
 
 def _cancelled(cancel: Event) -> None:
@@ -912,357 +794,44 @@ def _first_visible(*locators: Any) -> Any | None:
     return None
 
 
-def _login_visible(page: Any) -> bool:
-    login_name = re.compile(r"^(?:log ?in|sign in)$", re.IGNORECASE)
-    try:
-        for locator in (
-            page.get_by_role("link", name=login_name),
-            page.get_by_role("button", name=login_name),
-        ):
-            if any(match.is_visible() for match in _each(locator)):
-                return True
-    except Exception:
-        return True
-    return False
 
 
-def _is_logged_in(page: Any, store: str) -> bool:
-    if not is_store_url(page.url, store):
-        return False
-    if _login_visible(page):
-        return False
-    if store == "bandcamp":
-        names = re.compile(r"^(collection|wishlist|log out)$", re.IGNORECASE)
-    else:
-        names = re.compile(
-            r"^(?:account(?: settings)?|profile|log ?out)$", re.IGNORECASE
-        )
-    return _first_visible(
-        page.get_by_role("link", name=names),
-        page.get_by_role("button", name=names),
-    ) is not None
 
 
-def _login_complete(page: Any, store: str) -> bool:
-    if _is_logged_in(page, store):
-        return True
-    return (
-        store == "bandcamp"
-        and urlparse(page.url).path in ("", "/")
-        and not _login_visible(page)
-    )
 
 
-def ensure_logins(pages: dict[str, Any], cancel: Event) -> None:
-    """Open every required login before waiting for user-driven completion."""
-
-    pending: dict[str, Any] = {}
-    for store, page in pages.items():
-        _cancelled(cancel)
-        navigate_store(page, STORE_HOME[store], store)
-        if _is_logged_in(page, store):
-            continue
-        navigate_store(page, STORE_LOGIN[store], store)
-        if not _login_complete(page, store):
-            pending[store] = page
-
-    # One shared deadline starts only after every required store has its login
-    # tab. The user can therefore complete Bandcamp and Beatport in either order.
-    deadline = time.monotonic() + LOGIN_TIMEOUT_SECONDS
-    while pending and time.monotonic() < deadline:
-        _cancelled(cancel)
-        for store, page in tuple(pending.items()):
-            if page.is_closed():
-                raise AutomationError(f"{store} login window was closed")
-            # The user may temporarily visit an external SSO origin. We do not
-            # inspect or touch it; only the canonical store can complete the wait.
-            if is_store_url(page.url, store) and _login_complete(page, store):
-                del pending[store]
-        if pending:
-            cancel.wait(0.25)
-    if pending:
-        stores = " and ".join(sorted(pending))
-        raise UserActionTimeout(f"timed out waiting for manual {stores} login")
 
 
-def ensure_login(page: Any, store: str, cancel: Event) -> None:
-    """Wait for one user-driven login without reading or filling credentials."""
-
-    ensure_logins({store: page}, cancel)
 
 
-def _page_products(page: Any, store: str) -> list[StoreProduct]:
-    if not is_store_url(page.url, store):
-        raise AutomationError(f"{store} page left its canonical domain")
-    try:
-        content = page.content()
-    except Exception as exc:
-        raise AutomationError(f"could not inspect {store} product page") from exc
-    products = products_from_html(content, page.url, store)
-    if not products:
-        raise AutomationError(f"{store} product structure changed or is unavailable")
-    return products
 
 
-def _buy_digital_control(page: Any) -> Any:
-    name = re.compile(r"^buy digital track$", re.IGNORECASE)
-    control = _first_visible(
-        page.get_by_role("button", name=name),
-        page.get_by_role("link", name=name),
-        page.get_by_text(name, exact=True),
-    )
-    if control is None:
-        raise AutomationError("Bandcamp purchase control changed or is unavailable")
-    return control
 
 
-def _bandcamp_individual_unavailable(page: Any) -> bool:
-    pattern = re.compile(
-        r"not available for individual purchase|"
-        r"(?:only\s+)?available\s+(?:only\s+)?with\s+purchase\s+of\s+"
-        r"(?:the\s+)?(?:(?:entire|whole|full)\s+)?album",
-        re.IGNORECASE,
-    )
-    try:
-        text = page.locator("body").inner_text(timeout=ACTION_TIMEOUT_MS)
-    except Exception as exc:
-        raise AutomationError("could not verify Bandcamp purchase availability") from exc
-    return bool(pattern.search(text))
 
 
-def _bandcamp_positive_price(page: Any, minimum: Decimal) -> Decimal:
-    buy_control = _buy_digital_control(page)
-    if minimum > 0:
-        return minimum
-    buy_control.click(timeout=ACTION_TIMEOUT_MS)
-    price_input = _only_visible(page.locator('input[name="userPrice"]'))
-    if price_input is None:
-        raise AutomationError("Bandcamp did not expose a price field for name-your-price")
-    default = _decimal(price_input.input_value())
-    step = _decimal(price_input.get_attribute("step"))
-    return purchase_price(minimum, default, step)
 
 
-def _product_by_id(products: Iterable[StoreProduct], product_id: str) -> StoreProduct | None:
-    return next((product for product in products if product.product_id == product_id), None)
 
 
-def _beatport_cart_contains(page: Any, product_id: str) -> bool:
-    anchors = page.locator(
-        f'a[href*="/track/"][href$="/{product_id}"], '
-        f'a[href*="/track/"][href$="/{product_id}/"]'
-    )
-    remove_name = re.compile(r"^remove(?: track)?(?: from cart)?$", re.IGNORECASE)
-    for anchor in _each(anchors):
-        if not anchor.is_visible():
-            continue
-        # Nearest ancestor containing any button = the smallest DOM region that
-        # is one cart row, so a neighbouring row's Remove cannot be mistaken
-        # for this product's.
-        region = anchor.locator("xpath=ancestor::*[.//button][1]")
-        if _first_visible(region.get_by_role("button", name=remove_name)) is not None:
-            return True
-    return False
 
 
-def _bandcamp_cart_contains(page: Any, item: CartItem) -> bool:
-    product_id = item.product_id
-    remove_name = re.compile(r"^remove$", re.IGNORECASE)
-    by_id = page.locator(
-        f'#sidecartContents #item_list [data-item-id="{product_id}"], '
-        f'#sidecartContents #item_list [data-track-id="{product_id}"]'
-    )
-    for node in _each(by_id):
-        if not node.is_visible():
-            continue
-        region = node.locator("xpath=ancestor-or-self::*[.//a][1]")
-        if _first_visible(region.get_by_role("link", name=remove_name)) is not None:
-            return True
-
-    expected = urlparse(item.product_url)
-    anchors = page.locator("#sidecartContents #item_list a[href]")
-    for anchor in _each(anchors):
-        if not anchor.is_visible():
-            continue
-        url = urljoin(getattr(page, "url", item.product_url), anchor.get_attribute("href") or "")
-        found = urlparse(url)
-        if not is_store_url(url, "bandcamp") or (
-            found.hostname,
-            found.path,
-        ) != (expected.hostname, expected.path):
-            continue
-        # Same smallest-region rule as the Beatport check above, with links.
-        region = anchor.locator("xpath=ancestor::*[.//a][1]")
-        if _first_visible(region.get_by_role("link", name=remove_name)) is not None:
-            return True
-    return False
 
 
-def _cart_contains(page: Any, item: CartItem, cancel: Event) -> bool:
-    _cancelled(cancel)
-    destination = item.product_url if item.store == "bandcamp" else STORE_CART[item.store]
-    navigate_store(page, destination, item.store)
-    product_id = item.product_id
-    if not product_id.isdigit():
-        raise AutomationError(f"{item.store} product has no stable numeric ID")
-    try:
-        if item.store == "beatport":
-            return _beatport_cart_contains(page, product_id)
-        return _bandcamp_cart_contains(page, item)
-    except Exception as exc:
-        raise AutomationError(f"could not verify the {item.store} cart") from exc
 
 
-def resolve_cart_item(
-    page: Any, track: Track, store: str, source_url: str, cancel: Event | None = None
-) -> CartItem:
-    """Resolve one linked release to an exact priced product and inspect the cart."""
-
-    navigate_store(page, source_url, store)
-    chosen = match_product(track, _page_products(page, store))
-    if urlparse(page.url).path != urlparse(chosen.url).path or chosen.price is None:
-        navigate_store(page, chosen.url, store)
-        chosen = _product_by_id(_page_products(page, store), chosen.product_id) or chosen
-    if chosen.price is None or not chosen.currency:
-        if store == "bandcamp" and _bandcamp_individual_unavailable(page):
-            raise ProductUnavailable("exact Bandcamp track is not sold individually")
-        raise AutomationError(f"{store} did not expose a verifiable price and currency")
-    price = _verified_price(page, store, chosen.price)
-    unresolved = CartItem(
-        track_key=track.key,
-        track_label=_display_text(track.label),
-        store=store,
-        source_url=source_url,
-        product_url=chosen.url,
-        product_id=chosen.product_id,
-        product_title=chosen.title,
-        price=price,
-        currency=chosen.currency,
-    )
-    return replace(unresolved, already_in_cart=_cart_contains(page, unresolved, cancel or Event()))
 
 
-def _prepare_on_pages(
-    request_pages: Iterable[tuple[CartRequest, Any]], cancel: Event
-) -> tuple[CartPlan, dict[tuple[str, str], Any]]:
-    pairs = tuple(request_pages)
-    page_by_track: dict[str, Any] = {}
-    for request, page in pairs:
-        if request.track.key in page_by_track:
-            raise AutomationError("cart batch contains the same track more than once")
-        page_by_track[request.track.key] = page
-
-    logged_in: set[str] = set()
-
-    def resolve(track: Track, store: str, url: str) -> CartItem:
-        _cancelled(cancel)
-        page = page_by_track[track.key]
-        if store not in logged_in:
-            ensure_login(page, store, cancel)
-            logged_in.add(store)
-        return resolve_cart_item(page, track, store, url, cancel)
-
-    plan = plan_requests((request for request, _page in pairs), resolve)
-    pages = {
-        (item.track_key, item.store): page_by_track[item.track_key]
-        for item in plan.items
-    }
-    return plan, pages
 
 
-def prepare_on_page(page: Any, requests: Iterable[CartRequest], cancel: Event) -> CartPlan:
-    pairs = ((request, page) for request in requests)
-    plan, _pages = _prepare_on_pages(pairs, cancel)
-    return plan
 
 
-def _verified_price(page: Any, store: str, price: Any) -> Any:
-    return (
-        _bandcamp_positive_price(page, price)
-        if store == "bandcamp"
-        else purchase_price(price, None, None)
-    )
 
 
-def _refresh_item(page: Any, expected: CartItem, cancel: Event) -> CartItem:
-    _cancelled(cancel)
-    navigate_store(page, expected.product_url, expected.store)
-    product = _product_by_id(_page_products(page, expected.store), expected.product_id)
-    if product is None or product.price is None or not product.currency:
-        raise AutomationError(f"{expected.store} product can no longer be verified")
-    # Looked up by expected.product_id, so only the product-derived fields can
-    # differ from the preflight snapshot.
-    return replace(
-        expected,
-        product_url=product.url,
-        product_title=product.title,
-        price=_verified_price(page, expected.store, product.price),
-        currency=product.currency,
-    )
 
 
-def _beatport_add_control(page: Any, item: CartItem) -> Any | None:
-    named = re.compile(r"^add(?: track)? to cart$", re.IGNORECASE)
-    control = _first_visible(
-        page.get_by_role("button", name=named),
-        page.get_by_text(named, exact=True),
-    )
-    if control is not None:
-        return control
-    amount = format(item.price, "f")
-    if "." in amount:
-        whole, fraction = amount.split(".", 1)
-        # [.,]: the button renders the price with a locale-dependent decimal
-        # separator. The lookarounds stop 9.99 from matching inside 19.99.
-        amount_pattern = rf".*(?<!\d){re.escape(whole)}[.,]{re.escape(fraction)}(?!\d).*"
-    else:
-        amount_pattern = rf".*(?<!\d){re.escape(amount)}(?!\d).*"
-    price_name = re.compile(amount_pattern, re.IGNORECASE)
-    control = _first_visible(
-        page.get_by_role("button", name=price_name)
-    )
-    if control is not None:
-        return control
-    heading = _first_visible(
-        page.get_by_role(
-            "heading", name=item.product_title, exact=True, level=1
-        )
-    )
-    if heading is None:
-        return None
-    try:
-        product_region = heading.locator("xpath=ancestor::*[.//button][1]")
-        return _first_visible(
-            product_region.get_by_role("button", name=price_name)
-        )
-    except Exception:
-        return None
 
 
-def _add_to_cart(page: Any, item: CartItem, cancel: Event) -> None:
-    _cancelled(cancel)
-    if not is_store_url(page.url, item.store) or urlparse(page.url).path != urlparse(
-        item.product_url
-    ).path:
-        raise AutomationError(f"{item.store} product page changed before the cart click")
-    if item.store == "bandcamp":
-        price_input = _only_visible(page.locator('input[name="userPrice"]'))
-        if price_input is None:
-            buy_control = _buy_digital_control(page)
-            buy_control.click(timeout=ACTION_TIMEOUT_MS)
-            price_input = _only_visible(page.locator('input[name="userPrice"]'))
-        if price_input is not None:
-            price_input.fill(format(item.price, "f"), timeout=ACTION_TIMEOUT_MS)
-        add_button = _first_visible(
-            page.get_by_role("button", name=re.compile(r"^add to cart$", re.IGNORECASE)),
-            page.get_by_text(re.compile(r"^add to cart$", re.IGNORECASE), exact=True),
-        )
-    else:
-        add_button = _beatport_add_control(page, item)
-    if add_button is None:
-        raise AutomationError(f"{item.store} add-to-cart control changed or is unavailable")
-    _cancelled(cancel)
-    add_button.click(timeout=ACTION_TIMEOUT_MS)
 
 
 def install_chromium(cancel: Event) -> None:
@@ -1368,161 +937,21 @@ def _browser_context(profile: Path | None = None, *, accept_downloads: bool = Fa
                 pass
 
 
-def _tabs(context: Any, count: int) -> list[Any]:
-    """Create the whole batch before its first tab starts navigating."""
-
-    if count <= 0:
-        return []
-    pages = [context.pages[0] if context.pages else context.new_page()]
-    while len(pages) < count:
-        pages.append(context.new_page())
-    return pages
 
 
-def _prepare_cart_in_context(
-    context: Any, requests: Iterable[CartRequest], cancel: Event
-) -> tuple[CartPlan, dict[tuple[str, str], Any]]:
-    request_list = tuple(requests)
-    pages = _tabs(context, len(request_list))
-    return _prepare_on_pages(zip(request_list, pages, strict=True), cancel)
 
 
-def _stage_item_pages(
-    context: Any, items: Iterable[CartItem], cancel: Event
-) -> dict[tuple[str, str], Any]:
-    item_list = tuple(items)
-    pages = _tabs(context, len(item_list))
-    staged: dict[tuple[str, str], Any] = {}
-    for item, page in zip(item_list, pages, strict=True):
-        _cancelled(cancel)
-        key = (item.track_key, item.store)
-        if key in staged:
-            raise AutomationError("cart plan contains the same store item more than once")
-        staged[key] = page
-        navigate_store(page, item.product_url, item.store)
-    return staged
 
 
-def prepare_cart(
-    requests: Iterable[CartRequest], cancel: Event, *, profile: Path | None = None
-) -> CartPlan:
-    with _browser_context(profile) as context:
-        plan, _pages = _prepare_cart_in_context(context, requests, cancel)
-        return plan
 
 
-def _wait_with_carts_open(
-    targets: Iterable[tuple[Any, CartItem]], cancel: Event
-) -> None:
-    pages: list[Any] = []
-    for page, item in targets:
-        pages.append(page)
-        try:
-            destination = (
-                item.product_url
-                if item.store == "bandcamp"
-                else STORE_CART[item.store]
-            )
-            navigate_store(page, destination, item.store)
-            if item.store == "bandcamp":
-                cart_control = _only_visible(page.locator("#menubar-cart-icon"))
-                if cart_control is not None:
-                    cart_control.click(timeout=ACTION_TIMEOUT_MS)
-        except Exception:
-            # Cart mutation is already verified. A changed checkout shortcut must
-            # not turn successful item results into an ambiguous global failure.
-            continue
-    while not cancel.wait(0.25):
-        try:
-            any_open = any(not page.is_closed() for page in pages)
-        except Exception:
-            return
-        if not any_open:
-            return
 
 
-def _execute_cart_in_context(
-    plan: CartPlan,
-    cancel: Event,
-    pages: dict[tuple[str, str], Any],
-    *,
-    login: bool,
-) -> tuple[CartResult, ...]:
-    def page_for(item: CartItem) -> Any:
-        try:
-            return pages[(item.track_key, item.store)]
-        except KeyError as exc:
-            raise AutomationError("cart plan is missing its browser tab") from exc
-
-    if login:
-        store_pages: dict[str, Any] = {}
-        for item in plan.items:
-            store_pages.setdefault(item.store, page_for(item))
-        ensure_logins(store_pages, cancel)
-
-    def refresh(item: CartItem) -> CartItem:
-        return _refresh_item(page_for(item), item, cancel)
-
-    def in_cart(item: CartItem) -> bool:
-        _cancelled(cancel)
-        return _cart_contains(page_for(item), item, cancel)
-
-    def add(item: CartItem) -> None:
-        _add_to_cart(page_for(item), item, cancel)
-
-    results = execute_items(plan, refresh=refresh, in_cart=in_cart, add=add)
-    successful_items = {
-        (result.track_key, result.store)
-        for result in results
-        if result.status in {"added", "already_in_cart"}
-        and result.store in STORE_HOSTS
-    }
-    cart_targets = [
-        (page_for(item), item)
-        for item in plan.items
-        if (item.track_key, item.store) in successful_items
-    ]
-    if cart_targets and not cancel.is_set():
-        _wait_with_carts_open(cart_targets, cancel)
-    return results
 
 
-def run_cart(
-    requests: Iterable[CartRequest],
-    cancel: Event,
-    *,
-    approve: Callable[[CartPlan], bool] | None = None,
-    profile: Path | None = None,
-) -> tuple[CartResult, ...] | None:
-    """Preflight, approve, and execute in one browser context and worker thread."""
-
-    with _browser_context(profile) as context:
-        plan, pages = _prepare_cart_in_context(context, requests, cancel)
-        if not plan.items:
-            return plan.results
-        if (
-            approve is not None
-            and any(not item.already_in_cart for item in plan.items)
-            and not approve(plan)
-        ):
-            return None
-        # Preflight already completed every required manual login in this same
-        # persistent context, so execution can revalidate without closing tabs.
-        return _execute_cart_in_context(plan, cancel, pages, login=False)
 
 
-def execute_cart(
-    plan: CartPlan,
-    cancel: Event,
-    *,
-    profile: Path | None = None,
-) -> tuple[CartResult, ...]:
-    with _browser_context(profile) as context:
-        pages = _stage_item_pages(context, plan.items, cancel)
-        return _execute_cart_in_context(plan, cancel, pages, login=True)
 
-
-# Async, persistent cart session -------------------------------------------------
 
 ProgressCallback = Callable[[CartProgress], None]
 ApprovalCallback = Callable[[CartPlan], Awaitable[CartPlan | None]]
