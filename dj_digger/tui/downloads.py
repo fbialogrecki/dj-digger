@@ -310,20 +310,14 @@ class DownloadMixin:
             dirty_keys = tuple(self._dirty_download_rows)
             self._dirty_download_rows.clear()
             for dirty_key in dirty_keys:
-                self._paint_download_row(dirty_key)
-
-    def _paint_download_row(self, key: str) -> None:
-        for index, row in enumerate(self.visible_rows):
-            if row.track.key == key:
-                self._paint_row(index)
-                return
+                self._paint_key(dirty_key)
 
     def _settle_download_row(self, key: str) -> None:
         """Drop the progress bookkeeping for a row and repaint it."""
 
         self.download_progress.pop(key, None)
         self._dirty_download_rows.discard(key)
-        self._paint_download_row(key)
+        self._paint_key(key)
         self.update_status()
 
     def _download_failed(
@@ -352,7 +346,7 @@ class DownloadMixin:
         if self.hide_handled and was_visible:
             self.refresh_rows()
         else:
-            self._paint_download_row(key)
+            self._paint_key(key)
             self.update_status()
         if toast:
             self.notify(f"Downloaded to {path}", timeout=5)
@@ -385,7 +379,8 @@ class DownloadMixin:
         self._gate_cancel.clear()
         for row, _gate_url in eligible:
             self.download_progress[row.track.key] = 0.0
-        self.refresh_rows()
+            self._paint_key(row.track.key)
+        self.update_status()
         self.notify(
             f"Checking and downloading {len(eligible)} tracks in parallel...",
             timeout=4,
@@ -633,7 +628,7 @@ class DownloadMixin:
         self.download_progress.clear()
         self._dirty_download_rows.clear()
         for key in stale_keys:
-            self._paint_download_row(key)
+            self._paint_key(key)
         self.update_status()
         msg = (
             "Batch check finished: no downloadable tracks remained"

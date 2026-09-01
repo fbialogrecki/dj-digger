@@ -135,6 +135,14 @@ class RenderMixin:
                 cell.stylize(flash)
             table.update_cell_at(Coordinate(index, column), cell, update_width=False)
 
+    def _paint_key(self, key: str) -> None:
+        """Repaint the row showing this track, if it is on screen."""
+
+        for index, row in enumerate(self.visible_rows):
+            if row.track.key == key:
+                self._paint_row(index)
+                return
+
     def _flash_row(self, index: int, style: str) -> None:
         """Light the row you acted on, so a keypress is visibly a change."""
 

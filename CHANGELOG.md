@@ -4,6 +4,8 @@
 
 ### Changed
 
+- Opening a link, starting or stopping playback, and a batch download starting
+  repaint the rows involved instead of rebuilding the whole table.
 - The crate sidebar lists headers and reads a crate's tracks only when it is
   opened, so a large library starts and refreshes faster.
 - The local scan writes in batches, follows symlinked folders as before, and

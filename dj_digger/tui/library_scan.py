@@ -123,7 +123,7 @@ class LibraryScanMixin:
         if row is None:
             return
         if self._forget_missing_local_file(row.track) or not row.track.local_path:
-            self.refresh_rows()
+            self._paint_key(row.track.key)
             self.notify("No local file matched for this track", timeout=3)
             return
         if copy_to_clipboard(row.track.local_path):
@@ -164,7 +164,8 @@ class LibraryScanMixin:
                 library_module.save(self.crate)
             except Exception as exc:
                 LOGGER.warning("Could not persist copied local path: %s", exc)
-        self.refresh_rows()
+        self._paint_key(track.key)
+        self.update_status()
         self.notify(f"Copied to {target}", timeout=5)
 
 

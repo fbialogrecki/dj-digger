@@ -213,10 +213,12 @@ class PlaybackMixin:
         """
 
         self._player_bar().message = ""
+        was_playing = self._playing_key()
         self._player_op(self.player.unload)
         self._discard_prepared()
         self._sleep()
-        self.refresh_rows()
+        if was_playing is not None:
+            self._paint_key(was_playing)
 
     def _start_playback(self, track: Track) -> None:
         if not track.id:
@@ -256,6 +258,7 @@ class PlaybackMixin:
     ) -> None:
         bar = self._player_bar()
         bar.message = ""
+        previously_playing = self._playing_key()
         try:
             self.player.load(track, stream, self.client.session, samples, source)
             self.player.play()
@@ -269,8 +272,11 @@ class PlaybackMixin:
         # the middle of it finds nothing playing and puts the timer back to
         # sleep - so this is where it has to be woken, not where it was asked for.
         self._wake()
-        # Redraw first so the play marker lands on the new row, then chase it.
-        self.refresh_rows()
+        # Repaint the two rows the marker moves between, then chase it. A full
+        # rebuild here made every play a visible flicker on a long crate.
+        if previously_playing is not None:
+            self._paint_key(previously_playing)
+        self._paint_key(track.key)
         self._focus_playing_track()
         bar.refresh_bar()
 

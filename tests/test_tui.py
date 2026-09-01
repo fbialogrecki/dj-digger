@@ -420,6 +420,27 @@ def test_opening_a_link_marks_it_opened(records, state, monkeypatch):
     assert state.get(records[0].track.key) == OPENED
 
 
+def test_opening_a_link_repaints_only_that_row(records, state, monkeypatch):
+    """A rebuilt table flickers and loses the scroll; one row changed, so paint one."""
+
+    monkeypatch.setattr(
+        "dj_digger.tui.browser_module.open_url", lambda url, browser="default": True
+    )
+    app = make_app(records, state)
+    clears = []
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            monkeypatch.setattr(DataTable, "clear", lambda self, *a, **k: clears.append(1))
+            await pilot.press("o")
+            await pilot.pause()
+
+    run(scenario)
+    assert state.get(records[0].track.key) == OPENED
+    assert clears == [], "opening a link must not rebuild the table"
+
+
 def test_enter_opens_the_link_exactly_once(records, state, monkeypatch):
     """The table binds enter itself, so the app binding must not fire as well."""
 
@@ -1908,6 +1929,28 @@ def test_three_links_over_two_tracks_make_two_rows():
     run(scenario)
 
 
+def test_playback_start_repaints_the_two_rows_involved(state, monkeypatch):
+    app = player_app(two_tracks_three_links(), state)
+    monkeypatch.setattr(app, "fetch_audio", lambda track: app._audio_ready(track, a_stream(), []))
+    clears = []
+    painted = []
+    real_paint = app._paint_key
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            monkeypatch.setattr(DataTable, "clear", lambda self, *a, **k: clears.append(1))
+            monkeypatch.setattr(app, "_paint_key", lambda key: (painted.append(key), real_paint(key)))
+            await pilot.press("space")
+            await pilot.pause()
+            await pilot.press("n")
+            await pilot.pause()
+
+    run(scenario)
+    assert clears == [], "starting playback must not rebuild the table"
+    assert painted == ["901", "901", "902"], "the old row loses the marker, the new one gains it"
+
+
 def test_next_track_moves_on_to_the_next_track(state, monkeypatch):
     app = player_app(two_tracks_three_links(), state)
     started = []
@@ -2958,7 +3001,7 @@ def test_download_results_do_not_move_the_viewport(state, monkeypatch, tmp_path,
             row = app.visible_rows[35]
             key = row.track.key
             app.download_progress[key] = 0.42
-            app._paint_download_row(key)
+            app._paint_key(key)
             await pilot.pause()
             cursor = table.cursor_row
             viewport = table.scroll_offset

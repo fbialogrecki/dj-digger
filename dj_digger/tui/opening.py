@@ -106,7 +106,8 @@ class OpeningMixin:
         if browser_module.open_url(url, self.browser):
             if self.status_of(row) == NEW:
                 self.state.set(row.track.key, OPENED)
-            self.refresh_rows()
+            self._paint_key(row.track.key)
+            self.update_status()
         else:
             self.notify("Could not open the link", severity="error")
 
@@ -533,7 +534,7 @@ class OpeningMixin:
             row = rows[idx]
             if self.status_of(row) == NEW:
                 self.state.set(row.track.key, OPENED)
-                self.call_from_thread(self.refresh_rows)
+                self.call_from_thread(self._paint_key, row.track.key)
 
         def handle_error(err_msg: str) -> None:
             self.call_from_thread(self.show_error, err_msg)
@@ -550,4 +551,4 @@ class OpeningMixin:
                 "(OS process / browser tab opening limit reached)."
             )
         self.notify(f"Opened {opened}/{total} links", timeout=3)
-        self.refresh_rows()
+        self.update_status()

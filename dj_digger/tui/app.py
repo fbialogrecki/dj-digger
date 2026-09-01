@@ -430,7 +430,7 @@ class DiggerApp(
         if row is None:
             return
         if self._forget_missing_local_file(row.track):
-            self.refresh_rows()
+            self._paint_key(row.track.key)
         entries = [
             ("open", "Open best link", self.action_open_link),
             ("got", "Mark as got", self.action_mark_got),
