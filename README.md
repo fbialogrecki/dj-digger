@@ -166,44 +166,6 @@ Press `?` inside the TUI at any time to view the full grouped keybinding modal.
 | `?` | Full keybinding help |
 | `q` / `Ctrl+C` | Quit |
 
---- | --- |
-| `Up` / `Down` / `j` / `k` | Navigate track rows |
-| `o` or `Enter` | Open the best link (or active store filter) in your default web browser |
-| `w` | Download the highlighted artist-provided or gate file to your download folder (set it with `S`) |
-| `W` | Batch-download all eligible tracks in the current view |
-| `Ctrl+X` | Stop an active Hypeddit browser batch; unfinished tracks remain new |
-| `g` | Mark track as **Got** (`✓`) and move to next track |
-| `s` | Mark track as **Skipped** (`✗`) and move to next track |
-| `u` | Clear track status mark (`·`) |
-| `x` | Remove track from current crate (`Ctrl+Z` to undo) |
-| `y` | Copy the path of the local file that matches this track (`▣` in the first column) |
-
-#### Audio Preview Controls
-| Key | Action |
-| --- | --- |
-| `Space` | Play / Pause highlighted track |
-| `[` / `]` | Seek backward / forward 10 seconds |
-| `n` / `p` | Advance to Next / Previous track |
-| `-` / `=` | Decrease / Increase playback volume (`m` to mute/unmute) |
-| `Ctrl+W` | Stop playback and close the player bar |
-| *Mouse Click* | Click anywhere on the waveform display to seek immediately, or use the buttons and volume slider under it |
-
-#### Filtering, Stores & Library
-| Key | Action |
-| --- | --- |
-| `/` | Live search/filter by artist, title, or genre |
-| `f` / `F` | Step forward / backward through store filters |
-| `1` – `9` | Jump directly to store category filter |
-| `0` | Reset store filter (show all tracks) |
-| `h` | Toggle hiding handled tracks (`got` / `skipped`) |
-| `Shift+O` | Open all visible store links in browser (asks confirmation for >20 links) |
-| `c` | Add the highlighted track to Bandcamp, or prepare it for a Beatport playlist |
-| `C` | Review visible store tracks, add Bandcamp items, and prepare a Beatport playlist |
-| `e` | Export visible rows to file |
-| `d` | Add a new crate from a SoundCloud URL |
-| `r` | Refresh current crate from SoundCloud (preserves local deletions) |
-| `Ctrl+B` | Toggle Crate Sidebar |
-
 ---
 
 ## 🏷️ Store & Gate Categories
