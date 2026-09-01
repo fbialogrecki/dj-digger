@@ -71,10 +71,6 @@ STORE_HOME = {
 }
 STORE_LOGIN = {
     "bandcamp": "https://bandcamp.com/login",
-    "beatport": "https://account.beatport.com/",
-}
-STORE_CART = {
-    "beatport": "https://www.beatport.com/cart",
 }
 
 
@@ -1249,13 +1245,13 @@ async def _login_visible_async(page: Any) -> bool:
 
 
 async def _is_logged_in_async(page: Any, store: str) -> bool:
+    if store != "bandcamp":
+        # Beatport is never logged into: its anti-bot challenge stops an
+        # automated browser at the door, and the app builds a playlist instead.
+        return False
     if not is_store_url(page.url, store) or await _login_visible_async(page):
         return False
-    names = (
-        re.compile(r"^(collection|wishlist|log out)$", re.IGNORECASE)
-        if store == "bandcamp"
-        else re.compile(r"^(?:account(?: settings)?|profile|log ?out)$", re.IGNORECASE)
-    )
+    names = re.compile(r"^(collection|wishlist|log out)$", re.IGNORECASE)
     return (
         await _first_visible_async(
             page.get_by_role("link", name=names),
@@ -1559,34 +1555,15 @@ async def _verify_bandcamp_click_async(
     return verified
 
 
-async def _beatport_cart_contains_async(page: Any, product_id: str) -> bool:
-    anchors = page.locator(
-        f'a[href*="/track/"][href$="/{product_id}"], '
-        f'a[href*="/track/"][href$="/{product_id}/"]'
-    )
-    remove_name = re.compile(r"^remove(?: track)?(?: from cart)?$", re.IGNORECASE)
-    for index in range(min(await anchors.count(), 500)):
-        anchor = anchors.nth(index)
-        if not await anchor.is_visible():
-            continue
-        region = anchor.locator("xpath=ancestor::*[.//button][1]")
-        if await _first_visible_async(region.get_by_role("button", name=remove_name)):
-            return True
-    return False
-
-
 async def _cart_contains_async(
     page: Any, item: CartItem, cancel: asyncio.Event, *, navigate: bool = True
 ) -> bool:
     _async_cancelled(cancel)
+    if item.store != "bandcamp":
+        raise StoreStructureError(f"{item.store} carts are not automated")
     if navigate:
-        destination = item.product_url if item.store == "bandcamp" else STORE_CART[item.store]
-        await _navigate_async(page, destination, item.store)
+        await _navigate_async(page, item.product_url, item.store)
     try:
-        if item.store == "beatport":
-            if not item.product_id.isdigit():
-                raise StoreStructureError("beatport product has no stable numeric ID")
-            return await _beatport_cart_contains_async(page, item.product_id)
         return await _bandcamp_cart_contains_async(page, item)
     except AutomationError:
         raise
@@ -1678,69 +1655,40 @@ def _same_async_snapshot(expected: CartItem, current: CartItem) -> bool:
     )
 
 
-async def _beatport_add_control_async(page: Any, item: CartItem) -> Any | None:
-    named = re.compile(r"^add(?: track)? to cart$", re.IGNORECASE)
-    control = await _first_visible_async(
-        page.get_by_role("button", name=named),
-        page.get_by_text(named, exact=True),
-    )
-    if control is not None:
-        return control
-    amount = format(item.price, "f")
-    whole, dot, fraction = amount.partition(".")
-    amount_pattern = (
-        rf".*(?<!\d){re.escape(whole)}[.,]{re.escape(fraction)}(?!\d).*"
-        if dot
-        else rf".*(?<!\d){re.escape(amount)}(?!\d).*"
-    )
-    price_name = re.compile(amount_pattern, re.IGNORECASE)
-    control = await _first_visible_async(page.get_by_role("button", name=price_name))
-    if control is not None:
-        return control
-    heading = await _first_visible_async(
-        page.get_by_role("heading", name=item.product_title, exact=True, level=1)
-    )
-    if heading is None:
-        return None
-    region = heading.locator("xpath=ancestor::*[.//button][1]")
-    return await _first_visible_async(region.get_by_role("button", name=price_name))
-
-
 async def _add_to_cart_async(page: Any, item: CartItem, cancel: asyncio.Event) -> None:
     _async_cancelled(cancel)
     if not is_store_url(page.url, item.store) or urlparse(page.url).path != urlparse(
         item.product_url
     ).path:
         raise StoreStructureError(f"{item.store} product page changed before the cart click")
-    if item.store == "bandcamp":
+    if item.store != "bandcamp":
+        raise StoreStructureError(f"{item.store} carts are not automated")
+    price_input = await _only_visible_async(
+        page.locator('input#userPrice, input[name="userPrice"]')
+    )
+    if price_input is None:
+        name = re.compile(r"^buy digital (?:track|album)$", re.IGNORECASE)
+        buy_control = await _first_visible_async(
+            page.get_by_role("button", name=name),
+            page.get_by_role("link", name=name),
+            page.get_by_text(name, exact=True),
+        )
+        if buy_control is None:
+            raise StoreStructureError("Bandcamp purchase control changed or is unavailable")
+        await buy_control.click(timeout=ACTION_TIMEOUT_MS)
         price_input = await _only_visible_async(
             page.locator('input#userPrice, input[name="userPrice"]')
         )
-        if price_input is None:
-            name = re.compile(r"^buy digital (?:track|album)$", re.IGNORECASE)
-            buy_control = await _first_visible_async(
-                page.get_by_role("button", name=name),
-                page.get_by_role("link", name=name),
-                page.get_by_text(name, exact=True),
-            )
-            if buy_control is None:
-                raise StoreStructureError("Bandcamp purchase control changed or is unavailable")
-            await buy_control.click(timeout=ACTION_TIMEOUT_MS)
-            price_input = await _only_visible_async(
-                page.locator('input#userPrice, input[name="userPrice"]')
-            )
-        if price_input is not None:
-            await price_input.fill(format(item.price, "f"), timeout=ACTION_TIMEOUT_MS)
-        elif item.price_editable and item.price > (item.minimum_price or Decimal(0)):
-            raise StoreStructureError(
-                "Bandcamp no longer exposes the editable price field"
-            )
-        add_button = await _first_visible_async(
-            page.get_by_role("button", name=re.compile(r"^add to cart$", re.IGNORECASE)),
-            page.get_by_text(re.compile(r"^add to cart$", re.IGNORECASE), exact=True),
+    if price_input is not None:
+        await price_input.fill(format(item.price, "f"), timeout=ACTION_TIMEOUT_MS)
+    elif item.price_editable and item.price > (item.minimum_price or Decimal(0)):
+        raise StoreStructureError(
+            "Bandcamp no longer exposes the editable price field"
         )
-    else:
-        add_button = await _beatport_add_control_async(page, item)
+    add_button = await _first_visible_async(
+        page.get_by_role("button", name=re.compile(r"^add to cart$", re.IGNORECASE)),
+        page.get_by_text(re.compile(r"^add to cart$", re.IGNORECASE), exact=True),
+    )
     if add_button is None:
         raise StoreStructureError(f"{item.store} add-to-cart control changed or is unavailable")
     _async_cancelled(cancel)
@@ -2423,39 +2371,36 @@ class CartBrowserSession:
                 continue
             page = pages[store]
             try:
-                if store == "beatport":
-                    await _navigate_async(page, STORE_CART[store], store)
-                else:
-                    await _navigate_async(page, items[-1].product_url, store)
-                    await _open_bandcamp_cart_async(page)
-                    verified_items = successful.get(store, [])
-                    deadline = time.monotonic() + 3.0
-                    while True:
-                        present = await asyncio.gather(
-                            *(
-                                _bandcamp_cart_contains_async(page, item)
-                                for item in verified_items
-                            )
+                await _navigate_async(page, items[-1].product_url, store)
+                await _open_bandcamp_cart_async(page)
+                verified_items = successful.get(store, [])
+                deadline = time.monotonic() + 3.0
+                while True:
+                    present = await asyncio.gather(
+                        *(
+                            _bandcamp_cart_contains_async(page, item)
+                            for item in verified_items
                         )
-                        missing = [
-                            item
-                            for item, found in zip(verified_items, present, strict=True)
-                            if not found
-                        ]
-                        if not missing or time.monotonic() >= deadline:
-                            break
-                        await asyncio.sleep(0.2)
-                    if missing:
-                        warnings.append(
-                            CartResult(
-                                "",
-                                "Bandcamp cart view",
-                                store,
-                                "failed",
-                                f"final cart view did not expose {len(missing)} verified item(s)",
-                                "cart_view_incomplete",
-                            )
+                    )
+                    missing = [
+                        item
+                        for item, found in zip(verified_items, present, strict=True)
+                        if not found
+                    ]
+                    if not missing or time.monotonic() >= deadline:
+                        break
+                    await asyncio.sleep(0.2)
+                if missing:
+                    warnings.append(
+                        CartResult(
+                            "",
+                            "Bandcamp cart view",
+                            store,
+                            "failed",
+                            f"final cart view did not expose {len(missing)} verified item(s)",
+                            "cart_view_incomplete",
                         )
+                    )
                 await page.bring_to_front()
             except Exception as exc:
                 LOGGER.warning(

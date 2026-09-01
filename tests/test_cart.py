@@ -1428,7 +1428,7 @@ def test_raised_bandcamp_price_is_never_ignored_when_the_field_disappears(
         asyncio.run(cart._add_to_cart_async(Page(), item, asyncio.Event()))
 
 
-def test_beatport_login_challenge_is_detected_once_without_a_verification_loop():
+def test_login_challenge_is_detected_once_without_a_verification_loop():
     class Response:
         status = 403
 
@@ -1448,10 +1448,21 @@ def test_beatport_login_challenge_is_detected_once_without_a_verification_loop()
         async def bring_to_front(self):
             self.focused += 1
 
+        def get_by_role(self, *_args, **_kwargs):
+            class NoBanner:
+                @property
+                def first(self):
+                    return self
+
+                async def wait_for(self, **_kwargs):
+                    raise RuntimeError("no cookie banner on a challenge page")
+
+            return NoBanner()
+
     page = ChallengePage()
 
     with pytest.raises(cart.SecurityChallengeBlocked, match="stopped safely"):
-        asyncio.run(cart._ensure_logins_async({"beatport": page}, asyncio.Event()))
+        asyncio.run(cart._ensure_logins_async({"bandcamp": page}, asyncio.Event()))
 
     assert page.content_calls == 1
     assert page.focused == 1
