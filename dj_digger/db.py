@@ -223,3 +223,21 @@ class Database:
             cur = conn.execute("SELECT path FROM local_files WHERE normalized_stem = ? LIMIT 1", (normalized_stem,))
             row = cur.fetchone()
             return row["path"] if row else None
+
+    def find_unique_local_match(
+        self, containing: str, also_containing: str = ""
+    ) -> str | None:
+        """Return a decorated filename match only when it is unambiguous."""
+        condition = "instr(normalized_stem, ?) > 0"
+        values = [containing]
+        if also_containing:
+            condition += " AND instr(normalized_stem, ?) > 0"
+            values.append(also_containing)
+        with self.connection() as conn:
+            row = conn.execute(
+                f"""SELECT MIN(path) AS path,
+                           COUNT(DISTINCT normalized_stem) AS variants
+                    FROM local_files WHERE {condition}""",
+                values,
+            ).fetchone()
+            return row["path"] if row and row["variants"] == 1 else None

@@ -154,6 +154,20 @@ class LocalScanner:
             if loose:
                 return LocalMatch(loose, confident=False)
 
+            artist_stem = normalize_string(track.artist)
+            if artist_stem:
+                decorated = self._existing_decorated_match(title_stem, artist_stem)
+                if decorated:
+                    return LocalMatch(decorated, confident=True)
+
+            # SoundCloud uploaders are often labels, while the actual artist is
+            # written into the title. That full "Artist - Title" is still good
+            # evidence when only one decorated filename contains it.
+            if " - " in track.title and len(title_stem) >= 10:
+                decorated = self._existing_decorated_match(title_stem)
+                if decorated:
+                    return LocalMatch(decorated, confident=False)
+
         return None
 
     def _existing_match(self, normalized_stem: str) -> str | None:
@@ -161,6 +175,16 @@ class LocalScanner:
             if Path(path).is_file():
                 return path
             self._stale_stems.add(normalized_stem)
+            self.db.delete_local_files([path])
+        return None
+
+    def _existing_decorated_match(
+        self, title_stem: str, artist_stem: str = ""
+    ) -> str | None:
+        while path := self.db.find_unique_local_match(title_stem, artist_stem):
+            if Path(path).is_file():
+                return path
+            self._stale_stems.add(title_stem)
             self.db.delete_local_files([path])
         return None
 

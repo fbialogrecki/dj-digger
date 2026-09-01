@@ -68,6 +68,29 @@ def test_the_scan_only_counts_files_it_has_not_seen(tmp_path: Path) -> None:
     assert local.scan() == 0, "an unchanged file should not be rewritten"
 
 
+def test_a_decorated_track_in_a_nested_folder_is_found(tmp_path: Path) -> None:
+    music = tmp_path / "Music"
+    nested = music / "Bonheur EC"
+    nested.mkdir(parents=True)
+    audio = nested / "Actual Artist - Long Track Name (Original Mix).wav"
+    audio.write_text("audio", encoding="utf-8")
+    local = LocalScanner(directories=[music], db=Database(tmp_path / "test.db"))
+    track = Track(
+        title="Actual Artist - Long Track Name",
+        artist="Uploader Label",
+        permalink_url="http://sc/nested",
+    )
+
+    assert local.scan() == 1
+    assert local.match_track(track) == (str(audio.resolve()), False)
+
+    (nested / "Actual Artist - Long Track Name (Extended Mix).wav").write_text(
+        "audio", encoding="utf-8"
+    )
+    assert local.scan() == 1
+    assert local.match_track(track) is None, "two decorated versions are ambiguous"
+
+
 def test_a_deleted_file_is_removed_from_the_cache_and_never_matches(
     tmp_path: Path,
 ) -> None:
