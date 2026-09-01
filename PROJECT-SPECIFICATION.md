@@ -5,8 +5,8 @@
 - Product version verified: 0.15.0
 - Owner: Filip Białogrecki
 - Updated: 2026-08-28
-- Document lines: <!-- SPEC TOTAL LINES -->963<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->963<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->964<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->964<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -65,50 +65,50 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 5.1 | ↳ Entry, orchestration, and models | 403–413 |
 | 5.2 | ↳ Network and external-system adapters | 414–427 |
 | 5.3 | ↳ Persistence, local media, and UI | 428–441 |
-| 6 | Runtime architecture and environments | 442–497 |
-| 6.1 | ↳ Runtime and dependencies | 444–456 |
-| 6.2 | ↳ Concurrency and lifecycle | 457–482 |
-| 6.3 | ↳ Local paths and environment variables | 483–497 |
-| 7 | Data model and persistence | 498–555 |
-| 7.1 | ↳ Domain objects and identity | 500–511 |
-| 7.2 | ↳ SQLite schema and invariants | 512–529 |
-| 7.3 | ↳ Crate persistence and deletion | 530–541 |
-| 7.4 | ↳ Configuration and credential stores | 542–555 |
-| 8 | Public interfaces and contracts | 556–600 |
-| 8.1 | ↳ CLI arguments and exit behavior | 558–578 |
-| 8.2 | ↳ JSON and CSV summary input | 579–591 |
-| 8.3 | ↳ URL-opening contract | 592–600 |
-| 9 | Authentication and authorization | 601–647 |
-| 9.1 | ↳ SoundCloud authentication | 603–620 |
-| 9.2 | ↳ Spotify PKCE and scopes | 621–632 |
-| 9.3 | ↳ Gate action consent | 633–647 |
-| 10 | External integrations | 648–752 |
-| 10.1 | ↳ SoundCloud API and media | 650–661 |
-| 10.2 | ↳ Link hubs and download gates | 662–693 |
-| 10.2 · block | ↳ ↳ Hypeddit | 670–679 |
-| 10.2 · block | ↳ ↳ Other resolvers | 681–686 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 688–693 |
-| 10.3 | ↳ Browsers and clipboard | 694–705 |
-| 10.4 | ↳ Spotify | 706–712 |
-| 10.5 | ↳ Bandcamp cart and Beatport playlists | 713–752 |
-| 11 | Security requirements and threat model | 753–799 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 755–773 |
-| 11.2 | ↳ Secret and personal-data handling | 774–786 |
-| 11.3 | ↳ File and mutation safety | 787–799 |
-| 12 | Privacy, lifecycle, and retention | 800–836 |
-| 12.1 | ↳ Data stored locally | 802–815 |
-| 12.2 | ↳ Data sent to third parties | 816–828 |
-| 12.3 | ↳ User-controlled deletion | 829–836 |
-| 13 | Failure behavior and current limitations | 837–884 |
-| 13.1 | ↳ Error isolation and reporting | 839–858 |
-| 13.2 | ↳ Confirmed limitations | 859–884 |
-| 14 | Verification, CI, and release | 885–941 |
-| 14.1 | ↳ Offline and live test suites | 887–910 |
-| 14.2 | ↳ Continuous integration and publishing | 911–926 |
-| 14.3 | ↳ Specification-map verification | 927–941 |
-| 15 | Evidence and operational references | 942–963 |
-| 15.1 | ↳ Primary implementation evidence | 944–956 |
-| 15.2 | ↳ User and historical documentation | 957–963 |
+| 6 | Runtime architecture and environments | 442–498 |
+| 6.1 | ↳ Runtime and dependencies | 444–457 |
+| 6.2 | ↳ Concurrency and lifecycle | 458–483 |
+| 6.3 | ↳ Local paths and environment variables | 484–498 |
+| 7 | Data model and persistence | 499–556 |
+| 7.1 | ↳ Domain objects and identity | 501–512 |
+| 7.2 | ↳ SQLite schema and invariants | 513–530 |
+| 7.3 | ↳ Crate persistence and deletion | 531–542 |
+| 7.4 | ↳ Configuration and credential stores | 543–556 |
+| 8 | Public interfaces and contracts | 557–601 |
+| 8.1 | ↳ CLI arguments and exit behavior | 559–579 |
+| 8.2 | ↳ JSON and CSV summary input | 580–592 |
+| 8.3 | ↳ URL-opening contract | 593–601 |
+| 9 | Authentication and authorization | 602–648 |
+| 9.1 | ↳ SoundCloud authentication | 604–621 |
+| 9.2 | ↳ Spotify PKCE and scopes | 622–633 |
+| 9.3 | ↳ Gate action consent | 634–648 |
+| 10 | External integrations | 649–753 |
+| 10.1 | ↳ SoundCloud API and media | 651–662 |
+| 10.2 | ↳ Link hubs and download gates | 663–694 |
+| 10.2 · block | ↳ ↳ Hypeddit | 671–680 |
+| 10.2 · block | ↳ ↳ Other resolvers | 682–687 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 689–694 |
+| 10.3 | ↳ Browsers and clipboard | 695–706 |
+| 10.4 | ↳ Spotify | 707–713 |
+| 10.5 | ↳ Bandcamp cart and Beatport playlists | 714–753 |
+| 11 | Security requirements and threat model | 754–800 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 756–774 |
+| 11.2 | ↳ Secret and personal-data handling | 775–787 |
+| 11.3 | ↳ File and mutation safety | 788–800 |
+| 12 | Privacy, lifecycle, and retention | 801–837 |
+| 12.1 | ↳ Data stored locally | 803–816 |
+| 12.2 | ↳ Data sent to third parties | 817–829 |
+| 12.3 | ↳ User-controlled deletion | 830–837 |
+| 13 | Failure behavior and current limitations | 838–885 |
+| 13.1 | ↳ Error isolation and reporting | 840–859 |
+| 13.2 | ↳ Confirmed limitations | 860–885 |
+| 14 | Verification, CI, and release | 886–942 |
+| 14.1 | ↳ Offline and live test suites | 888–911 |
+| 14.2 | ↳ Continuous integration and publishing | 912–927 |
+| 14.3 | ↳ Specification-map verification | 928–942 |
+| 15 | Evidence and operational references | 943–964 |
+| 15.1 | ↳ Primary implementation evidence | 945–957 |
+| 15.2 | ↳ User and historical documentation | 958–964 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -444,8 +444,9 @@ crate record.
 ### 6.1 Runtime and dependencies
 
 The package requires Python 3.12 or newer and is built with Hatchling. Runtime
-dependencies are `requests`, `beautifulsoup4`, `textual`, `rich`, and
-`playwright`. `miniaudio` is optional in the `play` extra. The `dev` extra adds
+dependencies are `requests`, `beautifulsoup4`, `textual` (pinned to the 8.x
+line because the TUI relies on its binding semantics and a few private hooks),
+`rich`, and `playwright`. `miniaudio` is optional in the `play` extra. The `dev` extra adds
 `pytest`, `miniaudio`, and `ruff`. There is no runtime JavaScript build, database
 server, container image, or infrastructure-as-code layer in the repository.
 

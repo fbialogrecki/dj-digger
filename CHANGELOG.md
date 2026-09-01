@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Changed
+
+- Textual is now pinned to the 8.x line; the crate browser depends on its
+  binding semantics and a few private hooks, so a major upgrade needs review.
+
 ## 0.15.0
 
 ### Added
