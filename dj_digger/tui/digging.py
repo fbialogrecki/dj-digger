@@ -6,16 +6,13 @@ Mixed into ``DiggerApp``; the attributes these reach for are set up in its
 
 import logging
 
-from rich.text import Text
 from textual import work
-from textual.widgets import DataTable, Static
 
 from .. import dig as dig_module
 from .. import library as library_module
 from .. import links as links_module
 from ..models import Cancelled, Crate
 from .keymap import (
-    SPINNER,
     SPINNER_EVERY,
 )
 from .screens import AskLinkScreen
@@ -31,12 +28,13 @@ class DiggingMixin:
             self._draw_digging()
 
     def _draw_digging(self) -> None:
-        """Something turning is the difference between working and hung."""
+        """Something turning is the difference between working and hung.
 
-        glyph = SPINNER[(self._frame // SPINNER_EVERY) % len(SPINNER)]
-        self.query_one("#status", Static).update(
-            Text(f"{glyph} {self._dig_message}", style="bright_black")
-        )
+        Drawn through the status bar's own update, so a resize or a mark
+        landing mid-dig redraws the spinner rather than wiping it.
+        """
+
+        self.update_status()
 
     def action_dig_link(self) -> None:
         if self._digging:
@@ -56,10 +54,11 @@ class DiggingMixin:
     def _start_dig(self, target: str) -> None:
         self._digging = True
         self._dig_cancel.clear()
-        self.query_one("#tracks", DataTable).loading = True
         self._dig_message = f"Digging {target}"
+        # The rows stay on screen: a refresh of a big crate used to blank the
+        # table for as long as the dig took.
+        self.start_job("Digging", cancel=self._dig_cancel, detail=self._dig_message)
         self._draw_digging()
-        self._wake()
         self.dig_in_background(target)
 
     @work(thread=True, exclusive=True)
@@ -68,6 +67,10 @@ class DiggingMixin:
             suffix = f" {done}/{total}" if total else ""
             # The ticker draws it, so the spinner keeps turning between stages.
             self._dig_message = f"{stage}{suffix}"
+            try:
+                self.call_from_thread(self.job_progress, detail=self._dig_message)
+            except RuntimeError:
+                pass  # the app is gone; the worker finishes on its own
 
         try:
             crate = dig_module.dig(
@@ -88,7 +91,7 @@ class DiggingMixin:
 
     def _finish_digging(self) -> None:
         self._digging = False
-        self.query_one("#tracks", DataTable).loading = False
+        self.finish_job()
 
     def _dig_failed(self, message: str) -> None:
         self._finish_digging()

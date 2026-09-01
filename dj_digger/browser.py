@@ -11,6 +11,7 @@ import logging
 import os
 import shutil
 import subprocess
+import threading
 import time
 import webbrowser
 from collections.abc import Callable, Iterable
@@ -242,14 +243,20 @@ def open_urls(
     controller: webbrowser.BaseBrowser | None = None,
     on_success: Callable[[int, str], None] | None = None,
     on_error: Callable[[str], None] | None = None,
+    cancel: threading.Event | None = None,
 ) -> int:
-    """Open several links in tabs. Returns how many actually opened."""
+    """Open several links in tabs. Returns how many actually opened.
+
+    ``cancel`` is checked before each tab; what is already open stays open.
+    """
 
     to_windows = controller is None and resolve_choice(browser) == WINDOWS
     if not to_windows:
         controller = controller or resolve_controller(browser)
     opened = 0
     for index, url in enumerate(urls):
+        if cancel is not None and cancel.is_set():
+            break
         if not is_openable(url):
             err_msg = f"Refused tab #{index + 1}: {url!r} is not an http or https link"
             LOGGER.error("%s", err_msg)

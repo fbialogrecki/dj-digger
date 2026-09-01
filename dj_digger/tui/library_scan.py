@@ -69,13 +69,28 @@ class LibraryScanMixin:
         )
         self._scan_cancel.clear()
         try:
-            scanned = scanner.scan(cancel=self._scan_cancel)
-        except OSError as exc:
-            LOGGER.debug("Local scan stopped early: %s", exc)
-            return
-        LOGGER.info("Scanned %s new local files", scanned)
-        try:
+            self.call_from_thread(
+                self.start_job, "Scanning", cancel=self._scan_cancel, animate=False
+            )
+            try:
+                scanned = scanner.scan(cancel=self._scan_cancel)
+            except OSError as exc:
+                LOGGER.warning("Local scan stopped early: %s", exc)
+                self.call_from_thread(self.show_error, f"Scan stopped: {exc}")
+                self.call_from_thread(self.finish_job)
+                return
+            LOGGER.info("Scanned %s new local files", scanned)
+            if scanner.errors:
+                shown = "; ".join(scanner.errors[:3])
+                more = len(scanner.errors) - 3
+                self.call_from_thread(
+                    self.show_error,
+                    f"Scan skipped {len(scanner.errors)} unreadable folder"
+                    f"{'s' if len(scanner.errors) != 1 else ''}: {shown}"
+                    + (f" (+{more} more)" if more > 0 else ""),
+                )
             self.call_from_thread(self.apply_local_file_matches, scanner)
+            self.call_from_thread(self.finish_job)
         except RuntimeError:
             # A thread worker cannot be interrupted, so a scan that outlives the
             # app arrives here with nothing left to talk to.

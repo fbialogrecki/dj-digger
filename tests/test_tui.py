@@ -2809,6 +2809,89 @@ def test_batch_starts_downloads_before_every_hypeddit_preflight_finishes(
     assert sorted(started) == [205, 206]
 
 
+def test_the_job_line_counts_and_names_the_cancel_key(records, state):
+    app = make_app(records, state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.start_job("Downloading", 9, cancel=Event())
+            app.job_progress(3, failed=1)
+            await pilot.pause()
+            text = bar_text(app)
+            assert "Downloading" in text and "3/9" in text and "1 failed" in text
+            assert "^X stop" in text
+            app.finish_job()
+            await pilot.pause()
+            assert "Downloading" not in bar_text(app)
+
+    run(scenario)
+
+
+def test_a_dig_keeps_the_rows_on_screen(records, state, monkeypatch):
+    """Refreshing a big crate used to blank the table for as long as the dig took."""
+
+    entered = Event()
+    release = Event()
+
+    def slow_dig(target, cancel=None, **kwargs):
+        entered.set()
+        release.wait(5)
+        return crate_of(1)
+
+    monkeypatch.setattr("dj_digger.dig.dig", slow_dig)
+    app = make_app(records, state, export_format="none")
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app._start_dig("https://soundcloud.com/x/sets/y")
+            assert await asyncio.to_thread(entered.wait, 2)
+            await pilot.pause()
+            table = app.query_one("#tracks", DataTable)
+            assert table.row_count == len(records)
+            assert not table.loading
+            assert "Digging" in bar_text(app)
+            release.set()
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+
+    run(scenario)
+
+
+def test_an_unreadable_scan_folder_is_reported_in_the_banner(records, state, monkeypatch):
+    class NoisyScanner:
+        errors = ["/music/locked: Permission denied"]
+
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def scan(self, cancel=None):
+            return 0
+
+        def match_track(self, _track):
+            return None
+
+        def had_stale_match(self, _track):
+            return False
+
+    monkeypatch.setattr("dj_digger.tui.library_scan.LocalScanner", NoisyScanner)
+    app = make_app(records, state)
+    errors = []
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.scan_local_files()
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            errors.extend(app.query_one(ErrorBanner).errors)
+            assert app.job is None, "the scan job is finished"
+
+    run(scenario)
+    assert any("locked" in error and "unreadable" in error for error in errors)
+
+
 def test_ctrl_x_stops_a_dig(records, state, monkeypatch):
     entered = Event()
 
@@ -2992,7 +3075,7 @@ def test_stop_browser_batch_leaves_unfinished_tracks_new(
                 await pilot.pause(0.01)
                 if app._browser_batch_active:
                     break
-            app.action_stop_browser_batch()
+            app.action_cancel_job()
             await worker.wait()
             await pilot.pause()
 

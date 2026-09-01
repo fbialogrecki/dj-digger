@@ -31,9 +31,11 @@ from .crates import CrateMixin
 from .digging import DiggingMixin
 from .downloads import DownloadMixin
 from .filters import FilterMixin
+from .jobs import Job, JobMixin
 from .keymap import (
     KEY_DISPLAY,
     KEYMAP,
+    PRIORITY_KEYS,
     QUICK_FILTER_KEYS,
 )
 from .library_scan import LibraryScanMixin
@@ -54,6 +56,7 @@ NARROW_WIDTH = 110
 
 class DiggerApp(
     CrateMixin,
+    JobMixin,
     RenderMixin,
     FilterMixin,
     PlaybackMixin,
@@ -172,7 +175,14 @@ class DiggerApp(
     """
 
     BINDINGS = [
-        Binding(key, action, label, show=show, key_display=KEY_DISPLAY.get(key))
+        Binding(
+            key,
+            action,
+            label,
+            show=show,
+            key_display=KEY_DISPLAY.get(key),
+            priority=key in PRIORITY_KEYS,
+        )
         for key, action, label, _group, show, _detail in KEYMAP
     ] + [
         # Textual 8 answers ctrl+c with a toast saying to press ctrl+q, which
@@ -230,6 +240,8 @@ class DiggerApp(
         self._scan_cancel = Event()
         self._browser_batch_active = False
         self._digging = False
+        # The long job the status bar reports on, if any (see jobs.py).
+        self.job: Job | None = None
         self._undone: list[str] = []
         self._ticker: Timer | None = None
         # Decided fresh each time playback moves: does the cursor come along?

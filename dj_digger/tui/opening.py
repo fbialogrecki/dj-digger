@@ -225,6 +225,7 @@ class OpeningMixin:
             return
         self._cart_busy = True
         self._cart_cancel.clear()
+        self.start_job("Cart", cancel=self._cart_cancel)
         self._run_cart_batch(requests, single)
 
     def _show_cart_progress(self) -> CartProgressScreen:
@@ -549,18 +550,22 @@ class OpeningMixin:
     @work(thread=True, exclusive=True, group="open_all")
     def open_visible_in_background(self, rows: list[Row]) -> None:
         urls = [self.record_to_open(row).link_url for row in rows]
+        cancel = Event()
+        self.call_from_thread(self.start_job, "Opening", len(rows), cancel=cancel)
 
         def on_success(idx: int, url: str) -> None:
             row = rows[idx]
             if self.status_of(row) == NEW:
                 self.state.set(row.track.key, OPENED)
                 self.call_from_thread(self._paint_key, row.track.key)
+            self.call_from_thread(self.job_progress, 1)
 
         def handle_error(err_msg: str) -> None:
             self.call_from_thread(self.show_error, err_msg)
+            self.call_from_thread(self.job_progress, failed=1)
 
         opened = browser_module.open_urls(
-            urls, self.browser, on_success=on_success, on_error=handle_error
+            urls, self.browser, on_success=on_success, on_error=handle_error, cancel=cancel
         )
         self.call_from_thread(self._open_visible_finished, opened, len(rows))
 
@@ -571,4 +576,4 @@ class OpeningMixin:
                 "(OS process / browser tab opening limit reached)."
             )
         self.notify(f"Opened {opened}/{total} links", timeout=3)
-        self.update_status()
+        self.finish_job()

@@ -26,6 +26,8 @@ from .keymap import (
     OPTIONAL_COLUMN_SPECS,
     PLAYING_GLYPH,
     QUICK_FILTER_KEYS,
+    SPINNER,
+    SPINNER_EVERY,
     STATUS_STYLES,
     STORES_WIDTH,
     TIME_WIDTH,
@@ -254,10 +256,13 @@ class RenderMixin:
         grid = Table.grid(expand=True)
         grid.add_column(no_wrap=True)
         # Narrow terminals cannot have both. The legend is what the number keys
-        # are documented by, so the counts are what goes.
+        # are documented by, so the counts are what goes - unless a job is
+        # running, when the spinner is the one thing that must stay visible.
         if len(stores) + len(progress) + 2 <= bar.size.width:
             grid.add_column(justify="right", no_wrap=True)
             grid.add_row(stores, progress)
+        elif self.job is not None or self._digging:
+            grid.add_row(progress)
         else:
             grid.add_row(stores)
         bar.update(grid)
@@ -265,7 +270,16 @@ class RenderMixin:
     def _progress_line(self) -> Text:
         counts = Counter(self.status_of(row) for row in self.rows)
 
-        pieces = [f"{len(self.visible_rows)}/{len(self.rows)} tracks"]
+        pieces = []
+        job = self.job
+        if job is not None:
+            glyph = SPINNER[(self._frame // SPINNER_EVERY) % len(SPINNER)]
+            pieces.append(f"{glyph} {job.describe()}")
+        elif self._digging:
+            # A dig driven without a job line, as the older tests do.
+            glyph = SPINNER[(self._frame // SPINNER_EVERY) % len(SPINNER)]
+            pieces.append(f"{glyph} {self._dig_message}")
+        pieces.append(f"{len(self.visible_rows)}/{len(self.rows)} tracks")
         pieces += [
             f"got {counts[GOT]}",
             f"skipped {counts[SKIP]}",

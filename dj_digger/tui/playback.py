@@ -43,7 +43,8 @@ class PlaybackMixin:
         if not self.query("#player"):
             return
         self._frame += 1
-        if self._digging:
+        animating = self._digging or (self.job is not None and self.job.animate)
+        if animating:
             self._spin()
         if event := self.player.take_event():
             if event.kind == "error":
@@ -57,7 +58,7 @@ class PlaybackMixin:
         if self.player.playing:
             self._player_bar().refresh_bar()
             self._prepare_next()
-        elif not self._digging:
+        elif not animating:
             self._sleep()
 
     @property

@@ -347,6 +347,7 @@ class DownloadMixin:
             # bury the toast stream.
             self.show_error(f"Batch download failed [{banner_label}]: {message}")
             self._settle_download_row(key)
+            self.job_progress(failed=1)
             return
         self._settle_download_row(key)
         self.notify(f"Download failed: {message}", severity="error", timeout=6)
@@ -366,7 +367,8 @@ class DownloadMixin:
             self.refresh_rows()
         else:
             self._paint_key(key)
-            self.update_status()
+        self.job_progress(1)
+        self.update_status()
         if toast:
             self.notify(f"Downloaded to {path}", timeout=5)
 
@@ -399,31 +401,12 @@ class DownloadMixin:
         for row, _gate_url in eligible:
             self.download_progress[row.track.key] = 0.0
             self._paint_key(row.track.key)
-        self.update_status()
+        self.start_job("Downloading", len(eligible), cancel=self._gate_cancel)
         self.notify(
             f"Checking and downloading {len(eligible)} tracks in parallel...",
             timeout=4,
         )
         self.batch_download_in_background(eligible)
-
-    def action_stop_browser_batch(self) -> None:
-        """Stop whatever long job is running: a dig, or the downloads.
-
-        Named for the browser batch it once stopped alone; the key is the same.
-        """
-
-        if self._digging:
-            self._dig_cancel.set()
-            self.notify("Stopping the dig", timeout=3)
-            return
-        if not self._browser_batch_active and not self._active_download_workers:
-            self.notify("Nothing to stop", timeout=2)
-            return
-        self._gate_cancel.set()
-        self.notify(
-            "Stopping downloads; completed files are kept and unfinished tracks stay new",
-            timeout=4,
-        )
 
     @work(thread=True, exclusive=True, group="batch_download")
     def batch_download_in_background(
@@ -679,7 +662,7 @@ class DownloadMixin:
         self._dirty_download_rows.clear()
         for key in stale_keys:
             self._paint_key(key)
-        self.update_status()
+        self.finish_job()
         msg = (
             "Batch check finished: no downloadable tracks remained"
             if total == 0
