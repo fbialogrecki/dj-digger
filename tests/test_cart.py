@@ -826,12 +826,12 @@ def test_cart_session_relaunches_the_same_profile_visible_only_when_requested(
 
     async def scenario():
         await session._ensure_context()
-        await session._ensure_context(headless=False)
+        await session._ensure_context()
         await session.close()
 
     asyncio.run(scenario())
 
-    assert calls == [(str(profile), True), (str(profile), False)]
+    assert calls == [(str(profile), False)], "one headed window, reused, never relaunched"
     assert contexts[0].closed
 
 
@@ -1603,8 +1603,8 @@ def test_final_bandcamp_cart_is_the_first_visible_work_page(monkeypatch):
 
     page = Page()
 
-    async def work_pages(count, *, headless):
-        launches.append((count, headless))
+    async def work_pages(count):
+        launches.append(count)
         return [page]
 
     async def navigate(_page, url, _store):
@@ -1626,10 +1626,233 @@ def test_final_bandcamp_cart_is_the_first_visible_work_page(monkeypatch):
         session._open_final_carts({}, {"bandcamp": [item]})
     )
 
-    assert launches == [(1, False)]
+    assert launches == [1]
     assert stores == ("bandcamp",)
     assert not warnings
     assert page.focused == 1
+
+
+def test_final_cart_view_failure_keeps_verified_results(monkeypatch):
+    """A relaunch race used to throw away a batch whose clicks had all verified."""
+
+    item = resolved_item("bandcamp")
+    plan = cart.CartPlan((item,))
+    session = cart.CartBrowserSession()
+
+    async def pages(_count=2):
+        return [object(), object()]
+
+    async def preflight(_requests, _pages, _cancel, _progress):
+        return plan
+
+    async def approve(candidate):
+        return candidate
+
+    async def execute(store, items, *_args):
+        return [cart.CartResult(item.track_key, item.track_label, store, "added")]
+
+    async def navigate(_page, _url, _store):
+        raise RuntimeError("Target page, context or browser has been closed")
+
+    monkeypatch.setattr(session, "_work_pages", pages)
+    monkeypatch.setattr(session, "_preflight", preflight)
+    monkeypatch.setattr(session, "_execute_store", execute)
+    monkeypatch.setattr(cart, "_navigate_async", navigate)
+
+    outcome = asyncio.run(
+        session.run_batch((request("bandcamp"),), asyncio.Event(), approve=approve)
+    )
+
+    statuses = {(r.track_key, r.code): r.status for r in outcome.results}
+    assert statuses[(item.track_key, "")] == "added"
+    assert any(r.code == "cart_view_failed" for r in outcome.results)
+    assert outcome.cart_stores == ()
+
+
+def test_verification_stage_timeouts_fit_inside_the_outer_budget():
+    assert sum(seconds for _name, seconds in cart.VERIFY_STAGES) <= cart.VERIFY_BUDGET_SECONDS
+
+
+def test_slow_reload_stage_reports_its_stage_name(monkeypatch):
+    item = resolved_item("bandcamp")
+    monkeypatch.setattr(cart, "VERIFY_STAGES", (("count", 0.01), ("sidecart", 0.01), ("reload", 0.05)))
+
+    async def count(_page):
+        return None
+
+    async def contains(_page, _item):
+        return False
+
+    async def slow_navigate(_page, _url, _store):
+        await asyncio.sleep(1)
+
+    monkeypatch.setattr(cart, "_bandcamp_cart_count_async", count)
+    monkeypatch.setattr(cart, "_bandcamp_cart_contains_async", contains)
+    monkeypatch.setattr(cart, "_navigate_async", slow_navigate)
+
+    outcome = asyncio.run(cart._verify_bandcamp_click_async(object(), item, None))
+
+    assert outcome.verified is False
+    assert outcome.stage == "reload"
+    assert outcome.elapsed < 0.5, "the reload stage stopped on its own clock"
+
+
+class DiagnosticPage:
+    url = "https://label.bandcamp.com/track/one?fan_id=42"
+
+    def __init__(self):
+        self.shots = []
+
+    async def screenshot(self, path, full_page=False):
+        self.shots.append(path)
+        open(path, "wb").write(b"png")
+
+    async def content(self):
+        return (
+            "<html><script>var fan = {\"id\": 42}</script>"
+            "<a href=\"/track/one?action=download&token=x\">x</a></html>"
+        )
+
+
+def test_diagnostics_strip_query_strings_and_scripts(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    page = DiagnosticPage()
+
+    folder = asyncio.run(
+        cart.save_cart_diagnostics(page, "bandcamp", page.url, "cart_unverified")
+    )
+
+    assert folder is not None and folder.parent == tmp_path / "dj-digger" / "cart-diagnostics"
+    html_text = (folder / "page.html").read_text()
+    assert "fan" not in html_text and "token=x" not in html_text
+    assert "<script></script>" in html_text
+    meta = json.loads((folder / "meta.json").read_text())
+    assert "fan_id" not in meta["product_url"] and meta["code"] == "cart_unverified"
+    assert (folder / "page.png").exists()
+
+
+def test_diagnostics_keep_only_the_last_ten(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    root = tmp_path / "dj-digger" / "cart-diagnostics"
+    root.mkdir(parents=True)
+    for index in range(12):
+        (root / f"2026010{index // 10}-00000{index % 10}-bandcamp-old").mkdir()
+
+    asyncio.run(
+        cart.save_cart_diagnostics(DiagnosticPage(), "bandcamp", DiagnosticPage.url, "x")
+    )
+
+    assert len([p for p in root.iterdir() if p.is_dir()]) == cart.CART_DIAGNOSTICS_KEEP
+
+
+def test_second_unverified_click_switches_the_store_to_manual_mode(monkeypatch):
+    items = [
+        replace(
+            resolved_item("bandcamp"),
+            track_key=str(10 + n),
+            product_id=str(n),
+            product_url=f"https://artist.bandcamp.com/track/{n}",
+        )
+        for n in range(4)
+    ]
+    session = cart.CartBrowserSession()
+    clicks = []
+
+    async def refresh(_page, item, _cancel):
+        return item
+
+    async def contains(_page, _item, _cancel, navigate=True):
+        return False
+
+    async def count(_page):
+        return None
+
+    async def add(_page, item, _cancel):
+        clicks.append(item.product_id)
+
+    async def verify(_page, _item, _before):
+        return cart.VerifyOutcome(False, "reload", 1.0)
+
+    async def no_diagnostics(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(cart, "_refresh_item_async", refresh)
+    monkeypatch.setattr(cart, "_cart_contains_async", contains)
+    monkeypatch.setattr(cart, "_bandcamp_cart_count_async", count)
+    monkeypatch.setattr(cart, "_add_to_cart_async", add)
+    monkeypatch.setattr(cart, "_verify_bandcamp_click_async", verify)
+    monkeypatch.setattr(cart, "save_cart_diagnostics", no_diagnostics)
+
+    results = asyncio.run(
+        session._execute_store("bandcamp", items, object(), asyncio.Event(), None, [0], 4)
+    )
+
+    assert clicks == ["0", "1"], "the third and fourth are never clicked"
+    assert [r.code for r in results] == ["cart_unverified"] * 4
+    assert "manual completion" in results[2].reason
+
+
+def test_manual_completion_records_manual_results_without_clicking(monkeypatch):
+    item = resolved_item("bandcamp")
+    session = cart.CartBrowserSession()
+
+    class Page:
+        url = item.product_url
+        closed = False
+
+        async def bring_to_front(self):
+            pass
+
+        def is_closed(self):
+            return self.closed
+
+        async def close(self):
+            self.closed = True
+
+        def get_by_role(self, *_a, **_k):
+            return None
+
+        def get_by_text(self, *_a, **_k):
+            return None
+
+        def locator(self, *_a, **_k):
+            return None
+
+    class Context:
+        async def new_page(self):
+            return Page()
+
+    async def context():
+        return Context()
+
+    async def navigate(_page, _url, _store):
+        return 200
+
+    async def banner(_page):
+        return None
+
+    async def nothing_visible(*_locators):
+        return None
+
+    added = []
+
+    async def contains(_page, _item, _cancel, navigate=True):
+        return bool(added)
+
+    async def manual(items):
+        added.extend(items)  # "the person pressed Add to cart"
+        return True
+
+    monkeypatch.setattr(session, "_ensure_context", context)
+    monkeypatch.setattr(cart, "_navigate_async", navigate)
+    monkeypatch.setattr(cart, "_dismiss_bandcamp_cookie_banner", banner)
+    monkeypatch.setattr(cart, "_first_visible_async", nothing_visible)
+    monkeypatch.setattr(cart, "_only_visible_async", nothing_visible)
+    monkeypatch.setattr(cart, "_cart_contains_async", contains)
+
+    results = asyncio.run(session.finish_manually([item], manual, asyncio.Event()))
+
+    assert [(r.status, r.code) for r in results] == [("manual", "manual_verified")]
 
 
 def test_cancel_after_a_cart_click_finishes_verification_instead_of_clicking_again(
@@ -1651,7 +1874,7 @@ def test_cancel_after_a_cart_click_finishes_verification_instead_of_clicking_aga
         cancel.set()
 
     async def verify(_page, _candidate, _count):
-        return True
+        return cart.VerifyOutcome(True, "count", 0.1)
 
     async def count(_page):
         return 0

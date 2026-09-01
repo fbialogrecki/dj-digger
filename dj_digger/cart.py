@@ -155,6 +155,7 @@ CartStatus = Literal[
     "playlist_ready",
     "skipped",
     "failed",
+    "manual",
 ]
 CartResultCode = Literal[
     "",
@@ -168,9 +169,25 @@ CartResultCode = Literal[
     "cancelled",
     "unsafe_redirect",
     "cart_view_incomplete",
+    "cart_view_failed",
     "not_selected",
     "playlist_ready",
+    "manual_verified",
+    "manual_unverified",
 ]
+
+# After this many unverified clicks in one store the batch stops clicking and
+# hands the rest to the person at the browser window instead.
+MANUAL_AFTER_UNVERIFIED = 2
+# How many product pages the manual mode opens at once.
+MANUAL_TABS_MAX = 8
+# Verification runs in stages, each with its own budget, so a slow reload
+# cannot eat the whole allowance: (name, seconds).
+VERIFY_STAGES = (("count", 5.0), ("sidecart", 10.0), ("reload", 25.0))
+VERIFY_BUDGET_SECONDS = 45.0
+# Diagnostics saved when a click could not be verified or a page lost its
+# shape: the last N folders under data_dir()/cart-diagnostics are kept.
+CART_DIAGNOSTICS_KEEP = 10
 
 
 def _display_text(value: str) -> str:
@@ -235,7 +252,7 @@ class PriceQuote:
     editable: bool = False
 
 
-CartPhase = Literal["starting", "login", "preflight", "approval", "adding", "ready"]
+CartPhase = Literal["starting", "login", "preflight", "approval", "adding", "manual", "ready"]
 
 
 @dataclass(frozen=True)
@@ -249,10 +266,20 @@ class CartProgress:
 
 
 @dataclass(frozen=True)
+class VerifyOutcome:
+    verified: bool
+    stage: str
+    elapsed: float
+
+
+@dataclass(frozen=True)
 class CartBatchOutcome:
     results: tuple[CartResult, ...]
     cart_stores: tuple[str, ...] = ()
     cancelled: bool = False
+    # Items whose click could not be verified and which the manual mode did
+    # not settle; the result screen offers to finish them in the browser.
+    manual_candidates: tuple[CartItem, ...] = ()
 
     @property
     def beatport_playlist_ready(self) -> bool:
@@ -844,6 +871,9 @@ def _first_visible(*locators: Any) -> Any | None:
 
 ProgressCallback = Callable[[CartProgress], None]
 ApprovalCallback = Callable[[CartPlan], Awaitable[CartPlan | None]]
+# Asked to let the person finish the given items in the browser window; True
+# once they say they are done, False to give up on them.
+ManualCallback = Callable[[list[CartItem]], Awaitable[bool]]
 
 
 def _emit_progress(callback: ProgressCallback | None, progress: CartProgress) -> None:
@@ -1525,34 +1555,47 @@ async def _bandcamp_cart_count_async(page: Any) -> int | None:
 
 async def _verify_bandcamp_click_async(
     page: Any, item: CartItem, count_before: int | None
-) -> bool:
-    deadline = time.monotonic() + 5.0
-    while time.monotonic() < deadline:
-        count_after = await _bandcamp_cart_count_async(page)
-        if (
-            count_before is not None
-            and count_after is not None
-            and count_after > count_before
-        ):
-            LOGGER.debug(
-                "Bandcamp cart verified by count: before=%d after=%d track=%r",
-                count_before,
-                count_after,
-                item.track_label,
-            )
-            return True
-        await asyncio.sleep(0.2)
-    if await _bandcamp_cart_contains_async(page, item):
-        LOGGER.debug("Bandcamp cart verified in current DOM: track=%r", item.track_label)
-        return True
-    await _navigate_async(page, item.product_url, "bandcamp")
-    verified = await _bandcamp_cart_contains_async(page, item)
-    LOGGER.debug(
-        "Bandcamp cart verification after reload: verified=%s track=%r",
-        verified,
-        item.track_label,
-    )
-    return verified
+) -> VerifyOutcome:
+    """Three stages, each on its own clock: the cart count, the side cart, a reload.
+
+    The outer budget (VERIFY_BUDGET_SECONDS) is at least the sum of the stage
+    budgets, so a slow reload lands as "reload stage timed out" rather than as
+    an anonymous timeout that hides which step was slow.
+    """
+
+    started = time.monotonic()
+    stages = dict(VERIFY_STAGES)
+
+    async def by_count() -> bool:
+        deadline = time.monotonic() + stages["count"]
+        while time.monotonic() < deadline:
+            count_after = await _bandcamp_cart_count_async(page)
+            if (
+                count_before is not None
+                and count_after is not None
+                and count_after > count_before
+            ):
+                return True
+            await asyncio.sleep(0.2)
+        return False
+
+    async def by_sidecart() -> bool:
+        return await _bandcamp_cart_contains_async(page, item)
+
+    async def by_reload() -> bool:
+        await _navigate_async(page, item.product_url, "bandcamp")
+        return await _bandcamp_cart_contains_async(page, item)
+
+    for name, check in (("count", by_count), ("sidecart", by_sidecart), ("reload", by_reload)):
+        try:
+            verified = await asyncio.wait_for(check(), timeout=stages[name])
+        except TimeoutError:
+            LOGGER.debug("Bandcamp verification stage %s timed out: track=%r", name, item.track_label)
+            continue
+        if verified:
+            LOGGER.debug("Bandcamp cart verified at stage %s: track=%r", name, item.track_label)
+            return VerifyOutcome(True, name, time.monotonic() - started)
+    return VerifyOutcome(False, "reload", time.monotonic() - started)
 
 
 async def _cart_contains_async(
@@ -1698,15 +1741,80 @@ async def _add_to_cart_async(page: Any, item: CartItem, cancel: asyncio.Event) -
         raise CartUnverified(f"{item.store} cart click could not be verified") from exc
 
 
+_SCRIPT_BODY = re.compile(r"<script\b[^>]*>.*?</script>", re.IGNORECASE | re.DOTALL)
+_QUERY_STRING = re.compile(r"\?[^\s\"'<>]*")
+
+
+def redact_diagnostic_html(html_text: str) -> str:
+    """What is safe to keep of a page: no script bodies, no query strings, bounded."""
+
+    text = _SCRIPT_BODY.sub("<script></script>", html_text or "")
+    text = _QUERY_STRING.sub("?<redacted>", text)
+    return text[:MAX_HTML_BYTES]
+
+
+def _prune_diagnostics(root: Path) -> None:
+    folders = sorted((p for p in root.iterdir() if p.is_dir()), key=lambda p: p.name)
+    for stale in folders[:-CART_DIAGNOSTICS_KEEP]:
+        shutil.rmtree(stale, ignore_errors=True)
+
+
+async def save_cart_diagnostics(
+    page: Any, store: str, product_url: str, code: str
+) -> Path | None:
+    """Keep a screenshot and a redacted copy of the page when a cart step failed.
+
+    Every "fix" to the Bandcamp flow so far was made without the DOM that
+    broke it; this is what the next one starts from. Best effort: a failure
+    here is logged and never changes the cart result.
+    """
+
+    try:
+        root = data_dir() / "cart-diagnostics"
+        root.mkdir(parents=True, exist_ok=True)
+        slug = re.sub(r"[^A-Za-z0-9]+", "-", urlparse(product_url).path).strip("-")[:40] or "page"
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        folder = root / f"{stamp}-{store}-{slug}"
+        folder.mkdir(parents=True, exist_ok=True)
+        try:
+            await page.screenshot(path=str(folder / "page.png"), full_page=False)
+        except Exception as exc:
+            LOGGER.debug("Cart diagnostics screenshot failed: %s", type(exc).__name__)
+        try:
+            html_text = await page.content()
+            (folder / "page.html").write_text(redact_diagnostic_html(html_text), encoding="utf-8")
+        except Exception as exc:
+            LOGGER.debug("Cart diagnostics page copy failed: %s", type(exc).__name__)
+        meta = {
+            "store": store,
+            "code": code,
+            "product_url": redact_url(product_url),
+            "page_url": redact_url(str(getattr(page, "url", "") or "")),
+            "saved_at": stamp,
+        }
+        (folder / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
+        _prune_diagnostics(root)
+        LOGGER.info("Cart diagnostics saved: %s", folder)
+        return folder
+    except Exception as exc:
+        LOGGER.debug("Cart diagnostics could not be saved: %s", type(exc).__name__)
+        return None
+
+
 class CartBrowserSession:
-    """One lazy Playwright context shared by all cart batches in a TUI run."""
+    """One lazy, headed Playwright context shared by all cart batches in a TUI run.
+
+    Headed from the first product page to the final cart: the checkout is
+    the user's anyway, and a headless preflight relaunched as a headed window
+    raced Chromium's profile lock and rendered a different page than the one
+    the user was then shown.
+    """
 
     def __init__(self, profile: Path | None = None) -> None:
         self.profile = profile
         self.state: Literal["NEW", "STARTING", "READY", "CLOSING", "CLOSED", "FAILED"] = "NEW"
         self._playwright = None
         self._context = None
-        self._context_headless: bool | None = None
         self._owned_pages: list[Any] = []
         self._cart_pages: dict[str, Any] = {}
         self._instrumented_pages: set[int] = set()
@@ -1720,22 +1828,18 @@ class CartBrowserSession:
 
     def _context_closed(self, _context: Any) -> None:
         self._context = None
-        self._context_headless = None
         self._owned_pages.clear()
         self._cart_pages.clear()
         self._instrumented_pages.clear()
         if not self._closing:
             self.state = "CLOSED"
 
-    async def _ensure_context(self, *, headless: bool = True) -> Any:
+    async def _ensure_context(self) -> Any:
         if self._context is not None and not self._context.is_closed():
-            if self._context_headless == headless:
-                return self._context
-            await self._close_context()
+            return self._context
         self.state = "STARTING"
         try:
-            if not headless:
-                require_display()
+            require_display()
             from playwright.async_api import async_playwright
         except ImportError as exc:
             self.state = "FAILED"
@@ -1749,23 +1853,18 @@ class CartBrowserSession:
             self._playwright = await async_playwright().start()
         try:
             context = await launch_persistent_context(
-                self._playwright, self.profile, headless=headless, accept_downloads=False
+                self._playwright, self.profile, headless=False, accept_downloads=False
             )
         except AutomationError:
             self.state = "FAILED"
             raise
         context.on("close", self._context_closed)
         self._context = context
-        self._context_headless = headless
         self._owned_pages = list(context.pages[:1])
         self.state = "READY"
         for page in self._owned_pages:
             self._instrument_page(page)
-        LOGGER.info(
-            "Store browser session ready: pages=%d headless=%s",
-            len(self._owned_pages),
-            headless,
-        )
+        LOGGER.info("Store browser session ready: pages=%d", len(self._owned_pages))
         return context
 
     def _instrument_page(self, page: Any) -> Any:
@@ -1806,8 +1905,8 @@ class CartBrowserSession:
             pass
         return page
 
-    async def _work_pages(self, count: int = 2, *, headless: bool = True) -> list[Any]:
-        context = await self._ensure_context(headless=headless)
+    async def _work_pages(self, count: int = 2) -> list[Any]:
+        context = await self._ensure_context()
         pages = [page for page in self._owned_pages if not page.is_closed()]
         while len(pages) < count:
             page = self._instrument_page(await context.new_page())
@@ -1828,10 +1927,11 @@ class CartBrowserSession:
         return new
 
     async def _close_context(self) -> None:
+        """Close the browser window; Playwright itself stays up for the next one."""
+
         self._closing = True
         self.state = "CLOSING"
         context, self._context = self._context, None
-        self._context_headless = None
         if context is not None:
             try:
                 await context.close(reason="dj-digger cart session closed")
@@ -1840,18 +1940,18 @@ class CartBrowserSession:
         self._owned_pages.clear()
         self._cart_pages.clear()
         self._instrumented_pages.clear()
-        if self._playwright is not None:
-            try:
-                await self._playwright.stop()
-            except Exception:
-                pass
-            self._playwright = None
         self._closing = False
         self.state = "CLOSED"
 
     async def close(self) -> None:
         async with self._lock():
             await self._close_context()
+            if self._playwright is not None:
+                try:
+                    await self._playwright.stop()
+                except Exception:
+                    pass
+                self._playwright = None
 
     async def reset_profile(self) -> None:
         async with self._lock():
@@ -1885,7 +1985,7 @@ class CartBrowserSession:
         if not wanted:
             return
         async with self._lock():
-            context = await self._ensure_context(headless=False)
+            context = await self._ensure_context()
             pages = [self._instrument_page(await context.new_page()) for _ in wanted]
             try:
                 await _ensure_logins_async(
@@ -1980,6 +2080,7 @@ class CartBrowserSession:
                                     page, request.track, store, url, cancel
                                 )
                             except StoreStructureError:
+                                await save_cart_diagnostics(page, store, url, "store_structure")
                                 page = await self._replace_page(page)
                                 pages[worker_index] = page
                                 item = await _resolve_cart_item_async(
@@ -2193,6 +2294,7 @@ class CartBrowserSession:
         total: int,
     ) -> list[CartResult]:
         results: list[CartResult] = []
+        unverified = 0
         for index, item in enumerate(items):
             if cancel.is_set():
                 results.extend(
@@ -2203,6 +2305,21 @@ class CartBrowserSession:
                         "failed",
                         "cart operation was cancelled",
                         "cancelled",
+                    )
+                    for pending in items[index:]
+                )
+                break
+            if unverified >= MANUAL_AFTER_UNVERIFIED:
+                # Two clicks this store would not confirm: stop clicking. The
+                # rest go to the person at the window (see _finish_manually).
+                results.extend(
+                    CartResult(
+                        pending.track_key,
+                        pending.track_label,
+                        pending.store,
+                        "failed",
+                        "left for manual completion after repeated unverified clicks",
+                        "cart_unverified",
                     )
                     for pending in items[index:]
                 )
@@ -2245,32 +2362,29 @@ class CartBrowserSession:
                     bandcamp_count_before = await _bandcamp_cart_count_async(page)
                 await _add_to_cart_async(page, ready, cancel)
                 clicked = True
-                if store == "bandcamp":
-                    verified = await asyncio.wait_for(
-                        _verify_bandcamp_click_async(
-                            page, ready, bandcamp_count_before
-                        ),
-                        timeout=(ACTION_TIMEOUT_MS * 2) / 1000,
-                    )
-                else:
-                    verified = await asyncio.wait_for(
-                        _cart_contains_async(page, ready, asyncio.Event()),
-                        timeout=(ACTION_TIMEOUT_MS * 2) / 1000,
-                    )
-                if verified:
+                outcome = await asyncio.wait_for(
+                    _verify_bandcamp_click_async(page, ready, bandcamp_count_before),
+                    timeout=VERIFY_BUDGET_SECONDS,
+                )
+                if outcome.verified:
                     results.append(CartResult(item.track_key, item.track_label, store, "added"))
                 else:
+                    unverified += 1
+                    await save_cart_diagnostics(page, store, item.product_url, "cart_unverified")
                     results.append(
                         CartResult(
                             item.track_key,
                             item.track_label,
                             store,
                             "failed",
-                            "cart click was not verified; it was not retried",
+                            f"cart click was not verified (gave up at the {outcome.stage} "
+                            f"stage after {outcome.elapsed:.0f}s); it was not retried",
                             "cart_unverified",
                         )
                     )
             except CartUnverified as exc:
+                unverified += 1
+                await save_cart_diagnostics(page, store, item.product_url, "cart_unverified")
                 results.append(
                     CartResult(
                         item.track_key,
@@ -2358,19 +2472,15 @@ class CartBrowserSession:
                 for item in items:
                     if item not in targets[store]:
                         targets[store].append(item)
-        if targets:
-            final_pages = await self._work_pages(
-                min(len(targets), 2), headless=False
-            )
-            pages = {
-                store: final_pages[index]
-                for index, store in enumerate(targets)
-            }
         for store, items in targets.items():
             if not items:
                 continue
-            page = pages[store]
             try:
+                page = pages.get(store)
+                if page is None or page.is_closed():
+                    # The same window the items were added in; no relaunch,
+                    # which raced Chromium's profile lock and lost results.
+                    page = (await self._work_pages(1))[0]
                 await _navigate_async(page, items[-1].product_url, store)
                 await _open_bandcamp_cart_async(page)
                 verified_items = successful.get(store, [])
@@ -2408,6 +2518,16 @@ class CartBrowserSession:
                     store,
                     type(exc).__name__,
                 )
+                warnings.append(
+                    CartResult(
+                        "",
+                        f"{store.capitalize()} cart view",
+                        store,
+                        "failed",
+                        "the cart window could not be shown; the additions above still stand",
+                        "cart_view_failed",
+                    )
+                )
                 continue
             self._cart_pages[store] = page
             opened.append(store)
@@ -2427,6 +2547,7 @@ class CartBrowserSession:
         *,
         approve: ApprovalCallback,
         progress: ProgressCallback | None = None,
+        manual: ManualCallback | None = None,
     ) -> CartBatchOutcome:
         request_list = tuple(requests)
         async with self._lock():
@@ -2564,12 +2685,30 @@ class CartBrowserSession:
                     for result in all_results
                 ):
                     uncertain[item.store].append(item)
+            if uncertain and manual is not None and not cancel.is_set():
+                settled = await self._finish_manually(
+                    store_pages, uncertain, manual, cancel, progress
+                )
+                settled_keys = {(r.track_key, r.store) for r in settled}
+                all_results = [
+                    r for r in all_results if (r.track_key, r.store) not in settled_keys
+                ] + settled
+                for store, items in list(uncertain.items()):
+                    still = [i for i in items if (i.track_key, i.store) not in settled_keys]
+                    uncertain[store] = still
+                    for item in items:
+                        if (item.track_key, item.store) in settled_keys and any(
+                            r.track_key == item.track_key and r.code == "manual_verified"
+                            for r in settled
+                        ):
+                            successful[item.store].append(item)
             opened, warnings = await self._open_final_carts(
                 store_pages, successful, uncertain
             )
             all_results.extend(warnings)
             _emit_progress(progress, CartProgress("ready", len(approved.items), len(approved.items)))
-            outcome = CartBatchOutcome(tuple(all_results), opened, cancel.is_set())
+            candidates = tuple(item for items in uncertain.values() for item in items)
+            outcome = CartBatchOutcome(tuple(all_results), opened, cancel.is_set(), candidates)
             counts: dict[str, int] = defaultdict(int)
             for result in outcome.results:
                 counts[result.status] += 1
@@ -2584,6 +2723,101 @@ class CartBrowserSession:
                 ",".join(opened) or "none",
             )
             return outcome
+
+    async def _finish_manually(
+        self,
+        store_pages: dict[str, Any],
+        uncertain: dict[str, list[CartItem]],
+        manual: ManualCallback,
+        cancel: asyncio.Event,
+        progress: ProgressCallback | None,
+    ) -> list[CartResult]:
+        """Open the unverified products for the person at the window, then check.
+
+        Each page gets its Buy control expanded and the price filled, exactly
+        as preflight does; the Add-to-cart click is theirs. Once they say they
+        are done, one read-only cart check per item decides the result.
+        """
+
+        items = [item for store_items in uncertain.values() for item in store_items]
+        items = items[:MANUAL_TABS_MAX]
+        if not items:
+            return []
+        _emit_progress(progress, CartProgress("manual", 0, len(items)))
+        staged: list[tuple[CartItem, Any]] = []
+        context = await self._ensure_context()
+        for item in items:
+            if cancel.is_set():
+                break
+            page = self._instrument_page(await context.new_page())
+            try:
+                await _navigate_async(page, item.product_url, item.store)
+                await _dismiss_bandcamp_cookie_banner(page)
+                name = re.compile(r"^buy digital (?:track|album)$", re.IGNORECASE)
+                buy_control = await _first_visible_async(
+                    page.get_by_role("button", name=name),
+                    page.get_by_role("link", name=name),
+                    page.get_by_text(name, exact=True),
+                )
+                if buy_control is not None:
+                    await buy_control.click(timeout=ACTION_TIMEOUT_MS, force=True)
+                price_input = await _only_visible_async(
+                    page.locator('input#userPrice, input[name="userPrice"]')
+                )
+                if price_input is not None:
+                    await price_input.fill(format(item.price, "f"), timeout=ACTION_TIMEOUT_MS)
+            except Exception as exc:
+                LOGGER.debug(
+                    "Manual staging could not prepare %r: %s", item.track_label, type(exc).__name__
+                )
+            staged.append((item, page))
+        if staged:
+            try:
+                await staged[0][1].bring_to_front()
+            except Exception:
+                pass
+        done = await manual([item for item, _page in staged])
+        results: list[CartResult] = []
+        for item, page in staged:
+            if not done or cancel.is_set():
+                results.append(
+                    CartResult(item.track_key, item.track_label, item.store, "failed",
+                               "manual completion was given up", "cart_unverified")
+                )
+            else:
+                try:
+                    present = await _cart_contains_async(page, item, asyncio.Event())
+                except Exception:
+                    present = False
+                results.append(
+                    CartResult(
+                        item.track_key,
+                        item.track_label,
+                        item.store,
+                        "manual" if present else "failed",
+                        "added by hand in the browser" if present else "not found in the cart after manual completion",
+                        "manual_verified" if present else "manual_unverified",
+                    )
+                )
+            try:
+                if not page.is_closed():
+                    await page.close()
+            except Exception:
+                pass
+        for result in results:
+            _log_cart_result("manual", result)
+        return results
+
+    async def finish_manually(
+        self, items: list[CartItem], manual: ManualCallback, cancel: asyncio.Event
+    ) -> list[CartResult]:
+        """The result screen's 'Finish in browser' for items a batch left uncertain."""
+
+        by_store: dict[str, list[CartItem]] = defaultdict(list)
+        for item in items:
+            by_store[item.store].append(item)
+        async with self._lock():
+            return await self._finish_manually({}, by_store, manual, cancel, None)
 
     async def focus_carts(self) -> None:
         async with self._lock():

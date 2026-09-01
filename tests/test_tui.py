@@ -669,7 +669,7 @@ def cart_plan_for(record, *, already=False):
 
 
 def patch_cart_session(monkeypatch, handler):
-    async def run_batch(_self, requests, cancel, *, approve, progress=None):
+    async def run_batch(_self, requests, cancel, *, approve, progress=None, manual=None):
         return await handler(list(requests), cancel, approve, progress)
 
     monkeypatch.setattr(cart.CartBrowserSession, "run_batch", run_batch)

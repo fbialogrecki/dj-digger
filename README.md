@@ -226,8 +226,10 @@ Links are parsed and categorized using strict domain-boundary matching:
 
 ### Bandcamp carts and Beatport playlists
 
-Pressing `c` or `C` performs product checks in hidden Chromium and shows its
-window only when the completed Bandcamp cart is ready. If the matching browser
+Pressing `c` or `C` opens one dedicated Chromium window and keeps it for the
+whole batch: product checks, the clicks, and the completed Bandcamp cart all
+happen in front of you, so what the app verified is what you see. A desktop
+display is needed for any of it (WSL users need WSLg). If the matching browser
 build is absent, the app asks before downloading it in the background and then
 resumes the cart preflight. The app uses a dedicated persistent browser profile,
 separate from your everyday browser. A Bandcamp account is not required for its
@@ -262,8 +264,15 @@ exact track matches and inspects at most three returned album pages; it never
 enters the CAPTCHA-protected full results page. A track sold only as part of a
 full album is reported as album-only instead of silently adding the whole album.
 After a click, verification uses the cart count, a visible removable row in the
-opened side cart, and one reload check. An uncertain cart remains open for
-inspection and is never clicked again automatically.
+opened side cart, and one reload check, each on its own clock. An uncertain
+cart remains open for inspection and is never clicked again automatically; the
+app saves a screenshot and a redacted copy of the page under
+`cart-diagnostics` in its data folder (last ten kept) so a broken flow can be
+reported with the page that broke it. After two unverified clicks in one
+batch the app stops clicking: it opens the remaining products with Buy
+expanded and the price filled, asks you to press Add to cart yourself, and
+then checks the cart once. The result screen offers the same **Finish in
+browser** for anything left uncertain.
 
 Beatport login and cart mutation are not automated. The result screen creates a
 new `Beatport playlist.txt` in the crate's download folder, copies its contents,

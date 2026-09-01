@@ -472,6 +472,50 @@ class CartPlanScreen(_Modal[cart_module.CartPlan | None]):
             self.action_cancel()
 
 
+class CartManualScreen(_Modal[bool]):
+    """Hand the last few cart clicks to the person at the browser window."""
+
+    CSS = """
+    #cart-manual { width: 72; border: round $warning; }
+    #cart-manual-hint { color: $text-muted; margin: 1 0; }
+    #cart-manual-buttons { height: auto; margin-top: 1; }
+    """
+    BINDINGS = [
+        Binding("escape", "cancel", "Give up"),
+        Binding("enter", "done", "Done", priority=True),
+    ]
+
+    def __init__(self, items: list[cart_module.CartItem]) -> None:
+        super().__init__()
+        self.items = items
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="cart-manual", classes="modal-box"):
+            count = len(self.items)
+            yield Label(f"Finish {count} item{'s' if count != 1 else ''} in the Chromium window")
+            yield Label(
+                "Each product page is open with Buy expanded and the price filled in. "
+                "Press Add to cart on each, then come back here and press Enter. "
+                "Escape gives up on them; nothing is clicked for you.",
+                id="cart-manual-hint",
+            )
+            for item in self.items[:8]:
+                yield Label(f"  {item.track_label} — {item.currency} {item.price:.2f}")
+            with Horizontal(id="cart-manual-buttons"):
+                yield Button("Done, check the cart", variant="primary", id="cart-manual-done")
+                yield Button("Give up", id="cart-manual-cancel")
+        yield Footer()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        self.dismiss(event.button.id == "cart-manual-done")
+
+    def action_done(self) -> None:
+        self.dismiss(True)
+
+    def action_cancel(self) -> None:
+        self.dismiss(False)
+
+
 class CartResultScreen(_Modal[str | None]):
     """Compact batch result with safe retry and cart-focus actions."""
 
@@ -495,6 +539,8 @@ class CartResultScreen(_Modal[str | None]):
                     yield Button("Retry safe failures", variant="primary", id="cart-result-retry")
                 if self.outcome.cart_stores:
                     yield Button("Show carts", id="cart-result-focus")
+                if self.outcome.manual_candidates:
+                    yield Button("Finish in browser", id="cart-result-manual")
                 if self.outcome.beatport_playlist_ready:
                     yield Button(
                         "Prepare Beatport playlist (Soundiiz)",
@@ -513,6 +559,7 @@ class CartResultScreen(_Modal[str | None]):
         actions = {
             "cart-result-retry": "retry",
             "cart-result-focus": "focus",
+            "cart-result-manual": "manual",
             "cart-result-playlist": "playlist",
             "cart-result-close": None,
         }

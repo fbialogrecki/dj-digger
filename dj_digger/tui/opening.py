@@ -25,7 +25,13 @@ from .keymap import (
     OPEN_ALL_CONFIRM_THRESHOLD,
 )
 from .rows import Row
-from .screens import CartPlanScreen, CartProgressScreen, CartResultScreen, ConfirmScreen
+from .screens import (
+    CartManualScreen,
+    CartPlanScreen,
+    CartProgressScreen,
+    CartResultScreen,
+    ConfirmScreen,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -285,6 +291,17 @@ class OpeningMixin:
             self._show_cart_progress()
         return approved
 
+    async def _manual_cart_async(self, items: list[cart_module.CartItem]) -> bool:
+        """Let the person finish the staged pages; True once they say they are done."""
+
+        self._hide_cart_progress()
+        LOGGER.info("Manual cart completion opened: items=%d", len(items))
+        done = await self._wait_cart_screen(CartManualScreen(items))
+        LOGGER.info("Manual cart completion closed: done=%s", bool(done))
+        if done and not self._cart_cancel.is_set():
+            self._show_cart_progress()
+        return bool(done)
+
     async def _install_cart_chromium(self) -> bool:
         self._hide_cart_progress()
         confirmed = await self._wait_cart_screen(
@@ -326,6 +343,7 @@ class OpeningMixin:
                         self._cart_cancel,
                         approve=lambda plan: self._approve_cart_async(plan, single),
                         progress=self._cart_progress,
+                        manual=self._manual_cart_async,
                     )
                 except cart_module.ChromiumMissing:
                     if not await self._install_cart_chromium():
@@ -346,6 +364,15 @@ class OpeningMixin:
                 action = await self._wait_cart_screen(CartResultScreen(outcome))
                 if action == "focus":
                     await self._cart_session.focus_carts()
+                    return
+                if action == "manual":
+                    settled = await self._cart_session.finish_manually(
+                        list(outcome.manual_candidates), self._manual_cart_async, self._cart_cancel
+                    )
+                    self._cart_results_finished(tuple(settled))
+                    await self._wait_cart_screen(
+                        CartResultScreen(cart_module.CartBatchOutcome(tuple(settled)))
+                    )
                     return
                 if action == "playlist":
                     lines = _beatport_playlist_lines(current_requests, outcome)
