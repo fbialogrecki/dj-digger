@@ -5,8 +5,8 @@
 - Product version verified: 0.15.0
 - Owner: Filip Białogrecki
 - Updated: 2026-08-28
-- Document lines: <!-- SPEC TOTAL LINES -->976<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->976<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->979<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->979<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -78,35 +78,35 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 8.1 | ↳ CLI arguments and exit behavior | 584–603 |
 | 8.2 | ↳ JSON and CSV summary input | 604–616 |
 | 8.3 | ↳ URL-opening contract | 617–625 |
-| 9 | Authentication and authorization | 626–661 |
+| 9 | Authentication and authorization | 626–662 |
 | 9.1 | ↳ SoundCloud authentication | 628–645 |
-| 9.2 | ↳ Gate action consent | 646–661 |
-| 10 | External integrations | 662–763 |
-| 10.1 | ↳ SoundCloud API and media | 664–675 |
-| 10.2 | ↳ Link hubs and download gates | 676–711 |
-| 10.2 · block | ↳ ↳ Hypeddit | 684–697 |
-| 10.2 · block | ↳ ↳ Other resolvers | 699–704 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 706–711 |
-| 10.3 | ↳ Browsers and clipboard | 712–723 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 724–763 |
-| 11 | Security requirements and threat model | 764–810 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 766–784 |
-| 11.2 | ↳ Secret and personal-data handling | 785–797 |
-| 11.3 | ↳ File and mutation safety | 798–810 |
-| 12 | Privacy, lifecycle, and retention | 811–847 |
-| 12.1 | ↳ Data stored locally | 813–826 |
-| 12.2 | ↳ Data sent to third parties | 827–838 |
-| 12.3 | ↳ User-controlled deletion | 839–847 |
-| 13 | Failure behavior and current limitations | 848–897 |
-| 13.1 | ↳ Error isolation and reporting | 850–869 |
-| 13.2 | ↳ Confirmed limitations | 870–897 |
-| 14 | Verification, CI, and release | 898–954 |
-| 14.1 | ↳ Offline and live test suites | 900–923 |
-| 14.2 | ↳ Continuous integration and publishing | 924–939 |
-| 14.3 | ↳ Specification-map verification | 940–954 |
-| 15 | Evidence and operational references | 955–976 |
-| 15.1 | ↳ Primary implementation evidence | 957–969 |
-| 15.2 | ↳ User and historical documentation | 970–976 |
+| 9.2 | ↳ Gate action consent | 646–662 |
+| 10 | External integrations | 663–766 |
+| 10.1 | ↳ SoundCloud API and media | 665–676 |
+| 10.2 | ↳ Link hubs and download gates | 677–714 |
+| 10.2 · block | ↳ ↳ Hypeddit | 685–700 |
+| 10.2 · block | ↳ ↳ Other resolvers | 702–707 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 709–714 |
+| 10.3 | ↳ Browsers and clipboard | 715–726 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 727–766 |
+| 11 | Security requirements and threat model | 767–813 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 769–787 |
+| 11.2 | ↳ Secret and personal-data handling | 788–800 |
+| 11.3 | ↳ File and mutation safety | 801–813 |
+| 12 | Privacy, lifecycle, and retention | 814–850 |
+| 12.1 | ↳ Data stored locally | 816–829 |
+| 12.2 | ↳ Data sent to third parties | 830–841 |
+| 12.3 | ↳ User-controlled deletion | 842–850 |
+| 13 | Failure behavior and current limitations | 851–900 |
+| 13.1 | ↳ Error isolation and reporting | 853–872 |
+| 13.2 | ↳ Confirmed limitations | 873–900 |
+| 14 | Verification, CI, and release | 901–957 |
+| 14.1 | ↳ Offline and live test suites | 903–926 |
+| 14.2 | ↳ Continuous integration and publishing | 927–942 |
+| 14.3 | ↳ Specification-map verification | 943–957 |
+| 15 | Evidence and operational references | 958–979 |
+| 15.1 | ↳ Primary implementation evidence | 960–972 |
+| 15.2 | ↳ User and historical documentation | 973–979 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -647,8 +647,9 @@ managed browser profile or an environment variable.
 
 The configuration flag `gate_social_actions` defaults to true and is user-editable
 in Settings. When false, Hypeddit gates declaring non-email steps fail with a
-typed `GateSocialActionsDisabled`, and GateRush does not post the configured
-comment. Gates that require a real email fail before submission while the
+typed `GateSocialActionsDisabled`, which the TUI hands to the private browser
+where the user completes the steps themselves; GateRush does not post the
+configured comment. Gates that require a real email fail before submission while the
 reserved placeholder remains configured.
 
 Hypeddit click-through steps for SoundCloud, YouTube, Instagram, Twitter,
@@ -691,8 +692,10 @@ over an email, an email over a provider login. Click-through steps are sent as
 skipped; a refused unlock is retried exactly once with `is_skippable=1`, the
 way the page's own skip buttons do, before it is typed as rejected. A direct URL is accepted only when safe to fetch. Typed failures distinguish
 profile, consent, provider login, CAPTCHA, unknown action, protocol change,
-rejection, transfer, and provider availability. Browser fallback uses the
-private SoundCloud Chromium profile, watches downloads in one or multiple tabs,
+rejection, transfer, and provider availability. Provider login, CAPTCHA,
+unknown action, protocol change, rejection, and disabled social actions fall
+back to the browser; a batch hands at most eight gates to it per run and leaves
+the rest new. Browser fallback uses the private SoundCloud Chromium profile, watches downloads in one or multiple tabs,
 and saves files through the same size/type/atomic validation as HTTP downloads.
 
 <!-- spec-map-block: Other resolvers -->

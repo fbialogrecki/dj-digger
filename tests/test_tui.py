@@ -61,6 +61,7 @@ def run(scenario):
         (gates.GateManualActionRequired("future"), "manual"),
         (gates.GateProtocolChanged("changed"), "protocol"),
         (gates.GateRejected("rejected"), "rejected"),
+        (gates.GateSocialActionsDisabled("consent"), "consent"),
         (gates.GateDownloadError("download"), "download"),
         (soundcloud.SoundCloudError("download"), "download"),
     ],
@@ -2803,6 +2804,95 @@ def test_unmount_signals_every_cancel_event(records, state):
     assert app._gate_cancel.is_set()
     assert app._scan_cancel.is_set()
     assert app._cart_cancel.is_set()
+
+
+def _hypeddit_record(track_id=203, title="Refused gate"):
+    return LinkRecord(
+        category="gate",
+        track=Track(id=track_id, title=title, permalink_url=f"https://soundcloud.com/a/{track_id}"),
+        link_url=f"https://hypeddit.com/track/{track_id}",
+        link_text="Download",
+    )
+
+
+def test_rejected_hypeddit_gate_falls_back_to_the_browser_with_its_reason(
+    state, tmp_path, monkeypatch
+):
+    """A refused unlock is something a person in the browser can get past."""
+
+    record = _hypeddit_record()
+    app = make_app([record], state)
+
+    class Client:
+        def download_track(self, *_args, **_kwargs):
+            raise gates.GateRejected("did not unlock")
+
+        def close(self):
+            pass
+
+    app._client = Client()
+    browser_calls = []
+    monkeypatch.setattr(
+        "dj_digger.tui.downloads.gates.download_hypeddit_in_browser",
+        lambda track, url, directory, cancel: browser_calls.append(url)
+        or (_ for _ in ()).throw(gates.GateManualActionRequired("closed the tab")),
+    )
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("w")
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+
+    run(scenario)
+    assert browser_calls == [record.link_url]
+    assert state.get(record.track.key) != GOT
+
+
+def test_a_batch_hands_at_most_eight_refused_gates_to_the_browser(state, monkeypatch):
+    records = [_hypeddit_record(300 + n, f"Gate {n}") for n in range(10)]
+    app = make_app(records, state)
+
+    class Client:
+        def download_track(self, *_args, **_kwargs):
+            raise gates.GateRejected("did not unlock")
+
+        def close(self):
+            pass
+
+    class Session:
+        def close(self):
+            pass
+
+    handed = []
+
+    def browser_batch(items, _directory, cancel):
+        handed.extend(track.key for track, _url in items)
+        return gates.HypedditBrowserBatchResult(
+            failures=tuple((track.key, gates.GateManualActionRequired("skipped")) for track, _ in items)
+        )
+
+    app._client = Client()
+    monkeypatch.setattr("dj_digger.tui.downloads.soundcloud.create_requests_session", Session)
+    monkeypatch.setattr(
+        "dj_digger.tui.downloads.gates.download_hypeddit_batch_in_browser", browser_batch
+    )
+
+    errors = []
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            worker = app.batch_download_in_background(
+                [(row, row.records[0].link_url) for row in app.visible_rows]
+            )
+            await worker.wait()
+            await pilot.pause()
+            errors.extend(app.query_one(ErrorBanner).errors)
+
+    run(scenario)
+    assert len(handed) == 8
+    assert any("after: did not unlock" in error for error in errors)
+    assert all(state.get(record.track.key) != GOT for record in records)
 
 
 def test_stop_browser_batch_leaves_unfinished_tracks_new(

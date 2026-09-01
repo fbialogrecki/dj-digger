@@ -38,10 +38,16 @@ def _playlist_folder_name(title: str) -> str:
 
 # Classification and summary order in one place. GateProfileRequired is
 # deliberately absent - it pauses for configuration instead of failing.
+# How many gates one batch hands to the private browser. Each open tab waits
+# up to five minutes for its download; a playlist of refused gates must not
+# become fifty tabs. The rest are left new for another run.
+BROWSER_BATCH_MAX = 8
+
 FAILURE_GROUPS = (
     ("auth", (gates.GateAuthenticationRequired,)),
     ("captcha", (gates.GateCaptchaRequired,)),
-    ("manual", (gates.GateManualActionRequired, gates.GateSocialActionsDisabled)),
+    ("consent", (gates.GateSocialActionsDisabled,)),
+    ("manual", (gates.GateManualActionRequired,)),
     ("protocol", (gates.GateProtocolChanged, gates.GateUnavailable)),
     ("rejected", (gates.GateRejected,)),
     ("download", (gates.GateDownloadError, soundcloud.SoundCloudError)),
@@ -69,6 +75,10 @@ class _BatchProgress:
     profile_items: list[tuple[Row, str | None]] = field(default_factory=list)
     auth_items: list[tuple[Row, str | None]] = field(default_factory=list)
     browser_items: list[tuple[Row, str]] = field(default_factory=list)
+    # Why the HTTP flow gave up on each browser item, keyed by track: the
+    # browser's own failure is only half the story without it.
+    browser_reasons: dict[str, str] = field(default_factory=dict)
+    deferred: int = 0
     failure_groups: Counter = field(default_factory=Counter)
 
 
@@ -164,6 +174,9 @@ class DownloadMixin:
             if not _is_hypeddit(gate_url):
                 self.call_from_thread(self._download_failed, key, str(exc))
                 return
+            self.call_from_thread(
+                self.notify, f"Finishing in the browser: {exc}", timeout=5, markup=False
+            )
             try:
                 path = gates.download_hypeddit_in_browser(
                     track,
@@ -172,7 +185,9 @@ class DownloadMixin:
                     self._gate_cancel,
                 )
             except Exception as browser_exc:
-                self.call_from_thread(self._download_failed, key, str(browser_exc))
+                self.call_from_thread(
+                    self._download_failed, key, f"{browser_exc} (after: {exc})"
+                )
                 return
         except (gates.GateProfileRequired, soundcloud.SoundCloudLoginRequired) as exc:
             self.call_from_thread(self._download_waiting, key)
@@ -441,6 +456,14 @@ class DownloadMixin:
             self._persist_normalised_hubs()
         if progress.browser_items:
             self._batch_browser_pass(progress, download_directory)
+        if progress.deferred:
+            self.call_from_thread(
+                self.notify,
+                f"{progress.deferred} more gate{'s' if progress.deferred != 1 else ''} left new: "
+                f"the browser takes {BROWSER_BATCH_MAX} at a time, run the batch again for the rest",
+                timeout=8,
+                markup=False,
+            )
 
         pending = len(progress.profile_items) + len(progress.auth_items)
         self.call_from_thread(
@@ -550,7 +573,11 @@ class DownloadMixin:
                     isinstance(result, gates.BROWSER_REQUIRED_ERRORS)
                     and _is_hypeddit(gate_url)
                 ):
-                    progress.browser_items.append((row, gate_url))
+                    if len(progress.browser_items) < BROWSER_BATCH_MAX:
+                        progress.browser_items.append((row, gate_url))
+                        progress.browser_reasons[row.track.key] = str(result)
+                    else:
+                        progress.deferred += 1
                     self.call_from_thread(self._download_waiting, row.track.key)
                 else:
                     progress.failed += 1
@@ -592,7 +619,9 @@ class DownloadMixin:
             row = rows_by_key[key]
             progress.failed += 1
             progress.failure_groups[_gate_failure_group(exc)] += 1
-            self.call_from_thread(self._download_failed, row.track.key, str(exc), banner_label=row.track.label)
+            reason = progress.browser_reasons.get(key)
+            message = f"{exc} (after: {reason})" if reason else str(exc)
+            self.call_from_thread(self._download_failed, row.track.key, message, banner_label=row.track.label)
 
     def _normalise_hypeddit_item(
         self, row: Row, gate_url: str | None

@@ -73,11 +73,16 @@ class GateUnavailable(GateError):
     """The provider or the requested gate is unavailable."""
 
 
+# Failures the HTTP flow cannot get past, but a person in the private browser
+# can: a provider login, a CAPTCHA, an unknown step, a changed protocol, a
+# gate that refused the unlock, or social steps the user has disabled here.
 BROWSER_REQUIRED_ERRORS = (
     GateAuthenticationRequired,
     GateCaptchaRequired,
     GateManualActionRequired,
     GateProtocolChanged,
+    GateRejected,
+    GateSocialActionsDisabled,
 )
 
 
