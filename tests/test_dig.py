@@ -1,9 +1,10 @@
 import json
+import threading
 
 import pytest
 
 from dj_digger import dig, gates
-from dj_digger.models import Crate, Track
+from dj_digger.models import Cancelled, Crate, Track
 
 
 def a_crate(count=1):
@@ -192,6 +193,25 @@ def test_a_link_hub_is_replaced_by_the_shops_behind_it(monkeypatch):
     ]
     # And the point of all of it: no gate badge, two shops instead.
     assert sorted(record.category for record in links.categorise(track)) == ["bandcamp", "beatport"]
+
+
+def test_hub_expansion_stops_when_cancelled(monkeypatch):
+    cancel = threading.Event()
+    inspected = []
+
+    def inspect(url, session, timeout=10.0):
+        inspected.append(url)
+        cancel.set()
+        return gates.LinkPageInspection(shops=(("https://label.bandcamp.com/album/x", "Bandcamp"),))
+
+    monkeypatch.setattr("dj_digger.gates.inspect_link_page", inspect)
+    monkeypatch.setattr("dj_digger.soundcloud.create_requests_session", lambda **kw: FakeSession())
+    tracks = [a_hub_track() for _ in range(40)]
+
+    with pytest.raises(Cancelled):
+        dig.expand_link_hubs(tracks, cancel=cancel)
+
+    assert len(inspected) < 40, "the queue is dropped once the event is set"
 
 
 def test_a_hub_that_turned_out_to_be_a_gate_is_left_alone(monkeypatch):

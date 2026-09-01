@@ -1,7 +1,9 @@
+import threading
+
 import pytest
 
 from dj_digger import gates, soundcloud
-from dj_digger.models import Track
+from dj_digger.models import Cancelled, Track
 from dj_digger.soundcloud import (
     SoundCloudClient,
     SoundCloudError,
@@ -466,7 +468,7 @@ def test_collect_playlist_hydrates_every_stub(monkeypatch, playlist_payload):
 
     requested = []
 
-    def fake_hydrate(ids, on_progress=None):
+    def fake_hydrate(ids, on_progress=None, cancel=None):
         requested.extend(ids)
         return [Track.from_api(track_payload(track_id)) for track_id in ids]
 
@@ -482,7 +484,7 @@ def test_collect_playlist_hydrates_every_stub(monkeypatch, playlist_payload):
 def test_collect_playlist_honours_limit(monkeypatch, playlist_payload):
     client = make_client()
     monkeypatch.setattr(client, "resolve", lambda url: playlist_payload)
-    monkeypatch.setattr(client, "hydrate_tracks", lambda ids, on_progress=None: list(ids))
+    monkeypatch.setattr(client, "hydrate_tracks", lambda ids, on_progress=None, cancel=None: list(ids))
 
     crate = client.collect("https://soundcloud.com/a/sets/b", limit=7)
     assert len(crate.tracks) == 7
@@ -519,6 +521,56 @@ def test_collect_user_likes_unwraps_and_paginates(monkeypatch):
 
     assert [track.id for track in crate.tracks] == [1, 2]
     assert crate.title == "Someone - likes"
+
+
+def test_pagination_stops_when_cancelled(monkeypatch):
+    client = make_client()
+    monkeypatch.setattr(
+        client, "resolve", lambda url: {"kind": "user", "id": 7, "username": "Someone"}
+    )
+    cancel = threading.Event()
+    requested = []
+
+    def page(path, **params):
+        requested.append(path)
+        return {"collection": [track_payload(len(requested))], "next_href": f"next-{len(requested)}"}
+
+    monkeypatch.setattr(client, "_get", page)
+    monkeypatch.setattr(client, "_request", lambda url, params=None: page(url))
+
+    def stop_after_first_page(done, total):
+        cancel.set()
+
+    with pytest.raises(Cancelled):
+        client.collect(
+            "https://soundcloud.com/someone/likes", on_progress=stop_after_first_page, cancel=cancel
+        )
+    assert requested == ["/users/7/likes"], "the next page is never asked for"
+
+
+def test_a_cancelled_download_leaves_no_part_file(tmp_path):
+    cancel = threading.Event()
+    session = DownloadSession(
+        DownloadResponse([b"\xff\xfb" + b"a" * 100, b"b" * 100], headers={"Content-Type": "audio/mpeg"})
+    )
+    client = make_client(session)
+    track = Track(
+        title="T",
+        artist="A",
+        permalink_url="https://soundcloud.com/a/t",
+        downloadable=True,
+        has_downloads_left=True,
+        download_url="https://gate.example/file",
+    )
+    destination = tmp_path / "downloads"
+
+    def stop_after_first_chunk(downloaded, total):
+        cancel.set()
+
+    with pytest.raises(Cancelled):
+        client.download_track(track, destination, on_progress=stop_after_first_chunk, cancel=cancel)
+
+    assert list(destination.iterdir()) == []
 
 
 def test_collect_user_profile_defaults_to_their_tracks(monkeypatch):

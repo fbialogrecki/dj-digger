@@ -13,7 +13,7 @@ from textual.widgets import DataTable, Static
 from .. import dig as dig_module
 from .. import library as library_module
 from .. import links as links_module
-from ..models import Crate
+from ..models import Cancelled, Crate
 from .keymap import (
     SPINNER,
     SPINNER_EVERY,
@@ -55,6 +55,7 @@ class DiggingMixin:
 
     def _start_dig(self, target: str) -> None:
         self._digging = True
+        self._dig_cancel.clear()
         self.query_one("#tracks", DataTable).loading = True
         self._dig_message = f"Digging {target}"
         self._draw_digging()
@@ -75,7 +76,11 @@ class DiggingMixin:
                 timeout=self.dig_options.timeout,
                 delay=self.dig_options.delay,
                 on_progress=on_progress,
+                cancel=self._dig_cancel,
             )
+        except Cancelled:
+            self.call_from_thread(self._dig_failed, "Dig stopped")
+            return
         except Exception as exc:  # a worker must never take the app down with it
             self.call_from_thread(self._dig_failed, str(exc))
             return

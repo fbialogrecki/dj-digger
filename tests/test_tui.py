@@ -16,7 +16,7 @@ from textual.widgets import Button, DataTable, Input, Label, ListView, Static
 
 from dj_digger import cart, gates, library, links, soundcloud, tui
 from dj_digger.dig import DigOptions, TargetNotFound
-from dj_digger.models import Crate, LinkRecord, Track
+from dj_digger.models import Cancelled, Crate, LinkRecord, Track
 from dj_digger.player import (
     PAUSE_GLYPH,
     PLAYER_HEIGHT,
@@ -2705,6 +2705,46 @@ def test_batch_starts_downloads_before_every_hypeddit_preflight_finishes(
 
     run(scenario)
     assert sorted(started) == [205, 206]
+
+
+def test_ctrl_x_stops_a_dig(records, state, monkeypatch):
+    entered = Event()
+
+    def slow_dig(target, cancel=None, **kwargs):
+        entered.set()
+        assert cancel.wait(2), "the UI did not signal the dig"
+        raise Cancelled()
+
+    monkeypatch.setattr("dj_digger.dig.dig", slow_dig)
+    app = make_app(records, state, export_format="none")
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app._start_dig("https://soundcloud.com/x/sets/y")
+            assert await asyncio.to_thread(entered.wait, 2)
+            await pilot.press("ctrl+x")
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+
+    run(scenario)
+    assert app._dig_cancel.is_set()
+    assert app._digging is False
+    assert len(app.rows) == len(records), "a stopped dig leaves the crate as it was"
+
+
+def test_unmount_signals_every_cancel_event(records, state):
+    app = make_app(records, state)
+
+    async def scenario():
+        async with app.run_test():
+            pass
+
+    run(scenario)
+    assert app._dig_cancel.is_set()
+    assert app._gate_cancel.is_set()
+    assert app._scan_cancel.is_set()
+    assert app._cart_cancel.is_set()
 
 
 def test_stop_browser_batch_leaves_unfinished_tracks_new(

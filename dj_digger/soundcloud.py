@@ -30,7 +30,7 @@ from urllib3.util.retry import Retry
 from . import auth, gates
 from .browser import is_fetchable
 from .links import host_matches
-from .models import Crate, Track
+from .models import Cancelled, Crate, Track, check_cancelled
 
 # Windows refuses these as a filename whatever the extension - CON.mp3 is as
 # reserved as CON - and says so with an OSError at the moment of writing, which
@@ -194,6 +194,7 @@ def _stream_to_file(
     temporary: Path,
     on_progress: Callable[[int, int | None], None] | None,
     total_size: int | None,
+    cancel: threading.Event | None = None,
 ) -> bytes:
     """Stream the body to the temp file; returns the first 512 bytes for sniffing."""
 
@@ -204,6 +205,7 @@ def _stream_to_file(
             # 128 KB: disk writes want fewer, larger chunks than the 64 KB the
             # player streams with, where latency to first audio matters instead.
             for chunk in response.iter_content(chunk_size=1024 * 128):
+                check_cancelled(cancel)
                 if chunk:
                     handle.write(chunk)
                     if len(prefix) < 512:
@@ -219,6 +221,8 @@ def _stream_to_file(
                         )
                     if on_progress:
                         on_progress(downloaded, total_size)
+        except Cancelled:
+            raise
         except Exception as stream_exc:
             raise SoundCloudError(f"Download stream read failed: {stream_exc}") from stream_exc
     return bytes(prefix)
@@ -519,6 +523,7 @@ class SoundCloudClient:
         gate_url: str | None = None,
         on_progress: Callable[[int, int | None], None] | None = None,
         session: requests.Session | None = None,
+        cancel: threading.Event | None = None,
     ) -> Path:
         """Save artist-provided download file directly or via resolved gate URL.
 
@@ -530,7 +535,9 @@ class SoundCloudClient:
         """
 
         session = session or self._session
+        check_cancelled(cancel)
         download_url, gate_derived = self._resolve_download_url(track, gate_url, session)
+        check_cancelled(cancel)
 
         host = (urlparse(download_url).hostname or "").lower()
         # Domain-boundary match: "soundcloud.com" in host is also true of
@@ -586,7 +593,7 @@ class SoundCloudClient:
             temporary = Path(temporary_name)
             if os.name != "nt":
                 temporary.chmod(0o600)
-            prefix = _stream_to_file(response, temporary, on_progress, total_size)
+            prefix = _stream_to_file(response, temporary, on_progress, total_size, cancel)
 
             if _looks_like_html(prefix):
                 message = "That link returned a web page rather than an audio file"
@@ -599,7 +606,7 @@ class SoundCloudClient:
             # below from turning a successful return into a PermissionError.
             temporary = None
             return target
-        except gates.GateError:
+        except (gates.GateError, Cancelled):
             raise
         except SoundCloudError as exc:
             if gate_derived:
@@ -623,6 +630,7 @@ class SoundCloudClient:
         track_ids: Sequence[int],
         *,
         on_progress: ProgressCallback | None = None,
+        cancel: threading.Event | None = None,
     ) -> list[Track]:
         """Turn bare track ids into full track objects, 50 per request."""
 
@@ -633,6 +641,7 @@ class SoundCloudClient:
         position = {track_id: index for index, track_id in enumerate(ids)}
         tracks: list[Track] = []
         for chunk in batched(ids, HYDRATE_BATCH):
+            check_cancelled(cancel)
             payload = self._get("/tracks", ids=",".join(str(i) for i in chunk))
             if isinstance(payload, list):
                 tracks.extend(Track.from_api(item) for item in payload if isinstance(item, dict))
@@ -649,8 +658,10 @@ class SoundCloudClient:
         *,
         limit: int | None = None,
         on_progress: ProgressCallback | None = None,
+        cancel: threading.Event | None = None,
     ) -> list[Track]:
         tracks: list[Track] = []
+        check_cancelled(cancel)
         payload = self._get(path, limit=PAGE_SIZE)
         while True:
             if not isinstance(payload, dict):
@@ -669,6 +680,7 @@ class SoundCloudClient:
             next_href = payload.get("next_href")
             if not next_href:
                 break
+            check_cancelled(cancel)
             payload = self._request(next_href)
 
         return tracks[:limit] if limit is not None else tracks
@@ -679,10 +691,12 @@ class SoundCloudClient:
         *,
         limit: int | None = None,
         on_progress: ProgressCallback | None = None,
+        cancel: threading.Event | None = None,
     ) -> Crate:
         """Pull every track behind a SoundCloud link."""
 
         collection, base_url = split_user_collection(url)
+        check_cancelled(cancel)
         payload = self.resolve(base_url)
         kind = payload.get("kind")
 
@@ -693,7 +707,10 @@ class SoundCloudClient:
                 raise SoundCloudError(f"Resolved {base_url} to a user without an id")
             endpoint = collection or "tracks"
             tracks = self._paginate(
-                f"/users/{user_id}/{endpoint}", limit=limit, on_progress=on_progress
+                f"/users/{user_id}/{endpoint}",
+                limit=limit,
+                on_progress=on_progress,
+                cancel=cancel,
             )
             return Crate(
                 source=url,
@@ -720,7 +737,7 @@ class SoundCloudClient:
             declared = payload.get("track_count") or len(track_ids)
             if limit is not None:
                 track_ids = track_ids[:limit]
-            tracks = self.hydrate_tracks(track_ids, on_progress=on_progress)
+            tracks = self.hydrate_tracks(track_ids, on_progress=on_progress, cancel=cancel)
             return Crate(
                 source=url,
                 tracks=tracks,
@@ -741,11 +758,12 @@ def collect_tracks(
     timeout: float = 20.0,
     on_progress: ProgressCallback | None = None,
     session: requests.Session | None = None,
+    cancel: threading.Event | None = None,
 ) -> Crate:
     """Convenience wrapper for one-shot use."""
 
     with SoundCloudClient(session=session, timeout=timeout) as client:
-        return client.collect(url, limit=limit, on_progress=on_progress)
+        return client.collect(url, limit=limit, on_progress=on_progress, cancel=cancel)
 
 
 def hydrate_ids(
@@ -754,6 +772,7 @@ def hydrate_ids(
     timeout: float = 20.0,
     on_progress: ProgressCallback | None = None,
     session: requests.Session | None = None,
+    cancel: threading.Event | None = None,
 ) -> list[Track]:
     with SoundCloudClient(session=session, timeout=timeout) as client:
-        return client.hydrate_tracks(list(track_ids), on_progress=on_progress)
+        return client.hydrate_tracks(list(track_ids), on_progress=on_progress, cancel=cancel)

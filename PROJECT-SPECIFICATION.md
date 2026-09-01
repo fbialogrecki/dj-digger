@@ -5,8 +5,8 @@
 - Product version verified: 0.15.0
 - Owner: Filip Białogrecki
 - Updated: 2026-08-28
-- Document lines: <!-- SPEC TOTAL LINES -->980<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->980<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->988<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->988<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -65,50 +65,50 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 5.1 | ↳ Entry, orchestration, and models | 409–419 |
 | 5.2 | ↳ Network and external-system adapters | 420–433 |
 | 5.3 | ↳ Persistence, local media, and UI | 434–447 |
-| 6 | Runtime architecture and environments | 448–508 |
+| 6 | Runtime architecture and environments | 448–514 |
 | 6.1 | ↳ Runtime and dependencies | 450–463 |
-| 6.2 | ↳ Concurrency and lifecycle | 464–493 |
-| 6.3 | ↳ Local paths and environment variables | 494–508 |
-| 7 | Data model and persistence | 509–572 |
-| 7.1 | ↳ Domain objects and identity | 511–522 |
-| 7.2 | ↳ SQLite schema and invariants | 523–546 |
-| 7.3 | ↳ Crate persistence and deletion | 547–558 |
-| 7.4 | ↳ Configuration and credential stores | 559–572 |
-| 8 | Public interfaces and contracts | 573–617 |
-| 8.1 | ↳ CLI arguments and exit behavior | 575–595 |
-| 8.2 | ↳ JSON and CSV summary input | 596–608 |
-| 8.3 | ↳ URL-opening contract | 609–617 |
-| 9 | Authentication and authorization | 618–664 |
-| 9.1 | ↳ SoundCloud authentication | 620–637 |
-| 9.2 | ↳ Spotify PKCE and scopes | 638–649 |
-| 9.3 | ↳ Gate action consent | 650–664 |
-| 10 | External integrations | 665–769 |
-| 10.1 | ↳ SoundCloud API and media | 667–678 |
-| 10.2 | ↳ Link hubs and download gates | 679–710 |
-| 10.2 · block | ↳ ↳ Hypeddit | 687–696 |
-| 10.2 · block | ↳ ↳ Other resolvers | 698–703 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 705–710 |
-| 10.3 | ↳ Browsers and clipboard | 711–722 |
-| 10.4 | ↳ Spotify | 723–729 |
-| 10.5 | ↳ Bandcamp cart and Beatport playlists | 730–769 |
-| 11 | Security requirements and threat model | 770–816 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 772–790 |
-| 11.2 | ↳ Secret and personal-data handling | 791–803 |
-| 11.3 | ↳ File and mutation safety | 804–816 |
-| 12 | Privacy, lifecycle, and retention | 817–853 |
-| 12.1 | ↳ Data stored locally | 819–832 |
-| 12.2 | ↳ Data sent to third parties | 833–845 |
-| 12.3 | ↳ User-controlled deletion | 846–853 |
-| 13 | Failure behavior and current limitations | 854–901 |
-| 13.1 | ↳ Error isolation and reporting | 856–875 |
-| 13.2 | ↳ Confirmed limitations | 876–901 |
-| 14 | Verification, CI, and release | 902–958 |
-| 14.1 | ↳ Offline and live test suites | 904–927 |
-| 14.2 | ↳ Continuous integration and publishing | 928–943 |
-| 14.3 | ↳ Specification-map verification | 944–958 |
-| 15 | Evidence and operational references | 959–980 |
-| 15.1 | ↳ Primary implementation evidence | 961–973 |
-| 15.2 | ↳ User and historical documentation | 974–980 |
+| 6.2 | ↳ Concurrency and lifecycle | 464–499 |
+| 6.3 | ↳ Local paths and environment variables | 500–514 |
+| 7 | Data model and persistence | 515–578 |
+| 7.1 | ↳ Domain objects and identity | 517–528 |
+| 7.2 | ↳ SQLite schema and invariants | 529–552 |
+| 7.3 | ↳ Crate persistence and deletion | 553–564 |
+| 7.4 | ↳ Configuration and credential stores | 565–578 |
+| 8 | Public interfaces and contracts | 579–623 |
+| 8.1 | ↳ CLI arguments and exit behavior | 581–601 |
+| 8.2 | ↳ JSON and CSV summary input | 602–614 |
+| 8.3 | ↳ URL-opening contract | 615–623 |
+| 9 | Authentication and authorization | 624–670 |
+| 9.1 | ↳ SoundCloud authentication | 626–643 |
+| 9.2 | ↳ Spotify PKCE and scopes | 644–655 |
+| 9.3 | ↳ Gate action consent | 656–670 |
+| 10 | External integrations | 671–775 |
+| 10.1 | ↳ SoundCloud API and media | 673–684 |
+| 10.2 | ↳ Link hubs and download gates | 685–716 |
+| 10.2 · block | ↳ ↳ Hypeddit | 693–702 |
+| 10.2 · block | ↳ ↳ Other resolvers | 704–709 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 711–716 |
+| 10.3 | ↳ Browsers and clipboard | 717–728 |
+| 10.4 | ↳ Spotify | 729–735 |
+| 10.5 | ↳ Bandcamp cart and Beatport playlists | 736–775 |
+| 11 | Security requirements and threat model | 776–822 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 778–796 |
+| 11.2 | ↳ Secret and personal-data handling | 797–809 |
+| 11.3 | ↳ File and mutation safety | 810–822 |
+| 12 | Privacy, lifecycle, and retention | 823–859 |
+| 12.1 | ↳ Data stored locally | 825–838 |
+| 12.2 | ↳ Data sent to third parties | 839–851 |
+| 12.3 | ↳ User-controlled deletion | 852–859 |
+| 13 | Failure behavior and current limitations | 860–909 |
+| 13.1 | ↳ Error isolation and reporting | 862–881 |
+| 13.2 | ↳ Confirmed limitations | 882–909 |
+| 14 | Verification, CI, and release | 910–966 |
+| 14.1 | ↳ Offline and live test suites | 912–935 |
+| 14.2 | ↳ Continuous integration and publishing | 936–951 |
+| 14.3 | ↳ Specification-map verification | 952–966 |
+| 15 | Evidence and operational references | 967–988 |
+| 15.1 | ↳ Primary implementation evidence | 969–981 |
+| 15.2 | ↳ User and historical documentation | 982–988 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -471,6 +471,12 @@ first read, so painting a crate costs no per-row query; every write goes
 through the same object and updates the mirror. Another process writing the
 same database is not reconciled.
 
+Digging, hub expansion, hydration, downloads, and the local scan accept a
+cancel event checked between requests, pages, chunks, or files; a set event
+raises a typed `Cancelled` so a stopped dig is never saved as a partial crate
+and a stopped download is not reported as a failure. The TUI owns one event
+per job kind (`_dig_cancel`, `_gate_cancel`, `_scan_cancel`, `_cart_cancel`),
+sets them all on unmount, and `ctrl+x` stops the running dig or download batch.
 Link hubs use eight threads and stop trying a host after two observed failures
 within one dig, though already-running requests continue. Batch downloads use
 four threads. Hypeddit HTTP flows are serialized with a reentrant lock, and one
@@ -897,6 +903,8 @@ as player events instead of escaping through Python-CFFI.
   search pages that require CAPTCHA remain manual.
 - Unsupported gate steps, CAPTCHA, external OAuth providers other than the
   implemented Spotify path, and changed provider protocols require manual action.
+- A cancelled dig or download batch lets requests already in flight finish
+  their own timeout before the worker returns.
 - The application has no automatic full-data deletion or retention scheduler.
 
 ## 14. Verification, CI, and release

@@ -18,7 +18,7 @@ from .. import dig as dig_module
 from .. import gates, soundcloud
 from .. import library as library_module
 from .. import links as links_module
-from ..models import Track
+from ..models import Cancelled, Track
 from ..state import GOT, SKIP
 from .rows import Row
 from .screens import GateProfileScreen, SoundCloudAuthScreen
@@ -155,7 +155,11 @@ class DownloadMixin:
                 self._download_directory(),
                 gate_url=gate_url,
                 on_progress=on_progress,
+                cancel=self._gate_cancel,
             )
+        except Cancelled:
+            self.call_from_thread(self._download_waiting, key)
+            return
         except gates.BROWSER_REQUIRED_ERRORS as exc:
             if not _is_hypeddit(gate_url):
                 self.call_from_thread(self._download_failed, key, str(exc))
@@ -388,12 +392,21 @@ class DownloadMixin:
         self.batch_download_in_background(eligible)
 
     def action_stop_browser_batch(self) -> None:
-        if not self._browser_batch_active:
-            self.notify("No browser download batch is active", timeout=2)
+        """Stop whatever long job is running: a dig, or the downloads.
+
+        Named for the browser batch it once stopped alone; the key is the same.
+        """
+
+        if self._digging:
+            self._dig_cancel.set()
+            self.notify("Stopping the dig", timeout=3)
+            return
+        if not self._browser_batch_active and not self._active_download_workers:
+            self.notify("Nothing to stop", timeout=2)
             return
         self._gate_cancel.set()
         self.notify(
-            "Stopping browser batch; completed files are kept and unfinished tracks stay new",
+            "Stopping downloads; completed files are kept and unfinished tracks stay new",
             timeout=4,
         )
 
@@ -453,6 +466,8 @@ class DownloadMixin:
     ):
         row, gate_url = item
         key = row.track.key
+        if self._gate_cancel.is_set():
+            return (row, gate_url, "cancelled", None, False)
         self.call_from_thread(self._update_track_progress, key, 0.0)
         gate_url, changed = self._normalise_hypeddit_item(row, gate_url)
         if not (
@@ -480,8 +495,11 @@ class DownloadMixin:
                 gate_url=gate_url,
                 on_progress=on_progress,
                 session=session,
+                cancel=self._gate_cancel,
             )
             return (row, gate_url, "downloaded", str(path), changed)
+        except Cancelled:
+            return (row, gate_url, "cancelled", None, changed)
         except Exception as exc:
             return (row, gate_url, "failed", exc, changed)
         finally:
@@ -511,6 +529,9 @@ class DownloadMixin:
                 progress.hubs_changed = progress.hubs_changed or changed
                 if outcome == "hub":
                     progress.total -= 1
+                    self.call_from_thread(self._download_waiting, row.track.key)
+                elif outcome == "cancelled":
+                    # Stopped by the user: not a failure, nothing to report.
                     self.call_from_thread(self._download_waiting, row.track.key)
                 elif outcome == "downloaded":
                     progress.completed += 1

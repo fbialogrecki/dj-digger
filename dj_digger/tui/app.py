@@ -230,6 +230,8 @@ class DiggerApp(
         self._cart_progress_screen = None
         self._cart_decision_screen = None
         self._gate_cancel = Event()
+        self._dig_cancel = Event()
+        self._scan_cancel = Event()
         self._browser_batch_active = False
         self._digging = False
         self._undone: list[str] = []
@@ -366,6 +368,8 @@ class DiggerApp(
         # cancelled its workers by now; close the persistent profile explicitly.
         self._cart_cancel.set()
         self._gate_cancel.set()
+        self._dig_cancel.set()
+        self._scan_cancel.set()
         # A tick landing after the widgets have gone would go looking for a
         # player bar that no longer exists. Textual does stop its timers, but
         # only further down the same teardown, so this one goes first.

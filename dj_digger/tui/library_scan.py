@@ -67,8 +67,9 @@ class LibraryScanMixin:
             # second Database means a second pool and a second legacy import.
             db=self.state.db,
         )
+        self._scan_cancel.clear()
         try:
-            scanned = scanner.scan()
+            scanned = scanner.scan(cancel=self._scan_cancel)
         except OSError as exc:
             LOGGER.debug("Local scan stopped early: %s", exc)
             return

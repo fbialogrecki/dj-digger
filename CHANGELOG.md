@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Added
+
+- `ctrl+x` now stops a running dig as well as a download batch; what was
+  already collected or downloaded is kept, and nothing partial is saved.
+
 ### Changed
 
 - Opening a link, starting or stopping playback, and a batch download starting

@@ -5,6 +5,7 @@ Lives in its own module so ``soundcloud``, ``html_fallback``, ``links`` and
 """
 
 import shlex
+import threading
 from dataclasses import dataclass, field
 from typing import Any, Self
 
@@ -20,6 +21,21 @@ def parse_tags(tag_list: str) -> list[str]:
         # An artist left a quote unclosed; we lose multi-word tags, not the lot.
         return tag_list.replace('"', " ").split()
 
+
+
+
+class Cancelled(Exception):
+    """Raised inside long-running work when its cancel event was set.
+
+    Distinct from the network and provider errors so a caller can tell "the
+    user stopped this" from "this failed" - a stopped dig must not be saved
+    as a crate, and a stopped download is not a failure to report.
+    """
+
+
+def check_cancelled(cancel: threading.Event | None) -> None:
+    if cancel is not None and cancel.is_set():
+        raise Cancelled()
 
 @dataclass
 class Track:
