@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### Removed
+
+- The Spotify integration (`dj-digger auth spotify`, the PKCE login, and the
+  library writes for Hypeddit `sp` steps). Hypeddit clears its Spotify step
+  through its own OAuth app and server session, so a user's own Spotify login
+  could never satisfy the gate; the step is now reported like the other
+  click-throughs. A saved `spotify.json` is no longer read and may be deleted.
+
 ### Added
 
 - Ctrl+C quits the crate browser like `q`, from the search box too. Textual

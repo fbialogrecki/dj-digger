@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 import requests
 
-from dj_digger import gates, spotify
+from dj_digger import gates
 from dj_digger.gates import (
     inspect_link_page,
     resolve_gate_download_url,
@@ -276,47 +276,32 @@ def test_gaterush_never_submits_a_placeholder_email():
     session.post.assert_not_called()
 
 
-def test_spotify_artist_is_saved_before_hypeddit_download(monkeypatch):
+def test_spotify_step_is_a_click_through_marker():
+    """Hypeddit clears its Spotify step through its own OAuth app and session.
+
+    Nothing done with a user's own Spotify login reaches the gate, so the step
+    is reported like the other click-throughs and no provider is called.
+    """
+
     session = session_for_gate(
         gate_html(steps="sc,sp", spotify_value="ART|0oVDzp5DK2caqb6FuL2mhp")
     )
-    saved = []
-    monkeypatch.setattr(spotify, "save_uris", lambda uris: saved.extend(uris))
 
     result = resolve_hypeddit_download_url(
         "https://hypeddit.com/track/xngfus",
         session,
-        config=StubConfig("dj@example.com", gate_social_actions=True),
-    )
-
-    assert saved == ["spotify:artist:0oVDzp5DK2caqb6FuL2mhp"]
-    assert result == "https://hypeddit.com/download/file.wav"
-
-
-def test_spotify_playlist_is_saved_before_hypeddit_download(monkeypatch):
-    session = session_for_gate(
-        gate_html(steps="sc,sp", spotify_value="PLAY|37i9dQZF1DXcBWIGoYBM5M")
-    )
-    saved = []
-    monkeypatch.setattr(spotify, "save_uris", lambda uris: saved.extend(uris))
-
-    resolve_hypeddit_download_url(
-        "https://hypeddit.com/track/playlist",
-        session,
         config=StubConfig("dj@example.com"),
     )
 
-    assert saved == ["spotify:playlist:37i9dQZF1DXcBWIGoYBM5M"]
+    assert result
+    payloads = _posted_to(session, "/gate/download/ul")
+    assert len(payloads) == 1
+    assert payloads[0]["skip_gate_steps[]"] == ["sc", "sp"]
 
 
-def test_spotify_step_respects_the_social_actions_switch(monkeypatch):
+def test_social_steps_respect_the_social_actions_switch():
     session = session_for_gate(
         gate_html(steps="sc,sp", spotify_value="ART|0oVDzp5DK2caqb6FuL2mhp")
-    )
-    monkeypatch.setattr(
-        spotify,
-        "save_uris",
-        lambda uris: pytest.fail("Spotify must not be changed"),
     )
 
     with pytest.raises(RuntimeError, match="social steps"):
@@ -324,21 +309,6 @@ def test_spotify_step_respects_the_social_actions_switch(monkeypatch):
             "https://hypeddit.com/track/xngfus",
             session,
             config=StubConfig("dj@example.com", gate_social_actions=False),
-        )
-
-    session.post.assert_not_called()
-
-
-def test_unknown_spotify_gate_action_stays_manual():
-    session = session_for_gate(
-        gate_html(steps="sp", spotify_value="PLAYLIST|abc")
-    )
-
-    with pytest.raises(RuntimeError, match="browser completion"):
-        resolve_hypeddit_download_url(
-            "https://hypeddit.com/track/unknown",
-            session,
-            config=StubConfig("dj@example.com"),
         )
 
     session.post.assert_not_called()
@@ -448,24 +418,6 @@ def test_duxnbass_fixture_is_a_removable_hub_with_only_purchase_stores():
         "bandcamp",
         "beatport",
     }
-
-
-def test_real_spotify_art_and_three_part_play_values_are_parsed():
-    art = gates.inspect_hypeddit_html(
-        "https://hypeddit.com/track/art",
-        fixture_html("hypeddit_spotify_art.html"),
-    )
-    play = gates.inspect_hypeddit_html(
-        "https://hypeddit.com/track/play",
-        fixture_html("hypeddit_spotify_play.html"),
-    )
-
-    assert gates._spotify_uris(art.manifest) == [
-        "spotify:artist:0oVDzp5DK2caqb6FuL2mhp"
-    ]
-    assert gates._spotify_uris(play.manifest) == [
-        "spotify:playlist:7utX94fPdnTQ4lab0UA999"
-    ]
 
 
 def test_a_recognised_empty_smartlink_is_still_a_hub():
@@ -666,26 +618,6 @@ def test_all_social_click_through_steps_are_skipped_without_external_requests():
         "yt",
     ]
     assert len(session.post.call_args_list) == 1
-
-
-def test_spotify_failure_is_typed_as_auth_before_hypeddit_posts(monkeypatch):
-    session = session_for_gate(
-        gate_html(steps="sp", spotify_value="ART|0oVDzp5DK2caqb6FuL2mhp")
-    )
-    monkeypatch.setattr(
-        spotify,
-        "save_uris",
-        lambda _uris: (_ for _ in ()).throw(spotify.SpotifyError("scope missing")),
-    )
-
-    with pytest.raises(gates.GateAuthenticationRequired):
-        resolve_hypeddit_download_url(
-            "https://hypeddit.com/track/spotify-auth",
-            session,
-            config=StubConfig("dj@example.com"),
-        )
-
-    session.post.assert_not_called()
 
 
 def test_social_steps_stop_before_any_post_when_they_were_refused():

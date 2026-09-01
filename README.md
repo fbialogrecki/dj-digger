@@ -25,8 +25,7 @@ dj-digger https://soundcloud.com/someone/sets/that-playlist
 - **🎶 In-Memory Audio Preview**: Zero-latency streaming and seeking powered by `miniaudio`. Pre-fetches upcoming tracks and renders dynamic 16-level block waveforms with reactive audio level meters.
 - **📦 Multi-Crate Local Library**: Save dig sessions as local crates in `~/.local/share/dj-digger/digger.db`. Switch, refresh, or search across crates seamlessly.
 - **🧠 Cross-Crate Track Memory**: Track decisions (`got it` / `skipped`) are stored globally by SoundCloud track ID. Buying a track once marks it across all future playlists.
-- **🔓 Download Gate Automation**: Resolves follow-to-download gates (Hypeddit, ToneDen, GateRush, Droploud) through their supported download flows. SoundCloud, Instagram, YouTube and similar link steps are click-through markers: the app does not call their follow, like, repost, comment APIs or open external social links to simulate a click. A gate may receive the name or email configured in Settings when its manifest requires them, and an explicit Spotify ART/PLAY step can modify the user's Spotify library after OAuth. CAPTCHA and unknown provider steps remain manual in the private Chromium profile. Gate automation remains subject to the provider's terms.
-- **🔐 Spotify Gate Login**: Hypeddit gates that explicitly require saving a Spotify artist or public playlist can use an optional one-time PKCE login. No Spotify client secret is stored, and disabling gate social actions keeps these gates manual.
+- **🔓 Download Gate Automation**: Resolves follow-to-download gates (Hypeddit, ToneDen, GateRush, Droploud) through their supported download flows. SoundCloud, Instagram, YouTube and similar link steps are click-through markers: the app does not call their follow, like, repost, comment APIs or open external social links to simulate a click. A gate may receive the name or email configured in Settings when its manifest requires them. Spotify steps are reported like the other click-throughs: Hypeddit clears them through its own Spotify app, so no Spotify login is needed or used. CAPTCHA and unknown provider steps remain manual in the private Chromium profile. Gate automation remains subject to the provider's terms.
 - **🔗 Link-Hub Expansion**: A purchase link that turns out to be a list of shops rather than a download—an ampsuite release page, a gate running in smart-link mode—is opened, and the Bandcamp and Beatport links behind it are added to the track directly instead of a `gate` badge.
 - **🛒 Store Purchase Assistance**: An optional, user-triggered flow verifies Bandcamp additions and prepares Beatport tracks as an importable playlist. Login, playlist transfer, and checkout stay manual.
 - **🆕 New Since Last Refresh**: Refreshing a crate marks whatever the playlist gained with `NEW` and sorts it to the top.
@@ -276,45 +275,17 @@ name and email before it submits the gate. It explains who receives those data,
 rejects placeholders and malformed addresses, and retries only the downloads
 that were waiting for the profile. Cancelling sends no retry request.
 
-### Spotify-backed download gates
+### Spotify steps on download gates
 
-Some Hypeddit gates require following an artist or public playlist on Spotify. The first command
-opens the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
-and walks you through creating a Web API app. Add this exact redirect URI:
+Hypeddit gates that show a Spotify step are handled like the other click-through
+steps: the gate clears that step through Hypeddit's own Spotify app and server
+session, so nothing dj-digger could do with your Spotify account would reach it.
+Releases before 1.0 asked for a Spotify developer app and stored a login in
+`~/.config/dj-digger/spotify.json`; that file is no longer read, and you can
+delete it yourself.
 
-```text
-http://127.0.0.1:43821/callback
-```
-
-Then paste the public Client ID when prompted. `--client-id` remains available
-for scripts and skips the Dashboard step:
-
-```bash
-dj-digger auth spotify login
-dj-digger auth spotify login --client-id YOUR_CLIENT_ID
-dj-digger auth spotify status
-```
-
-The login uses Authorization Code with PKCE and requests only
-`user-follow-modify playlist-modify-public`. It listens temporarily on the fixed loopback callback
-above; if port `43821` is occupied it stops before opening the authorization
-page. A Client Secret is neither requested nor stored. Credentials stay in the
-owner-only `~/.config/dj-digger/spotify.json`. See
-Spotify's [redirect URI rules](https://developer.spotify.com/documentation/web-api/concepts/redirect_uri)
-and [PKCE guide](https://developer.spotify.com/documentation/web-api/tutorials/code-pkce-flow).
-
-Disable **gate social actions** in Settings to prevent the program from changing
-Spotify or SoundCloud. Gates requiring those actions will then remain manual.
-Spotify development apps currently require the owner to have Premium and allow
-up to five authenticated, allowlisted users; each dj-digger user should normally
-supply their own Client ID. See Spotify's current
-[quota modes](https://developer.spotify.com/documentation/web-api/concepts/quota-modes).
-
-Remove the saved login with:
-
-```bash
-dj-digger auth spotify logout
-```
+Disable **gate social actions** in Settings to keep the program from reporting
+any social step at all. Gates requiring those actions will then remain manual.
 
 ---
 

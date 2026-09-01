@@ -26,7 +26,7 @@ from rich.progress import (
 )
 from rich.table import Table
 
-from . import __version__, library, links, soundcloud, spotify
+from . import __version__, library, links, soundcloud
 from . import auth as auth_module
 from . import browser as browser_module
 from . import dig as dig_module
@@ -174,16 +174,6 @@ def build_parser() -> argparse.ArgumentParser:
     auth_sub.add_parser("logout", help="Remove saved credentials.")
     auth_sub.add_parser("status", help="Show current authentication status.")
 
-    spotify_auth = auth_sub.add_parser(
-        "spotify", help="Manage Spotify gate authentication."
-    )
-    spotify_sub = spotify_auth.add_subparsers(dest="spotify_action", required=True)
-    spotify_login = spotify_sub.add_parser("login", help="Log in to Spotify with PKCE.")
-    spotify_login.add_argument(
-        "--client-id", help="Spotify developer app client ID."
-    )
-    spotify_sub.add_parser("status", help="Show Spotify authentication status.")
-    spotify_sub.add_parser("logout", help="Remove saved Spotify credentials.")
     _add_shared_arguments(auth_cmd)
 
     return parser
@@ -405,8 +395,6 @@ def handle_auth(args: argparse.Namespace) -> int:
     console = Console()
     # No action given means status; argparse leaves auth_action as None then.
     action = getattr(args, "auth_action", None) or "status"
-    if action == "spotify":
-        return _auth_spotify(args, console)
     if action == "login":
         return _auth_login(args, console)
     if action == "logout":
@@ -414,44 +402,6 @@ def handle_auth(args: argparse.Namespace) -> int:
         console.print("[green]Logged out. Saved SoundCloud credentials removed.[/green]")
         return 0
     return _auth_status(console)
-
-
-def _auth_spotify(args: argparse.Namespace, console: Console) -> int:
-    spotify_action = args.spotify_action
-    if spotify_action == "login":
-        config = AppConfig()
-        client_id = (getattr(args, "client_id", None) or "").strip()
-        if not client_id:
-            client_id = str(spotify.load_credentials().get("client_id") or "").strip()
-        if not client_id:
-            if not sys.stdin.isatty():
-                console.print(
-                    "[red]Spotify Client ID is required without an interactive "
-                    "terminal; use --client-id CLIENT_ID.[/red]"
-                )
-                return 1
-            console.print("Create a Spotify Web API app in the Developer Dashboard.")
-            console.print("Add this exact Redirect URI:")
-            console.print(f"  [bold]{spotify.REDIRECT_URI}[/bold]")
-            console.print("Client Secret is not needed.")
-            browser_module.open_url(spotify.DASHBOARD_URL, config.browser)
-            client_id = input("Paste Spotify Client ID: ").strip()
-            if not client_id:
-                console.print("[red]Spotify Client ID cannot be empty.[/red]")
-                return 1
-        spotify.login(client_id, browser=config.browser)
-        console.print("[green]Spotify login saved.[/green]")
-        return 0
-    if spotify_action == "logout":
-        spotify.clear_credentials()
-        console.print("[green]Spotify credentials removed.[/green]")
-        return 0
-    credentials = spotify.load_credentials()
-    if credentials.get("refresh_token"):
-        console.print("[green]Spotify authentication: configured.[/green]")
-    else:
-        console.print("[yellow]Spotify authentication: not configured.[/yellow]")
-    return 0
 
 
 def _auth_login(args: argparse.Namespace, console: Console) -> int:

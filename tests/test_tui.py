@@ -56,7 +56,7 @@ def run(scenario):
 @pytest.mark.parametrize(
     ("error", "group"),
     [
-        (gates.GateAuthenticationRequired("Spotify"), "auth"),
+        (gates.GateAuthenticationRequired("Deezer"), "auth"),
         (gates.GateCaptchaRequired("captcha"), "captcha"),
         (gates.GateManualActionRequired("future"), "manual"),
         (gates.GateProtocolChanged("changed"), "protocol"),

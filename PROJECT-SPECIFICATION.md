@@ -5,8 +5,8 @@
 - Product version verified: 0.15.0
 - Owner: Filip Białogrecki
 - Updated: 2026-08-28
-- Document lines: <!-- SPEC TOTAL LINES -->997<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->997<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->971<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->971<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -45,70 +45,68 @@ subsection; ordinary emphasized text is never promoted into the map.
 <!-- BEGIN GENERATED SECTION MAP -->
 | § | Section | Lines |
 | --- | --- | --- |
-| 1 | Specification governance | 114–142 |
-| 1.1 | ↳ Authority and scope | 116–128 |
-| 1.2 | ↳ Update contract | 129–142 |
-| 2 | Product purpose and execution modes | 143–175 |
-| 2.1 | ↳ Problem and product boundary | 145–156 |
-| 2.2 | ↳ Execution modes | 157–175 |
-| 3 | User-visible capabilities | 176–372 |
-| 3.1 | ↳ Track collection and saved HTML | 178–197 |
-| 3.2 | ↳ Link classification and exports | 198–216 |
-| 3.3 | ↳ TUI crate library and interaction | 217–255 |
-| 3.4 | ↳ Audio preview | 256–292 |
-| 3.5 | ↳ Downloads and local-file matching | 293–320 |
-| 3.6 | ↳ Store purchase assistance | 321–372 |
-| 4 | System context and data flow | 373–410 |
-| 4.1 | ↳ Context diagram | 375–397 |
-| 4.2 | ↳ Collection-to-library flow | 398–410 |
-| 5 | Repository layout and component ownership | 411–451 |
-| 5.1 | ↳ Entry, orchestration, and models | 413–423 |
-| 5.2 | ↳ Network and external-system adapters | 424–437 |
-| 5.3 | ↳ Persistence, local media, and UI | 438–451 |
-| 6 | Runtime architecture and environments | 452–522 |
-| 6.1 | ↳ Runtime and dependencies | 454–467 |
-| 6.2 | ↳ Concurrency and lifecycle | 468–507 |
-| 6.3 | ↳ Local paths and environment variables | 508–522 |
-| 7 | Data model and persistence | 523–586 |
-| 7.1 | ↳ Domain objects and identity | 525–536 |
-| 7.2 | ↳ SQLite schema and invariants | 537–560 |
-| 7.3 | ↳ Crate persistence and deletion | 561–572 |
-| 7.4 | ↳ Configuration and credential stores | 573–586 |
-| 8 | Public interfaces and contracts | 587–632 |
-| 8.1 | ↳ CLI arguments and exit behavior | 589–610 |
-| 8.2 | ↳ JSON and CSV summary input | 611–623 |
-| 8.3 | ↳ URL-opening contract | 624–632 |
-| 9 | Authentication and authorization | 633–679 |
-| 9.1 | ↳ SoundCloud authentication | 635–652 |
-| 9.2 | ↳ Spotify PKCE and scopes | 653–664 |
-| 9.3 | ↳ Gate action consent | 665–679 |
-| 10 | External integrations | 680–784 |
-| 10.1 | ↳ SoundCloud API and media | 682–693 |
-| 10.2 | ↳ Link hubs and download gates | 694–725 |
-| 10.2 · block | ↳ ↳ Hypeddit | 702–711 |
-| 10.2 · block | ↳ ↳ Other resolvers | 713–718 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 720–725 |
-| 10.3 | ↳ Browsers and clipboard | 726–737 |
-| 10.4 | ↳ Spotify | 738–744 |
-| 10.5 | ↳ Bandcamp cart and Beatport playlists | 745–784 |
-| 11 | Security requirements and threat model | 785–831 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 787–805 |
-| 11.2 | ↳ Secret and personal-data handling | 806–818 |
-| 11.3 | ↳ File and mutation safety | 819–831 |
-| 12 | Privacy, lifecycle, and retention | 832–868 |
-| 12.1 | ↳ Data stored locally | 834–847 |
-| 12.2 | ↳ Data sent to third parties | 848–860 |
-| 12.3 | ↳ User-controlled deletion | 861–868 |
-| 13 | Failure behavior and current limitations | 869–918 |
-| 13.1 | ↳ Error isolation and reporting | 871–890 |
-| 13.2 | ↳ Confirmed limitations | 891–918 |
-| 14 | Verification, CI, and release | 919–975 |
-| 14.1 | ↳ Offline and live test suites | 921–944 |
-| 14.2 | ↳ Continuous integration and publishing | 945–960 |
-| 14.3 | ↳ Specification-map verification | 961–975 |
-| 15 | Evidence and operational references | 976–997 |
-| 15.1 | ↳ Primary implementation evidence | 978–990 |
-| 15.2 | ↳ User and historical documentation | 991–997 |
+| 1 | Specification governance | 112–140 |
+| 1.1 | ↳ Authority and scope | 114–126 |
+| 1.2 | ↳ Update contract | 127–140 |
+| 2 | Product purpose and execution modes | 141–173 |
+| 2.1 | ↳ Problem and product boundary | 143–154 |
+| 2.2 | ↳ Execution modes | 155–173 |
+| 3 | User-visible capabilities | 174–370 |
+| 3.1 | ↳ Track collection and saved HTML | 176–195 |
+| 3.2 | ↳ Link classification and exports | 196–214 |
+| 3.3 | ↳ TUI crate library and interaction | 215–253 |
+| 3.4 | ↳ Audio preview | 254–290 |
+| 3.5 | ↳ Downloads and local-file matching | 291–318 |
+| 3.6 | ↳ Store purchase assistance | 319–370 |
+| 4 | System context and data flow | 371–407 |
+| 4.1 | ↳ Context diagram | 373–394 |
+| 4.2 | ↳ Collection-to-library flow | 395–407 |
+| 5 | Repository layout and component ownership | 408–446 |
+| 5.1 | ↳ Entry, orchestration, and models | 410–420 |
+| 5.2 | ↳ Network and external-system adapters | 421–432 |
+| 5.3 | ↳ Persistence, local media, and UI | 433–446 |
+| 6 | Runtime architecture and environments | 447–517 |
+| 6.1 | ↳ Runtime and dependencies | 449–462 |
+| 6.2 | ↳ Concurrency and lifecycle | 463–502 |
+| 6.3 | ↳ Local paths and environment variables | 503–517 |
+| 7 | Data model and persistence | 518–580 |
+| 7.1 | ↳ Domain objects and identity | 520–531 |
+| 7.2 | ↳ SQLite schema and invariants | 532–555 |
+| 7.3 | ↳ Crate persistence and deletion | 556–567 |
+| 7.4 | ↳ Configuration and credential stores | 568–580 |
+| 8 | Public interfaces and contracts | 581–624 |
+| 8.1 | ↳ CLI arguments and exit behavior | 583–602 |
+| 8.2 | ↳ JSON and CSV summary input | 603–615 |
+| 8.3 | ↳ URL-opening contract | 616–624 |
+| 9 | Authentication and authorization | 625–660 |
+| 9.1 | ↳ SoundCloud authentication | 627–644 |
+| 9.2 | ↳ Gate action consent | 645–660 |
+| 10 | External integrations | 661–758 |
+| 10.1 | ↳ SoundCloud API and media | 663–674 |
+| 10.2 | ↳ Link hubs and download gates | 675–706 |
+| 10.2 · block | ↳ ↳ Hypeddit | 683–692 |
+| 10.2 · block | ↳ ↳ Other resolvers | 694–699 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 701–706 |
+| 10.3 | ↳ Browsers and clipboard | 707–718 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 719–758 |
+| 11 | Security requirements and threat model | 759–805 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 761–779 |
+| 11.2 | ↳ Secret and personal-data handling | 780–792 |
+| 11.3 | ↳ File and mutation safety | 793–805 |
+| 12 | Privacy, lifecycle, and retention | 806–842 |
+| 12.1 | ↳ Data stored locally | 808–821 |
+| 12.2 | ↳ Data sent to third parties | 822–833 |
+| 12.3 | ↳ User-controlled deletion | 834–842 |
+| 13 | Failure behavior and current limitations | 843–892 |
+| 13.1 | ↳ Error isolation and reporting | 845–864 |
+| 13.2 | ↳ Confirmed limitations | 865–892 |
+| 14 | Verification, CI, and release | 893–949 |
+| 14.1 | ↳ Offline and live test suites | 895–918 |
+| 14.2 | ↳ Continuous integration and publishing | 919–934 |
+| 14.3 | ↳ Specification-map verification | 935–949 |
+| 15 | Evidence and operational references | 950–971 |
+| 15.1 | ↳ Primary implementation evidence | 952–964 |
+| 15.2 | ↳ User and historical documentation | 965–971 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -152,7 +150,7 @@ saved-HTML path for private, unlisted, or otherwise inaccessible pages.
 
 The application helps the user inspect, open, download, classify, audition, and
 remember tracks. It does not purchase products or complete checkout. Gate and
-store behavior is limited to the provider flows described in §§10.2 and 10.5.
+store behavior is limited to the provider flows described in §§10.2 and 10.4.
 
 ### 2.2 Execution modes
 
@@ -166,7 +164,7 @@ modes are implemented:
   saved-HTML file. A missing target is valid only when the TUI can ask for one.
 - `dj-digger open SUMMARY` reads an exported JSON summary, displays it, and
   either opens selected links or imports the partial data into the TUI.
-- `dj-digger auth ...` manages SoundCloud and Spotify credentials.
+- `dj-digger auth ...` manages SoundCloud credentials.
 - `python -m dj_digger` delegates to the same CLI entry point.
 
 The TUI is a local process. Network, disk scan, download, playback preparation,
@@ -387,11 +385,10 @@ flowchart LR
     CLI --> PLAYER[In-memory audio player]
     PLAYER --> SC
     CLI --> FILES[Configured music and download folders]
-    CLI --> SPOTIFY[Spotify OAuth and library API]
     CLI --> STORES[Bandcamp cart / Beatport playlist lookup]
 ```
 
-All durable application state is local. SoundCloud, gate providers, Spotify,
+All durable application state is local. SoundCloud, gate providers,
 stores, and link destinations are third-party systems. No application data is
 synchronized to a repository-owned backend.
 
@@ -429,8 +426,6 @@ crate record.
   per-track page fallback.
 - `dj_digger/gates.py` owns link-hub inspection, gate protocols, typed gate
   failures, and manual Hypeddit Chromium fallback.
-- `dj_digger/spotify.py` owns Spotify PKCE credentials, refresh, scopes, and the
-  library writes requested by supported Hypeddit steps.
 - `dj_digger/browser.py` owns URL handoff policy, browser selection, and WSL
   bridging. `dj_digger/cart.py` separately owns Playwright lifecycle and store
   cart safety.
@@ -578,8 +573,7 @@ The default email uses the reserved `.invalid` domain. A first missing config is
 created and marks the launch as first-run.
 
 `auth.json` stores a verified SoundCloud OAuth token with username and user ID.
-`spotify.json` stores Spotify client ID, access and refresh tokens, expiry, and
-granted scopes. JSON writes use a 0600 temporary file, atomic replacement, and an
+JSON writes use a 0600 temporary file, atomic replacement, and an
 attempt to restrict the containing directory to 0700. Managed SoundCloud and
 store Chromium profiles are separate directories under the data path and are
 restricted to 0700 on non-Windows systems.
@@ -599,9 +593,7 @@ because Textual draws the interface on standard error. Dig adds
 default), and HTML fallback `--delay` (0.5 seconds by default). Open adds
 `--category`, `--skip`, `--limit`, `--no-open`, and a summary path.
 
-SoundCloud auth actions are `login [--token]`, `logout`, and `status`. Spotify
-auth actions are `spotify login [--client-id]`, `spotify logout`, and
-`spotify status`.
+SoundCloud auth actions are `login [--token]`, `logout`, and `status`.
 
 Success returns 0. An empty dig returns 1. Caught file, value, and runtime errors
 return 2. Keyboard interruption returns 130; a TUI exit forced after the thread
@@ -650,19 +642,7 @@ encrypted. Candidate tokens are verified with SoundCloud `/me` before saving.
 until it is unset or changed. Logout deletes `auth.json`; it does not delete the
 managed browser profile or an environment variable.
 
-### 9.2 Spotify PKCE and scopes
-
-Spotify login uses Authorization Code with PKCE, a random verifier and state, and
-a one-request HTTP server bound to `127.0.0.1:43821/callback`. The configured
-scopes are `user-follow-modify playlist-modify-public`; no client secret is
-requested or stored. State and callback path are verified before exchanging the
-code. Access tokens are refreshed with 30 seconds of expiry slack.
-
-Before a gate-triggered write, requested URIs are restricted to 22-character
-Spotify artist or playlist identifiers and the stored granted scopes are checked.
-Each URI is sent in a separate non-retrying PUT. Logout deletes `spotify.json`.
-
-### 9.3 Gate action consent
+### 9.2 Gate action consent
 
 The configuration flag `gate_social_actions` defaults to true and is user-editable
 in Settings. When false, Hypeddit gates declaring non-email steps fail with a
@@ -671,10 +651,11 @@ comment. Gates that require a real email fail before submission while the
 reserved placeholder remains configured.
 
 Hypeddit click-through steps for SoundCloud, YouTube, Instagram, Twitter,
-Facebook, TikTok, Bandcamp, Mixcloud, Dailymotion, and Messenger are reported to
-the gate as completed without calling those providers or opening their social
-links. Supported Spotify `ART`/`PLAY` steps call the Spotify integration.
-Deezer, Apple Music, Threads, CAPTCHA, and unknown steps require browser/manual
+Facebook, TikTok, Bandcamp, Mixcloud, Dailymotion, Messenger, and Spotify are
+reported to the gate as completed without calling those providers or opening
+their social links; Hypeddit clears its Spotify step through its own OAuth
+application and server session, which nothing done with a user's own Spotify
+login could satisfy. Deezer, Apple Music, Threads, CAPTCHA, and unknown steps require browser/manual
 completion rather than being simulated.
 
 ## 10. External integrations
@@ -735,14 +716,7 @@ lookup, and managed gate browser completion. If the matching browser binary is
 missing, the TUI may offer a user-confirmed
 `python -m playwright install chromium` operation.
 
-### 10.4 Spotify
-
-Spotify authorization and token exchange use `accounts.spotify.com`; supported
-gate library writes target `https://api.spotify.com/v1/me/library`. The loopback
-callback is temporary and handles one request. Credential persistence and scope
-checks are described in §§7.4 and 9.2.
-
-### 10.5 Bandcamp cart and Beatport playlists
+### 10.4 Bandcamp cart and Beatport playlists
 
 Only canonical HTTPS store domains, no embedded credentials, and port 443/default
 are accepted. A plain HTTP link is upgraded to HTTPS only after the exact store
@@ -809,7 +783,7 @@ Secrets and profile data are never stored in the repository by application code.
 Token/profile JSON writes are private-before-write temporary files followed by
 atomic replacement. Passwords are entered only in provider-owned browser pages;
 the SoundCloud managed login copies only the verified `oauth_token` to
-`auth.json`. Spotify uses PKCE and stores no client secret.
+`auth.json`.
 
 Browser preferences cannot name arbitrary commands. Subprocess calls use
 argument arrays and `shell=False`; the PowerShell URL boundary is described in
@@ -825,7 +799,7 @@ partial files are removed on failure. Declared and observed sizes are limited to
 2 GiB, and HTML bodies are rejected.
 
 Store-cart writes require exact-item preflight and immediate revalidation.
-Spotify writes validate identifier form and granted scope. Network write calls
+Network write calls
 are not configured with automatic retry adapters when duplication could mutate
 third-party state.
 
@@ -851,8 +825,7 @@ SoundCloud receives public collection/media requests and, when configured, the
 OAuth token for authenticated API calls. Link hubs, gates, stores, and download
 hosts receive ordinary HTTP request metadata. A gate may receive the configured
 name, real email, and comment only in the provider flows described in §10.2.
-Spotify receives OAuth exchanges and validated library writes for supported gate
-steps. Store sites receive browser navigation, Bandcamp login performed by the
+Store sites receive browser navigation, Bandcamp login performed by the
 user, and verified Bandcamp add-to-cart actions. Soundiiz receives no request
 until the user chooses the Beatport playlist result; its partner page then
 receives ordinary browser metadata, and playlist contents are pasted or uploaded
@@ -860,8 +833,9 @@ only by the user.
 
 ### 12.3 User-controlled deletion
 
-`auth logout` deletes saved SoundCloud `auth.json`; `auth spotify logout` deletes
-saved `spotify.json`; crate deletion removes a crate row. The repository provides
+`auth logout` deletes saved SoundCloud `auth.json`; crate deletion removes a
+crate row. A `spotify.json` left by a release before 1.0 is not read or deleted
+by the application. The repository provides
 no command that deletes all database state, configuration, client-ID cache,
 managed browser profiles, downloads, generated Beatport playlists, or indexed
 source media. Removing those artifacts is outside current application commands.
@@ -910,8 +884,8 @@ as player events instead of escaping through Python-CFFI.
 - Bandcamp autocomplete can recover many moved or cross-label products, but it
   cannot guarantee discovery when the visible result set omits the track. Full
   search pages that require CAPTCHA remain manual.
-- Unsupported gate steps, CAPTCHA, external OAuth providers other than the
-  implemented Spotify path, and changed provider protocols require manual action.
+- Unsupported gate steps, CAPTCHA, provider OAuth steps (Deezer, Apple Music,
+  Threads), and changed provider protocols require manual action.
 - A cancelled dig or download batch lets requests already in flight finish
   their own timeout before the worker returns.
 - The application has no automatic full-data deletion or retention scheduler.
@@ -983,7 +957,7 @@ markers, unowned named blocks, or absent numbered headings are explicit errors.
   `dj_digger/html_fallback.py`, `dj_digger/dig.py`, `dj_digger/links.py`.
 - Local state: `dj_digger/models.py`, `dj_digger/db.py`, `dj_digger/state.py`,
   `dj_digger/library.py`, `dj_digger/config.py`, `dj_digger/scanner.py`.
-- Authentication and integrations: `dj_digger/auth.py`, `dj_digger/spotify.py`,
+- Authentication and integrations: `dj_digger/auth.py`,
   `dj_digger/gates.py`, `dj_digger/browser.py`, `dj_digger/cart.py`.
 - UI and playback: `dj_digger/player.py`, `dj_digger/tui/`.
 - Verification and release: `tests/`, `pyproject.toml`, `.github/workflows/`.

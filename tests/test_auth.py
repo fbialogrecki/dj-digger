@@ -9,7 +9,7 @@ from dj_digger import auth
 
 
 def test_private_json_writer_is_atomic_and_owner_only(tmp_path):
-    target = tmp_path / "credentials" / "spotify.json"
+    target = tmp_path / "credentials" / "auth.json"
 
     auth.write_private_json(target, {"refresh_token": "secret"})
 

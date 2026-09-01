@@ -18,7 +18,6 @@ from typing import Any
 import requests
 from bs4 import BeautifulSoup
 
-from . import spotify
 from .browser import is_fetchable
 from .html_fallback import normalize_link
 from .links import HYPEDDIT_HOSTS, SHOP_CATEGORIES, host_of, redact_url, store_for_url
@@ -188,8 +187,12 @@ def _log_gate_failure(provider: str, url: str, exc: Exception) -> None:
     )
 
 
+# Steps the desktop flow reports as done without calling the provider. "sp" is
+# here too: Hypeddit completes its Spotify step through its own OAuth app and
+# server session, so nothing this program could do with a user's own Spotify
+# login would ever reach the gate - the integration that tried was removed.
 CLICK_THROUGH_STEPS = frozenset(
-    {"sc", "yt", "ig", "tw", "fb", "tk", "bc", "mc", "dn", "fbmsgr"}
+    {"sc", "yt", "ig", "tw", "fb", "tk", "bc", "mc", "dn", "fbmsgr", "sp"}
 )
 PROVIDER_OAUTH_STEPS = {"dz": "Deezer", "ap": "Apple Music", "th": "Threads"}
 # RLock: manifest resolution recurses into nested gates on the same thread
@@ -410,29 +413,6 @@ def inspect_hypeddit_html(url: str, text: str) -> HypedditInspection:
     )
 
 
-def _spotify_uris(manifest: HypedditManifest) -> list[str]:
-    uris: list[str] = []
-    for raw in manifest.fields.get("additional_sp_user_id[]", ()):
-        parts = raw.split("|")
-        kind = parts[0] if parts else ""
-        if kind == "ART" and len(parts) == 2:
-            spotify_id = parts[1]
-            uri_kind = "artist"
-        elif kind == "PLAY" and len(parts) in {2, 3}:
-            if len(parts) == 3 and not re.fullmatch(r"[A-Za-z0-9_-]+", parts[1]):
-                raise GateManualActionRequired("sp")
-            spotify_id = parts[-1]
-            uri_kind = "playlist"
-        else:
-            raise GateManualActionRequired("sp")
-        if not re.fullmatch(r"[A-Za-z0-9]{22}", spotify_id):
-            raise GateManualActionRequired("sp")
-        uris.append(f"spotify:{uri_kind}:{spotify_id}")
-    if not uris:
-        raise GateAuthenticationRequired("Spotify")
-    return uris
-
-
 def resolve_hypeddit_download_url(
     url: str,
     session: requests.Session,
@@ -510,12 +490,6 @@ def _complete_social_steps(manifest: HypedditManifest, social_steps: list[str]) 
     completed: list[str] = []
     for step in social_steps:
         if step in CLICK_THROUGH_STEPS:
-            completed.append(step)
-        elif step == "sp":
-            try:
-                spotify.save_uris(_spotify_uris(manifest))
-            except spotify.SpotifyError as exc:
-                raise GateAuthenticationRequired("Spotify") from exc
             completed.append(step)
         elif step in PROVIDER_OAUTH_STEPS:
             raise GateAuthenticationRequired(PROVIDER_OAUTH_STEPS[step])
