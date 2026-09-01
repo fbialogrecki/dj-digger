@@ -139,6 +139,7 @@ class HelpScreen(_Modal[None]):
         yield Footer()
 
     def _body(self) -> Text:
+        muted = getattr(self.app, "muted", "bright_black")
         body = Text()
         sections = (SELECTED, PLAYBACK, WHOLE_LIST, CRATES, OTHER)
         for section in sections:
@@ -153,7 +154,7 @@ class HelpScreen(_Modal[None]):
                 continue
             body.append(section + "\n", style="bold")
             if HELP_SCOPES[section]:
-                body.append(f"  {HELP_SCOPES[section]}\n", style="bright_black")
+                body.append(f"  {HELP_SCOPES[section]}\n", style=muted)
             for key, label in entries:
                 body.append(f"  {key:<10}", style="cyan")
                 body.append(f"{label}\n")
@@ -167,6 +168,7 @@ class HelpScreen(_Modal[None]):
         body.append(f"  {'NEW':<10}", style="bold yellow")
         body.append("added by the last refresh\n")
         for glyph, style, meaning in STATUS_STYLES.values():
+            style = muted if style == "bright_black" else style
             body.append(f"  {glyph:<10}", style=style)
             body.append(f"{meaning}\n")
         return body
@@ -780,6 +782,13 @@ class SettingsScreen(_Modal[None]):
             with Horizontal(id="settings-columns"):
                 for name, header, _width in OPTIONAL_COLUMN_SPECS:
                     yield Checkbox(header, value=name in self.config.columns, id=f"column-{name}")
+            yield Label("Theme:", classes="settings-label")
+            themes = sorted(self.app.available_themes)
+            yield Select(
+                [(name, name) for name in themes],
+                value=self.app.theme if self.app.theme in themes else Select.BLANK,
+                id="input-theme",
+            )
             yield Label("Open links with:", classes="settings-label")
             # Only what this machine reported. The saved value names a program
             # that gets executed, so the list is the whitelist.
@@ -841,10 +850,16 @@ class SettingsScreen(_Modal[None]):
                 if self.query_one(f"#column-{name}", Checkbox).value
             ]
 
+            theme = self.query_one("#input-theme", Select).value
+            if isinstance(theme, str) and theme:
+                self.config.theme = theme
+
             self.config.first_run = False
             self.config.save()
             self.app.notify("Settings saved!", timeout=4)
             self.dismiss()
+            if isinstance(theme, str) and theme and self.app.theme != theme:
+                self.app.theme = theme
             if self.config.columns != columns_before:
                 self.app.rebuild_columns()
         else:

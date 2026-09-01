@@ -37,6 +37,7 @@ PERSISTED_FIELDS = (
     "download_directory",
     "gate_social_actions",
     "columns",
+    "theme",
 )
 
 # Optional track-table columns, in the order they appear when switched on.
@@ -82,6 +83,8 @@ class AppConfig:
         # Which of OPTIONAL_COLUMNS the track table shows. Off by default: the
         # title column is what an 80-column terminal has room for.
         self.columns: list[str] = []
+        # Textual theme name; empty means Textual's default.
+        self.theme: str = ""
         # True when there was no config file to read, i.e. this is the first
         # launch. The TUI uses it to ask for the settings before anything needs
         # them - gates submit the name and email without asking again.
@@ -112,6 +115,7 @@ class AppConfig:
                     self.download_directory = download_dir
                 if "gate_social_actions" in raw:
                     self.gate_social_actions = bool(raw["gate_social_actions"])
+                self.theme = str(raw.get("theme") or "").strip()
                 columns = raw.get("columns")
                 if isinstance(columns, list):
                     self.columns = [

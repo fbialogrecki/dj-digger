@@ -33,6 +33,7 @@ from .keymap import (
     TIME_WIDTH,
 )
 from .rows import Row
+from .theme import FALLBACK_MUTED
 from .widgets import TrackTable
 
 LOGGER = logging.getLogger(__name__)
@@ -54,7 +55,7 @@ class RenderMixin:
                 host = links_module.host_of(record.link_url)
                 name = "\u2193gate" if free else "gate"
                 if record is not opening:
-                    style = "bright_black"
+                    style = self.muted
                 elif free:
                     style = "bold green"
                 else:
@@ -62,7 +63,7 @@ class RenderMixin:
                 badges.append(name, style=style)
                 if host and host != "gate":
                     clean_host = host.rpartition(".")[0] or host
-                    badges.append(f"({clean_host})", style="bright_black")
+                    badges.append(f"({clean_host})", style=self.muted)
             else:
                 if record.category in DOMAIN_BADGE_CATEGORIES:
                     name = links_module.host_of(record.link_url) or record.category
@@ -72,11 +73,11 @@ class RenderMixin:
                     name = record.category
 
                 if record is not opening:
-                    style = "bright_black"
+                    style = self.muted
                 elif free:
                     style = "bold green"
                 elif record.link_text == links_module.NO_STORE_LINK:
-                    style = "bright_black"
+                    style = self.muted
                 else:
                     style = "bold cyan"
                 badges.append(name, style=style)
@@ -94,8 +95,9 @@ class RenderMixin:
     def _cells(self, row: Row, playing_key: str | None) -> list[Text]:
         status = self.status_of(row)
         glyph, style, _meaning = STATUS_STYLES[status]
+        style = self._themed(style)
         label_text = row.track.label
-        dim = "bright_black" if status == SKIP else ""
+        dim = self.muted if status == SKIP else ""
 
         if row.track.key in self.download_progress:
             pct = self.download_progress[row.track.key]
@@ -124,12 +126,12 @@ class RenderMixin:
         return [
             leading,
             Text(glyph, style=style),
-            Text(str(row.position), style="bright_black"),
+            Text(str(row.position), style=self.muted),
             label_cell,
             self._store_badges(row),
-            Text(row.track.genre_label or "-", style="bright_black"),
+            Text(row.track.genre_label or "-", style=self.muted),
             *self._optional_cells(row),
-            Text(row.track.duration_label or "-", style="bright_black"),
+            Text(row.track.duration_label or "-", style=self.muted),
         ]
 
     def _paint_row(self, index: int, flash: str = "") -> None:
@@ -145,6 +147,11 @@ class RenderMixin:
                 cell.stylize(flash)
             table.update_cell_at(Coordinate(index, column), cell, update_width=False)
 
+    def _themed(self, style: str) -> str:
+        """The keymap names its dim style by the terminal colour; the theme decides."""
+
+        return self.muted if style == FALLBACK_MUTED else style
+
     def enabled_columns(self) -> list[tuple[str, str, int]]:
         """The optional column specs switched on in Settings, in table order."""
 
@@ -153,7 +160,7 @@ class RenderMixin:
 
     def build_columns(self, table: TrackTable) -> None:
         table.add_column(
-            Text(LOCAL_FILE_GLYPH + PLAYING_GLYPH, style="bright_black"),
+            Text(LOCAL_FILE_GLYPH + PLAYING_GLYPH, style=self.muted),
             width=LEADING_WIDTH,
         )
         table.add_column("", width=MARK_WIDTH)
@@ -183,7 +190,7 @@ class RenderMixin:
             "label": track.label_name,
         }
         return [
-            Text(values[name] or "-", style="bright_black")
+            Text(values[name] or "-", style=self.muted)
             for name, _header, _width in self.enabled_columns()
         ]
 
@@ -291,7 +298,7 @@ class RenderMixin:
             pieces.append("hiding handled")
         if self.crate is not None and self.crate.partial:
             pieces.append("imported from a file, press r to complete it")
-        return Text(" \u00b7 ".join(pieces), style="bright_black")
+        return Text(" \u00b7 ".join(pieces), style=self.muted)
 
     def _store_line(self) -> Text:
         """The stores in this crate, numbered, so the number keys explain themselves."""
@@ -299,7 +306,7 @@ class RenderMixin:
         line = Text()
         self._badge_click_regions = []
         if not self.rows:
-            line.append("press d to dig a link", style="bright_black")
+            line.append("press d to dig a link", style=self.muted)
             return line
 
         # Counted over what the search and hide-handled left, so the legend does
@@ -317,7 +324,7 @@ class RenderMixin:
         line.append("\u25b8 " if showing_all else "  ", style="bold")
 
         start = line.cell_len
-        line.append("0 all", style="bold reverse" if showing_all else "bright_black")
+        line.append("0 all", style="bold reverse" if showing_all else self.muted)
         self._badge_click_regions.append((start, line.cell_len, 0))
 
         for index, category in enumerate(self.present, start=1):
@@ -327,7 +334,7 @@ class RenderMixin:
             label = f"{index} {category}" if index <= QUICK_FILTER_KEYS else category
             start = line.cell_len
             line.append(label, style="bold reverse cyan" if active else "cyan")
-            line.append(f"\u00b7{by_category[category]}", style="bright_black")
+            line.append(f"\u00b7{by_category[category]}", style=self.muted)
             self._badge_click_regions.append((start, line.cell_len, index))
 
         return line
@@ -339,7 +346,7 @@ class RenderMixin:
             # The row is on its way out of the list, so there is nothing to light.
             self.refresh_rows()
             return
-        self._flash_row(index, STATUS_STYLES[status][1])
+        self._flash_row(index, self._themed(STATUS_STYLES[status][1]))
         self.update_status()
 
     def _toggle_status(self, status: str, message: str) -> None:

@@ -5,8 +5,8 @@
 - Product version verified: 0.15.0
 - Owner: Filip Białogrecki
 - Updated: 2026-08-28
-- Document lines: <!-- SPEC TOTAL LINES -->992<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->992<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->995<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->995<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,62 +51,62 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 141–173 |
 | 2.1 | ↳ Problem and product boundary | 143–154 |
 | 2.2 | ↳ Execution modes | 155–173 |
-| 3 | User-visible capabilities | 174–374 |
+| 3 | User-visible capabilities | 174–376 |
 | 3.1 | ↳ Track collection and saved HTML | 176–195 |
 | 3.2 | ↳ Link classification and exports | 196–214 |
-| 3.3 | ↳ TUI crate library and interaction | 215–257 |
-| 3.4 | ↳ Audio preview | 258–294 |
-| 3.5 | ↳ Downloads and local-file matching | 295–322 |
-| 3.6 | ↳ Store purchase assistance | 323–374 |
-| 4 | System context and data flow | 375–411 |
-| 4.1 | ↳ Context diagram | 377–398 |
-| 4.2 | ↳ Collection-to-library flow | 399–411 |
-| 5 | Repository layout and component ownership | 412–452 |
-| 5.1 | ↳ Entry, orchestration, and models | 414–424 |
-| 5.2 | ↳ Network and external-system adapters | 425–438 |
-| 5.3 | ↳ Persistence, local media, and UI | 439–452 |
-| 6 | Runtime architecture and environments | 453–524 |
-| 6.1 | ↳ Runtime and dependencies | 455–468 |
-| 6.2 | ↳ Concurrency and lifecycle | 469–509 |
-| 6.3 | ↳ Local paths and environment variables | 510–524 |
-| 7 | Data model and persistence | 525–592 |
-| 7.1 | ↳ Domain objects and identity | 527–541 |
-| 7.2 | ↳ SQLite schema and invariants | 542–565 |
-| 7.3 | ↳ Crate persistence and deletion | 566–577 |
-| 7.4 | ↳ Configuration and credential stores | 578–592 |
-| 8 | Public interfaces and contracts | 593–638 |
-| 8.1 | ↳ CLI arguments and exit behavior | 595–614 |
-| 8.2 | ↳ JSON and CSV summary input | 615–629 |
-| 8.3 | ↳ URL-opening contract | 630–638 |
-| 9 | Authentication and authorization | 639–675 |
-| 9.1 | ↳ SoundCloud authentication | 641–658 |
-| 9.2 | ↳ Gate action consent | 659–675 |
-| 10 | External integrations | 676–779 |
-| 10.1 | ↳ SoundCloud API and media | 678–689 |
-| 10.2 | ↳ Link hubs and download gates | 690–727 |
-| 10.2 · block | ↳ ↳ Hypeddit | 698–713 |
-| 10.2 · block | ↳ ↳ Other resolvers | 715–720 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 722–727 |
-| 10.3 | ↳ Browsers and clipboard | 728–739 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 740–779 |
-| 11 | Security requirements and threat model | 780–826 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 782–800 |
-| 11.2 | ↳ Secret and personal-data handling | 801–813 |
-| 11.3 | ↳ File and mutation safety | 814–826 |
-| 12 | Privacy, lifecycle, and retention | 827–863 |
-| 12.1 | ↳ Data stored locally | 829–842 |
-| 12.2 | ↳ Data sent to third parties | 843–854 |
-| 12.3 | ↳ User-controlled deletion | 855–863 |
-| 13 | Failure behavior and current limitations | 864–913 |
-| 13.1 | ↳ Error isolation and reporting | 866–885 |
-| 13.2 | ↳ Confirmed limitations | 886–913 |
-| 14 | Verification, CI, and release | 914–970 |
-| 14.1 | ↳ Offline and live test suites | 916–939 |
-| 14.2 | ↳ Continuous integration and publishing | 940–955 |
-| 14.3 | ↳ Specification-map verification | 956–970 |
-| 15 | Evidence and operational references | 971–992 |
-| 15.1 | ↳ Primary implementation evidence | 973–985 |
-| 15.2 | ↳ User and historical documentation | 986–992 |
+| 3.3 | ↳ TUI crate library and interaction | 215–259 |
+| 3.4 | ↳ Audio preview | 260–296 |
+| 3.5 | ↳ Downloads and local-file matching | 297–324 |
+| 3.6 | ↳ Store purchase assistance | 325–376 |
+| 4 | System context and data flow | 377–413 |
+| 4.1 | ↳ Context diagram | 379–400 |
+| 4.2 | ↳ Collection-to-library flow | 401–413 |
+| 5 | Repository layout and component ownership | 414–454 |
+| 5.1 | ↳ Entry, orchestration, and models | 416–426 |
+| 5.2 | ↳ Network and external-system adapters | 427–440 |
+| 5.3 | ↳ Persistence, local media, and UI | 441–454 |
+| 6 | Runtime architecture and environments | 455–526 |
+| 6.1 | ↳ Runtime and dependencies | 457–470 |
+| 6.2 | ↳ Concurrency and lifecycle | 471–511 |
+| 6.3 | ↳ Local paths and environment variables | 512–526 |
+| 7 | Data model and persistence | 527–595 |
+| 7.1 | ↳ Domain objects and identity | 529–543 |
+| 7.2 | ↳ SQLite schema and invariants | 544–567 |
+| 7.3 | ↳ Crate persistence and deletion | 568–579 |
+| 7.4 | ↳ Configuration and credential stores | 580–595 |
+| 8 | Public interfaces and contracts | 596–641 |
+| 8.1 | ↳ CLI arguments and exit behavior | 598–617 |
+| 8.2 | ↳ JSON and CSV summary input | 618–632 |
+| 8.3 | ↳ URL-opening contract | 633–641 |
+| 9 | Authentication and authorization | 642–678 |
+| 9.1 | ↳ SoundCloud authentication | 644–661 |
+| 9.2 | ↳ Gate action consent | 662–678 |
+| 10 | External integrations | 679–782 |
+| 10.1 | ↳ SoundCloud API and media | 681–692 |
+| 10.2 | ↳ Link hubs and download gates | 693–730 |
+| 10.2 · block | ↳ ↳ Hypeddit | 701–716 |
+| 10.2 · block | ↳ ↳ Other resolvers | 718–723 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 725–730 |
+| 10.3 | ↳ Browsers and clipboard | 731–742 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 743–782 |
+| 11 | Security requirements and threat model | 783–829 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 785–803 |
+| 11.2 | ↳ Secret and personal-data handling | 804–816 |
+| 11.3 | ↳ File and mutation safety | 817–829 |
+| 12 | Privacy, lifecycle, and retention | 830–866 |
+| 12.1 | ↳ Data stored locally | 832–845 |
+| 12.2 | ↳ Data sent to third parties | 846–857 |
+| 12.3 | ↳ User-controlled deletion | 858–866 |
+| 13 | Failure behavior and current limitations | 867–916 |
+| 13.1 | ↳ Error isolation and reporting | 869–888 |
+| 13.2 | ↳ Confirmed limitations | 889–916 |
+| 14 | Verification, CI, and release | 917–973 |
+| 14.1 | ↳ Offline and live test suites | 919–942 |
+| 14.2 | ↳ Continuous integration and publishing | 943–958 |
+| 14.3 | ↳ Specification-map verification | 959–973 |
+| 15 | Evidence and operational references | 974–995 |
+| 15.1 | ↳ Primary implementation evidence | 976–988 |
+| 15.2 | ↳ User and historical documentation | 989–995 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -216,7 +216,9 @@ JSON summaries; YAML input is rejected with an explicit legacy-format error.
 
 `DiggerApp` composes a crate sidebar, track table, error banner, status bar,
 search input, footer, and collapsible player bar. The sidebar lists crate
-headers and loads a crate's tracks when it is selected. Settings can add BPM, key, year, and label columns between Genre and Time.
+headers and loads a crate's tracks when it is selected. Settings can add BPM, key, year, and label columns between Genre and Time and
+choose the Textual theme; secondary text takes a dim colour blended from the
+theme's foreground and background rather than the terminal's `bright_black`.
 Changes to a single
 row (a mark, an opened link, the playing marker, download progress) repaint
 that row in place; the table is rebuilt only when the visible set changes.
@@ -578,9 +580,10 @@ track states, credentials, downloads, or source media.
 ### 7.4 Configuration and credential stores
 
 `config.json` contains `user_name`, `user_email`, custom gate comments, scan
-directories, browser choice, download directory, `gate_social_actions`, and
+directories, browser choice, download directory, `gate_social_actions`,
 `columns`, the optional track-table columns (`bpm`, `key`, `year`, `label`)
-kept in canonical order with unknown names dropped.
+kept in canonical order with unknown names dropped, and `theme`, the Textual
+theme name applied at startup and saved whenever it changes.
 The default email uses the reserved `.invalid` domain. A first missing config is
 created and marks the launch as first-run.
 

@@ -44,6 +44,7 @@ from .playback import PlaybackMixin
 from .render import RenderMixin
 from .rows import Prepared, Row
 from .screens import ContextMenuScreen, HelpScreen, SettingsScreen
+from .theme import FALLBACK_MUTED, muted_for
 from .widgets import ErrorBanner, FittedFooter, SearchInput, StatusBar, TrackTable
 
 LOGGER = logging.getLogger(__name__)
@@ -265,6 +266,8 @@ class DiggerApp(
         self._narrow: bool | None = None
         self.player = Player()
         self._client: SoundCloudClient | None = None
+        # The dim style for secondary text, recomputed whenever the theme changes.
+        self._muted: str = FALLBACK_MUTED
         self._set_records(records)
 
     def compose(self) -> ComposeResult:
@@ -325,6 +328,10 @@ class DiggerApp(
     async def on_mount(self) -> None:
         table = self.query_one("#tracks", TrackTable)
         self.build_columns(table)
+        if self.config.theme in self.available_themes and self.theme != self.config.theme:
+            self.theme = self.config.theme
+        else:
+            self._muted = muted_for(self.get_css_variables())
         await self.reload_sidebar()
         if not self.rows:
             # Someone with a library wants to see it, not be interrogated.
@@ -390,6 +397,25 @@ class DiggerApp(
         if self._client is not None:
             self._client.close()
             self._client = None
+
+    @property
+    def muted(self) -> str:
+        """Rich style for secondary text under the current theme."""
+
+        return self._muted
+
+    def watch_theme(self, theme: str) -> None:
+        """Keep the dim colour and the saved preference in step with the theme."""
+
+        try:
+            self._muted = muted_for(self.get_css_variables())
+        except Exception:
+            self._muted = FALLBACK_MUTED
+        if self.config.theme != theme and not self.config.first_run:
+            self.config.theme = theme
+            self.config.save()
+        if self.is_mounted and self.query("#tracks"):
+            self.refresh_rows()
 
     @property
     def client(self) -> SoundCloudClient:

@@ -12,9 +12,10 @@ from types import SimpleNamespace
 import pytest
 from rich.console import Console
 from textual.coordinate import Coordinate
-from textual.widgets import Button, DataTable, Input, Label, ListView, Static
+from textual.widgets import Button, DataTable, Input, Label, ListView, Select, Static
 
 from dj_digger import cart, gates, library, links, soundcloud, tui
+from dj_digger.config import AppConfig
 from dj_digger.dig import DigOptions, TargetNotFound
 from dj_digger.models import Cancelled, Crate, LinkRecord, Track
 from dj_digger.player import (
@@ -253,6 +254,45 @@ def test_optional_columns_follow_the_settings(records, state):
             assert str(row[8]) == records[0].track.duration_label or str(row[8]) == "-"
 
     run(scenario)
+
+
+def test_the_dim_colour_follows_the_theme(records, state):
+    """bright_black vanished on light themes; the dim tone now comes from the theme."""
+
+    app = make_app(records, state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            dark = app.muted
+            assert dark.startswith("#")
+            app.theme = "textual-light"
+            await pilot.pause()
+            assert app.muted != dark and app.muted.startswith("#")
+            assert app.config.theme == "textual-light", "the choice is saved"
+
+    run(scenario)
+
+
+def test_choosing_a_theme_in_settings_persists_it(records, state):
+    app = make_app(records, state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await pilot.press("S")
+            await pilot.pause()
+            assert isinstance(app.screen, SettingsScreen)
+            app.screen.query_one("#input-theme", Select).value = "nord"
+            # The dialog scrolls; the button may sit below the screen edge.
+            app.screen.query_one("#btn-save-settings", Button).press()
+            await pilot.pause()
+            await pilot.pause()
+
+    run(scenario)
+    assert app.theme == "nord"
+    assert app.config.theme == "nord"
+    assert AppConfig(app.config.path).theme == "nord"
 
 
 def test_readme_lists_every_keymap_key():

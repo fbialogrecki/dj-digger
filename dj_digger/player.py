@@ -26,7 +26,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from functools import lru_cache
 from queue import Empty, SimpleQueue
-from typing import Literal
+from typing import Any, Literal
 
 from rich.text import Text
 from textual.app import ComposeResult
@@ -68,6 +68,15 @@ WAVEFORM_GAMMA = 3.0
 
 PLAYED_STYLE = "cyan"
 UNPLAYED_STYLE = "bright_black"
+
+
+def muted_style(widget: Any) -> str:
+    """The app's theme-derived dim style, or the terminal's when there is no app."""
+
+    try:
+        return getattr(widget.app, "muted", UNPLAYED_STYLE)
+    except Exception:
+        return UNPLAYED_STYLE
 # How far back from the playhead the sound of this instant is allowed to show.
 # Two columns: twelve was a band wide enough that its 30fps pulsing read as the
 # whole tail of the played waveform flickering.
@@ -284,7 +293,7 @@ def waveform_rows(
     return drawn
 
 
-def paint_waveform(rows: list[str], played_fraction: float, level: float = 0.0) -> Text:
+def paint_waveform(rows: list[str], played_fraction: float, level: float = 0.0, unplayed: str = UNPLAYED_STYLE) -> Text:
     """Colour prebuilt rows: what has played, what has not, and the leading edge.
 
     A frame costs a handful of style ranges rather than an append per character,
@@ -308,7 +317,7 @@ def paint_waveform(rows: list[str], played_fraction: float, level: float = 0.0) 
             text.stylize(PLAYED_STYLE, start, start + glow_from)
         if played > glow_from:
             text.stylize(head, start + glow_from, start + played)
-        text.stylize(UNPLAYED_STYLE, start + played, start + width)
+        text.stylize(unplayed, start + played, start + width)
     return text
 
 
@@ -990,9 +999,11 @@ class PlayerBar(Static):
         loaded = self.player.loaded
         if loaded is None:
             self.meter.reset()
-            return Text(self.message, style="bright_black")
+            return Text(self.message, style=muted_style(self))
         level = self.meter.feed(self.player.take_level())
-        return paint_waveform(self._rows(loaded), self.player.fraction, level)
+        return paint_waveform(
+            self._rows(loaded), self.player.fraction, level, unplayed=muted_style(self)
+        )
 
     def _rows(self, loaded: Loaded) -> list[str]:
         width = self._bar_width()
@@ -1064,8 +1075,9 @@ class VolumeSlider(Static):
         bar = Text("\u00d8 " if volume <= 0 else "\u266a ", style="bold")
         bar.append("━" * filled, style="cyan")
         bar.append("●", style="bold cyan")
-        bar.append("─" * (VOLUME_TRACK - filled), style="bright_black")
-        bar.append(f" {int(volume * 100):>3}%", style="bright_black")
+        muted = muted_style(self)
+        bar.append("─" * (VOLUME_TRACK - filled), style=muted)
+        bar.append(f" {int(volume * 100):>3}%", style=muted)
         return bar
 
     def set_from_x(self, x: int) -> None:
@@ -1195,7 +1207,7 @@ class PlayerControls(Horizontal):
         self.query_one("#player-time", Static).update(
             Text(
                 f"{format_time(self.player.position)} / {format_time(self.player.duration)}",
-                style="bright_black",
+                style=muted_style(self),
             )
         )
         self.query_one(VolumeSlider).refresh()
