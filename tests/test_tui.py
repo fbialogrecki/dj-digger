@@ -234,6 +234,28 @@ def test_help_documents_every_key(records, state):
     run(scenario)
 
 
+def test_readme_lists_every_keymap_key():
+    """The README tables are prose, so they are checked against the keymap, not generated."""
+
+    from pathlib import Path
+
+    from dj_digger.tui.keymap import KEY_DISPLAY
+
+    readme = Path(__file__).resolve().parent.parent.joinpath("README.md").read_text(
+        encoding="utf-8"
+    ).lower()
+    missing = []
+    for key, *_rest in tui.KEYMAP:
+        shown = KEY_DISPLAY.get(key, key)
+        for token in shown.split(", "):
+            candidates = {f"`{token.lower()}`", f"`{key.lower()}`"}
+            if token.lower() == "escape":
+                candidates.add("`escape`")
+            if not any(candidate in readme for candidate in candidates):
+                missing.append(token)
+    assert missing == [], f"README does not document: {missing}"
+
+
 def test_the_command_palette_is_off(records, state):
     """It showed up in the footer as an unexplained 'palette'."""
 

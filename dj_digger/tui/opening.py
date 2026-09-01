@@ -535,7 +535,7 @@ class OpeningMixin:
         if count > OPEN_ALL_CONFIRM_THRESHOLD and not self._pending_open_all:
             self._pending_open_all = True
             self.notify(
-                f"That opens {count} tabs. Press 'a' again to confirm, "
+                f"That opens {count} tabs. Press shift+O again to confirm, "
                 "or filter the list down first.",
                 severity="warning",
                 timeout=6,

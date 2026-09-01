@@ -152,6 +152,7 @@ KEY_DISPLAY = {
     "left_square_bracket": "[",
     "right_square_bracket": "]",
     "o,enter": "o, enter",
-    "O": "shift+O",
-    "X": "shift+X",
+    # Every single capital letter is a shifted key; spelling that out beats a
+    # footer where "W" and "w" sit side by side looking like a typo.
+    **{key: f"shift+{key}" for key, *_rest in KEYMAP if len(key) == 1 and key.isupper()},
 }
