@@ -68,5 +68,7 @@ markers = [
     "live: hits the real SoundCloud API (deselected by default, run with -m live)",
     "shop_live: opens public store pages read-only (deselected by default, run with -m shop_live)",
     "hypeddit_live: reads public Hypeddit pages with GET only (deselected by default, run with -m hypeddit_live)",
+    "bandcamp_dom: drives recorded Bandcamp pages in a real headless Chromium, no network (deselected by default; needs playwright chromium and tests/fixtures/bandcamp/*.html)",
+    "shop_mutate: adds, verifies and removes one name-your-price Bandcamp track in a throwaway profile (deselected by default; needs DJ_DIGGER_SHOP_MUTATE_URL and a display)",
 ]
-addopts = "-m 'not live and not shop_live and not hypeddit_live'"
+addopts = "-m 'not live and not shop_live and not hypeddit_live and not bandcamp_dom and not shop_mutate'"

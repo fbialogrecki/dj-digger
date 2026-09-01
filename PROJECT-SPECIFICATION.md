@@ -5,8 +5,8 @@
 - Product version verified: 0.15.0
 - Owner: Filip Białogrecki
 - Updated: 2026-08-28
-- Document lines: <!-- SPEC TOTAL LINES -->1033<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1033<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1040<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1040<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -100,13 +100,13 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 13 | Failure behavior and current limitations | 904–954 |
 | 13.1 | ↳ Error isolation and reporting | 906–925 |
 | 13.2 | ↳ Confirmed limitations | 926–954 |
-| 14 | Verification, CI, and release | 955–1011 |
-| 14.1 | ↳ Offline and live test suites | 957–980 |
-| 14.2 | ↳ Continuous integration and publishing | 981–996 |
-| 14.3 | ↳ Specification-map verification | 997–1011 |
-| 15 | Evidence and operational references | 1012–1033 |
-| 15.1 | ↳ Primary implementation evidence | 1014–1026 |
-| 15.2 | ↳ User and historical documentation | 1027–1033 |
+| 14 | Verification, CI, and release | 955–1018 |
+| 14.1 | ↳ Offline and live test suites | 957–987 |
+| 14.2 | ↳ Continuous integration and publishing | 988–1003 |
+| 14.3 | ↳ Specification-map verification | 1004–1018 |
+| 15 | Evidence and operational references | 1019–1040 |
+| 15.1 | ↳ Primary implementation evidence | 1021–1033 |
+| 15.2 | ↳ User and historical documentation | 1034–1040 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -956,8 +956,8 @@ as player events instead of escaping through Python-CFFI.
 
 ### 14.1 Offline and live test suites
 
-The default pytest configuration excludes `live`, `shop_live`, and
-`hypeddit_live`. Its autouse fixture redirects config, auth, database, and scan
+The default pytest configuration excludes `live`, `shop_live`, `hypeddit_live`,
+`bandcamp_dom`, and `shop_mutate`. Its autouse fixture redirects config, auth, database, and scan
 folders to a temporary directory. Network interactions in offline tests use fake
 sessions or repository fixtures; player tests do not require a real output
 device.
@@ -970,13 +970,20 @@ uv run --extra dev ruff check .
 uv run --extra dev pytest -m live
 uv run --extra dev pytest -m shop_live
 uv run --extra dev pytest -m hypeddit_live
+uv run --extra dev pytest -m bandcamp_dom
+DJ_DIGGER_SHOP_MUTATE_URL=<name-your-price track> uv run --extra dev pytest -m shop_mutate
 ```
 
 The live SoundCloud suite checks client-ID discovery, long collection,
 50-ID hydration, media availability, and socket decoding. Store-live tests read
 public Bandcamp/Beatport pages without logging in or changing a cart.
 Hypeddit-live tests issue GET-only inspection and do not submit a profile,
-perform OAuth, resolve a download, or request a file.
+perform OAuth, resolve a download, or request a file. `bandcamp_dom` drives
+owner-recorded Bandcamp pages (`tests/fixtures/bandcamp/`, shipped empty with
+a recording procedure) in a real headless Chromium with every request answered
+from disk, checking the selectors the cart relies on; it skips without the
+recordings. `shop_mutate` adds, verifies, and removes one name-your-price track
+in a throwaway profile and never approaches checkout.
 
 ### 14.2 Continuous integration and publishing
 
