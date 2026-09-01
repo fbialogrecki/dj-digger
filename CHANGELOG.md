@@ -19,6 +19,10 @@
 
 ### Fixed
 
+- A Hypeddit gate that refuses the first unlock is retried once the way its own
+  skip buttons do (`is_skippable=1`); pages offering alternative steps get the
+  cheapest one (direct download, then click-through, then email). Gate flows
+  are limited to two per host instead of one at a time overall.
 - Quitting no longer waits on a background thread that cannot be stopped: the
   browser closes within three seconds and the process ends with the reason in
   the log, and a second Ctrl+C during shutdown exits at once.

@@ -329,6 +329,108 @@ def test_email_is_submitted_only_in_the_single_desktop_download_post():
     assert payloads[0]["email"] == "dj@example.com"
 
 
+def test_a_refused_unlock_is_retried_once_as_skippable():
+    """The page's skipper buttons send is_skippable=1; a refusal earns one such retry."""
+
+    session = session_for_gate(gate_html(steps="sc"))
+    replies = iter([{"download_status": False}, {"download_status": True, "URL": "https://hypeddit.com/download/file.wav"}])
+    real_post = session.post.side_effect
+
+    def post(url, **kwargs):
+        response = real_post(url, **kwargs)
+        if url.endswith("/gate/download/ul"):
+            response.json.return_value = next(replies)
+        return response
+
+    session.post.side_effect = post
+
+    result = resolve_hypeddit_download_url(
+        "https://hypeddit.com/track/retry", session, config=StubConfig("dj@example.com")
+    )
+
+    assert result == "https://hypeddit.com/download/file.wav"
+    payloads = _posted_to(session, "/gate/download/ul")
+    assert [p["is_skippable"] for p in payloads] == ["0", "1"]
+    assert all(p["skip_gate_steps[]"] == ["sc"] for p in payloads)
+
+
+def test_no_retry_when_nothing_was_skipped():
+    session = session_for_gate(gate_html(steps="email"), download_payload={"download_status": False})
+
+    with pytest.raises(RuntimeError, match="did not unlock"):
+        resolve_hypeddit_download_url(
+            "https://hypeddit.com/track/email-only", session, config=StubConfig("dj@example.com")
+        )
+
+    assert len(_posted_to(session, "/gate/download/ul")) == 1
+
+
+def test_steps_select_groups_pick_the_cheapest_alternative():
+    """dw beats a follow, a follow beats a provider login; email needs a real address."""
+
+    page = gate_html(steps="sc,sp,email").replace(
+        "</body>", '<input name="steps_select" value="dw|sc,sp|dz,email"></body>'
+    )
+    session = session_for_gate(page)
+
+    resolve_hypeddit_download_url(
+        "https://hypeddit.com/track/groups", session, config=StubConfig("dj@example.com")
+    )
+
+    payload = _posted_to(session, "/gate/download/ul")[0]
+    assert payload["skip_gate_steps[]"] == ["sp"], "dw is not social, sp is the cheap half of sp|dz"
+    assert payload["steps"] == "sc,sp,email", "the declared list is sent as the page declares it"
+    assert payload["email"] == "dj@example.com"
+
+
+def test_a_group_offering_only_provider_logins_still_needs_the_browser():
+    page = gate_html(steps="dz").replace(
+        "</body>", '<input name="steps_select" value="dz|ap"></body>'
+    )
+    session = session_for_gate(page)
+
+    with pytest.raises(gates.GateAuthenticationRequired):
+        resolve_hypeddit_download_url(
+            "https://hypeddit.com/track/oauth-only", session, config=StubConfig("dj@example.com")
+        )
+
+
+def test_hypeddit_flows_are_bounded_per_host_not_serialized():
+    """Two workers on two gates used to queue behind one global lock."""
+
+    import threading
+
+    inside = threading.Barrier(2, timeout=2)
+
+    def make_session():
+        session = session_for_gate(gate_html(steps="sc"))
+        real_get = session.get
+
+        def get(url, **kwargs):
+            inside.wait()  # both flows must be in here at the same time
+            return real_get(url, **kwargs)
+
+        session.get = get
+        return session
+
+    results = []
+
+    def flow(slug):
+        results.append(
+            resolve_hypeddit_download_url(
+                f"https://hypeddit.com/track/{slug}", make_session(), config=StubConfig("dj@example.com")
+            )
+        )
+
+    workers = [threading.Thread(target=flow, args=(slug,)) for slug in ("one", "two")]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join(5)
+
+    assert len(results) == 2 and all(results)
+
+
 def test_rejected_hypeddit_download_is_actionable():
     session = session_for_gate(
         gate_html(steps="sc"), download_payload={"download_status": False}

@@ -93,6 +93,9 @@ class HypedditManifest:
     external_id: str
     steps: tuple[str, ...]
     fields: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    # ``steps_select``: groups of alternatives the page lets the fan choose
+    # between, e.g. ("dw",), ("sc",), ("sp","dz"). Empty when the page has none.
+    step_groups: tuple[tuple[str, ...], ...] = ()
     sc_comment_required: bool = False
     yt_comment_required: bool = False
     email_download_required: bool = False
@@ -195,9 +198,20 @@ CLICK_THROUGH_STEPS = frozenset(
     {"sc", "yt", "ig", "tw", "fb", "tk", "bc", "mc", "dn", "fbmsgr", "sp"}
 )
 PROVIDER_OAUTH_STEPS = {"dz": "Deezer", "ap": "Apple Music", "th": "Threads"}
-# RLock: manifest resolution recurses into nested gates on the same thread
-# while still serializing whole flows across worker threads.
-_HYPEDDIT_FLOW_LOCK = threading.RLock()
+# A step the page offers as an alternative to the social ones: a direct
+# download. Chosen first whenever a group offers it.
+DIRECT_STEP = "dw"
+# What each kind of step costs the user when the page lets us pick between
+# alternatives. Lower wins; anything above the OAuth line needs a browser.
+_STEP_COSTS = {DIRECT_STEP: 0, "email": 2}
+_OAUTH_STEP_COST = 9
+# How many unlock flows may talk to one Hypeddit host at once. A politeness
+# limit, not a correctness one: every flow owns its own session. It used to be
+# a global reentrant lock, which serialised all four download workers behind
+# whichever one was waiting on a slow page.
+HYPEDDIT_FLOWS_PER_HOST = 2
+_HOST_FLOW_LIMITS: dict[str, threading.BoundedSemaphore] = {}
+_HOST_FLOW_LIMITS_LOCK = threading.Lock()
 MAX_GATE_REDIRECTS = 5
 # How deep a chain of gates-inside-gates is followed before calling it a cycle.
 MAX_NESTED_GATES = 5
@@ -322,6 +336,14 @@ def inspect_hypeddit_html(url: str, text: str) -> HypedditInspection:
     fields = _input_fields(soup)
     raw_steps = _first(fields, "nwSteps")
     steps = tuple(step.strip().lower() for step in raw_steps.split(",") if step.strip())
+    step_groups = tuple(
+        group
+        for group in (
+            tuple(step.strip().lower() for step in raw.split("|") if step.strip())
+            for raw in _first(fields, "steps_select").split(",")
+        )
+        if group
+    )
 
     csrf_tag = soup.find("meta", attrs={"name": "csrf-token"})
     csrf = str(csrf_tag.get("content") or "") if csrf_tag else ""
@@ -374,6 +396,7 @@ def inspect_hypeddit_html(url: str, text: str) -> HypedditInspection:
             external_id=external_id,
             steps=steps,
             fields=additional,
+            step_groups=step_groups,
             sc_comment_required=_first(fields, "comment_sc") == "1",
             yt_comment_required=_first(fields, "comment_yt") == "1",
             email_download_required="email" in steps,
@@ -422,93 +445,155 @@ def resolve_hypeddit_download_url(
 ) -> str | None:
     """Resolve the current desktop Hypeddit flow without faking provider writes."""
 
-    with _HYPEDDIT_FLOW_LOCK:
-        if not _is_hypeddit_url(url) or not is_fetchable(url):
-            return None
-        canonical = url.rstrip("/")
-        if canonical in _visited or len(_visited) >= MAX_NESTED_GATES:
-            raise GateProtocolChanged("Hypeddit nested-gate cycle or redirect limit reached")
-        visited = _visited | {canonical}
-        config = _identity_for(config)
-        headers = {**DEFAULT_HEADERS, "Referer": url}
+    if not _is_hypeddit_url(url) or not is_fetchable(url):
+        return None
+    canonical = url.rstrip("/")
+    if canonical in _visited or len(_visited) >= MAX_NESTED_GATES:
+        raise GateProtocolChanged("Hypeddit nested-gate cycle or redirect limit reached")
+    visited = _visited | {canonical}
+    config = _identity_for(config)
 
-        try:
-            response, landed = _safe_page_get(
-                session, url, headers=headers, timeout=timeout
-            )
-        except _UnsafeGateRedirect as exc:
-            raise GateProtocolChanged(str(exc)) from exc
-        except requests.RequestException as exc:
-            raise GateUnavailable("Hypeddit page could not be reached") from exc
-        if response.status_code != 200:
-            raise GateUnavailable(f"Hypeddit page returned HTTP {response.status_code}")
-        if not _is_hypeddit_url(landed):
-            raise GateProtocolChanged("Hypeddit redirected outside its canonical hosts")
-
-        inspection = inspect_hypeddit_html(landed, response.text)
-        if inspection.kind == "challenge":
-            raise GateCaptchaRequired("Hypeddit CAPTCHA requires browser completion")
-        if inspection.manifest is None:
-            for nested in inspection.nested_gates:
-                resolved = resolve_hypeddit_download_url(
-                    nested,
-                    session,
-                    timeout=timeout,
-                    config=config,
-                    _visited=frozenset(visited),
-                )
-                if resolved:
-                    return resolved
-            if inspection.kind == "hub":
-                return None
-            raise GateProtocolChanged("Hypeddit page has no supported download manifest")
-
-        manifest = inspection.manifest
-        if not manifest.file_id or not manifest.steps:
-            raise GateProtocolChanged("Hypeddit gate manifest is incomplete")
-        if "email" in manifest.steps and not config.has_real_email():
-            raise GateProfileRequired(
-                "Hypeddit requires a real email; set it in Settings before downloading"
-            )
-
-        social_steps = [step for step in manifest.steps if step != "email"]
-        social = bool(getattr(config, "gate_social_actions", True))
-        if social_steps and not social:
-            raise GateSocialActionsDisabled(
-                "This Hypeddit gate requires social steps, but they are disabled"
-            )
-
-        completed = _complete_social_steps(manifest, social_steps)
-        return _post_download(
-            session, manifest, config, completed, social, headers, url, timeout
+    # The page fetch and the unlock POST run under the host's limit; a nested
+    # gate is followed after it is released, so recursion cannot deadlock.
+    with _host_flow_limit(url):
+        inspection = _fetch_hypeddit_inspection(url, session, timeout)
+        if inspection.manifest is not None:
+            return _unlock_hypeddit(inspection.manifest, url, session, timeout, config)
+    if inspection.kind == "challenge":
+        raise GateCaptchaRequired("Hypeddit CAPTCHA requires browser completion")
+    for nested in inspection.nested_gates:
+        resolved = resolve_hypeddit_download_url(
+            nested,
+            session,
+            timeout=timeout,
+            config=config,
+            _visited=frozenset(visited),
         )
+        if resolved:
+            return resolved
+    if inspection.kind == "hub":
+        return None
+    raise GateProtocolChanged("Hypeddit page has no supported download manifest")
+
+
+def _host_flow_limit(url: str) -> threading.BoundedSemaphore:
+    host = host_of(url)
+    with _HOST_FLOW_LIMITS_LOCK:
+        limit = _HOST_FLOW_LIMITS.get(host)
+        if limit is None:
+            limit = _HOST_FLOW_LIMITS[host] = threading.BoundedSemaphore(HYPEDDIT_FLOWS_PER_HOST)
+    return limit
+
+
+def _fetch_hypeddit_inspection(
+    url: str, session: requests.Session, timeout: float
+) -> HypedditInspection:
+    headers = {**DEFAULT_HEADERS, "Referer": url}
+    try:
+        response, landed = _safe_page_get(session, url, headers=headers, timeout=timeout)
+    except _UnsafeGateRedirect as exc:
+        raise GateProtocolChanged(str(exc)) from exc
+    except requests.RequestException as exc:
+        raise GateUnavailable("Hypeddit page could not be reached") from exc
+    if response.status_code != 200:
+        raise GateUnavailable(f"Hypeddit page returned HTTP {response.status_code}")
+    if not _is_hypeddit_url(landed):
+        raise GateProtocolChanged("Hypeddit redirected outside its canonical hosts")
+    inspection = inspect_hypeddit_html(landed, response.text)
+    if inspection.kind == "challenge" and inspection.manifest is not None:
+        raise GateCaptchaRequired("Hypeddit CAPTCHA requires browser completion")
+    return inspection
+
+
+def _unlock_hypeddit(
+    manifest: HypedditManifest,
+    url: str,
+    session: requests.Session,
+    timeout: float,
+    config: Any,
+) -> str:
+    headers = {**DEFAULT_HEADERS, "Referer": url}
+    if not manifest.file_id or not manifest.steps:
+        raise GateProtocolChanged("Hypeddit gate manifest is incomplete")
+    steps = _select_steps(manifest, config)
+    if "email" in steps and not config.has_real_email():
+        raise GateProfileRequired(
+            "Hypeddit requires a real email; set it in Settings before downloading"
+        )
+
+    social_steps = [step for step in steps if step not in {"email", DIRECT_STEP}]
+    social = bool(getattr(config, "gate_social_actions", True))
+    if social_steps and not social:
+        raise GateSocialActionsDisabled(
+            "This Hypeddit gate requires social steps, but they are disabled"
+        )
+
+    skipped = _complete_social_steps(manifest, social_steps)
+    return _post_download(
+        session, manifest, config, skipped, social, headers, url, timeout
+    )
+
+
+def _step_cost(step: str, config: Any) -> int:
+    if step in CLICK_THROUGH_STEPS:
+        return 1
+    if step == "email":
+        return _STEP_COSTS["email"] if config.has_real_email() else _OAUTH_STEP_COST
+    if step in PROVIDER_OAUTH_STEPS:
+        return _OAUTH_STEP_COST
+    return _STEP_COSTS.get(step, _OAUTH_STEP_COST + 1)
+
+
+def _select_steps(manifest: HypedditManifest, config: Any) -> list[str]:
+    """The steps this attempt will report, picking the cheapest of each alternative.
+
+    A page with ``steps_select`` lets the fan choose within each group - a
+    direct download over a follow, a follow over a provider login. Without
+    groups the declared step list stands as it is.
+    """
+
+    if not manifest.step_groups:
+        return list(manifest.steps)
+    chosen: list[str] = []
+    for group in manifest.step_groups:
+        best = min(group, key=lambda step: (_step_cost(step, config), group.index(step)))
+        if best not in chosen:
+            chosen.append(best)
+    return chosen
 
 
 def _complete_social_steps(manifest: HypedditManifest, social_steps: list[str]) -> list[str]:
-    """Which declared steps can be satisfied without faking provider writes."""
+    """Which declared steps can be reported as skipped without faking provider writes."""
 
-    completed: list[str] = []
+    skipped: list[str] = []
     for step in social_steps:
         if step in CLICK_THROUGH_STEPS:
-            completed.append(step)
+            skipped.append(step)
         elif step in PROVIDER_OAUTH_STEPS:
             raise GateAuthenticationRequired(PROVIDER_OAUTH_STEPS[step])
         else:
             raise GateManualActionRequired(step)
-    return completed
+    return skipped
 
 
 def _post_download(
     session: requests.Session,
     manifest: HypedditManifest,
     config: Any,
-    completed: list[str],
+    skipped: list[str],
     social: bool,
     headers: dict[str, str],
     url: str,
     timeout: float,
 ) -> str:
-    """The wire protocol: telemetry ping, then the /gate/download/ul unlock."""
+    """The wire protocol: telemetry ping, then the /gate/download/ul unlock.
+
+    ``skipped`` mirrors the page's own skipper buttons: those steps go into
+    ``skip_gate_steps[]``. The page sends ``is_skippable=1`` alongside when a
+    fan skips, so a refusal of the first attempt (which carries the manifest's
+    own value, as always) is retried exactly once that way before it counts
+    as a rejection. Neither attempt writes anything at a provider.
+    """
 
     ajax_headers = {
         **headers,
@@ -534,7 +619,7 @@ def _post_download(
         "steps": ",".join(manifest.steps),
         "email": config.user_email if "email" in manifest.steps else "",
         "download_action": "DOWNLOAD",
-        "skip_gate_steps[]": completed,
+        "skip_gate_steps[]": skipped,
         "wrndk": manifest.wrndk,
         "is_mobile": manifest.is_mobile,
         "external_id": manifest.external_id,
@@ -557,28 +642,43 @@ def _post_download(
                 )
             except requests.RequestException:
                 LOGGER.debug("Hypeddit telemetry failed for %s", redact_url(url))
-        download = session.post(
-            "https://hypeddit.com/gate/download/ul",
-            data=payload,
-            headers=ajax_headers,
-            timeout=timeout,
-        )
+        result = _post_unlock(session, payload, ajax_headers, timeout)
+        if _refused(result) and skipped and payload["is_skippable"] != "1":
+            LOGGER.debug("Hypeddit refused %s; retrying as a skipped gate", redact_url(url))
+            result = _post_unlock(session, {**payload, "is_skippable": "1"}, ajax_headers, timeout)
     except requests.RequestException as exc:
         raise GateRejected("Hypeddit download request failed") from exc
-    if download.status_code != 200:
-        raise GateRejected(f"Hypeddit download returned HTTP {download.status_code}")
-    try:
-        result = download.json()
-    except ValueError as exc:
-        raise GateProtocolChanged("Hypeddit returned an unreadable download reply") from exc
     if isinstance(result, dict) and _reply_requests_captcha(result):
         raise GateCaptchaRequired("Hypeddit CAPTCHA requires browser completion")
-    if not isinstance(result, dict) or not result.get("download_status"):
+    if _refused(result):
         raise GateRejected("Hypeddit did not unlock the download")
     cleaned = _clean_url(result.get("URL") or result.get("url"))
     if not cleaned or not is_fetchable(cleaned):
         raise GateProtocolChanged("Hypeddit returned an unsafe download URL")
     return cleaned
+
+
+def _post_unlock(
+    session: requests.Session, payload: dict[str, Any], headers: dict[str, str], timeout: float
+) -> Any:
+    download = session.post(
+        "https://hypeddit.com/gate/download/ul",
+        data=payload,
+        headers=headers,
+        timeout=timeout,
+    )
+    if download.status_code != 200:
+        raise GateRejected(f"Hypeddit download returned HTTP {download.status_code}")
+    try:
+        return download.json()
+    except ValueError as exc:
+        raise GateProtocolChanged("Hypeddit returned an unreadable download reply") from exc
+
+
+def _refused(result: Any) -> bool:
+    if isinstance(result, dict) and _reply_requests_captcha(result):
+        return False
+    return not isinstance(result, dict) or not result.get("download_status")
 
 
 def download_hypeddit_in_browser(
