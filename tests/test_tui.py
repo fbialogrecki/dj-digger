@@ -378,10 +378,54 @@ def test_readme_lists_every_keymap_key():
     assert missing == [], f"README does not document: {missing}"
 
 
-def test_the_command_palette_is_off(records, state):
-    """It showed up in the footer as an unexplained 'palette'."""
+def test_the_command_palette_lists_every_key(records, state):
+    """Thirty-nine bindings, most hidden from the footer: the palette finds them all."""
 
-    assert make_app(records, state).ENABLE_COMMAND_PALETTE is False
+    from dj_digger.tui.palette import KeymapProvider
+
+    app = make_app(records, state)
+    assert app.ENABLE_COMMAND_PALETTE is True
+    found = []
+    ran = []
+
+    async def run_action(action):
+        ran.append(action)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.run_action = run_action
+            provider = KeymapProvider(app.screen)
+            found.extend([hit async for hit in provider.discover()])
+            hits = [hit async for hit in provider.search("quit")]
+            assert hits, "a fuzzy word finds the key"
+            await max(hits).command()  # Hit orders by score; the palette shows the best first
+
+    run(scenario)
+    assert len(found) == len(tui.KEYMAP)
+    assert ran == ["quit"]
+
+
+def test_reset_statuses_asks_first(records, state):
+    state.set(records[0].track.key, GOT)
+    app = make_app(records, state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await pilot.press("U")
+            await pilot.pause()
+            assert isinstance(app.screen, ConfirmScreen)
+            await pilot.press("n")
+            await pilot.pause()
+            assert state.get(records[0].track.key) == GOT
+            await pilot.press("U")
+            await pilot.pause()
+            await pilot.press("y")
+            await pilot.pause()
+
+    run(scenario)
+    assert state.get(records[0].track.key) == "new"
 
 
 def test_the_bottom_bar_pairs_the_stores_with_your_progress(records, state):

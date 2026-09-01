@@ -41,6 +41,7 @@ from .keymap import (
 )
 from .library_scan import LibraryScanMixin
 from .opening import OpeningMixin
+from .palette import KeymapProvider
 from .playback import PlaybackMixin
 from .render import RenderMixin
 from .rows import Prepared, Row
@@ -76,7 +77,9 @@ class DiggerApp(
     the bindings, the state they all reach for, and setup and teardown.
     """
     # The built-in palette showed up in the footer as an unexplained "palette".
-    ENABLE_COMMAND_PALETTE = False
+    # Every keymap action, searchable: see palette.py.
+    ENABLE_COMMAND_PALETTE = True
+    COMMANDS = App.COMMANDS | {KeymapProvider}
     # Otherwise the terminal's window and tab say "DiggerApp", which is the name
     # of the class rather than of anything the user installed.
     TITLE = "dj-digger"

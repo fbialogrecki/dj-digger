@@ -278,6 +278,9 @@ class RenderMixin:
         already highlights which crate you are in.
         """
 
+        # A worker's last word can land after the screen is gone.
+        if not self.query("#status"):
+            return
         bar = self.query_one("#status", Static)
         stores = self._store_line()
         progress = self._progress_line()

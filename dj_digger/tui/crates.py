@@ -127,8 +127,20 @@ class CrateMixin:
         self.confirm_delete_crate(self.highlighted_crate())
 
     def action_reset_crate_statuses(self) -> None:
+        """Asks first: statuses are global by track, and there is no undo for this."""
+
         if not self.rows:
             return
+        title = self.crate_title or "this crate"
+        self.push_screen(
+            ConfirmScreen(
+                f"Reset the marks on {len(self.rows)} tracks in '{title}' to new? "
+                "This cannot be undone."
+            ),
+            lambda confirmed: self._reset_statuses() if confirmed else None,
+        )
+
+    def _reset_statuses(self) -> None:
         for row in self.rows:
             self.state.set(row.track.key, NEW)
         self.refresh_rows()
