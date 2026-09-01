@@ -90,3 +90,38 @@ def test_marking_a_whole_scan_writes_no_json_at_all(tmp_path):
 
     assert not path.exists(), "state.json is not written any more"
     assert TrackState(path).get("19") == GOT
+
+
+def test_reads_after_the_first_hit_no_sqlite(tmp_path, monkeypatch):
+    """A repaint asks for every row's status; only the first ask may cost a query."""
+
+    state = TrackState(tmp_path / "state.json")
+    state.set("1", GOT)
+
+    def boom(_key):
+        raise AssertionError("status read went to SQLite")
+
+    monkeypatch.setattr(state.db, "get_track_status", boom)
+    monkeypatch.setattr(state.db, "get_track_local_file", boom)
+    assert state.get("1") == GOT
+    assert state.get("2") == NEW
+    assert state.local_file("1") is None
+
+
+def test_a_set_updates_the_cache_and_the_database(tmp_path):
+    path = tmp_path / "state.json"
+    state = TrackState(path)
+    assert state.get("1") == NEW, "the mirror is loaded before the first write"
+
+    state.set("1", SKIP)
+    state.set_local_file("2", tmp_path / "two.wav")
+
+    assert state.get("1") == SKIP
+    assert state.get("2") == GOT
+    fresh = TrackState(path)
+    assert fresh.get("1") == SKIP
+    assert fresh.local_file("2") == str(tmp_path / "two.wav")
+
+    assert state.clear_local_file("2") is True
+    assert state.get("2") == NEW
+    assert state.clear_local_file("2") is False

@@ -129,6 +129,17 @@ class Database:
                     (str(key), status, updated)
                 )
 
+    def all_track_statuses(self) -> dict[str, str]:
+        """Every non-new status at once; the table only holds the marked rows."""
+        with self.connection() as conn:
+            rows = conn.execute("SELECT key, status FROM track_states").fetchall()
+            return {row["key"]: row["status"] for row in rows}
+
+    def all_track_local_files(self) -> dict[str, str]:
+        with self.connection() as conn:
+            rows = conn.execute("SELECT key, path FROM track_local_files").fetchall()
+            return {row["key"]: row["path"] for row in rows}
+
     def get_track_local_file(self, key: str) -> str | None:
         with self.connection() as conn:
             row = conn.execute(

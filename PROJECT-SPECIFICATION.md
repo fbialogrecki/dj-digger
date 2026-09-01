@@ -5,8 +5,8 @@
 - Product version verified: 0.15.0
 - Owner: Filip Białogrecki
 - Updated: 2026-08-28
-- Document lines: <!-- SPEC TOTAL LINES -->964<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->964<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->969<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->969<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -65,50 +65,50 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 5.1 | ↳ Entry, orchestration, and models | 403–413 |
 | 5.2 | ↳ Network and external-system adapters | 414–427 |
 | 5.3 | ↳ Persistence, local media, and UI | 428–441 |
-| 6 | Runtime architecture and environments | 442–498 |
+| 6 | Runtime architecture and environments | 442–502 |
 | 6.1 | ↳ Runtime and dependencies | 444–457 |
-| 6.2 | ↳ Concurrency and lifecycle | 458–483 |
-| 6.3 | ↳ Local paths and environment variables | 484–498 |
-| 7 | Data model and persistence | 499–556 |
-| 7.1 | ↳ Domain objects and identity | 501–512 |
-| 7.2 | ↳ SQLite schema and invariants | 513–530 |
-| 7.3 | ↳ Crate persistence and deletion | 531–542 |
-| 7.4 | ↳ Configuration and credential stores | 543–556 |
-| 8 | Public interfaces and contracts | 557–601 |
-| 8.1 | ↳ CLI arguments and exit behavior | 559–579 |
-| 8.2 | ↳ JSON and CSV summary input | 580–592 |
-| 8.3 | ↳ URL-opening contract | 593–601 |
-| 9 | Authentication and authorization | 602–648 |
-| 9.1 | ↳ SoundCloud authentication | 604–621 |
-| 9.2 | ↳ Spotify PKCE and scopes | 622–633 |
-| 9.3 | ↳ Gate action consent | 634–648 |
-| 10 | External integrations | 649–753 |
-| 10.1 | ↳ SoundCloud API and media | 651–662 |
-| 10.2 | ↳ Link hubs and download gates | 663–694 |
-| 10.2 · block | ↳ ↳ Hypeddit | 671–680 |
-| 10.2 · block | ↳ ↳ Other resolvers | 682–687 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 689–694 |
-| 10.3 | ↳ Browsers and clipboard | 695–706 |
-| 10.4 | ↳ Spotify | 707–713 |
-| 10.5 | ↳ Bandcamp cart and Beatport playlists | 714–753 |
-| 11 | Security requirements and threat model | 754–800 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 756–774 |
-| 11.2 | ↳ Secret and personal-data handling | 775–787 |
-| 11.3 | ↳ File and mutation safety | 788–800 |
-| 12 | Privacy, lifecycle, and retention | 801–837 |
-| 12.1 | ↳ Data stored locally | 803–816 |
-| 12.2 | ↳ Data sent to third parties | 817–829 |
-| 12.3 | ↳ User-controlled deletion | 830–837 |
-| 13 | Failure behavior and current limitations | 838–885 |
-| 13.1 | ↳ Error isolation and reporting | 840–859 |
-| 13.2 | ↳ Confirmed limitations | 860–885 |
-| 14 | Verification, CI, and release | 886–942 |
-| 14.1 | ↳ Offline and live test suites | 888–911 |
-| 14.2 | ↳ Continuous integration and publishing | 912–927 |
-| 14.3 | ↳ Specification-map verification | 928–942 |
-| 15 | Evidence and operational references | 943–964 |
-| 15.1 | ↳ Primary implementation evidence | 945–957 |
-| 15.2 | ↳ User and historical documentation | 958–964 |
+| 6.2 | ↳ Concurrency and lifecycle | 458–487 |
+| 6.3 | ↳ Local paths and environment variables | 488–502 |
+| 7 | Data model and persistence | 503–561 |
+| 7.1 | ↳ Domain objects and identity | 505–516 |
+| 7.2 | ↳ SQLite schema and invariants | 517–535 |
+| 7.3 | ↳ Crate persistence and deletion | 536–547 |
+| 7.4 | ↳ Configuration and credential stores | 548–561 |
+| 8 | Public interfaces and contracts | 562–606 |
+| 8.1 | ↳ CLI arguments and exit behavior | 564–584 |
+| 8.2 | ↳ JSON and CSV summary input | 585–597 |
+| 8.3 | ↳ URL-opening contract | 598–606 |
+| 9 | Authentication and authorization | 607–653 |
+| 9.1 | ↳ SoundCloud authentication | 609–626 |
+| 9.2 | ↳ Spotify PKCE and scopes | 627–638 |
+| 9.3 | ↳ Gate action consent | 639–653 |
+| 10 | External integrations | 654–758 |
+| 10.1 | ↳ SoundCloud API and media | 656–667 |
+| 10.2 | ↳ Link hubs and download gates | 668–699 |
+| 10.2 · block | ↳ ↳ Hypeddit | 676–685 |
+| 10.2 · block | ↳ ↳ Other resolvers | 687–692 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 694–699 |
+| 10.3 | ↳ Browsers and clipboard | 700–711 |
+| 10.4 | ↳ Spotify | 712–718 |
+| 10.5 | ↳ Bandcamp cart and Beatport playlists | 719–758 |
+| 11 | Security requirements and threat model | 759–805 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 761–779 |
+| 11.2 | ↳ Secret and personal-data handling | 780–792 |
+| 11.3 | ↳ File and mutation safety | 793–805 |
+| 12 | Privacy, lifecycle, and retention | 806–842 |
+| 12.1 | ↳ Data stored locally | 808–821 |
+| 12.2 | ↳ Data sent to third parties | 822–834 |
+| 12.3 | ↳ User-controlled deletion | 835–842 |
+| 13 | Failure behavior and current limitations | 843–890 |
+| 13.1 | ↳ Error isolation and reporting | 845–864 |
+| 13.2 | ↳ Confirmed limitations | 865–890 |
+| 14 | Verification, CI, and release | 891–947 |
+| 14.1 | ↳ Offline and live test suites | 893–916 |
+| 14.2 | ↳ Continuous integration and publishing | 917–932 |
+| 14.3 | ↳ Specification-map verification | 933–947 |
+| 15 | Evidence and operational references | 948–969 |
+| 15.1 | ↳ Primary implementation evidence | 950–962 |
+| 15.2 | ↳ User and historical documentation | 963–969 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -459,7 +459,11 @@ integration.
 
 SQLite exposes one `Database` instance per path, thread-local connections, WAL,
 foreign keys, a 10-second busy timeout, commit on context success, and rollback
-on exception. `TrackState` serializes its compound operations with a lock.
+on exception. `TrackState` serializes its compound operations with a lock and
+mirrors the `track_states` and `track_local_files` tables in memory after the
+first read, so painting a crate costs no per-row query; every write goes
+through the same object and updates the mirror. Another process writing the
+same database is not reconciled.
 
 Link hubs use eight threads and stop trying a host after two observed failures
 within one dig, though already-running requests continue. Batch downloads use
@@ -520,7 +524,8 @@ The default database is `digger.db`. `_init_db()` creates:
 - `track_local_files(key PRIMARY KEY, path)`;
 - `crates(source PRIMARY KEY, title, updated, record_json)`.
 
-Setting status to `new` deletes the status row. A manual status decision removes
+`all_track_statuses()` and `all_track_local_files()` read whole tables for the
+`TrackState` mirror. Setting status to `new` deletes the status row. A manual status decision removes
 file provenance. `set_local_file()` atomically records `got` and the path;
 clearing provenance resets `got` only when that mark depended on the file.
 

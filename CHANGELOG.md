@@ -4,6 +4,9 @@
 
 ### Changed
 
+- Track statuses are mirrored in memory after the first read, so a large crate
+  repaints without a SQLite query per row.
+
 - Textual is now pinned to the 8.x line; the crate browser depends on its
   binding semantics and a few private hooks, so a major upgrade needs review.
 
