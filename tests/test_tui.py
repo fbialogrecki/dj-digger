@@ -2980,7 +2980,7 @@ def test_browser_required_batch_is_one_call_for_several_tracks(
 
     calls = []
 
-    def browser_batch(items, _directory, _cancel):
+    def browser_batch(items, _directory, _cancel, **_kwargs):
         calls.append(items)
         completed = []
         for track, _url in items:
@@ -3231,7 +3231,7 @@ def test_rejected_hypeddit_gate_falls_back_to_the_browser_with_its_reason(
     browser_calls = []
     monkeypatch.setattr(
         "dj_digger.tui.downloads.gates.download_hypeddit_in_browser",
-        lambda track, url, directory, cancel: browser_calls.append(url)
+        lambda track, url, directory, cancel, **_kwargs: browser_calls.append(url)
         or (_ for _ in ()).throw(gates.GateManualActionRequired("closed the tab")),
     )
 
@@ -3263,7 +3263,7 @@ def test_a_batch_hands_at_most_eight_refused_gates_to_the_browser(state, monkeyp
 
     handed = []
 
-    def browser_batch(items, _directory, cancel):
+    def browser_batch(items, _directory, cancel, **_kwargs):
         handed.extend(track.key for track, _url in items)
         return gates.HypedditBrowserBatchResult(
             failures=tuple((track.key, gates.GateManualActionRequired("skipped")) for track, _ in items)
@@ -3320,7 +3320,7 @@ def test_stop_browser_batch_leaves_unfinished_tracks_new(
 
     entered = Event()
 
-    def browser_batch(items, _directory, cancel):
+    def browser_batch(items, _directory, cancel, **_kwargs):
         entered.set()
         assert cancel.wait(2), "the UI did not signal the browser worker"
         return gates.HypedditBrowserBatchResult(

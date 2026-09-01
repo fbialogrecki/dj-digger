@@ -183,6 +183,8 @@ class DownloadMixin:
                     gate_url,
                     self._download_directory(),
                     self._gate_cancel,
+                    social=self.config.gate_social_actions,
+                    status=self._gate_status,
                 )
             except Exception as browser_exc:
                 self.call_from_thread(
@@ -586,6 +588,8 @@ class DownloadMixin:
                 [(row.track, gate_url) for row, gate_url in progress.browser_items],
                 download_directory,
                 self._gate_cancel,
+                social=self.config.gate_social_actions,
+                status=self._gate_status,
             )
         except Exception as exc:
             browser_result = gates.HypedditBrowserBatchResult(
@@ -636,6 +640,14 @@ class DownloadMixin:
         tracks = [row.track for row in self.rows]
         self._set_records(links_module.categorise_all(tracks))
         self.refresh_rows()
+
+    def _gate_status(self, message: str) -> None:
+        """A word from the browser worker about what it is waiting on."""
+
+        try:
+            self.call_from_thread(self.notify, message, timeout=6, markup=False)
+        except RuntimeError:
+            pass
 
     def _browser_batch_started(self, count: int) -> None:
         self._browser_batch_active = True

@@ -688,6 +688,202 @@ def test_hypeddit_browser_batch_uses_one_context_and_maps_each_tab_download(
     ]
 
 
+class _GatePage:
+    """A Hypeddit tab with step buttons, a download button, and optional popups."""
+
+    def __init__(self, context, *, steps=2, popup_on=(), download_on_click=True):
+        self.context = context
+        self.url = "about:blank"
+        self.handlers = {}
+        self.opener = None
+        self.clicked = []
+        self.popup_on = set(popup_on)
+        self.download_on_click = download_on_click
+        self.polls = 0
+        self.steps = steps
+
+    def on(self, event, callback):
+        self.handlers[event] = callback
+
+    def goto(self, url, **_kwargs):
+        self.url = url
+
+    def is_closed(self):
+        return False
+
+    def wait_for_timeout(self, _timeout):
+        self.polls += 1
+        # A popup the person has "completed" after a couple of polls.
+        for popup in self.context.pages:
+            if popup.opener is self and self.polls % 3 == 0:
+                popup.closed = True
+
+    def locator(self, selector):
+        page = self
+
+        class Element:
+            def __init__(self, kind, index=0):
+                self.kind, self.index = kind, index
+
+            def is_visible(self):
+                return True
+
+            @property
+            def first(self):
+                return self
+
+            def click(self, timeout=None):
+                page.clicked.append((self.kind, self.index))
+                if self.kind == "step" and self.index in page.popup_on:
+                    popup = _Popup(page)
+                    page.context.pages.append(popup)
+                if self.kind == "download" and page.download_on_click:
+                    page.handlers["download"](_download("gate.wav", b"RIFF-gate"))
+
+        class Locator:
+            def __init__(self, kind):
+                self.kind = kind
+
+            def count(self):
+                return page.steps if self.kind == "step" else 1
+
+            def nth(self, index):
+                return Element(self.kind, index)
+
+            @property
+            def first(self):
+                return Element(self.kind, 0)
+
+        return Locator("step" if selector == gates.HYPEDDIT_STEP_BUTTON else "download")
+
+
+class _Popup:
+    def __init__(self, opener):
+        self.opener = opener
+        self.url = "https://accounts.spotify.com/authorize"
+        self.closed = False
+
+    def is_closed(self):
+        return self.closed
+
+
+def _download(name, body):
+    class Download:
+        suggested_filename = name
+
+        def save_as(self, destination):
+            Path(destination).write_bytes(body)
+
+    return Download()
+
+
+class _GateContext:
+    def __init__(self, page_factory):
+        self.pages = [page_factory(self)]
+        self.handlers = {}
+
+    def on(self, event, callback):
+        self.handlers[event] = callback
+
+    def new_page(self):
+        page = self.pages[0].__class__(self)
+        self.pages.append(page)
+        return page
+
+
+def _gate_browser(monkeypatch, page_factory):
+    contexts = []
+
+    @contextmanager
+    def browser_context(*_args, **_kwargs):
+        context = _GateContext(page_factory)
+        contexts.append(context)
+        yield context
+
+    monkeypatch.setattr("dj_digger.browser_session.sync_browser_context", browser_context)
+    return contexts
+
+
+def test_semi_automated_gate_clicks_declared_steps_then_download(tmp_path, monkeypatch):
+    contexts = _gate_browser(monkeypatch, lambda ctx: _GatePage(ctx, steps=2))
+    track = Track(id=7, title="Seven", permalink_url="https://soundcloud.com/a/7")
+
+    path = gates.download_hypeddit_in_browser(
+        track, "https://hypeddit.com/track/seven", tmp_path, None, social=True
+    )
+
+    page = contexts[0].pages[0]
+    assert page.clicked == [("step", 0), ("step", 1), ("download", 0)]
+    assert path.read_bytes() == b"RIFF-gate"
+
+
+def test_provider_popup_pauses_until_it_closes(tmp_path, monkeypatch):
+    contexts = _gate_browser(monkeypatch, lambda ctx: _GatePage(ctx, steps=2, popup_on={0}))
+    messages = []
+    track = Track(id=8, title="Eight", permalink_url="https://soundcloud.com/a/8")
+
+    gates.download_hypeddit_in_browser(
+        track, "https://hypeddit.com/track/eight", tmp_path, None, social=True, status=messages.append
+    )
+
+    page = contexts[0].pages[0]
+    assert page.clicked[0] == ("step", 0)
+    assert page.polls >= 3, "the second step waited for the popup to be dealt with"
+    assert page.clicked[1:] == [("step", 1), ("download", 0)]
+    assert messages and "accounts.spotify.com" in messages[0]
+
+
+def test_social_actions_disabled_uses_passive_watcher_only(tmp_path, monkeypatch):
+    def page_factory(ctx):
+        page = _GatePage(ctx, steps=2)
+        original_goto = page.goto
+
+        def goto(url, **kwargs):
+            original_goto(url, **kwargs)
+            page.handlers["download"](_download("hand.wav", b"RIFF-hand"))
+
+        page.goto = goto
+        return page
+
+    contexts = _gate_browser(monkeypatch, page_factory)
+    track = Track(id=9, title="Nine", permalink_url="https://soundcloud.com/a/9")
+
+    path = gates.download_hypeddit_in_browser(
+        track, "https://hypeddit.com/track/nine", tmp_path, None, social=False
+    )
+
+    assert contexts[0].pages[0].clicked == []
+    assert path.read_bytes() == b"RIFF-hand"
+
+
+def test_unknown_gate_dom_degrades_to_passive_watcher(tmp_path, monkeypatch):
+    class BarePage:
+        def __init__(self, context):
+            self.context = context
+            self.url = "about:blank"
+            self.handlers = {}
+            self.opener = None
+
+        def on(self, event, callback):
+            self.handlers[event] = callback
+
+        def goto(self, url, **_kwargs):
+            self.url = url
+            self.handlers["download"](_download("bare.wav", b"RIFF-bare"))
+
+        def wait_for_timeout(self, _timeout):
+            pass
+
+    _gate_browser(monkeypatch, BarePage)
+    track = Track(id=10, title="Ten", permalink_url="https://soundcloud.com/a/10")
+
+    path = gates.download_hypeddit_in_browser(
+        track, "https://hypeddit.com/track/ten", tmp_path, None, social=True
+    )
+
+    assert path.read_bytes() == b"RIFF-bare"
+
+
 def test_soundcloud_click_through_never_calls_soundcloud_or_mobile_step_endpoints():
 
     session = _stepping_gate_session()

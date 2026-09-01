@@ -5,8 +5,8 @@
 - Product version verified: 0.15.0
 - Owner: Filip Białogrecki
 - Updated: 2026-08-28
-- Document lines: <!-- SPEC TOTAL LINES -->1020<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1020<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1025<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1025<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -81,32 +81,32 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 9 | Authentication and authorization | 665–701 |
 | 9.1 | ↳ SoundCloud authentication | 667–684 |
 | 9.2 | ↳ Gate action consent | 685–701 |
-| 10 | External integrations | 702–804 |
+| 10 | External integrations | 702–809 |
 | 10.1 | ↳ SoundCloud API and media | 704–715 |
-| 10.2 | ↳ Link hubs and download gates | 716–753 |
-| 10.2 · block | ↳ ↳ Hypeddit | 724–739 |
-| 10.2 · block | ↳ ↳ Other resolvers | 741–746 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 748–753 |
-| 10.3 | ↳ Browsers and clipboard | 754–765 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 766–804 |
-| 11 | Security requirements and threat model | 805–851 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 807–825 |
-| 11.2 | ↳ Secret and personal-data handling | 826–838 |
-| 11.3 | ↳ File and mutation safety | 839–851 |
-| 12 | Privacy, lifecycle, and retention | 852–890 |
-| 12.1 | ↳ Data stored locally | 854–869 |
-| 12.2 | ↳ Data sent to third parties | 870–881 |
-| 12.3 | ↳ User-controlled deletion | 882–890 |
-| 13 | Failure behavior and current limitations | 891–941 |
-| 13.1 | ↳ Error isolation and reporting | 893–912 |
-| 13.2 | ↳ Confirmed limitations | 913–941 |
-| 14 | Verification, CI, and release | 942–998 |
-| 14.1 | ↳ Offline and live test suites | 944–967 |
-| 14.2 | ↳ Continuous integration and publishing | 968–983 |
-| 14.3 | ↳ Specification-map verification | 984–998 |
-| 15 | Evidence and operational references | 999–1020 |
-| 15.1 | ↳ Primary implementation evidence | 1001–1013 |
-| 15.2 | ↳ User and historical documentation | 1014–1020 |
+| 10.2 | ↳ Link hubs and download gates | 716–758 |
+| 10.2 · block | ↳ ↳ Hypeddit | 724–744 |
+| 10.2 · block | ↳ ↳ Other resolvers | 746–751 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 753–758 |
+| 10.3 | ↳ Browsers and clipboard | 759–770 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 771–809 |
+| 11 | Security requirements and threat model | 810–856 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 812–830 |
+| 11.2 | ↳ Secret and personal-data handling | 831–843 |
+| 11.3 | ↳ File and mutation safety | 844–856 |
+| 12 | Privacy, lifecycle, and retention | 857–895 |
+| 12.1 | ↳ Data stored locally | 859–874 |
+| 12.2 | ↳ Data sent to third parties | 875–886 |
+| 12.3 | ↳ User-controlled deletion | 887–895 |
+| 13 | Failure behavior and current limitations | 896–946 |
+| 13.1 | ↳ Error isolation and reporting | 898–917 |
+| 13.2 | ↳ Confirmed limitations | 918–946 |
+| 14 | Verification, CI, and release | 947–1003 |
+| 14.1 | ↳ Offline and live test suites | 949–972 |
+| 14.2 | ↳ Continuous integration and publishing | 973–988 |
+| 14.3 | ↳ Specification-map verification | 989–1003 |
+| 15 | Evidence and operational references | 1004–1025 |
+| 15.1 | ↳ Primary implementation evidence | 1006–1018 |
+| 15.2 | ↳ User and historical documentation | 1019–1025 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -734,7 +734,12 @@ profile, consent, provider login, CAPTCHA, unknown action, protocol change,
 rejection, transfer, and provider availability. Provider login, CAPTCHA,
 unknown action, protocol change, rejection, and disabled social actions fall
 back to the browser; a batch hands at most eight gates to it per run and leaves
-the rest new. Browser fallback uses the private SoundCloud Chromium profile, watches downloads in one or multiple tabs,
+the rest new. Browser fallback uses the private SoundCloud Chromium profile and,
+when gate social actions are enabled, clicks the gate's own step buttons in
+turn, pausing while a provider window (or the tab itself) is at the provider
+until the user returns, then clicks the gate's download button; a page without
+those controls is only watched. Nothing outside Hypeddit's page is ever clicked.
+It watches downloads in one or multiple tabs,
 and saves files through the same size/type/atomic validation as HTTP downloads.
 
 <!-- spec-map-block: Other resolvers -->

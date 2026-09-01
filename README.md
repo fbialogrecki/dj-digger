@@ -344,8 +344,12 @@ Releases before 1.0 asked for a Spotify developer app and stored a login in
 `~/.config/dj-digger/spotify.json`; that file is no longer read, and you can
 delete it yourself.
 
-Disable **gate social actions** in Settings to keep the program from reporting
-any social step at all. Gates requiring those actions will then remain manual.
+When a gate ends up in the private Chromium window (a refusal, a CAPTCHA, a
+provider login), the app clicks the gate's own step buttons for you and waits
+while you deal with any provider window that opens, then presses its download
+button; nothing outside the Hypeddit page is clicked. Disable **gate social
+actions** in Settings to keep the program from reporting or clicking any
+social step at all. Gates requiring those actions will then remain manual.
 
 ---
 

@@ -11,6 +11,7 @@ import re
 import threading
 import time
 import urllib.parse
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -686,13 +687,115 @@ def _refused(result: Any) -> bool:
     return not isinstance(result, dict) or not result.get("download_status")
 
 
+# The gate page's own step buttons and its download button. Inferred from the
+# desktop page rather than a recorded fixture, so everything that touches them
+# degrades to the passive watcher when they are not where they were.
+HYPEDDIT_STEP_BUTTON = ".hype-btn-social"
+HYPEDDIT_DOWNLOAD_BUTTON = ".hype-btn-download, #download-btn, button:has-text('Download')"
+MAX_GATE_STEP_BUTTONS = 12
+PROVIDER_WAIT_SECONDS = 300
+StatusCallback = Callable[[str], None]
+
+
+def _drive_gate_steps(
+    context: Any,
+    page: Any,
+    cancel: Any,
+    status: StatusCallback | None,
+    *,
+    social: bool,
+) -> bool:
+    """Click the gate's step buttons one by one, waiting out any provider popup.
+
+    Only elements on the Hypeddit page are ever clicked. When a step opens a
+    provider window, or sends the tab itself to the provider, the person at
+    the window completes it and this returns to the gate when they do. False
+    means the page did not look like a gate this knows: the caller then just
+    watches for a download, as it always has.
+    """
+
+    if not social:
+        return False
+    try:
+        buttons = page.locator(HYPEDDIT_STEP_BUTTON)
+        count = min(buttons.count(), MAX_GATE_STEP_BUTTONS)
+    except Exception:
+        return False
+    if not count:
+        return False
+    for index in range(count):
+        if cancel is not None and cancel.is_set():
+            raise GateManualActionRequired("cancelled")
+        before = list(context.pages)
+        try:
+            button = buttons.nth(index)
+            if not button.is_visible():
+                continue
+            button.click(timeout=15_000)
+        except Exception as exc:
+            LOGGER.debug("Gate step %d could not be clicked: %s", index, type(exc).__name__)
+            continue
+        _wait_for_provider(context, page, before, cancel, status)
+    return True
+
+
+def _wait_for_provider(
+    context: Any, page: Any, before: list[Any], cancel: Any, status: StatusCallback | None
+) -> None:
+    deadline = time.monotonic() + PROVIDER_WAIT_SECONDS
+    told = ""
+    while time.monotonic() < deadline:
+        if cancel is not None and cancel.is_set():
+            raise GateManualActionRequired("cancelled")
+        popups = [
+            popup
+            for popup in context.pages
+            if popup not in before
+            and getattr(popup, "opener", None) is page
+            and not _page_closed(popup)
+        ]
+        off_host = not _is_hypeddit_url(str(page.url))
+        if not popups and not off_host:
+            return
+        where = host_of(str(popups[0].url if popups else page.url)) or "the provider"
+        message = f"Complete {where} in the browser window, then return to Hypeddit"
+        if status is not None and message != told:
+            status(message)
+            told = message
+        page.wait_for_timeout(250)
+    raise GateManualActionRequired("provider step was not completed in time")
+
+
+def _page_closed(page: Any) -> bool:
+    try:
+        return bool(page.is_closed())
+    except Exception:
+        return False
+
+
+def _click_gate_download(page: Any) -> None:
+    try:
+        button = page.locator(HYPEDDIT_DOWNLOAD_BUTTON).first
+        if button.is_visible():
+            button.click(timeout=15_000)
+    except Exception as exc:
+        LOGGER.debug("Gate download button not clicked: %s", type(exc).__name__)
+
+
 def download_hypeddit_in_browser(
     track: Any,
     url: str,
     directory: Path,
     cancel: Any,
+    *,
+    social: bool = True,
+    status: StatusCallback | None = None,
 ) -> Path:
-    """Finish a provider-owned Hypeddit flow in the existing private browser."""
+    """Finish a provider-owned Hypeddit flow in the existing private browser.
+
+    With ``social`` the gate's own step buttons are clicked and provider
+    windows are waited out; without it the page is only watched.
+    """
 
     if not _is_hypeddit_url(url) or not is_fetchable(url):
         raise GateProtocolChanged("Refusing an unsafe Hypeddit browser URL")
@@ -722,6 +825,9 @@ def download_hypeddit_in_browser(
                 page.goto(url, wait_until="domcontentloaded", timeout=30_000)
                 if not _is_hypeddit_url(page.url):
                     raise GateProtocolChanged("Hypeddit redirected outside its canonical hosts")
+                if not downloads:
+                    if _drive_gate_steps(context, page, cancel, status, social=social):
+                        _click_gate_download(page)
 
                 deadline = time.monotonic() + 300
                 while time.monotonic() < deadline and not downloads:
@@ -747,8 +853,15 @@ def download_hypeddit_batch_in_browser(
     items: list[tuple[Any, str]],
     directory: Path,
     cancel: Any,
+    *,
+    social: bool = True,
+    status: StatusCallback | None = None,
 ) -> HypedditBrowserBatchResult:
-    """Open every manual Hypeddit gate in one persistent browser context."""
+    """Open every manual Hypeddit gate in one persistent browser context.
+
+    Each tab gets its step buttons clicked in turn (see ``_drive_gate_steps``)
+    before the shared download watch begins.
+    """
 
     keyed = {track.key: (track, url) for track, url in items}
     failures: dict[str, GateError] = {}
@@ -850,6 +963,21 @@ def download_hypeddit_batch_in_browser(
                         failures[key] = GateUnavailable(
                             f"Could not open Hypeddit in Chromium: {exc}"
                         )
+
+                for key, page, _url in pages:
+                    if key in completed or key in failures:
+                        continue
+                    if cancel is not None and cancel.is_set():
+                        cancelled = True
+                        break
+                    try:
+                        if _drive_gate_steps(context, page, cancel, status, social=social):
+                            _click_gate_download(page)
+                    except GateManualActionRequired as exc:
+                        if "cancelled" in str(exc):
+                            cancelled = True
+                            break
+                        failures[key] = exc
 
                 while len(completed) + len(failures) < len(pending):
                     if cancel is not None and cancel.is_set():
