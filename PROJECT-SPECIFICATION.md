@@ -5,8 +5,8 @@
 - Product version verified: 0.15.0
 - Owner: Filip Białogrecki
 - Updated: 2026-08-28
-- Document lines: <!-- SPEC TOTAL LINES -->991<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->991<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->997<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->997<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,64 +51,64 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 143–175 |
 | 2.1 | ↳ Problem and product boundary | 145–156 |
 | 2.2 | ↳ Execution modes | 157–175 |
-| 3 | User-visible capabilities | 176–371 |
+| 3 | User-visible capabilities | 176–372 |
 | 3.1 | ↳ Track collection and saved HTML | 178–197 |
 | 3.2 | ↳ Link classification and exports | 198–216 |
-| 3.3 | ↳ TUI crate library and interaction | 217–254 |
-| 3.4 | ↳ Audio preview | 255–291 |
-| 3.5 | ↳ Downloads and local-file matching | 292–319 |
-| 3.6 | ↳ Store purchase assistance | 320–371 |
-| 4 | System context and data flow | 372–409 |
-| 4.1 | ↳ Context diagram | 374–396 |
-| 4.2 | ↳ Collection-to-library flow | 397–409 |
-| 5 | Repository layout and component ownership | 410–450 |
-| 5.1 | ↳ Entry, orchestration, and models | 412–422 |
-| 5.2 | ↳ Network and external-system adapters | 423–436 |
-| 5.3 | ↳ Persistence, local media, and UI | 437–450 |
-| 6 | Runtime architecture and environments | 451–517 |
-| 6.1 | ↳ Runtime and dependencies | 453–466 |
-| 6.2 | ↳ Concurrency and lifecycle | 467–502 |
-| 6.3 | ↳ Local paths and environment variables | 503–517 |
-| 7 | Data model and persistence | 518–581 |
-| 7.1 | ↳ Domain objects and identity | 520–531 |
-| 7.2 | ↳ SQLite schema and invariants | 532–555 |
-| 7.3 | ↳ Crate persistence and deletion | 556–567 |
-| 7.4 | ↳ Configuration and credential stores | 568–581 |
-| 8 | Public interfaces and contracts | 582–626 |
-| 8.1 | ↳ CLI arguments and exit behavior | 584–604 |
-| 8.2 | ↳ JSON and CSV summary input | 605–617 |
-| 8.3 | ↳ URL-opening contract | 618–626 |
-| 9 | Authentication and authorization | 627–673 |
-| 9.1 | ↳ SoundCloud authentication | 629–646 |
-| 9.2 | ↳ Spotify PKCE and scopes | 647–658 |
-| 9.3 | ↳ Gate action consent | 659–673 |
-| 10 | External integrations | 674–778 |
-| 10.1 | ↳ SoundCloud API and media | 676–687 |
-| 10.2 | ↳ Link hubs and download gates | 688–719 |
-| 10.2 · block | ↳ ↳ Hypeddit | 696–705 |
-| 10.2 · block | ↳ ↳ Other resolvers | 707–712 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 714–719 |
-| 10.3 | ↳ Browsers and clipboard | 720–731 |
-| 10.4 | ↳ Spotify | 732–738 |
-| 10.5 | ↳ Bandcamp cart and Beatport playlists | 739–778 |
-| 11 | Security requirements and threat model | 779–825 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 781–799 |
-| 11.2 | ↳ Secret and personal-data handling | 800–812 |
-| 11.3 | ↳ File and mutation safety | 813–825 |
-| 12 | Privacy, lifecycle, and retention | 826–862 |
-| 12.1 | ↳ Data stored locally | 828–841 |
-| 12.2 | ↳ Data sent to third parties | 842–854 |
-| 12.3 | ↳ User-controlled deletion | 855–862 |
-| 13 | Failure behavior and current limitations | 863–912 |
-| 13.1 | ↳ Error isolation and reporting | 865–884 |
-| 13.2 | ↳ Confirmed limitations | 885–912 |
-| 14 | Verification, CI, and release | 913–969 |
-| 14.1 | ↳ Offline and live test suites | 915–938 |
-| 14.2 | ↳ Continuous integration and publishing | 939–954 |
-| 14.3 | ↳ Specification-map verification | 955–969 |
-| 15 | Evidence and operational references | 970–991 |
-| 15.1 | ↳ Primary implementation evidence | 972–984 |
-| 15.2 | ↳ User and historical documentation | 985–991 |
+| 3.3 | ↳ TUI crate library and interaction | 217–255 |
+| 3.4 | ↳ Audio preview | 256–292 |
+| 3.5 | ↳ Downloads and local-file matching | 293–320 |
+| 3.6 | ↳ Store purchase assistance | 321–372 |
+| 4 | System context and data flow | 373–410 |
+| 4.1 | ↳ Context diagram | 375–397 |
+| 4.2 | ↳ Collection-to-library flow | 398–410 |
+| 5 | Repository layout and component ownership | 411–451 |
+| 5.1 | ↳ Entry, orchestration, and models | 413–423 |
+| 5.2 | ↳ Network and external-system adapters | 424–437 |
+| 5.3 | ↳ Persistence, local media, and UI | 438–451 |
+| 6 | Runtime architecture and environments | 452–522 |
+| 6.1 | ↳ Runtime and dependencies | 454–467 |
+| 6.2 | ↳ Concurrency and lifecycle | 468–507 |
+| 6.3 | ↳ Local paths and environment variables | 508–522 |
+| 7 | Data model and persistence | 523–586 |
+| 7.1 | ↳ Domain objects and identity | 525–536 |
+| 7.2 | ↳ SQLite schema and invariants | 537–560 |
+| 7.3 | ↳ Crate persistence and deletion | 561–572 |
+| 7.4 | ↳ Configuration and credential stores | 573–586 |
+| 8 | Public interfaces and contracts | 587–632 |
+| 8.1 | ↳ CLI arguments and exit behavior | 589–610 |
+| 8.2 | ↳ JSON and CSV summary input | 611–623 |
+| 8.3 | ↳ URL-opening contract | 624–632 |
+| 9 | Authentication and authorization | 633–679 |
+| 9.1 | ↳ SoundCloud authentication | 635–652 |
+| 9.2 | ↳ Spotify PKCE and scopes | 653–664 |
+| 9.3 | ↳ Gate action consent | 665–679 |
+| 10 | External integrations | 680–784 |
+| 10.1 | ↳ SoundCloud API and media | 682–693 |
+| 10.2 | ↳ Link hubs and download gates | 694–725 |
+| 10.2 · block | ↳ ↳ Hypeddit | 702–711 |
+| 10.2 · block | ↳ ↳ Other resolvers | 713–718 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 720–725 |
+| 10.3 | ↳ Browsers and clipboard | 726–737 |
+| 10.4 | ↳ Spotify | 738–744 |
+| 10.5 | ↳ Bandcamp cart and Beatport playlists | 745–784 |
+| 11 | Security requirements and threat model | 785–831 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 787–805 |
+| 11.2 | ↳ Secret and personal-data handling | 806–818 |
+| 11.3 | ↳ File and mutation safety | 819–831 |
+| 12 | Privacy, lifecycle, and retention | 832–868 |
+| 12.1 | ↳ Data stored locally | 834–847 |
+| 12.2 | ↳ Data sent to third parties | 848–860 |
+| 12.3 | ↳ User-controlled deletion | 861–868 |
+| 13 | Failure behavior and current limitations | 869–918 |
+| 13.1 | ↳ Error isolation and reporting | 871–890 |
+| 13.2 | ↳ Confirmed limitations | 891–918 |
+| 14 | Verification, CI, and release | 919–975 |
+| 14.1 | ↳ Offline and live test suites | 921–944 |
+| 14.2 | ↳ Continuous integration and publishing | 945–960 |
+| 14.3 | ↳ Specification-map verification | 961–975 |
+| 15 | Evidence and operational references | 976–997 |
+| 15.1 | ↳ Primary implementation evidence | 978–990 |
+| 15.2 | ↳ User and historical documentation | 991–997 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -221,7 +221,8 @@ search input, footer, and collapsible player bar. The sidebar lists crate
 headers and loads a crate's tracks when it is selected. Changes to a single
 row (a mark, an opened link, the playing marker, download progress) repaint
 that row in place; the table is rebuilt only when the visible set changes.
-Handing a link or a store search to the browser runs in a thread worker,
+`q` and Ctrl+C both quit; Ctrl+C is bound with priority so it also quits from
+the search box. Handing a link or a store search to the browser runs in a thread worker,
 because the WSL bridge can block for seconds; the status mark is written back
 on the UI thread. `tui/keymap.py` is the single
 source for bindings, footer labels, and help text. Implemented operations include
@@ -489,7 +490,11 @@ late bytes after close or seek.
 
 On TUI unmount, cart/gate cancellation is signalled, the ticker stops, pending
 download futures are cancelled when possible, prepared media is closed, and the
-player, asynchronous Playwright context, and SoundCloud session are released.
+player, asynchronous Playwright context (bounded to five seconds), and SoundCloud
+session are released. After `App.run()` returns, `run_tui` waits up to three
+seconds for non-daemon threads and then ends the process with the reason
+logged; a SIGINT received once the terminal is restored ends it immediately
+with status 130.
 
 Cart automation uses Playwright's asynchronous API on Textual's event loop.
 Textual awaits the editable plan inside an async worker, while one context at a
@@ -599,7 +604,8 @@ auth actions are `spotify login [--client-id]`, `spotify logout`, and
 `spotify status`.
 
 Success returns 0. An empty dig returns 1. Caught file, value, and runtime errors
-return 2. Keyboard interruption returns 130. Invalid argparse input exits through
+return 2. Keyboard interruption returns 130; a TUI exit forced after the thread
+grace period keeps the code the run had, and a SIGINT during that wait exits 130. Invalid argparse input exits through
 argparse. In a non-TTY, a missing dig target is an error instead of a prompt.
 
 ### 8.2 JSON and CSV summary input

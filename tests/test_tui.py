@@ -441,6 +441,39 @@ def test_opening_a_link_repaints_only_that_row(records, state, monkeypatch):
     assert clears == [], "opening a link must not rebuild the table"
 
 
+def test_ctrl_c_quits_like_q(records, state, monkeypatch):
+    app = make_app(records, state)
+    exits = []
+    monkeypatch.setattr(app, "exit", lambda *a, **k: exits.append(1))
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("ctrl+c")
+            await pilot.pause()
+
+    run(scenario)
+    assert exits == [1]
+
+
+def test_ctrl_c_quits_from_the_search_box(records, state, monkeypatch):
+    """Input binds ctrl+c to copy; quitting must win there too."""
+
+    app = make_app(records, state)
+    exits = []
+    monkeypatch.setattr(app, "exit", lambda *a, **k: exits.append(1))
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("slash")
+            await pilot.pause()
+            assert isinstance(app.focused, Input)
+            await pilot.press("ctrl+c")
+            await pilot.pause()
+
+    run(scenario)
+    assert exits == [1]
+
+
 def test_a_slow_browser_does_not_block_the_interface(records, state, monkeypatch):
     """On WSL the handoff to Windows can take seconds; the cursor must keep moving."""
 

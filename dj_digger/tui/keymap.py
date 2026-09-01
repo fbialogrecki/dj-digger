@@ -130,7 +130,7 @@ KEYMAP = [
     ("ctrl+b", "toggle_sidebar", "Crates", CRATES, False, "Show or hide the crate sidebar"),
     ("question_mark", "help", "Help", OTHER, True, "This screen"),
     ("S", "open_settings", "Settings", OTHER, True, "Configure profile name, email and gate comments"),
-    ("q", "quit", "Quit", OTHER, True, "Leave"),
+    ("q", "quit", "Quit", OTHER, True, "Leave (ctrl+c does the same)"),
 ]
 
 # What each group actually operates on. The old footer never said, so it was

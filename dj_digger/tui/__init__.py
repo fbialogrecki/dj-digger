@@ -14,6 +14,10 @@ worker thread so the interface stays responsive, and fills itself in.
 """
 
 import logging
+import os
+import signal
+import threading
+import time
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -70,6 +74,48 @@ __all__ = [
 ]
 
 
+LOGGER = logging.getLogger(__name__)
+
+# How long a finished app waits for its background threads before leaving
+# without them. A dig or a download that is mid-request cannot be interrupted;
+# asyncio would otherwise join it for up to five minutes with the terminal
+# already restored and nothing on screen to say why.
+EXIT_GRACE = 3.0
+# Swapped out by the tests, where a real os._exit would take pytest with it.
+HARD_EXIT = os._exit
+
+
+def _lingering_threads() -> list[threading.Thread]:
+    return [
+        thread
+        for thread in threading.enumerate()
+        if thread is not threading.main_thread() and not thread.daemon and thread.is_alive()
+    ]
+
+
+def _finish_or_exit(grace: float, code: int) -> None:
+    """Return once the worker threads are gone, or end the process after ``grace``."""
+
+    deadline = time.monotonic() + grace
+    while _lingering_threads():
+        if time.monotonic() >= deadline:
+            names = ", ".join(thread.name for thread in _lingering_threads())
+            LOGGER.warning("Forcing exit: %s still running", names)
+            logging.shutdown()
+            HARD_EXIT(code)
+            return
+        time.sleep(0.1)
+
+
+def _interrupt_again(_signum, _frame) -> None:
+    # Only reachable once Textual has restored the terminal: while it owns the
+    # screen ctrl+c is a key, not a signal. So this is the second ctrl+c, from
+    # someone watching a shutdown that is taking too long.
+    LOGGER.warning("Interrupted again during shutdown, exiting now")
+    logging.shutdown()
+    HARD_EXIT(130)
+
+
 def run_tui(
     records: Sequence[LinkRecord] = (),
     *,
@@ -80,6 +126,7 @@ def run_tui(
     dig_options: dig_module.DigOptions | None = None,
     crate_record: CrateRecord | None = None,
     keep_logging: bool = False,
+    grace: float = EXIT_GRACE,
 ) -> None:
     app = DiggerApp(
         records,
@@ -100,8 +147,19 @@ def run_tui(
     levels = [(logger, logger.level) for logger in silenced]
     for logger in silenced:
         logger.setLevel(logging.CRITICAL + 1)
+    previous_handler = None
+    on_main_thread = threading.current_thread() is threading.main_thread()
+    if on_main_thread:
+        previous_handler = signal.signal(signal.SIGINT, _interrupt_again)
+    code = 0
     try:
         app.run()
+    except KeyboardInterrupt:
+        code = 130
+        raise
     finally:
         for logger, level in levels:
             logger.setLevel(level)
+        if on_main_thread:
+            signal.signal(signal.SIGINT, previous_handler)
+        _finish_or_exit(grace, code)

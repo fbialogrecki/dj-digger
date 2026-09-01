@@ -185,6 +185,12 @@ class DiggerApp(
         Binding(key, action, label, show=show, key_display=KEY_DISPLAY.get(key))
         for key, action, label, _group, show, _detail in KEYMAP
     ] + [
+        # Textual 8 answers ctrl+c with a toast saying to press ctrl+q, which
+        # is not what anyone reaching for ctrl+c wants. A binding on the app
+        # replaces the base one for the same key; priority puts it ahead of
+        # the search box, where Input would otherwise take ctrl+c as "copy".
+        Binding("ctrl+c", "quit", "Quit", show=False, priority=True),
+    ] + [
         # 0 is declared in KEYMAP so it shows in the footer as the way back.
         Binding(str(index), f"filter_index({index})", f"Store {index}", show=False)
         for index in range(1, QUICK_FILTER_KEYS + 1)
@@ -381,7 +387,13 @@ class DiggerApp(
             self._download_executor = None
         self._discard_prepared()
         self.player.close()
-        await self._cart_session.close()
+        # This runs before Textual gives the terminal back, so a Playwright
+        # that will not answer would hang the exit with no key able to reach
+        # us. Five seconds, then the process-exit guard in run_tui takes over.
+        try:
+            await asyncio.wait_for(self._cart_session.close(), timeout=5)
+        except Exception as exc:  # TimeoutError included
+            LOGGER.warning("Store browser did not close cleanly: %s", exc)
         if self._client is not None:
             self._client.close()
             self._client = None

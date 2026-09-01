@@ -4,8 +4,16 @@
 
 ### Added
 
+- Ctrl+C quits the crate browser like `q`, from the search box too. Textual
+  only showed a hint to press Ctrl+Q.
 - `ctrl+x` now stops a running dig as well as a download batch; what was
   already collected or downloaded is kept, and nothing partial is saved.
+
+### Fixed
+
+- Quitting no longer waits on a background thread that cannot be stopped: the
+  browser closes within three seconds and the process ends with the reason in
+  the log, and a second Ctrl+C during shutdown exits at once.
 
 ### Changed
 
