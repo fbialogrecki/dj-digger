@@ -574,9 +574,56 @@ class OpeningMixin:
         self.notify(f"Opening {len(target_rows)} links in background...", timeout=3)
         self.open_visible_in_background(target_rows)
 
+    def action_open_beatport_tracks(self) -> None:
+        """Beatport carts are not automated; its exact track pages open where you are logged in.
+
+        A release link cannot be turned into a track page without a lookup, so
+        those rows are counted and left out rather than opened at the album.
+        """
+
+        rows: list[Row] = []
+        urls: list[str] = []
+        release_only = 0
+        for row in self.targets():
+            if self.status_of(row) in (GOT, SKIP):
+                continue
+            record = row.record_for("beatport")
+            if record is None or not record.link_url:
+                continue
+            direct = cart_module._direct_beatport_track_url(record.link_url)
+            if direct is None:
+                release_only += 1
+                continue
+            rows.append(row)
+            urls.append(direct)
+        if not rows:
+            self.notify(
+                "No exact Beatport track pages to open"
+                + (f" ({release_only} release links skipped)" if release_only else ""),
+                timeout=4,
+            )
+            return
+        count = len(rows)
+        if count > OPEN_ALL_CONFIRM_THRESHOLD and not self._pending_open_beatport:
+            self._pending_open_beatport = True
+            self.notify(
+                f"That opens {count} Beatport tabs. Press shift+P again to confirm, "
+                "or filter the list down first.",
+                severity="warning",
+                timeout=6,
+            )
+            return
+        self._pending_open_beatport = False
+        message = f"Opening {count} Beatport track pages; press Add to cart on each"
+        if release_only:
+            message += f" ({release_only} release links skipped)"
+        self.notify(message, timeout=5)
+        self.open_visible_in_background(rows, urls)
+
     @work(thread=True, exclusive=True, group="open_all")
-    def open_visible_in_background(self, rows: list[Row]) -> None:
-        urls = [self.record_to_open(row).link_url for row in rows]
+    def open_visible_in_background(self, rows: list[Row], urls: list[str] | None = None) -> None:
+        if urls is None:
+            urls = [self.record_to_open(row).link_url for row in rows]
         cancel = Event()
         self.call_from_thread(self.start_job, "Opening", len(rows), cancel=cancel)
 

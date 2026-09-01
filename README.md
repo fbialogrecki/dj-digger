@@ -155,6 +155,7 @@ Press `?` inside the TUI at any time to view the full grouped keybinding modal.
 | `Shift+O` | Open all visible store links in browser (asks confirmation for >20 links) |
 | `c` | Add the highlighted track to Bandcamp, or prepare it for a Beatport playlist |
 | `Shift+C` | Review visible store tracks, add Bandcamp items, and prepare a Beatport playlist |
+| `Shift+P` | Open every exact Beatport track page shown in your regular browser, to add to cart by hand (asks above 20) |
 | `e` | Export visible rows to file |
 | `d` | Add a new crate from a SoundCloud URL |
 | `r` | Refresh current crate from SoundCloud (preserves local deletions) |
@@ -274,7 +275,10 @@ expanded and the price filled, asks you to press Add to cart yourself, and
 then checks the cart once. The result screen offers the same **Finish in
 browser** for anything left uncertain.
 
-Beatport login and cart mutation are not automated. The result screen creates a
+Beatport login and cart mutation are not automated: `c`/`Shift+C` prepare a
+playlist, and `Shift+P` opens the exact Beatport track pages in your everyday
+browser, where you are already logged in, so adding to the cart is one click
+each. The result screen creates a
 new `Beatport playlist.txt` in the crate's download folder, copies its contents,
 and opens Beatport's official Soundiiz transfer page. Choose **Import playlist →
 Plain text** and paste; if the clipboard is unavailable, upload the saved file.

@@ -240,6 +240,7 @@ class DiggerApp(
         self.visible_rows: list[Row] = []
         self.present: list[str] = []
         self._pending_open_all = False
+        self._pending_open_beatport = False
         self._cart_busy = False
         self._cart_cancel = asyncio.Event()
         self._cart_session = cart_module.CartBrowserSession()

@@ -295,6 +295,67 @@ def test_choosing_a_theme_in_settings_persists_it(records, state):
     assert AppConfig(app.config.path).theme == "nord"
 
 
+def _beatport_record(track_id, url):
+    return LinkRecord(
+        category="beatport",
+        track=Track(id=track_id, title=f"Track {track_id}", permalink_url=f"https://soundcloud.com/a/{track_id}"),
+        link_url=url,
+        link_text="Buy",
+    )
+
+
+def test_open_beatport_tracks_opens_only_exact_track_urls(state, monkeypatch):
+    records = [
+        _beatport_record(1, "http://www.beatport.com/track/signal/123456?utm=x"),
+        _beatport_record(2, "https://www.beatport.com/release/album/99"),
+    ]
+    opened = []
+
+    def fake_open_urls(urls, browser="default", **kwargs):
+        for index, url in enumerate(urls):
+            opened.append(url)
+            kwargs["on_success"](index, url)
+        return len(urls)
+
+    monkeypatch.setattr("dj_digger.tui.browser_module.open_urls", fake_open_urls)
+    app = make_app(records, state)
+    toasts = []
+    app.notify = lambda message, **kwargs: toasts.append(message)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("P")
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+
+    run(scenario)
+    assert opened == ["https://www.beatport.com/track/signal/123456"]
+    assert any("1 release links skipped" in message for message in toasts)
+    assert state.get(records[0].track.key) == OPENED
+
+
+def test_open_beatport_tracks_asks_above_the_threshold(state, monkeypatch):
+    records = [_beatport_record(n, f"https://www.beatport.com/track/t{n}/{100 + n}") for n in range(25)]
+    opened = []
+    monkeypatch.setattr(
+        "dj_digger.tui.browser_module.open_urls",
+        lambda urls, browser="default", **kwargs: opened.extend(urls) or len(urls),
+    )
+    app = make_app(records, state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press("P")
+            await pilot.pause()
+            assert opened == []
+            await pilot.press("P")
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+
+    run(scenario)
+    assert len(opened) == 25
+
+
 def test_readme_lists_every_keymap_key():
     """The README tables are prose, so they are checked against the keymap, not generated."""
 
