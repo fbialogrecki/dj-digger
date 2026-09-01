@@ -831,7 +831,7 @@ def test_cart_session_relaunches_the_same_profile_visible_only_when_requested(
 
     asyncio.run(scenario())
 
-    assert calls == [(str(profile), False)], "one headed window, reused, never relaunched"
+    assert calls == [(str(profile), True)], "one hidden context, reused, never relaunched"
     assert contexts[0].closed
 
 
@@ -1617,9 +1617,13 @@ def test_final_bandcamp_cart_is_the_first_visible_work_page(monkeypatch):
 
     page = Page()
 
-    async def work_pages(count):
-        launches.append(count)
-        return [page]
+    class Viewer:
+        async def new_page(self):
+            launches.append("viewer page")
+            return page
+
+    async def viewer_context():
+        return Viewer()
 
     async def navigate(_page, url, _store):
         _page.url = url
@@ -1631,7 +1635,7 @@ def test_final_bandcamp_cart_is_the_first_visible_work_page(monkeypatch):
     async def contains(_page, _item):
         return True
 
-    monkeypatch.setattr(session, "_work_pages", work_pages)
+    monkeypatch.setattr(session, "_viewer_context", viewer_context)
     monkeypatch.setattr(cart, "_navigate_async", navigate)
     monkeypatch.setattr(cart, "_open_bandcamp_cart_async", opened)
     monkeypatch.setattr(cart, "_bandcamp_cart_contains_async", contains)
@@ -1640,10 +1644,47 @@ def test_final_bandcamp_cart_is_the_first_visible_work_page(monkeypatch):
         session._open_final_carts({}, {"bandcamp": [item]})
     )
 
-    assert launches == [1]
+    assert launches == ["viewer page"]
     assert stores == ("bandcamp",)
     assert not warnings
     assert page.focused == 1
+
+
+def test_the_viewer_carries_the_hidden_sessions_cookies(monkeypatch):
+    session = cart.CartBrowserSession()
+    launched = []
+
+    class HiddenContext:
+        def is_closed(self):
+            return False
+
+        async def cookies(self):
+            return [{"name": "client_id", "value": "abc", "domain": ".bandcamp.com", "path": "/"}]
+
+    class Browser:
+        def is_connected(self):
+            return True
+
+        def on(self, *_args):
+            pass
+
+    async def viewer(playwright, cookies):
+        launched.append(cookies)
+        return Browser(), object()
+
+    async def playwright_handle():
+        return object()
+
+    session._context = HiddenContext()
+    monkeypatch.setattr(session, "_playwright_handle", playwright_handle)
+    monkeypatch.setattr(cart, "launch_viewer", viewer)
+
+    asyncio.run(session._viewer_context())
+    asyncio.run(session._viewer_context())
+
+    assert launched == [[{"name": "client_id", "value": "abc", "domain": ".bandcamp.com", "path": "/"}]], (
+        "one window, reused, with the hidden session's cookies"
+    )
 
 
 def test_final_cart_view_failure_keeps_verified_results(monkeypatch):
@@ -1665,13 +1706,13 @@ def test_final_cart_view_failure_keeps_verified_results(monkeypatch):
     async def execute(store, items, *_args):
         return [cart.CartResult(item.track_key, item.track_label, store, "added")]
 
-    async def navigate(_page, _url, _store):
-        raise RuntimeError("Target page, context or browser has been closed")
+    async def no_window():
+        raise cart.AutomationError("Store cart needs a desktop window; on WSL, enable WSLg")
 
     monkeypatch.setattr(session, "_work_pages", pages)
     monkeypatch.setattr(session, "_preflight", preflight)
     monkeypatch.setattr(session, "_execute_store", execute)
-    monkeypatch.setattr(cart, "_navigate_async", navigate)
+    monkeypatch.setattr(session, "_viewer_context", no_window)
 
     outcome = asyncio.run(
         session.run_batch((request("bandcamp"),), asyncio.Event(), approve=approve)
@@ -1857,7 +1898,7 @@ def test_manual_completion_records_manual_results_without_clicking(monkeypatch):
         added.extend(items)  # "the person pressed Add to cart"
         return True
 
-    monkeypatch.setattr(session, "_ensure_context", context)
+    monkeypatch.setattr(session, "_viewer_context", context)
     monkeypatch.setattr(cart, "_navigate_async", navigate)
     monkeypatch.setattr(cart, "_dismiss_bandcamp_cookie_banner", banner)
     monkeypatch.setattr(cart, "_first_visible_async", nothing_visible)

@@ -65,10 +65,11 @@
   gates to the browser per run.
 - A Bandcamp batch whose clicks all verified no longer shows "Cart automation
   failed" when the final cart window cannot be shown; the additions are kept
-  and the window problem is one warning row. The cause was a headless work
-  context relaunched as a headed one on the same profile, which raced
-  Chromium's profile lock. The cart now runs in one headed window throughout,
-  so a desktop display is needed for any cart action.
+  and the window problem is one warning row. The cause was the hidden work
+  context being relaunched as a visible one on the same profile, which raced
+  Chromium's profile lock. The work stays hidden; the finished cart and the
+  manual-finish pages open in a separate visible browser carrying the same
+  cookies, and a still-locked profile is retried before it is reported.
 - Bandcamp click verification runs its count, side-cart and reload checks on
   separate clocks inside a 45-second budget and says which stage gave up,
   instead of one 30-second timeout shorter than the checks inside it.

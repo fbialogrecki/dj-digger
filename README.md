@@ -189,10 +189,13 @@ Links are parsed and categorized using strict domain-boundary matching:
 
 ### Bandcamp carts and Beatport playlists
 
-Pressing `c` or `C` opens one dedicated Chromium window and keeps it for the
-whole batch: product checks, the clicks, and the completed Bandcamp cart all
-happen in front of you, so what the app verified is what you see. A desktop
-display is needed for any of it (WSL users need WSLg). If the matching browser
+Pressing `c` or `C` does the product checks and the cart clicks in a hidden
+Chromium; nothing pops up while it works. A window appears only when there is
+something for you: the completed Bandcamp cart, or items left to finish by
+hand. That window is a separate browser carrying the same cookies, so the
+hidden session is never disturbed. A desktop display is needed for those
+moments only (WSL users need WSLg); without one the additions still stand and
+the result screen says the window could not be shown. If the matching browser
 build is absent, the app asks before downloading it in the background and then
 resumes the cart preflight. The app uses a dedicated persistent browser profile,
 separate from your everyday browser. A Bandcamp account is not required for its

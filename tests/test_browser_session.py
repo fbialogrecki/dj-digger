@@ -225,3 +225,69 @@ def test_install_deps_message_is_not_mistaken_for_a_missing_browser(tmp_path, mo
 
     assert not isinstance(caught.value, browser_session.ChromiumMissing)
     assert "install --with-deps chromium" in str(caught.value)
+
+
+def test_a_locked_profile_is_retried_before_it_is_reported(monkeypatch):
+    import asyncio
+
+    attempts = []
+
+    class Context:
+        def set_default_timeout(self, _timeout):
+            pass
+
+    class Chromium:
+        executable_path = __file__
+
+        async def launch_persistent_context(self, *_args, **_kwargs):
+            attempts.append(1)
+            if len(attempts) < 3:
+                raise RuntimeError("ProcessSingleton: user data directory is already in use")
+            return Context()
+
+    class Playwright:
+        chromium = Chromium()
+
+    monkeypatch.setattr(browser_session, "PROFILE_LOCK_WAIT", 0)
+
+    asyncio.run(browser_session.launch_persistent_context(Playwright(), None, headless=True))
+
+    assert len(attempts) == 3
+
+
+def test_the_viewer_needs_a_display_and_gets_the_cookies(monkeypatch):
+    import asyncio
+
+    monkeypatch.delenv("DISPLAY", raising=False)
+    monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
+    monkeypatch.setattr(browser_session.sys, "platform", "linux")
+
+    with pytest.raises(browser_session.AutomationError, match="desktop window"):
+        asyncio.run(browser_session.launch_viewer(object(), []))
+
+    monkeypatch.setenv("DISPLAY", ":1")
+    added = []
+
+    class Context:
+        async def add_cookies(self, cookies):
+            added.extend(cookies)
+
+        def set_default_timeout(self, _timeout):
+            pass
+
+    class Browser:
+        async def new_context(self, **_kwargs):
+            return Context()
+
+    class Chromium:
+        executable_path = __file__
+
+        async def launch(self, **kwargs):
+            assert kwargs["headless"] is False
+            return Browser()
+
+    class Playwright:
+        chromium = Chromium()
+
+    asyncio.run(browser_session.launch_viewer(Playwright(), [{"name": "a", "value": "b"}]))
+    assert added == [{"name": "a", "value": "b"}]

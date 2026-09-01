@@ -5,8 +5,8 @@
 - Product version verified: 0.15.0
 - Owner: Filip Białogrecki
 - Updated: 2026-08-28
-- Document lines: <!-- SPEC TOTAL LINES -->1040<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1040<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1048<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1048<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,62 +51,62 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 141–173 |
 | 2.1 | ↳ Problem and product boundary | 143–154 |
 | 2.2 | ↳ Execution modes | 155–173 |
-| 3 | User-visible capabilities | 174–401 |
+| 3 | User-visible capabilities | 174–405 |
 | 3.1 | ↳ Track collection and saved HTML | 176–195 |
 | 3.2 | ↳ Link classification and exports | 196–214 |
 | 3.3 | ↳ TUI crate library and interaction | 215–270 |
 | 3.4 | ↳ Audio preview | 271–307 |
 | 3.5 | ↳ Downloads and local-file matching | 308–335 |
-| 3.6 | ↳ Store purchase assistance | 336–401 |
-| 4 | System context and data flow | 402–438 |
-| 4.1 | ↳ Context diagram | 404–425 |
-| 4.2 | ↳ Collection-to-library flow | 426–438 |
-| 5 | Repository layout and component ownership | 439–484 |
-| 5.1 | ↳ Entry, orchestration, and models | 441–451 |
-| 5.2 | ↳ Network and external-system adapters | 452–470 |
-| 5.3 | ↳ Persistence, local media, and UI | 471–484 |
-| 6 | Runtime architecture and environments | 485–557 |
-| 6.1 | ↳ Runtime and dependencies | 487–500 |
-| 6.2 | ↳ Concurrency and lifecycle | 501–542 |
-| 6.3 | ↳ Local paths and environment variables | 543–557 |
-| 7 | Data model and persistence | 558–626 |
-| 7.1 | ↳ Domain objects and identity | 560–574 |
-| 7.2 | ↳ SQLite schema and invariants | 575–598 |
-| 7.3 | ↳ Crate persistence and deletion | 599–610 |
-| 7.4 | ↳ Configuration and credential stores | 611–626 |
-| 8 | Public interfaces and contracts | 627–672 |
-| 8.1 | ↳ CLI arguments and exit behavior | 629–648 |
-| 8.2 | ↳ JSON and CSV summary input | 649–663 |
-| 8.3 | ↳ URL-opening contract | 664–672 |
-| 9 | Authentication and authorization | 673–709 |
-| 9.1 | ↳ SoundCloud authentication | 675–692 |
-| 9.2 | ↳ Gate action consent | 693–709 |
-| 10 | External integrations | 710–817 |
-| 10.1 | ↳ SoundCloud API and media | 712–723 |
-| 10.2 | ↳ Link hubs and download gates | 724–766 |
-| 10.2 · block | ↳ ↳ Hypeddit | 732–752 |
-| 10.2 · block | ↳ ↳ Other resolvers | 754–759 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 761–766 |
-| 10.3 | ↳ Browsers and clipboard | 767–778 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 779–817 |
-| 11 | Security requirements and threat model | 818–864 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 820–838 |
-| 11.2 | ↳ Secret and personal-data handling | 839–851 |
-| 11.3 | ↳ File and mutation safety | 852–864 |
-| 12 | Privacy, lifecycle, and retention | 865–903 |
-| 12.1 | ↳ Data stored locally | 867–882 |
-| 12.2 | ↳ Data sent to third parties | 883–894 |
-| 12.3 | ↳ User-controlled deletion | 895–903 |
-| 13 | Failure behavior and current limitations | 904–954 |
-| 13.1 | ↳ Error isolation and reporting | 906–925 |
-| 13.2 | ↳ Confirmed limitations | 926–954 |
-| 14 | Verification, CI, and release | 955–1018 |
-| 14.1 | ↳ Offline and live test suites | 957–987 |
-| 14.2 | ↳ Continuous integration and publishing | 988–1003 |
-| 14.3 | ↳ Specification-map verification | 1004–1018 |
-| 15 | Evidence and operational references | 1019–1040 |
-| 15.1 | ↳ Primary implementation evidence | 1021–1033 |
-| 15.2 | ↳ User and historical documentation | 1034–1040 |
+| 3.6 | ↳ Store purchase assistance | 336–405 |
+| 4 | System context and data flow | 406–442 |
+| 4.1 | ↳ Context diagram | 408–429 |
+| 4.2 | ↳ Collection-to-library flow | 430–442 |
+| 5 | Repository layout and component ownership | 443–488 |
+| 5.1 | ↳ Entry, orchestration, and models | 445–455 |
+| 5.2 | ↳ Network and external-system adapters | 456–474 |
+| 5.3 | ↳ Persistence, local media, and UI | 475–488 |
+| 6 | Runtime architecture and environments | 489–562 |
+| 6.1 | ↳ Runtime and dependencies | 491–504 |
+| 6.2 | ↳ Concurrency and lifecycle | 505–547 |
+| 6.3 | ↳ Local paths and environment variables | 548–562 |
+| 7 | Data model and persistence | 563–631 |
+| 7.1 | ↳ Domain objects and identity | 565–579 |
+| 7.2 | ↳ SQLite schema and invariants | 580–603 |
+| 7.3 | ↳ Crate persistence and deletion | 604–615 |
+| 7.4 | ↳ Configuration and credential stores | 616–631 |
+| 8 | Public interfaces and contracts | 632–677 |
+| 8.1 | ↳ CLI arguments and exit behavior | 634–653 |
+| 8.2 | ↳ JSON and CSV summary input | 654–668 |
+| 8.3 | ↳ URL-opening contract | 669–677 |
+| 9 | Authentication and authorization | 678–714 |
+| 9.1 | ↳ SoundCloud authentication | 680–697 |
+| 9.2 | ↳ Gate action consent | 698–714 |
+| 10 | External integrations | 715–824 |
+| 10.1 | ↳ SoundCloud API and media | 717–728 |
+| 10.2 | ↳ Link hubs and download gates | 729–771 |
+| 10.2 · block | ↳ ↳ Hypeddit | 737–757 |
+| 10.2 · block | ↳ ↳ Other resolvers | 759–764 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 766–771 |
+| 10.3 | ↳ Browsers and clipboard | 772–783 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 784–824 |
+| 11 | Security requirements and threat model | 825–871 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 827–845 |
+| 11.2 | ↳ Secret and personal-data handling | 846–858 |
+| 11.3 | ↳ File and mutation safety | 859–871 |
+| 12 | Privacy, lifecycle, and retention | 872–910 |
+| 12.1 | ↳ Data stored locally | 874–889 |
+| 12.2 | ↳ Data sent to third parties | 890–901 |
+| 12.3 | ↳ User-controlled deletion | 902–910 |
+| 13 | Failure behavior and current limitations | 911–962 |
+| 13.1 | ↳ Error isolation and reporting | 913–932 |
+| 13.2 | ↳ Confirmed limitations | 933–962 |
+| 14 | Verification, CI, and release | 963–1026 |
+| 14.1 | ↳ Offline and live test suites | 965–995 |
+| 14.2 | ↳ Continuous integration and publishing | 996–1011 |
+| 14.3 | ↳ Specification-map verification | 1012–1026 |
+| 15 | Evidence and operational references | 1027–1048 |
+| 15.1 | ↳ Primary implementation evidence | 1029–1041 |
+| 15.2 | ↳ User and historical documentation | 1042–1048 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -338,10 +338,14 @@ depended on that file provenance.
 Store assistance is explicitly initiated by the user. Bandcamp uses verified
 cart automation; Beatport produces a playlist for a supported transfer instead
 of attempting to log in or mutate a cart. The TUI owns one lazy persistent
-Chromium profile for its lifetime, opened as one headed window that stays up
-from product discovery through revalidation, mutation, and the completed cart
-view, with at most two managed work pages; a desktop display is therefore
-required for any cart action, and the check happens before any work.
+Chromium profile for its lifetime and drives it headless, out of sight, for
+product discovery, revalidation, and mutation with at most two managed work
+pages. A window appears only when there is something for the user: the
+completed cart view and the manual-finish step open a separate visible browser
+carrying the hidden session's cookies, so the profile is never switched
+between modes; a desktop display is needed for those two steps only. The
+Settings login opens the profile itself headed for the login and returns it to
+hidden use afterwards, retrying a still-locked profile a few times.
 Bandcamp cart continuity depends on the persistent cookie jar and does not
 require an account login. Settings can open or inspect the Bandcamp session and
 explicitly reset the dedicated store profile.
@@ -533,9 +537,10 @@ with status 130.
 Cart automation uses Playwright's asynchronous API on Textual's event loop.
 Textual awaits the editable plan inside an async worker, while one context at a
 time drives the persistent profile and all Playwright objects remain on their
-creating loop. One headed context serves the whole batch; closing it keeps
-Playwright itself running for the next one, and the final cart is shown in the
-same window. Two queue consumers bound
+creating loop. One hidden persistent context serves the batch, and a separate
+visible browser (cookies copied from it) shows the final cart or the items to
+finish by hand; closing either keeps Playwright running for the next batch.
+Two queue consumers bound
 read-only preflight concurrency; Bandcamp mutation is serial, while exact
 Beatport track links bypass Playwright and other Beatport results become local
 playlist entries.
@@ -786,14 +791,16 @@ bytes. Matching compares normalized title, artist, version tokens, stable produc
 IDs, availability, price, and currency.
 
 The dedicated browser uses one persistent profile, sandboxing where supported,
-and disabled downloads. All automated product work is headed in one window, so
-the page the code verified is the page the user sees. Manual login receives up to five minutes. Production anti-bot challenges are
+and disabled downloads. Automated product work is headless; a separate visible
+browser with the same cookies shows the finished cart and the manual-finish
+pages, and the profile is opened headed only for a user-requested Bandcamp
+login. Manual login receives up to five minutes. Production anti-bot challenges are
 not solvable in Playwright: Beatport login is therefore never attempted, and a
 challenge during read-only lookup degrades to a metadata playlist entry instead
 of being looped or bypassed. A necessary-cookie Bandcamp choice may be recorded
 so its footer cannot cover exact purchase controls. Preflight, confirmation,
 immediate revalidation, and mutation reuse no more than two managed pages. The
-final display reuses the window's pages. Cart mutation is limited to an identified Bandcamp
+final display uses pages of the visible browser. Cart mutation is limited to an identified Bandcamp
 add-to-cart control; the code does not fill a password, choose payment details,
 or invoke checkout.
 
@@ -934,8 +941,9 @@ as player events instead of escaping through Python-CFFI.
   tracks as full previews.
 - Bandcamp cart automation and Beatport release lookup support linked products
   only and depend on current store interfaces. A graphical session is required
-  for every cart action, product lookup included, since the browser is headed
-  throughout; on WSL that means WSLg.
+  to show the completed cart, to finish items by hand, and for the Bandcamp
+  login in Settings, not for lookup or the clicks themselves; on WSL that means
+  WSLg, and without one the additions are kept and the window is one warning.
 - Beatport cart mutation is not automated. Playlist creation needs a user-driven
   Soundiiz transfer and may require review when only artist/title metadata was
   available; Beatport DJ and checkout remain outside the application.

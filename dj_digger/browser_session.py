@@ -6,6 +6,7 @@ error wording. This is the single place that knows how Chromium is started,
 what its failures mean, and how to install it.
 """
 
+import asyncio
 import logging
 import os
 import signal
@@ -165,28 +166,72 @@ def sync_browser_context(profile: Path | None = None, *, accept_downloads: bool 
                 pass
 
 
+# Chromium releases its profile lock a moment after the previous context
+# closed; a relaunch that hits that moment is retried rather than reported.
+PROFILE_LOCK_ATTEMPTS = 5
+PROFILE_LOCK_WAIT = 1.0
+
+
+def _profile_locked(exc: Exception) -> bool:
+    message = str(exc).lower()
+    return "singleton" in message or "user data directory is already in use" in message
+
+
 async def launch_persistent_context(
     playwright: Any,
     profile: Path | None = None,
     *,
-    headless: bool = False,
+    headless: bool = True,
     accept_downloads: bool = False,
 ) -> Any:
-    """The async twin, for the cart session on Textual's loop."""
+    """The async twin, for the cart session on Textual's loop.
+
+    Headless by default: the store work happens out of sight, and a window is
+    opened separately (see ``launch_viewer``) only when there is something to
+    show the user.
+    """
 
     if not headless:
         require_display()
     if not Path(playwright.chromium.executable_path).is_file():
         raise ChromiumMissing("Chromium is required for store carts")
-    try:
-        context = await playwright.chromium.launch_persistent_context(
-            str(profile or store_profile_path()),
-            headless=headless,
-            locale="en-US",
-            accept_downloads=accept_downloads,
-            chromium_sandbox=True,
-        )
-    except Exception as exc:
-        raise classify_launch_error(exc) from exc
+    for attempt in range(1, PROFILE_LOCK_ATTEMPTS + 1):
+        try:
+            context = await playwright.chromium.launch_persistent_context(
+                str(profile or store_profile_path()),
+                headless=headless,
+                locale="en-US",
+                accept_downloads=accept_downloads,
+                chromium_sandbox=True,
+            )
+            break
+        except Exception as exc:
+            if _profile_locked(exc) and attempt < PROFILE_LOCK_ATTEMPTS:
+                LOGGER.debug("Store profile still locked, retrying (%d)", attempt)
+                await asyncio.sleep(PROFILE_LOCK_WAIT)
+                continue
+            raise classify_launch_error(exc) from exc
     context.set_default_timeout(ACTION_TIMEOUT_MS)
     return context
+
+
+async def launch_viewer(playwright: Any, cookies: list[dict[str, Any]]) -> tuple[Any, Any]:
+    """A visible browser carrying the hidden session's cookies.
+
+    The persistent profile can only be open once, and switching it between
+    headless and headed raced its lock; a separate browser with the same
+    cookies shows the same cart with none of that. Returns (browser, context).
+    """
+
+    require_display()
+    if not Path(playwright.chromium.executable_path).is_file():
+        raise ChromiumMissing("Chromium is required for store carts")
+    try:
+        browser = await playwright.chromium.launch(headless=False, chromium_sandbox=True)
+        context = await browser.new_context(locale="en-US", accept_downloads=False)
+        if cookies:
+            await context.add_cookies(cookies)
+    except Exception as exc:
+        raise classify_launch_error(exc, subject="the store browser window") from exc
+    context.set_default_timeout(ACTION_TIMEOUT_MS)
+    return browser, context
