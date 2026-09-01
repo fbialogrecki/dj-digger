@@ -4,6 +4,10 @@
 
 ### Changed
 
+- The crate sidebar lists headers and reads a crate's tracks only when it is
+  opened, so a large library starts and refreshes faster.
+- The local scan writes in batches, follows symlinked folders as before, and
+  reports folders it could not enter instead of skipping them silently.
 - Track statuses are mirrored in memory after the first read, so a large crate
   repaints without a SQLite query per row.
 

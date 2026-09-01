@@ -14,7 +14,7 @@ lost the import date, the NEW marks and the partial flag.
 import logging
 from dataclasses import asdict, dataclass, field, fields
 from datetime import UTC, datetime
-from typing import Any, Self
+from typing import Any, NamedTuple, Self
 
 from .db import database
 from .models import Crate, Track
@@ -104,6 +104,25 @@ def load(source: str) -> CrateRecord | None:
 
     raw = database().load_crate(source.strip())
     return CrateRecord.from_json(raw) if raw else None
+
+
+class CrateHeader(NamedTuple):
+    """What the sidebar needs to list a crate: no tracks attached."""
+
+    source: str
+    title: str
+    updated: str
+    partial: bool = False
+
+
+def list_crate_headers() -> list[CrateHeader]:
+    try:
+        raw = database().list_crate_headers()
+    except Exception as exc:
+        LOGGER.warning("Could not read crates from SQLite: %s", exc)
+        return []
+    headers = [CrateHeader(**row) for row in raw if row.get("source")]
+    return sorted(headers, key=lambda header: header.title.lower())
 
 
 def list_crates() -> list[CrateRecord]:

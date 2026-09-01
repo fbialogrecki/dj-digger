@@ -11,7 +11,7 @@ from textual.widgets import Button, DataTable, Footer, Input, Label, ListItem, S
 from textual.widgets._footer import FooterKey
 from textual.widgets.data_table import ColumnKey
 
-from ..library import CrateRecord
+from ..library import CrateHeader
 from .keymap import FOOTER_OPTIONAL, MIN_TITLE_WIDTH
 
 
@@ -297,14 +297,16 @@ class ErrorBanner(Widget):
 class CrateButton(Button):
     """A per-crate icon button. Carries its crate so no widget ids are needed."""
 
-    def __init__(self, label: str, record: CrateRecord, intent: str, tooltip: str) -> None:
+    def __init__(self, label: str, record: CrateHeader, intent: str, tooltip: str) -> None:
         super().__init__(label, classes="crate-icon", tooltip=tooltip)
         self.record = record
         self.intent = intent
 
 
 class CrateItem(ListItem):
-    def __init__(self, record: CrateRecord) -> None:
+    """One sidebar row. Carries the crate's header only; the tracks load on select."""
+
+    def __init__(self, record: CrateHeader) -> None:
         super().__init__()
         self.record = record
 

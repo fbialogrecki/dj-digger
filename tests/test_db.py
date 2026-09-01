@@ -80,3 +80,27 @@ def test_an_old_shaped_crates_table_is_dropped_and_rebuilt(tmp_path: Path) -> No
     crate = db.load_crate("s://one")
     assert crate is not None
     assert crate["title"] == "One"
+
+
+def test_crate_headers_come_without_the_tracks(tmp_path: Path) -> None:
+    db = Database(tmp_path / "test.db")
+    db.save_crate(
+        {
+            "source": "https://soundcloud.com/a/sets/one",
+            "title": "One",
+            "imported_at": "2026-01-01T00:00:00+00:00",
+            "partial": True,
+            "tracks": [{"title": "x"}, {"title": "y"}, {"title": "z"}],
+        }
+    )
+
+    headers = db.list_crate_headers()
+
+    assert headers == [
+        {
+            "source": "https://soundcloud.com/a/sets/one",
+            "title": "One",
+            "updated": "2026-01-01T00:00:00+00:00",
+            "partial": True,
+        }
+    ]

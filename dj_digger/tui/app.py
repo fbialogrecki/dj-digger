@@ -19,7 +19,7 @@ from .. import cart as cart_module
 from .. import dig as dig_module
 from .. import links as links_module
 from ..config import AppConfig
-from ..library import CrateRecord
+from ..library import CrateHeader, CrateRecord
 from ..models import LinkRecord
 from ..player import (
     Player,
@@ -209,7 +209,7 @@ class DiggerApp(
         # your name and email rather than a copy loaded before you changed them.
         self.config = AppConfig()
         self.crate = crate_record
-        self.crates: list[CrateRecord] = []
+        self.crates: list[CrateHeader] = []
         self.crate_title = crate_title or (crate_record.title if crate_record else "")
         # load_records sets this when you switch crates; this covers the one the
         # command line opened us on.
@@ -329,7 +329,7 @@ class DiggerApp(
             # Someone with a library wants to see it, not be interrogated.
             latest = self.latest_crate()
             if latest is not None:
-                self.load_crate(latest)
+                self.open_crate(latest)
         self.refresh_rows()
         table.focus()
         # Needs a laid-out width to size itself against.

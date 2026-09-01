@@ -186,6 +186,43 @@ class Database:
             ).fetchone()
             return json.loads(row["record_json"]) if row else None
 
+    def list_crate_headers(self) -> list[dict[str, Any]]:
+        """source, title, updated and the partial flag, without parsing a record.
+
+        The sidebar only shows titles, but ``all_crates`` deserialised every
+        track of every crate to draw it - at startup and again after each dig.
+        ``partial`` lives inside the JSON, so it comes out through SQLite's own
+        parser; a build without JSON support falls back to the full read.
+        """
+
+        try:
+            with self.connection() as conn:
+                rows = conn.execute(
+                    """SELECT source, title, updated,
+                              json_extract(record_json, '$.partial') AS partial
+                       FROM crates ORDER BY updated DESC"""
+                ).fetchall()
+        except sqlite3.OperationalError as exc:
+            LOGGER.warning("SQLite cannot read crate headers (%s); parsing every record", exc)
+            return [
+                {
+                    "source": record.get("source", ""),
+                    "title": record.get("title", ""),
+                    "updated": record.get("refreshed_at") or record.get("imported_at") or "",
+                    "partial": bool(record.get("partial")),
+                }
+                for record in self.all_crates()
+            ]
+        return [
+            {
+                "source": row["source"],
+                "title": row["title"],
+                "updated": row["updated"],
+                "partial": bool(row["partial"]),
+            }
+            for row in rows
+        ]
+
     def all_crates(self) -> list[dict[str, Any]]:
         """Every stored record, newest first. One query, not one per crate."""
 
@@ -212,13 +249,23 @@ class Database:
             cur = conn.execute("SELECT path, mtime, normalized_stem FROM local_files")
             return {row["path"]: (row["mtime"], row["normalized_stem"]) for row in cur.fetchall()}
 
-    def upsert_local_file(self, path: str, mtime: float, size: int, artist: str, title: str, normalized_stem: str) -> None:
+    def upsert_local_files(self, rows: list[tuple[str, float, int, str, str, str]]) -> None:
+        """Write a batch of ``(path, mtime, size, artist, title, normalized_stem)``.
+
+        One transaction for the lot: the scan used to commit per file, which on
+        a Windows drive mounted into WSL meant an fsync per track.
+        """
+        if not rows:
+            return
         with self.connection() as conn:
-            conn.execute(
+            conn.executemany(
                 """INSERT OR REPLACE INTO local_files (path, mtime, size, artist, title, normalized_stem)
                    VALUES (?, ?, ?, ?, ?, ?)""",
-                (path, mtime, size, artist, title, normalized_stem)
+                rows,
             )
+
+    def upsert_local_file(self, path: str, mtime: float, size: int, artist: str, title: str, normalized_stem: str) -> None:
+        self.upsert_local_files([(path, mtime, size, artist, title, normalized_stem)])
 
     def delete_local_files(self, paths: list[str]) -> None:
         if not paths:

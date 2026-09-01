@@ -8,8 +8,10 @@ made by hand.
 """
 
 import logging
+import os
 import re
 import subprocess
+import threading
 from pathlib import Path
 from typing import NamedTuple
 
@@ -19,6 +21,8 @@ from .models import Track
 LOGGER = logging.getLogger(__name__)
 
 AUDIO_EXTENSIONS = {".mp3", ".wav", ".flac", ".aiff", ".m4a", ".aac", ".ogg", ".alac"}
+# Files written to SQLite per transaction while scanning.
+SCAN_BATCH = 200
 
 
 def normalize_string(text: str) -> str:
@@ -91,46 +95,68 @@ class LocalScanner:
         # share the one process-wide instance the UI thread is already using.
         self.db = db or database()
         self._stale_stems: set[str] = set()
+        # Folders the walk could not enter, as "path: reason". The scan used to
+        # step over them in silence, so a permissions problem on the music
+        # drive looked like a library with nothing in it.
+        self.errors: list[str] = []
 
-    def scan(self) -> int:
-        """Scan configured directories, updating the local_files cache in SQLite."""
+    def _note_error(self, exc: OSError) -> None:
+        self.errors.append(f"{exc.filename}: {exc.strerror or exc}")
+        LOGGER.debug("Could not enter %s during scan: %s", exc.filename, exc)
+
+    def scan(self, *, cancel: threading.Event | None = None) -> int:
+        """Scan configured directories, updating the local_files cache in SQLite.
+
+        ``cancel`` stops the walk at the next file; what was written stays, and
+        the mtime cache makes the next scan pick up where this one left off.
+        """
         cached = self.db.get_cached_files()
         self._stale_stems.clear()
+        self.errors.clear()
         missing = [path for path in cached if not Path(path).is_file()]
         for path in missing:
             self._stale_stems.add(cached[path][1])
             cached.pop(path)
         self.db.delete_local_files(missing)
         scanned = 0
+        pending: list[tuple[str, float, int, str, str, str]] = []
 
         for root_dir in self.directories:
             if not root_dir.exists():
                 continue
-            for entry in root_dir.rglob("*"):
-                if entry.is_file() and entry.suffix.lower() in AUDIO_EXTENSIONS:
+            # Resolved once per root rather than once per file: resolve() is a
+            # syscall per path component, and a music folder has thousands of
+            # files. follow_symlinks keeps parity with the rglob this replaced,
+            # which walked into linked folders too.
+            # ponytail: a symlinked audio file is keyed by the link's path now.
+            root = root_dir.resolve()
+            for dirpath, _dirs, names in root.walk(
+                follow_symlinks=True, on_error=self._note_error
+            ):
+                for name in names:
+                    if cancel is not None and cancel.is_set():
+                        self.db.upsert_local_files(pending)
+                        return scanned
+                    if os.path.splitext(name)[1].lower() not in AUDIO_EXTENSIONS:
+                        continue
+                    entry = dirpath / name
                     try:
-                        stat = entry.stat()
-                        path_str = str(entry.resolve())
-                        mtime = stat.st_mtime
-                        size = stat.st_size
-
-                        # Check mtime cache
-                        if path_str in cached and cached[path_str][0] == mtime:
-                            continue
-
-                        stem = entry.stem
-                        norm_stem = normalize_string(stem)
-                        self.db.upsert_local_file(
-                            path=path_str,
-                            mtime=mtime,
-                            size=size,
-                            artist="",
-                            title=stem,
-                            normalized_stem=norm_stem
-                        )
-                        scanned += 1
-                    except (OSError, PermissionError) as exc:
+                        stat = os.stat(entry)
+                    except OSError as exc:
                         LOGGER.debug("Skipping file %s during scan: %s", entry, exc)
+                        continue
+                    path_str = str(entry)
+                    if path_str in cached and cached[path_str][0] == stat.st_mtime:
+                        continue
+                    stem = entry.stem
+                    pending.append(
+                        (path_str, stat.st_mtime, stat.st_size, "", stem, normalize_string(stem))
+                    )
+                    scanned += 1
+                    if len(pending) >= SCAN_BATCH:
+                        self.db.upsert_local_files(pending)
+                        pending = []
+        self.db.upsert_local_files(pending)
         return scanned
 
     def match_track(self, track: Track) -> LocalMatch | None:

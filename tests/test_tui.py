@@ -1282,6 +1282,34 @@ def test_selecting_a_crate_switches_to_it(state):
     run(scenario)
 
 
+def test_selecting_a_crate_loads_it_on_demand(state, monkeypatch):
+    """The sidebar holds headers; the tracks are read when a crate is chosen."""
+
+    saved_crate(2, source="https://soundcloud.com/a/sets/one", title="One")
+    saved_crate(4, source="https://soundcloud.com/a/sets/two", title="Two")
+    loads: list[str] = []
+    real_load = library.load
+    monkeypatch.setattr(
+        "dj_digger.tui.crates.library_module.load",
+        lambda source: (loads.append(source), real_load(source))[1],
+    )
+    app = make_app([], state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            assert not hasattr(app.crates[0], "tracks")
+            listing = app.query_one("#crates", ListView)
+            listing.index = 1
+            listing.action_select_cursor()
+            await pilot.pause()
+
+            assert app.crate.title == "Two"
+            assert loads[-1] == "https://soundcloud.com/a/sets/two"
+
+    run(scenario)
+
+
 def test_refreshing_redigs_the_saved_source_and_keeps_deletions(state, monkeypatch):
     record = saved_crate(3)
     record.remove("501")

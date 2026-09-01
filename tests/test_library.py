@@ -54,6 +54,18 @@ def test_crates_are_listed_by_title():
     assert [record.title for record in library.list_crates()] == ["alpha", "Zulu"]
 
 
+def test_headers_are_listed_by_title():
+    library.save(library.CrateRecord.from_crate(a_crate(1, source="s://z", title="Zulu"), partial=True))
+    library.save(library.CrateRecord.from_crate(a_crate(1, source="s://a", title="alpha")))
+
+    headers = library.list_crate_headers()
+
+    assert [header.title for header in headers] == ["alpha", "Zulu"]
+    assert headers[1].partial is True
+    assert headers[0].updated, "imported_at is stamped on save and comes back as updated"
+    assert not hasattr(headers[0], "tracks")
+
+
 def test_removed_tracks_disappear_from_active_tracks():
     record = library.CrateRecord.from_crate(a_crate(3))
     record.remove("101")
