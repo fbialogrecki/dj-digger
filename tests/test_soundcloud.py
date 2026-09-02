@@ -1,6 +1,7 @@
 import threading
 
 import pytest
+from conftest import FakeResponse
 
 from dj_digger import gates, soundcloud
 from dj_digger.models import Cancelled, Track
@@ -12,19 +13,6 @@ from dj_digger.soundcloud import (
 )
 
 DUMMY_CLIENT_ID = "0" * 32
-
-
-class FakeResponse:
-    def __init__(self, status_code=200, payload=None, text="{}", headers=None):
-        self.status_code = status_code
-        self._payload = payload
-        self.text = text
-        self.headers = headers or {}
-
-    def json(self):
-        if self._payload is None:
-            raise ValueError("no json")
-        return self._payload
 
 
 class FakeSession:
