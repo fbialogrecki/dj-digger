@@ -14,6 +14,7 @@ from pathlib import Path
 from textual import work
 
 from .. import library as library_module
+from ..paths import unique_target
 from ..scanner import LocalScanner, copy_to_clipboard
 from ..state import GOT
 
@@ -192,12 +193,7 @@ def _copy_local_file(source: Path, directory: Path) -> Path:
     if source.is_relative_to(directory):
         return source
 
-    target = directory / source.name
-    counter = 1
-    while target.exists():
-        target = directory / f"{source.stem} ({counter}){source.suffix}"
-        counter += 1
-
+    target = unique_target(directory, source.stem, source.suffix)
     descriptor, temporary_name = tempfile.mkstemp(
         prefix=".dj-digger-copy-", suffix=".part", dir=directory
     )
