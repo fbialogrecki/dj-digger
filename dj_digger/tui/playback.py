@@ -24,6 +24,7 @@ from ..soundcloud import SoundCloudError
 from .keymap import (
     CALM_TICK,
     PREFETCH_LEAD,
+    SPINNER_EVERY,
     TICK,
 )
 from .rows import Prepared
@@ -43,9 +44,9 @@ class PlaybackMixin:
         if not self.query("#player"):
             return
         self._frame += 1
-        animating = self._digging or (self.job is not None and self.job.animate)
-        if animating:
-            self._spin()
+        animating = self.job is not None and self.job.animate
+        if animating and self._frame % SPINNER_EVERY == 0:
+            self.update_status()
         if event := self.player.take_event():
             if event.kind == "error":
                 self._player_op(self.player.stop)

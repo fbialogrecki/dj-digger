@@ -84,7 +84,7 @@ class JobMixin:
             return
         self.job = None
         self.update_status()
-        if not self.player.playing and not self._digging:
+        if not self.player.playing:
             self._sleep()
 
     def action_cancel_job(self) -> None:
@@ -95,11 +95,7 @@ class JobMixin:
             return
         # Work started without a job line - a batch driven from a test, or a
         # download already in flight - still answers to the same key.
-        if self._digging:
-            self._dig_cancel.set()
-            self.notify("Stopping the dig", timeout=3)
-            return
-        if self._browser_batch_active or self._active_download_workers:
+        if self._active_download_workers:
             self._gate_cancel.set()
             self.notify("Stopping downloads; finished files are kept", timeout=4)
             return

@@ -270,10 +270,6 @@ class RenderMixin:
         if job is not None:
             glyph = SPINNER[(self._frame // SPINNER_EVERY) % len(SPINNER)]
             pieces.append(f"{glyph} {job.describe()}")
-        elif self._digging:
-            # A dig driven without a job line, as the older tests do.
-            glyph = SPINNER[(self._frame // SPINNER_EVERY) % len(SPINNER)]
-            pieces.append(f"{glyph} {self._dig_message}")
         if self.selected:
             pieces.append(f"{len(self.selected)} selected")
         if self.sort_key:

@@ -1608,7 +1608,7 @@ def test_a_failed_dig_reports_and_asks_again(state, monkeypatch):
 
             # Back at the prompt rather than dead or stuck on a spinner.
             assert isinstance(app.screen, AskLinkScreen)
-            assert app._digging is False
+            assert app.job is None
 
     run(scenario)
 
@@ -3237,7 +3237,7 @@ def test_ctrl_x_stops_a_dig(records, state, monkeypatch):
 
     run(scenario)
     assert app._dig_cancel.is_set()
-    assert app._digging is False
+    assert app.job is None
     assert len(app.rows) == len(records), "a stopped dig leaves the crate as it was"
 
 
@@ -3994,8 +3994,7 @@ def test_digging_shows_something_turning(state, monkeypatch):
     async def scenario():
         async with app.run_test() as pilot:
             await pilot.pause()
-            app._digging = True
-            app._dig_message = "Fetching tracks 3/9"
+            app.start_job("Digging", cancel=app._dig_cancel, detail="Fetching tracks 3/9")
 
             app._frame = keymap.SPINNER_EVERY - 1
             app._tick()
@@ -4006,7 +4005,7 @@ def test_digging_shows_something_turning(state, monkeypatch):
             assert "Fetching tracks 3/9" in first
             assert any(glyph in first for glyph in keymap.SPINNER)
             assert bar_text(app) != first
-            app._digging = False
+            app.finish_job()
 
     run(scenario)
 

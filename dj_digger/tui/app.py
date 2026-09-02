@@ -245,7 +245,6 @@ class DiggerApp(
         self._dig_cancel = Event()
         self._scan_cancel = Event()
         self._browser_batch_active = False
-        self._digging = False
         # The long job the status bar reports on, if any (see jobs.py).
         self.job: Job | None = None
         self._undone: list[str] = []
@@ -255,7 +254,6 @@ class DiggerApp(
         self._prepared: Prepared | None = None
         self._preparing: str = ""
         self._frame = 0
-        self._dig_message = ""
         self.download_progress: dict[str, float] = {}
         self._dirty_download_rows: set[str] = set()
         self._last_progress_redraw: float = 0.0
