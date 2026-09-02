@@ -319,7 +319,7 @@ class ErrorBanner(Widget):
         summary.update(
             Text(
                 f"{arrow} {count} error{plural} - click to {verb}",
-                style=f"bold {getattr(getattr(self.app, 'palette', None), 'warning', 'yellow')}",
+                style=f"bold {self.app.palette.warning}",
             )
         )
         # Text(), not markup: a failure that quotes a track called "Rido - Sexy

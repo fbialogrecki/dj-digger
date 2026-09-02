@@ -241,7 +241,6 @@ class DiggerApp(
         self._cart_cancel = asyncio.Event()
         self._cart_session = cart_module.CartBrowserSession()
         self._cart_progress_screen = None
-        self._cart_decision_screen = None
         self._gate_cancel = Event()
         self._dig_cancel = Event()
         self._scan_cancel = Event()

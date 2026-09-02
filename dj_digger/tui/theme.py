@@ -40,7 +40,6 @@ class Palette:
     error: str = "red"
     muted: str = FALLBACK_MUTED
     background: str = "black"
-    panel: str = ""
 
     @property
     def glow(self) -> tuple[str, ...]:
@@ -107,7 +106,7 @@ def palette_for(variables: dict[str, str], theme: Theme | None = None) -> Palett
 
     roles = {
         name: _hex(variables.get(name))
-        for name in ("primary", "secondary", "accent", "success", "warning", "error", "background", "panel")
+        for name in ("primary", "secondary", "accent", "success", "warning", "error", "background")
     }
     if theme is not None:
         for name in ("primary", "secondary", "accent", "success", "warning", "error"):
@@ -125,7 +124,6 @@ def palette_for(variables: dict[str, str], theme: Theme | None = None) -> Palett
         error=roles["error"] or "red",
         muted=muted_for(variables),
         background=roles["background"] or "black",
-        panel=roles["panel"] or "",
     )
 
 

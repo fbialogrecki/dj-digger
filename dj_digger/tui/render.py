@@ -4,8 +4,6 @@ Mixed into ``DiggerApp``; the attributes these reach for are set up in its
 ``__init__``.
 """
 
-import logging
-
 from rich.text import Text
 from textual.coordinate import Coordinate
 from textual.widgets import DataTable, Static
@@ -34,9 +32,6 @@ from .keymap import (
 from .rows import Row
 from .widgets import TrackTable
 
-LOGGER = logging.getLogger(__name__)
-
-
 
 class RenderMixin:
     """Drawing the table and the status bar, and the marks that change what they say."""
@@ -50,16 +45,15 @@ class RenderMixin:
             if badges:
                 badges.append(" ")
             free = record.link_text == links_module.FREE_DOWNLOAD
+            if record is not opening or record.link_text == links_module.NO_STORE_LINK:
+                style = self.muted
+            elif free:
+                style = f"bold {self.palette.success}"
+            else:
+                style = f"bold {self.palette.primary}"
             if record.category == "gate":
                 host = links_module.host_of(record.link_url)
-                name = "\u2193gate" if free else "gate"
-                if record is not opening:
-                    style = self.muted
-                elif free:
-                    style = f"bold {self.palette.success}"
-                else:
-                    style = f"bold {self.palette.primary}"
-                badges.append(name, style=style)
+                badges.append("\u2193gate" if free else "gate", style=style)
                 if host and host != "gate":
                     clean_host = host.rpartition(".")[0] or host
                     badges.append(f"({clean_host})", style=self.muted)
@@ -70,15 +64,6 @@ class RenderMixin:
                     name = "\u2193" + record.category
                 else:
                     name = record.category
-
-                if record is not opening:
-                    style = self.muted
-                elif free:
-                    style = f"bold {self.palette.success}"
-                elif record.link_text == links_module.NO_STORE_LINK:
-                    style = self.muted
-                else:
-                    style = f"bold {self.palette.primary}"
                 badges.append(name, style=style)
         # DataTable clips the cell at STORES_WIDTH with nothing to show for it,
         # so "gate(hypeddit)" arrives as "gate(hypedd" and reads as a misspelt
@@ -94,7 +79,7 @@ class RenderMixin:
     def _cells(self, row: Row, playing_key: str | None) -> list[Text]:
         status = self.status_of(row)
         glyph, style, _meaning = STATUS_STYLES[status]
-        style = self._themed(style)
+        style = self.role(style)
         label_text = row.track.label
         dim = self.muted if status == SKIP else ""
 
@@ -148,11 +133,6 @@ class RenderMixin:
             if flash:
                 cell.stylize(flash)
             table.update_cell_at(Coordinate(index, column), cell, update_width=False)
-
-    def _themed(self, style: str) -> str:
-        """A keymap style role ("muted", "bold success") under the active theme."""
-
-        return self.role(style)
 
     def enabled_columns(self) -> list[tuple[str, str, int]]:
         """The optional column specs switched on in Settings, in table order."""
@@ -353,7 +333,7 @@ class RenderMixin:
             # The row is on its way out of the list, so there is nothing to light.
             self.refresh_rows()
             return
-        self._flash_row(index, self._themed(STATUS_STYLES[status][1]))
+        self._flash_row(index, self.role(STATUS_STYLES[status][1]))
         self.update_status()
 
     def _mark_selected(self, status: str, message: str) -> bool:

@@ -63,7 +63,6 @@ class JobMixin:
         done: int = 0,
         *,
         failed: int = 0,
-        total: int | None = None,
         detail: str | None = None,
     ) -> None:
         """Advance the job by ``done`` and ``failed`` items. UI thread only.
@@ -76,8 +75,6 @@ class JobMixin:
             return
         job.done += done
         job.failed += failed
-        if total is not None:
-            job.total = total
         if detail is not None:
             job.detail = detail
         self.update_status()

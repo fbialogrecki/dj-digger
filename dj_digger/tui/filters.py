@@ -4,8 +4,6 @@ Mixed into ``DiggerApp``; the attributes these reach for are set up in its
 ``__init__``.
 """
 
-import logging
-
 from textual.widgets import DataTable, Input
 
 from ..links import CATEGORY_NAMES
@@ -13,27 +11,25 @@ from ..models import LinkRecord
 from ..state import GOT, NEW, OPENED, SKIP
 from .rows import Row
 
-LOGGER = logging.getLogger(__name__)
-
 # What ``t`` cycles through, in order. The last three only when their column
 # is switched on in Settings.
 SORT_ORDER = ("title", "time", "genre", "status", "store", "bpm", "key", "year")
 SORT_BASE = frozenset({"title", "time", "genre", "status", "store"})
 _STATUS_RANK = {NEW: 0, OPENED: 1, SKIP: 2, GOT: 3}
 SORT_KEYS = {
-    "title": lambda app: (lambda row: row.track.label.lower()),
-    "time": lambda app: (lambda row: row.track.duration),
-    "genre": lambda app: (lambda row: row.track.genre_label.lower()),
+    "title": lambda _: (lambda row: row.track.label.lower()),
+    "time": lambda _: (lambda row: row.track.duration),
+    "genre": lambda _: (lambda row: row.track.genre_label.lower()),
     "status": lambda app: (lambda row: _STATUS_RANK.get(app.status_of(row), 0)),
-    "store": lambda app: (
+    "store": lambda _: (
         lambda row: min(
             (CATEGORY_NAMES.index(c) for c in row.categories if c in CATEGORY_NAMES),
             default=len(CATEGORY_NAMES),
         )
     ),
-    "bpm": lambda app: (lambda row: row.track.bpm or 0.0),
-    "key": lambda app: (lambda row: row.track.key_signature.lower()),
-    "year": lambda app: (lambda row: row.track.release_year or 0),
+    "bpm": lambda _: (lambda row: row.track.bpm or 0.0),
+    "key": lambda _: (lambda row: row.track.key_signature.lower()),
+    "year": lambda _: (lambda row: row.track.release_year or 0),
 }
 # Which table column carries each sort key's arrow.
 SORT_COLUMN = {

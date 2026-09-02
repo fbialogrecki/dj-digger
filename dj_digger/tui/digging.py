@@ -4,8 +4,6 @@ Mixed into ``DiggerApp``; the attributes these reach for are set up in its
 ``__init__``.
 """
 
-import logging
-
 from textual import work
 
 from .. import dig as dig_module
@@ -16,8 +14,6 @@ from .keymap import (
     SPINNER_EVERY,
 )
 from .screens import AskLinkScreen
-
-LOGGER = logging.getLogger(__name__)
 
 
 class DiggingMixin:

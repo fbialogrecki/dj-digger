@@ -26,7 +26,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from functools import lru_cache
 from queue import Empty, SimpleQueue
-from typing import Any, Literal
+from typing import Literal
 
 from rich.text import Text
 from textual.app import ComposeResult
@@ -70,36 +70,6 @@ PLAYED_STYLE = "cyan"
 UNPLAYED_STYLE = "bright_black"
 
 
-def muted_style(widget: Any) -> str:
-    """The app's theme-derived dim style, or the terminal's when there is no app."""
-
-    try:
-        return getattr(widget.app, "muted", UNPLAYED_STYLE)
-    except Exception:
-        return UNPLAYED_STYLE
-
-
-class _TerminalPalette:
-    """What the widgets paint with when there is no app to ask."""
-
-    primary = "cyan"
-    accent = PLAYED_STYLE
-    warning = "yellow"
-    muted = UNPLAYED_STYLE
-
-    @property
-    def glow(self) -> tuple[str, ...]:
-        return GLOW_STYLES
-
-
-def palette_of(widget: Any) -> Any:
-    """The app's colour roles, or the terminal's colours without an app."""
-
-    try:
-        palette = getattr(widget.app, "palette", None)
-    except Exception:
-        palette = None
-    return palette if palette is not None else _TerminalPalette()
 # How far back from the playhead the sound of this instant is allowed to show.
 # Two columns: twelve was a band wide enough that its 30fps pulsing read as the
 # whole tail of the played waveform flickering.
@@ -232,6 +202,15 @@ def glow_style(level: float, steps: tuple[str, ...] = GLOW_STYLES) -> str:
     return steps[min(step, len(steps) - 1)]
 
 
+# How the meter follows the signal: the fall per frame, how fast its window
+# tracks the loudest and quietest of what it has heard, the curve that spreads a
+# brickwalled master over the bar, and the span below which nothing is playing.
+METER_RELEASE = 0.72
+METER_ADAPT = 0.03
+METER_GAMMA = 1.6
+METER_QUIETEST_SPAN = 0.02
+
+
 class LevelMeter:
     """Turns raw peaks into something that reads as a pulse.
 
@@ -252,17 +231,11 @@ class LevelMeter:
     as dark, rather than as its own hiss stretched to full height.
     """
 
-    def __init__(
-        self,
-        release: float = 0.72,
-        adapt: float = 0.03,
-        gamma: float = 1.6,
-        quietest_span: float = 0.02,
-    ) -> None:
-        self.release = release
-        self.adapt = adapt
-        self.gamma = gamma
-        self.quietest_span = quietest_span
+    def __init__(self) -> None:
+        self.release = METER_RELEASE
+        self.adapt = METER_ADAPT
+        self.gamma = METER_GAMMA
+        self.quietest_span = METER_QUIETEST_SPAN
         self.reset()
 
     def reset(self) -> None:
@@ -667,12 +640,6 @@ class Player:
             if event.generation == self._generation:
                 return event
 
-    def take_finished(self) -> bool:
-        """Compatibility helper for callers interested only in a clean EOF."""
-
-        event = self.take_event()
-        return event is not None and event.kind == "finished"
-
     @property
     def duration(self) -> float:
         return self._loaded.duration if self._loaded else 0.0
@@ -1029,9 +996,9 @@ class PlayerBar(Static):
         loaded = self.player.loaded
         if loaded is None:
             self.meter.reset()
-            return Text(self.message, style=muted_style(self))
+            return Text(self.message, style=self.app.muted)
         level = self.meter.feed(self.player.take_level())
-        palette = palette_of(self)
+        palette = self.app.palette
         return paint_waveform(
             self._rows(loaded),
             self.player.fraction,
@@ -1108,7 +1075,7 @@ class VolumeSlider(Static):
     def render(self) -> Text:
         volume = self.player.volume
         filled = round(volume * VOLUME_TRACK)
-        palette = palette_of(self)
+        palette = self.app.palette
         bar = Text("\u00d8 " if volume <= 0 else "\u266a ", style="bold")
         bar.append("━" * filled, style=palette.primary)
         bar.append("●", style=f"bold {palette.primary}")
@@ -1237,14 +1204,14 @@ class PlayerControls(Horizontal):
         # Text(), not markup: a title like "Rido - Sexy Thing [Clip]" keeps its
         # brackets, and a message is the one thing worth the room over a title.
         self.query_one("#player-title", Static).update(
-            Text(message, style=palette_of(self).warning)
+            Text(message, style=self.app.palette.warning)
             if message
             else Text(loaded.track.label, no_wrap=True, overflow="ellipsis")
         )
         self.query_one("#player-time", Static).update(
             Text(
                 f"{format_time(self.player.position)} / {format_time(self.player.duration)}",
-                style=muted_style(self),
+                style=self.app.muted,
             )
         )
         self.query_one(VolumeSlider).refresh()

@@ -139,11 +139,8 @@ class HelpScreen(_Modal[None]):
         yield Footer()
 
     def _body(self) -> Text:
-        muted = getattr(self.app, "muted", "bright_black")
-        palette = getattr(self.app, "palette", None)
-        key_style = palette.primary if palette else "cyan"
-        new_style = f"bold {palette.secondary}" if palette else "bold yellow"
-        role = getattr(self.app, "role", lambda style: style)
+        muted = self.app.muted
+        palette = self.app.palette
         body = Text()
         sections = (SELECTED, PLAYBACK, WHOLE_LIST, CRATES, OTHER)
         for section in sections:
@@ -160,20 +157,19 @@ class HelpScreen(_Modal[None]):
             if HELP_SCOPES[section]:
                 body.append(f"  {HELP_SCOPES[section]}\n", style=muted)
             for key, label in entries:
-                body.append(f"  {key:<10}", style=key_style)
+                body.append(f"  {key:<10}", style=palette.primary)
                 body.append(f"{label}\n")
             body.append("\n")
 
         # The marks are one glyph wide in the table, so this is where they get
         # to say what they mean.
         body.append("Marks\n", style="bold")
-        body.append(f"  {PLAYING_GLYPH:<10}", style=palette.accent if palette else "green")
+        body.append(f"  {PLAYING_GLYPH:<10}", style=palette.accent)
         body.append("playing now\n")
-        body.append(f"  {'NEW':<10}", style=new_style)
+        body.append(f"  {'NEW':<10}", style=f"bold {palette.secondary}")
         body.append("added by the last refresh\n")
         for glyph, style, meaning in STATUS_STYLES.values():
-            style = role(style)
-            body.append(f"  {glyph:<10}", style=style)
+            body.append(f"  {glyph:<10}", style=self.app.role(style))
             body.append(f"{meaning}\n")
         return body
 

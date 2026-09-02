@@ -209,11 +209,9 @@ class OpeningMixin:
     async def _wait_cart_screen(self, screen):
         """Await one cart-owned modal and always remove it if its worker is cancelled."""
 
-        self._cart_decision_screen = screen
         try:
             return await self.push_screen_wait(screen)
         finally:
-            self._cart_decision_screen = None
             if screen.is_mounted:
                 try:
                     screen.dismiss(None)

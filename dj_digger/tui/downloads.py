@@ -168,7 +168,7 @@ class DownloadMixin:
                 cancel=self._gate_cancel,
             )
         except Cancelled:
-            self.call_from_thread(self._download_waiting, key)
+            self.call_from_thread(self._settle_download_row, key)
             return
         except gates.BROWSER_REQUIRED_ERRORS as exc:
             if not _is_hypeddit(gate_url):
@@ -192,7 +192,7 @@ class DownloadMixin:
                 )
                 return
         except (gates.GateProfileRequired, soundcloud.SoundCloudLoginRequired) as exc:
-            self.call_from_thread(self._download_waiting, key)
+            self.call_from_thread(self._settle_download_row, key)
             if allow_prerequisite_retry:
                 self.call_from_thread(
                     self._offer_single_retry, track, gate_url, exc
@@ -261,9 +261,6 @@ class DownloadMixin:
             self._client = self._new_client(oauth_token)
         for callback in callbacks:
             callback()
-
-    def _download_waiting(self, key: str) -> None:
-        self._settle_download_row(key)
 
     def _offer_single_retry(
         self, track: Track, gate_url: str | None, error: Exception
@@ -537,10 +534,10 @@ class DownloadMixin:
                 progress.hubs_changed = progress.hubs_changed or changed
                 if outcome == "hub":
                     progress.total -= 1
-                    self.call_from_thread(self._download_waiting, row.track.key)
+                    self.call_from_thread(self._settle_download_row, row.track.key)
                 elif outcome == "cancelled":
                     # Stopped by the user: not a failure, nothing to report.
-                    self.call_from_thread(self._download_waiting, row.track.key)
+                    self.call_from_thread(self._settle_download_row, row.track.key)
                 elif outcome == "downloaded":
                     progress.completed += 1
                     self.call_from_thread(self._download_finished, row.track.key, result, toast=False)
@@ -548,12 +545,12 @@ class DownloadMixin:
                     result, gates.GateProfileRequired
                 ):
                     progress.profile_items.append((row, gate_url))
-                    self.call_from_thread(self._download_waiting, row.track.key)
+                    self.call_from_thread(self._settle_download_row, row.track.key)
                 elif allow_prerequisite_retry and isinstance(
                     result, soundcloud.SoundCloudLoginRequired
                 ):
                     progress.auth_items.append((row, gate_url))
-                    self.call_from_thread(self._download_waiting, row.track.key)
+                    self.call_from_thread(self._settle_download_row, row.track.key)
                 elif (
                     isinstance(result, gates.BROWSER_REQUIRED_ERRORS)
                     and _is_hypeddit(gate_url)
@@ -563,7 +560,7 @@ class DownloadMixin:
                         progress.browser_reasons[row.track.key] = str(result)
                     else:
                         progress.deferred += 1
-                    self.call_from_thread(self._download_waiting, row.track.key)
+                    self.call_from_thread(self._settle_download_row, row.track.key)
                 else:
                     progress.failed += 1
                     if isinstance(result, Exception):

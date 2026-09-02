@@ -4,7 +4,6 @@ Mixed into ``DiggerApp``; the attributes these reach for are set up in its
 ``__init__``.
 """
 
-import logging
 from collections.abc import Sequence
 
 from textual.widgets import Button, DataTable, Input, ListView
@@ -17,8 +16,6 @@ from ..state import NEW
 from .rows import Row
 from .screens import ConfirmScreen
 from .widgets import CrateButton, CrateItem
-
-LOGGER = logging.getLogger(__name__)
 
 
 class CrateMixin:
