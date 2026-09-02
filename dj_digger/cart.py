@@ -39,6 +39,7 @@ from .cart_models import (  # re-exported: the TUI and tests import them from he
     CartRequest,
     CartResult,
     CartResultCode,
+    CartStatus,
     CartUnverified,
     ManualCallback,
     PriceQuote,
@@ -1011,6 +1012,84 @@ async def save_cart_diagnostics(
         return None
 
 
+def _cancelled_result(key: str, label: str, store: str) -> CartResult:
+    return CartResult(key, label, store, "failed", "cart operation was cancelled", "cancelled")
+
+
+BEATPORT_BY_TITLE = "Beatport will match this track by artist and title"
+
+
+# How a failed preflight lookup is reported, by its most specific exception
+# type; anything not listed is an unexpected browser failure.
+_PREFLIGHT_FAILURES: dict[type[Exception], tuple[CartStatus, CartResultCode]] = {
+    UnsafeMatch: ("skipped", "unsafe_match"),
+    UnsafeRedirect: ("failed", "unsafe_redirect"),
+    SecurityChallengeBlocked: ("failed", "browser_failure"),
+    UserActionTimeout: ("failed", "user_action_timeout"),
+    StoreStructureError: ("failed", "store_structure"),
+    CartCancelled: ("failed", "cancelled"),
+    AutomationError: ("failed", "browser_failure"),
+}
+
+
+def _preflight_failure(
+    request: CartRequest, label: str, store: str, url: str, exc: Exception
+) -> CartResult:
+    """The result for one link that could not be resolved.
+
+    Beatport is never a failure: its lookup is best effort and the playlist
+    matches by artist and title instead - unless the person stopped the batch
+    or a manual step timed out, which end every store the same way.
+    """
+
+    if store == "beatport" and not isinstance(exc, (UserActionTimeout, CartCancelled)):
+        reason = str(exc) if isinstance(exc, SecurityChallengeBlocked) else BEATPORT_BY_TITLE
+        # A link that redirected off Beatport is not one worth keeping.
+        kept_url = "" if isinstance(exc, UnsafeRedirect) else url
+        return _beatport_playlist_result(request, label, reason, kept_url)
+    spec = next(
+        (_PREFLIGHT_FAILURES[cls] for cls in type(exc).__mro__ if cls in _PREFLIGHT_FAILURES),
+        None,
+    )
+    if spec is None:
+        return CartResult(
+            request.track.key,
+            label,
+            store,
+            "failed",
+            "unexpected store interaction failure",
+            "browser_failure",
+        )
+    status, code = spec
+    shown_url = ""
+    if isinstance(exc, SecurityChallengeBlocked):
+        shown_url = canonical_store_url(url, store) or ""
+    return CartResult(request.track.key, label, store, status, str(exc), code, shown_url)
+
+
+class _StructureFailures:
+    """Stores whose pages keep losing their shape.
+
+    The same structural error on two different tracks means the store, not
+    the track, changed: it is marked broken and the rest of its links are
+    reported without another lookup.
+    """
+
+    def __init__(self) -> None:
+        self._seen: dict[str, tuple[str, set[str]]] = {}
+        self.broken: set[str] = set()
+
+    def record(self, store: str, signature: str, track_key: str) -> None:
+        earlier, keys = self._seen.get(store, (signature, set()))
+        keys = {track_key} if earlier != signature else keys | {track_key}
+        self._seen[store] = (signature, keys)
+        if len(keys) >= 2:
+            self.broken.add(store)
+
+    def clear(self, store: str) -> None:
+        self._seen.pop(store, None)
+
+
 class CartBrowserSession:
     """One lazy Playwright context shared by all cart batches in a TUI run.
 
@@ -1240,6 +1319,74 @@ class CartBrowserSession:
                     if not page.is_closed():
                         await page.close()
 
+    async def _preflight_one(
+        self,
+        page: Any,
+        request: CartRequest,
+        cancel: asyncio.Event,
+        failures: _StructureFailures,
+    ) -> tuple[CartItem | CartResult, Any]:
+        """Resolve one request over its links; the first eligible store wins.
+
+        Returns the item, or the result that stands in for it, and the page to
+        keep working on: a page that lost its shape is swapped for a fresh one.
+        """
+
+        label = _display_text(request.track.label)
+        if cancel.is_set():
+            store = request.links[0][0] if request.links else ""
+            return _cancelled_result(request.track.key, label, store), page
+        unavailable: list[str] = []
+        for store, url in request.links:
+            if store in failures.broken:
+                if store == "beatport":
+                    return _beatport_playlist_result(request, label, BEATPORT_BY_TITLE, url), page
+                return CartResult(
+                    request.track.key,
+                    label,
+                    store,
+                    "failed",
+                    "store automation stopped after repeated structural failures",
+                    "store_structure",
+                ), page
+            try:
+                try:
+                    item = await _resolve_cart_item_async(
+                        page, request.track, store, url, cancel
+                    )
+                except StoreStructureError:
+                    await save_cart_diagnostics(page, store, url, "store_structure")
+                    page = await self._replace_page(page)
+                    item = await _resolve_cart_item_async(
+                        page, request.track, store, url, cancel
+                    )
+            except ProductUnavailable as exc:
+                if store == "beatport":
+                    return _beatport_playlist_result(request, label, BEATPORT_BY_TITLE, url), page
+                unavailable.append(str(exc))
+                continue
+            except Exception as exc:
+                if not isinstance(exc, (UnsafeMatch, AutomationError)):
+                    LOGGER.error(
+                        "Unexpected cart preflight error: store=%s track=%r error=%s",
+                        store,
+                        label,
+                        type(exc).__name__,
+                    )
+                elif isinstance(exc, StoreStructureError) and store != "beatport":
+                    failures.record(store, str(exc), request.track.key)
+                return _preflight_failure(request, label, store, url, exc), page
+            failures.clear(store)
+            return item, page
+        return CartResult(
+            request.track.key,
+            label,
+            request.links[-1][0] if request.links else "",
+            "skipped",
+            unavailable[-1] if unavailable else "no eligible Bandcamp or Beatport link",
+            "unavailable",
+        ), page
+
     async def _preflight(
         self,
         requests: tuple[CartRequest, ...],
@@ -1253,242 +1400,30 @@ class CartBrowserSession:
         for _ in pages:
             queue.put_nowait(None)
 
-        items: list[CartItem | None] = [None] * len(requests)
-        result_slots: list[CartResult | None] = [None] * len(requests)
-        structure_failures: dict[str, tuple[str, set[str]]] = {}
-        broken_stores: set[str] = set()
+        outcomes: list[CartItem | CartResult | None] = [None] * len(requests)
+        failures = _StructureFailures()
         completed = 0
 
-        async def worker(worker_index: int, initial_page: Any) -> None:
+        async def worker(worker_index: int, page: Any) -> None:
             nonlocal completed
-            page = initial_page
-            while True:
-                entry = await queue.get()
-                if entry is None:
-                    queue.task_done()
-                    return
+            while (entry := await queue.get()) is not None:
                 index, request = entry
-                label = _display_text(request.track.label)
                 try:
-                    if cancel.is_set():
-                        result_slots[index] = CartResult(
-                            request.track.key,
-                            label,
-                            request.links[0][0] if request.links else "",
-                            "failed",
-                            "cart operation was cancelled",
-                            "cancelled",
-                        )
-                        continue
-                    unavailable: list[str] = []
-                    for store, url in request.links:
-                        if store in broken_stores:
-                            if store == "beatport":
-                                result_slots[index] = _beatport_playlist_result(
-                                    request,
-                                    label,
-                                    "Beatport will match this track by artist and title",
-                                    url,
-                                )
-                            else:
-                                result_slots[index] = CartResult(
-                                    request.track.key,
-                                    label,
-                                    store,
-                                    "failed",
-                                    "store automation stopped after repeated structural failures",
-                                    "store_structure",
-                                )
-                            break
-                        try:
-                            try:
-                                item = await _resolve_cart_item_async(
-                                    page, request.track, store, url, cancel
-                                )
-                            except StoreStructureError:
-                                await save_cart_diagnostics(page, store, url, "store_structure")
-                                page = await self._replace_page(page)
-                                pages[worker_index] = page
-                                item = await _resolve_cart_item_async(
-                                    page, request.track, store, url, cancel
-                                )
-                        except ProductUnavailable as exc:
-                            if store == "beatport":
-                                result_slots[index] = _beatport_playlist_result(
-                                    request,
-                                    label,
-                                    "Beatport will match this track by artist and title",
-                                    url,
-                                )
-                                break
-                            unavailable.append(str(exc))
-                            continue
-                        except UnsafeMatch as exc:
-                            if store == "beatport":
-                                result_slots[index] = _beatport_playlist_result(
-                                    request,
-                                    label,
-                                    "Beatport will match this track by artist and title",
-                                    url,
-                                )
-                            else:
-                                result_slots[index] = CartResult(
-                                    request.track.key,
-                                    label,
-                                    store,
-                                    "skipped",
-                                    str(exc),
-                                    "unsafe_match",
-                                )
-                            break
-                        except UnsafeRedirect as exc:
-                            if store == "beatport":
-                                result_slots[index] = _beatport_playlist_result(
-                                    request,
-                                    label,
-                                    "Beatport will match this track by artist and title",
-                                )
-                            else:
-                                result_slots[index] = CartResult(
-                                    request.track.key,
-                                    label,
-                                    store,
-                                    "failed",
-                                    str(exc),
-                                    "unsafe_redirect",
-                                )
-                            break
-                        except SecurityChallengeBlocked as exc:
-                            if store == "beatport":
-                                result_slots[index] = _beatport_playlist_result(
-                                    request, label, str(exc), url
-                                )
-                            else:
-                                result_slots[index] = CartResult(
-                                    request.track.key,
-                                    label,
-                                    store,
-                                    "failed",
-                                    str(exc),
-                                    "browser_failure",
-                                    canonical_store_url(url, store) or "",
-                                )
-                            break
-                        except UserActionTimeout as exc:
-                            result_slots[index] = CartResult(
-                                request.track.key,
-                                label,
-                                store,
-                                "failed",
-                                str(exc),
-                                "user_action_timeout",
-                            )
-                            break
-                        except StoreStructureError as exc:
-                            if store == "beatport":
-                                result_slots[index] = _beatport_playlist_result(
-                                    request,
-                                    label,
-                                    "Beatport will match this track by artist and title",
-                                    url,
-                                )
-                                break
-                            signature = str(exc)
-                            earlier, keys = structure_failures.get(store, (signature, set()))
-                            keys = set(keys)
-                            keys.add(request.track.key)
-                            if earlier != signature:
-                                signature, keys = str(exc), {request.track.key}
-                            structure_failures[store] = (signature, keys)
-                            if len(keys) >= 2:
-                                broken_stores.add(store)
-                            result_slots[index] = CartResult(
-                                request.track.key,
-                                label,
-                                store,
-                                "failed",
-                                str(exc),
-                                "store_structure",
-                            )
-                            break
-                        except CartCancelled:
-                            result_slots[index] = CartResult(
-                                request.track.key,
-                                label,
-                                store,
-                                "failed",
-                                "cart operation was cancelled",
-                                "cancelled",
-                            )
-                            break
-                        except AutomationError as exc:
-                            if store == "beatport":
-                                result_slots[index] = _beatport_playlist_result(
-                                    request,
-                                    label,
-                                    "Beatport will match this track by artist and title",
-                                    url,
-                                )
-                            else:
-                                result_slots[index] = CartResult(
-                                    request.track.key,
-                                    label,
-                                    store,
-                                    "failed",
-                                    str(exc),
-                                    "browser_failure",
-                                )
-                            break
-                        except Exception as exc:
-                            LOGGER.error(
-                                "Unexpected cart preflight error: store=%s track=%r error=%s",
-                                store,
-                                label,
-                                type(exc).__name__,
-                            )
-                            if store == "beatport":
-                                result_slots[index] = _beatport_playlist_result(
-                                    request,
-                                    label,
-                                    "Beatport will match this track by artist and title",
-                                    url,
-                                )
-                            else:
-                                result_slots[index] = CartResult(
-                                    request.track.key,
-                                    label,
-                                    store,
-                                    "failed",
-                                    "unexpected store interaction failure",
-                                    "browser_failure",
-                                )
-                            break
-                        else:
-                            items[index] = item
-                            structure_failures.pop(store, None)
-                            break
+                    outcome, page = await self._preflight_one(page, request, cancel, failures)
+                    pages[worker_index] = page
+                    outcomes[index] = outcome
+                    if isinstance(outcome, CartResult):
+                        _log_cart_result("preflight", outcome)
                     else:
-                        result_slots[index] = CartResult(
-                            request.track.key,
-                            label,
-                            request.links[-1][0] if request.links else "",
-                            "skipped",
-                            unavailable[-1] if unavailable else "no eligible Bandcamp or Beatport link",
-                            "unavailable",
-                        )
-                finally:
-                    if result_slots[index] is not None:
-                        _log_cart_result("preflight", result_slots[index])
-                    elif items[index] is not None:
-                        ready = items[index]
                         LOGGER.info(
                             "Cart preflight ready: store=%s track=%r product=%s price=%s %s",
-                            ready.store,
-                            ready.track_label,
-                            redact_url(ready.product_url),
-                            ready.price,
-                            ready.currency,
+                            outcome.store,
+                            outcome.track_label,
+                            redact_url(outcome.product_url),
+                            outcome.price,
+                            outcome.currency,
                         )
+                finally:
                     completed += 1
                     _emit_progress(
                         progress,
@@ -1496,17 +1431,18 @@ class CartBrowserSession:
                             "preflight",
                             completed,
                             len(requests),
-                            track_label=label,
+                            track_label=_display_text(request.track.label),
                         ),
                     )
                     queue.task_done()
+            queue.task_done()
 
         async with asyncio.TaskGroup() as group:
             for index, page in enumerate(pages):
                 group.create_task(worker(index, page))
         return CartPlan(
-            tuple(item for item in items if item is not None),
-            tuple(result for result in result_slots if result is not None),
+            tuple(outcome for outcome in outcomes if isinstance(outcome, CartItem)),
+            tuple(outcome for outcome in outcomes if isinstance(outcome, CartResult)),
         )
 
     async def _execute_store(
