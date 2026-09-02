@@ -738,6 +738,8 @@ _CLICK_STEPS = {"sc", "ig", "yt"}
 _SOCIAL_PAGE = "https://soundcloud.com/artist"
 _SPOTIFY_LOGIN = "https://accounts.spotify.com/authorize?client_id=x"
 _SPOTIFY_CALLBACK = "https://hypeddit.com/spotify_callback?code=ok"
+_GATE = "https://hypeddit.com/track/seven"
+_HOT_OR_NOT = "https://hypeddit.com/hot-or-not/tech-house"
 
 
 class _GatePage:
@@ -759,9 +761,12 @@ class _GatePage:
         person_finishes=False,
         late_popup=False,
         asks_name=False,
+        detours=0,
     ):
         self.context = context
         self.url = "about:blank"
+        self.detours = detours
+        self.visited = []
         self.handlers = {}
         self.opener = None
         self.steps = list(steps)
@@ -785,7 +790,15 @@ class _GatePage:
         self.handlers[event] = callback
 
     def goto(self, url, **_kwargs):
+        self.visited.append(url)
+        if self.detours:
+            self.detours -= 1
+            url = _HOT_OR_NOT
         self.url = url
+
+    @property
+    def on_gate(self):
+        return self.url != _HOT_OR_NOT
 
     def is_closed(self):
         return False
@@ -800,7 +813,7 @@ class _GatePage:
 
     def count(self, selector, slide):
         if selector == gates.GATE_CURRENT_SLIDE:
-            return 1 if self.kind else 0
+            return 1 if self.kind and self.on_gate else 0
         if selector == gates.GATE_PENDING_ACTION:
             return self.pending.get(slide, 0)
         if selector == gates.GATE_NAME_INPUT:
@@ -809,7 +822,7 @@ class _GatePage:
 
     def visible(self, selector):
         if selector == gates.GATE_START_BUTTON:
-            return not self.clicked
+            return self.on_gate and not self.clicked
         if selector == gates.GATE_CAPTCHA:
             return self.captcha_shown
         if selector == gates.HYPEDDIT_DOWNLOAD_BUTTON:
@@ -966,6 +979,18 @@ def test_a_hidden_browser_walks_the_gate_and_downloads_without_a_window(tmp_path
     assert [popup.url for popup in page.popups] == [_SOCIAL_PAGE, _SPOTIFY_CALLBACK, _SOCIAL_PAGE]
     assert all(popup.closed for popup in page.popups), "provider pages are closed unread"
     assert messages == []
+    assert path.read_bytes() == b"RIFF-gate"
+
+
+def test_a_gate_detoured_to_the_hot_or_not_poll_is_opened_again_hidden(tmp_path, monkeypatch):
+    launches = _gate_browser(monkeypatch, lambda ctx: _GatePage(ctx, detours=1))
+
+    path = gates.download_hypeddit_in_browser(_track(), _GATE, tmp_path, None, config=_DJ)
+
+    assert [headless for headless, _context in launches] == [True], "no window for a detour"
+    page = launches[0][1].pages[0]
+    assert page.visited == [_GATE, _GATE]
+    assert [selector for _kind, selector in page.clicked] == _WALKED
     assert path.read_bytes() == b"RIFF-gate"
 
 

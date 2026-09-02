@@ -114,6 +114,10 @@
   browser on "Please enter your name.": the name from Settings is filled in
   with the address, and a profile still carrying the placeholder name sends
   the row to the window with that reason.
+- The hidden browser no longer hands a gate to a window merely because
+  Hypeddit sent the first visit after a download to its hot-or-not poll: the
+  tab is pointed at the gate again and walked out of sight, so the window
+  with its flashing provider popups only appears for a login or a CAPTCHA.
 
 ### Changed
 

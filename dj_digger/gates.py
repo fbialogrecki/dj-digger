@@ -1202,6 +1202,12 @@ def _drive_tab(
     """
 
     try:
+        if _on_hot_or_not(page):
+            # The first visit to a gate after a download in this profile is
+            # sent to Hypeddit's hot-or-not poll instead; the next visit gets
+            # the gate (seen on a hidden pass, 2026-09-02).
+            _track, url = watch.pending[key]
+            page.goto(url, wait_until="domcontentloaded", timeout=30_000)
         if not _drive_gate_steps(
             context, page, watch.cancel, status, social=social, email=email, name=name, attended=attended
         ) and not attended:
@@ -1216,6 +1222,11 @@ def _drive_tab(
         else:
             watch.deferred[key] = reason
     return False
+
+
+def _on_hot_or_not(page: Any) -> bool:
+    url = str(page.url)
+    return is_hypeddit_url(url) and urllib.parse.urlsplit(url).path.startswith("/hot-or-not/")
 
 
 def _await_downloads(

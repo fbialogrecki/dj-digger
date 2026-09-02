@@ -5,8 +5,8 @@
 - Product version verified: 0.15.0
 - Owner: Filip Białogrecki
 - Updated: 2026-08-28
-- Document lines: <!-- SPEC TOTAL LINES -->1073<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1073<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1075<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1075<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -81,32 +81,32 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 9 | Authentication and authorization | 690–726 |
 | 9.1 | ↳ SoundCloud authentication | 692–709 |
 | 9.2 | ↳ Gate action consent | 710–726 |
-| 10 | External integrations | 727–849 |
+| 10 | External integrations | 727–851 |
 | 10.1 | ↳ SoundCloud API and media | 729–740 |
-| 10.2 | ↳ Link hubs and download gates | 741–796 |
-| 10.2 · block | ↳ ↳ Hypeddit | 749–782 |
-| 10.2 · block | ↳ ↳ Other resolvers | 784–789 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 791–796 |
-| 10.3 | ↳ Browsers and clipboard | 797–808 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 809–849 |
-| 11 | Security requirements and threat model | 850–896 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 852–870 |
-| 11.2 | ↳ Secret and personal-data handling | 871–883 |
-| 11.3 | ↳ File and mutation safety | 884–896 |
-| 12 | Privacy, lifecycle, and retention | 897–935 |
-| 12.1 | ↳ Data stored locally | 899–914 |
-| 12.2 | ↳ Data sent to third parties | 915–926 |
-| 12.3 | ↳ User-controlled deletion | 927–935 |
-| 13 | Failure behavior and current limitations | 936–987 |
-| 13.1 | ↳ Error isolation and reporting | 938–957 |
-| 13.2 | ↳ Confirmed limitations | 958–987 |
-| 14 | Verification, CI, and release | 988–1051 |
-| 14.1 | ↳ Offline and live test suites | 990–1020 |
-| 14.2 | ↳ Continuous integration and publishing | 1021–1036 |
-| 14.3 | ↳ Specification-map verification | 1037–1051 |
-| 15 | Evidence and operational references | 1052–1073 |
-| 15.1 | ↳ Primary implementation evidence | 1054–1066 |
-| 15.2 | ↳ User and historical documentation | 1067–1073 |
+| 10.2 | ↳ Link hubs and download gates | 741–798 |
+| 10.2 · block | ↳ ↳ Hypeddit | 749–784 |
+| 10.2 · block | ↳ ↳ Other resolvers | 786–791 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 793–798 |
+| 10.3 | ↳ Browsers and clipboard | 799–810 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 811–851 |
+| 11 | Security requirements and threat model | 852–898 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 854–872 |
+| 11.2 | ↳ Secret and personal-data handling | 873–885 |
+| 11.3 | ↳ File and mutation safety | 886–898 |
+| 12 | Privacy, lifecycle, and retention | 899–937 |
+| 12.1 | ↳ Data stored locally | 901–916 |
+| 12.2 | ↳ Data sent to third parties | 917–928 |
+| 12.3 | ↳ User-controlled deletion | 929–937 |
+| 13 | Failure behavior and current limitations | 938–989 |
+| 13.1 | ↳ Error isolation and reporting | 940–959 |
+| 13.2 | ↳ Confirmed limitations | 960–989 |
+| 14 | Verification, CI, and release | 990–1053 |
+| 14.1 | ↳ Offline and live test suites | 992–1022 |
+| 14.2 | ↳ Continuous integration and publishing | 1023–1038 |
+| 14.3 | ↳ Specification-map verification | 1039–1053 |
+| 15 | Evidence and operational references | 1054–1075 |
+| 15.1 | ↳ Primary implementation evidence | 1056–1068 |
+| 15.2 | ↳ User and historical documentation | 1069–1075 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -760,7 +760,9 @@ rejection, transfer, and provider availability. Provider login, CAPTCHA,
 unknown action, protocol change, rejection, and disabled social actions fall
 back to the browser; a batch hands at most eight gates to it per run and leaves
 the rest new. Browser fallback uses the private SoundCloud Chromium profile,
-hidden first: when gate social actions are enabled it presses the gate's
+hidden first: a tab that Hypeddit sent to its hot-or-not poll instead of the
+gate (its habit for the first visit after a download) is pointed at the gate
+once more; when gate social actions are enabled it presses the gate's
 sidebar Download and walks the step slides it reveals, one current slide at a
 time - a click-through slide's pending follow/like links are clicked and the
 provider pages they open are closed unread before its Next; a Connect slide
