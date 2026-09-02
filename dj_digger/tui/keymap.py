@@ -53,7 +53,6 @@ FOOTER_OPTIONAL = (
     "download_track",
     "search('bandcamp')",
     "open_visible",
-    "cycle_store(1)",
     "dig_link",
     "open_settings",
 )
@@ -126,8 +125,6 @@ KEYMAP = [
     ("P", "open_beatport_tracks", "Beatport pages", WHOLE_LIST, False, "Open every exact Beatport track page shown in your browser, to add to cart by hand"),
     ("e", "export", "Export", WHOLE_LIST, False, "Write the rows shown to the export file"),
     ("slash", "start_search", "Search", WHOLE_LIST, True, "Filter by artist, title, genre, tag or label"),
-    ("f", "cycle_store(1)", "Next store", WHOLE_LIST, True, "Step to the next store (collapses a multi-select)"),
-    ("F", "cycle_store(-1)", "Previous store", WHOLE_LIST, False, "Step back a store"),
     ("t", "sort_next", "Sort", WHOLE_LIST, False, "Sort by title, time, genre, status or store; again for the next"),
     ("T", "sort_flip", "Reverse sort", WHOLE_LIST, False, "Reverse the current sort"),
     ("v", "toggle_select", "Select", SELECTED, False, "Select or deselect this row"),

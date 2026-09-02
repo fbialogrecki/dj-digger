@@ -15,6 +15,8 @@
 - Multi-select: `v` toggles a row, `Shift+V` extends to the cursor, `Ctrl+A`
   selects everything shown; batch download, open, cart, export, marks and
   removal then act on the selection.
+- The `f`/`Shift+F` store-cycling keys are gone; the number keys, `0`, and a
+  click on the legend's `…` cover it, and the footer has the room back.
 - Sorting with `t` (title, time, genre, status, store, and any enabled BPM,
   key or year column) and `Shift+T` to reverse; the header shows the arrow.
 - The search box matches every word in any order against artist, title,
@@ -27,8 +29,7 @@
 - A theme choice in Settings (and Textual's palette), remembered between runs.
   Dim text is blended from the theme instead of the terminal's `bright_black`,
   which vanished on light palettes.
-- The command palette (`ctrl+p`) lists every key's action by label and help
-  text; `Shift+U` (reset statuses) asks before it wipes the marks.
+- `Shift+U` (reset statuses) asks before it wipes the marks.
 - `Shift+P` opens every exact Beatport track page shown in your regular,
   logged-in browser so each can be added to the cart with one click; the `c`
   and `Shift+C` labels now say that Beatport goes to a playlist, not a cart.
@@ -46,9 +47,9 @@
 
 ### Fixed
 
-- The store legend in the status bar no longer gets clipped on a narrow
-  terminal: it drops the counts first, then shows a window around the active
-  store with a clickable `…` for the rest, like the footer does with its keys.
+- The status bar scrolls sideways like the footer instead of clipping the
+  store legend, and the track counts (`tracks · got · skipped · opened`) are
+  gone from it; only the running job and the view's state remain on the right.
 - Bandcamp cart verification now recognises the side cart as Bandcamp renders
   it (a row with the product link and an `x` delete control) and counts its
   rows, instead of looking for a "remove" link and a menubar badge that artist

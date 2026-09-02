@@ -145,7 +145,6 @@ Press `?` inside the TUI at any time to view the full grouped keybinding modal.
 | Key | Action |
 | --- | --- |
 | `/` | Live search/filter by artist, title, genre, tag or label (every word must match, any order) |
-| `f` / `Shift+F` | Step forward / backward through store filters (from the store toggled last) |
 | `t` / `Shift+T` | Sort by title, time, genre, status or store (`t` cycles, `Shift+T` reverses); the header shows the arrow |
 | `v` / `Shift+V` / `Ctrl+A` | Select a row / extend the selection to here / select everything shown; batch keys then act on the selection |
 | `1` – `9` | Jump directly to store category filter |

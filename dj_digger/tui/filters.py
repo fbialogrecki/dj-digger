@@ -118,7 +118,6 @@ class FilterMixin:
                 self.store_filters.remove(category)
             else:
                 self.store_filters.add(category)
-                self._last_store = category
         self._pending_open_all = False
         self.refresh_rows(keep_cursor=False)
 
@@ -132,31 +131,6 @@ class FilterMixin:
             self._apply_store_filter(self.present[index - 1])
         else:
             self.notify(f"This crate has no store {index}", timeout=2)
-
-    def action_cycle_store(self, step: int) -> None:
-        """Step through the stores this crate actually has, plus 'all'.
-
-        From a multi-select (number keys) it steps from the store toggled last
-        and collapses to that one, rather than silently jumping to the first.
-        """
-
-        if not self.present:
-            return
-        options = [""] + self.present
-        if len(self.store_filters) == 1:
-            current_single = next(iter(self.store_filters))
-        elif len(self.store_filters) > 1 and self._last_store in self.store_filters:
-            current_single = self._last_store
-        else:
-            current_single = ""
-        current = options.index(current_single) if current_single in options else 0
-        next_cat = options[(current + step) % len(options)]
-        self.store_filters.clear()
-        if next_cat:
-            self.store_filters.add(next_cat)
-        self._last_store = next_cat
-        self._pending_open_all = False
-        self.refresh_rows(keep_cursor=False)
 
     # Sorting
 

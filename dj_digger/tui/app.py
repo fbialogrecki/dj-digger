@@ -41,7 +41,6 @@ from .keymap import (
 )
 from .library_scan import LibraryScanMixin
 from .opening import OpeningMixin
-from .palette import KeymapProvider
 from .playback import PlaybackMixin
 from .render import RenderMixin
 from .rows import Prepared, Row
@@ -77,9 +76,10 @@ class DiggerApp(
     the bindings, the state they all reach for, and setup and teardown.
     """
     # The built-in palette showed up in the footer as an unexplained "palette".
-    # Every keymap action, searchable: see palette.py.
-    ENABLE_COMMAND_PALETTE = True
-    COMMANDS = App.COMMANDS | {KeymapProvider}
+    # Off: it brings Textual's own Screenshot, Maximize and Theme commands
+    # along, none of which belongs in a crate browser. Settings and ? cover
+    # everything the app itself offers.
+    ENABLE_COMMAND_PALETTE = False
     # Otherwise the terminal's window and tab say "DiggerApp", which is the name
     # of the class rather than of anything the user installed.
     TITLE = "dj-digger"
@@ -156,11 +156,6 @@ class DiggerApp(
     }
     /* Exactly one line. Left to wrap, this bar grew back into the three rows of
        chrome it was meant to replace. */
-    #status {
-        height: 1;
-        padding: 0 1;
-        color: $text-muted;
-    }
     /* One line, like the status bar: the default Input spends three rows on a
        border to hold one row of text, and this sits above the list you are
        filtering. */
@@ -237,8 +232,6 @@ class DiggerApp(
         self._anchor: int | None = None
         self.sort_key: str | None = None
         self.sort_reverse: bool = False
-        # The store toggled last by a number key, so f/F know where to step from.
-        self._last_store: str = ""
         self._column_keys: dict[str, ColumnKey] = {}
         self.visible_rows: list[Row] = []
         self.present: list[str] = []

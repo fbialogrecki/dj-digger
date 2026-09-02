@@ -4,7 +4,7 @@ from rich.text import Text
 from textual import events
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, VerticalScroll
+from textual.containers import Horizontal, ScrollableContainer, VerticalScroll
 from textual.message import Message
 from textual.widget import Widget
 from textual.widgets import Button, DataTable, Footer, Input, Label, ListItem, Static
@@ -139,28 +139,55 @@ class SearchInput(Input):
     BINDINGS = [Binding("escape", "app.leave_search", "Back to the list")]
 
 
-class StatusBar(Static):
-    """The bottom bar, which has to be rebuilt whenever its width changes.
-
-    Whether the counts fit beside the store legend is a width question, and the
-    app-level resize event fires before the layout settles - so the widget that
-    actually changed size is the one that has to ask.
-    """
-
-    def on_resize(self, event: events.Resize) -> None:
-        self.app.update_status()
+class LegendText(Static):
+    """The store legend; a click on a store name is the number key for it."""
 
     def on_click(self, event: events.Click) -> None:
         app = self.app
         x = event.x
         for start_x, end_x, store_idx in app._badge_click_regions:
             if start_x <= x < end_x:
-                if store_idx < 0:
-                    # The "…" at either end of a legend that did not fit.
-                    app.action_cycle_store(-1 if store_idx == -1 else 1)
-                else:
-                    app.action_filter_index(store_idx)
+                app.action_filter_index(store_idx)
                 break
+
+
+class StatusBar(ScrollableContainer, can_focus=False, can_focus_children=False):
+    """The bar above the footer: the store legend, and the running job on the right.
+
+    Built the way Textual's Footer is - a horizontal scrollable container with
+    its scrollbar hidden - so a legend wider than the terminal is never clipped:
+    the mouse wheel (or a drag) scrolls it sideways, and every store stays
+    reachable by its number key regardless. The job line is docked right so a
+    spinner is never scrolled out of sight.
+    """
+
+    ALLOW_SELECT = False
+    DEFAULT_CSS = """
+    StatusBar {
+        layout: horizontal;
+        height: 1;
+        padding: 0 1;
+        scrollbar-size: 0 0;
+        color: $text-muted;
+    }
+    StatusBar > #status-legend {
+        width: auto;
+        height: 1;
+    }
+    StatusBar > #status-job {
+        dock: right;
+        width: auto;
+        height: 1;
+        padding-left: 2;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        yield LegendText(id="status-legend")
+        yield Static(id="status-job")
+
+    def on_resize(self, event: events.Resize) -> None:
+        self.app.update_status()
 
 
 class ErrorBanner(Widget):

@@ -167,7 +167,8 @@ def bar_text(app, width=200):
 
     # force_terminal, or Rich clamps a non-tty to 80 columns whatever we ask for.
     console = Console(width=width, file=io.StringIO(), force_terminal=True)
-    console.print(app.query_one("#status", Static).content)
+    console.print(app.query_one("#status-legend", Static).content)
+    console.print(app.query_one("#status-job", Static).content)
     return console.file.getvalue()
 
 
@@ -378,32 +379,10 @@ def test_readme_lists_every_keymap_key():
     assert missing == [], f"README does not document: {missing}"
 
 
-def test_the_command_palette_lists_every_key(records, state):
-    """Thirty-nine bindings, most hidden from the footer: the palette finds them all."""
+def test_the_command_palette_is_off(records, state):
+    """It brought Textual's own Screenshot / Maximize / Theme commands into a DJ tool."""
 
-    from dj_digger.tui.palette import KeymapProvider
-
-    app = make_app(records, state)
-    assert app.ENABLE_COMMAND_PALETTE is True
-    found = []
-    ran = []
-
-    async def run_action(action):
-        ran.append(action)
-
-    async def scenario():
-        async with app.run_test() as pilot:
-            await pilot.pause()
-            app.run_action = run_action
-            provider = KeymapProvider(app.screen)
-            found.extend([hit async for hit in provider.discover()])
-            hits = [hit async for hit in provider.search("quit")]
-            assert hits, "a fuzzy word finds the key"
-            await max(hits).command()  # Hit orders by score; the palette shows the best first
-
-    run(scenario)
-    assert len(found) == len(tui.KEYMAP)
-    assert ran == ["quit"]
+    assert make_app(records, state).ENABLE_COMMAND_PALETTE is False
 
 
 def test_reset_statuses_asks_first(records, state):
@@ -428,43 +407,40 @@ def test_reset_statuses_asks_first(records, state):
     assert state.get(records[0].track.key) == "new"
 
 
-def test_the_bottom_bar_pairs_the_stores_with_your_progress(records, state):
-    """One bar, not two stacked ones: the legend left, how far you are right."""
+def test_the_bottom_bar_is_the_legend_with_the_view_state_on_the_right(records, state):
+    """One bar: every store on the left, only what changes the view on the right."""
 
     app = make_app(records, state)
 
     async def scenario():
         async with app.run_test(size=(160, 24)) as pilot:
             await pilot.pause()
-            text = bar_text(app)
-            assert text.count("\n") == 1
-            assert "0 all" in text
-            assert "got 0" in text
+            legend = str(app.query_one("#status-legend", Static).content)
+            job = str(app.query_one("#status-job", Static).content)
+            assert "0 all" in legend and all(store in legend for store in app.present)
+            assert job == "", "no track counts: they were never looked at"
+            assert app.query_one("#status").size.height == 1
+            await pilot.press("h")
+            await pilot.pause()
+            assert "hiding handled" in str(app.query_one("#status-job", Static).content)
             # The sidebar says which crate this is, so the bar does not repeat it.
-            assert "test crate" not in text
+            assert "test crate" not in bar_text(app)
 
     run(scenario)
 
 
-def test_the_bar_stays_one_line_and_drops_the_counts_when_cramped(records, state):
+def test_the_bar_stays_one_line_and_scrolls_when_cramped(records, state):
     """Wrapping would grow it back into the stack of bars it replaced."""
 
     app = make_app(records, state)
 
     async def scenario():
-        async with app.run_test(size=(160, 24)) as pilot:
+        async with app.run_test(size=(30, 24)) as pilot:
             await pilot.pause()
-            bar = app.query_one("#status", Static)
+            bar = app.query_one("#status")
             assert bar.size.height == 1
-            assert "got 0" in bar_text(app)
-
-            await pilot.resize_terminal(60, 24)
-            await pilot.pause()
-            assert bar.size.height == 1
-            # The legend documents the number keys, so the counts are what goes.
-            text = bar_text(app, width=60)
-            assert "0 all" in text
-            assert "got 0" not in text
+            assert bar.max_scroll_x > 0
+            assert all(store in str(app.query_one("#status-legend", Static).content) for store in app.present)
 
     run(scenario)
 
@@ -1217,27 +1193,6 @@ def test_a_number_key_beyond_the_stores_present_is_a_no_op(records, state):
     run(scenario)
 
 
-def test_cycling_walks_only_the_stores_present(records, state):
-    """With a dozen possible categories, cycling through the empty ones is useless."""
-
-    app = make_app(records, state)
-
-    async def scenario():
-        async with app.run_test() as pilot:
-            await pilot.press("f")
-            assert app.store_filters == {"no-link"}
-            await pilot.press("f")
-            assert app.store_filters == {"bandcamp"}
-            await pilot.press("f")
-            assert app.store_filters == {"others"}
-            await pilot.press("f")  # wraps back to everything
-            assert app.store_filters == set()
-            await pilot.press("F")  # and backwards
-            assert app.store_filters == {"others"}
-
-    run(scenario)
-
-
 def test_hiding_handled_rows(records, state):
     state.set(records[0].track.key, GOT)
     app = make_app(records, state)
@@ -1317,20 +1272,6 @@ def test_escape_drops_the_selection_before_the_search(state):
             assert app.selected == set() and app.search_term == "track"
             await pilot.press("escape")
             assert app.search_term == ""
-
-    run(scenario)
-
-
-def test_cycling_from_a_multi_select_steps_from_the_last_store(records, state):
-    app = make_app(records, state)
-
-    async def scenario():
-        async with app.run_test() as pilot:
-            await pilot.press("1")
-            await pilot.press("2")
-            assert app.store_filters == {app.present[0], app.present[1]}
-            await pilot.press("f")
-            assert app.store_filters == {app.present[2]}, "one step on from the store toggled last"
 
     run(scenario)
 
@@ -2143,77 +2084,24 @@ def _many_store_records():
     return records
 
 
-def test_a_wide_legend_shows_every_store_with_its_count(state):
+def test_the_legend_lists_every_store_and_scrolls_instead_of_clipping(state):
+    """Like the footer: the whole legend is there, and the bar scrolls sideways."""
+
     app = make_app(_many_store_records(), state)
 
     async def scenario():
-        async with app.run_test() as pilot:
+        async with app.run_test(size=(40, 24)) as pilot:
             await pilot.pause()
-            line = app._store_line(200)
-            assert line.cell_len <= 200
-            assert "\u00b73" in str(line) and "\u2026" not in str(line)
+            line = app._store_line()
+            assert all(store in str(line) for store in app.present)
+            assert "\u00b73" in str(line)
             assert [idx for _s, _e, idx in app._badge_click_regions] == list(range(len(app.present) + 1))
-
-    run(scenario)
-
-
-def test_a_narrow_legend_drops_counts_then_windows_around_the_active_store(state):
-    """Like the footer: give things up, never clip the last store mid-word."""
-
-    app = make_app(_many_store_records(), state)
-
-    async def scenario():
-        async with app.run_test() as pilot:
-            await pilot.pause()
-            full = app._store_line(None).cell_len
-            without_counts = app._store_line(full - 1)
-            assert without_counts.cell_len < full and "\u00b7" not in str(without_counts)
-
-            await pilot.press("5")  # the fifth store, far to the right
-            await pilot.pause()
-            narrow = app._store_line(34)
-            text = str(narrow)
-            assert narrow.cell_len <= 34
-            assert "0 all" in text and app.present[4] in text
-            assert text.startswith("  \u2026") or "\u2026" in text
-            markers = [idx for _s, _e, idx in app._badge_click_regions if idx < 0]
-            assert -1 in markers, "the hidden stores on the left are one click away"
-
-    run(scenario)
-
-
-def test_clicking_the_legend_ellipsis_steps_the_store_filter(state):
-    app = make_app(_many_store_records(), state)
-
-    async def scenario():
-        async with app.run_test() as pilot:
-            await pilot.pause()
-            await pilot.press("5")
-            await pilot.pause()
-            app._store_line(34)
-            start, _end, _idx = next(r for r in app._badge_click_regions if r[2] == -1)
             bar = app.query_one("#status")
-            bar.on_click(SimpleNamespace(x=start))
+            assert bar.max_scroll_x > 0, "wider than the terminal, so it can scroll"
+            assert bar.styles.scrollbar_size_horizontal == 0
+            bar.scroll_to(x=bar.max_scroll_x, animate=False)
             await pilot.pause()
-            assert app.store_filters == {app.present[3]}
-
-    run(scenario)
-
-
-def test_the_status_bar_counts_tracks_not_links(state):
-    track = Track(
-        title="Everywhere",
-        permalink_url="https://soundcloud.com/a/b",
-        id=7,
-        purchase_url="https://hypeddit.com/x/y",
-        description="also at https://label.bandcamp.com/album/x",
-    )
-    app = make_app(links.categorise_all([track]), state)
-
-    async def scenario():
-        async with app.run_test(size=(160, 24)) as pilot:
-            await pilot.pause()
-            assert "1/1 tracks" in bar_text(app)
+            assert bar.scroll_x == bar.max_scroll_x
 
     run(scenario)
 
@@ -3836,21 +3724,6 @@ def test_a_row_that_is_about_to_be_hidden_is_not_lit(state):
             assert app.query_one("#tracks", DataTable).row_count == 2
 
     run(scenario)
-
-
-def test_the_counts_keep_up_without_a_rebuild(state):
-    app = make_app(synthetic_records(3), state)
-
-    async def scenario():
-        async with app.run_test() as pilot:
-            await pilot.press("g")
-            await pilot.pause()
-            assert "got 1" in bar_text(app)
-
-    run(scenario)
-
-
-# Drawing frames only when there are frames worth drawing
 
 
 def test_the_frame_timer_sleeps_until_something_plays(state, monkeypatch):
