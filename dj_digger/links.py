@@ -172,8 +172,12 @@ def redact_url(url: str) -> str:
 
 
 def host_of(url: str) -> str:
-    host = urlparse(url).netloc.lower().partition(":")[0]
-    return host[4:] if host.startswith("www.") else host
+    # ``hostname`` is already lowercase, and carries neither port nor userinfo.
+    return (urlparse(url).hostname or "").removeprefix("www.")
+
+
+def is_hypeddit_url(url: str) -> bool:
+    return is_openable(url) and host_of(url) in HYPEDDIT_HOSTS
 
 
 def host_matches(host: str, domain: str) -> bool:
@@ -244,7 +248,7 @@ def hub_links(track: Track) -> list[str]:
 
     found: list[str] = []
     for url, _text, source in candidate_links(track):
-        known_hypeddit = host_of(url) in HYPEDDIT_HOSTS
+        known_hypeddit = is_hypeddit_url(url)
         if source != PURCHASE_FIELD and not known_hypeddit:
             continue
         category = store_for_url(url)

@@ -20,7 +20,6 @@ import requests
 from bs4 import BeautifulSoup
 
 from .browser import is_fetchable
-from .html_fallback import normalize_link
 from .links import HYPEDDIT_HOSTS, SHOP_CATEGORIES, host_of, redact_url, store_for_url
 
 LOGGER = logging.getLogger(__name__)
@@ -328,7 +327,7 @@ def inspect_hypeddit_html(url: str, text: str) -> HypedditInspection:
     nested: list[str] = []
     seen: set[str] = set()
     for anchor in soup.select("a[href]"):
-        href = normalize_link(landed, str(anchor.get("href") or "").strip())
+        href = urllib.parse.urljoin(landed, str(anchor.get("href") or "").strip())
         if not href or href in seen:
             continue
         seen.add(href)
@@ -1340,7 +1339,7 @@ def inspect_link_page(
     }
 
     for anchor in BeautifulSoup(response.text, "html.parser").select("a[href]"):
-        href = normalize_link(landed, (anchor.get("href") or "").strip())
+        href = urllib.parse.urljoin(landed, (anchor.get("href") or "").strip())
         if not href or href in seen:
             continue
         seen.add(href)
@@ -1365,7 +1364,7 @@ def inspect_link_page(
             hop.close()
         except requests.RequestException:
             continue
-        location = normalize_link(href, location)
+        location = urllib.parse.urljoin(href, location)
         if (
             location
             and is_fetchable(location)
