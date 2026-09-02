@@ -5,8 +5,8 @@
 - Product version verified: 0.15.0
 - Owner: Filip Białogrecki
 - Updated: 2026-08-28
-- Document lines: <!-- SPEC TOTAL LINES -->1062<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1062<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1072<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1072<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -81,32 +81,32 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 9 | Authentication and authorization | 690–726 |
 | 9.1 | ↳ SoundCloud authentication | 692–709 |
 | 9.2 | ↳ Gate action consent | 710–726 |
-| 10 | External integrations | 727–838 |
+| 10 | External integrations | 727–848 |
 | 10.1 | ↳ SoundCloud API and media | 729–740 |
-| 10.2 | ↳ Link hubs and download gates | 741–785 |
-| 10.2 · block | ↳ ↳ Hypeddit | 749–771 |
-| 10.2 · block | ↳ ↳ Other resolvers | 773–778 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 780–785 |
-| 10.3 | ↳ Browsers and clipboard | 786–797 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 798–838 |
-| 11 | Security requirements and threat model | 839–885 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 841–859 |
-| 11.2 | ↳ Secret and personal-data handling | 860–872 |
-| 11.3 | ↳ File and mutation safety | 873–885 |
-| 12 | Privacy, lifecycle, and retention | 886–924 |
-| 12.1 | ↳ Data stored locally | 888–903 |
-| 12.2 | ↳ Data sent to third parties | 904–915 |
-| 12.3 | ↳ User-controlled deletion | 916–924 |
-| 13 | Failure behavior and current limitations | 925–976 |
-| 13.1 | ↳ Error isolation and reporting | 927–946 |
-| 13.2 | ↳ Confirmed limitations | 947–976 |
-| 14 | Verification, CI, and release | 977–1040 |
-| 14.1 | ↳ Offline and live test suites | 979–1009 |
-| 14.2 | ↳ Continuous integration and publishing | 1010–1025 |
-| 14.3 | ↳ Specification-map verification | 1026–1040 |
-| 15 | Evidence and operational references | 1041–1062 |
-| 15.1 | ↳ Primary implementation evidence | 1043–1055 |
-| 15.2 | ↳ User and historical documentation | 1056–1062 |
+| 10.2 | ↳ Link hubs and download gates | 741–795 |
+| 10.2 · block | ↳ ↳ Hypeddit | 749–781 |
+| 10.2 · block | ↳ ↳ Other resolvers | 783–788 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 790–795 |
+| 10.3 | ↳ Browsers and clipboard | 796–807 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 808–848 |
+| 11 | Security requirements and threat model | 849–895 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 851–869 |
+| 11.2 | ↳ Secret and personal-data handling | 870–882 |
+| 11.3 | ↳ File and mutation safety | 883–895 |
+| 12 | Privacy, lifecycle, and retention | 896–934 |
+| 12.1 | ↳ Data stored locally | 898–913 |
+| 12.2 | ↳ Data sent to third parties | 914–925 |
+| 12.3 | ↳ User-controlled deletion | 926–934 |
+| 13 | Failure behavior and current limitations | 935–986 |
+| 13.1 | ↳ Error isolation and reporting | 937–956 |
+| 13.2 | ↳ Confirmed limitations | 957–986 |
+| 14 | Verification, CI, and release | 987–1050 |
+| 14.1 | ↳ Offline and live test suites | 989–1019 |
+| 14.2 | ↳ Continuous integration and publishing | 1020–1035 |
+| 14.3 | ↳ Specification-map verification | 1036–1050 |
+| 15 | Evidence and operational references | 1051–1072 |
+| 15.1 | ↳ Primary implementation evidence | 1053–1065 |
+| 15.2 | ↳ User and historical documentation | 1066–1072 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -759,15 +759,25 @@ profile, consent, provider login, CAPTCHA, unknown action, protocol change,
 rejection, transfer, and provider availability. Provider login, CAPTCHA,
 unknown action, protocol change, rejection, and disabled social actions fall
 back to the browser; a batch hands at most eight gates to it per run and leaves
-the rest new. Browser fallback uses the private SoundCloud Chromium profile and,
-when gate social actions are enabled, clicks the gate's own step buttons in
-turn, pausing while a provider window (or the tab itself) is at the provider
-until the user returns, then clicks the gate's download button; a page without
-those controls is only watched. Nothing outside Hypeddit's page is ever clicked.
-A single gate runs as a batch of one with a five-minute deadline from launch.
-It watches downloads only in the tabs and popups its own pages opened, ends
-when every pending row has settled, and saves files through the same
-size/type/atomic validation as HTTP downloads.
+the rest new. Browser fallback uses the private SoundCloud Chromium profile,
+hidden first: when gate social actions are enabled it presses the gate's
+sidebar Download and walks the step slides it reveals, one current slide at a
+time - a click-through slide's pending follow/like links are clicked and the
+provider pages they open are closed unread before its Next; a Connect slide
+(Spotify, Deezer, Apple Music, Threads) has its provider popup waited out for
+twenty seconds, a popup back on a Hypeddit host being closed after two
+seconds; the email slide is filled with the configured real address; the
+download slide's button is clicked. A row whose step only a person can finish
+(a provider still asking for a login, a CAPTCHA, a placeholder email, a page
+without known controls) is deferred, and every deferred row of the batch is
+reopened in one visible window where the same driver runs with a five-minute
+provider wait and reports what stopped instead of failing the row. Nothing
+outside Hypeddit's page is ever clicked. A hidden pass always ends five
+minutes after its driving; a single gate's window has the same limit, a
+batch's window lasts as long as a tab stays open. Downloads are watched only
+in the tabs and popups the batch's own pages opened, the batch ends when
+every pending row has settled, and files pass the same size/type/atomic
+validation as HTTP downloads.
 
 <!-- spec-map-block: Other resolvers -->
 Host routing also implements ToneDen page/API extraction, Droploud track API,

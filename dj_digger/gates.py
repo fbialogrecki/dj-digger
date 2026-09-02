@@ -12,6 +12,7 @@ import threading
 import time
 import urllib.parse
 from collections.abc import Callable
+from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -692,17 +693,71 @@ def _refused(result: Any) -> bool:
     return not isinstance(result, dict) or not result.get("download_status")
 
 
-# The gate page's own step buttons and its download button. Inferred from the
-# desktop page rather than a recorded fixture, so everything that touches them
-# degrades to the passive watcher when they are not where they were.
-HYPEDDIT_STEP_BUTTON = ".hype-btn-social"
-HYPEDDIT_DOWNLOAD_BUTTON = ".hype-btn-download, #download-btn, button:has-text('Download')"
-MAX_GATE_STEP_BUTTONS = 12
+# The desktop gate's own controls, read off hypeddit.com/track/aaiohi on
+# 2026-09-02. The sidebar's Download reveals a carousel of step slides, one
+# current at a time; a slide's kind is its first class (sc, sp, ig, email,
+# dw ...), and the slide moves left once its step is done. Everything that
+# touches these degrades to the passive watcher when they are not where they
+# were.
+GATE_START_BUTTON = "#downloadProcess"
+GATE_CURRENT_SLIDE = ".fangate-slider-content:not(.move-left):not(.upcomming-slide)"
+# A follow/like/repost link the slide wants ticked before its Next appears.
+# Each opens the provider's page in a popup, which is closed unread.
+GATE_PENDING_ACTION = "a.undone:visible"
+GATE_NEXT_BUTTON = ".button-next:visible"
+# A provider login's Connect: the gate's own OAuth popup, which comes back on
+# its own when the profile is signed in there.
+GATE_CONNECT_BUTTON = "a.hype-btn-social:visible"
+GATE_EMAIL_INPUT = "#email_address"
+GATE_EMAIL_SUBMIT = ".email_to_downloads"
+GATE_CAPTCHA = "#gatePreviewCaptcha"
+HYPEDDIT_DOWNLOAD_BUTTON = "#gateDownloadButton, .hype-btn-download, #download-btn"
+# Steps whose slide opens a provider login rather than a page to look at. "sp"
+# is a click-through for the HTTP flow, but in the browser the gate's Spotify
+# slide is a Connect button.
+GATE_CONNECT_STEPS = {"sp": "Spotify", **PROVIDER_OAUTH_STEPS}
+STEP_KINDS = frozenset({*CLICK_THROUGH_STEPS, *GATE_CONNECT_STEPS, "email", DIRECT_STEP})
+MAX_GATE_STEPS = 12
 PROVIDER_WAIT_SECONDS = 300
+# How long the hidden browser gives a provider popup to come back by itself
+# before the row is handed to a window with a person in front of it.
+UNATTENDED_PROVIDER_SECONDS = 20
+# How long a finished step gets to hand over to the next slide.
+STEP_SETTLE_SECONDS = 15
+# A popup back on Hypeddit has done its work; a person would close it about now.
+CALLBACK_LINGER_SECONDS = 2.0
+# How long a Connect gets to show its popup: the page opens it in the click,
+# but it reaches the client a moment later.
+POPUP_GRACE_SECONDS = 3.0
+# The slide's links are clicked without Playwright's hit-target check: on the
+# live gate it reports the links' own container as intercepting the pointer,
+# although the link is what sits at that point. The click still lands as a
+# real mouse event where the link is.
+_CLICK = {"timeout": 15_000, "force": True}
 StatusCallback = Callable[[str], None]
 # The step driver's own way of saying the person gave up, told apart from a
 # gate step it could not finish.
 CANCELLED = "cancelled"
+# Patched by tests that want the waits to pass without sleeping.
+_now = time.monotonic
+
+
+class _NeedsPerson(GateManualActionRequired):
+    """A step the driver cannot finish alone: a login, a CAPTCHA, an unknown page."""
+
+
+@dataclass(frozen=True)
+class _Slide:
+    """The current step slide, with what it was when it was looked at.
+
+    A Playwright locator resolves afresh on every use, so the kind and group
+    are read once here; after the step the page's current slide is compared
+    against ``group`` to see that it moved on.
+    """
+
+    locator: Any
+    kind: str
+    group: str
 
 
 def _drive_gate_steps(
@@ -712,66 +767,198 @@ def _drive_gate_steps(
     status: StatusCallback | None,
     *,
     social: bool,
+    email: str | None,
+    attended: bool,
 ) -> bool:
-    """Click the gate's step buttons one by one, waiting out any provider popup.
+    """Walk the gate's step slides the way a fan does, then press its Download.
 
-    Only elements on the Hypeddit page are ever clicked. When a step opens a
-    provider window, or sends the tab itself to the provider, the person at
-    the window completes it and this returns to the gate when they do. False
-    means the page did not look like a gate this knows: the caller then just
-    watches for a download, as it always has.
+    Only elements on the Hypeddit page are ever clicked. A follow or like
+    link opens the provider's page in a popup, which is closed unread; a
+    Connect opens the provider's login popup, which is waited out. With
+    ``attended`` a person is at the window, so that wait lasts
+    ``PROVIDER_WAIT_SECONDS`` and is announced through ``status``; without
+    one it lasts ``UNATTENDED_PROVIDER_SECONDS`` before ``_NeedsPerson``
+    says who wants the person. False means the page did not look like a gate
+    this knows: the caller then just watches for a download, as it always has.
     """
 
     if not social:
         return False
     try:
-        buttons = page.locator(HYPEDDIT_STEP_BUTTON)
-        count = min(buttons.count(), MAX_GATE_STEP_BUTTONS)
+        start = page.locator(GATE_START_BUTTON).first
+        if start.is_visible():
+            start.click(timeout=15_000)
+        slide = _current_slide(page)
     except Exception:
         return False
-    if not count:
+    if slide is None:
         return False
-    for index in range(count):
+    for _ in range(MAX_GATE_STEPS):
         if _cancelled(cancel):
             raise GateManualActionRequired(CANCELLED)
-        before = list(context.pages)
-        try:
-            button = buttons.nth(index)
-            if not button.is_visible():
-                continue
-            button.click(timeout=15_000)
-        except Exception as exc:
-            LOGGER.debug("Gate step %d could not be clicked: %s", index, type(exc).__name__)
-            continue
-        _wait_for_provider(context, page, before, cancel, status)
-    return True
+        kind = slide.kind
+        if kind == DIRECT_STEP:
+            if not _click_gate_download(page):
+                raise _NeedsPerson("the gate's download button is not where it was")
+            return True
+        if kind in GATE_CONNECT_STEPS:
+            _connect_provider(context, page, slide.locator, cancel, status, attended=attended)
+        elif kind == "email":
+            _share_email(slide.locator, email)
+        elif kind in CLICK_THROUGH_STEPS:
+            _click_through(context, page, slide.locator)
+        else:
+            raise _NeedsPerson(f"the gate's {kind or 'next'} step is not one this program knows")
+        slide = _next_slide(page, slide, cancel)
+    raise _NeedsPerson("the gate did not reach its download button")
+
+
+def _current_slide(page: Any) -> _Slide | None:
+    slides = page.locator(GATE_CURRENT_SLIDE)
+    if not slides.count():
+        return None
+    first = slides.first
+    classes = str(first.get_attribute("class") or "").split()
+    kind = next((name for name in classes if name in STEP_KINDS), "")
+    return _Slide(first, kind, str(first.get_attribute("data-group") or ""))
+
+
+def _step_name(kind: str) -> str:
+    return GATE_CONNECT_STEPS.get(kind, kind or "next")
+
+
+def _next_slide(page: Any, slide: _Slide, cancel: Any) -> _Slide:
+    """The slide after ``slide`` once the page has moved on, within STEP_SETTLE_SECONDS."""
+
+    deadline = _now() + STEP_SETTLE_SECONDS
+    while _now() < deadline:
+        if _cancelled(cancel):
+            raise GateManualActionRequired(CANCELLED)
+        current = _current_slide(page)
+        if current is not None and current.group != slide.group:
+            return current
+        if slide.kind == "email" and page.locator(GATE_CAPTCHA).first.is_visible():
+            raise _NeedsPerson("the gate wants a CAPTCHA solved")
+        page.wait_for_timeout(250)
+    raise _NeedsPerson(f"the {_step_name(slide.kind)} step did not clear")
+
+
+def _click_through(context: Any, page: Any, slide: Any) -> None:
+    """Tick the slide's follow/like links, closing the pages they open, then Next."""
+
+    actions = slide.locator(GATE_PENDING_ACTION)
+    before = list(context.pages)
+    for _ in range(MAX_GATE_STEPS):
+        if not actions.count():
+            break
+        actions.first.click(**_CLICK)
+        _close_popups(context, page, before, wait=True)
+    slide.locator(GATE_NEXT_BUTTON).first.click(**_CLICK)
+    _close_popups(context, page, before, wait=False)
+
+
+def _close_popups(context: Any, page: Any, before: list[Any], *, wait: bool) -> None:
+    """Close the pages ``page`` opened since ``before``; with ``wait``, give one
+    up to POPUP_GRACE_SECONDS to reach the client first."""
+
+    started = _now()
+    while True:
+        popups = _popups_of(context, page, before)
+        for popup in popups:
+            with suppress(Exception):
+                popup.close()
+        if popups or not wait or _now() - started >= POPUP_GRACE_SECONDS:
+            return
+        page.wait_for_timeout(250)
+
+
+def _share_email(slide: Any, email: str | None) -> None:
+    if not email:
+        raise _NeedsPerson("the gate wants an email address and the profile has none")
+    slide.locator(GATE_EMAIL_INPUT).first.fill(email)
+    slide.locator(GATE_EMAIL_SUBMIT).first.click(**_CLICK)
+
+
+def _connect_provider(
+    context: Any,
+    page: Any,
+    slide: Any,
+    cancel: Any,
+    status: StatusCallback | None,
+    *,
+    attended: bool,
+) -> None:
+    before = list(context.pages)
+    slide.locator(GATE_CONNECT_BUTTON).first.click(**_CLICK)
+    _wait_for_provider(context, page, before, cancel, status, attended=attended)
+
+
+def _opener(page: Any) -> Any | None:
+    """The page that opened this one. Playwright's ``opener`` is a method."""
+
+    try:
+        opener = page.opener
+        return opener() if callable(opener) else opener
+    except Exception:
+        return None
+
+
+def _popups_of(context: Any, page: Any, before: list[Any]) -> list[Any]:
+    return [
+        popup
+        for popup in context.pages
+        if popup not in before and _opener(popup) is page and not _page_closed(popup)
+    ]
 
 
 def _wait_for_provider(
-    context: Any, page: Any, before: list[Any], cancel: Any, status: StatusCallback | None
+    context: Any,
+    page: Any,
+    before: list[Any],
+    cancel: Any,
+    status: StatusCallback | None,
+    *,
+    attended: bool,
 ) -> None:
-    deadline = time.monotonic() + PROVIDER_WAIT_SECONDS
+    """Wait until the provider popup (or the tab itself) is back at Hypeddit.
+
+    The callback page tells the gate through the browser's storage the
+    moment it loads, so a popup that stays on Hypeddit afterwards has nothing
+    left to do and is closed the way a person would close it.
+    """
+
+    limit = PROVIDER_WAIT_SECONDS if attended else UNATTENDED_PROVIDER_SECONDS
+    started = _now()
+    deadline = started + limit
     told = ""
-    while time.monotonic() < deadline:
+    where = "the provider"
+    seen = False
+    came_home: dict[int, float] = {}
+    while _now() < deadline:
         if _cancelled(cancel):
             raise GateManualActionRequired(CANCELLED)
-        popups = [
-            popup
-            for popup in context.pages
-            if popup not in before
-            and getattr(popup, "opener", None) is page
-            and not _page_closed(popup)
-        ]
+        popups = _popups_of(context, page, before)
+        seen = seen or bool(popups)
+        for popup in popups:
+            if not is_hypeddit_url(str(popup.url)):
+                came_home.pop(id(popup), None)
+                continue
+            if _now() - came_home.setdefault(id(popup), _now()) >= CALLBACK_LINGER_SECONDS:
+                with suppress(Exception):
+                    popup.close()
+        popups = [popup for popup in popups if not _page_closed(popup)]
         off_host = not is_hypeddit_url(str(page.url))
-        if not popups and not off_host:
+        if not popups and not off_host and (seen or _now() - started >= POPUP_GRACE_SECONDS):
             return
         where = host_of(str(popups[0].url if popups else page.url)) or "the provider"
         message = f"Complete {where} in the browser window, then return to Hypeddit"
-        if status is not None and message != told:
+        if attended and status is not None and message != told:
             status(message)
             told = message
         page.wait_for_timeout(250)
-    raise GateManualActionRequired("provider step was not completed in time")
+    if attended:
+        raise GateManualActionRequired("provider step was not completed in time")
+    raise _NeedsPerson(f"{where} wants you to sign in")
 
 
 def _page_closed(page: Any) -> bool:
@@ -781,13 +968,23 @@ def _page_closed(page: Any) -> bool:
         return False
 
 
-def _click_gate_download(page: Any) -> None:
+def _click_gate_download(page: Any) -> bool:
     try:
         button = page.locator(HYPEDDIT_DOWNLOAD_BUTTON).first
-        if button.is_visible():
-            button.click(timeout=15_000)
+        if not button.is_visible():
+            return False
+        button.click(**_CLICK)
+        return True
     except Exception as exc:
         LOGGER.debug("Gate download button not clicked: %s", type(exc).__name__)
+        return False
+
+
+def _gate_email(config: Any | None) -> str | None:
+    """The address the gate's email slide gets, or None while it is the placeholder."""
+
+    config = config_or_default(config)
+    return str(config.user_email) if config.has_real_email() else None
 
 
 def download_hypeddit_in_browser(
@@ -798,12 +995,13 @@ def download_hypeddit_in_browser(
     *,
     social: bool = True,
     status: StatusCallback | None = None,
+    config: Any | None = None,
 ) -> Path:
-    """Finish a provider-owned Hypeddit flow in the existing private browser.
+    """Finish a provider-owned Hypeddit flow in the private browser.
 
-    With ``social`` the gate's own step buttons are clicked and provider
-    windows are waited out; without it the page is only watched. A batch of
-    one: the file comes back, or the failure the batch recorded is raised.
+    With ``social`` the gate's own steps are walked and provider windows are
+    waited out; without it the page is only watched. A batch of one: the
+    file comes back, or the failure the batch recorded is raised.
     """
 
     result = download_hypeddit_batch_in_browser(
@@ -812,7 +1010,8 @@ def download_hypeddit_in_browser(
         cancel,
         social=social,
         status=status,
-        deadline=time.monotonic() + PROVIDER_WAIT_SECONDS,
+        config=config,
+        time_limit=PROVIDER_WAIT_SECONDS,
     )
     for _key, path in result.completed:
         return path
@@ -847,7 +1046,9 @@ class _TabWatch:
     """Binds each tab's download event back to the row that opened the tab.
 
     A provider popup belongs to the tab that opened it, so its download is
-    that tab's too; a tab nobody here opened is not watched at all.
+    that tab's too; a tab nobody here opened is not watched at all. A row the
+    hidden browser could not finish is ``deferred`` with the reason, settled
+    for that pass and opened again in front of a person.
     """
 
     def __init__(
@@ -862,14 +1063,25 @@ class _TabWatch:
         self.cancel = cancel
         self.failures = failures
         self.completed: dict[str, Path] = {}
+        self.deferred: dict[str, str] = {}
         self._watched: set[int] = set()
         self._owners: dict[int, str] = {}
 
+    def reset_tabs(self) -> None:
+        """Forget the previous context's pages before a new one is opened."""
+
+        self._watched.clear()
+        self._owners.clear()
+
     def settled(self, key: str) -> bool:
-        return key in self.completed or key in self.failures
+        return key in self.completed or key in self.failures or key in self.deferred
 
     def done(self) -> bool:
         return all(self.settled(key) for key in self.pending)
+
+    def label(self, key: str) -> str:
+        track, _url = self.pending[key]
+        return str(getattr(track, "label", None) or key)
 
     def save(self, key: str, download: Any) -> None:
         if self.settled(key) or _cancelled(self.cancel):
@@ -894,10 +1106,7 @@ class _TabWatch:
         page.on("popup", lambda popup, owner=key: self.watch(popup, owner))
 
     def watch_popup(self, page: Any) -> None:
-        try:
-            opener = page.opener
-        except Exception:
-            opener = None
+        opener = _opener(page)
         key = self._owners.get(id(opener)) if opener is not None else None
         if key is not None:
             self.watch(page, key)
@@ -909,6 +1118,11 @@ class _TabWatch:
         for key in self.pending:
             if not self.settled(key):
                 self.failures[key] = GateManualActionRequired(reason)
+
+    def fail_deferred(self, reason: str) -> None:
+        for key in self.deferred:
+            self.failures.setdefault(key, GateManualActionRequired(reason))
+        self.deferred.clear()
 
     def result(self, cancelled: bool) -> HypedditBrowserBatchResult:
         return HypedditBrowserBatchResult(
@@ -952,6 +1166,41 @@ def _open_gate_tabs(
     return pages
 
 
+def _drive_tab(
+    context: Any,
+    key: str,
+    page: Any,
+    watch: _TabWatch,
+    status: StatusCallback | None,
+    *,
+    social: bool,
+    email: str | None,
+    attended: bool,
+) -> bool:
+    """Drive one tab's steps. True when the batch was cancelled meanwhile.
+
+    What the driver cannot finish is deferred to a window when nobody is at
+    this one, and left to the person - with a word about what stopped - when
+    somebody is.
+    """
+
+    try:
+        if not _drive_gate_steps(
+            context, page, watch.cancel, status, social=social, email=email, attended=attended
+        ) and not attended:
+            raise _NeedsPerson("the gate page has no step controls this program knows")
+    except Exception as exc:
+        if str(exc) == CANCELLED:
+            return True
+        reason = str(exc) or type(exc).__name__
+        if attended:
+            if status is not None:
+                status(f"{watch.label(key)}: {reason}; finish it in the browser window")
+        else:
+            watch.deferred[key] = reason
+    return False
+
+
 def _await_downloads(
     context: Any,
     pages: list[tuple[str, Any]],
@@ -959,13 +1208,16 @@ def _await_downloads(
     status: StatusCallback | None,
     *,
     social: bool,
-    deadline: float | None,
+    email: str | None,
+    attended: bool,
+    time_limit: float | None,
 ) -> bool:
     """Drive each tab's steps, then wait for every row to settle. True if cancelled.
 
     The wait ends when every row has a file or a failure, when the person
     closes the last watched tab, when the batch is cancelled, or - with a
-    ``deadline`` - when ``time.monotonic()`` passes it.
+    ``time_limit`` in seconds, counted from the end of the driving - when it
+    runs out.
     """
 
     cancel = watch.cancel
@@ -976,21 +1228,19 @@ def _await_downloads(
         if _cancelled(cancel):
             cancelled = True
             break
-        try:
-            if _drive_gate_steps(context, page, cancel, status, social=social):
-                _click_gate_download(page)
-        except GateManualActionRequired as exc:
-            if str(exc) == CANCELLED:
-                cancelled = True
-                break
-            watch.failures[key] = exc
+        if _drive_tab(
+            context, key, page, watch, status, social=social, email=email, attended=attended
+        ):
+            cancelled = True
+            break
 
+    deadline = None if time_limit is None else _now() + time_limit
     timed_out = False
     while not cancelled and not watch.done():
         if _cancelled(cancel):
             cancelled = True
             break
-        if deadline is not None and time.monotonic() >= deadline:
+        if deadline is not None and _now() >= deadline:
             timed_out = True
             break
         try:
@@ -1016,6 +1266,57 @@ def _await_downloads(
     return cancelled
 
 
+def _browser_pass(
+    watch: _TabWatch,
+    rows: dict[str, tuple[Any, str]],
+    status: StatusCallback | None,
+    *,
+    hidden: bool,
+    social: bool,
+    email: str | None,
+    time_limit: float | None,
+) -> bool:
+    """Open ``rows`` in one context, hidden or in a window, and see them through.
+
+    True when the batch was cancelled. A hidden pass always has a time limit:
+    nobody can close its tabs.
+    """
+
+    from . import auth, browser_session
+
+    watch.reset_tabs()
+    try:
+        with browser_session.sync_browser_context(
+            auth.soundcloud_browser_profile_path(), accept_downloads=True, headless=hidden
+        ) as context:
+            context.on("page", watch.watch_popup)
+            pages = _open_gate_tabs(context, rows, watch)
+            return _await_downloads(
+                context,
+                pages,
+                watch,
+                status,
+                social=social,
+                email=email,
+                attended=not hidden,
+                time_limit=PROVIDER_WAIT_SECONDS if hidden else time_limit,
+            )
+    except browser_session.ChromiumMissing:
+        error = GateUnavailable("Playwright Chromium is not installed")
+    except browser_session.AutomationError as exc:
+        error = GateUnavailable(str(exc))
+    for key in rows:
+        if not watch.settled(key):
+            watch.failures[key] = error
+    return False
+
+
+def _needs_you(reasons: dict[str, str]) -> str:
+    count = len(reasons)
+    what = "; ".join(sorted(set(reasons.values())))
+    return f"Opening the browser window for {count} gate{'s' if count != 1 else ''}: {what}"
+
+
 def download_hypeddit_batch_in_browser(
     items: list[tuple[Any, str]],
     directory: Path,
@@ -1023,13 +1324,17 @@ def download_hypeddit_batch_in_browser(
     *,
     social: bool = True,
     status: StatusCallback | None = None,
-    deadline: float | None = None,
+    config: Any | None = None,
+    time_limit: float | None = None,
 ) -> HypedditBrowserBatchResult:
-    """Open every manual Hypeddit gate in one persistent browser context.
+    """Finish every manual Hypeddit gate in the private profile, hidden first.
 
-    Each tab gets its step buttons clicked in turn (see ``_drive_gate_steps``)
-    before the shared download watch begins. Without a ``deadline`` (a
-    ``time.monotonic()`` value) the watch lasts as long as a tab stays open.
+    Each gate opens as a tab of one hidden Chromium and has its steps walked
+    (see ``_drive_gate_steps``). Rows that stop at something only a person
+    can do - a provider asking for a login, a CAPTCHA, an email the profile
+    lacks - are opened again together in a visible window, where the same
+    driver carries on around the person. Without a ``time_limit`` (seconds)
+    that window stays as long as a tab stays open.
     """
 
     pending, failures, cancelled = _screen_batch(items, cancel)
@@ -1038,30 +1343,32 @@ def download_hypeddit_batch_in_browser(
             failures=tuple(failures.items()), cancelled=cancelled
         )
 
-    from . import auth, browser_session
+    from . import auth
 
+    email = _gate_email(config)
     watch = _TabWatch(pending, directory, cancel, failures)
     if not auth.BROWSER_PROFILE_LOCK.acquire(blocking=False):
         error = GateUnavailable("The private browser profile is already in use")
         watch.failures.update({key: error for key in pending})
         return watch.result(cancelled=False)
     try:
-        with browser_session.sync_browser_context(
-            auth.soundcloud_browser_profile_path(), accept_downloads=True
-        ) as context:
-            context.on("page", watch.watch_popup)
-            pages = _open_gate_tabs(context, pending, watch)
-            cancelled = _await_downloads(
-                context, pages, watch, status, social=social, deadline=deadline
+        cancelled = _browser_pass(
+            watch, pending, status, hidden=True, social=social, email=email, time_limit=None
+        )
+        if watch.deferred and not cancelled:
+            reasons, watch.deferred = watch.deferred, {}
+            if status is not None:
+                status(_needs_you(reasons))
+            cancelled = _browser_pass(
+                watch,
+                {key: pending[key] for key in reasons},
+                status,
+                hidden=False,
+                social=social,
+                email=email,
+                time_limit=time_limit,
             )
-    except browser_session.ChromiumMissing:
-        error = GateUnavailable("Playwright Chromium is not installed")
-        for key in pending:
-            watch.failures.setdefault(key, error)
-    except browser_session.AutomationError as exc:
-        error = GateUnavailable(str(exc))
-        for key in pending:
-            watch.failures.setdefault(key, error)
+        watch.fail_deferred("browser batch cancelled")
     finally:
         auth.BROWSER_PROFILE_LOCK.release()
 

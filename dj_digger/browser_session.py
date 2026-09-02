@@ -12,6 +12,7 @@ import os
 import signal
 import subprocess
 import sys
+import time
 from contextlib import contextmanager, suppress
 from pathlib import Path
 from threading import Event
@@ -155,11 +156,63 @@ def install_chromium(cancel: Event) -> None:
         )
 
 
-@contextmanager
-def sync_browser_context(profile: Path | None = None, *, accept_downloads: bool = False):
-    """A headed persistent context for thread-side callers (gates, SoundCloud login)."""
+# Chromium releases its profile lock a moment after the previous context
+# closed; a relaunch that hits that moment is retried rather than reported.
+PROFILE_LOCK_ATTEMPTS = 5
+PROFILE_LOCK_WAIT = 1.0
 
-    require_display()
+
+_USER_AGENT_PLATFORMS = {
+    "win32": "Windows NT 10.0; Win64; x64",
+    "darwin": "Macintosh; Intel Mac OS X 10_15_7",
+}
+_headed_user_agent: str | None = None
+
+
+def headed_user_agent(playwright: Any) -> str:
+    """What this Chromium calls itself in a window.
+
+    Hidden, it says HeadlessChrome instead, and a provider login (Spotify's
+    OAuth, say) may treat that differently from the browser the profile
+    signed in with. Chrome reports only its major version, so the string is
+    composed from a throwaway launch's version, once per process.
+    """
+
+    global _headed_user_agent
+    if _headed_user_agent is None:
+        browser = playwright.chromium.launch(headless=True, chromium_sandbox=True)
+        try:
+            major = str(browser.version).split(".", 1)[0]
+        finally:
+            browser.close()
+        platform = _USER_AGENT_PLATFORMS.get(sys.platform, "X11; Linux x86_64")
+        _headed_user_agent = (
+            f"Mozilla/5.0 ({platform}) AppleWebKit/537.36 (KHTML, like Gecko) "
+            f"Chrome/{major}.0.0.0 Safari/537.36"
+        )
+    return _headed_user_agent
+
+
+def _launch_options(playwright: Any, headless: bool) -> dict[str, Any]:
+    options = dict(LAUNCH_OPTIONS)
+    if headless:
+        options["user_agent"] = headed_user_agent(playwright)
+    return options
+
+
+@contextmanager
+def sync_browser_context(
+    profile: Path | None = None, *, accept_downloads: bool = False, headless: bool = False
+):
+    """A persistent context for thread-side callers (gates, SoundCloud login).
+
+    Headed unless asked otherwise; a hidden context needs no display. The
+    gate browser closes a hidden context and reopens the same profile in a
+    window, so the profile lock is retried the way the async twin retries it.
+    """
+
+    if not headless:
+        require_display()
     try:
         from playwright.sync_api import sync_playwright
     except ImportError as exc:
@@ -169,27 +222,27 @@ def sync_browser_context(profile: Path | None = None, *, accept_downloads: bool 
 
     with sync_playwright() as playwright:
         _require_chromium(playwright)
-        try:
-            context = playwright.chromium.launch_persistent_context(
-                str(profile or store_profile_path()),
-                headless=False,
-                accept_downloads=accept_downloads,
-                **LAUNCH_OPTIONS,
-            )
-        except Exception as exc:
-            raise classify_launch_error(exc) from exc
+        for attempt in range(1, PROFILE_LOCK_ATTEMPTS + 1):
+            try:
+                context = playwright.chromium.launch_persistent_context(
+                    str(profile or store_profile_path()),
+                    headless=headless,
+                    accept_downloads=accept_downloads,
+                    **_launch_options(playwright, headless),
+                )
+                break
+            except Exception as exc:
+                if _profile_locked(exc) and attempt < PROFILE_LOCK_ATTEMPTS:
+                    LOGGER.debug("Browser profile still locked, retrying (%d)", attempt)
+                    time.sleep(PROFILE_LOCK_WAIT)
+                    continue
+                raise classify_launch_error(exc) from exc
         context.set_default_timeout(ACTION_TIMEOUT_MS)
         try:
             yield context
         finally:
             with suppress(Exception):
                 context.close()
-
-
-# Chromium releases its profile lock a moment after the previous context
-# closed; a relaunch that hits that moment is retried rather than reported.
-PROFILE_LOCK_ATTEMPTS = 5
-PROFILE_LOCK_WAIT = 1.0
 
 
 async def launch_persistent_context(

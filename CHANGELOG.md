@@ -42,9 +42,17 @@
   kept). After two unverified clicks in a batch it stops clicking, opens the
   remaining products with Buy expanded, and asks you to finish them; the
   result screen offers **Finish in browser** for anything left uncertain.
-- A gate finished in the private browser now has its step buttons clicked
-  for you, one at a time, waiting while you complete a provider window, and
-  its download button pressed; a page without those controls is only watched.
+- A gate handed to the private browser is now finished out of sight: a
+  hidden Chromium walks the gate's own step slides the way a fan does (the
+  follow and like links, whose provider pages are closed unread; the
+  Connect of a Spotify, Deezer, Apple Music or Threads step, whose login
+  popup comes back by itself when the profile is signed in there; the email
+  slide, filled with the address from Settings) and presses its Download.
+  Only a step no program can do alone - a provider asking you to sign in, a
+  CAPTCHA, an email the profile lacks - opens a window, with every such gate
+  of the batch in it, and there the same driver keeps walking the steps
+  before and after the one that needs you. A page without those controls is
+  only watched.
 - Two opt-in test suites for the Bandcamp cart: `bandcamp_dom` replays
   recorded store pages in a real headless Chromium with no network, and
   `shop_mutate` performs one add/verify/remove on a name-your-price track.
@@ -89,6 +97,13 @@
 - The README key tables now match the crate browser: no phantom `j`/`k`,
   every bound key listed, shifted keys shown as `Shift+…` in the footer and
   help, and the bulk-open confirmation names the right key.
+- The browser gate driver looked for step buttons the desktop gate does not
+  show - its steps are slides revealed by the sidebar's Download - so a gate
+  handed to the browser had to be clicked through by hand, including the
+  steps around a Spotify login. The driver now follows the slides.
+- A download saved by a provider popup was never credited to the tab that
+  opened it, and a popup was never recognised as one, because Playwright's
+  `opener` is a method and the code read it as an attribute.
 - A browser batch of gates no longer gives up on a still-open tab when one of
   the other rows was refused up front, and a batch that finds the private
   profile busy reports those refusals alongside the lock error instead of
@@ -124,8 +139,13 @@
   (`_preflight`, `_execute_store`, `run_batch`, the Hypeddit inspection and
   browser batch, `download_track`, the CLI login).
 - A single Hypeddit browser download is now a batch of one: its five-minute
-  limit is one deadline from launch instead of one per popup plus one for the
-  download, and only tabs its own page opened are watched.
+  limit is one deadline, counted once the automatic steps are done, instead
+  of one per popup plus one for the download, and only tabs its own page
+  opened are watched. A hidden pass always has that limit; a window without
+  one stays as long as a tab stays open.
+- The browser batch toast reads "Finishing N Hypeddit gates in the hidden
+  browser; a window opens only for a step that needs you" instead of asking
+  you to complete the tabs and close Chromium.
 - The local file cache keeps only the path, modification time and normalised
   stem; the unread size, artist and title columns are dropped, so an
   existing cache is rebuilt by the next scan.

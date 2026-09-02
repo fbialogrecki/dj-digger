@@ -264,7 +264,7 @@ class DownloadMixin:
         if not _is_hypeddit(gate_url):
             raise exc
         self.call_from_thread(
-            self.notify, f"Finishing in the browser: {exc}", timeout=5, markup=False
+            self.notify, f"Finishing in the hidden browser: {exc}", timeout=5, markup=False
         )
         try:
             return gates.download_hypeddit_in_browser(
@@ -274,6 +274,7 @@ class DownloadMixin:
                 self._gate_cancel,
                 social=self.config.gate_social_actions,
                 status=self._gate_status,
+                config=self.config,
             )
         except Exception as browser_exc:
             raise RuntimeError(f"{browser_exc} (after: {exc})") from browser_exc
@@ -561,8 +562,9 @@ class DownloadMixin:
         self, progress: "_BatchProgress", download_directory: Path
     ) -> None:
         # One persistent profile cannot be driven by several Playwright threads.
-        # All manual gates therefore share this worker's one context and open as
-        # separate tabs, with each tab's download bound back to its own row.
+        # All manual gates therefore share this worker's one context - hidden
+        # first, a window only for what needs a person - and open as separate
+        # tabs, with each tab's download bound back to its own row.
         rows_by_key = {row.track.key: row for row, _url in progress.browser_items}
         self.call_from_thread(self._browser_batch_started, len(progress.browser_items))
         try:
@@ -572,6 +574,7 @@ class DownloadMixin:
                 self._gate_cancel,
                 social=self.config.gate_social_actions,
                 status=self._gate_status,
+                config=self.config,
             )
         except Exception as exc:
             browser_result = gates.HypedditBrowserBatchResult(
@@ -634,8 +637,8 @@ class DownloadMixin:
     def _browser_batch_started(self, count: int) -> None:
         self._browser_batch_active = True
         self.notify(
-            f"Opened {count} Hypeddit tab{'s' if count != 1 else ''}. "
-            "Complete them, close Chromium when finished, or press ctrl+x to stop.",
+            f"Finishing {count} Hypeddit gate{'s' if count != 1 else ''} in the hidden "
+            "browser; a window opens only for a step that needs you. ctrl+x stops.",
             timeout=8,
             markup=False,
         )

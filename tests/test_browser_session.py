@@ -27,10 +27,20 @@ class FakeBrowserContext:
         pass
 
 
+class FakeBrowser:
+    version = "151.0.7411.0"
+
+    def close(self):
+        pass
+
+
 class FakeChromium:
     def __init__(self, executable_path):
         self.executable_path = str(executable_path)
         self.launched = False
+
+    def launch(self, **_kwargs):
+        return FakeBrowser()
 
     def launch_persistent_context(self, *_args, **_kwargs):
         self.launched = True
@@ -291,3 +301,41 @@ def test_the_viewer_needs_a_display_and_gets_the_cookies(monkeypatch):
 
     asyncio.run(browser_session.launch_viewer(Playwright(), [{"name": "a", "value": "b"}]))
     assert added == [{"name": "a", "value": "b"}]
+
+
+def test_a_hidden_context_needs_no_display_and_retries_a_locked_profile(tmp_path, monkeypatch):
+    import playwright.sync_api
+
+    executable = tmp_path / "chromium"
+    executable.touch()
+    monkeypatch.delenv("DISPLAY", raising=False)
+    monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
+    monkeypatch.setattr(browser_session.sys, "platform", "linux")
+    monkeypatch.setattr(browser_session.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(browser_session, "_headed_user_agent", None)
+
+    class LockedOnce(FakeChromium):
+        def __init__(self, executable):
+            super().__init__(executable)
+            self.calls = []
+
+        def launch_persistent_context(self, *_args, **kwargs):
+            self.calls.append(kwargs)
+            if len(self.calls) == 1:
+                raise RuntimeError("Failed to create a ProcessSingleton for your profile directory")
+            return FakeBrowserContext()
+
+    chromium = LockedOnce(executable)
+    monkeypatch.setattr(
+        playwright.sync_api, "sync_playwright", lambda: FakePlaywrightManager(chromium)
+    )
+
+    with browser_session.sync_browser_context(tmp_path, headless=True):
+        pass
+
+    assert len(chromium.calls) == 2
+    assert chromium.calls[-1]["headless"] is True
+    assert chromium.calls[-1]["user_agent"] == (
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/151.0.0.0 Safari/537.36"
+    )

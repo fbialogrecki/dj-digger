@@ -688,19 +688,94 @@ def test_hypeddit_browser_batch_uses_one_context_and_maps_each_tab_download(
     ]
 
 
-class _GatePage:
-    """A Hypeddit tab with step buttons, a download button, and optional popups."""
+class _Popup:
+    """A window the gate opened: a provider page to look at, or its OAuth login."""
 
-    def __init__(self, context, *, steps=2, popup_on=(), download_on_click=True):
+    def __init__(self, opener, url):
+        self.opener = opener
+        self.url = url
+        self.closed = False
+        self.polls = 0
+
+    def is_closed(self):
+        return self.closed
+
+    def close(self):
+        self.closed = True
+
+
+class _Control:
+    """What one selector matched; what happens on click is the page's business."""
+
+    def __init__(self, page, selector, slide):
+        self.page, self.selector, self.slide = page, selector, slide
+
+    @property
+    def first(self):
+        return self
+
+    def locator(self, selector):
+        return _Control(self.page, selector, self.slide)
+
+    def count(self):
+        return self.page.count(self.selector, self.slide)
+
+    def is_visible(self):
+        return self.page.visible(self.selector)
+
+    def get_attribute(self, name):
+        return self.page.attribute(name, self.slide)
+
+    def fill(self, value):
+        self.page.email = value
+
+    def click(self, timeout=None, force=False):
+        self.page.click(self.selector, self.slide)
+
+
+_CLICK_STEPS = {"sc", "ig", "yt"}
+_SOCIAL_PAGE = "https://soundcloud.com/artist"
+_SPOTIFY_LOGIN = "https://accounts.spotify.com/authorize?client_id=x"
+_SPOTIFY_CALLBACK = "https://hypeddit.com/spotify_callback?code=ok"
+
+
+class _GatePage:
+    """A desktop Hypeddit gate: Download reveals step slides, one current at a time.
+
+    A follow link opens the provider's page; Spotify's Connect opens its
+    login, which comes back to Hypeddit's callback by itself only when the
+    profile is signed in - or when a person is at the window to sign in.
+    """
+
+    def __init__(
+        self,
+        context,
+        *,
+        steps=("sc", "sp", "ig", "email", "dw"),
+        spotify_signed_in=True,
+        callback_closes=True,
+        captcha=False,
+        person_finishes=False,
+        late_popup=False,
+    ):
         self.context = context
         self.url = "about:blank"
         self.handlers = {}
         self.opener = None
+        self.steps = list(steps)
+        self.index = 0
         self.clicked = []
-        self.popup_on = set(popup_on)
-        self.download_on_click = download_on_click
+        self.email = None
         self.polls = 0
-        self.steps = steps
+        self.popups = []
+        self.pending = {n: 1 for n, kind in enumerate(self.steps) if kind in _CLICK_STEPS}
+        self.spotify_signed_in = spotify_signed_in
+        self.callback_closes = callback_closes
+        self.captcha = captcha
+        self.captcha_shown = False
+        self.person_finishes = person_finishes
+        self.late_popup = late_popup
+        self.opening = None
 
     def on(self, event, callback):
         self.handlers[event] = callback
@@ -711,60 +786,115 @@ class _GatePage:
     def is_closed(self):
         return False
 
-    def wait_for_timeout(self, _timeout):
-        self.polls += 1
-        # A popup the person has "completed" after a couple of polls.
-        for popup in self.context.pages:
-            if popup.opener is self and self.polls % 3 == 0:
-                popup.closed = True
+    @property
+    def kind(self):
+        return self.steps[self.index] if self.index < len(self.steps) else None
 
     def locator(self, selector):
-        page = self
+        slide = self.index if selector == gates.GATE_CURRENT_SLIDE else None
+        return _Control(self, selector, slide)
 
-        class Element:
-            def __init__(self, kind, index=0):
-                self.kind, self.index = kind, index
+    def count(self, selector, slide):
+        if selector == gates.GATE_CURRENT_SLIDE:
+            return 1 if self.kind else 0
+        if selector == gates.GATE_PENDING_ACTION:
+            return self.pending.get(slide, 0)
+        return 1
 
-            def is_visible(self):
-                return True
+    def visible(self, selector):
+        if selector == gates.GATE_START_BUTTON:
+            return not self.clicked
+        if selector == gates.GATE_CAPTCHA:
+            return self.captcha_shown
+        if selector == gates.HYPEDDIT_DOWNLOAD_BUTTON:
+            return self.kind == "dw"
+        return True
 
-            @property
-            def first(self):
-                return self
+    def attribute(self, name, slide):
+        if name == "class":
+            return f"{self.steps[slide]} fangate-slider-content"
+        return str(slide)
 
-            def click(self, timeout=None):
-                page.clicked.append((self.kind, self.index))
-                if self.kind == "step" and self.index in page.popup_on:
-                    popup = _Popup(page)
-                    page.context.pages.append(popup)
-                if self.kind == "download" and page.download_on_click:
-                    page.handlers["download"](_download("gate.wav", b"RIFF-gate"))
+    def click(self, selector, slide):
+        self.clicked.append((self.kind, selector))
+        if selector == gates.GATE_PENDING_ACTION:
+            self.pending[slide] -= 1
+            self._open(_SOCIAL_PAGE)
+        elif selector == gates.GATE_NEXT_BUTTON:
+            if not self.pending.get(slide):
+                self.index += 1
+        elif selector == gates.GATE_CONNECT_BUTTON:
+            if self.late_popup:
+                self.opening = _SPOTIFY_LOGIN  # reaches the client on the next poll
+            else:
+                self._open(_SPOTIFY_LOGIN)
+        elif selector == gates.GATE_EMAIL_SUBMIT:
+            if self.captcha:
+                self.captcha_shown = True
+            else:
+                self.index += 1
+        elif selector == gates.HYPEDDIT_DOWNLOAD_BUTTON:
+            self.handlers["download"](_download("gate.wav", b"RIFF-gate"))
 
-        class Locator:
-            def __init__(self, kind):
-                self.kind = kind
+    def _open(self, url):
+        popup = _Popup(self, url)
+        self.popups.append(popup)
+        self.context.pages.append(popup)
 
-            def count(self):
-                return page.steps if self.kind == "step" else 1
+    def wait_for_timeout(self, milliseconds):
+        self.polls += 1
+        self.context.clock["t"] += milliseconds / 1000
+        if self.opening:
+            self._open(self.opening)
+            self.opening = None
+        for popup in self.popups:
+            if popup.closed or popup.url != _SPOTIFY_LOGIN and popup.url != _SPOTIFY_CALLBACK:
+                continue
+            popup.polls += 1
+            if not (self.spotify_signed_in or self.context.attended):
+                continue  # Spotify keeps asking for a login nobody types.
+            if popup.polls == 2:
+                # The callback loads, tells the gate to move on, and closes.
+                popup.url = _SPOTIFY_CALLBACK
+                self.index += 1
+            elif popup.polls >= 3 and self.callback_closes:
+                popup.closed = True
+        if self.person_finishes and self.context.attended and self.polls >= 3:
+            self.handlers["download"](_download("hand.wav", b"RIFF-hand"))
 
-            def nth(self, index):
-                return Element(self.kind, index)
 
-            @property
-            def first(self):
-                return Element(self.kind, 0)
+class _GateContext:
+    def __init__(self, page_factory, clock, *, attended):
+        self.factory = page_factory
+        self.clock = clock
+        self.attended = attended
+        self.pages = [page_factory(self)]
+        self.handlers = {}
 
-        return Locator("step" if selector == gates.HYPEDDIT_STEP_BUTTON else "download")
+    def on(self, event, callback):
+        self.handlers[event] = callback
+
+    def new_page(self):
+        page = self.factory(self)
+        self.pages.append(page)
+        return page
 
 
-class _Popup:
-    def __init__(self, opener):
-        self.opener = opener
-        self.url = "https://accounts.spotify.com/authorize"
-        self.closed = False
+def _gate_browser(monkeypatch, page_factory):
+    """Every context the batch opens, as (headless, context), on a clock the fakes advance."""
 
-    def is_closed(self):
-        return self.closed
+    clock = {"t": 0.0}
+    monkeypatch.setattr(gates, "_now", lambda: clock["t"])
+    launches = []
+
+    @contextmanager
+    def browser_context(_profile, *, accept_downloads=False, headless=False):
+        context = _GateContext(page_factory, clock, attended=not headless)
+        launches.append((headless, context))
+        yield context
+
+    monkeypatch.setattr("dj_digger.browser_session.sync_browser_context", browser_context)
+    return launches
 
 
 def _download(name, body):
@@ -777,65 +907,143 @@ def _download(name, body):
     return Download()
 
 
-class _GateContext:
-    def __init__(self, page_factory):
-        self.pages = [page_factory(self)]
-        self.handlers = {}
+class _Profile:
+    def __init__(self, email, *, real=True):
+        self.user_email = email
+        self.real = real
 
-    def on(self, event, callback):
-        self.handlers[event] = callback
-
-    def new_page(self):
-        page = self.pages[0].__class__(self)
-        self.pages.append(page)
-        return page
+    def has_real_email(self):
+        return self.real
 
 
-def _gate_browser(monkeypatch, page_factory):
-    contexts = []
+_DJ = _Profile("dj@example.com")
+_PLACEHOLDER = _Profile("digger@example.invalid", real=False)
+_WALKED = [
+    gates.GATE_START_BUTTON,
+    gates.GATE_PENDING_ACTION,
+    gates.GATE_NEXT_BUTTON,
+    gates.GATE_CONNECT_BUTTON,
+    gates.GATE_PENDING_ACTION,
+    gates.GATE_NEXT_BUTTON,
+    gates.GATE_EMAIL_SUBMIT,
+    gates.HYPEDDIT_DOWNLOAD_BUTTON,
+]
 
-    @contextmanager
-    def browser_context(*_args, **_kwargs):
-        context = _GateContext(page_factory)
-        contexts.append(context)
-        yield context
 
-    monkeypatch.setattr("dj_digger.browser_session.sync_browser_context", browser_context)
-    return contexts
+def _track():
+    return Track(id=7, title="Seven", permalink_url="https://soundcloud.com/a/7")
 
 
-def test_semi_automated_gate_clicks_declared_steps_then_download(tmp_path, monkeypatch):
-    contexts = _gate_browser(monkeypatch, lambda ctx: _GatePage(ctx, steps=2))
-    track = Track(id=7, title="Seven", permalink_url="https://soundcloud.com/a/7")
+def test_a_hidden_browser_walks_the_gate_and_downloads_without_a_window(tmp_path, monkeypatch):
+    launches = _gate_browser(monkeypatch, lambda ctx: _GatePage(ctx))
+    messages = []
 
     path = gates.download_hypeddit_in_browser(
-        track, "https://hypeddit.com/track/seven", tmp_path, None, social=True
+        _track(), "https://hypeddit.com/track/seven", tmp_path, None,
+        status=messages.append, config=_DJ,
     )
 
-    page = contexts[0].pages[0]
-    assert page.clicked == [("step", 0), ("step", 1), ("download", 0)]
+    assert [headless for headless, _context in launches] == [True]
+    page = launches[0][1].pages[0]
+    assert [selector for _kind, selector in page.clicked] == _WALKED
+    assert page.email == "dj@example.com"
+    assert [popup.url for popup in page.popups] == [_SOCIAL_PAGE, _SPOTIFY_CALLBACK, _SOCIAL_PAGE]
+    assert all(popup.closed for popup in page.popups), "provider pages are closed unread"
+    assert messages == []
     assert path.read_bytes() == b"RIFF-gate"
 
 
-def test_provider_popup_pauses_until_it_closes(tmp_path, monkeypatch):
-    contexts = _gate_browser(monkeypatch, lambda ctx: _GatePage(ctx, steps=2, popup_on={0}))
+def test_a_provider_that_wants_a_login_moves_the_gate_to_a_window(tmp_path, monkeypatch):
+    launches = _gate_browser(monkeypatch, lambda ctx: _GatePage(ctx, spotify_signed_in=False))
     messages = []
-    track = Track(id=8, title="Eight", permalink_url="https://soundcloud.com/a/8")
 
-    gates.download_hypeddit_in_browser(
-        track, "https://hypeddit.com/track/eight", tmp_path, None, social=True, status=messages.append
+    path = gates.download_hypeddit_in_browser(
+        _track(), "https://hypeddit.com/track/seven", tmp_path, None,
+        status=messages.append, config=_DJ,
     )
 
-    page = contexts[0].pages[0]
-    assert page.clicked[0] == ("step", 0)
-    assert page.polls >= 3, "the second step waited for the popup to be dealt with"
-    assert page.clicked[1:] == [("step", 1), ("download", 0)]
-    assert messages and "accounts.spotify.com" in messages[0]
+    assert [headless for headless, _context in launches] == [True, False]
+    hidden = launches[0][1].pages[0]
+    assert hidden.kind == "sp" and hidden.clicked[-1][1] == gates.GATE_CONNECT_BUTTON
+    assert messages[0] == (
+        "Opening the browser window for 1 gate: accounts.spotify.com wants you to sign in"
+    )
+    assert "Complete accounts.spotify.com in the browser window" in messages[1]
+    window = launches[1][1].pages[0]
+    assert [selector for _kind, selector in window.clicked] == _WALKED, (
+        "the steps before and after the login are still walked for the person"
+    )
+    assert path.read_bytes() == b"RIFF-gate"
+
+
+def test_a_login_popup_that_shows_up_a_moment_after_the_click_is_still_waited_for(
+    tmp_path, monkeypatch
+):
+    launches = _gate_browser(monkeypatch, lambda ctx: _GatePage(ctx, late_popup=True))
+
+    path = gates.download_hypeddit_in_browser(
+        _track(), "https://hypeddit.com/track/seven", tmp_path, None, config=_DJ
+    )
+
+    assert [headless for headless, _context in launches] == [True]
+    page = launches[0][1].pages[0]
+    assert [selector for _kind, selector in page.clicked] == _WALKED
+    assert path.read_bytes() == b"RIFF-gate"
+
+
+def test_a_callback_popup_that_stays_open_is_closed_once_it_is_home(tmp_path, monkeypatch):
+    launches = _gate_browser(monkeypatch, lambda ctx: _GatePage(ctx, callback_closes=False))
+
+    path = gates.download_hypeddit_in_browser(
+        _track(), "https://hypeddit.com/track/seven", tmp_path, None, config=_DJ
+    )
+
+    assert [headless for headless, _context in launches] == [True]
+    callback = launches[0][1].pages[0].popups[1]
+    assert callback.url == _SPOTIFY_CALLBACK and callback.closed
+    assert path.read_bytes() == b"RIFF-gate"
+
+
+def test_a_missing_email_is_left_to_the_person_at_the_window(tmp_path, monkeypatch):
+    launches = _gate_browser(
+        monkeypatch, lambda ctx: _GatePage(ctx, steps=("email", "dw"), person_finishes=True)
+    )
+    messages = []
+
+    path = gates.download_hypeddit_in_browser(
+        _track(), "https://hypeddit.com/track/seven", tmp_path, None,
+        status=messages.append, config=_PLACEHOLDER,
+    )
+
+    assert [headless for headless, _context in launches] == [True, False]
+    assert launches[0][1].pages[0].email is None
+    assert messages == [
+        "Opening the browser window for 1 gate: the gate wants an email address and the profile has none",
+        "Seven: the gate wants an email address and the profile has none; finish it in the browser window",
+    ]
+    assert path.read_bytes() == b"RIFF-hand"
+
+
+def test_a_captcha_on_the_email_step_needs_the_window(tmp_path, monkeypatch):
+    launches = _gate_browser(
+        monkeypatch,
+        lambda ctx: _GatePage(ctx, steps=("email", "dw"), captcha=True, person_finishes=True),
+    )
+    messages = []
+
+    path = gates.download_hypeddit_in_browser(
+        _track(), "https://hypeddit.com/track/seven", tmp_path, None,
+        status=messages.append, config=_DJ,
+    )
+
+    assert [headless for headless, _context in launches] == [True, False]
+    assert messages[0] == "Opening the browser window for 1 gate: the gate wants a CAPTCHA solved"
+    assert path.read_bytes() == b"RIFF-hand"
 
 
 def test_social_actions_disabled_uses_passive_watcher_only(tmp_path, monkeypatch):
     def page_factory(ctx):
-        page = _GatePage(ctx, steps=2)
+        page = _GatePage(ctx)
         original_goto = page.goto
 
         def goto(url, **kwargs):
@@ -845,18 +1053,18 @@ def test_social_actions_disabled_uses_passive_watcher_only(tmp_path, monkeypatch
         page.goto = goto
         return page
 
-    contexts = _gate_browser(monkeypatch, page_factory)
-    track = Track(id=9, title="Nine", permalink_url="https://soundcloud.com/a/9")
+    launches = _gate_browser(monkeypatch, page_factory)
 
     path = gates.download_hypeddit_in_browser(
-        track, "https://hypeddit.com/track/nine", tmp_path, None, social=False
+        _track(), "https://hypeddit.com/track/nine", tmp_path, None, social=False
     )
 
-    assert contexts[0].pages[0].clicked == []
+    assert [headless for headless, _context in launches] == [True]
+    assert launches[0][1].pages[0].clicked == []
     assert path.read_bytes() == b"RIFF-hand"
 
 
-def test_unknown_gate_dom_degrades_to_passive_watcher(tmp_path, monkeypatch):
+def test_unknown_gate_dom_is_handed_to_the_window(tmp_path, monkeypatch):
     class BarePage:
         def __init__(self, context):
             self.context = context
@@ -869,18 +1077,23 @@ def test_unknown_gate_dom_degrades_to_passive_watcher(tmp_path, monkeypatch):
 
         def goto(self, url, **_kwargs):
             self.url = url
-            self.handlers["download"](_download("bare.wav", b"RIFF-bare"))
+            if self.context.attended:
+                self.handlers["download"](_download("bare.wav", b"RIFF-bare"))
 
         def wait_for_timeout(self, _timeout):
             pass
 
-    _gate_browser(monkeypatch, BarePage)
-    track = Track(id=10, title="Ten", permalink_url="https://soundcloud.com/a/10")
+    launches = _gate_browser(monkeypatch, BarePage)
+    messages = []
 
     path = gates.download_hypeddit_in_browser(
-        track, "https://hypeddit.com/track/ten", tmp_path, None, social=True
+        _track(), "https://hypeddit.com/track/ten", tmp_path, None, status=messages.append
     )
 
+    assert [headless for headless, _context in launches] == [True, False]
+    assert messages == [
+        "Opening the browser window for 1 gate: the gate page has no step controls this program knows"
+    ]
     assert path.read_bytes() == b"RIFF-bare"
 
 
