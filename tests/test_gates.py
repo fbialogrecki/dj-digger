@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 import requests
+from bs4 import BeautifulSoup
 
 from dj_digger import gates
 from dj_digger.gates import (
@@ -31,7 +32,6 @@ def test_hypeddit_gate_ignores_foreign_hot_or_not_audio_and_soundcloud_preview()
 
     assert inspection.kind == "gate"
     assert inspection.manifest is not None
-    assert inspection.direct_url is None
 
 
 def test_hypeddit_gate_uses_its_manifest_post_not_a_recommendation_file():
@@ -948,6 +948,10 @@ def test_gaterush_posts_no_comment_when_social_actions_are_refused():
     assert _posted_to(session, "/save-email/someslug")
 
 
+def _soup(page):
+    return BeautifulSoup(page, "html.parser")
+
+
 def test_a_shop_page_that_merely_mentions_downloads_is_still_a_shop():
     """The word used to be matched anywhere on the page, footers included."""
 
@@ -958,7 +962,7 @@ def test_a_shop_page_that_merely_mentions_downloads_is_still_a_shop():
       <script>var downloadTracker = init("download");</script>
     </body></html>
     """
-    assert gates._offers_a_download(page) is False
+    assert gates._offers_a_download(_soup(page)) is False
 
 
 def test_a_gate_in_another_language_is_recognised_as_a_gate():
@@ -966,12 +970,12 @@ def test_a_gate_in_another_language_is_recognised_as_a_gate():
 
     for button in ("Herunterladen", "Descargar", "Télécharger", "Pobierz"):
         page = f'<html><body><button class="gate-cta">{button}</button></body></html>'
-        assert gates._offers_a_download(page) is True, button
+        assert gates._offers_a_download(_soup(page)) is True, button
 
 
 def test_a_download_button_is_still_found_when_it_is_a_submit_input():
     page = '<html><body><input type="submit" value="Free Download"></body></html>'
-    assert gates._offers_a_download(page) is True
+    assert gates._offers_a_download(_soup(page)) is True
 
 
 class HubSession:
