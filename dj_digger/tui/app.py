@@ -235,8 +235,8 @@ class DiggerApp(
         self._column_keys: dict[str, ColumnKey] = {}
         self.visible_rows: list[Row] = []
         self.present: list[str] = []
-        self._pending_open_all = False
-        self._pending_open_beatport = False
+        # The key whose bulk open is waiting for a second press (see _confirm_many).
+        self._pending_open: str | None = None
         self._cart_busy = False
         self._cart_cancel = asyncio.Event()
         self._cart_session = cart_module.CartBrowserSession()

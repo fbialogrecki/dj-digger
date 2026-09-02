@@ -114,7 +114,7 @@ class FilterMixin:
                 self.store_filters.remove(category)
             else:
                 self.store_filters.add(category)
-        self._pending_open_all = False
+        self._pending_open = None
         self.refresh_rows(keep_cursor=False)
 
     def action_filter_index(self, index: int) -> None:
@@ -236,7 +236,7 @@ class FilterMixin:
         else:
             self.store_filters.clear()
             self.hide_handled = False
-            self._pending_open_all = False
+            self._pending_open = None
             self.refresh_rows(keep_cursor=False)
         self.query_one("#tracks", DataTable).focus()
 
