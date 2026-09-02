@@ -185,7 +185,7 @@ TIME_CELL = 6
 
 @pytest.fixture
 def state(tmp_path):
-    return TrackState(tmp_path / "state.json")
+    return TrackState(tmp_path / "digger.db")
 
 
 @pytest.fixture
@@ -3572,7 +3572,7 @@ def test_a_soundcloud_login_waits_while_a_download_still_holds_the_client(state)
                 assert toasts == [tui_downloads.LOGIN_WAITS_FOR_DOWNLOADS]
 
             assert app._adopt_login("fresh-token") is True
-            assert app._client.oauth_token == "fresh-token"
+            assert app._client._oauth_token == "fresh-token"
             assert client.closed is True
 
     run(scenario)

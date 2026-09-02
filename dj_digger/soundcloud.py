@@ -31,6 +31,7 @@ from . import auth, gates
 from .browser import USER_AGENT, UnsafeRedirect, follow_redirects, is_openable
 from .links import host_matches, host_of
 from .models import Cancelled, Crate, Track, check_cancelled
+from .paths import unique_target
 
 # Windows refuses these as a filename whatever the extension - CON.mp3 is as
 # reserved as CON - and says so with an OSError at the moment of writing, which
@@ -202,11 +203,7 @@ def _claim_target(directory: Path, track: Track, suffix: str, temporary: Path) -
 
     stem = _download_stem(track)
     with _DOWNLOAD_NAME_LOCK:
-        target = directory / f"{stem}{suffix}"
-        counter = 1
-        while target.exists():
-            target = directory / f"{stem} ({counter}){suffix}"
-            counter += 1
+        target = unique_target(directory, stem, suffix)
         os.replace(temporary, target)
     return target
 
@@ -312,10 +309,6 @@ class SoundCloudClient:
             self._oauth_token = oauth_token
 
         self.config = gates.config_or_default(config)
-
-    @property
-    def oauth_token(self) -> str | None:
-        return self._oauth_token
 
     def close(self) -> None:
         self._session.close()

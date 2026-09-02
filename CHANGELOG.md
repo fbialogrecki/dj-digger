@@ -89,6 +89,12 @@
 - The README key tables now match the crate browser: no phantom `j`/`k`,
   every bound key listed, shifted keys shown as `Shift+…` in the footer and
   help, and the bulk-open confirmation names the right key.
+- A browser batch of gates no longer gives up on a still-open tab when one of
+  the other rows was refused up front, and a batch that finds the private
+  profile busy reports those refusals alongside the lock error instead of
+  dropping them.
+- A SoundCloud track URL with query parameters other than `in=` is no longer
+  rewritten with a doubled `??`.
 
 ### Changed
 
@@ -107,6 +113,35 @@
 - `cart.py` is split: its errors and dataclasses, store URL rules, product
   matching, page parsing and Beatport playlist helpers each live in their own
   module, re-exported from `cart` so nothing importing it changes.
+- A repo-wide cleanup removed about a thousand lines without changing what
+  the app does: dead helpers and never-read fields (`db.get_track_status`,
+  `library.all_crates`, sync locator helpers and an unread session state in
+  `cart.py`, `Palette.panel`, the always-`None` `direct_url`), duplicated
+  code folded into one place (the redirect walker, the Chrome request
+  headers, the browser profile directory, the Bandcamp Buy-dialog sequence,
+  the cart "cancelled" and preflight-failure results, the store URL parser,
+  the crate builders in the tests) and the longest functions split
+  (`_preflight`, `_execute_store`, `run_batch`, the Hypeddit inspection and
+  browser batch, `download_track`, the CLI login).
+- A single Hypeddit browser download is now a batch of one: its five-minute
+  limit is one deadline from launch instead of one per popup plus one for the
+  download, and only tabs its own page opened are watched.
+- The local file cache keeps only the path, modification time and normalised
+  stem; the unread size, artist and title columns are dropped, so an
+  existing cache is rebuilt by the next scan.
+- The redirect and browser-download refusals read "Redirected to an unsafe
+  address" and "That link returned a web page rather than an audio file".
+- A SoundCloud login that completes while a download still holds the old
+  client no longer queues a hidden client swap: it says "Signed in to
+  SoundCloud, but a download is still running on the old login: let it finish
+  or stop it with ctrl+x, then press w again" and leaves the retry to you.
+- The dig reports only through its job: when another job starts during a
+  dig, the status line and spinner follow the newer job.
+- The "more than 20 tabs, press again" confirmation is one key: pressing
+  `Shift+O`, then `Shift+P`, then `Shift+O` again asks again instead of
+  opening.
+- Escape on the confirm, manual-cart and gate-profile dialogs answers "no"
+  through one shared action; the footer keys are unchanged.
 
 ### Removed
 

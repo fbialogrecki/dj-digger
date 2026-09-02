@@ -5,8 +5,8 @@
 - Product version verified: 0.15.0
 - Owner: Filip Białogrecki
 - Updated: 2026-08-28
-- Document lines: <!-- SPEC TOTAL LINES -->1059<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1059<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1062<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1062<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -69,44 +69,44 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 6.1 | ↳ Runtime and dependencies | 502–515 |
 | 6.2 | ↳ Concurrency and lifecycle | 516–558 |
 | 6.3 | ↳ Local paths and environment variables | 559–573 |
-| 7 | Data model and persistence | 574–642 |
+| 7 | Data model and persistence | 574–643 |
 | 7.1 | ↳ Domain objects and identity | 576–590 |
-| 7.2 | ↳ SQLite schema and invariants | 591–614 |
-| 7.3 | ↳ Crate persistence and deletion | 615–626 |
-| 7.4 | ↳ Configuration and credential stores | 627–642 |
-| 8 | Public interfaces and contracts | 643–688 |
-| 8.1 | ↳ CLI arguments and exit behavior | 645–664 |
-| 8.2 | ↳ JSON and CSV summary input | 665–679 |
-| 8.3 | ↳ URL-opening contract | 680–688 |
-| 9 | Authentication and authorization | 689–725 |
-| 9.1 | ↳ SoundCloud authentication | 691–708 |
-| 9.2 | ↳ Gate action consent | 709–725 |
-| 10 | External integrations | 726–835 |
-| 10.1 | ↳ SoundCloud API and media | 728–739 |
-| 10.2 | ↳ Link hubs and download gates | 740–782 |
-| 10.2 · block | ↳ ↳ Hypeddit | 748–768 |
-| 10.2 · block | ↳ ↳ Other resolvers | 770–775 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 777–782 |
-| 10.3 | ↳ Browsers and clipboard | 783–794 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 795–835 |
-| 11 | Security requirements and threat model | 836–882 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 838–856 |
-| 11.2 | ↳ Secret and personal-data handling | 857–869 |
-| 11.3 | ↳ File and mutation safety | 870–882 |
-| 12 | Privacy, lifecycle, and retention | 883–921 |
-| 12.1 | ↳ Data stored locally | 885–900 |
-| 12.2 | ↳ Data sent to third parties | 901–912 |
-| 12.3 | ↳ User-controlled deletion | 913–921 |
-| 13 | Failure behavior and current limitations | 922–973 |
-| 13.1 | ↳ Error isolation and reporting | 924–943 |
-| 13.2 | ↳ Confirmed limitations | 944–973 |
-| 14 | Verification, CI, and release | 974–1037 |
-| 14.1 | ↳ Offline and live test suites | 976–1006 |
-| 14.2 | ↳ Continuous integration and publishing | 1007–1022 |
-| 14.3 | ↳ Specification-map verification | 1023–1037 |
-| 15 | Evidence and operational references | 1038–1059 |
-| 15.1 | ↳ Primary implementation evidence | 1040–1052 |
-| 15.2 | ↳ User and historical documentation | 1053–1059 |
+| 7.2 | ↳ SQLite schema and invariants | 591–615 |
+| 7.3 | ↳ Crate persistence and deletion | 616–627 |
+| 7.4 | ↳ Configuration and credential stores | 628–643 |
+| 8 | Public interfaces and contracts | 644–689 |
+| 8.1 | ↳ CLI arguments and exit behavior | 646–665 |
+| 8.2 | ↳ JSON and CSV summary input | 666–680 |
+| 8.3 | ↳ URL-opening contract | 681–689 |
+| 9 | Authentication and authorization | 690–726 |
+| 9.1 | ↳ SoundCloud authentication | 692–709 |
+| 9.2 | ↳ Gate action consent | 710–726 |
+| 10 | External integrations | 727–838 |
+| 10.1 | ↳ SoundCloud API and media | 729–740 |
+| 10.2 | ↳ Link hubs and download gates | 741–785 |
+| 10.2 · block | ↳ ↳ Hypeddit | 749–771 |
+| 10.2 · block | ↳ ↳ Other resolvers | 773–778 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 780–785 |
+| 10.3 | ↳ Browsers and clipboard | 786–797 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 798–838 |
+| 11 | Security requirements and threat model | 839–885 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 841–859 |
+| 11.2 | ↳ Secret and personal-data handling | 860–872 |
+| 11.3 | ↳ File and mutation safety | 873–885 |
+| 12 | Privacy, lifecycle, and retention | 886–924 |
+| 12.1 | ↳ Data stored locally | 888–903 |
+| 12.2 | ↳ Data sent to third parties | 904–915 |
+| 12.3 | ↳ User-controlled deletion | 916–924 |
+| 13 | Failure behavior and current limitations | 925–976 |
+| 13.1 | ↳ Error isolation and reporting | 927–946 |
+| 13.2 | ↳ Confirmed limitations | 947–976 |
+| 14 | Verification, CI, and release | 977–1040 |
+| 14.1 | ↳ Offline and live test suites | 979–1009 |
+| 14.2 | ↳ Continuous integration and publishing | 1010–1025 |
+| 14.3 | ↳ Specification-map verification | 1026–1040 |
+| 15 | Evidence and operational references | 1041–1062 |
+| 15.1 | ↳ Primary implementation evidence | 1043–1055 |
+| 15.2 | ↳ User and historical documentation | 1056–1062 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -593,23 +593,24 @@ plus `bpm`, `key`, `release_year`, and `label`, which are read back when present
 The default database is `digger.db`. `_init_db()` creates:
 
 - `track_states(key PRIMARY KEY, status, updated)`;
-- `local_files(path PRIMARY KEY, mtime, size, artist, title, normalized_stem)`
-  plus an index on `normalized_stem`;
+- `local_files(path PRIMARY KEY, mtime, normalized_stem)` plus an index on
+  `normalized_stem`;
 - `track_local_files(key PRIMARY KEY, path)`;
 - `crates(source PRIMARY KEY, title, updated, record_json)`.
 
 `list_crate_headers()` returns source, title, updated, and the `partial` flag
-(through `json_extract`, with a full-record fallback) so the sidebar never
-deserializes tracks; `upsert_local_files()` writes scanner rows in one
-transaction.
+(through `json_extract`) so the sidebar never deserializes tracks;
+`upsert_local_files()` writes scanner rows in one transaction.
+`set_track_status()` stamps `updated` itself.
 
 `all_track_statuses()` and `all_track_local_files()` read whole tables for the
 `TrackState` mirror. Setting status to `new` deletes the status row. A manual status decision removes
 file provenance. `set_local_file()` atomically records `got` and the path;
 clearing provenance resets `got` only when that mark depended on the file.
 
-An old `crates` table without `record_json` is dropped at initialization rather
-than migrated. The current code does not import or mirror legacy JSON state or
+An old `crates` table without `record_json`, or an old `local_files` table
+with the unread `size`, `artist` and `title` columns, is dropped at
+initialization rather than migrated; the next scan rebuilds the file cache. The current code does not import or mirror legacy JSON state or
 crate files. There is no schema-version table or separate migration framework.
 
 ### 7.3 Crate persistence and deletion
@@ -763,8 +764,10 @@ when gate social actions are enabled, clicks the gate's own step buttons in
 turn, pausing while a provider window (or the tab itself) is at the provider
 until the user returns, then clicks the gate's download button; a page without
 those controls is only watched. Nothing outside Hypeddit's page is ever clicked.
-It watches downloads in one or multiple tabs,
-and saves files through the same size/type/atomic validation as HTTP downloads.
+A single gate runs as a batch of one with a five-minute deadline from launch.
+It watches downloads only in the tabs and popups its own pages opened, ends
+when every pending row has settled, and saves files through the same
+size/type/atomic validation as HTTP downloads.
 
 <!-- spec-map-block: Other resolvers -->
 Host routing also implements ToneDen page/API extraction, Droploud track API,

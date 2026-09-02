@@ -62,7 +62,7 @@ LOGIN_WAITS_FOR_DOWNLOADS = (
 
 
 def _is_hypeddit(url: str | None) -> bool:
-    return bool(url) and links_module.host_of(url) in links_module.HYPEDDIT_HOSTS
+    return bool(url) and links_module.is_hypeddit_url(url)
 
 
 def _downloadable(track: Track, gate_url: str | None) -> bool:
