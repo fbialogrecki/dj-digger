@@ -28,19 +28,8 @@ class FakeResponse:
 
 
 class FakeSession:
-    def __init__(self, responses):
-        self.responses = list(responses)
-        self.calls = []
+    """Answers queued responses in order, recording (url, params, kwargs)."""
 
-    def get(self, url, params=None, timeout=None, **kwargs):
-        self.calls.append((url, dict(params or {})))
-        return self.responses.pop(0)
-
-    def close(self):
-        pass
-
-
-class SequenceSession:
     def __init__(self, responses):
         self.responses = list(responses)
         self.calls = []
@@ -62,6 +51,9 @@ class DownloadResponse:
 
     def iter_content(self, chunk_size):
         return iter(self.chunks)
+
+    def close(self):
+        pass
 
 
 class DownloadSession:
@@ -94,7 +86,7 @@ def medusa_track():
 
 def test_a_free_download_without_a_url_explains_that_login_is_required(tmp_path):
     client = SoundCloudClient(
-        session=SequenceSession([]), client_id=DUMMY_CLIENT_ID, oauth_token=""
+        session=FakeSession([]), client_id=DUMMY_CLIENT_ID, oauth_token=""
     )
 
     with pytest.raises(SoundCloudLoginRequired, match="SoundCloud login is required"):
@@ -103,7 +95,7 @@ def test_a_free_download_without_a_url_explains_that_login_is_required(tmp_path)
 
 def test_a_rejected_download_endpoint_explains_that_login_expired(tmp_path):
     client = SoundCloudClient(
-        session=SequenceSession([FakeResponse(status_code=401)]),
+        session=FakeSession([FakeResponse(status_code=401)]),
         client_id=DUMMY_CLIENT_ID,
         oauth_token="expired",
     )
@@ -115,7 +107,7 @@ def test_a_rejected_download_endpoint_explains_that_login_expired(tmp_path):
 def test_a_free_download_without_a_url_uses_the_authenticated_endpoint(tmp_path):
     endpoint = FakeResponse(payload={"redirectUri": "https://cdn.example/medusa.wav"})
     audio = DownloadResponse([b"RIFF"], headers={"Content-Type": "audio/wav"})
-    session = SequenceSession([endpoint, audio])
+    session = FakeSession([endpoint, audio])
     client = SoundCloudClient(
         session=session, client_id=DUMMY_CLIENT_ID, oauth_token="valid"
     )
@@ -177,7 +169,9 @@ def test_a_lookalike_host_is_not_handed_our_client_id(tmp_path):
 def test_a_track_named_after_a_windows_device_still_gets_a_filename(name):
     """CON.mp3 is as reserved as CON, and the OSError lands after the download."""
 
-    cleaned = soundcloud._sanitize_filename(name)
+    cleaned = soundcloud._download_stem(
+        Track(title=name, permalink_url="https://soundcloud.com/a/t")
+    )
     assert cleaned.upper() not in soundcloud.WINDOWS_RESERVED
     assert name.lower() in cleaned.lower()
 
