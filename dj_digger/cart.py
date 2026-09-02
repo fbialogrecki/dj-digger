@@ -1,6 +1,7 @@
 """Safe, user-initiated store cart automation."""
 
 import asyncio
+import contextlib
 import json
 import logging
 import os
@@ -8,7 +9,7 @@ import re
 import shutil
 import time
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
@@ -105,6 +106,31 @@ def _async_cancelled(cancel: asyncio.Event) -> None:
         raise CartCancelled("cart operation was cancelled")
 
 
+async def _poll_async(check: Callable[[], Awaitable[bool]], seconds: float) -> bool:
+    """Whether *check* came true within *seconds*, asking every 0.2s."""
+
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if await check():
+            return True
+        await asyncio.sleep(0.2)
+    return False
+
+
+def _role_pair(page: Any, name: re.Pattern[str]) -> tuple[Any, Any]:
+    """The button and the link a store may render one control as."""
+
+    return page.get_by_role("button", name=name), page.get_by_role("link", name=name)
+
+
+async def _surface_challenge_async(page: Any, store: str, event: str) -> None:
+    """Bring the challenge page to the front and log it; the caller decides what to raise."""
+
+    with contextlib.suppress(Exception):
+        await page.bring_to_front()
+    LOGGER.warning("%s: store=%s url=%s", event, store, redact_url(page.url))
+
+
 async def _visible_async(locator: Any) -> list[Any]:
     matches = []
     for index in range(min(await locator.count(), 500)):
@@ -163,22 +189,21 @@ async def _navigate_async(page: Any, url: str, store: str) -> int | None:
         "Cart navigation started: store=%s url=%s", store, redact_url(destination)
     )
     response = None
-    try:
-        response = await page.goto(
-            destination, wait_until="domcontentloaded", timeout=NAVIGATION_TIMEOUT_MS
-        )
-    except Exception as first_error:
-        LOGGER.debug(
-            "Cart navigation retry: store=%s url=%s error=%s",
-            store,
-            redact_url(destination),
-            type(first_error).__name__,
-        )
+    for attempt in (1, 2):
         try:
             response = await page.goto(
                 destination, wait_until="domcontentloaded", timeout=NAVIGATION_TIMEOUT_MS
             )
+            break
         except Exception as exc:
+            if attempt == 1:
+                LOGGER.debug(
+                    "Cart navigation retry: store=%s url=%s error=%s",
+                    store,
+                    redact_url(destination),
+                    type(exc).__name__,
+                )
+                continue
             LOGGER.warning(
                 "Cart navigation failed: store=%s url=%s error=%s",
                 store,
@@ -301,12 +326,12 @@ async def _bandcamp_search_candidates_async(
     except Exception:
         return [], []
     anchors = page.locator('a[href*="from=search"][href*="bandcamp.com/"]')
-    deadline = time.monotonic() + 5.0
-    while time.monotonic() < deadline:
+
+    async def suggestions_shown() -> bool:
         _async_cancelled(cancel)
-        if await anchors.count() > 0:
-            break
-        await asyncio.sleep(0.2)
+        return await anchors.count() > 0
+
+    await _poll_async(suggestions_shown, 5.0)
 
     tracks: dict[str, StoreProduct] = {}
     albums: dict[str, None] = {}
@@ -406,14 +431,8 @@ async def _page_products_async(
             content = await page.content()
             products = products_from_html(content, page.url, store)
         except SecurityChallengeBlocked:
-            try:
-                await page.bring_to_front()
-            except Exception:
-                pass
-            LOGGER.warning(
-                "Cart security challenge blocked automation: store=%s url=%s",
-                store,
-                redact_url(page.url),
+            await _surface_challenge_async(
+                page, store, "Cart security challenge blocked automation"
             )
             raise
         except AutomationError as exc:
@@ -432,18 +451,9 @@ async def _page_products_async(
             for product in dom_products:
                 identity = (urlparse(product.url).hostname or "", urlparse(product.url).path)
                 earlier = by_identity.get(identity)
-                if earlier is None:
-                    by_identity[identity] = product
-                else:
-                    by_identity[identity] = StoreProduct(
-                        "bandcamp",
-                        product.url,
-                        product.product_id or earlier.product_id,
-                        product.title or earlier.title,
-                        product.artist or earlier.artist,
-                        product.price if product.price is not None else earlier.price,
-                        product.currency or earlier.currency,
-                    )
+                by_identity[identity] = (
+                    product if earlier is None else product.merged_over(earlier)
+                )
             products = list(by_identity.values())
         if products:
             LOGGER.debug(
@@ -467,10 +477,7 @@ async def _page_products_async(
 async def _login_visible_async(page: Any) -> bool:
     login_name = re.compile(r"^(?:log ?in|sign in)$", re.IGNORECASE)
     try:
-        for locator in (
-            page.get_by_role("link", name=login_name),
-            page.get_by_role("button", name=login_name),
-        ):
+        for locator in _role_pair(page, login_name):
             if await _visible_async(locator):
                 return True
     except Exception:
@@ -486,13 +493,7 @@ async def _is_logged_in_async(page: Any, store: str) -> bool:
     if not is_store_url(page.url, store) or await _login_visible_async(page):
         return False
     names = re.compile(r"^(collection|wishlist|log out)$", re.IGNORECASE)
-    return (
-        await _first_visible_async(
-            page.get_by_role("link", name=names),
-            page.get_by_role("button", name=names),
-        )
-        is not None
-    )
+    return await _first_visible_async(*_role_pair(page, names)) is not None
 
 
 async def _login_complete_async(page: Any, store: str) -> bool:
@@ -510,15 +511,7 @@ async def _raise_if_security_challenge_async(page: Any, store: str) -> None:
         content = await page.content()
         products_from_html(content, page.url, store)
     except SecurityChallengeBlocked as exc:
-        try:
-            await page.bring_to_front()
-        except Exception:
-            pass
-        LOGGER.warning(
-            "Store login blocked by security challenge: store=%s url=%s",
-            store,
-            redact_url(page.url),
-        )
+        await _surface_challenge_async(page, store, "Store login blocked by security challenge")
         raise SecurityChallengeBlocked(
             f"{store.capitalize()} security verification rejects automated browsers; "
             "automatic login was stopped safely"
@@ -564,14 +557,55 @@ async def _ensure_logins_async(
         raise AutomationError(f"timed out waiting for manual {stores} login")
 
 
+BUY_CONTROL = re.compile(r"^buy digital (?:track|album)$", re.IGNORECASE)
+PRICE_INPUT = 'input#userPrice, input[name="userPrice"]'
+
+
+async def _buy_control_async(page: Any) -> Any | None:
+    return await _first_visible_async(
+        *_role_pair(page, BUY_CONTROL), page.get_by_text(BUY_CONTROL, exact=True)
+    )
+
+
+async def _price_input_async(page: Any) -> Any | None:
+    return await _only_visible_async(page.locator(PRICE_INPUT))
+
+
+async def _expand_buy_async(page: Any, *, force: bool) -> Any | None:
+    """The price field, opening the Buy dialog first when it is not shown yet.
+
+    None when the dialog has no price field; StoreStructureError when there
+    is no Buy control to open it with.
+    """
+
+    price_input = await _price_input_async(page)
+    if price_input is not None:
+        return price_input
+    control = await _buy_control_async(page)
+    if control is None:
+        raise StoreStructureError("Bandcamp purchase control changed or is unavailable")
+    await control.click(timeout=ACTION_TIMEOUT_MS, force=force)
+    return await _price_input_async(page)
+
+
+async def _price_field_values(
+    price_input: Any,
+) -> tuple[Decimal | None, Decimal | None, Decimal | None]:
+    """Bandcamp's price field as (minimum, current value, step); None where unset."""
+
+    try:
+        return (
+            _decimal(await price_input.get_attribute("min")),
+            _decimal(await price_input.input_value()),
+            _decimal(await price_input.get_attribute("step")),
+        )
+    except Exception as exc:
+        raise StoreStructureError("Bandcamp price field could not be inspected") from exc
+
+
 async def _bandcamp_quote_async(page: Any, product: StoreProduct) -> PriceQuote:
     minimum = product.price or Decimal(0)
-    name = re.compile(r"^buy digital (?:track|album)$", re.IGNORECASE)
-    control = await _first_visible_async(
-        page.get_by_role("button", name=name),
-        page.get_by_role("link", name=name),
-        page.get_by_text(name, exact=True),
-    )
+    control = await _buy_control_async(page)
     if control is None:
         album_only = re.compile(r"^buy the full digital album$", re.IGNORECASE)
         if await _first_visible_async(
@@ -591,17 +625,10 @@ async def _bandcamp_quote_async(page: Any, product: StoreProduct) -> PriceQuote:
                 control_text = await control.inner_text()
             except Exception:
                 pass
-    price_input = await _only_visible_async(
-        page.locator('input#userPrice, input[name="userPrice"]')
-    )
-    if price_input is None and control is not None:
-        try:
-            await control.click(timeout=ACTION_TIMEOUT_MS, force=True)
-            price_input = await _only_visible_async(
-                page.locator('input#userPrice, input[name="userPrice"]')
-            )
-        except Exception:
-            price_input = None
+    try:
+        price_input = await _expand_buy_async(page, force=True)
+    except Exception:
+        price_input = None
 
     try:
         suggested = _decimal(
@@ -613,16 +640,11 @@ async def _bandcamp_quote_async(page: Any, product: StoreProduct) -> PriceQuote:
         suggested = None
     step = None
     if price_input is not None:
-        try:
-            input_minimum = _decimal(await price_input.get_attribute("min"))
-            input_suggested = _decimal(await price_input.input_value())
-            if input_minimum is not None:
-                minimum = input_minimum
-            if input_suggested is not None:
-                suggested = input_suggested
-            step = _decimal(await price_input.get_attribute("step"))
-        except Exception as exc:
-            raise StoreStructureError("Bandcamp price field could not be inspected") from exc
+        input_minimum, input_suggested, step = await _price_field_values(price_input)
+        if input_minimum is not None:
+            minimum = input_minimum
+        if input_suggested is not None:
+            suggested = input_suggested
     try:
         selected = purchase_price(minimum, suggested, step)
     except AutomationError as exc:
@@ -668,18 +690,18 @@ async def _open_bandcamp_cart_async(page: Any) -> bool:
         await cart_link.click(timeout=ACTION_TIMEOUT_MS)
     except Exception:
         return False
-    deadline = time.monotonic() + 3.0
     sidecart = page.locator("#sidecart")
-    while time.monotonic() < deadline:
+
+    async def cart_shown() -> bool:
         try:
-            if await sidecart.is_visible() or (
+            return await sidecart.is_visible() or (
                 urlparse(page.url).hostname == "bandcamp.com"
                 and urlparse(page.url).path == "/cart"
-            ):
-                return True
+            )
         except Exception:
-            pass
-        await asyncio.sleep(0.2)
+            return False
+
+    await _poll_async(cart_shown, 3.0)
     return True
 
 
@@ -731,12 +753,7 @@ async def _bandcamp_cart_contains_async(page: Any, item: CartItem) -> bool:
 
     if not await _open_bandcamp_cart_async(page):
         return False
-    deadline = time.monotonic() + 3.0
-    while time.monotonic() < deadline:
-        if await contains_row():
-            return True
-        await asyncio.sleep(0.2)
-    return False
+    return await _poll_async(contains_row, 3.0)
 
 
 async def _bandcamp_cart_count_async(page: Any) -> int | None:
@@ -779,18 +796,12 @@ async def _verify_bandcamp_click_async(
     started = time.monotonic()
     stages = dict(VERIFY_STAGES)
 
+    async def count_grew() -> bool:
+        count_after = await _bandcamp_cart_count_async(page)
+        return count_before is not None and count_after is not None and count_after > count_before
+
     async def by_count() -> bool:
-        deadline = time.monotonic() + stages["count"]
-        while time.monotonic() < deadline:
-            count_after = await _bandcamp_cart_count_async(page)
-            if (
-                count_before is not None
-                and count_after is not None
-                and count_after > count_before
-            ):
-                return True
-            await asyncio.sleep(0.2)
-        return False
+        return await _poll_async(count_grew, stages["count"])
 
     async def by_sidecart() -> bool:
         return await _bandcamp_cart_contains_async(page, item)
@@ -893,17 +904,12 @@ async def _refresh_item_async(
 
 
 def _same_async_snapshot(expected: CartItem, current: CartItem) -> bool:
-    expected_minimum = expected.minimum_price
     current_minimum = current.minimum_price
     return (
         expected.store == current.store
-        and (
-            expected.product_id == current.product_id
-            if expected.product_id and current.product_id
-            else urlparse(expected.product_url).path == urlparse(current.product_url).path
-        )
+        and _same_product(expected, current)
         and _normalise(expected.product_title) == _normalise(current.product_title)
-        and expected_minimum == current_minimum
+        and expected.minimum_price == current_minimum
         and expected.currency == current.currency
         and expected.price >= (current_minimum or Decimal(0))
     )
@@ -930,22 +936,7 @@ async def _add_to_cart_async(page: Any, item: CartItem, cancel: asyncio.Event) -
         raise StoreStructureError(f"{item.store} product page changed before the cart click")
     if item.store != "bandcamp":
         raise StoreStructureError(f"{item.store} carts are not automated")
-    price_input = await _only_visible_async(
-        page.locator('input#userPrice, input[name="userPrice"]')
-    )
-    if price_input is None:
-        name = re.compile(r"^buy digital (?:track|album)$", re.IGNORECASE)
-        buy_control = await _first_visible_async(
-            page.get_by_role("button", name=name),
-            page.get_by_role("link", name=name),
-            page.get_by_text(name, exact=True),
-        )
-        if buy_control is None:
-            raise StoreStructureError("Bandcamp purchase control changed or is unavailable")
-        await buy_control.click(timeout=ACTION_TIMEOUT_MS)
-        price_input = await _only_visible_async(
-            page.locator('input#userPrice, input[name="userPrice"]')
-        )
+    price_input = await _expand_buy_async(page, force=False)
     if price_input is not None:
         await price_input.fill(format(item.price, "f"), timeout=ACTION_TIMEOUT_MS)
     elif item.price_editable and item.price > (item.minimum_price or Decimal(0)):
@@ -1339,10 +1330,8 @@ class CartBrowserSession:
         if viewer is None:
             return
         browser, _context = viewer
-        try:
+        with contextlib.suppress(Exception):
             await browser.close()
-        except Exception:
-            pass
 
     async def _work_pages(self, count: int = 2) -> list[Any]:
         context = await self._ensure_context()
@@ -1355,10 +1344,8 @@ class CartBrowserSession:
 
     async def _replace_page(self, old: Any) -> Any:
         context = await self._ensure_context()
-        try:
+        with contextlib.suppress(Exception):
             await old.close()
-        except Exception:
-            pass
         new = self._instrument_page(await context.new_page())
         self._owned_pages = [new if page is old else page for page in self._owned_pages]
         return new
@@ -1368,10 +1355,8 @@ class CartBrowserSession:
 
         context, self._context = self._context, None
         if context is not None:
-            try:
+            with contextlib.suppress(Exception):
                 await context.close(reason="dj-digger cart session closed")
-            except Exception:
-                pass
         self._owned_pages.clear()
         self._cart_pages.clear()
 
@@ -1380,10 +1365,8 @@ class CartBrowserSession:
             await self._close_context()
             await self._close_viewer()
             if self._playwright is not None:
-                try:
+                with contextlib.suppress(Exception):
                     await self._playwright.stop()
-                except Exception:
-                    pass
                 self._playwright = None
 
     async def reset_profile(self) -> None:
@@ -1430,10 +1413,8 @@ class CartBrowserSession:
                     dict(zip(wanted, pages, strict=True)), cancel, progress
                 )
             finally:
-                try:
+                with contextlib.suppress(Exception):
                     await context.close(reason="dj-digger login finished")
-                except Exception:
-                    pass
 
     async def check_logins(self, stores: Iterable[str]) -> dict[str, bool]:
         wanted = tuple(dict.fromkeys(store for store in stores if store in STORE_HOSTS))
@@ -1709,17 +1690,19 @@ class CartBrowserSession:
         page = self._instrument_page(await viewer.new_page())
         await _navigate_async(page, items[-1].product_url, store)
         await _open_bandcamp_cart_async(page)
-        deadline = time.monotonic() + 3.0
-        while True:
+        missing: list[CartItem] = []
+
+        async def all_shown() -> bool:
+            nonlocal missing
             present = await asyncio.gather(
                 *(_bandcamp_cart_contains_async(page, item) for item in verified)
             )
             missing = [
                 item for item, found in zip(verified, present, strict=True) if not found
             ]
-            if not missing or time.monotonic() >= deadline:
-                break
-            await asyncio.sleep(0.2)
+            return not missing
+
+        await _poll_async(all_shown, 3.0)
         return page, missing
 
     async def _open_final_carts(
@@ -1898,17 +1881,7 @@ class CartBrowserSession:
         try:
             await _navigate_async(page, item.product_url, item.store)
             await _dismiss_bandcamp_cookie_banner(page)
-            name = re.compile(r"^buy digital (?:track|album)$", re.IGNORECASE)
-            buy_control = await _first_visible_async(
-                page.get_by_role("button", name=name),
-                page.get_by_role("link", name=name),
-                page.get_by_text(name, exact=True),
-            )
-            if buy_control is not None:
-                await buy_control.click(timeout=ACTION_TIMEOUT_MS, force=True)
-            price_input = await _only_visible_async(
-                page.locator('input#userPrice, input[name="userPrice"]')
-            )
+            price_input = await _expand_buy_async(page, force=True)
             if price_input is not None:
                 await price_input.fill(format(item.price, "f"), timeout=ACTION_TIMEOUT_MS)
         except Exception as exc:
@@ -1950,19 +1923,15 @@ class CartBrowserSession:
                 break
             staged.append((item, await self._stage_manual_page(context, item)))
         if staged:
-            try:
+            with contextlib.suppress(Exception):
                 await staged[0][1].bring_to_front()
-            except Exception:
-                pass
         done = await manual([item for item, _page in staged])
         results: list[CartResult] = []
         for item, page in staged:
             results.append(await _manual_result(item, page, done, cancel))
-            try:
+            with contextlib.suppress(Exception):
                 if not page.is_closed():
                     await page.close()
-            except Exception:
-                pass
         for result in results:
             _log_cart_result("manual", result)
         return results

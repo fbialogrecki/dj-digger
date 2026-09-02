@@ -208,7 +208,15 @@ def match_product(track: Track, products: list[StoreProduct]) -> StoreProduct:
     raise ProductUnavailable("linked release has no exact track")
 
 
-def _same_product(expected: CartItem, product: StoreProduct) -> bool:
+def _product_url(product: CartItem | StoreProduct) -> str:
+    return product.product_url if isinstance(product, CartItem) else product.url
+
+
+def _same_product(
+    expected: CartItem | StoreProduct, product: CartItem | StoreProduct
+) -> bool:
+    """Same product by id when both carry one, by canonical path otherwise."""
+
     if expected.product_id and product.product_id:
         return expected.product_id == product.product_id
-    return urlparse(expected.product_url).path == urlparse(product.url).path
+    return urlparse(_product_url(expected)).path == urlparse(_product_url(product)).path

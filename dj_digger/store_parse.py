@@ -163,15 +163,7 @@ def products_from_html(html: str, page_url: str, store: str) -> list[StoreProduc
     for product in _structured_products(soup, store):
         earlier = by_id.get(product.product_id)
         if earlier is not None:
-            product = StoreProduct(
-                store=store,
-                url=product.url or earlier.url,
-                product_id=product.product_id,
-                title=product.title or earlier.title,
-                artist=product.artist or earlier.artist,
-                price=product.price,
-                currency=product.currency,
-            )
+            product = product.merged_over(earlier)
         by_id[product.product_id] = product
 
     if store == "beatport":

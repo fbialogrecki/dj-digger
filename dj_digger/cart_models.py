@@ -71,6 +71,19 @@ class StoreProduct:
     price: Decimal | None = None
     currency: str = ""
 
+    def merged_over(self, earlier: "StoreProduct") -> "StoreProduct":
+        """This product, with *earlier* filling in whatever it does not say itself."""
+
+        return StoreProduct(
+            self.store,
+            self.url or earlier.url,
+            self.product_id or earlier.product_id,
+            self.title or earlier.title,
+            self.artist or earlier.artist,
+            self.price if self.price is not None else earlier.price,
+            self.currency or earlier.currency,
+        )
+
 
 @dataclass(frozen=True)
 class CartRequest:
