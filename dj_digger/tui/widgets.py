@@ -155,7 +155,11 @@ class StatusBar(Static):
         x = event.x
         for start_x, end_x, store_idx in app._badge_click_regions:
             if start_x <= x < end_x:
-                app.action_filter_index(store_idx)
+                if store_idx < 0:
+                    # The "…" at either end of a legend that did not fit.
+                    app.action_cycle_store(-1 if store_idx == -1 else 1)
+                else:
+                    app.action_filter_index(store_idx)
                 break
 
 

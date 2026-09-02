@@ -2124,6 +2124,82 @@ def test_shops_and_others_are_badged_with_their_domain(state):
     run(scenario)
 
 
+def _many_store_records():
+    records = []
+    for index, category in enumerate(("bandcamp", "beatport", "gate", "others", "traxsource", "juno")):
+        for n in range(3):
+            records.append(
+                LinkRecord(
+                    category=category,
+                    track=Track(
+                        title=f"{category} {n}",
+                        permalink_url=f"https://soundcloud.com/a/{index * 10 + n}",
+                        id=index * 10 + n + 1,
+                    ),
+                    link_url=f"https://example.com/{category}/{n}",
+                    link_text="Buy",
+                )
+            )
+    return records
+
+
+def test_a_wide_legend_shows_every_store_with_its_count(state):
+    app = make_app(_many_store_records(), state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            line = app._store_line(200)
+            assert line.cell_len <= 200
+            assert "\u00b73" in str(line) and "\u2026" not in str(line)
+            assert [idx for _s, _e, idx in app._badge_click_regions] == list(range(len(app.present) + 1))
+
+    run(scenario)
+
+
+def test_a_narrow_legend_drops_counts_then_windows_around_the_active_store(state):
+    """Like the footer: give things up, never clip the last store mid-word."""
+
+    app = make_app(_many_store_records(), state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            full = app._store_line(None).cell_len
+            without_counts = app._store_line(full - 1)
+            assert without_counts.cell_len < full and "\u00b7" not in str(without_counts)
+
+            await pilot.press("5")  # the fifth store, far to the right
+            await pilot.pause()
+            narrow = app._store_line(34)
+            text = str(narrow)
+            assert narrow.cell_len <= 34
+            assert "0 all" in text and app.present[4] in text
+            assert text.startswith("  \u2026") or "\u2026" in text
+            markers = [idx for _s, _e, idx in app._badge_click_regions if idx < 0]
+            assert -1 in markers, "the hidden stores on the left are one click away"
+
+    run(scenario)
+
+
+def test_clicking_the_legend_ellipsis_steps_the_store_filter(state):
+    app = make_app(_many_store_records(), state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await pilot.press("5")
+            await pilot.pause()
+            app._store_line(34)
+            start, _end, _idx = next(r for r in app._badge_click_regions if r[2] == -1)
+            bar = app.query_one("#status")
+            bar.on_click(SimpleNamespace(x=start))
+            await pilot.pause()
+            assert app.store_filters == {app.present[3]}
+
+    run(scenario)
+
+
 def test_the_status_bar_counts_tracks_not_links(state):
     track = Track(
         title="Everywhere",

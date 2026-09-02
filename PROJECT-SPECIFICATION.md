@@ -5,8 +5,8 @@
 - Product version verified: 0.15.0
 - Owner: Filip Białogrecki
 - Updated: 2026-08-28
-- Document lines: <!-- SPEC TOTAL LINES -->1048<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1048<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1051<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1051<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,62 +51,62 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 141–173 |
 | 2.1 | ↳ Problem and product boundary | 143–154 |
 | 2.2 | ↳ Execution modes | 155–173 |
-| 3 | User-visible capabilities | 174–405 |
+| 3 | User-visible capabilities | 174–408 |
 | 3.1 | ↳ Track collection and saved HTML | 176–195 |
 | 3.2 | ↳ Link classification and exports | 196–214 |
-| 3.3 | ↳ TUI crate library and interaction | 215–270 |
-| 3.4 | ↳ Audio preview | 271–307 |
-| 3.5 | ↳ Downloads and local-file matching | 308–335 |
-| 3.6 | ↳ Store purchase assistance | 336–405 |
-| 4 | System context and data flow | 406–442 |
-| 4.1 | ↳ Context diagram | 408–429 |
-| 4.2 | ↳ Collection-to-library flow | 430–442 |
-| 5 | Repository layout and component ownership | 443–488 |
-| 5.1 | ↳ Entry, orchestration, and models | 445–455 |
-| 5.2 | ↳ Network and external-system adapters | 456–474 |
-| 5.3 | ↳ Persistence, local media, and UI | 475–488 |
-| 6 | Runtime architecture and environments | 489–562 |
-| 6.1 | ↳ Runtime and dependencies | 491–504 |
-| 6.2 | ↳ Concurrency and lifecycle | 505–547 |
-| 6.3 | ↳ Local paths and environment variables | 548–562 |
-| 7 | Data model and persistence | 563–631 |
-| 7.1 | ↳ Domain objects and identity | 565–579 |
-| 7.2 | ↳ SQLite schema and invariants | 580–603 |
-| 7.3 | ↳ Crate persistence and deletion | 604–615 |
-| 7.4 | ↳ Configuration and credential stores | 616–631 |
-| 8 | Public interfaces and contracts | 632–677 |
-| 8.1 | ↳ CLI arguments and exit behavior | 634–653 |
-| 8.2 | ↳ JSON and CSV summary input | 654–668 |
-| 8.3 | ↳ URL-opening contract | 669–677 |
-| 9 | Authentication and authorization | 678–714 |
-| 9.1 | ↳ SoundCloud authentication | 680–697 |
-| 9.2 | ↳ Gate action consent | 698–714 |
-| 10 | External integrations | 715–824 |
-| 10.1 | ↳ SoundCloud API and media | 717–728 |
-| 10.2 | ↳ Link hubs and download gates | 729–771 |
-| 10.2 · block | ↳ ↳ Hypeddit | 737–757 |
-| 10.2 · block | ↳ ↳ Other resolvers | 759–764 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 766–771 |
-| 10.3 | ↳ Browsers and clipboard | 772–783 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 784–824 |
-| 11 | Security requirements and threat model | 825–871 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 827–845 |
-| 11.2 | ↳ Secret and personal-data handling | 846–858 |
-| 11.3 | ↳ File and mutation safety | 859–871 |
-| 12 | Privacy, lifecycle, and retention | 872–910 |
-| 12.1 | ↳ Data stored locally | 874–889 |
-| 12.2 | ↳ Data sent to third parties | 890–901 |
-| 12.3 | ↳ User-controlled deletion | 902–910 |
-| 13 | Failure behavior and current limitations | 911–962 |
-| 13.1 | ↳ Error isolation and reporting | 913–932 |
-| 13.2 | ↳ Confirmed limitations | 933–962 |
-| 14 | Verification, CI, and release | 963–1026 |
-| 14.1 | ↳ Offline and live test suites | 965–995 |
-| 14.2 | ↳ Continuous integration and publishing | 996–1011 |
-| 14.3 | ↳ Specification-map verification | 1012–1026 |
-| 15 | Evidence and operational references | 1027–1048 |
-| 15.1 | ↳ Primary implementation evidence | 1029–1041 |
-| 15.2 | ↳ User and historical documentation | 1042–1048 |
+| 3.3 | ↳ TUI crate library and interaction | 215–273 |
+| 3.4 | ↳ Audio preview | 274–310 |
+| 3.5 | ↳ Downloads and local-file matching | 311–338 |
+| 3.6 | ↳ Store purchase assistance | 339–408 |
+| 4 | System context and data flow | 409–445 |
+| 4.1 | ↳ Context diagram | 411–432 |
+| 4.2 | ↳ Collection-to-library flow | 433–445 |
+| 5 | Repository layout and component ownership | 446–491 |
+| 5.1 | ↳ Entry, orchestration, and models | 448–458 |
+| 5.2 | ↳ Network and external-system adapters | 459–477 |
+| 5.3 | ↳ Persistence, local media, and UI | 478–491 |
+| 6 | Runtime architecture and environments | 492–565 |
+| 6.1 | ↳ Runtime and dependencies | 494–507 |
+| 6.2 | ↳ Concurrency and lifecycle | 508–550 |
+| 6.3 | ↳ Local paths and environment variables | 551–565 |
+| 7 | Data model and persistence | 566–634 |
+| 7.1 | ↳ Domain objects and identity | 568–582 |
+| 7.2 | ↳ SQLite schema and invariants | 583–606 |
+| 7.3 | ↳ Crate persistence and deletion | 607–618 |
+| 7.4 | ↳ Configuration and credential stores | 619–634 |
+| 8 | Public interfaces and contracts | 635–680 |
+| 8.1 | ↳ CLI arguments and exit behavior | 637–656 |
+| 8.2 | ↳ JSON and CSV summary input | 657–671 |
+| 8.3 | ↳ URL-opening contract | 672–680 |
+| 9 | Authentication and authorization | 681–717 |
+| 9.1 | ↳ SoundCloud authentication | 683–700 |
+| 9.2 | ↳ Gate action consent | 701–717 |
+| 10 | External integrations | 718–827 |
+| 10.1 | ↳ SoundCloud API and media | 720–731 |
+| 10.2 | ↳ Link hubs and download gates | 732–774 |
+| 10.2 · block | ↳ ↳ Hypeddit | 740–760 |
+| 10.2 · block | ↳ ↳ Other resolvers | 762–767 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 769–774 |
+| 10.3 | ↳ Browsers and clipboard | 775–786 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 787–827 |
+| 11 | Security requirements and threat model | 828–874 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 830–848 |
+| 11.2 | ↳ Secret and personal-data handling | 849–861 |
+| 11.3 | ↳ File and mutation safety | 862–874 |
+| 12 | Privacy, lifecycle, and retention | 875–913 |
+| 12.1 | ↳ Data stored locally | 877–892 |
+| 12.2 | ↳ Data sent to third parties | 893–904 |
+| 12.3 | ↳ User-controlled deletion | 905–913 |
+| 13 | Failure behavior and current limitations | 914–965 |
+| 13.1 | ↳ Error isolation and reporting | 916–935 |
+| 13.2 | ↳ Confirmed limitations | 936–965 |
+| 14 | Verification, CI, and release | 966–1029 |
+| 14.1 | ↳ Offline and live test suites | 968–998 |
+| 14.2 | ↳ Continuous integration and publishing | 999–1014 |
+| 14.3 | ↳ Specification-map verification | 1015–1029 |
+| 15 | Evidence and operational references | 1030–1051 |
+| 15.1 | ↳ Primary implementation evidence | 1032–1044 |
+| 15.2 | ↳ User and historical documentation | 1045–1051 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -223,7 +223,10 @@ Changes to a single
 row (a mark, an opened link, the playing marker, download progress) repaint
 that row in place; the table is rebuilt only when the visible set changes.
 `q` and Ctrl+C both quit; Ctrl+C is bound with priority so it also quits from
-the search box. One job at a time (dig, download batch, bulk open, scan, cart)
+the search box. The store legend in the status bar fits its width the way the footer fits
+its keys: counts are dropped first, then it becomes a window around the
+active store with a clickable `…` at each gap, and hidden stores still answer
+to their number keys. One job at a time (dig, download batch, bulk open, scan, cart)
 reports in the status bar as a spinner with its name, counts, failures, and
 `^X stop`; `ctrl+x` (also bound with priority) cancels it. The table keeps its
 rows during a refresh dig instead of blanking. The search box matches every

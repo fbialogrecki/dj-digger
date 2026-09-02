@@ -46,6 +46,9 @@
 
 ### Fixed
 
+- The store legend in the status bar no longer gets clipped on a narrow
+  terminal: it drops the counts first, then shows a window around the active
+  store with a clickable `…` for the rest, like the footer does with its keys.
 - Bandcamp cart verification now recognises the side cart as Bandcamp renders
   it (a row with the product link and an `x` delete control) and counts its
   rows, instead of looking for a "remove" link and a menubar badge that artist

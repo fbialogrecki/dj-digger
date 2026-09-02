@@ -39,6 +39,12 @@ from .widgets import TrackTable
 
 LOGGER = logging.getLogger(__name__)
 
+# The legend keeps at least this much room beside the counts; under it the
+# counts are dropped instead. Click-region indexes for the "…" markers.
+MIN_LEGEND_WIDTH = 28
+LEGEND_PREVIOUS = -1
+LEGEND_NEXT = -2
+
 
 class RenderMixin:
     """Drawing the table and the status bar, and the marks that change what they say."""
@@ -282,21 +288,25 @@ class RenderMixin:
         if not self.query("#status"):
             return
         bar = self.query_one("#status", Static)
-        stores = self._store_line()
+        width = bar.size.width or self.size.width
         progress = self._progress_line()
+        # The legend is what the number keys are documented by, so it fits
+        # itself into what is left beside the counts (see _store_line) rather
+        # than being clipped. When even that is too little, the counts go -
+        # unless a job is running, when the spinner is the one thing that
+        # must stay visible.
+        beside = width - progress.cell_len - 2
+        stores = self._store_line(beside if beside >= MIN_LEGEND_WIDTH else width)
 
         grid = Table.grid(expand=True)
         grid.add_column(no_wrap=True)
-        # Narrow terminals cannot have both. The legend is what the number keys
-        # are documented by, so the counts are what goes - unless a job is
-        # running, when the spinner is the one thing that must stay visible.
-        if len(stores) + len(progress) + 2 <= bar.size.width:
+        if stores.cell_len + progress.cell_len + 2 <= width:
             grid.add_column(justify="right", no_wrap=True)
             grid.add_row(stores, progress)
         elif self.job is not None or self._digging:
             grid.add_row(progress)
         else:
-            grid.add_row(stores)
+            grid.add_row(self._store_line(width))
         bar.update(grid)
 
     def _progress_line(self) -> Text:
@@ -329,8 +339,14 @@ class RenderMixin:
             pieces.append("imported from a file, press r to complete it")
         return Text(" \u00b7 ".join(pieces), style=self.muted)
 
-    def _store_line(self) -> Text:
-        """The stores in this crate, numbered, so the number keys explain themselves."""
+    def _store_line(self, budget: int | None = None) -> Text:
+        """The stores in this crate, numbered, so the number keys explain themselves.
+
+        Fitted into ``budget`` cells the way the footer fits its keys: first
+        the counts go, then the legend becomes a window around the active
+        store with a clickable ``…`` on the side that hides more. What is
+        hidden still answers to its number key.
+        """
 
         line = Text()
         self._badge_click_regions = []
@@ -347,25 +363,77 @@ class RenderMixin:
             [record for row in self.soft_matching_rows() for record in row.records]
         )
         showing_all = not self.store_filters
+        entries = [(0, "0 all", "", showing_all)]
+        for index, category in enumerate(self.present, start=1):
+            label = f"{index} {category}" if index <= QUICK_FILTER_KEYS else category
+            entries.append(
+                (index, label, f"\u00b7{by_category[category]}", category in self.store_filters)
+            )
+
+        def gaps(shown: list[int]) -> int:
+            """How many "…" markers a window needs: one per skipped stretch."""
+
+            skipped = sum(1 for a, b in zip(shown, shown[1:], strict=False) if b > a + 1)
+            return skipped + (1 if shown[-1] < len(entries) - 1 else 0)
+
+        def cost(shown: list[int], counts: bool) -> int:
+            total = 2  # the leading marker
+            for position in shown:
+                _index, label, count, _active = entries[position]
+                total += 3 + len(label) + (len(count) if counts else 0)
+            return total - 3 + 3 * gaps(shown)
+
+        everything = list(range(len(entries)))
+        counts = True
+        shown = everything
+        if budget is not None and cost(everything, True) > budget:
+            counts = False
+            if cost(everything, False) > budget:
+                # A window around the active store (or "all"), grown one
+                # neighbour at a time, right before left, while it fits.
+                anchor = next((i for i, entry in enumerate(entries) if entry[3] and i), 0)
+                shown = [anchor]
+                if anchor:
+                    shown = [0, anchor]
+                while True:
+                    grown = False
+                    for candidate in (shown[-1] + 1, shown[0] - 1 if shown[0] > 1 else -1):
+                        if 0 < candidate < len(entries) and candidate not in shown:
+                            trial = sorted([*shown, candidate])
+                            if cost(trial, False) <= budget:
+                                shown = trial
+                                grown = True
+                    if not grown:
+                        break
 
         # Click regions are terminal-cell offsets (on_click compares event.x),
         # so spans come from cell_len of what has actually been appended.
         line.append("\u25b8 " if showing_all else "  ", style="bold")
-
-        start = line.cell_len
-        line.append("0 all", style="bold reverse" if showing_all else self.muted)
-        self._badge_click_regions.append((start, line.cell_len, 0))
-
-        for index, category in enumerate(self.present, start=1):
-            active = category in self.store_filters
-            line.append("  \u25b8" if active else "   ", style="bold")
-
-            label = f"{index} {category}" if index <= QUICK_FILTER_KEYS else category
+        previous = -1
+        for position, entry_index in enumerate(shown):
+            index, label, count, active = entries[entry_index]
+            if entry_index > previous + 1:
+                # Stores skipped between the last shown and this one.
+                line.append("  ", style="bold")
+                start = line.cell_len
+                line.append("\u2026", style=self.muted)
+                self._badge_click_regions.append((start, line.cell_len, LEGEND_PREVIOUS))
+            previous = entry_index
+            if position:
+                line.append("  \u25b8" if active else "   ", style="bold")
             start = line.cell_len
-            line.append(label, style="bold reverse cyan" if active else "cyan")
-            line.append(f"\u00b7{by_category[category]}", style=self.muted)
+            if index == 0:
+                line.append(label, style="bold reverse" if active else self.muted)
+            else:
+                line.append(label, style="bold reverse cyan" if active else "cyan")
+                if counts:
+                    line.append(count, style=self.muted)
             self._badge_click_regions.append((start, line.cell_len, index))
-
+        if shown[-1] < len(entries) - 1:
+            line.append("  ", style="bold")
+            start = line.cell_len
+            line.append("\u2026", style=self.muted)
+            self._badge_click_regions.append((start, line.cell_len, LEGEND_NEXT))
         return line
 
     def _mark(self, row: Row, index: int, status: str, message: str) -> None:
