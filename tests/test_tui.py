@@ -34,6 +34,7 @@ from dj_digger.player import (
 from dj_digger.scanner import LocalMatch
 from dj_digger.state import GOT, OPENED, SKIP, TrackState
 from dj_digger.tui import DiggerApp, keymap
+from dj_digger.tui import downloads as tui_downloads
 from dj_digger.tui import opening as opening_module
 from dj_digger.tui.rows import Prepared, Row
 from dj_digger.tui.screens import (
@@ -3546,7 +3547,9 @@ def test_soundcloud_login_refreshes_the_client_then_retries_once(
     assert state.get(record.track.key) == GOT
 
 
-def test_soundcloud_client_refresh_waits_for_every_active_download_worker(state):
+def test_a_soundcloud_login_waits_while_a_download_still_holds_the_client(state):
+    """Closing the client under a download thread is a crash, so the person is asked to retry."""
+
     app = make_app(synthetic_records(1), state)
 
     class Client:
@@ -3557,21 +3560,20 @@ def test_soundcloud_client_refresh_waits_for_every_active_download_worker(state)
 
     client = Client()
     app._client = client
-    resumed = []
+    toasts = []
+    app.notify = lambda message, **kwargs: toasts.append(message)
 
     async def scenario():
-        async with app.run_test() as pilot:
-            app._begin_download_worker()
-            app._request_client_refresh("fresh-token", lambda: resumed.append(True))
-            assert app._client is client
-            assert client.closed is False
-            assert resumed == []
+        async with app.run_test():
+            with app._download_worker():
+                assert app._adopt_login("fresh-token") is False
+                assert app._client is client
+                assert client.closed is False
+                assert toasts == [tui_downloads.LOGIN_WAITS_FOR_DOWNLOADS]
 
-            await asyncio.to_thread(app._end_download_worker)
-            await pilot.pause()
+            assert app._adopt_login("fresh-token") is True
             assert app._client.oauth_token == "fresh-token"
             assert client.closed is True
-            assert resumed == [True]
 
     run(scenario)
 

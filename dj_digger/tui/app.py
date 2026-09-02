@@ -262,11 +262,10 @@ class DiggerApp(
         # Only a batch download builds one. Declared here so the teardown path
         # can ask about it plainly rather than through getattr.
         self._download_executor: ThreadPoolExecutor | None = None
+        # How many download threads hold the SoundCloud client right now: a
+        # fresh login must not close it under them (see downloads._adopt_login).
         self._download_worker_lock = Lock()
         self._active_download_workers = 0
-        self._client_refresh_pending = False
-        self._client_refresh_token: str | None = None
-        self._client_refresh_callbacks: list = []
         # None until the first resize, so the first one always applies.
         self._narrow: bool | None = None
         self.player = Player()
