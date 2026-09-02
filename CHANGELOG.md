@@ -110,6 +110,10 @@
   dropping them.
 - A SoundCloud track URL with query parameters other than `in=` is no longer
   rewritten with a doubled `??`.
+- A gate whose email slide also asks for a name no longer stalls the hidden
+  browser on "Please enter your name.": the name from Settings is filled in
+  with the address, and a profile still carrying the placeholder name sends
+  the row to the window with that reason.
 
 ### Changed
 

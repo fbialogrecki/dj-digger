@@ -5,8 +5,8 @@
 - Product version verified: 0.15.0
 - Owner: Filip Białogrecki
 - Updated: 2026-08-28
-- Document lines: <!-- SPEC TOTAL LINES -->1072<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1072<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1073<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1073<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -81,32 +81,32 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 9 | Authentication and authorization | 690–726 |
 | 9.1 | ↳ SoundCloud authentication | 692–709 |
 | 9.2 | ↳ Gate action consent | 710–726 |
-| 10 | External integrations | 727–848 |
+| 10 | External integrations | 727–849 |
 | 10.1 | ↳ SoundCloud API and media | 729–740 |
-| 10.2 | ↳ Link hubs and download gates | 741–795 |
-| 10.2 · block | ↳ ↳ Hypeddit | 749–781 |
-| 10.2 · block | ↳ ↳ Other resolvers | 783–788 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 790–795 |
-| 10.3 | ↳ Browsers and clipboard | 796–807 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 808–848 |
-| 11 | Security requirements and threat model | 849–895 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 851–869 |
-| 11.2 | ↳ Secret and personal-data handling | 870–882 |
-| 11.3 | ↳ File and mutation safety | 883–895 |
-| 12 | Privacy, lifecycle, and retention | 896–934 |
-| 12.1 | ↳ Data stored locally | 898–913 |
-| 12.2 | ↳ Data sent to third parties | 914–925 |
-| 12.3 | ↳ User-controlled deletion | 926–934 |
-| 13 | Failure behavior and current limitations | 935–986 |
-| 13.1 | ↳ Error isolation and reporting | 937–956 |
-| 13.2 | ↳ Confirmed limitations | 957–986 |
-| 14 | Verification, CI, and release | 987–1050 |
-| 14.1 | ↳ Offline and live test suites | 989–1019 |
-| 14.2 | ↳ Continuous integration and publishing | 1020–1035 |
-| 14.3 | ↳ Specification-map verification | 1036–1050 |
-| 15 | Evidence and operational references | 1051–1072 |
-| 15.1 | ↳ Primary implementation evidence | 1053–1065 |
-| 15.2 | ↳ User and historical documentation | 1066–1072 |
+| 10.2 | ↳ Link hubs and download gates | 741–796 |
+| 10.2 · block | ↳ ↳ Hypeddit | 749–782 |
+| 10.2 · block | ↳ ↳ Other resolvers | 784–789 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 791–796 |
+| 10.3 | ↳ Browsers and clipboard | 797–808 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 809–849 |
+| 11 | Security requirements and threat model | 850–896 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 852–870 |
+| 11.2 | ↳ Secret and personal-data handling | 871–883 |
+| 11.3 | ↳ File and mutation safety | 884–896 |
+| 12 | Privacy, lifecycle, and retention | 897–935 |
+| 12.1 | ↳ Data stored locally | 899–914 |
+| 12.2 | ↳ Data sent to third parties | 915–926 |
+| 12.3 | ↳ User-controlled deletion | 927–935 |
+| 13 | Failure behavior and current limitations | 936–987 |
+| 13.1 | ↳ Error isolation and reporting | 938–957 |
+| 13.2 | ↳ Confirmed limitations | 958–987 |
+| 14 | Verification, CI, and release | 988–1051 |
+| 14.1 | ↳ Offline and live test suites | 990–1020 |
+| 14.2 | ↳ Continuous integration and publishing | 1021–1036 |
+| 14.3 | ↳ Specification-map verification | 1037–1051 |
+| 15 | Evidence and operational references | 1052–1073 |
+| 15.1 | ↳ Primary implementation evidence | 1054–1066 |
+| 15.2 | ↳ User and historical documentation | 1067–1073 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -766,10 +766,11 @@ time - a click-through slide's pending follow/like links are clicked and the
 provider pages they open are closed unread before its Next; a Connect slide
 (Spotify, Deezer, Apple Music, Threads) has its provider popup waited out for
 twenty seconds, a popup back on a Hypeddit host being closed after two
-seconds; the email slide is filled with the configured real address; the
+seconds; the email slide is filled with the configured real address, and with
+the configured name when the slide asks for one (`#email_name`); the
 download slide's button is clicked. A row whose step only a person can finish
-(a provider still asking for a login, a CAPTCHA, a placeholder email, a page
-without known controls) is deferred, and every deferred row of the batch is
+(a provider still asking for a login, a CAPTCHA, a placeholder email, a name
+the profile lacks, a page without known controls) is deferred, and every deferred row of the batch is
 reopened in one visible window where the same driver runs with a five-minute
 provider wait and reports what stopped instead of failing the row. Nothing
 outside Hypeddit's page is ever clicked. A hidden pass always ends five

@@ -8,6 +8,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from dj_digger import gates
+from dj_digger.config import DEFAULT_NAME
 from dj_digger.gates import (
     inspect_link_page,
     resolve_gate_download_url,
@@ -727,7 +728,7 @@ class _Control:
         return self.page.attribute(name, self.slide)
 
     def fill(self, value):
-        self.page.email = value
+        self.page.fill(self.selector, value)
 
     def click(self, timeout=None, force=False):
         self.page.click(self.selector, self.slide)
@@ -757,6 +758,7 @@ class _GatePage:
         captcha=False,
         person_finishes=False,
         late_popup=False,
+        asks_name=False,
     ):
         self.context = context
         self.url = "about:blank"
@@ -766,6 +768,8 @@ class _GatePage:
         self.index = 0
         self.clicked = []
         self.email = None
+        self.name = None
+        self.asks_name = asks_name
         self.polls = 0
         self.popups = []
         self.pending = {n: 1 for n, kind in enumerate(self.steps) if kind in _CLICK_STEPS}
@@ -799,6 +803,8 @@ class _GatePage:
             return 1 if self.kind else 0
         if selector == gates.GATE_PENDING_ACTION:
             return self.pending.get(slide, 0)
+        if selector == gates.GATE_NAME_INPUT:
+            return int(self.asks_name)
         return 1
 
     def visible(self, selector):
@@ -814,6 +820,12 @@ class _GatePage:
         if name == "class":
             return f"{self.steps[slide]} fangate-slider-content"
         return str(slide)
+
+    def fill(self, selector, value):
+        if selector == gates.GATE_EMAIL_INPUT:
+            self.email = value
+        elif selector == gates.GATE_NAME_INPUT:
+            self.name = value
 
     def click(self, selector, slide):
         self.clicked.append((self.kind, selector))
@@ -831,6 +843,8 @@ class _GatePage:
         elif selector == gates.GATE_EMAIL_SUBMIT:
             if self.captcha:
                 self.captcha_shown = True
+            elif self.asks_name and not self.name:
+                pass  # "Please enter your name." - the slide stays.
             else:
                 self.index += 1
         elif selector == gates.HYPEDDIT_DOWNLOAD_BUTTON:
@@ -908,8 +922,9 @@ def _download(name, body):
 
 
 class _Profile:
-    def __init__(self, email, *, real=True):
+    def __init__(self, email, *, real=True, name="DJ Seven"):
         self.user_email = email
+        self.user_name = name
         self.real = real
 
     def has_real_email(self):
@@ -918,6 +933,7 @@ class _Profile:
 
 _DJ = _Profile("dj@example.com")
 _PLACEHOLDER = _Profile("digger@example.invalid", real=False)
+_NAMELESS = _Profile("dj@example.com", name=DEFAULT_NAME)
 _WALKED = [
     gates.GATE_START_BUTTON,
     gates.GATE_PENDING_ACTION,
@@ -1020,6 +1036,45 @@ def test_a_missing_email_is_left_to_the_person_at_the_window(tmp_path, monkeypat
     assert messages == [
         "Opening the browser window for 1 gate: the gate wants an email address and the profile has none",
         "Seven: the gate wants an email address and the profile has none; finish it in the browser window",
+    ]
+    assert path.read_bytes() == b"RIFF-hand"
+
+
+def test_a_gate_that_asks_for_a_name_gets_it_from_the_profile(tmp_path, monkeypatch):
+    launches = _gate_browser(
+        monkeypatch, lambda ctx: _GatePage(ctx, steps=("email", "dw"), asks_name=True)
+    )
+    messages = []
+
+    path = gates.download_hypeddit_in_browser(
+        _track(), "https://hypeddit.com/track/seven", tmp_path, None,
+        status=messages.append, config=_DJ,
+    )
+
+    assert [headless for headless, _context in launches] == [True]
+    page = launches[0][1].pages[0]
+    assert (page.name, page.email) == ("DJ Seven", "dj@example.com")
+    assert messages == []
+    assert path.read_bytes() == b"RIFF-gate"
+
+
+def test_a_missing_name_is_left_to_the_person_at_the_window(tmp_path, monkeypatch):
+    launches = _gate_browser(
+        monkeypatch,
+        lambda ctx: _GatePage(ctx, steps=("email", "dw"), asks_name=True, person_finishes=True),
+    )
+    messages = []
+
+    path = gates.download_hypeddit_in_browser(
+        _track(), "https://hypeddit.com/track/seven", tmp_path, None,
+        status=messages.append, config=_NAMELESS,
+    )
+
+    assert [headless for headless, _context in launches] == [True, False]
+    assert launches[0][1].pages[0].email is None, "nothing is typed before the name stops it"
+    assert messages == [
+        "Opening the browser window for 1 gate: the gate wants a name and the profile has none",
+        "Seven: the gate wants a name and the profile has none; finish it in the browser window",
     ]
     assert path.read_bytes() == b"RIFF-hand"
 

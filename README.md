@@ -313,9 +313,9 @@ provider login), a hidden browser walks the gate's own step slides for you:
 it ticks the follow and like links (closing the provider pages they open,
 unread), presses the Connect of a Spotify step - whose login popup comes back
 by itself once you have signed in to Spotify in that profile - fills the email
-slide with the address from Settings, and presses Download. Only a step no
-program can do alone - a provider asking you to sign in, a CAPTCHA, a missing
-email - opens a window, where the same driver keeps walking the steps before
+slide with the address from Settings (and the name, when the gate asks for
+one), and presses Download. Only a step no program can do alone - a provider
+asking you to sign in, a CAPTCHA, a missing email or name - opens a window, where the same driver keeps walking the steps before
 and after the one that needs you. Sign in to Spotify there once and later
 gates finish out of sight. Nothing outside the Hypeddit page is clicked.
 Disable **gate social actions** in Settings to keep the program from

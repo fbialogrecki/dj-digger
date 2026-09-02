@@ -21,7 +21,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from .browser import REQUEST_HEADERS, UnsafeRedirect, follow_redirects, is_fetchable
-from .config import AppConfig
+from .config import DEFAULT_NAME, AppConfig
 from .links import SHOP_CATEGORIES, host_of, is_hypeddit_url, redact_url, store_for_url
 
 LOGGER = logging.getLogger(__name__)
@@ -709,6 +709,10 @@ GATE_NEXT_BUTTON = ".button-next:visible"
 # its own when the profile is signed in there.
 GATE_CONNECT_BUTTON = "a.hype-btn-social:visible"
 GATE_EMAIL_INPUT = "#email_address"
+# Some gates also want a name on the email slide: hypeddit.com/js/unlimited/
+# verify-email-ul.js refuses to move on while an empty #email_name is present
+# ("Please enter your name."), checked 2026-09-02.
+GATE_NAME_INPUT = "#email_name"
 GATE_EMAIL_SUBMIT = ".email_to_downloads"
 GATE_CAPTCHA = "#gatePreviewCaptcha"
 HYPEDDIT_DOWNLOAD_BUTTON = "#gateDownloadButton, .hype-btn-download, #download-btn"
@@ -768,6 +772,7 @@ def _drive_gate_steps(
     *,
     social: bool,
     email: str | None,
+    name: str | None,
     attended: bool,
 ) -> bool:
     """Walk the gate's step slides the way a fan does, then press its Download.
@@ -804,7 +809,7 @@ def _drive_gate_steps(
         if kind in GATE_CONNECT_STEPS:
             _connect_provider(context, page, slide.locator, cancel, status, attended=attended)
         elif kind == "email":
-            _share_email(slide.locator, email)
+            _share_email(slide.locator, email, name)
         elif kind in CLICK_THROUGH_STEPS:
             _click_through(context, page, slide.locator)
         else:
@@ -872,9 +877,13 @@ def _close_popups(context: Any, page: Any, before: list[Any], *, wait: bool) -> 
         page.wait_for_timeout(250)
 
 
-def _share_email(slide: Any, email: str | None) -> None:
+def _share_email(slide: Any, email: str | None, name: str | None) -> None:
     if not email:
         raise _NeedsPerson("the gate wants an email address and the profile has none")
+    if slide.locator(GATE_NAME_INPUT).count():
+        if not name:
+            raise _NeedsPerson("the gate wants a name and the profile has none")
+        slide.locator(GATE_NAME_INPUT).first.fill(name)
     slide.locator(GATE_EMAIL_INPUT).first.fill(email)
     slide.locator(GATE_EMAIL_SUBMIT).first.click(**_CLICK)
 
@@ -985,6 +994,13 @@ def _gate_email(config: Any | None) -> str | None:
 
     config = config_or_default(config)
     return str(config.user_email) if config.has_real_email() else None
+
+
+def _gate_name(config: Any | None) -> str | None:
+    """The name the gate's email slide gets, or None while it is the placeholder."""
+
+    name = str(config_or_default(config).user_name).strip()
+    return name if name and name != DEFAULT_NAME else None
 
 
 def download_hypeddit_in_browser(
@@ -1175,6 +1191,7 @@ def _drive_tab(
     *,
     social: bool,
     email: str | None,
+    name: str | None,
     attended: bool,
 ) -> bool:
     """Drive one tab's steps. True when the batch was cancelled meanwhile.
@@ -1186,7 +1203,7 @@ def _drive_tab(
 
     try:
         if not _drive_gate_steps(
-            context, page, watch.cancel, status, social=social, email=email, attended=attended
+            context, page, watch.cancel, status, social=social, email=email, name=name, attended=attended
         ) and not attended:
             raise _NeedsPerson("the gate page has no step controls this program knows")
     except Exception as exc:
@@ -1209,6 +1226,7 @@ def _await_downloads(
     *,
     social: bool,
     email: str | None,
+    name: str | None,
     attended: bool,
     time_limit: float | None,
 ) -> bool:
@@ -1229,7 +1247,7 @@ def _await_downloads(
             cancelled = True
             break
         if _drive_tab(
-            context, key, page, watch, status, social=social, email=email, attended=attended
+            context, key, page, watch, status, social=social, email=email, name=name, attended=attended
         ):
             cancelled = True
             break
@@ -1274,6 +1292,7 @@ def _browser_pass(
     hidden: bool,
     social: bool,
     email: str | None,
+    name: str | None,
     time_limit: float | None,
 ) -> bool:
     """Open ``rows`` in one context, hidden or in a window, and see them through.
@@ -1298,6 +1317,7 @@ def _browser_pass(
                 status,
                 social=social,
                 email=email,
+                name=name,
                 attended=not hidden,
                 time_limit=PROVIDER_WAIT_SECONDS if hidden else time_limit,
             )
@@ -1345,7 +1365,7 @@ def download_hypeddit_batch_in_browser(
 
     from . import auth
 
-    email = _gate_email(config)
+    email, name = _gate_email(config), _gate_name(config)
     watch = _TabWatch(pending, directory, cancel, failures)
     if not auth.BROWSER_PROFILE_LOCK.acquire(blocking=False):
         error = GateUnavailable("The private browser profile is already in use")
@@ -1353,7 +1373,7 @@ def download_hypeddit_batch_in_browser(
         return watch.result(cancelled=False)
     try:
         cancelled = _browser_pass(
-            watch, pending, status, hidden=True, social=social, email=email, time_limit=None
+            watch, pending, status, hidden=True, social=social, email=email, name=name, time_limit=None
         )
         if watch.deferred and not cancelled:
             reasons, watch.deferred = watch.deferred, {}
@@ -1366,6 +1386,7 @@ def download_hypeddit_batch_in_browser(
                 hidden=False,
                 social=social,
                 email=email,
+                name=name,
                 time_limit=time_limit,
             )
         watch.fail_deferred("browser batch cancelled")
