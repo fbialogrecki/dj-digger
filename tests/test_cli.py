@@ -41,15 +41,6 @@ def test_version_flag_prints_version(flag, capsys):
     assert cli.__version__ in out
 
 
-@pytest.fixture(autouse=True)
-def no_real_exit(monkeypatch):
-    """run_tui may end the process when a thread lingers; never from a test."""
-
-    from dj_digger import tui
-
-    monkeypatch.setattr(tui, "HARD_EXIT", lambda code: (_ for _ in ()).throw(AssertionError(f"hard exit {code}")))
-
-
 def test_a_bare_link_is_dug():
     args = cli.parse_cli_args(["https://soundcloud.com/a/sets/b"])
     assert args.command == "dig"

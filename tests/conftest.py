@@ -53,6 +53,23 @@ def isolate_user_data(tmp_path, monkeypatch):
     monkeypatch.setattr(auth, "AUTH_FILE", tmp_path / "auth" / "auth.json")
 
 
+@pytest.fixture(autouse=True)
+def no_real_exit(monkeypatch):
+    """run_tui may end the process when a thread lingers; never from a test.
+
+    The exit codes are recorded rather than raised, so a test about that very
+    shutdown can read them back - and must clear what it expected, because
+    anything still in the list at teardown fails the test.
+    """
+
+    from dj_digger import tui
+
+    exits: list[int] = []
+    monkeypatch.setattr(tui, "HARD_EXIT", exits.append)
+    yield exits
+    assert exits == [], f"run_tui hard-exited with {exits}"
+
+
 def load_fixture(name: str) -> Any:
     return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
 

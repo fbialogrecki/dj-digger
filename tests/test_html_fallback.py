@@ -1,14 +1,6 @@
-import json
+from helpers import page_with_hydration
 
 from dj_digger import html_fallback
-
-
-def page_with_hydration(payload: list) -> str:
-    return (
-        "<html><head><title>My Set | SoundCloud</title></head><body>"
-        "<script>window.__sc_hydration = " + json.dumps(payload) + ";</script>"
-        "</body></html>"
-    )
 
 
 def test_hydration_gives_every_track_id_in_playlist_order():

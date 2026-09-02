@@ -1,27 +1,15 @@
-import json
 import threading
 
 import pytest
+from helpers import a_crate, page_with_hydration
 
 from dj_digger import dig, gates
-from dj_digger.models import Cancelled, Crate, Track
-
-
-def a_crate(count=1):
-    return Crate(
-        source="x",
-        tracks=[
-            Track(title=f"T{index}", permalink_url=f"https://soundcloud.com/a/{index}")
-            for index in range(count)
-        ],
-    )
+from dj_digger.models import Cancelled, Track
 
 
 def page_with_ids(*ids):
-    payload = [{"hydratable": "playlist", "data": {"track_count": len(ids), "tracks": [{"id": i} for i in ids]}}]
-    return (
-        "<html><head><title>Saved | SoundCloud</title></head><body><script>"
-        "window.__sc_hydration = " + json.dumps(payload) + ";</script></body></html>"
+    return page_with_hydration(
+        [{"hydratable": "playlist", "data": {"track_count": len(ids), "tracks": [{"id": i} for i in ids]}}]
     )
 
 

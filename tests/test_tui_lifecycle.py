@@ -4,18 +4,7 @@ import signal
 import threading
 from threading import Event
 
-import pytest
-
 from dj_digger import tui
-
-
-@pytest.fixture(autouse=True)
-def no_real_exit(monkeypatch):
-    """A regression here must fail a test, not end the pytest process."""
-
-    exits = []
-    monkeypatch.setattr(tui, "HARD_EXIT", lambda code: exits.append(code))
-    return exits
 
 
 def test_run_tui_returns_normally_when_no_thread_lingers(monkeypatch, no_real_exit):
@@ -45,6 +34,7 @@ def test_run_tui_forces_exit_when_a_thread_lingers(monkeypatch, no_real_exit):
         release.set()
 
     assert no_real_exit == [0]
+    no_real_exit.clear()  # the exit was the point; conftest's teardown expects none
 
 
 def test_a_sigint_after_the_terminal_is_restored_hard_exits(monkeypatch, no_real_exit):
@@ -58,4 +48,5 @@ def test_a_sigint_after_the_terminal_is_restored_hard_exits(monkeypatch, no_real
     tui.run_tui(grace=0.05)
 
     assert no_real_exit == [130]
+    no_real_exit.clear()
     assert signal.getsignal(signal.SIGINT) is before, "the handler is put back"
