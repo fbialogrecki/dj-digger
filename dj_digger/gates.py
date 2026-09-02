@@ -566,6 +566,63 @@ def _complete_social_steps(manifest: HypedditManifest, social_steps: list[str]) 
     return skipped
 
 
+def _unlock_payload(
+    manifest: HypedditManifest, config: Any, skipped: list[str], social: bool
+) -> dict[str, Any]:
+    """The /gate/download/ul form, exactly as the desktop web flow sends it."""
+
+    comment = config.random_comment() if social else ""
+    # The fixed values below ("time": 0, "page": "nonsingle" - not a typo,
+    # "download_visit": "true") mirror what the desktop web flow sends verbatim;
+    # the endpoint rejects requests that deviate from them.
+    return {
+        "file": urllib.parse.quote(manifest.file_id, safe=""),
+        "download_visit": "true",
+        "profile_downloads": "true",
+        "time": 0,
+        "sc_comment_text": comment if manifest.sc_comment_required else "",
+        "yt_comment_text": comment if manifest.yt_comment_required else "",
+        "page": "nonsingle",
+        "is_skippable": manifest.is_skippable,
+        "steps": ",".join(manifest.steps),
+        "email": config.user_email if "email" in manifest.steps else "",
+        "download_action": "DOWNLOAD",
+        "skip_gate_steps[]": skipped,
+        "wrndk": manifest.wrndk,
+        "is_mobile": manifest.is_mobile,
+        "external_id": manifest.external_id,
+        "hypesource": manifest.hypesource,
+        "adcode": manifest.adcode,
+        "lifetime_fan_spotify": "0",
+        "lifetime_fan_deezer": "0",
+        "lifetime_fan_apple": "0",
+        "gvf": manifest.gvf,
+        **{name: list(values) for name, values in manifest.fields.items()},
+    }
+
+
+def _ping_telemetry(
+    session: requests.Session,
+    manifest: HypedditManifest,
+    headers: dict[str, str],
+    url: str,
+    timeout: float,
+) -> None:
+    """The page's own visit ping. Best effort: it never blocks the download."""
+
+    if not manifest.gvt:
+        return
+    try:
+        session.post(
+            "https://hypeddit.com/gate/ge",
+            data={"vt": manifest.gvt, "uid": manifest.file_id},
+            headers=headers,
+            timeout=timeout,
+        )
+    except requests.RequestException:
+        LOGGER.debug("Hypeddit telemetry failed for %s", redact_url(url))
+
+
 def _post_download(
     session: requests.Session,
     manifest: HypedditManifest,
@@ -593,45 +650,9 @@ def _post_download(
     if manifest.csrf:
         ajax_headers["X-CSRF-TOKEN"] = manifest.csrf
 
-    comment = config.random_comment() if social else ""
-    # The fixed values below ("time": 0, "page": "nonsingle" - not a typo,
-    # "download_visit": "true") mirror what the desktop web flow sends verbatim;
-    # the endpoint rejects requests that deviate from them.
-    payload: dict[str, Any] = {
-        "file": urllib.parse.quote(manifest.file_id, safe=""),
-        "download_visit": "true",
-        "profile_downloads": "true",
-        "time": 0,
-        "sc_comment_text": comment if manifest.sc_comment_required else "",
-        "yt_comment_text": comment if manifest.yt_comment_required else "",
-        "page": "nonsingle",
-        "is_skippable": manifest.is_skippable,
-        "steps": ",".join(manifest.steps),
-        "email": config.user_email if "email" in manifest.steps else "",
-        "download_action": "DOWNLOAD",
-        "skip_gate_steps[]": skipped,
-        "wrndk": manifest.wrndk,
-        "is_mobile": manifest.is_mobile,
-        "external_id": manifest.external_id,
-        "hypesource": manifest.hypesource,
-        "adcode": manifest.adcode,
-        "lifetime_fan_spotify": "0",
-        "lifetime_fan_deezer": "0",
-        "lifetime_fan_apple": "0",
-        "gvf": manifest.gvf,
-        **{name: list(values) for name, values in manifest.fields.items()},
-    }
+    payload = _unlock_payload(manifest, config, skipped, social)
     try:
-        if manifest.gvt:
-            try:
-                session.post(
-                    "https://hypeddit.com/gate/ge",
-                    data={"vt": manifest.gvt, "uid": manifest.file_id},
-                    headers=ajax_headers,
-                    timeout=timeout,
-                )
-            except requests.RequestException:
-                LOGGER.debug("Hypeddit telemetry failed for %s", redact_url(url))
+        _ping_telemetry(session, manifest, ajax_headers, url, timeout)
         result = _post_unlock(session, payload, ajax_headers, timeout)
         if _refused(result) and skipped and payload["is_skippable"] != "1":
             LOGGER.debug("Hypeddit refused %s; retrying as a skipped gate", redact_url(url))
