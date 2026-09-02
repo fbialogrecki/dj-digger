@@ -14,6 +14,7 @@ import logging
 import os
 import sys
 from collections.abc import Sequence
+from dataclasses import asdict
 from pathlib import Path
 
 from rich.console import Console
@@ -179,12 +180,12 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _run_tui(*args, **kwargs) -> None:
+def _run_tui(args: argparse.Namespace, records: Sequence[LinkRecord], **kwargs) -> None:
     # Imported here rather than at module top on purpose: textual and its
     # dependency tree stay entirely off the --no-tui and export-only paths.
     from .tui import run_tui
 
-    run_tui(*args, **kwargs)
+    run_tui(records, state=TrackState(), keep_logging=bool(args.log_file), **kwargs)
 
 
 def inject_default_command(argv: Sequence[str]) -> list[str]:
@@ -213,20 +214,17 @@ def _progress(console: Console) -> Progress:
     )
 
 
-def _dig_with_progress(target: str, args: argparse.Namespace, console: Console) -> Crate:
+def _dig_with_progress(
+    target: str, options: dig_module.DigOptions, console: Console
+) -> Crate:
     with _progress(console) as progress:
         task = progress.add_task(dig_module.STAGE_LINK, total=None)
 
         def on_progress(stage: str, done: int, total: int | None) -> None:
             progress.update(task, description=stage, completed=done, total=total)
 
-        return dig_module.dig(
-            target,
-            limit=args.limit,
-            timeout=args.timeout,
-            delay=args.delay,
-            on_progress=on_progress,
-        )
+        # DigOptions is dig()'s keyword arguments, bundled.
+        return dig_module.dig(target, on_progress=on_progress, **asdict(options))
 
 
 def _print_summary(
@@ -261,6 +259,7 @@ def _dig_options(args: argparse.Namespace) -> dig_module.DigOptions:
 
 def handle_dig(args: argparse.Namespace) -> int:
     console = Console(stderr=True)
+    options = _dig_options(args)
 
     if args.target is None:
         if not _should_use_tui(args):
@@ -269,16 +268,15 @@ def handle_dig(args: argparse.Namespace) -> int:
                 "to be asked for one."
             )
         _run_tui(
+            args,
             [],
-            state=TrackState(),
             export_format=args.export_format,
             export_path=args.output,
-            dig_options=_dig_options(args),
-            keep_logging=bool(args.log_file),
+            dig_options=options,
         )
         return 0
 
-    crate = _dig_with_progress(str(args.target), args, console)
+    crate = _dig_with_progress(str(args.target), options, console)
 
     if not crate.tracks:
         LOGGER.warning("No tracks found behind '%s'.", args.target)
@@ -303,14 +301,13 @@ def handle_dig(args: argparse.Namespace) -> int:
 
     if _should_use_tui(args):
         _run_tui(
+            args,
             records,
-            state=TrackState(),
             crate_title=crate.title,
             export_format=args.export_format,
             export_path=export_path or args.output,
-            dig_options=_dig_options(args),
+            dig_options=options,
             crate_record=record,
-            keep_logging=bool(args.log_file),
         )
     return 0
 
@@ -377,16 +374,15 @@ def handle_open(args: argparse.Namespace) -> int:
     )
 
     _run_tui(
+        args,
         # Re-derived from the URLs rather than trusting the category names in
         # the file, so a summary written by an older version still groups the
         # way this one does.
         links.categorise_all(record.active_tracks),
-        state=TrackState(),
         crate_title=record.title,
         export_format="json",
         export_path=path,
         crate_record=record,
-        keep_logging=bool(args.log_file),
     )
     return 0
 
@@ -589,7 +585,3 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 130
 
     return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
