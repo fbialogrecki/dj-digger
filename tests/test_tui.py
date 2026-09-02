@@ -15,7 +15,7 @@ from textual import events
 from textual.coordinate import Coordinate
 from textual.widgets import Button, DataTable, Input, Label, ListView, Select, Static
 
-from dj_digger import cart, gates, library, links, soundcloud, tui
+from dj_digger import cart, gates, library, links, soundcloud
 from dj_digger.config import AppConfig
 from dj_digger.dig import DigOptions, TargetNotFound
 from dj_digger.models import Cancelled, Crate, LinkRecord, Track
@@ -33,20 +33,21 @@ from dj_digger.player import (
 )
 from dj_digger.scanner import LocalMatch
 from dj_digger.state import GOT, OPENED, SKIP, TrackState
-from dj_digger.tui import (
+from dj_digger.tui import DiggerApp, keymap
+from dj_digger.tui import opening as opening_module
+from dj_digger.tui.rows import Prepared, Row
+from dj_digger.tui.screens import (
     AskLinkScreen,
     CartPlanScreen,
     CartResultScreen,
     ConfirmScreen,
     ContextMenuScreen,
-    DiggerApp,
-    ErrorBanner,
     GateProfileScreen,
     HelpScreen,
     SettingsScreen,
     SoundCloudAuthScreen,
 )
-from dj_digger.tui import opening as opening_module
+from dj_digger.tui.widgets import CrateButton, CrateItem, ErrorBanner, TrackTable
 
 
 def run(scenario):
@@ -225,9 +226,9 @@ def test_help_documents_every_key(records, state):
             assert isinstance(app.screen, HelpScreen)
 
             text = str(app.screen.query_one(Static).render())
-            for _key, _action, _label, _group, _show, detail in tui.KEYMAP:
+            for _key, _action, _label, _group, _show, detail in keymap.KEYMAP:
                 assert detail in text
-            for section in (tui.SELECTED, tui.WHOLE_LIST, tui.CRATES, tui.OTHER):
+            for section in (keymap.SELECTED, keymap.WHOLE_LIST, keymap.CRATES, keymap.OTHER):
                 assert section in text
 
             await pilot.press("escape")
@@ -351,7 +352,7 @@ def test_open_beatport_tracks_opens_only_exact_track_urls(state, monkeypatch):
             kwargs["on_success"](index, url)
         return len(urls)
 
-    monkeypatch.setattr("dj_digger.tui.browser_module.open_urls", fake_open_urls)
+    monkeypatch.setattr("dj_digger.browser.open_urls", fake_open_urls)
     app = make_app(records, state)
     toasts = []
     app.notify = lambda message, **kwargs: toasts.append(message)
@@ -372,7 +373,7 @@ def test_open_beatport_tracks_asks_above_the_threshold(state, monkeypatch):
     records = [_beatport_record(n, f"https://www.beatport.com/track/t{n}/{100 + n}") for n in range(25)]
     opened = []
     monkeypatch.setattr(
-        "dj_digger.tui.browser_module.open_urls",
+        "dj_digger.browser.open_urls",
         lambda urls, browser="default", **kwargs: opened.extend(urls) or len(urls),
     )
     app = make_app(records, state)
@@ -401,7 +402,7 @@ def test_readme_lists_every_keymap_key():
         encoding="utf-8"
     ).lower()
     missing = []
-    for key, *_rest in tui.KEYMAP:
+    for key, *_rest in keymap.KEYMAP:
         shown = KEY_DISPLAY.get(key, key)
         for token in shown.split(", "):
             candidates = {f"`{token.lower()}`", f"`{key.lower()}`"}
@@ -604,7 +605,7 @@ def test_unmarking_clears_the_status(records, state):
 def test_opening_a_link_marks_it_opened(records, state, monkeypatch):
     opened = []
     monkeypatch.setattr(
-        "dj_digger.tui.browser_module.open_url",
+        "dj_digger.browser.open_url",
         lambda url, browser="default": opened.append(url) or True,
     )
     app = make_app(records, state)
@@ -622,7 +623,7 @@ def test_opening_a_link_repaints_only_that_row(records, state, monkeypatch):
     """A rebuilt table flickers and loses the scroll; one row changed, so paint one."""
 
     monkeypatch.setattr(
-        "dj_digger.tui.browser_module.open_url", lambda url, browser="default": True
+        "dj_digger.browser.open_url", lambda url, browser="default": True
     )
     app = make_app(records, state)
     clears = []
@@ -677,7 +678,7 @@ def test_a_slow_browser_does_not_block_the_interface(records, state, monkeypatch
 
     release = Event()
     monkeypatch.setattr(
-        "dj_digger.tui.browser_module.open_url",
+        "dj_digger.browser.open_url",
         lambda url, browser="default": release.wait(5),
     )
     app = make_app(records, state)
@@ -702,7 +703,7 @@ def test_enter_opens_the_link_exactly_once(records, state, monkeypatch):
 
     opened = []
     monkeypatch.setattr(
-        "dj_digger.tui.browser_module.open_url",
+        "dj_digger.browser.open_url",
         lambda url, browser="default": opened.append(url) or True,
     )
     app = make_app(records, state)
@@ -718,7 +719,7 @@ def test_enter_opens_the_link_exactly_once(records, state, monkeypatch):
 def test_single_click_only_selects_the_track(records, state, monkeypatch):
     opened = []
     monkeypatch.setattr(
-        "dj_digger.tui.browser_module.open_url",
+        "dj_digger.browser.open_url",
         lambda url, browser="default": opened.append(url) or True,
     )
     app = make_app(records, state)
@@ -742,7 +743,7 @@ def test_right_click_opens_the_track_menu_without_opening_a_link(
 ):
     opened = []
     monkeypatch.setattr(
-        "dj_digger.tui.browser_module.open_url",
+        "dj_digger.browser.open_url",
         lambda url, browser="default": opened.append(url) or True,
     )
     records = synthetic_records(2)
@@ -1429,7 +1430,7 @@ def test_open_all_asks_before_flooding_the_browser(state, monkeypatch):
 
     opened = []
     monkeypatch.setattr(
-        "dj_digger.tui.browser_module.open_urls",
+        "dj_digger.browser.open_urls",
         lambda urls, browser="default", **kwargs: opened.extend(urls) or len(urls),
     )
     app = make_app(synthetic_records(25), state)
@@ -1447,7 +1448,7 @@ def test_open_all_asks_before_flooding_the_browser(state, monkeypatch):
 def test_open_all_goes_straight_through_for_a_short_list(state, monkeypatch):
     opened = []
     monkeypatch.setattr(
-        "dj_digger.tui.browser_module.open_urls",
+        "dj_digger.browser.open_urls",
         lambda urls, browser="default", **kwargs: opened.extend(urls) or len(urls),
     )
     app = make_app(synthetic_records(3), state)
@@ -1856,7 +1857,7 @@ def test_each_crate_row_carries_its_own_buttons(state, monkeypatch, intent, expe
     async def scenario():
         async with app.run_test() as pilot:
             await pilot.pause()
-            items = list(app.query(tui.CrateItem))
+            items = list(app.query(CrateItem))
             assert len(items) == 2
             # Icons only exist on the row you are pointing at.
             app.query_one("#crates", ListView).index = 1
@@ -1864,7 +1865,7 @@ def test_each_crate_row_carries_its_own_buttons(state, monkeypatch, intent, expe
             button = next(
                 child
                 for child in items[1].children
-                if isinstance(child, tui.CrateButton) and child.intent == intent
+                if isinstance(child, CrateButton) and child.intent == intent
             )
             button.press()
             await pilot.pause()
@@ -1885,9 +1886,9 @@ def test_crate_icons_keep_out_of_the_way_of_the_name(state):
             await pilot.pause()
             app.query_one("#crates", ListView).index = 0
             await pilot.pause()
-            items = list(app.query(tui.CrateItem))
+            items = list(app.query(CrateItem))
             shown = [
-                [child.display for child in item.children if isinstance(child, tui.CrateButton)]
+                [child.display for child in item.children if isinstance(child, CrateButton)]
                 for item in items
             ]
             assert shown == [[True, True], [False, False]]
@@ -2156,10 +2157,10 @@ def test_the_title_column_takes_the_width_left_over(state):
     async def scenario():
         async with app.run_test(size=(160, 24)) as pilot:
             await pilot.pause()
-            table = app.query_one("#tracks", tui.TrackTable)
+            table = app.query_one("#tracks", TrackTable)
             spent = sum(column.get_render_width(table) for column in table.columns.values())
             assert spent == table.size.width
-            assert table.columns[table.flexible_column].width > tui.MIN_TITLE_WIDTH
+            assert table.columns[table.flexible_column].width > keymap.MIN_TITLE_WIDTH
 
     run(scenario)
 
@@ -2172,7 +2173,7 @@ def test_an_80_column_terminal_needs_no_horizontal_scrollbar(state):
     async def scenario():
         async with app.run_test(size=(80, 24)) as pilot:
             await pilot.pause()
-            table = app.query_one("#tracks", tui.TrackTable)
+            table = app.query_one("#tracks", TrackTable)
             # Enough rows for a vertical scrollbar, whose two columns the title
             # has to leave alone.
             assert table.show_vertical_scrollbar
@@ -2214,7 +2215,7 @@ def test_folding_the_sidebar_gives_the_title_more_room(state):
     async def scenario():
         async with app.run_test(size=(160, 24)) as pilot:
             await pilot.pause()
-            table = app.query_one("#tracks", tui.TrackTable)
+            table = app.query_one("#tracks", TrackTable)
             before = table.columns[table.flexible_column].width
             await pilot.press("ctrl+b")
             await pilot.pause()
@@ -2479,7 +2480,7 @@ def test_the_playing_row_carries_a_marker(state, monkeypatch):
             await pilot.press("space")
             await pilot.pause()
             markers = [str(table.get_row_at(index)[0]) for index in range(3)]
-            assert markers == [" " + tui.PLAYING_GLYPH, "  ", "  "]
+            assert markers == [" " + keymap.PLAYING_GLYPH, "  ", "  "]
 
     run(scenario)
 
@@ -2534,7 +2535,7 @@ class FakeSource:
 
 def prepared_for(app, index, source=None):
     track = app.visible_rows[index].track
-    return tui.Prepared(track=track, stream=a_stream(), waveform=[1, 2], source=source)
+    return Prepared(track=track, stream=a_stream(), waveform=[1, 2], source=source)
 
 
 def test_the_next_track_is_got_ready_before_this_one_ends(state, monkeypatch):
@@ -2689,15 +2690,15 @@ def test_marking_a_track_lights_the_row_then_lets_it_settle(state):
 
     async def scenario():
         async with app.run_test() as pilot:
-            table = app.query_one("#tracks", tui.TrackTable)
+            table = app.query_one("#tracks", TrackTable)
             await pilot.press("g")
             await pilot.pause()
-            lit = app.role(tui.STATUS_STYLES[GOT][1])
+            lit = app.role(keymap.STATUS_STYLES[GOT][1])
             row_cells = table.get_row_at(0)
             if len(row_cells) > TITLE_CELL and row_cells[TITLE_CELL].spans:
                 assert str(row_cells[TITLE_CELL].spans[-1].style) == lit
 
-            await pilot.pause(tui.FLASH + 0.1)
+            await pilot.pause(keymap.FLASH + 0.1)
             assert lit not in styles_on(table, 0)
             assert str(table.get_row_at(0)[MARK_CELL]) == "\u2713"
 
@@ -2711,7 +2712,7 @@ def test_marking_a_track_does_not_redraw_the_whole_table(state, monkeypatch):
 
     async def scenario():
         async with app.run_test() as pilot:
-            table = app.query_one("#tracks", tui.TrackTable)
+            table = app.query_one("#tracks", TrackTable)
             rebuilds = []
             monkeypatch.setattr(table, "clear", lambda *a, **k: rebuilds.append(1))
 
@@ -2729,7 +2730,7 @@ def test_download_progress_does_not_move_the_viewport(state, monkeypatch):
 
     async def scenario():
         async with app.run_test(size=(100, 24)) as pilot:
-            table = app.query_one("#tracks", tui.TrackTable)
+            table = app.query_one("#tracks", TrackTable)
             table.move_cursor(row=30)
             await scroll_table(pilot, table, 20)
             cursor = table.cursor_row
@@ -2762,7 +2763,7 @@ def test_batch_progress_repaints_every_row_waiting_for_the_throttle(state):
             app._last_progress_redraw = 0
             app._update_track_progress(first.track.key, 0.42)
 
-            table = app.query_one("#tracks", tui.TrackTable)
+            table = app.query_one("#tracks", TrackTable)
             assert "[42%]" in str(table.get_row_at(0)[TITLE_CELL])
             assert "[37%]" in str(table.get_row_at(1)[TITLE_CELL])
 
@@ -3630,7 +3631,7 @@ def test_download_results_do_not_move_the_viewport(state, monkeypatch, tmp_path,
 
     async def scenario():
         async with app.run_test(size=(100, 24)) as pilot:
-            table = app.query_one("#tracks", tui.TrackTable)
+            table = app.query_one("#tracks", TrackTable)
             table.move_cursor(row=30)
             await scroll_table(pilot, table, 20)
             row = app.visible_rows[35]
@@ -3673,7 +3674,7 @@ def test_hidden_completion_outside_the_current_view_does_not_rebuild(state, monk
             app.search_term = "Track 3"
             app.hide_handled = True
             app.refresh_rows(keep_cursor=False)
-            table = app.query_one("#tracks", tui.TrackTable)
+            table = app.query_one("#tracks", TrackTable)
             rebuilds = []
             monkeypatch.setattr(table, "clear", lambda *a, **k: rebuilds.append(1))
 
@@ -3691,7 +3692,7 @@ def test_refresh_rows_preserves_the_viewport(state, cursor_row, scroll_y):
 
     async def scenario():
         async with app.run_test(size=(100, 24)) as pilot:
-            table = app.query_one("#tracks", tui.TrackTable)
+            table = app.query_one("#tracks", TrackTable)
             table.move_cursor(row=cursor_row)
             await scroll_table(pilot, table, scroll_y)
             cursor = table.cursor_row
@@ -3711,7 +3712,7 @@ def test_refresh_rows_keeps_the_same_tracks_after_rows_above_are_removed(state):
 
     async def scenario():
         async with app.run_test(size=(100, 24)) as pilot:
-            table = app.query_one("#tracks", tui.TrackTable)
+            table = app.query_one("#tracks", TrackTable)
             table.move_cursor(row=45)
             await scroll_table(pilot, table, 40)
             cursor_key = app.visible_rows[table.cursor_row].track.key
@@ -3733,7 +3734,7 @@ def test_back_to_back_refreshes_keep_the_same_tracks(state):
 
     async def scenario():
         async with app.run_test(size=(100, 24)) as pilot:
-            table = app.query_one("#tracks", tui.TrackTable)
+            table = app.query_one("#tracks", TrackTable)
             table.move_cursor(row=10)
             await scroll_table(pilot, table, 40)
             cursor_key = app.visible_rows[table.cursor_row].track.key
@@ -3831,9 +3832,9 @@ def test_turning_animation_off_slows_the_frame_timer_down(state):
     async def scenario():
         async with app.run_test():
             app.animation_level = "full"
-            assert app.frame_interval == tui.TICK
+            assert app.frame_interval == keymap.TICK
             app.animation_level = "none"
-            assert app.frame_interval == tui.CALM_TICK
+            assert app.frame_interval == keymap.CALM_TICK
 
     run(scenario)
 
@@ -3994,14 +3995,14 @@ def test_digging_shows_something_turning(state, monkeypatch):
             app._digging = True
             app._dig_message = "Fetching tracks 3/9"
 
-            app._frame = tui.SPINNER_EVERY - 1
+            app._frame = keymap.SPINNER_EVERY - 1
             app._tick()
             first = bar_text(app)
-            app._frame = 2 * tui.SPINNER_EVERY - 1
+            app._frame = 2 * keymap.SPINNER_EVERY - 1
             app._tick()
 
             assert "Fetching tracks 3/9" in first
-            assert any(glyph in first for glyph in tui.SPINNER)
+            assert any(glyph in first for glyph in keymap.SPINNER)
             assert bar_text(app) != first
             app._digging = False
 
@@ -4354,7 +4355,7 @@ def test_leaving_stops_the_ticker_and_lets_go_of_everything(records, state, monk
             monkeypatch.setattr(
                 type(app.player), "close", lambda self: closed.append("player")
             )
-            app._prepared = tui.Prepared(
+            app._prepared = Prepared(
                 track=Track(title="next", permalink_url="https://soundcloud.com/a/2", id=2),
                 stream=Stream(url="https://cdn/2.mp3"),
                 source=source,
@@ -4378,7 +4379,7 @@ def gate_row(*pairs):
     """One row carrying (category, url) links, in the order given."""
 
     track = Track(title="T", permalink_url="https://soundcloud.com/a/b", id=5)
-    return tui.Row(
+    return Row(
         position=1,
         track=track,
         records=[
@@ -4544,7 +4545,7 @@ def test_a_matched_track_is_badged_in_the_table(records, state):
             table = app.query_one("#tracks", DataTable)
             leading = table.get_cell_at(Coordinate(0, 0))
             title = table.get_cell_at(Coordinate(0, TITLE_CELL))
-            assert str(leading) == tui.LOCAL_FILE_GLYPH + " "
+            assert str(leading) == keymap.LOCAL_FILE_GLYPH + " "
             assert "\U0001f4c1" not in str(title)
 
     run(scenario)
