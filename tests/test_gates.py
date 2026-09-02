@@ -654,6 +654,9 @@ def test_hypeddit_browser_batch_uses_one_context_and_maps_each_tab_download(
             self.handlers["page"](page)
             return page
 
+        def clear_cookies(self, *, name):
+            pass
+
     @contextmanager
     def browser_context(*_args, **_kwargs):
         context = Context()
@@ -861,6 +864,9 @@ class _GatePage:
             else:
                 self.index += 1
         elif selector == gates.HYPEDDIT_DOWNLOAD_BUTTON:
+            if gates.GATE_DOWNLOAD_COOKIE in self.context.cookies:
+                return  # Hypeddit answers download_status false; nothing arrives
+            self.context.cookies.add(gates.GATE_DOWNLOAD_COOKIE)
             self.handlers["download"](_download("gate.wav", b"RIFF-gate"))
 
     def _open(self, url):
@@ -897,6 +903,7 @@ class _GateContext:
         self.attended = attended
         self.pages = [page_factory(self)]
         self.handlers = {}
+        self.cookies = set()
 
     def on(self, event, callback):
         self.handlers[event] = callback
@@ -904,7 +911,11 @@ class _GateContext:
     def new_page(self):
         page = self.factory(self)
         self.pages.append(page)
+        self.handlers["page"](page)
         return page
+
+    def clear_cookies(self, *, name):
+        self.cookies.discard(name)
 
 
 def _gate_browser(monkeypatch, page_factory):
@@ -992,6 +1003,20 @@ def test_a_gate_detoured_to_the_hot_or_not_poll_is_opened_again_hidden(tmp_path,
     assert page.visited == [_GATE, _GATE]
     assert [selector for _kind, selector in page.clicked] == _WALKED
     assert path.read_bytes() == b"RIFF-gate"
+
+
+def test_a_second_gate_downloads_although_the_first_left_its_cookie(tmp_path, monkeypatch):
+    launches = _gate_browser(monkeypatch, lambda ctx: _GatePage(ctx, steps=("email", "dw")))
+    tracks = [Track(id=n, title=f"Track {n}", permalink_url=f"https://soundcloud.com/a/{n}") for n in (1, 2)]
+
+    result = gates.download_hypeddit_batch_in_browser(
+        [(tracks[0], _GATE), (tracks[1], "https://hypeddit.com/track/eight")],
+        tmp_path, None, config=_DJ,
+    )
+
+    assert [headless for headless, _context in launches] == [True]
+    assert result.failures == ()
+    assert [key for key, _path in result.completed] == ["1", "2"]
 
 
 def test_a_provider_that_wants_a_login_moves_the_gate_to_a_window(tmp_path, monkeypatch):

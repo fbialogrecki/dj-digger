@@ -5,8 +5,8 @@
 - Product version verified: 0.15.0
 - Owner: Filip Białogrecki
 - Updated: 2026-08-28
-- Document lines: <!-- SPEC TOTAL LINES -->1075<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1075<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1077<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1077<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -81,32 +81,32 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 9 | Authentication and authorization | 690–726 |
 | 9.1 | ↳ SoundCloud authentication | 692–709 |
 | 9.2 | ↳ Gate action consent | 710–726 |
-| 10 | External integrations | 727–851 |
+| 10 | External integrations | 727–853 |
 | 10.1 | ↳ SoundCloud API and media | 729–740 |
-| 10.2 | ↳ Link hubs and download gates | 741–798 |
-| 10.2 · block | ↳ ↳ Hypeddit | 749–784 |
-| 10.2 · block | ↳ ↳ Other resolvers | 786–791 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 793–798 |
-| 10.3 | ↳ Browsers and clipboard | 799–810 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 811–851 |
-| 11 | Security requirements and threat model | 852–898 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 854–872 |
-| 11.2 | ↳ Secret and personal-data handling | 873–885 |
-| 11.3 | ↳ File and mutation safety | 886–898 |
-| 12 | Privacy, lifecycle, and retention | 899–937 |
-| 12.1 | ↳ Data stored locally | 901–916 |
-| 12.2 | ↳ Data sent to third parties | 917–928 |
-| 12.3 | ↳ User-controlled deletion | 929–937 |
-| 13 | Failure behavior and current limitations | 938–989 |
-| 13.1 | ↳ Error isolation and reporting | 940–959 |
-| 13.2 | ↳ Confirmed limitations | 960–989 |
-| 14 | Verification, CI, and release | 990–1053 |
-| 14.1 | ↳ Offline and live test suites | 992–1022 |
-| 14.2 | ↳ Continuous integration and publishing | 1023–1038 |
-| 14.3 | ↳ Specification-map verification | 1039–1053 |
-| 15 | Evidence and operational references | 1054–1075 |
-| 15.1 | ↳ Primary implementation evidence | 1056–1068 |
-| 15.2 | ↳ User and historical documentation | 1069–1075 |
+| 10.2 | ↳ Link hubs and download gates | 741–800 |
+| 10.2 · block | ↳ ↳ Hypeddit | 749–786 |
+| 10.2 · block | ↳ ↳ Other resolvers | 788–793 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 795–800 |
+| 10.3 | ↳ Browsers and clipboard | 801–812 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 813–853 |
+| 11 | Security requirements and threat model | 854–900 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 856–874 |
+| 11.2 | ↳ Secret and personal-data handling | 875–887 |
+| 11.3 | ↳ File and mutation safety | 888–900 |
+| 12 | Privacy, lifecycle, and retention | 901–939 |
+| 12.1 | ↳ Data stored locally | 903–918 |
+| 12.2 | ↳ Data sent to third parties | 919–930 |
+| 12.3 | ↳ User-controlled deletion | 931–939 |
+| 13 | Failure behavior and current limitations | 940–991 |
+| 13.1 | ↳ Error isolation and reporting | 942–961 |
+| 13.2 | ↳ Confirmed limitations | 962–991 |
+| 14 | Verification, CI, and release | 992–1055 |
+| 14.1 | ↳ Offline and live test suites | 994–1024 |
+| 14.2 | ↳ Continuous integration and publishing | 1025–1040 |
+| 14.3 | ↳ Specification-map verification | 1041–1055 |
+| 15 | Evidence and operational references | 1056–1077 |
+| 15.1 | ↳ Primary implementation evidence | 1058–1070 |
+| 15.2 | ↳ User and historical documentation | 1071–1077 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -770,7 +770,9 @@ provider pages they open are closed unread before its Next; a Connect slide
 twenty seconds, a popup back on a Hypeddit host being closed after two
 seconds; the email slide is filled with the configured real address, and with
 the configured name when the slide asks for one (`#email_name`); the
-download slide's button is clicked. A row whose step only a person can finish
+download slide's button is clicked, after the `filedownloading` cookie a
+previous download left is cleared, since Hypeddit refuses the next gate
+while it is present. A row whose step only a person can finish
 (a provider still asking for a login, a CAPTCHA, a placeholder email, a name
 the profile lacks, a page without known controls) is deferred, and every deferred row of the batch is
 reopened in one visible window where the same driver runs with a five-minute

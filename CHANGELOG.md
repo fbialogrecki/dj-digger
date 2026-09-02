@@ -118,6 +118,11 @@
   Hypeddit sent the first visit after a download to its hot-or-not poll: the
   tab is pointed at the gate again and walked out of sight, so the window
   with its flashing provider popups only appears for a login or a CAPTCHA.
+- In a hidden batch every gate after the first waited five minutes for a
+  file that never came: Hypeddit refuses a download while the
+  `filedownloading` cookie of the previous one is still set, and the next
+  tab pressed its Download seconds later. The cookie is cleared before each
+  Download now.
 
 ### Changed
 

@@ -715,6 +715,10 @@ GATE_EMAIL_INPUT = "#email_address"
 GATE_NAME_INPUT = "#email_name"
 GATE_EMAIL_SUBMIT = ".email_to_downloads"
 GATE_CAPTCHA = "#gatePreviewCaptcha"
+# Set by a download and dropped by the page a few seconds later; while it is
+# there the unlock endpoint answers the next gate with download_status false
+# (seen on every second tab of a hidden batch, 2026-09-02).
+GATE_DOWNLOAD_COOKIE = "filedownloading"
 HYPEDDIT_DOWNLOAD_BUTTON = "#gateDownloadButton, .hype-btn-download, #download-btn"
 # Steps whose slide opens a provider login rather than a page to look at. "sp"
 # is a click-through for the HTTP flow, but in the browser the gate's Spotify
@@ -982,6 +986,7 @@ def _click_gate_download(page: Any) -> bool:
         button = page.locator(HYPEDDIT_DOWNLOAD_BUTTON).first
         if not button.is_visible():
             return False
+        page.context.clear_cookies(name=GATE_DOWNLOAD_COOKIE)
         button.click(**_CLICK)
         return True
     except Exception as exc:
