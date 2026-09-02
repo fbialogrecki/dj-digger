@@ -91,7 +91,6 @@ class CartItem:
     currency: str
     already_in_cart: bool = False
     minimum_price: Decimal | None = None
-    suggested_price: Decimal | None = None
     price_step: Decimal | None = None
     price_editable: bool = False
 
@@ -201,7 +200,6 @@ class CartProgress:
     total: int
     store: str = ""
     track_label: str = ""
-    message: str = ""
 
 
 @dataclass(frozen=True)

@@ -262,7 +262,7 @@ class CartProgressScreen(_Modal[None]):
         }[progress.phase]
         count = f" {progress.completed}/{progress.total}" if progress.total else ""
         self.query_one("#cart-progress-title", Label).update(phase + count)
-        detail = progress.message or progress.track_label or progress.store.capitalize()
+        detail = progress.track_label or progress.store.capitalize()
         self.query_one("#cart-progress-detail", Static).update(detail)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:

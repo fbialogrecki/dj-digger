@@ -472,7 +472,7 @@ class VisibilityNode:
         self.index = index
         self.visible = visible
 
-    def is_visible(self):
+    async def is_visible(self):
         return self.visible
 
 
@@ -480,7 +480,7 @@ class MultiLocator:
     def __init__(self, visibility):
         self.visibility = visibility
 
-    def count(self):
+    async def count(self):
         return len(self.visibility)
 
     def nth(self, index):
@@ -585,7 +585,7 @@ class DuplicateLoginPage(RolePage):
 
 
 def test_locator_accepts_one_visible_control_among_responsive_duplicates():
-    chosen = cart._first_visible(MultiLocator([False, True]))
+    chosen = asyncio.run(cart._first_visible_async(MultiLocator([False, True])))
 
     assert chosen.index == 1
 
@@ -1507,7 +1507,7 @@ def test_beatport_becomes_playlist_while_bandcamp_continues_without_login(
         assert items == [bandcamp]
         return [cart.CartResult("10", bandcamp.track_label, store, "added")]
 
-    async def final(_pages, successful, _uncertain=None):
+    async def final(successful, _uncertain=None):
         assert successful == {"bandcamp": [bandcamp]}
         return ("bandcamp",), ()
 
@@ -1581,7 +1581,7 @@ def test_unverified_bandcamp_click_is_kept_open_for_manual_inspection(monkeypatc
             )
         ]
 
-    async def final(_pages, successful, uncertain):
+    async def final(successful, uncertain):
         kept.append((successful, uncertain))
         return ("bandcamp",), ()
 
@@ -1641,7 +1641,7 @@ def test_final_bandcamp_cart_is_the_first_visible_work_page(monkeypatch):
     monkeypatch.setattr(cart, "_bandcamp_cart_contains_async", contains)
 
     stores, warnings = asyncio.run(
-        session._open_final_carts({}, {"bandcamp": [item]})
+        session._open_final_carts({"bandcamp": [item]})
     )
 
     assert launches == ["viewer page"]

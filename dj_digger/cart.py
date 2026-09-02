@@ -12,26 +12,19 @@ from collections.abc import Iterable
 from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
-from threading import Event
-from typing import Any, Literal
+from typing import Any
 from urllib.parse import urljoin, urlparse, urlunparse
 
-from .beatport_playlist import _beatport_playlist_result  # noqa: F401
-from .browser_session import (  # noqa: F401 - re-exported for callers and tests
+from .beatport_playlist import _beatport_playlist_result
+from .browser_session import (  # noqa: F401 - re-exported for the TUI and tests
     AutomationError,
     ChromiumMissing,
-    classify_launch_error,
     install_chromium,
     launch_persistent_context,
     launch_viewer,
-    require_display,
-    store_profile_path,
-    sync_browser_context,
 )
-from .cart_models import (  # noqa: F401 - re-exported: callers and tests import them from here
+from .cart_models import (  # re-exported: the TUI and tests import them from here
     CART_DIAGNOSTICS_KEEP,
-    LOG_SECRET,
-    LOG_URL,
     MANUAL_AFTER_UNVERIFIED,
     MANUAL_TABS_MAX,
     VERIFY_BUDGET_SECONDS,
@@ -41,13 +34,11 @@ from .cart_models import (  # noqa: F401 - re-exported: callers and tests import
     CartBatchOutcome,
     CartCancelled,
     CartItem,
-    CartPhase,
     CartPlan,
     CartProgress,
     CartRequest,
     CartResult,
     CartResultCode,
-    CartStatus,
     CartUnverified,
     ManualCallback,
     PriceQuote,
@@ -66,25 +57,18 @@ from .cart_models import (  # noqa: F401 - re-exported: callers and tests import
 from .links import redact_url
 from .models import Track
 from .paths import data_dir
-from .store_match import (  # noqa: F401
-    _normalise,
-    _same_product,
-    _title_variants,
-    _version_tokens,
-    match_product,
-)
-from .store_parse import (  # noqa: F401
+from .store_match import _normalise, _same_product, match_product
+from .store_parse import (
     MAX_HTML_BYTES,
     _currency_from_text,
     _decimal,
     products_from_html,
     purchase_price,
 )
-from .store_urls import (  # noqa: F401
+from .store_urls import (
     STORE_HOME,
     STORE_HOSTS,
     STORE_LOGIN,
-    _beatport_track_id,
     _direct_beatport_track_url,
     canonical_store_url,
     is_store_url,
@@ -94,97 +78,6 @@ LOGGER = logging.getLogger(__name__)
 NAVIGATION_TIMEOUT_MS = 30_000
 ACTION_TIMEOUT_MS = 15_000
 LOGIN_TIMEOUT_SECONDS = 300
-# The sync context manager keeps its old name for gates.py and auth.py.
-_browser_context = sync_browser_context
-
-
-def _cancelled(cancel: Event) -> None:
-    if cancel.is_set():
-        raise AutomationError("cart operation was cancelled")
-
-
-def _each(locator: Any) -> Any:
-    """Lazy Playwright locator iteration; failure handling stays at the caller."""
-
-    return (locator.nth(index) for index in range(locator.count()))
-
-
-def _only_visible(locator: Any) -> Any | None:
-    try:
-        visible = [match for match in _each(locator) if match.is_visible()]
-        # Exactly one, or nothing: two visible "Add to cart" controls mean the
-        # page changed shape, and clicking either could charge the wrong
-        # product - ambiguity has to degrade to "no control found".
-        return visible[0] if len(visible) == 1 else None
-    except Exception:
-        return None
-
-
-def _first_visible(*locators: Any) -> Any | None:
-    for locator in locators:
-        visible = _only_visible(locator)
-        if visible is not None:
-            return visible
-    return None
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 def _emit_progress(callback: ProgressCallback | None, progress: CartProgress) -> None:
@@ -325,7 +218,6 @@ async def _bandcamp_dom_products(page: Any) -> list[StoreProduct]:
                     title: String(current.title || "").slice(0, 500),
                     artist: String(current.artist || t.artist || "").slice(0, 500),
                     minimum: current.minimum_price,
-                    suggested: current.set_price,
                     currency: String(current.currency || t.currency || "").slice(0, 12),
                 };
             }"""
@@ -967,7 +859,6 @@ async def _resolve_cart_item_async(
         quote.currency,
         False,
         quote.minimum,
-        quote.suggested,
         quote.step,
         quote.editable,
     )
@@ -995,7 +886,6 @@ async def _refresh_item_async(
         product_title=product.title,
         currency=quote.currency,
         minimum_price=quote.minimum,
-        suggested_price=quote.suggested,
         price_step=quote.step,
         price_editable=quote.editable,
     )
@@ -1134,35 +1024,23 @@ class CartBrowserSession:
 
     def __init__(self, profile: Path | None = None) -> None:
         self.profile = profile
-        self.state: Literal["NEW", "STARTING", "READY", "CLOSING", "CLOSED", "FAILED"] = "NEW"
         self._playwright = None
         self._context = None
         # The visible browser and its context, once something needed showing.
         self._viewer: tuple[Any, Any] | None = None
         self._owned_pages: list[Any] = []
         self._cart_pages: dict[str, Any] = {}
-        self._instrumented_pages: set[int] = set()
-        self._operation_lock: asyncio.Lock | None = None
-        self._closing = False
-
-    def _lock(self) -> asyncio.Lock:
-        if self._operation_lock is None:
-            self._operation_lock = asyncio.Lock()
-        return self._operation_lock
+        self._lock = asyncio.Lock()
 
     def _context_closed(self, _context: Any) -> None:
         self._context = None
         self._owned_pages.clear()
         self._cart_pages.clear()
-        self._instrumented_pages.clear()
-        if not self._closing:
-            self.state = "CLOSED"
 
     async def _playwright_handle(self) -> Any:
         try:
             from playwright.async_api import async_playwright
         except ImportError as exc:
-            self.state = "FAILED"
             raise AutomationError(
                 "the required Playwright dependency is missing; reinstall dj-soundcloud-digger"
             ) from exc
@@ -1173,30 +1051,17 @@ class CartBrowserSession:
     async def _ensure_context(self) -> Any:
         if self._context is not None and not self._context.is_closed():
             return self._context
-        self.state = "STARTING"
         playwright = await self._playwright_handle()
-        try:
-            context = await launch_persistent_context(
-                playwright, self.profile, headless=True, accept_downloads=False
-            )
-        except AutomationError:
-            self.state = "FAILED"
-            raise
+        context = await launch_persistent_context(playwright, self.profile, headless=True)
         context.on("close", self._context_closed)
         self._context = context
         self._owned_pages = list(context.pages[:1])
-        self.state = "READY"
         for page in self._owned_pages:
             self._instrument_page(page)
         LOGGER.info("Store browser session ready: pages=%d", len(self._owned_pages))
         return context
 
     def _instrument_page(self, page: Any) -> Any:
-        identity = id(page)
-        if identity in self._instrumented_pages:
-            return page
-        self._instrumented_pages.add(identity)
-
         def response_received(response: Any) -> None:
             status = getattr(response, "status", 0)
             if status >= 400:
@@ -1272,8 +1137,6 @@ class CartBrowserSession:
         while len(pages) < count:
             page = self._instrument_page(await context.new_page())
             pages.append(page)
-        for page in pages:
-            self._instrument_page(page)
         self._owned_pages = pages
         return pages[:count]
 
@@ -1290,8 +1153,6 @@ class CartBrowserSession:
     async def _close_context(self) -> None:
         """Close the browser window; Playwright itself stays up for the next one."""
 
-        self._closing = True
-        self.state = "CLOSING"
         context, self._context = self._context, None
         if context is not None:
             try:
@@ -1300,12 +1161,9 @@ class CartBrowserSession:
                 pass
         self._owned_pages.clear()
         self._cart_pages.clear()
-        self._instrumented_pages.clear()
-        self._closing = False
-        self.state = "CLOSED"
 
     async def close(self) -> None:
-        async with self._lock():
+        async with self._lock:
             await self._close_context()
             await self._close_viewer()
             if self._playwright is not None:
@@ -1316,7 +1174,7 @@ class CartBrowserSession:
                 self._playwright = None
 
     async def reset_profile(self) -> None:
-        async with self._lock():
+        async with self._lock:
             await self._close_context()
             target = Path(self.profile) if self.profile else data_dir() / "store-browser"
             parent = data_dir().resolve()
@@ -1346,15 +1204,13 @@ class CartBrowserSession:
         wanted = tuple(dict.fromkeys(store for store in stores if store in STORE_HOSTS))
         if not wanted:
             return
-        async with self._lock():
+        async with self._lock:
             # A login needs the real profile on screen, so the hidden context
             # steps aside and the profile is opened headed for as long as the
             # login takes; the next batch reopens it hidden.
             await self._close_context()
             playwright = await self._playwright_handle()
-            context = await launch_persistent_context(
-                playwright, self.profile, headless=False, accept_downloads=False
-            )
+            context = await launch_persistent_context(playwright, self.profile, headless=False)
             pages = [self._instrument_page(await context.new_page()) for _ in wanted]
             try:
                 await _ensure_logins_async(
@@ -1370,7 +1226,7 @@ class CartBrowserSession:
         wanted = tuple(dict.fromkeys(store for store in stores if store in STORE_HOSTS))
         if not wanted:
             return {}
-        async with self._lock():
+        async with self._lock:
             context = await self._ensure_context()
             pages = [self._instrument_page(await context.new_page()) for _ in wanted]
             try:
@@ -1829,7 +1685,6 @@ class CartBrowserSession:
 
     async def _open_final_carts(
         self,
-        pages: dict[str, Any],
         successful: dict[str, list[CartItem]],
         keep_open: dict[str, list[CartItem]] | None = None,
     ) -> tuple[tuple[str, ...], tuple[CartResult, ...]]:
@@ -1912,7 +1767,7 @@ class CartBrowserSession:
         manual: ManualCallback | None = None,
     ) -> CartBatchOutcome:
         request_list = tuple(requests)
-        async with self._lock():
+        async with self._lock:
             LOGGER.info("Cart batch started: tracks=%d", len(request_list))
             _emit_progress(progress, CartProgress("starting", 0, len(request_list)))
             direct_results: list[CartResult] = []
@@ -2048,9 +1903,7 @@ class CartBrowserSession:
                 ):
                     uncertain[item.store].append(item)
             if uncertain and manual is not None and not cancel.is_set():
-                settled = await self._finish_manually(
-                    store_pages, uncertain, manual, cancel, progress
-                )
+                settled = await self._finish_manually(uncertain, manual, cancel, progress)
                 settled_keys = {(r.track_key, r.store) for r in settled}
                 all_results = [
                     r for r in all_results if (r.track_key, r.store) not in settled_keys
@@ -2064,9 +1917,7 @@ class CartBrowserSession:
                             for r in settled
                         ):
                             successful[item.store].append(item)
-            opened, warnings = await self._open_final_carts(
-                store_pages, successful, uncertain
-            )
+            opened, warnings = await self._open_final_carts(successful, uncertain)
             all_results.extend(warnings)
             _emit_progress(progress, CartProgress("ready", len(approved.items), len(approved.items)))
             candidates = tuple(item for items in uncertain.values() for item in items)
@@ -2088,7 +1939,6 @@ class CartBrowserSession:
 
     async def _finish_manually(
         self,
-        store_pages: dict[str, Any],
         uncertain: dict[str, list[CartItem]],
         manual: ManualCallback,
         cancel: asyncio.Event,
@@ -2185,17 +2035,11 @@ class CartBrowserSession:
         by_store: dict[str, list[CartItem]] = defaultdict(list)
         for item in items:
             by_store[item.store].append(item)
-        async with self._lock():
-            return await self._finish_manually({}, by_store, manual, cancel, None)
+        async with self._lock:
+            return await self._finish_manually(by_store, manual, cancel, None)
 
     async def focus_carts(self) -> None:
-        async with self._lock():
+        async with self._lock:
             for page in self._cart_pages.values():
                 if not page.is_closed():
                     await page.bring_to_front()
-
-    async def close_viewer(self) -> None:
-        """Close the visible window; the hidden session stays for the next batch."""
-
-        async with self._lock():
-            await self._close_viewer()
