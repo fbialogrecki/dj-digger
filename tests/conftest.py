@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from dj_digger import auth, config, db, state
+from dj_digger import auth, config, db
 from dj_digger.models import Track
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -47,7 +47,6 @@ def isolate_user_data(tmp_path, monkeypatch):
     # run once left eight diagnostics folders in the developer's real data dir.
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "xdg-data"))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg-config"))
-    monkeypatch.setattr(state, "default_state_path", lambda: tmp_path / "state.json")
     monkeypatch.setattr(config, "default_config_path", lambda: config_path)
     monkeypatch.setattr(db, "default_db_path", lambda: tmp_path / "digger.db")
     monkeypatch.setattr(auth, "CONFIG_DIR", tmp_path / "auth")

@@ -5,10 +5,12 @@ categorisation improves crates you imported months ago. Stream URLs are
 deliberately not stored - they expire, and are fetched fresh on playback.
 
 Since 0.9 there is one copy, in SQLite. Crates used to be written to both
-crates/<slug>.json and the crates table, with ``list_crates`` merging the two by
+crates/<slug>.json and the crates table, with the listing merging the two by
 source - which meant two answers to "what is in this crate" and, because the
 table only had room for five of the record's fields, a fallback that silently
-lost the import date, the NEW marks and the partial flag. 
+lost the import date, the NEW marks and the partial flag. The sidebar reads
+``list_crate_headers`` and loads one crate at a time; ``list_crates`` is the
+whole library with every track attached, which only the tests need.
 """
 
 import logging
@@ -126,13 +128,8 @@ def list_crate_headers() -> list[CrateHeader]:
 
 
 def list_crates() -> list[CrateRecord]:
-    try:
-        raw_records = database().all_crates()
-    except Exception as exc:
-        LOGGER.warning("Could not read crates from SQLite: %s", exc)
-        return []
-    records = [CrateRecord.from_json(raw) for raw in raw_records if raw.get("source")]
-    return sorted(records, key=lambda record: record.title.lower())
+    records = (load(header.source) for header in list_crate_headers())
+    return [record for record in records if record is not None]
 
 
 def delete(source: str) -> None:
