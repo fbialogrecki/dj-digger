@@ -12,7 +12,7 @@ import os
 import signal
 import subprocess
 import sys
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 from threading import Event
 from typing import Any
@@ -23,6 +23,9 @@ LOGGER = logging.getLogger(__name__)
 
 # Default Playwright action timeout for pages in a managed context.
 ACTION_TIMEOUT_MS = 15_000
+
+# What every persistent profile is launched with, headed or not.
+LAUNCH_OPTIONS = {"locale": "en-US", "chromium_sandbox": True}
 
 
 class AutomationError(RuntimeError):
@@ -54,13 +57,22 @@ def require_display() -> None:
         raise AutomationError("Store cart needs a desktop window; on WSL, enable WSLg")
 
 
+def _require_chromium(playwright: Any) -> None:
+    if not Path(playwright.chromium.executable_path).is_file():
+        raise ChromiumMissing("Chromium is required for store carts")
+
+
+def _profile_locked(exc: Exception) -> bool:
+    message = str(exc).lower()
+    return "singleton" in message or "user data directory is already in use" in message
+
+
 def classify_launch_error(exc: Exception, *, subject: str = "the dedicated store browser") -> Exception:
     """Turn a Playwright launch failure into the error the user can act on."""
 
-    message = str(exc).lower()
-    if "executable doesn't exist" in message:
+    if "executable doesn't exist" in str(exc).lower():
         return ChromiumMissing("Chromium is required for store carts")
-    if "singleton" in message or "user data directory is already in use" in message:
+    if _profile_locked(exc):
         return AutomationError(f"{subject} profile is already open in another process")
     detail = f"could not start {subject}"
     if sys.platform.startswith("linux"):
@@ -144,15 +156,13 @@ def sync_browser_context(profile: Path | None = None, *, accept_downloads: bool 
         ) from exc
 
     with sync_playwright() as playwright:
-        if not Path(playwright.chromium.executable_path).is_file():
-            raise ChromiumMissing("Chromium is required for store carts")
+        _require_chromium(playwright)
         try:
             context = playwright.chromium.launch_persistent_context(
                 str(profile or store_profile_path()),
                 headless=False,
-                locale="en-US",
                 accept_downloads=accept_downloads,
-                chromium_sandbox=True,
+                **LAUNCH_OPTIONS,
             )
         except Exception as exc:
             raise classify_launch_error(exc) from exc
@@ -160,10 +170,8 @@ def sync_browser_context(profile: Path | None = None, *, accept_downloads: bool 
         try:
             yield context
         finally:
-            try:
+            with suppress(Exception):
                 context.close()
-            except Exception:
-                pass
 
 
 # Chromium releases its profile lock a moment after the previous context
@@ -172,17 +180,11 @@ PROFILE_LOCK_ATTEMPTS = 5
 PROFILE_LOCK_WAIT = 1.0
 
 
-def _profile_locked(exc: Exception) -> bool:
-    message = str(exc).lower()
-    return "singleton" in message or "user data directory is already in use" in message
-
-
 async def launch_persistent_context(
     playwright: Any,
     profile: Path | None = None,
     *,
     headless: bool = True,
-    accept_downloads: bool = False,
 ) -> Any:
     """The async twin, for the cart session on Textual's loop.
 
@@ -193,16 +195,14 @@ async def launch_persistent_context(
 
     if not headless:
         require_display()
-    if not Path(playwright.chromium.executable_path).is_file():
-        raise ChromiumMissing("Chromium is required for store carts")
+    _require_chromium(playwright)
     for attempt in range(1, PROFILE_LOCK_ATTEMPTS + 1):
         try:
             context = await playwright.chromium.launch_persistent_context(
                 str(profile or store_profile_path()),
                 headless=headless,
-                locale="en-US",
-                accept_downloads=accept_downloads,
-                chromium_sandbox=True,
+                accept_downloads=False,
+                **LAUNCH_OPTIONS,
             )
             break
         except Exception as exc:
@@ -224,8 +224,7 @@ async def launch_viewer(playwright: Any, cookies: list[dict[str, Any]]) -> tuple
     """
 
     require_display()
-    if not Path(playwright.chromium.executable_path).is_file():
-        raise ChromiumMissing("Chromium is required for store carts")
+    _require_chromium(playwright)
     try:
         browser = await playwright.chromium.launch(headless=False, chromium_sandbox=True)
         context = await browser.new_context(locale="en-US", accept_downloads=False)

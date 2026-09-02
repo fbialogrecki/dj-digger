@@ -207,16 +207,9 @@ def _open_on_windows(url: str) -> bool:
 
 
 def resolve_controller(choice: str = SYSTEM_DEFAULT) -> webbrowser.BaseBrowser:
-    resolved = resolve_choice(choice)
-    try:
-        return webbrowser.get(resolved or None)
-    except webbrowser.Error as exc:
-        LOGGER.warning(
-            "Could not resolve browser '%s' (%s). Falling back to the system default.",
-            choice,
-            exc,
-        )
-        return webbrowser.get()
+    # resolve_choice only lets through a browser this machine reported, so
+    # webbrowser.get cannot fail for a reason its own default would survive.
+    return webbrowser.get(resolve_choice(choice) or None)
 
 
 def open_url(url: str, browser: str = SYSTEM_DEFAULT) -> bool:

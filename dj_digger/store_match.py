@@ -140,8 +140,8 @@ def _product_title_variants(product: StoreProduct) -> set[str]:
     return variants
 
 
-def match_product(track: Track, products: list[StoreProduct]) -> StoreProduct:
-    """Return the one exact product, refusing fuzzy or version-incompatible matches."""
+def _exact_by_title(track: Track, products: list[StoreProduct]) -> StoreProduct | None:
+    """The one product a title variant matches outright; artists break a tie."""
 
     targets = _title_variants(track.title, track.artist)
     exact = [
@@ -149,62 +149,77 @@ def match_product(track: Track, products: list[StoreProduct]) -> StoreProduct:
         for product in products
         if targets & _product_title_variants(product)
     ]
+    if not exact:
+        return None
     if len(exact) == 1:
         return exact[0]
-    if len(exact) > 1:
-        source_artist = _artist_tokens(track.artist)
-        same_artist = [
-            product for product in exact if _normalise(product.artist) == _normalise(track.artist)
-        ]
-        if len(same_artist) == 1:
-            return same_artist[0]
-        by_artist = [
-            product
-            for product in exact
-            if source_artist and _artists_compatible(track.artist, product.artist)
-        ]
-        if len(by_artist) == 1:
-            return by_artist[0]
-        raise UnsafeMatch("ambiguous exact product title")
-
-    # Promo uploaders and labels often name the same recording with different
-    # artist aliases ("Phil:osophy - Remember" vs "Philth Tangent - Remember").
-    # The linked release still gives us a safe exact fallback when one and only
-    # one product has the same complete trailing title and version qualifier.
-    target_tail, target_stripped = _trailing_title(track.title)
-    trailing = [
-        product
-        for product in products
-        if len(target_tail) >= 4
-        and _trailing_title(product.title)[0] == target_tail
-        and (target_stripped or _trailing_title(product.title)[1])
-        and _version_tokens(product.title) == _version_tokens(track.title)
+    same_artist = [
+        product for product in exact if _normalise(product.artist) == _normalise(track.artist)
     ]
-    if len(trailing) == 1:
-        return trailing[0]
+    if len(same_artist) == 1:
+        return same_artist[0]
+    source_artist = _artist_tokens(track.artist)
+    by_artist = [
+        product
+        for product in exact
+        if source_artist and _artists_compatible(track.artist, product.artist)
+    ]
+    if len(by_artist) == 1:
+        return by_artist[0]
+    raise UnsafeMatch("ambiguous exact product title")
+
+
+def _exact_by_trailing_title(
+    track: Track, products: list[StoreProduct]
+) -> StoreProduct | None:
+    """The one product with the same complete trailing title and version qualifier.
+
+    Promo uploaders and labels often name the same recording with different
+    artist aliases ("Phil:osophy - Remember" vs "Philth Tangent - Remember").
+    The linked release still gives a safe exact fallback when one and only
+    one product agrees on everything after the artist prefix.
+    """
+
+    target_tail, target_stripped = _trailing_title(track.title)
+    if len(target_tail) < 4:
+        return None
+    target_versions = _version_tokens(track.title)
+    trailing = []
+    for product in products:
+        tail, stripped = _trailing_title(product.title)
+        if (
+            tail == target_tail
+            and (target_stripped or stripped)
+            and _version_tokens(product.title) == target_versions
+        ):
+            trailing.append(product)
     if len(trailing) > 1:
         raise UnsafeMatch("ambiguous exact trailing product title")
-    target_version_core = _trailing_title(_without_version_context(track.title))[0]
-    version_conflicts = [
-        product
-        for product in products
-        if len(target_tail) >= 4
-        and _trailing_title(_without_version_context(product.title))[0]
-        == target_version_core
-        and _version_tokens(product.title) != _version_tokens(track.title)
-    ]
-    if version_conflicts:
-        raise UnsafeMatch("version qualifier does not match")
+    return trailing[0] if trailing else None
 
-    target_bases = {_base_title(variant) for variant in targets}
-    version_conflicts = [
-        product
-        for product in products
-        if _base_title(product.title) in target_bases
-        and _version_tokens(product.title) != _version_tokens(track.title)
-    ]
-    if version_conflicts:
-        raise UnsafeMatch("version qualifier does not match")
+
+def match_product(track: Track, products: list[StoreProduct]) -> StoreProduct:
+    """Return the one exact product, refusing fuzzy or version-incompatible matches."""
+
+    chosen = _exact_by_title(track, products) or _exact_by_trailing_title(track, products)
+    if chosen is not None:
+        return chosen
+
+    target_tail, _stripped = _trailing_title(track.title)
+    target_versions = _version_tokens(track.title)
+    target_version_core = _trailing_title(_without_version_context(track.title))[0]
+    target_bases = {
+        _base_title(variant) for variant in _title_variants(track.title, track.artist)
+    }
+    for product in products:
+        if _version_tokens(product.title) == target_versions:
+            continue
+        if (
+            len(target_tail) >= 4
+            and _trailing_title(_without_version_context(product.title))[0]
+            == target_version_core
+        ) or _base_title(product.title) in target_bases:
+            raise UnsafeMatch("version qualifier does not match")
     raise ProductUnavailable("linked release has no exact track")
 
 
