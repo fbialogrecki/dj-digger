@@ -45,7 +45,7 @@ from .playback import PlaybackMixin
 from .render import RenderMixin
 from .rows import Prepared, Row
 from .screens import ContextMenuScreen, HelpScreen, SettingsScreen
-from .theme import FALLBACK_MUTED, muted_for
+from .theme import CORRECTED_THEMES, FALLBACK_PALETTE, Palette, palette_for
 from .widgets import ErrorBanner, FittedFooter, SearchInput, StatusBar, TrackTable
 
 LOGGER = logging.getLogger(__name__)
@@ -272,8 +272,11 @@ class DiggerApp(
         self._narrow: bool | None = None
         self.player = Player()
         self._client: SoundCloudClient | None = None
-        # The dim style for secondary text, recomputed whenever the theme changes.
-        self._muted: str = FALLBACK_MUTED
+        # The interface's colour roles under the active theme, recomputed
+        # whenever the theme changes (see tui/theme.py).
+        self.palette: Palette = FALLBACK_PALETTE
+        for theme in CORRECTED_THEMES:
+            self.register_theme(theme)
         self._set_records(records)
 
     def compose(self) -> ComposeResult:
@@ -337,7 +340,7 @@ class DiggerApp(
         if self.config.theme in self.available_themes and self.theme != self.config.theme:
             self.theme = self.config.theme
         else:
-            self._muted = muted_for(self.get_css_variables())
+            self.palette = palette_for(self.get_css_variables(), self.current_theme)
         await self.reload_sidebar()
         if not self.rows:
             # Someone with a library wants to see it, not be interrogated.
@@ -408,15 +411,27 @@ class DiggerApp(
     def muted(self) -> str:
         """Rich style for secondary text under the current theme."""
 
-        return self._muted
+        return self.palette.muted
+
+    def role(self, style: str) -> str:
+        """A keymap style such as "bold success" resolved to the theme's colour."""
+
+        words = style.split()
+        if not words:
+            return style
+        name = words[-1]
+        colour = getattr(self.palette, name, None)
+        if not isinstance(colour, str) or not colour:
+            return style
+        return " ".join([*words[:-1], colour])
 
     def watch_theme(self, theme: str) -> None:
-        """Keep the dim colour and the saved preference in step with the theme."""
+        """Keep the colour roles and the saved preference in step with the theme."""
 
         try:
-            self._muted = muted_for(self.get_css_variables())
+            self.palette = palette_for(self.get_css_variables(), self.current_theme)
         except Exception:
-            self._muted = FALLBACK_MUTED
+            self.palette = FALLBACK_PALETTE
         if self.config.theme != theme and not self.config.first_run:
             self.config.theme = theme
             self.config.save()

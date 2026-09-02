@@ -32,7 +32,6 @@ from .keymap import (
     TIME_WIDTH,
 )
 from .rows import Row
-from .theme import FALLBACK_MUTED
 from .widgets import TrackTable
 
 LOGGER = logging.getLogger(__name__)
@@ -57,9 +56,9 @@ class RenderMixin:
                 if record is not opening:
                     style = self.muted
                 elif free:
-                    style = "bold green"
+                    style = f"bold {self.palette.success}"
                 else:
-                    style = "bold cyan"
+                    style = f"bold {self.palette.primary}"
                 badges.append(name, style=style)
                 if host and host != "gate":
                     clean_host = host.rpartition(".")[0] or host
@@ -75,11 +74,11 @@ class RenderMixin:
                 if record is not opening:
                     style = self.muted
                 elif free:
-                    style = "bold green"
+                    style = f"bold {self.palette.success}"
                 elif record.link_text == links_module.NO_STORE_LINK:
                     style = self.muted
                 else:
-                    style = "bold cyan"
+                    style = f"bold {self.palette.primary}"
                 badges.append(name, style=style)
         # DataTable clips the cell at STORES_WIDTH with nothing to show for it,
         # so "gate(hypeddit)" arrives as "gate(hypedd" and reads as a misspelt
@@ -102,28 +101,28 @@ class RenderMixin:
         if row.track.key in self.download_progress:
             pct = self.download_progress[row.track.key]
             glyph = "\u29d7"
-            style = "bold yellow"
+            style = f"bold {self.palette.warning}"
             label_text = f"[{int(pct * 100)}%] {row.track.label}"
-            dim = "bold black on yellow"
+            dim = self.palette.download
         else:
             if status == GOT:
-                dim = "bold green"
+                dim = f"bold {self.palette.success}"
 
         label_cell = Text(label_text, style=dim)
         if self.crate is not None and row.track.key in self.crate.new_track_keys:
             # Sorted to the top of the crate by CrateRecord.active_tracks.
-            label_cell = Text("NEW ", style="bold yellow").append_text(label_cell)
+            label_cell = Text("NEW ", style=f"bold {self.palette.secondary}").append_text(label_cell)
         selected = row.track.key in self.selected
         if selected:
-            label_cell = Text("\u258c", style="bold cyan").append_text(label_cell)
+            label_cell = Text("\u258c", style=f"bold {self.palette.primary}").append_text(label_cell)
 
         leading = Text(
             LOCAL_FILE_GLYPH if row.track.local_path else " ",
-            style="bold cyan",
+            style=f"bold {self.palette.primary}",
         )
         leading.append(
             PLAYING_GLYPH if row.track.key == playing_key else " ",
-            style="green",
+            style=self.palette.accent,
         )
 
         return [
@@ -151,9 +150,9 @@ class RenderMixin:
             table.update_cell_at(Coordinate(index, column), cell, update_width=False)
 
     def _themed(self, style: str) -> str:
-        """The keymap names its dim style by the terminal colour; the theme decides."""
+        """A keymap style role ("muted", "bold success") under the active theme."""
 
-        return self.muted if style == FALLBACK_MUTED else style
+        return self.role(style)
 
     def enabled_columns(self) -> list[tuple[str, str, int]]:
         """The optional column specs switched on in Settings, in table order."""
@@ -340,7 +339,8 @@ class RenderMixin:
 
             label = f"{index} {category}" if index <= QUICK_FILTER_KEYS else category
             start = line.cell_len
-            line.append(label, style="bold reverse cyan" if active else "cyan")
+            primary = self.palette.primary
+            line.append(label, style=f"bold reverse {primary}" if active else primary)
             line.append(f"\u00b7{by_category[category]}", style=self.muted)
             self._badge_click_regions.append((start, line.cell_len, index))
 

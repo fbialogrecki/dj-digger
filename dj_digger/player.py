@@ -77,6 +77,29 @@ def muted_style(widget: Any) -> str:
         return getattr(widget.app, "muted", UNPLAYED_STYLE)
     except Exception:
         return UNPLAYED_STYLE
+
+
+class _TerminalPalette:
+    """What the widgets paint with when there is no app to ask."""
+
+    primary = "cyan"
+    accent = PLAYED_STYLE
+    warning = "yellow"
+    muted = UNPLAYED_STYLE
+
+    @property
+    def glow(self) -> tuple[str, ...]:
+        return GLOW_STYLES
+
+
+def palette_of(widget: Any) -> Any:
+    """The app's colour roles, or the terminal's colours without an app."""
+
+    try:
+        palette = getattr(widget.app, "palette", None)
+    except Exception:
+        palette = None
+    return palette if palette is not None else _TerminalPalette()
 # How far back from the playhead the sound of this instant is allowed to show.
 # Two columns: twelve was a band wide enough that its 30fps pulsing read as the
 # whole tail of the played waveform flickering.
@@ -204,9 +227,9 @@ def column_levels(samples: list[int], width: int) -> list[float]:
     return levels
 
 
-def glow_style(level: float) -> str:
-    step = int(max(0.0, min(1.0, level)) * len(GLOW_STYLES))
-    return GLOW_STYLES[min(step, len(GLOW_STYLES) - 1)]
+def glow_style(level: float, steps: tuple[str, ...] = GLOW_STYLES) -> str:
+    step = int(max(0.0, min(1.0, level)) * len(steps))
+    return steps[min(step, len(steps) - 1)]
 
 
 class LevelMeter:
@@ -293,7 +316,14 @@ def waveform_rows(
     return drawn
 
 
-def paint_waveform(rows: list[str], played_fraction: float, level: float = 0.0, unplayed: str = UNPLAYED_STYLE) -> Text:
+def paint_waveform(
+    rows: list[str],
+    played_fraction: float,
+    level: float = 0.0,
+    unplayed: str = UNPLAYED_STYLE,
+    played: str = PLAYED_STYLE,
+    glow: tuple[str, ...] = GLOW_STYLES,
+) -> Text:
     """Colour prebuilt rows: what has played, what has not, and the leading edge.
 
     A frame costs a handful of style ranges rather than an append per character,
@@ -306,18 +336,18 @@ def paint_waveform(rows: list[str], played_fraction: float, level: float = 0.0, 
         return text
 
     width = len(rows[0])
-    played = int(width * max(0.0, min(1.0, played_fraction)))
+    played_columns = int(width * max(0.0, min(1.0, played_fraction)))
     # The played region is history and flicker there only tires the eye, so the
     # pulse is confined to the columns just behind the playhead.
-    glow_from = max(0, played - GLOW_COLUMNS)
-    head = glow_style(level)
+    glow_from = max(0, played_columns - GLOW_COLUMNS)
+    head = glow_style(level, glow)
     for index in range(len(rows)):
         start = index * (width + 1)
         if glow_from:
-            text.stylize(PLAYED_STYLE, start, start + glow_from)
-        if played > glow_from:
-            text.stylize(head, start + glow_from, start + played)
-        text.stylize(unplayed, start + played, start + width)
+            text.stylize(played, start, start + glow_from)
+        if played_columns > glow_from:
+            text.stylize(head, start + glow_from, start + played_columns)
+        text.stylize(unplayed, start + played_columns, start + width)
     return text
 
 
@@ -1001,8 +1031,14 @@ class PlayerBar(Static):
             self.meter.reset()
             return Text(self.message, style=muted_style(self))
         level = self.meter.feed(self.player.take_level())
+        palette = palette_of(self)
         return paint_waveform(
-            self._rows(loaded), self.player.fraction, level, unplayed=muted_style(self)
+            self._rows(loaded),
+            self.player.fraction,
+            level,
+            unplayed=palette.muted,
+            played=palette.accent,
+            glow=palette.glow,
         )
 
     def _rows(self, loaded: Loaded) -> list[str]:
@@ -1072,10 +1108,11 @@ class VolumeSlider(Static):
     def render(self) -> Text:
         volume = self.player.volume
         filled = round(volume * VOLUME_TRACK)
+        palette = palette_of(self)
         bar = Text("\u00d8 " if volume <= 0 else "\u266a ", style="bold")
-        bar.append("━" * filled, style="cyan")
-        bar.append("●", style="bold cyan")
-        muted = muted_style(self)
+        bar.append("━" * filled, style=palette.primary)
+        bar.append("●", style=f"bold {palette.primary}")
+        muted = palette.muted
         bar.append("─" * (VOLUME_TRACK - filled), style=muted)
         bar.append(f" {int(volume * 100):>3}%", style=muted)
         return bar
@@ -1200,7 +1237,7 @@ class PlayerControls(Horizontal):
         # Text(), not markup: a title like "Rido - Sexy Thing [Clip]" keeps its
         # brackets, and a message is the one thing worth the room over a title.
         self.query_one("#player-title", Static).update(
-            Text(message, style="yellow")
+            Text(message, style=palette_of(self).warning)
             if message
             else Text(loaded.track.label, no_wrap=True, overflow="ellipsis")
         )

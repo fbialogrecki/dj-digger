@@ -26,9 +26,13 @@
 - Tracks carry BPM, key, release year and label when SoundCloud has them;
   Settings can show them as columns, and JSON/CSV exports include them (the
   four CSV columns are appended after the original five).
-- A theme choice in Settings (and Textual's palette), remembered between runs.
-  Dim text is blended from the theme instead of the terminal's `bright_black`,
-  which vanished on light palettes.
+- A theme choice in Settings, remembered between runs. Every colour the
+  interface paints now comes from the theme (badges, marks, waveform, volume
+  bar, banner, help) instead of the terminal's cyan, green and yellow, and the
+  built-in themes whose values strayed from their published palettes (Flexoki
+  shipped light-mode shades on a dark base, Catppuccin Mocha used pre-1.0
+  colours, Atom One had invented ones, Gruvbox a typo) are corrected from the
+  sources.
 - `Shift+U` (reset statuses) asks before it wipes the marks.
 - `Shift+P` opens every exact Beatport track page shown in your regular,
   logged-in browser so each can be added to the cart with one click; the `c`

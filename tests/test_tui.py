@@ -275,6 +275,38 @@ def test_the_dim_colour_follows_the_theme(records, state):
     run(scenario)
 
 
+def test_the_interface_colours_come_from_the_theme(records, state):
+    """Store badges, marks and the waveform used to be terminal cyan/green/yellow whatever the theme."""
+
+    app = make_app(records, state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            app.theme = "gruvbox"
+            await pilot.pause()
+            assert app.palette.primary.lower() == "#83a598", "gruvbox bright_blue, as published"
+            assert app.role("bold success").lower() == "bold #b8bb26"
+            legend = app._store_line()
+            assert "#83a598" in str(legend.spans[-2].style).lower() or any(
+                "#83a598" in str(span.style).lower() for span in legend.spans
+            )
+            cells = app._cells(app.visible_rows[0], None)
+            assert any("#83a598" in str(cell.style).lower() for cell in cells), "badges wear the theme's primary"
+
+    run(scenario)
+
+
+def test_the_corrected_themes_replace_textuals_values(records, state):
+    app = make_app(records, state)
+    themes = app.available_themes
+    assert themes["flexoki"].primary.lower() == "#4385be", "the 400 shade, not the light-mode 600"
+    assert themes["catppuccin-mocha"].background.lower() == "#1e1e2e"
+    assert themes["catppuccin-mocha"].success.lower() == "#a6e3a1"
+    assert themes["atom-one-dark"].error.lower() == "#e06c75"
+    assert themes["gruvbox"].primary.lower() == "#83a598"
+
+
 def test_choosing_a_theme_in_settings_persists_it(records, state):
     app = make_app(records, state)
 
@@ -2650,7 +2682,7 @@ def test_marking_a_track_lights_the_row_then_lets_it_settle(state):
             table = app.query_one("#tracks", tui.TrackTable)
             await pilot.press("g")
             await pilot.pause()
-            lit = tui.STATUS_STYLES[GOT][1]
+            lit = app.role(tui.STATUS_STYLES[GOT][1])
             row_cells = table.get_row_at(0)
             if len(row_cells) > TITLE_CELL and row_cells[TITLE_CELL].spans:
                 assert str(row_cells[TITLE_CELL].spans[-1].style) == lit

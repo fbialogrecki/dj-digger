@@ -306,7 +306,10 @@ class ErrorBanner(Widget):
         count = len(self.errors)
         plural = "" if count == 1 else "s"
         summary.update(
-            Text(f"{arrow} {count} error{plural} - click to {verb}", style="bold yellow")
+            Text(
+                f"{arrow} {count} error{plural} - click to {verb}",
+                style=f"bold {getattr(getattr(self.app, 'palette', None), 'warning', 'yellow')}",
+            )
         )
         # Text(), not markup: a failure that quotes a track called "Rido - Sexy
         # Thing [Clip]" must not lose the bracket to the markup parser.

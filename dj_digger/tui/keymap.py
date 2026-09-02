@@ -9,11 +9,13 @@ from ..state import GOT, NEW, OPENED, SKIP
 # A mark is one glyph in a one-cell gutter. Spelling "skipped" out cost seven
 # columns on every row to say "new" on nearly all of them; the width belongs to
 # the track title instead. HelpScreen carries the words.
+# The style is a palette role (see tui/theme.py), resolved against the active
+# theme when a row is painted.
 STATUS_STYLES = {
-    NEW: ("\u00b7", "bright_black", "not looked at yet"),
-    OPENED: ("\u25cb", "yellow", "link opened, outcome unknown"),
-    SKIP: ("\u2717", "bright_black", "skipped"),
-    GOT: ("\u2713", "bold green", "got it"),
+    NEW: ("\u00b7", "muted", "not looked at yet"),
+    OPENED: ("\u25cb", "secondary", "link opened, outcome unknown"),
+    SKIP: ("\u2717", "muted", "skipped"),
+    GOT: ("\u2713", "bold success", "got it"),
 }
 
 PLAYING_GLYPH = "\u25b6"
