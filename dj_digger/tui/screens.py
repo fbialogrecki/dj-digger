@@ -69,6 +69,11 @@ class _Modal(ModalScreen[ResultType]):
     }
     """
 
+    # Every dialog's Escape lands here: closed with no answer, which each
+    # caller reads as a no. Not declared as the base's own binding on purpose:
+    # Textual keeps a merged key in the slot of the class that declared it
+    # first, so a base escape would jump to the front of the footer on the
+    # dialogs that show other keys before it (Confirm, the cart plan).
     def action_cancel(self) -> None:
         self.dismiss(None)
 
@@ -173,9 +178,6 @@ class HelpScreen(_Modal[None]):
             body.append(f"{meaning}\n")
         return body
 
-    def action_dismiss(self) -> None:
-        self.dismiss(None)
-
 
 class ConfirmScreen(_Modal[bool]):
     """Yes/no, for the one action here that cannot be undone."""
@@ -195,7 +197,7 @@ class ConfirmScreen(_Modal[bool]):
 
     BINDINGS = [
         Binding("y", "confirm", "Yes"),
-        Binding("n,escape", "refuse", "No"),
+        Binding("n,escape", "cancel", "No"),
     ]
 
     def __init__(self, question: str) -> None:
@@ -215,9 +217,6 @@ class ConfirmScreen(_Modal[bool]):
 
     def action_confirm(self) -> None:
         self.dismiss(True)
-
-    def action_refuse(self) -> None:
-        self.dismiss(False)
 
 
 class CartProgressScreen(_Modal[None]):
@@ -513,9 +512,6 @@ class CartManualScreen(_Modal[bool]):
     def action_done(self) -> None:
         self.dismiss(True)
 
-    def action_cancel(self) -> None:
-        self.dismiss(False)
-
 
 class CartResultScreen(_Modal[str | None]):
     """Compact batch result with safe retry and cart-focus actions."""
@@ -654,9 +650,6 @@ class GateProfileScreen(_Modal[bool]):
         self.config.save()
         self.dismiss(True)
 
-    def action_cancel(self) -> None:
-        self.dismiss(False)
-
 
 class SoundCloudAuthScreen(_Modal[str | None]):
     """Verify SoundCloud through app-managed Chromium or a hidden token field."""
@@ -791,9 +784,7 @@ class SettingsScreen(_Modal[None]):
     }
     """
 
-    BINDINGS = [
-        Binding("escape", "dismiss", "Cancel"),
-    ]
+    BINDINGS = [Binding("escape", "cancel", "Cancel")]
 
     def __init__(self, config: AppConfig) -> None:
         super().__init__()
@@ -912,6 +903,3 @@ class SettingsScreen(_Modal[None]):
                 self.app.rebuild_columns()
         else:
             self.dismiss()
-
-    def action_dismiss(self) -> None:
-        self.dismiss()
