@@ -11,6 +11,7 @@ from types import SimpleNamespace
 
 import pytest
 from rich.console import Console
+from textual import events
 from textual.coordinate import Coordinate
 from textual.widgets import Button, DataTable, Input, Label, ListView, Select, Static
 
@@ -2131,9 +2132,18 @@ def test_the_legend_lists_every_store_and_scrolls_instead_of_clipping(state):
             bar = app.query_one("#status")
             assert bar.max_scroll_x > 0, "wider than the terminal, so it can scroll"
             assert bar.styles.scrollbar_size_horizontal == 0
-            bar.scroll_to(x=bar.max_scroll_x, animate=False)
+            legend = app.query_one("#status-legend")
+            # A plain wheel over the bar, no shift: Textual would take that as
+            # a vertical scroll and do nothing on a one-line bar.
+            x, y = legend.region.x + 3, legend.region.y
+            legend.post_message(events.MouseScrollDown(legend, 3, 0, 0, 0, 0, False, False, False, x, y))
             await pilot.pause()
-            assert bar.scroll_x == bar.max_scroll_x
+            await pilot.pause()
+            assert bar.scroll_x > 0, "the wheel scrolls it sideways"
+            legend.post_message(events.MouseScrollUp(legend, 3, 0, 0, 0, 0, False, False, False, x, y))
+            await pilot.pause()
+            await pilot.pause()
+            assert bar.scroll_x == 0
 
     run(scenario)
 

@@ -189,6 +189,17 @@ class StatusBar(ScrollableContainer, can_focus=False, can_focus_children=False):
     def on_resize(self, event: events.Resize) -> None:
         self.app.update_status()
 
+    # Textual scrolls a container sideways only with shift or ctrl held; a
+    # plain wheel scrolls vertically, and a one-line bar has no vertical to
+    # give. Here the wheel is the sideways scroll, whichever way it is turned.
+    def _on_mouse_scroll_down(self, event: events.MouseScrollDown) -> None:
+        if self._scroll_right_for_pointer(animate=False):
+            event.stop()
+
+    def _on_mouse_scroll_up(self, event: events.MouseScrollUp) -> None:
+        if self._scroll_left_for_pointer(animate=False):
+            event.stop()
+
 
 class ErrorBanner(Widget):
     """Top bar for errors: one summary line, with the messages a click away.

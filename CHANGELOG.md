@@ -52,7 +52,7 @@
 ### Fixed
 
 - The status bar scrolls sideways like the footer instead of clipping the
-  store legend, and the track counts (`tracks · got · skipped · opened`) are
+  store legend (a plain mouse wheel over it scrolls it, no Shift needed), and the track counts (`tracks · got · skipped · opened`) are
   gone from it; only the running job and the view's state remain on the right.
 - Bandcamp cart verification now recognises the side cart as Bandcamp renders
   it (a row with the product link and an `x` delete control) and counts its
