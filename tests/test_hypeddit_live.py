@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 import pytest
 import requests
 
-from dj_digger import gates
+from dj_digger import browser, gates
 
 HYPEDDIT_URLS = (
     "https://hypeddit.com/sinexvsylum/starryeyed",
@@ -83,7 +83,7 @@ pytestmark = pytest.mark.hypeddit_live
 @pytest.fixture(scope="module")
 def hypeddit_session():
     session = requests.Session()
-    session.headers.update(gates.DEFAULT_HEADERS)
+    session.headers.update(browser.REQUEST_HEADERS)
     yield session
     session.close()
 
@@ -113,13 +113,12 @@ def _live_inspection(url, session):
     return gates.inspect_hypeddit_html(response.url, response.text)
 
 
-def test_known_gate_has_a_manifest_and_no_recommendation_direct_url(hypeddit_session):
+def test_known_gate_has_a_manifest(hypeddit_session):
     inspection = _live_inspection(HYPEDDIT_URLS[0], hypeddit_session)
     assert inspection.kind in {"gate", "hybrid"}
     assert inspection.manifest is not None
     assert inspection.manifest.steps
     assert inspection.manifest.file_id
-    assert inspection.direct_url is None
 
 
 def test_duxnbass_is_a_shop_hub_despite_the_global_captcha_asset(hypeddit_session):

@@ -16,7 +16,8 @@ import time
 import webbrowser
 from collections.abc import Callable, Iterable
 from pathlib import Path
-from urllib.parse import urlparse
+from typing import Any
+from urllib.parse import urljoin, urlparse
 
 # Every link that reaches this module came from somewhere we do not control: a
 # ``purchase_url`` any artist can set, an anchor scraped off a track page, or a
@@ -115,6 +116,68 @@ def is_fetchable(url: str) -> bool:
     except ValueError:
         return True  # a name, not a literal; see the note above
     return address.is_global
+
+
+# One browser identity for every plain HTTP request this program makes. The
+# SoundCloud session, the gate resolvers and the token check each used to carry
+# their own copy of it, and they had drifted apart.
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+)
+REQUEST_HEADERS = {
+    "User-Agent": USER_AGENT,
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.5",
+}
+
+REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
+MAX_REDIRECTS = 5
+
+
+class UnsafeRedirect(ValueError):
+    """A redirect chain led somewhere this program will not request."""
+
+
+def follow_redirects(
+    session: Any,
+    url: str,
+    *,
+    timeout: Any,
+    headers: dict[str, str] | None = None,
+    params: dict[str, str] | None = None,
+    stream: bool = False,
+) -> tuple[Any, str]:
+    """GET ``url`` by hand, validating every redirect target before requesting it.
+
+    ``requests`` would follow the chain itself, but it would also request
+    whatever the chain pointed at - an address inside the user's network
+    included - and forward ``params`` to every hop. Here ``params`` go with the
+    first request only, so a query credential never reaches a redirect target.
+    Returns the final response and the URL it came from.
+    """
+
+    current = url
+    for _hop in range(MAX_REDIRECTS + 1):
+        if not is_fetchable(current):
+            raise UnsafeRedirect("Redirected to an unsafe address")
+        response = session.get(
+            current,
+            headers=headers,
+            params=params,
+            timeout=timeout,
+            stream=stream,
+            allow_redirects=False,
+        )
+        if response.status_code not in REDIRECT_STATUSES:
+            return response, current
+        location = str(response.headers.get("Location", ""))
+        response.close()
+        if not location:
+            raise UnsafeRedirect("Redirect had no destination")
+        current = urljoin(current, location)
+        params = None
+    raise UnsafeRedirect("Redirect limit exceeded")
 
 
 def is_wsl() -> bool:

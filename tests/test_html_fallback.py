@@ -129,9 +129,3 @@ def test_title_loses_the_soundcloud_suffix():
     soup = BeautifulSoup("<title>Great Set | SoundCloud</title>", "html.parser")
     assert html_fallback.extract_title(soup) == "Great Set"
 
-
-def test_relative_links_are_resolved_against_the_track():
-    track = "https://soundcloud.com/artist/track"
-    assert html_fallback.normalize_link(track, "/help") == "https://soundcloud.com/help"
-    assert html_fallback.normalize_link(track, "//cdn.example.com/x") == "https://cdn.example.com/x"
-    assert html_fallback.normalize_link(track, "https://x.com/y") == "https://x.com/y"

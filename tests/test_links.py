@@ -484,3 +484,18 @@ def test_a_hub_link_has_to_be_a_web_address():
 
     track = Track(title="T", permalink_url="https://soundcloud.com/a/t", purchase_url="file:///etc/passwd")
     assert links.hub_links(track) == []
+
+
+@pytest.mark.parametrize(
+    "url,expected",
+    [
+        ("https://hypeddit.com/track/abc", True),
+        ("https://www.hypd.it/t/abc", True),
+        ("http://HYPEDDIT.com/x", True),
+        ("https://hypeddit.com.attacker.example/track/abc", False),
+        ("ftp://hypeddit.com/track/abc", False),
+        ("hypeddit.com/track/abc", False),
+    ],
+)
+def test_is_hypeddit_url_needs_a_web_scheme_and_an_exact_host(url, expected):
+    assert links.is_hypeddit_url(url) is expected

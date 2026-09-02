@@ -10,6 +10,21 @@ from dj_digger.models import Track
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
+
+class FakeResponse:
+    """A requests-shaped reply: status, headers, text, and a json() that can fail."""
+
+    def __init__(self, status_code=200, payload=None, text="{}", headers=None):
+        self.status_code = status_code
+        self._payload = payload
+        self.text = text
+        self.headers = headers or {}
+
+    def json(self):
+        if self._payload is None:
+            raise ValueError("no json")
+        return self._payload
+
 # Land animations on their final value at once rather than over 200ms. Textual
 # reads this when it is imported, so it has to be set before anything pulls it
 # in - a test that had to wait out an animation is a test that fails on a loaded
