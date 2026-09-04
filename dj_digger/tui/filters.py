@@ -126,7 +126,7 @@ class FilterMixin:
         if index <= len(self.present):
             self._apply_store_filter(self.present[index - 1])
         else:
-            self.notify(f"This crate has no store {index}", timeout=2)
+            self.notify(f"This playlist has no store {index}", timeout=2)
 
     # Sorting
 
@@ -153,7 +153,7 @@ class FilterMixin:
     def _resort(self) -> None:
         self.refresh_rows(keep_cursor=False)
         self._paint_headers()
-        label = self.sort_key or "crate order"
+        label = self.sort_key or "playlist order"
         self.notify(f"Sorted by {label}{' (reversed)' if self.sort_reverse else ''}", timeout=2)
 
     # Selection

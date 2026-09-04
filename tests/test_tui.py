@@ -288,26 +288,17 @@ def test_the_interface_colours_come_from_the_theme(records, state):
             await pilot.pause()
             app.theme = "gruvbox"
             await pilot.pause()
-            assert app.palette.primary.lower() == "#83a598", "gruvbox bright_blue, as published"
-            assert app.role("bold success").lower() == "bold #b8bb26"
+            primary = app.palette.primary.lower()
+            assert primary.startswith("#")
+            assert app.role("bold success").lower() == f"bold {app.palette.success.lower()}"
             legend = app._store_line()
-            assert "#83a598" in str(legend.spans[-2].style).lower() or any(
-                "#83a598" in str(span.style).lower() for span in legend.spans
+            assert primary in str(legend.spans[-2].style).lower() or any(
+                primary in str(span.style).lower() for span in legend.spans
             )
             cells = app._cells(app.visible_rows[0], None)
-            assert any("#83a598" in str(cell.style).lower() for cell in cells), "badges wear the theme's primary"
+            assert any(primary in str(cell.style).lower() for cell in cells), "badges wear the theme's primary"
 
     run(scenario)
-
-
-def test_the_corrected_themes_replace_textuals_values(records, state):
-    app = make_app(records, state)
-    themes = app.available_themes
-    assert themes["flexoki"].primary.lower() == "#4385be", "the 400 shade, not the light-mode 600"
-    assert themes["catppuccin-mocha"].background.lower() == "#1e1e2e"
-    assert themes["catppuccin-mocha"].success.lower() == "#a6e3a1"
-    assert themes["atom-one-dark"].error.lower() == "#e06c75"
-    assert themes["gruvbox"].primary.lower() == "#83a598"
 
 
 def test_choosing_a_theme_in_settings_persists_it(records, state):
@@ -316,7 +307,7 @@ def test_choosing_a_theme_in_settings_persists_it(records, state):
     async def scenario():
         async with app.run_test() as pilot:
             await pilot.pause()
-            await pilot.press("S")
+            await pilot.press("s")
             await pilot.pause()
             assert isinstance(app.screen, SettingsScreen)
             app.screen.query_one("#input-theme", Select).value = "nord"
@@ -412,6 +403,29 @@ def test_readme_lists_every_keymap_key():
             if not any(candidate in readme for candidate in candidates):
                 missing.append(token)
     assert missing == [], f"README does not document: {missing}"
+
+
+def test_primary_footer_actions_are_visible_and_grouped():
+    visible = [(key, action) for key, action, _label, _group, show, _detail in keymap.KEYMAP if show]
+
+    assert visible[:2] == [("o,enter", "open_link"), ("O", "open_visible")]
+    assert visible[4:8] == [
+        ("b", "search('bandcamp')"),
+        ("B", "search('beatport')"),
+        ("c", "cart_track"),
+        ("C", "cart_visible"),
+    ]
+    assert all(
+        shown == f"shift+{key.lower()}"
+        for key, shown in keymap.KEY_DISPLAY.items()
+        if len(key) == 1 and key.isupper()
+    )
+    assert [(key, action) for key, action in visible if key in {"g", "k", "u", "s"}] == [
+        ("g", "mark_got"),
+        ("k", "mark_skip"),
+        ("u", "mark_new"),
+        ("s", "open_settings"),
+    ]
 
 
 def test_the_command_palette_is_off(records, state):
@@ -548,15 +562,15 @@ def test_skipping_persists(records, state):
 
     async def scenario():
         async with app.run_test() as pilot:
-            await pilot.press("s")
+            await pilot.press("k")
 
     run(scenario)
     assert state.get(records[0].track.key) == SKIP
 
 
-@pytest.mark.parametrize("key,status", [("s", SKIP), ("g", GOT)])
+@pytest.mark.parametrize("key,status", [("k", SKIP), ("g", GOT)])
 def test_pressing_the_same_mark_again_clears_it(records, state, key, status):
-    """Reaching for s again to unskip is what people actually try."""
+    """Pressing the same mark again is the natural way to undo it."""
 
     app = make_app(records, state)
 
@@ -870,6 +884,10 @@ def test_beatport_result_creates_playlist_and_opens_supported_transfer(
     patch_cart_session(monkeypatch, run_cart)
     monkeypatch.setattr("dj_digger.tui.opening.browser_module.open_url", open_url)
     monkeypatch.setattr(
+        "dj_digger.tui.opening._create_soundiiz_import",
+        lambda requests, outcome, title: "https://soundiiz.com/go/import-playlist/test-token",
+    )
+    monkeypatch.setattr(
         "dj_digger.tui.opening.copy_to_clipboard",
         lambda text: copied.append(text) or True,
     )
@@ -894,7 +912,7 @@ def test_beatport_result_creates_playlist_and_opens_supported_transfer(
     run(scenario)
     safe_url = "https://www.beatport.com/track/signal/123"
     assert copied == [safe_url]
-    assert opened[0][0] == "https://soundiiz.com/beatport/import-playlist"
+    assert opened[0][0] == "https://soundiiz.com/go/import-playlist/test-token"
     playlist = next(tmp_path.rglob("Beatport playlist.txt"))
     assert playlist.read_text(encoding="utf-8") == safe_url + "\n"
 
@@ -931,6 +949,181 @@ def test_beatport_playlist_uses_metadata_for_a_release_link(tmp_path):
     assert lines == ("Revan - Lights On",)
     assert first.name == "Beatport playlist.txt"
     assert second.name == "Beatport playlist (2).txt"
+
+
+def test_soundiiz_import_posts_the_tracklist_and_returns_its_review_url(monkeypatch):
+    candidate = Track(
+        title="Lights On",
+        artist="Revan",
+        permalink_url="https://soundcloud.com/revan/lights-on",
+        id=4243,
+    )
+    request = cart.CartRequest(
+        candidate,
+        (("beatport", "https://www.beatport.com/track/lights-on/123"),),
+    )
+    outcome = cart.CartBatchOutcome(
+        (
+            cart.CartResult(
+                candidate.key,
+                candidate.label,
+                "beatport",
+                "playlist_ready",
+                code="playlist_ready",
+            ),
+        )
+    )
+    posted = {}
+
+    class Response:
+        status_code = 200
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"shareUrl": "https://soundiiz.com/go/import-playlist/token"}
+
+    def post(url, **kwargs):
+        posted.update(url=url, **kwargs)
+        return Response()
+
+    monkeypatch.setattr("dj_digger.beatport_playlist.requests.post", post)
+
+    url = opening_module._create_soundiiz_import([request], outcome, "Dig finds")
+
+    assert url == "https://soundiiz.com/go/import-playlist/token"
+    assert posted["url"] == "https://soundiiz.com/go/import-playlist"
+    assert posted["json"] == {
+        "title": "Dig finds",
+        "sourceName": "dj-soundcloud-digger",
+        "destination": "beatport",
+        "tracklist": [{"title": "Lights On", "artists": ["Revan"]}],
+    }
+
+
+@pytest.mark.parametrize(
+    ("raw_title", "uploader", "title", "artists"),
+    [
+        (
+            "Full Premiere: Bambook & Mennie feat. Cari Golden – Slip Away (Original Mix)",
+            "DHA FM (Deep House Amsterdam)",
+            "Slip Away (Original Mix)",
+            ["Bambook & Mennie feat. Cari Golden", "Cari Golden"],
+        ),
+        (
+            "PREMIERE : André Hommen - Sensory [Objektivity]",
+            "Sweet Music",
+            "Sensory",
+            ["André Hommen"],
+        ),
+        (
+            "Jimmy & Fred - Red (Preview) | Exploited",
+            "Exploited",
+            "Red",
+            ["Jimmy & Fred"],
+        ),
+        (
+            "Aaron Jackson - Follow(Original Mix)*Nite Records*",
+            "Aaron Jackson",
+            "Follow(Original Mix)",
+            ["Aaron Jackson"],
+        ),
+        (
+            "Argy & MAMA - Who Am I (Rampa Remix) - BPitch Control",
+            "Rampa",
+            "Who Am I (Rampa Remix)",
+            ["Argy & MAMA", "Rampa"],
+        ),
+        (
+            "Andre Winter-Dogma",
+            "AndreWinter",
+            "Dogma",
+            ["Andre Winter"],
+        ),
+        (
+            "Skinnybit -Superstition [OUT NOW]",
+            "Black Lizard Records",
+            "Superstition",
+            ["Skinnybit"],
+        ),
+        (
+            "Dense & Pika feat. Melodys Enemy - From Nothing - Kneaded Pains",
+            "Dense & Pika",
+            "From Nothing",
+            ["Dense & Pika feat. Melodys Enemy", "Melodys Enemy"],
+        ),
+        (
+            "Vijay & Sofia Zlatko - I Like It ( Vintage Culture remix )",
+            "Uploader",
+            "I Like It (Vintage Culture remix)",
+            ["Vijay & Sofia Zlatko", "Vintage Culture"],
+        ),
+    ],
+)
+def test_soundiiz_metadata_removes_promo_uploader_noise(
+    raw_title, uploader, title, artists
+):
+    track = Track(title=raw_title, artist=uploader, permalink_url="https://soundcloud.com/x/y")
+    request = cart.CartRequest(track, (("beatport", "https://www.beatport.com/release/x/1"),))
+
+    assert opening_module._soundiiz_metadata(request) == {
+        "title": title,
+        "artists": artists,
+    }
+
+
+def test_soundiiz_metadata_adds_remixer_to_catalog_artists():
+    track = Track(
+        title="Jochen Pash - Keep On Trying (Return Of The Jaded Remix)",
+        artist="Return of the Jaded",
+        permalink_url="https://soundcloud.com/x/keep-on-trying",
+    )
+    request = cart.CartRequest(track, (("beatport", "https://www.beatport.com/release/x/1"),))
+
+    assert opening_module._soundiiz_metadata(request) == {
+        "title": "Keep On Trying (Return Of The Jaded Remix)",
+        "artists": ["Jochen Pash", "Return Of The Jaded"],
+    }
+
+
+def test_exact_beatport_result_replaces_the_saved_release_link():
+    track = Track(
+        title="Artist - Signal",
+        artist="Uploader",
+        permalink_url="https://soundcloud.com/x/signal",
+        purchase_url="https://www.beatport.com/release/signal/12",
+    )
+    record = library.CrateRecord("source", "Playlist", [track])
+    exact = "https://www.beatport.com/track/signal/34"
+    outcome = cart.CartBatchOutcome(
+        (
+            cart.CartResult(
+                track.key,
+                track.label,
+                "beatport",
+                "playlist_ready",
+                code="playlist_ready",
+                url=exact,
+            ),
+        )
+    )
+
+    assert opening_module._remember_exact_beatport_links(record, outcome)
+    assert track.purchase_url == exact
+
+    legacy = Track(
+        title="Keep On Trying",
+        permalink_url="https://soundcloud.com/x/keep",
+        purchase_url="https://pro.beatport.com/release/keep-on-trying-part-2/1491414",
+    )
+    legacy_record = library.CrateRecord("source", "Playlist", [legacy])
+    assert opening_module._remember_exact_beatport_links(
+        legacy_record, cart.CartBatchOutcome(())
+    )
+    assert legacy.purchase_url == (
+        "https://www.beatport.com/release/keep-on-trying-part-2/1491414"
+    )
 
 
 def test_store_settings_only_open_the_bandcamp_session(records, state, monkeypatch):
@@ -1387,7 +1580,7 @@ def test_batch_download_uses_the_selection_when_there_is_one(state, monkeypatch)
         async with app.run_test() as pilot:
             await pilot.press("down")
             await pilot.press("v")
-            await pilot.press("W")
+            await pilot.press("D")
             await pilot.pause()
 
     run(scenario)
@@ -1564,7 +1757,7 @@ def test_cancelling_keeps_a_crate_you_already_have(records, state):
 
     async def scenario():
         async with app.run_test() as pilot:
-            await pilot.press("d")
+            await pilot.press("a")
             await pilot.pause()
             assert isinstance(app.screen, AskLinkScreen)
             await pilot.press("escape")
@@ -1580,7 +1773,7 @@ def test_digging_a_second_link_replaces_the_crate(records, state, monkeypatch):
 
     async def scenario():
         async with app.run_test() as pilot:
-            await pilot.press("d")
+            await pilot.press("a")
             await pilot.pause()
             app.screen.query_one("#ask-input", Input).value = "https://soundcloud.com/a/sets/c"
             await pilot.press("enter")
@@ -2193,12 +2386,9 @@ def test_the_footer_drops_keys_rather_than_cutting_one_in_half(state):
             # The footer builds its keys on mount and rebuilds them whenever
             # focus moves, so one pause is not a guarantee that they exist yet -
             # on a slow runner this read an empty set and asserted nothing.
-            keys = []
-            for _ in range(20):
+            for _ in range(3):
                 await pilot.pause()
-                keys = [key for key in app.query("FooterKey") if key.display]
-                if keys:
-                    break
+            keys = [key for key in app.query("FooterKey") if key.display]
             assert keys, "the footer never composed"
 
             spent = sum(len(k.key_display) + len(k.description) + 3 for k in keys)
@@ -2497,7 +2687,7 @@ def test_marking_the_track_you_are_hearing_moves_listening_on_too(state, monkeyp
         async with app.run_test() as pilot:
             await pilot.press("space")
             await pilot.pause()
-            await pilot.press("s")
+            await pilot.press("k")
             await pilot.pause()
             assert app.query_one("#tracks", DataTable).cursor_row == 1
 
@@ -2516,7 +2706,7 @@ def test_marking_a_track_you_are_not_hearing_leaves_playback_alone(state, monkey
             await pilot.press("space")
             await pilot.pause()
             table.move_cursor(row=2)
-            await pilot.press("s")
+            await pilot.press("k")
             await pilot.pause()
 
     run(scenario)
@@ -3289,7 +3479,7 @@ def test_rejected_hypeddit_gate_falls_back_to_the_browser_with_its_reason(
 
     async def scenario():
         async with app.run_test() as pilot:
-            await pilot.press("w")
+            await pilot.press("d")
             await app.workers.wait_for_complete()
             await pilot.pause()
 
@@ -4203,7 +4393,7 @@ def test_batch_download_skips_skipped_tracks(state, monkeypatch):
 
     async def scenario():
         async with app.run_test() as pilot:
-            await pilot.press("W")
+            await pilot.press("D")
 
     run(scenario)
     assert len(started) == 1
@@ -4233,7 +4423,7 @@ def test_batch_marks_an_existing_local_file_got_without_downloading(
 
     async def scenario():
         async with app.run_test() as pilot:
-            await pilot.press("W")
+            await pilot.press("D")
 
     run(scenario)
     assert started == []

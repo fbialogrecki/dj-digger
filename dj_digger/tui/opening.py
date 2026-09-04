@@ -10,19 +10,23 @@ import urllib.parse
 from collections import Counter
 from threading import Event
 
+from requests import RequestException
 from textual import work
 
 from .. import browser as browser_module
 from .. import cart as cart_module
 from .. import gates
+from .. import library as library_module
 from .. import links as links_module
 from ..beatport_playlist import (  # noqa: F401 - re-exported for tests
-    SOUNDIIZ_BEATPORT_TRANSFER_URL,
     _beatport_playlist_lines,
+    _create_soundiiz_import,
+    _soundiiz_metadata,
     _write_beatport_playlist,
 )
 from ..scanner import copy_to_clipboard
 from ..state import GOT, NEW, OPENED, SKIP
+from ..store_urls import _direct_beatport_track_url, canonical_store_url
 from .keymap import (
     DIRECT_STORE_CATEGORIES,
     OPEN_ALL_CONFIRM_THRESHOLD,
@@ -42,6 +46,60 @@ SEARCH_URLS = {
     "bandcamp": "https://bandcamp.com/search?q={query}",
     "beatport": "https://www.beatport.com/search?q={query}",
 }
+
+
+def _remember_exact_beatport_links(
+    record: library_module.CrateRecord, outcome: cart_module.CartBatchOutcome
+) -> bool:
+    """Replace stored Beatport release links only when an exact track URL is known."""
+
+    exact_urls = {
+        result.track_key: exact
+        for result in outcome.results
+        if result.store == "beatport"
+        and result.code == "playlist_ready"
+        and (exact := _direct_beatport_track_url(result.url)) is not None
+    }
+    changed = False
+    for track in record.tracks:
+        if links_module.store_for_url(track.purchase_url or "") == "beatport":
+            canonical = canonical_store_url(track.purchase_url or "", "beatport")
+            if canonical is not None and canonical != track.purchase_url:
+                track.purchase_url = canonical
+                changed = True
+        normalized_extra = []
+        for url, text in track.extra_links:
+            canonical = (
+                canonical_store_url(url, "beatport")
+                if links_module.store_for_url(url) == "beatport"
+                else None
+            )
+            normalized_extra.append((canonical or url, text))
+            changed |= canonical is not None and canonical != url
+        track.extra_links = normalized_extra
+
+        exact = exact_urls.get(track.key)
+        if exact is None:
+            continue
+        if links_module.store_for_url(track.purchase_url or "") == "beatport":
+            if track.purchase_url != exact:
+                track.purchase_url = exact
+                changed = True
+            continue
+        updated = []
+        replaced = False
+        for url, text in track.extra_links:
+            if not replaced and links_module.store_for_url(url) == "beatport":
+                updated.append((exact, text))
+                replaced = True
+                changed |= url != exact
+            else:
+                updated.append((url, text))
+        if not replaced:
+            updated.append((exact, "Buy on Beatport"))
+            changed = True
+        track.extra_links = updated
+    return changed
 
 
 class OpeningMixin:
@@ -89,7 +147,7 @@ class OpeningMixin:
         self.update_status()
 
     def _find_gate_url(self, row: Row) -> str | None:
-        """The link ``w`` hands to the gate resolvers, surest bet first.
+        """The link ``d`` hands to the gate resolvers, surest bet first.
 
         Three passes over one shortlist rather than three shortlists, and the
         host list comes from ``gates`` rather than being spelled out again here.
@@ -368,6 +426,8 @@ class OpeningMixin:
                 timeout=5,
             )
             return
+        if self.crate is not None and _remember_exact_beatport_links(self.crate, outcome):
+            await asyncio.to_thread(library_module.save, self.crate)
         try:
             path = await asyncio.to_thread(
                 _write_beatport_playlist,
@@ -386,13 +446,24 @@ class OpeningMixin:
                 timeout=6,
             )
             return
+        try:
+            import_url = await asyncio.to_thread(
+                _create_soundiiz_import,
+                requests,
+                outcome,
+                self.crate_title or "DJ Digger Beatport playlist",
+            )
+        except (OSError, ValueError, RequestException) as exc:
+            LOGGER.warning("Could not create Soundiiz import: %s", cart_module.log_safe_text(exc))
+            self.notify(
+                f"Playlist saved to {path}, but Soundiiz import failed",
+                severity="warning",
+                timeout=9,
+            )
+            return
         copied, opened = await asyncio.gather(
             asyncio.to_thread(copy_to_clipboard, "\n".join(lines)),
-            asyncio.to_thread(
-                browser_module.open_url,
-                SOUNDIIZ_BEATPORT_TRANSFER_URL,
-                self.browser,
-            ),
+            asyncio.to_thread(browser_module.open_url, import_url, self.browser),
         )
         LOGGER.info(
             "Prepared Beatport playlist: tracks=%d copied=%s opened=%s path=%s",
@@ -402,10 +473,7 @@ class OpeningMixin:
             path,
         )
         if opened and copied:
-            message = (
-                f"Beatport playlist ready ({len(lines)} tracks). In Soundiiz "
-                "choose Import playlist → Plain text and paste."
-            )
+            message = f"Beatport playlist ready in Soundiiz ({len(lines)} tracks)"
         elif opened:
             message = f"Beatport playlist saved to {path}; upload it in Soundiiz"
         else:

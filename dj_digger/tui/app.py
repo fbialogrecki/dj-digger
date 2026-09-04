@@ -45,7 +45,7 @@ from .playback import PlaybackMixin
 from .render import RenderMixin
 from .rows import Prepared, Row
 from .screens import ContextMenuScreen, HelpScreen, SettingsScreen
-from .theme import CORRECTED_THEMES, FALLBACK_PALETTE, Palette, palette_for
+from .theme import FALLBACK_PALETTE, Palette, palette_for
 from .widgets import ErrorBanner, FittedFooter, SearchInput, StatusBar, TrackTable
 
 LOGGER = logging.getLogger(__name__)
@@ -271,8 +271,6 @@ class DiggerApp(
         # The interface's colour roles under the active theme, recomputed
         # whenever the theme changes (see tui/theme.py).
         self.palette: Palette = FALLBACK_PALETTE
-        for theme in CORRECTED_THEMES:
-            self.register_theme(theme)
         self._set_records(records)
 
     def compose(self) -> ComposeResult:
@@ -281,9 +279,9 @@ class DiggerApp(
         yield PlayerControls(self.player, id="player-controls")
         with Horizontal(id="body"):
             with Vertical(id="sidebar"):
-                yield Static("Crates", id="sidebar-title")
+                yield Static("Playlists", id="sidebar-title")
                 yield ListView(id="crates")
-                yield Button("+ Add crate", id="crate-add", tooltip="Add a crate (d)")
+                yield Button("+ Add playlist", id="crate-add", tooltip="Add a playlist (d)")
             with Vertical(id="main"):
                 yield SearchInput(placeholder="Filter by artist, title, genre, tag or label", id="search")
                 yield TrackTable(id="tracks", cursor_type="row", zebra_stripes=True)

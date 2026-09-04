@@ -57,14 +57,19 @@ def canonical_store_url(url: str, store: str) -> str | None:
     """Return a validated HTTPS store URL, upgrading only a plain HTTP origin."""
 
     value = (url or "").strip()
-    if is_store_url(value, store):
-        return value
     origin = _store_origin(value, store)
     if origin is None:
         return None
     parsed, host, port = origin
-    if parsed.scheme.lower() != "http" or port not in (None, 80):
+    scheme = parsed.scheme.lower()
+    if (scheme == "https" and port not in (None, 443)) or (
+        scheme == "http" and port not in (None, 80)
+    ):
         return None
+    if scheme not in {"http", "https"}:
+        return None
+    if store == "beatport":
+        host = "www.beatport.com"
     return urlunparse(("https", host, parsed.path or "/", "", parsed.query, ""))
 
 

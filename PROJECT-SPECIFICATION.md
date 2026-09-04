@@ -2,11 +2,11 @@
 
 - Status: current implemented system
 - Document version: 1.0
-- Product version verified: 0.15.0
+- Product version verified: 1.0.0
 - Owner: Filip Białogrecki
-- Updated: 2026-08-28
-- Document lines: <!-- SPEC TOTAL LINES -->1077<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1077<!-- END SPEC MAP LIMIT -->
+- Updated: 2026-09-04
+- Document lines: <!-- SPEC TOTAL LINES -->1100<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1100<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,62 +51,62 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 141–173 |
 | 2.1 | ↳ Problem and product boundary | 143–154 |
 | 2.2 | ↳ Execution modes | 155–173 |
-| 3 | User-visible capabilities | 174–416 |
+| 3 | User-visible capabilities | 174–430 |
 | 3.1 | ↳ Track collection and saved HTML | 176–195 |
 | 3.2 | ↳ Link classification and exports | 196–214 |
-| 3.3 | ↳ TUI crate library and interaction | 215–281 |
-| 3.4 | ↳ Audio preview | 282–318 |
-| 3.5 | ↳ Downloads and local-file matching | 319–346 |
-| 3.6 | ↳ Store purchase assistance | 347–416 |
-| 4 | System context and data flow | 417–453 |
-| 4.1 | ↳ Context diagram | 419–440 |
-| 4.2 | ↳ Collection-to-library flow | 441–453 |
-| 5 | Repository layout and component ownership | 454–499 |
-| 5.1 | ↳ Entry, orchestration, and models | 456–466 |
-| 5.2 | ↳ Network and external-system adapters | 467–485 |
-| 5.3 | ↳ Persistence, local media, and UI | 486–499 |
-| 6 | Runtime architecture and environments | 500–573 |
-| 6.1 | ↳ Runtime and dependencies | 502–515 |
-| 6.2 | ↳ Concurrency and lifecycle | 516–558 |
-| 6.3 | ↳ Local paths and environment variables | 559–573 |
-| 7 | Data model and persistence | 574–643 |
-| 7.1 | ↳ Domain objects and identity | 576–590 |
-| 7.2 | ↳ SQLite schema and invariants | 591–615 |
-| 7.3 | ↳ Crate persistence and deletion | 616–627 |
-| 7.4 | ↳ Configuration and credential stores | 628–643 |
-| 8 | Public interfaces and contracts | 644–689 |
-| 8.1 | ↳ CLI arguments and exit behavior | 646–665 |
-| 8.2 | ↳ JSON and CSV summary input | 666–680 |
-| 8.3 | ↳ URL-opening contract | 681–689 |
-| 9 | Authentication and authorization | 690–726 |
-| 9.1 | ↳ SoundCloud authentication | 692–709 |
-| 9.2 | ↳ Gate action consent | 710–726 |
-| 10 | External integrations | 727–853 |
-| 10.1 | ↳ SoundCloud API and media | 729–740 |
-| 10.2 | ↳ Link hubs and download gates | 741–800 |
-| 10.2 · block | ↳ ↳ Hypeddit | 749–786 |
-| 10.2 · block | ↳ ↳ Other resolvers | 788–793 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 795–800 |
-| 10.3 | ↳ Browsers and clipboard | 801–812 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 813–853 |
-| 11 | Security requirements and threat model | 854–900 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 856–874 |
-| 11.2 | ↳ Secret and personal-data handling | 875–887 |
-| 11.3 | ↳ File and mutation safety | 888–900 |
-| 12 | Privacy, lifecycle, and retention | 901–939 |
-| 12.1 | ↳ Data stored locally | 903–918 |
-| 12.2 | ↳ Data sent to third parties | 919–930 |
-| 12.3 | ↳ User-controlled deletion | 931–939 |
-| 13 | Failure behavior and current limitations | 940–991 |
-| 13.1 | ↳ Error isolation and reporting | 942–961 |
-| 13.2 | ↳ Confirmed limitations | 962–991 |
-| 14 | Verification, CI, and release | 992–1055 |
-| 14.1 | ↳ Offline and live test suites | 994–1024 |
-| 14.2 | ↳ Continuous integration and publishing | 1025–1040 |
-| 14.3 | ↳ Specification-map verification | 1041–1055 |
-| 15 | Evidence and operational references | 1056–1077 |
-| 15.1 | ↳ Primary implementation evidence | 1058–1070 |
-| 15.2 | ↳ User and historical documentation | 1071–1077 |
+| 3.3 | ↳ TUI playlist library and interaction | 215–285 |
+| 3.4 | ↳ Audio preview | 286–322 |
+| 3.5 | ↳ Downloads and local-file matching | 323–350 |
+| 3.6 | ↳ Store purchase assistance | 351–430 |
+| 4 | System context and data flow | 431–467 |
+| 4.1 | ↳ Context diagram | 433–454 |
+| 4.2 | ↳ Collection-to-library flow | 455–467 |
+| 5 | Repository layout and component ownership | 468–513 |
+| 5.1 | ↳ Entry, orchestration, and models | 470–480 |
+| 5.2 | ↳ Network and external-system adapters | 481–499 |
+| 5.3 | ↳ Persistence, local media, and UI | 500–513 |
+| 6 | Runtime architecture and environments | 514–587 |
+| 6.1 | ↳ Runtime and dependencies | 516–529 |
+| 6.2 | ↳ Concurrency and lifecycle | 530–572 |
+| 6.3 | ↳ Local paths and environment variables | 573–587 |
+| 7 | Data model and persistence | 588–657 |
+| 7.1 | ↳ Domain objects and identity | 590–604 |
+| 7.2 | ↳ SQLite schema and invariants | 605–629 |
+| 7.3 | ↳ Crate persistence and deletion | 630–641 |
+| 7.4 | ↳ Configuration and credential stores | 642–657 |
+| 8 | Public interfaces and contracts | 658–703 |
+| 8.1 | ↳ CLI arguments and exit behavior | 660–679 |
+| 8.2 | ↳ JSON and CSV summary input | 680–694 |
+| 8.3 | ↳ URL-opening contract | 695–703 |
+| 9 | Authentication and authorization | 704–740 |
+| 9.1 | ↳ SoundCloud authentication | 706–723 |
+| 9.2 | ↳ Gate action consent | 724–740 |
+| 10 | External integrations | 741–873 |
+| 10.1 | ↳ SoundCloud API and media | 743–754 |
+| 10.2 | ↳ Link hubs and download gates | 755–814 |
+| 10.2 · block | ↳ ↳ Hypeddit | 763–800 |
+| 10.2 · block | ↳ ↳ Other resolvers | 802–807 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 809–814 |
+| 10.3 | ↳ Browsers and clipboard | 815–826 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 827–873 |
+| 11 | Security requirements and threat model | 874–920 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 876–894 |
+| 11.2 | ↳ Secret and personal-data handling | 895–907 |
+| 11.3 | ↳ File and mutation safety | 908–920 |
+| 12 | Privacy, lifecycle, and retention | 921–959 |
+| 12.1 | ↳ Data stored locally | 923–938 |
+| 12.2 | ↳ Data sent to third parties | 939–950 |
+| 12.3 | ↳ User-controlled deletion | 951–959 |
+| 13 | Failure behavior and current limitations | 960–1014 |
+| 13.1 | ↳ Error isolation and reporting | 962–981 |
+| 13.2 | ↳ Confirmed limitations | 982–1014 |
+| 14 | Verification, CI, and release | 1015–1078 |
+| 14.1 | ↳ Offline and live test suites | 1017–1047 |
+| 14.2 | ↳ Continuous integration and publishing | 1048–1063 |
+| 14.3 | ↳ Specification-map verification | 1064–1078 |
+| 15 | Evidence and operational references | 1079–1100 |
+| 15.1 | ↳ Primary implementation evidence | 1081–1093 |
+| 15.2 | ↳ User and historical documentation | 1094–1100 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -144,7 +144,7 @@ values. Hand-written content outside those regions is preserved.
 
 `dj-soundcloud-digger` collects tracks behind SoundCloud playlist, user,
 collection, and track links, extracts purchase and download destinations, and
-presents them as a local crate. It avoids relying on the finite set of tracks
+presents them as a local playlist. It avoids relying on the finite set of tracks
 rendered in a SoundCloud page by using SoundCloud API v2, while retaining a
 saved-HTML path for private, unlisted, or otherwise inaccessible pages.
 
@@ -178,7 +178,7 @@ durable job queue.
 For SoundCloud URLs, `SoundCloudClient.collect()` resolves the URL and handles:
 
 - users and `/likes`, `/tracks`, or `/reposts` through paginated user endpoints;
-- single tracks as one-track crates;
+- single tracks as one-track playlists;
 - playlists/sets by collecting track IDs and hydrating them in batches of 50;
 - an optional limit applied to collected tracks.
 
@@ -212,20 +212,18 @@ by category. CSV columns are `category`, `artist`, `title`, `track_url`, and
 `shop_link`. The default path is `soundcloud_links.<format>`. Current code reads
 JSON summaries; YAML input is rejected with an explicit legacy-format error.
 
-### 3.3 TUI crate library and interaction
+### 3.3 TUI playlist library and interaction
 
-`DiggerApp` composes a crate sidebar, track table, error banner, status bar,
-search input, footer, and collapsible player bar. The sidebar lists crate
-headers and loads a crate's tracks when it is selected. Settings can add BPM, key, year, and label columns between Genre and Time and
+`DiggerApp` presents a playlist sidebar, track table, error banner, status bar,
+search input, footer, and collapsible player bar. The sidebar lists saved
+playlists and loads a playlist's tracks when it is selected. Settings can add BPM, key, year, and label columns between Genre and Time and
 choose the Textual theme. Every colour the interface paints is a role of the
 active theme (`tui/theme.py`): primary for store badges, the active filter,
 selection marks and help keys; success for got and free downloads; secondary
 for opened and newly arrived tracks; accent for the playing marker and the
 played waveform; warning for a download in progress and the error banner
-summary; a blend of foreground and background for secondary text. Themes
-whose Textual values differ from their published palettes (Flexoki,
-Catppuccin, Gruvbox, Tokyo Night, Dracula, Atom One, Monokai, Rosé Pine,
-Nord, Solarized) are re-registered from the sources under the same names.
+summary; a blend of foreground and background for secondary text. Theme
+definitions are supplied by Textual.
 Changes to a single
 row (a mark, an opened link, the playing marker, download progress) repaint
 that row in place; the table is rebuilt only when the visible set changes.
@@ -234,7 +232,7 @@ the search box. The status bar is built like Textual's footer: a horizontal scro
 container with its scrollbar hidden, so the store legend always lists every
 store and scrolls sideways (mouse wheel or drag) when wider than the terminal.
 Its right side, docked so it never scrolls away, shows only the running job
-and the view's state (selection, sort, search, hidden rows, partial crate);
+and the view's state (selection, sort, search, hidden rows, partial playlist);
 the track counts are gone. One job at a time (dig, download batch, bulk open, scan, cart)
 reports in the status bar as a spinner with its name, counts, failures, and
 `^X stop`; `ctrl+x` (also bound with priority) cancels it. The table keeps its
@@ -244,7 +242,7 @@ box returns to the list with the filter kept, and Escape on the list clears the
 selection, then the search, then the store filter and hiding. `t` cycles the
 sort (title, time, genre, status, store, plus any enabled BPM/key/year column)
 with an arrow on the sorted header, `T` reverses it, and sorting is applied
-when rows are matched so it survives repaints. Textual's command palette stays disabled. Resetting a crate's
+when rows are matched so it survives repaints. Textual's command palette stays disabled. Resetting a playlist's
 statuses asks for confirmation, since statuses are global by track and the
 reset has no undo. `v`, `V`, and `ctrl+a` build a
 selection of track keys; batch download, bulk open, cart, export, marks, and
@@ -252,23 +250,29 @@ removal act on the selection when there is one, else on every row shown. Handing
 because the WSL bridge can block for seconds; the status mark is written back
 on the UI thread. `tui/keymap.py` is the single
 source for bindings, footer labels, and help text. Implemented operations include
-crate import/refresh/delete, local-only track removal and undo, store/search and
+playlist import/refresh/delete, local-only track removal and undo, store/search and
 handled-state filters, row status changes, opening one or many links, export,
 download, cart preflight, local-file path copy, playback, seeking, volume, and
-settings.
+settings. The visible footer groups `o` with `shift+o`, `b` with `shift+b`, and
+`c` with `shift+c`; shifted letters are displayed in lowercase. The store-search
+labels say `Search in Bandcamp` and `Search in Beatport`. The footer
+shows `g`, `k`, and `u` for got, skipped, and unmarked, and opens Settings with
+`s`. Download uses `d`, `shift+d` downloads all eligible visible tracks, and
+`a` adds a playlist. Its initial fit is calculated from the application width, so focusing or
+clicking a widget does not reveal bindings that should have fitted at startup.
 
 In the track table, a local-file match is shown as the monochrome one-cell `▣`
 at the start of the first marker column; `▶` follows it while the track plays.
 No folder emoji is appended to the track title. `o` opens the selected row;
-`Shift+O` applies the same action to every currently visible row.
+`shift+o` applies the same action to every currently visible row.
 
 Statuses are `new`, `opened`, `skip`, and `got`. Opening a link promotes `new` to
-`opened`. User marks are global by stable track key, so they appear across crates.
-Crate refresh preserves locally removed track keys, marks newly arrived keys,
+`opened`. User marks are global by stable track key, so they appear across playlists.
+Playlist refresh preserves locally removed track keys, marks newly arrived keys,
 and sorts those arrivals above older active tracks while retaining source order
 within each group.
 
-The latest saved crate opens when the TUI starts without incoming rows. On first
+The latest saved playlist opens when the TUI starts without incoming rows. On first
 run, settings are shown before the initial library scan. Terminals below 110
 columns automatically collapse the sidebar; the full help remains available.
 Opening more than 20 visible links requires a repeated confirmation action.
@@ -326,7 +330,7 @@ collision-free filename. Recognized suffixes are MP3, WAV, FLAC, AIFF/AIF, and
 ZIP. HTML responses are rejected as files, redirect hops are bounded at five,
 and the maximum body size is 2 GiB.
 
-Batch downloads use at most four worker threads. Each gate flow uses its own HTTP
+Batch downloads use at most eight worker threads. Each gate flow uses its own HTTP
 session because cookies are flow state. Prerequisites such as a real profile,
 SoundCloud login, or manual Hypeddit browser completion are collected and retried
 at most once by the TUI flow. Completed downloads store their local path and mark
@@ -407,12 +411,22 @@ structural failures open a per-store circuit breaker without
 navigating the rest of the queue. Results group identical root causes and mark
 only failures that are safe to retry. Approved Beatport items and safe Beatport
 lookup fallbacks are reported as playlist-ready, not as cart failures. The
-result action writes a new, non-overwriting plain-text playlist in the crate's
-download folder, copies its entries to the clipboard, and opens Beatport's
-official Soundiiz partner page in the configured regular browser. Exact track
-URLs are written when known; other rows use `artist - title` for reviewed
-catalog matching. Format choice, transfer approval, payment, and checkout
-remain manual.
+result action writes a new, non-overwriting plain-text playlist in the playlist's
+download folder and copies its entries to the clipboard. It also sends the
+accepted titles and artists, with Beatport preset as the destination, to
+Soundiiz's public playlist-import endpoint and opens the returned HTTPS review
+URL in the configured regular browser. The response URL must remain on
+`soundiiz.com/go/import-playlist/`; imports are limited to Soundiiz's documented
+1–200 tracks. Promo prefixes, uploader names, preview markers, trailing label
+fields, and `OUT NOW` markers are removed from SoundCloud metadata when its title
+contains an explicit `artist - title` pair, including missing whitespace around
+the separator. Featured performers and remixers named in the cleaned metadata
+are also sent as Soundiiz artists to improve catalog matching. Exact Beatport
+URLs are written to the local file when
+known and replace that track's stored Beatport release link in the current
+playlist; release and label URLs are never persisted as exact matches. Other
+rows use the cleaned `artist - title`. Match review, transfer approval, payment,
+and checkout remain manual.
 
 ## 4. System context and data flow
 
@@ -531,7 +545,7 @@ per job kind (`_dig_cancel`, `_gate_cancel`, `_scan_cancel`, `_cart_cancel`),
 sets them all on unmount, and `ctrl+x` stops the running dig or download batch.
 Link hubs use eight threads and stop trying a host after two observed failures
 within one dig, though already-running requests continue. Batch downloads use
-four threads. Hypeddit HTTP flows are bounded to two at a time per host, with
+eight threads. Hypeddit HTTP flows are bounded to two at a time per host, with
 nested gates followed outside that limit, and one
 persistent browser profile cannot be driven by concurrent Playwright threads.
 Player buffering uses a daemon thread and generation identifiers to discard
@@ -675,7 +689,7 @@ CSV is output-only in the current code; its header is `category, artist, title,
 track_url, shop_link, bpm, key, release_year, label`, with the four newer
 columns appended so positional readers of the original five still work. YAML filenames are recognized only to
 produce the explicit unsupported legacy-format error. Opening an imported summary
-inside the TUI stores a partial crate, then re-derives categories from URLs rather
+inside the TUI stores a partial playlist, then re-derives categories from URLs rather
 than trusting old category labels.
 
 ### 8.3 URL-opening contract
@@ -836,11 +850,17 @@ or invoke checkout.
 Beatport identity requires its numeric track ID; the canonical track slug is an
 additional exact title/version signal when a release-row label omits its remix.
 Direct track URLs are sanitized and kept without a browser lookup, while release
-links are revalidated on the selected track page. Bandcamp prefers a numeric ID
+links are revalidated on the selected track page. Accepted Beatport hosts,
+including the retired `pro.beatport.com`, are canonicalized to
+`https://www.beatport.com` while preserving the path and safe query; this
+canonical host is also persisted when a playlist is prepared. Bandcamp prefers a numeric ID
 but may instead use the canonical track URL, exact trailing title/version, price,
 and a visible removable row scoped to the side cart. Public page data, structured
 metadata, and accessible DOM controls are merged by canonical product path so a
 historical download-action URL cannot hide the current title or price. Storefront
+side carts are not treated as the complete cross-seller cart: checks for an
+existing item and the final visible result use Bandcamp's global cart page.
+Storefront
 homepages, name-your-price items without a positive declared value, and exact
 track absence are business-level unavailability and do not trip the structural
 circuit breaker. If a source moved or does not contain an exact match, the adapter
@@ -924,9 +944,9 @@ hosts receive ordinary HTTP request metadata. A gate may receive the configured
 name, real email, and comment only in the provider flows described in §10.2.
 Store sites receive browser navigation, Bandcamp login performed by the
 user, and verified Bandcamp add-to-cart actions. Soundiiz receives no request
-until the user chooses the Beatport playlist result; its partner page then
-receives ordinary browser metadata, and playlist contents are pasted or uploaded
-only by the user.
+until the user chooses the Beatport playlist result; the application then sends
+the playlist title plus accepted track titles and artists to its public import
+endpoint and opens the temporary review URL returned by Soundiiz.
 
 ### 12.3 User-controlled deletion
 
@@ -974,8 +994,11 @@ as player events instead of escaping through Python-CFFI.
   login in Settings, not for lookup or the clicks themselves; on WSL that means
   WSLg, and without one the additions are kept and the window is one warning.
 - Beatport cart mutation is not automated. Playlist creation needs a user-driven
-  Soundiiz transfer and may require review when only artist/title metadata was
-  available; Beatport DJ and checkout remain outside the application.
+  Soundiiz transfer, its public import handoff accepts at most 200 tracks, and
+  catalog matches require review. Beatport pages may reject automated release
+  lookup with HTTP 403; those entries use cleaned SoundCloud metadata instead of
+  inventing and persisting an exact URL. Beatport DJ and checkout remain outside
+  the application.
 - Bandcamp cart and Beatport playlist transfer remain separate purchase steps. A
   provider change may prevent the final Bandcamp cart view from exposing every
   individually verified addition; this is reported without repeating any cart

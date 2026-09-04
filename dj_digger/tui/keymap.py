@@ -41,7 +41,7 @@ CALM_TICK = 0.25
 # times a second is a smear.
 SPINNER = "\u280b\u2819\u2839\u2838\u283c\u2834\u2826\u2827\u2807\u280f"
 SPINNER_EVERY = 4
-# Long enough to catch the eye, short enough that holding `s` down still works.
+# Long enough to catch the eye, short enough that holding a mark key still works.
 FLASH = 0.25
 # Number keys select the nth store that this crate actually contains, so `1` is
 # always the first store you have rather than a fixed category.
@@ -92,7 +92,7 @@ DIRECT_STORE_CATEGORIES = frozenset(
 
 SELECTED = "Selected track"
 WHOLE_LIST = "Whole visible list"
-CRATES = "Crates"
+CRATES = "Playlists"
 PLAYBACK = "Playback"
 OTHER = "Other"
 
@@ -101,17 +101,19 @@ OTHER = "Other"
 # Footer labels stay short because it gets one line; help has the room to explain.
 KEYMAP = [
     ("o,enter", "open_link", "Open", SELECTED, True, "Open its best link, or the filtered store"),
-    ("w", "download_track", "Download", SELECTED, True, "Download an artist-provided SoundCloud file"),
-    ("W", "batch_download", "Batch download", WHOLE_LIST, True, "Download all free & gate tracks in view"),
+    ("O", "open_visible", "Open all", WHOLE_LIST, True, "Open every link shown, asks above 20"),
+    ("d", "download_track", "Download", SELECTED, True, "Download an artist-provided SoundCloud file"),
+    ("D", "batch_download", "Download all", WHOLE_LIST, True, "Download all free & gate tracks in view"),
     ("ctrl+x", "cancel_job", "Stop", OTHER, False, "Stop the running dig, batch, scan or cart; what finished is kept"),
-    ("b", "search('bandcamp')", "Bandcamp", SELECTED, True, "Search Bandcamp for highlighted track"),
-    ("B", "search('beatport')", "Beatport", SELECTED, False, "Search Beatport for highlighted track"),
-    ("c", "cart_track", "Cart/playlist", SELECTED, False, "Add the exact track to the Bandcamp cart, or line it up for a Beatport playlist"),
+    ("b", "search('bandcamp')", "Search in Bandcamp", SELECTED, True, "Search Bandcamp for highlighted track"),
+    ("B", "search('beatport')", "Search in Beatport", SELECTED, True, "Search Beatport for highlighted track"),
+    ("c", "cart_track", "Cart/playlist", SELECTED, True, "Add the exact track to the Bandcamp cart, or line it up for a Beatport playlist"),
+    ("C", "cart_visible", "Cart/playlist all", WHOLE_LIST, True, "Preflight every store track shown: Bandcamp into the cart, Beatport into a playlist"),
     ("y", "copy_path", "Copy path", SELECTED, False, "Copy the path of the local file that matches"),
     ("g", "mark_got", "Got", SELECTED, True, "Mark as got, press again to undo"),
-    ("s", "mark_skip", "Skip", SELECTED, True, "Mark as skipped, press again to undo"),
-    ("u", "mark_new", "Unmark", SELECTED, False, "Clear the mark either way"),
-    ("x", "remove_track", "Remove", SELECTED, False, "Remove from this crate, locally only"),
+    ("k", "mark_skip", "Skip", SELECTED, True, "Mark as skipped, press again to undo"),
+    ("u", "mark_new", "Unmark", SELECTED, True, "Clear the mark either way"),
+    ("x", "remove_track", "Remove", SELECTED, False, "Remove from this playlist, locally only"),
     ("ctrl+z", "undo_remove", "Undo", SELECTED, False, "Put back the last removed track"),
     ("space", "play_pause", "Play", PLAYBACK, True, "Play or pause the highlighted track"),
     ("left_square_bracket", "seek(-1)", "Back", PLAYBACK, False, "Back 10 seconds"),
@@ -122,8 +124,6 @@ KEYMAP = [
     ("equals_sign", "volume(1)", "Louder", PLAYBACK, False, "Turn it up"),
     ("m", "mute", "Mute", PLAYBACK, False, "Mute or unmute"),
     ("ctrl+w", "close_player", "Close player", PLAYBACK, False, "Stop and fold the player away"),
-    ("O", "open_visible", "Open all", WHOLE_LIST, True, "Open every link shown, asks above 20"),
-    ("C", "cart_visible", "Cart all", WHOLE_LIST, False, "Preflight every store track shown: Bandcamp into the cart, Beatport into a playlist"),
     ("P", "open_beatport_tracks", "Beatport pages", WHOLE_LIST, False, "Open every exact Beatport track page shown in your browser, to add to cart by hand"),
     ("e", "export", "Export", WHOLE_LIST, False, "Write the rows shown to the export file"),
     ("slash", "start_search", "Search", WHOLE_LIST, True, "Filter by artist, title, genre, tag or label"),
@@ -135,13 +135,13 @@ KEYMAP = [
     ("0", "filter_index(0)", "Show all", WHOLE_LIST, False, "Drop the store filter, show everything"),
     ("h", "toggle_handled", "Hide handled", WHOLE_LIST, False, "Hide what is got or skipped"),
     ("escape", "clear_filters", "Clear filters", WHOLE_LIST, False, "Clear the selection, then the search, then store filters and hiding"),
-    ("d", "dig_link", "Add crate", CRATES, True, "Dig a link into a new crate"),
-    ("r", "refresh_crate", "Refresh", CRATES, False, "Re-dig this crate from SoundCloud"),
-    ("X", "delete_crate", "Delete", CRATES, False, "Delete this crate, after confirming"),
-    ("U", "reset_crate_statuses", "Reset statuses", CRATES, False, "Reset all track statuses to 'new' for this crate"),
-    ("ctrl+b", "toggle_sidebar", "Crates", CRATES, False, "Show or hide the crate sidebar"),
+    ("a", "dig_link", "Add playlist", CRATES, True, "Dig a link into a new playlist"),
+    ("r", "refresh_crate", "Refresh", CRATES, False, "Re-dig this playlist from SoundCloud"),
+    ("X", "delete_crate", "Delete", CRATES, False, "Delete this playlist, after confirming"),
+    ("U", "reset_crate_statuses", "Reset statuses", CRATES, False, "Reset all track statuses to 'new' for this playlist"),
+    ("ctrl+b", "toggle_sidebar", "Playlists", CRATES, False, "Show or hide the playlist sidebar"),
     ("question_mark", "help", "Help", OTHER, True, "This screen"),
-    ("S", "open_settings", "Settings", OTHER, True, "Configure profile name, email and gate comments"),
+    ("s", "open_settings", "Settings", OTHER, True, "Configure profile name, email and gate comments"),
     ("q", "quit", "Quit", OTHER, True, "Leave (ctrl+c does the same)"),
 ]
 
@@ -168,7 +168,7 @@ KEY_DISPLAY = {
     "left_square_bracket": "[",
     "right_square_bracket": "]",
     "o,enter": "o, enter",
-    # Every single capital letter is a shifted key; spelling that out beats a
-    # footer where "W" and "w" sit side by side looking like a typo.
-    **{key: f"shift+{key}" for key, *_rest in KEYMAP if len(key) == 1 and key.isupper()},
+    # Every single capital letter is a shifted key; show the physical letter
+    # in lowercase so paired shortcuts read consistently as b / shift+b.
+    **{key: f"shift+{key.lower()}" for key, *_rest in KEYMAP if len(key) == 1 and key.isupper()},
 }

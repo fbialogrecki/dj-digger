@@ -2,9 +2,17 @@
 
 ## Unreleased
 
+## 1.0.0
+
 ### Added
 
-- Ctrl+C quits the crate browser like `q`, from the search box too. Textual
+- The footer labels `b` and `shift+b` as searches in Bandcamp and Beatport,
+  shows `c` beside `shift+c`, and displays shifted letter keys in lowercase.
+- Download now uses `d`, `Shift+D` is labelled Download all, and adding a
+  playlist moves to `a`.
+- The interface and documentation now call saved collections playlists rather
+  than crates. Internal data names stay unchanged for compatibility.
+- Ctrl+C quits the playlist browser like `q`, from the search box too. Textual
   only showed a hint to press Ctrl+Q.
 - `ctrl+x` stops whatever long job is running: a dig, a download batch, a bulk
   open, a scan or a store cart. What was already collected or downloaded is
@@ -28,11 +36,7 @@
   four CSV columns are appended after the original five).
 - A theme choice in Settings, remembered between runs. Every colour the
   interface paints now comes from the theme (badges, marks, waveform, volume
-  bar, banner, help) instead of the terminal's cyan, green and yellow, and the
-  built-in themes whose values strayed from their published palettes (Flexoki
-  shipped light-mode shades on a dark base, Catppuccin Mocha used pre-1.0
-  colours, Atom One had invented ones, Gruvbox a typo) are corrected from the
-  sources.
+  bar, banner, help) instead of the terminal's cyan, green and yellow.
 - `Shift+U` (reset statuses) asks before it wipes the marks.
 - `Shift+P` opens every exact Beatport track page shown in your regular,
   logged-in browser so each can be added to the cart with one click; the `c`
@@ -59,6 +63,22 @@
 
 ### Fixed
 
+- Legacy `pro.beatport.com` links are canonicalized to `www.beatport.com` and
+  persisted when preparing a playlist, instead of targeting a retired host.
+- Soundiiz imports now derive artist/title from promo-style SoundCloud titles
+  instead of sending uploader names and `PREMIERE`/label noise, including compact
+  separators, preview markers, and a third dash-separated label. Featured
+  performers and remixers are sent as additional catalog artists. Exact
+  Beatport track results replace stored release links for reuse by later imports.
+- Beatport playlist handoff now creates a real temporary Soundiiz import with
+  Beatport preselected instead of opening Soundiiz's marketing/tutorial page.
+- Bandcamp batches verify `already_in_cart` against the global cart and finish
+  on that cart page; a seller-specific side cart can no longer suppress an
+  addition or leave Chromium showing the last product with an incomplete cart.
+- The footer now measures the application width on its first composition, so
+  clicking or focusing the table no longer makes additional shortcuts appear.
+- Footer actions are grouped as `o`/`Shift+O` and `b`/`Shift+B`; Beatport and
+  unmark are visible. Settings moves to `s`, and skip moves to `k`.
 - The status bar scrolls sideways like the footer instead of clipping the
   store legend (a plain mouse wheel over it scrolls it, no Shift needed), and the track counts (`tracks · got · skipped · opened`) are
   gone from it; only the running job and the view's state remain on the right.
@@ -94,7 +114,7 @@
   the log, and a second Ctrl+C during shutdown exits at once.
 - Opening a link or a store search no longer freezes the interface while the
   browser is being reached; on WSL that handoff could take twenty seconds.
-- The README key tables now match the crate browser: no phantom `j`/`k`,
+- The README key tables now match the playlist browser: no phantom keys,
   every bound key listed, shifted keys shown as `Shift+…` in the footer and
   help, and the bulk-open confirmation names the right key.
 - The browser gate driver looked for step buttons the desktop gate does not
@@ -126,10 +146,10 @@
 
 ### Changed
 
-- Textual is now pinned to the 8.x line; the crate browser depends on its
+- Textual is now pinned to the 8.x line; the playlist browser depends on its
   binding semantics and a few private hooks, so a major upgrade needs review.
-- Track statuses are mirrored in memory after the first read, the crate
-  sidebar lists headers and reads a crate's tracks only when it is opened,
+- Track statuses are mirrored in memory after the first read, the playlist
+  sidebar lists headers and reads a playlist's tracks only when it is opened,
   and single-row changes (a mark, an opened link, the playing marker, download
   progress) repaint that row instead of rebuilding the table. A large library
   starts, refreshes and searches without stutter.

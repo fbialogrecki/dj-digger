@@ -17,7 +17,6 @@ seller-approved name-your-price pricing (so no money is involved), and save
 | `track_page.html` | the track page as it loads |
 | `track_page_buy_open.html` | after clicking "Buy Digital Track" (price field visible) |
 | `sidecart_after_add.html` | after "Add to cart", with the side cart open |
-| `cart_page.html` | `https://bandcamp.com/cart` |
 
 Then, for every file:
 

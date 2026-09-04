@@ -12,6 +12,7 @@ import os
 import re
 import subprocess
 import threading
+from collections import defaultdict
 from collections.abc import Callable
 from pathlib import Path
 from typing import NamedTuple
@@ -90,6 +91,7 @@ class LocalScanner:
         # share the one process-wide instance the UI thread is already using.
         self.db = db or database()
         self._stale_stems: set[str] = set()
+        self._exact_paths: dict[str, list[str]] = {}
         # Folders the walk could not enter, as "path: reason". The scan used to
         # step over them in silence, so a permissions problem on the music
         # drive looked like a library with nothing in it.
@@ -108,15 +110,16 @@ class LocalScanner:
         cached = self.db.get_cached_files()
         self._stale_stems.clear()
         self.errors.clear()
-        missing = [path for path in cached if not Path(path).is_file()]
-        for path in missing:
-            self._stale_stems.add(cached[path][1])
-            cached.pop(path)
-        self.db.delete_local_files(missing)
         scanned = 0
         pending: list[tuple[str, float, str]] = []
+        seen: set[str] = set()
+        scanned_roots: list[Path] = []
 
         for root_dir in self.directories:
+            if cancel is not None and cancel.is_set():
+                self.db.upsert_local_files(pending)
+                self._refresh_exact_paths()
+                return scanned
             if not root_dir.exists():
                 continue
             # Resolved once per root rather than once per file: resolve() is a
@@ -125,9 +128,14 @@ class LocalScanner:
             # which walked into linked folders too.
             # ponytail: a symlinked audio file is keyed by the link's path now.
             root = root_dir.resolve()
+            scanned_roots.append(root)
             for dirpath, _dirs, names in root.walk(
                 follow_symlinks=True, on_error=self._note_error
             ):
+                if cancel is not None and cancel.is_set():
+                    self.db.upsert_local_files(pending)
+                    self._refresh_exact_paths()
+                    return scanned
                 for name in names:
                     if cancel is not None and cancel.is_set():
                         self.db.upsert_local_files(pending)
@@ -135,12 +143,13 @@ class LocalScanner:
                     if os.path.splitext(name)[1].lower() not in AUDIO_EXTENSIONS:
                         continue
                     entry = dirpath / name
+                    path_str = str(entry)
+                    seen.add(path_str)
                     try:
                         stat = os.stat(entry)
                     except OSError as exc:
                         LOGGER.debug("Skipping file %s during scan: %s", entry, exc)
                         continue
-                    path_str = str(entry)
                     if path_str in cached and cached[path_str][0] == stat.st_mtime:
                         continue
                     pending.append((path_str, stat.st_mtime, normalize_string(entry.stem)))
@@ -149,7 +158,23 @@ class LocalScanner:
                         self.db.upsert_local_files(pending)
                         pending = []
         self.db.upsert_local_files(pending)
+        missing = [
+            path
+            for path in cached
+            if path not in seen
+            and any(Path(path).is_relative_to(root) for root in scanned_roots)
+        ]
+        for path in missing:
+            self._stale_stems.add(cached[path][1])
+        self.db.delete_local_files(missing)
+        self._refresh_exact_paths()
         return scanned
+
+    def _refresh_exact_paths(self) -> None:
+        paths: dict[str, list[str]] = defaultdict(list)
+        for path, (_mtime, stem) in self.db.get_cached_files().items():
+            paths[stem].append(path)
+        self._exact_paths = dict(paths)
 
     def match_track(self, track: Track) -> LocalMatch | None:
         """The local file that looks like this track, if there is one."""
@@ -202,7 +227,16 @@ class LocalScanner:
         remembered, so a GOT that rested on that file can be undone.
         """
 
-        find = find or self.db.find_local_match
+        if find is None:
+            candidates = self._exact_paths.get(normalized_stem, [])
+            while candidates:
+                path = candidates[0]
+                if Path(path).is_file():
+                    return path
+                self._stale_stems.add(normalized_stem)
+                self.db.delete_local_files([path])
+                candidates.remove(path)
+            return None
         while path := find(normalized_stem, *more):
             if Path(path).is_file():
                 return path

@@ -59,6 +59,23 @@ def test_a_track_with_no_file_matches_nothing(tmp_path: Path) -> None:
     assert local.match_track(Track(title="Absent", artist="Nobody", permalink_url="http://sc/4")) is None
 
 
+def test_exact_matches_use_the_scan_index(tmp_path: Path, monkeypatch) -> None:
+    local = scanner_over(tmp_path, "Artist - Song.mp3")
+
+    def unexpected_lookup(*_args):
+        raise AssertionError("unexpected SQLite lookup")
+
+    monkeypatch.setattr(
+        local.db,
+        "find_local_match",
+        unexpected_lookup,
+    )
+
+    assert local.match_track(
+        Track(title="Song", artist="Artist", permalink_url="http://sc/index")
+    )
+
+
 def test_the_scan_only_counts_files_it_has_not_seen(tmp_path: Path) -> None:
     music = tmp_path / "Music"
     music.mkdir()

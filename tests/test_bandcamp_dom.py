@@ -22,7 +22,6 @@ PAGES = {
     "track_page": "track_page.html",
     "buy_open": "track_page_buy_open.html",
     "sidecart": "sidecart_after_add.html",
-    "cart": "cart_page.html",
 }
 
 

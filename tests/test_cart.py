@@ -51,6 +51,15 @@ def test_plain_http_store_link_is_upgraded_only_after_domain_validation():
     assert cart.canonical_store_url("http://user:pass@bandcamp.com/a", "bandcamp") is None
 
 
+def test_legacy_beatport_subdomains_are_canonicalized():
+    assert (
+        cart.canonical_store_url(
+            "https://pro.beatport.com/track/who-am-i/7008154?from=old", "beatport"
+        )
+        == "https://www.beatport.com/track/who-am-i/7008154?from=old"
+    )
+
+
 def test_cart_log_text_redacts_queries_and_obvious_secret_fields():
     safe = cart.log_safe_text(
         "failed https://www.beatport.com/login?state=secret oauth_token=also-secret"
@@ -1647,7 +1656,29 @@ def test_final_bandcamp_cart_is_the_first_visible_work_page(monkeypatch):
     assert launches == ["viewer page"]
     assert stores == ("bandcamp",)
     assert not warnings
+    assert page.url == cart.BANDCAMP_CART_URL
     assert page.focused == 1
+
+
+def test_existing_bandcamp_item_is_checked_in_the_global_cart(monkeypatch):
+    item = resolved_item("bandcamp")
+
+    class Page:
+        url = item.product_url
+
+    page = Page()
+
+    async def navigate(_page, url, _store):
+        _page.url = url
+
+    async def contains(_page, _item):
+        return _page.url == cart.BANDCAMP_CART_URL
+
+    monkeypatch.setattr(cart, "_navigate_async", navigate)
+    monkeypatch.setattr(cart, "_bandcamp_cart_contains_async", contains)
+
+    assert asyncio.run(cart._cart_contains_async(page, item, asyncio.Event()))
+    assert page.url == cart.BANDCAMP_CART_URL
 
 
 def test_the_viewer_carries_the_hidden_sessions_cookies(monkeypatch):

@@ -52,13 +52,7 @@ def profile_path(name: str) -> Path:
 def store_profile_path() -> Path:
     """Create the private, persistent Chromium profile outside the repository."""
 
-    path = data_dir() / "store-browser"
-    # mkdir's mode is masked by the umask and ignored when the directory already
-    # exists, so the explicit chmod is what actually guarantees 0700.
-    path.mkdir(parents=True, exist_ok=True, mode=0o700)
-    if os.name != "nt":
-        path.chmod(0o700)
-    return path
+    return profile_path("store-browser")
 
 
 def require_display() -> None:

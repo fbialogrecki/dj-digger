@@ -95,10 +95,10 @@ class CrateMixin:
 
     def refresh_crate(self, header: CrateHeader | None) -> None:
         if header is None:
-            self.notify("No crate to refresh", timeout=2)
+            self.notify("No playlist to refresh", timeout=2)
             return
         if not header.source:
-            self.notify("This crate has no source to refresh from", severity="warning")
+            self.notify("This playlist has no source to refresh from", severity="warning")
             return
         if self.crate is None or self.crate.source != header.source:
             record = library_module.load(header.source)
@@ -110,10 +110,10 @@ class CrateMixin:
 
     def confirm_delete_crate(self, header: CrateHeader | None) -> None:
         if header is None:
-            self.notify("No crate to delete", timeout=2)
+            self.notify("No playlist to delete", timeout=2)
             return
         self.push_screen(
-            ConfirmScreen(f"Delete the crate '{header.title}'? This cannot be undone."),
+            ConfirmScreen(f"Delete the playlist '{header.title}'? This cannot be undone."),
             lambda confirmed: self._crate_delete_answered(header, bool(confirmed)),
         )
 
@@ -128,7 +128,7 @@ class CrateMixin:
 
         if not self.rows:
             return
-        title = self.crate_title or "this crate"
+        title = self.crate_title or "this playlist"
         self.push_screen(
             ConfirmScreen(
                 f"Reset the marks on {len(self.rows)} tracks in '{title}' to new? "
@@ -141,7 +141,7 @@ class CrateMixin:
         for row in self.rows:
             self.state.set(row.track.key, NEW)
         self.refresh_rows()
-        self.notify("Reset all track statuses to 'new' for this crate", timeout=3)
+        self.notify("Reset all track statuses to 'new' for this playlist", timeout=3)
 
     def _crate_delete_answered(self, header: CrateHeader, confirmed: bool) -> None:
         if not confirmed:
@@ -202,7 +202,7 @@ class CrateMixin:
         if rows == [None]:
             return
         if self.crate is None:
-            self.notify("This list is not a saved crate, nothing to remove from", timeout=4)
+            self.notify("This is not a saved playlist, nothing to remove from", timeout=4)
             return
         for row in rows:
             self.crate.remove(row.track.key)

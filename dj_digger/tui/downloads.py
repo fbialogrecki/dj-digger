@@ -527,9 +527,9 @@ class DownloadMixin:
         """Run the pool downloads and sort every outcome into the progress bag."""
 
         progress = _BatchProgress(total=len(items))
-        # Four workers: enough to overlap gate waits, few enough to stay polite
-        # to SoundCloud and the gate providers (each worker owns one session).
-        self._download_executor = ThreadPoolExecutor(max_workers=4)
+        # Gate providers enforce their own per-host limit; extra workers let
+        # direct files continue while those slots are waiting on gate pages.
+        self._download_executor = ThreadPoolExecutor(max_workers=8)
         try:
             futures = [
                 self._download_executor.submit(

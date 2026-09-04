@@ -28,7 +28,7 @@ class FittedFooter(Footer):
     def _dropped_actions(self) -> set[str]:
         """Which bindings will not fit, decided before any widget is built."""
 
-        budget = self.size.width or self.app.size.width
+        budget = self.size.width or self.screen.size.width
         cost: dict[str, int] = {}
         for _node, binding, _enabled, _tooltip in self.screen.active_bindings.values():
             if binding.show and binding.action not in cost:
@@ -366,4 +366,4 @@ class CrateItem(ListItem):
             Text(title, no_wrap=True, overflow="ellipsis"), classes="crate-name"
         ).with_tooltip(title)
         yield CrateButton("\u21bb", self.record, "refresh", "Refresh from SoundCloud (r)")
-        yield CrateButton("\u2715", self.record, "delete", "Delete crate (shift+X)")
+        yield CrateButton("\u2715", self.record, "delete", "Delete playlist (shift+X)")

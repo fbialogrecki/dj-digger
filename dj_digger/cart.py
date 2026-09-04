@@ -80,6 +80,7 @@ LOGGER = logging.getLogger(__name__)
 NAVIGATION_TIMEOUT_MS = 30_000
 ACTION_TIMEOUT_MS = 15_000
 LOGIN_TIMEOUT_SECONDS = 300
+BANDCAMP_CART_URL = "https://bandcamp.com/cart"
 
 
 def _emit_progress(callback: ProgressCallback | None, progress: CartProgress) -> None:
@@ -829,7 +830,9 @@ async def _cart_contains_async(
     if item.store != "bandcamp":
         raise StoreStructureError(f"{item.store} carts are not automated")
     if navigate:
-        await _navigate_async(page, item.product_url, item.store)
+        # A storefront side cart may expose only that seller's items. Use the
+        # global cart before deciding that a purchase can safely be skipped.
+        await _navigate_async(page, BANDCAMP_CART_URL, item.store)
     try:
         return await _bandcamp_cart_contains_async(page, item)
     except AutomationError:
@@ -1688,8 +1691,7 @@ class CartBrowserSession:
         # the hidden context stays as it is.
         viewer = await self._viewer_context()
         page = self._instrument_page(await viewer.new_page())
-        await _navigate_async(page, items[-1].product_url, store)
-        await _open_bandcamp_cart_async(page)
+        await _navigate_async(page, BANDCAMP_CART_URL, store)
         missing: list[CartItem] = []
 
         async def all_shown() -> bool:

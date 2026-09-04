@@ -65,7 +65,7 @@ class AppConfig:
             str(Path.home() / "Music"),
             str(Path.home() / "Downloads"),
         ]
-        # Where `w` and `W` put the files they fetch. It was ~/Downloads written
+        # Where `d` and `D` put the files they fetch. It was ~/Downloads written
         # into two places in the download code, which is not where anybody with a
         # sorted collection wants their records to land.
         self.download_directory: str = str(Path.home() / "Downloads")
