@@ -6,7 +6,7 @@ from threading import Event
 import pytest
 from conftest import FakeResponse
 
-from dj_digger import auth, browser_session
+from dj_digger import auth, browser_session, private_json
 
 
 def _browser(monkeypatch, context):
@@ -30,7 +30,7 @@ def _no_browser(monkeypatch):
 def test_private_json_writer_is_atomic_and_owner_only(tmp_path):
     target = tmp_path / "credentials" / "auth.json"
 
-    auth.write_private_json(target, {"refresh_token": "secret"})
+    private_json.write_private_json(target, {"refresh_token": "secret"})
 
     assert json.loads(target.read_text(encoding="utf-8")) == {
         "refresh_token": "secret"

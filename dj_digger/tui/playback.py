@@ -14,13 +14,13 @@ from ..player import (
     SEEK_STEP,
     VOLUME_STEP,
     PlaybackUnavailable,
-    PlayerBar,
     Stream,
     fetch_waveform,
     open_source,
     resolve_stream,
 )
 from ..soundcloud import SoundCloudError
+from .audio import PlayerBar
 from .keymap import (
     CALM_TICK,
     PREFETCH_LEAD,

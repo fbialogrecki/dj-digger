@@ -23,11 +23,10 @@ from ..library import CrateHeader, CrateRecord
 from ..models import LinkRecord
 from ..player import (
     Player,
-    PlayerBar,
-    PlayerControls,
 )
 from ..soundcloud import SoundCloudClient
 from ..state import TrackState
+from .audio import PlayerBar, PlayerControls
 from .crates import CrateMixin
 from .digging import DiggingMixin
 from .downloads import DownloadMixin

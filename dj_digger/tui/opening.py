@@ -24,7 +24,7 @@ from ..beatport_playlist import (  # noqa: F401 - re-exported for tests
     _soundiiz_metadata,
     _write_beatport_playlist,
 )
-from ..scanner import copy_to_clipboard
+from ..clipboard import copy_to_clipboard
 from ..state import GOT, NEW, OPENED, SKIP
 from ..store_urls import _direct_beatport_track_url, canonical_store_url
 from .keymap import (

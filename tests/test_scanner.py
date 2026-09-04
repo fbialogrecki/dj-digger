@@ -5,10 +5,11 @@ import subprocess
 import threading
 from pathlib import Path
 
-from dj_digger import scanner
+from dj_digger import clipboard, scanner
+from dj_digger.clipboard import copy_to_clipboard
 from dj_digger.db import Database
 from dj_digger.models import Track
-from dj_digger.scanner import LocalScanner, copy_to_clipboard, normalize_string
+from dj_digger.scanner import LocalScanner, normalize_string
 
 
 def test_normalize_string() -> None:
@@ -221,7 +222,7 @@ def test_copy_to_clipboard_is_false_when_no_tool_exists(monkeypatch) -> None:
     def missing(*_args, **_kwargs):
         raise FileNotFoundError
 
-    monkeypatch.setattr(scanner.subprocess, "run", missing)
+    monkeypatch.setattr(clipboard.subprocess, "run", missing)
     assert copy_to_clipboard("/path/to/file.mp3") is False
 
 
@@ -232,7 +233,7 @@ def test_copy_to_clipboard_stops_at_the_first_tool_that_takes_it(monkeypatch) ->
         tried.append(command[0])
         return subprocess.CompletedProcess(command, 0)
 
-    monkeypatch.setattr(scanner.subprocess, "run", fake_run)
+    monkeypatch.setattr(clipboard.subprocess, "run", fake_run)
 
     assert copy_to_clipboard("/path/to/file.mp3") is True
     assert tried == ["wl-copy"]

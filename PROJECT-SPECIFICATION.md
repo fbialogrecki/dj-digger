@@ -5,8 +5,8 @@
 - Product version verified: 1.0.0
 - Owner: Filip Białogrecki
 - Updated: 2026-09-04
-- Document lines: <!-- SPEC TOTAL LINES -->1100<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1100<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1103<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1103<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -61,52 +61,52 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 4 | System context and data flow | 431–467 |
 | 4.1 | ↳ Context diagram | 433–454 |
 | 4.2 | ↳ Collection-to-library flow | 455–467 |
-| 5 | Repository layout and component ownership | 468–513 |
+| 5 | Repository layout and component ownership | 468–516 |
 | 5.1 | ↳ Entry, orchestration, and models | 470–480 |
 | 5.2 | ↳ Network and external-system adapters | 481–499 |
-| 5.3 | ↳ Persistence, local media, and UI | 500–513 |
-| 6 | Runtime architecture and environments | 514–587 |
-| 6.1 | ↳ Runtime and dependencies | 516–529 |
-| 6.2 | ↳ Concurrency and lifecycle | 530–572 |
-| 6.3 | ↳ Local paths and environment variables | 573–587 |
-| 7 | Data model and persistence | 588–657 |
-| 7.1 | ↳ Domain objects and identity | 590–604 |
-| 7.2 | ↳ SQLite schema and invariants | 605–629 |
-| 7.3 | ↳ Crate persistence and deletion | 630–641 |
-| 7.4 | ↳ Configuration and credential stores | 642–657 |
-| 8 | Public interfaces and contracts | 658–703 |
-| 8.1 | ↳ CLI arguments and exit behavior | 660–679 |
-| 8.2 | ↳ JSON and CSV summary input | 680–694 |
-| 8.3 | ↳ URL-opening contract | 695–703 |
-| 9 | Authentication and authorization | 704–740 |
-| 9.1 | ↳ SoundCloud authentication | 706–723 |
-| 9.2 | ↳ Gate action consent | 724–740 |
-| 10 | External integrations | 741–873 |
-| 10.1 | ↳ SoundCloud API and media | 743–754 |
-| 10.2 | ↳ Link hubs and download gates | 755–814 |
-| 10.2 · block | ↳ ↳ Hypeddit | 763–800 |
-| 10.2 · block | ↳ ↳ Other resolvers | 802–807 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 809–814 |
-| 10.3 | ↳ Browsers and clipboard | 815–826 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 827–873 |
-| 11 | Security requirements and threat model | 874–920 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 876–894 |
-| 11.2 | ↳ Secret and personal-data handling | 895–907 |
-| 11.3 | ↳ File and mutation safety | 908–920 |
-| 12 | Privacy, lifecycle, and retention | 921–959 |
-| 12.1 | ↳ Data stored locally | 923–938 |
-| 12.2 | ↳ Data sent to third parties | 939–950 |
-| 12.3 | ↳ User-controlled deletion | 951–959 |
-| 13 | Failure behavior and current limitations | 960–1014 |
-| 13.1 | ↳ Error isolation and reporting | 962–981 |
-| 13.2 | ↳ Confirmed limitations | 982–1014 |
-| 14 | Verification, CI, and release | 1015–1078 |
-| 14.1 | ↳ Offline and live test suites | 1017–1047 |
-| 14.2 | ↳ Continuous integration and publishing | 1048–1063 |
-| 14.3 | ↳ Specification-map verification | 1064–1078 |
-| 15 | Evidence and operational references | 1079–1100 |
-| 15.1 | ↳ Primary implementation evidence | 1081–1093 |
-| 15.2 | ↳ User and historical documentation | 1094–1100 |
+| 5.3 | ↳ Persistence, local media, and UI | 500–516 |
+| 6 | Runtime architecture and environments | 517–590 |
+| 6.1 | ↳ Runtime and dependencies | 519–532 |
+| 6.2 | ↳ Concurrency and lifecycle | 533–575 |
+| 6.3 | ↳ Local paths and environment variables | 576–590 |
+| 7 | Data model and persistence | 591–660 |
+| 7.1 | ↳ Domain objects and identity | 593–607 |
+| 7.2 | ↳ SQLite schema and invariants | 608–632 |
+| 7.3 | ↳ Crate persistence and deletion | 633–644 |
+| 7.4 | ↳ Configuration and credential stores | 645–660 |
+| 8 | Public interfaces and contracts | 661–706 |
+| 8.1 | ↳ CLI arguments and exit behavior | 663–682 |
+| 8.2 | ↳ JSON and CSV summary input | 683–697 |
+| 8.3 | ↳ URL-opening contract | 698–706 |
+| 9 | Authentication and authorization | 707–743 |
+| 9.1 | ↳ SoundCloud authentication | 709–726 |
+| 9.2 | ↳ Gate action consent | 727–743 |
+| 10 | External integrations | 744–876 |
+| 10.1 | ↳ SoundCloud API and media | 746–757 |
+| 10.2 | ↳ Link hubs and download gates | 758–817 |
+| 10.2 · block | ↳ ↳ Hypeddit | 766–803 |
+| 10.2 · block | ↳ ↳ Other resolvers | 805–810 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 812–817 |
+| 10.3 | ↳ Browsers and clipboard | 818–829 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 830–876 |
+| 11 | Security requirements and threat model | 877–923 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 879–897 |
+| 11.2 | ↳ Secret and personal-data handling | 898–910 |
+| 11.3 | ↳ File and mutation safety | 911–923 |
+| 12 | Privacy, lifecycle, and retention | 924–962 |
+| 12.1 | ↳ Data stored locally | 926–941 |
+| 12.2 | ↳ Data sent to third parties | 942–953 |
+| 12.3 | ↳ User-controlled deletion | 954–962 |
+| 13 | Failure behavior and current limitations | 963–1017 |
+| 13.1 | ↳ Error isolation and reporting | 965–984 |
+| 13.2 | ↳ Confirmed limitations | 985–1017 |
+| 14 | Verification, CI, and release | 1018–1081 |
+| 14.1 | ↳ Offline and live test suites | 1020–1050 |
+| 14.2 | ↳ Continuous integration and publishing | 1051–1066 |
+| 14.3 | ↳ Specification-map verification | 1067–1081 |
+| 15 | Evidence and operational references | 1082–1103 |
+| 15.1 | ↳ Primary implementation evidence | 1084–1096 |
+| 15.2 | ↳ User and historical documentation | 1097–1103 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -504,8 +504,11 @@ crate record.
   `scanner.py` owns local media indexing and matching.
 - `dj_digger/paths.py` is the leaf module for XDG data/config directories.
 - `dj_digger/config.py` owns user profile and preferences.
+  `private_json.py` owns private atomic JSON writes; `clipboard.py` owns
+  clipboard subprocesses independently of authentication and scanning.
 - `dj_digger/player.py` owns stream resolution helpers, buffering, decoder/device
-  lifecycle, waveform rendering, and the player widget.
+  lifecycle. `tui/audio.py` owns waveform rendering, the level meter and
+  transport widgets; the engine imports neither Rich nor Textual.
 - `dj_digger/tui/app.py` is the Textual shell. Mixins under `dj_digger/tui/`
   separate crates, rendering, filters, playback, digging, downloads, opening,
   and local-library scanning. Long-running work returns to the UI thread through

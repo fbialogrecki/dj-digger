@@ -14,8 +14,9 @@ from pathlib import Path
 from textual import work
 
 from .. import library as library_module
+from ..clipboard import copy_to_clipboard
 from ..paths import unique_target
-from ..scanner import LocalScanner, copy_to_clipboard
+from ..scanner import LocalScanner
 from ..state import GOT
 
 LOGGER = logging.getLogger(__name__)

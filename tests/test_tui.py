@@ -19,23 +19,21 @@ from dj_digger import cart, gates, library, links, soundcloud
 from dj_digger.config import AppConfig
 from dj_digger.dig import DigOptions, TargetNotFound
 from dj_digger.models import Cancelled, Crate, LinkRecord, Track
-from dj_digger.player import (
-    PAUSE_GLYPH,
-    PLAYER_HEIGHT,
-    VOLUME_TRACK,
-    VOLUME_TRACK_START,
-    Loaded,
-    PlaybackUnavailable,
-    PlayerBar,
-    PlayerControls,
-    Stream,
-    VolumeSlider,
-)
+from dj_digger.player import Loaded, PlaybackUnavailable, Stream
 from dj_digger.scanner import LocalMatch
 from dj_digger.state import GOT, OPENED, SKIP, TrackState
 from dj_digger.tui import DiggerApp, keymap
 from dj_digger.tui import downloads as tui_downloads
 from dj_digger.tui import opening as opening_module
+from dj_digger.tui.audio import (
+    PAUSE_GLYPH,
+    PLAYER_HEIGHT,
+    VOLUME_TRACK,
+    VOLUME_TRACK_START,
+    PlayerBar,
+    PlayerControls,
+    VolumeSlider,
+)
 from dj_digger.tui.rows import Prepared, Row
 from dj_digger.tui.screens import (
     AskLinkScreen,
