@@ -115,9 +115,10 @@ def test_a_cancelled_scan_stops_and_keeps_what_it_wrote(tmp_path: Path, monkeypa
 
     def stat_then_cancel(path, *args, **kwargs):
         nonlocal seen
-        seen += 1
-        if seen == 2:
-            cancel.set()
+        if Path(path).suffix.lower() in scanner.AUDIO_EXTENSIONS:
+            seen += 1
+            if seen == 2:
+                cancel.set()
         return real_stat(path, *args, **kwargs)
 
     monkeypatch.setattr(scanner.os, "stat", stat_then_cancel)
@@ -146,7 +147,7 @@ def test_non_audio_files_are_not_stated(tmp_path: Path, monkeypatch) -> None:
 
 
 def test_an_unreadable_folder_is_reported_not_swallowed(tmp_path: Path) -> None:
-    if os.geteuid() == 0:
+    if os.name == "nt" or os.geteuid() == 0:
         return  # root reads everything; nothing to assert
     music = tmp_path / "Music"
     locked = music / "locked"

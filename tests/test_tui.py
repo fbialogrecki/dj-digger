@@ -1649,7 +1649,6 @@ def test_open_all_goes_straight_through_for_a_short_list(state, monkeypatch):
 
     async def scenario():
         async with app.run_test() as pilot:
-            await pilot.press("a")
             assert opened == []
             await pilot.press("O")
             assert len(opened) == 3

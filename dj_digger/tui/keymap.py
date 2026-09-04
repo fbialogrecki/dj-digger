@@ -54,9 +54,16 @@ FOOTER_OPTIONAL = (
     "batch_download",
     "download_track",
     "search('bandcamp')",
+    "search('beatport')",
     "open_visible",
     "dig_link",
     "open_settings",
+    "cart_visible",
+    "cart_track",
+    "mark_new",
+    "mark_skip",
+    "mark_got",
+    "start_search",
 )
 
 # Everything except the title gets a fixed budget; the title takes the rest, so
