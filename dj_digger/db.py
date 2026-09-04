@@ -5,23 +5,20 @@ Supports WAL mode for concurrent background worker writes without UI thread lock
 """
 
 import json
-import logging
 import sqlite3
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from .paths import data_dir
 
-LOGGER = logging.getLogger(__name__)
-
 # One Database per file for the whole process. Before this, library._db() built a
-# fresh one on every call - three times inside list_crates alone - and each one
-# opened its own connection, re-ran every CREATE TABLE, and closed nothing. The
-# lock covers _INSTANCES, which is read-then-written from worker threads (the
-# library scan, downloads).
+# fresh one on every call, and each one opened its own connection, re-ran every
+# CREATE TABLE, and closed nothing. The lock covers _INSTANCES, which is
+# read-then-written from worker threads (the library scan, downloads).
 _INSTANCES: dict[Path, "Database"] = {}
 _LOCK = threading.Lock()
 
@@ -44,8 +41,8 @@ def database(db_path: Path | None = None) -> "Database":
 class Database:
     """Thread-safe SQLite database manager with WAL mode."""
 
-    def __init__(self, db_path: Path | None = None) -> None:
-        self.path = Path(db_path) if db_path else default_db_path()
+    def __init__(self, db_path: Path) -> None:
+        self.path = Path(db_path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._local = threading.local()
         self._init_db()
@@ -79,13 +76,16 @@ class Database:
                     updated TEXT NOT NULL
                 )
             """)
+            # Until 1.0 local_files also held size, artist and title, which
+            # nothing read; they were NOT NULL, so the narrower INSERT below
+            # would fail on the old shape. It is a cache: dropped, not migrated.
+            file_columns = {row["name"] for row in conn.execute("PRAGMA table_info(local_files)")}
+            if "size" in file_columns:
+                conn.execute("DROP TABLE local_files")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS local_files (
                     path TEXT PRIMARY KEY,
                     mtime REAL NOT NULL,
-                    size INTEGER NOT NULL,
-                    artist TEXT NOT NULL,
-                    title TEXT NOT NULL,
                     normalized_stem TEXT NOT NULL
                 )
             """)
@@ -113,13 +113,8 @@ class Database:
             """)
 
     # --- Track State API ---
-    def get_track_status(self, key: str) -> str:
-        with self.connection() as conn:
-            cur = conn.execute("SELECT status FROM track_states WHERE key = ?", (str(key),))
-            row = cur.fetchone()
-            return row["status"] if row else "new"
-
-    def set_track_status(self, key: str, status: str, updated: str) -> None:
+    def set_track_status(self, key: str, status: str) -> None:
+        updated = datetime.now(UTC).isoformat(timespec="seconds")
         with self.connection() as conn:
             if status == "new":
                 conn.execute("DELETE FROM track_states WHERE key = ?", (str(key),))
@@ -129,12 +124,16 @@ class Database:
                     (str(key), status, updated)
                 )
 
-    def get_track_local_file(self, key: str) -> str | None:
+    def all_track_statuses(self) -> dict[str, str]:
+        """Every non-new status at once; the table only holds the marked rows."""
         with self.connection() as conn:
-            row = conn.execute(
-                "SELECT path FROM track_local_files WHERE key = ?", (str(key),)
-            ).fetchone()
-            return row["path"] if row else None
+            rows = conn.execute("SELECT key, status FROM track_states").fetchall()
+            return {row["key"]: row["status"] for row in rows}
+
+    def all_track_local_files(self) -> dict[str, str]:
+        with self.connection() as conn:
+            rows = conn.execute("SELECT key, path FROM track_local_files").fetchall()
+            return {row["key"]: row["path"] for row in rows}
 
     def set_track_local_file(self, key: str, path: str) -> None:
         with self.connection() as conn:
@@ -175,20 +174,30 @@ class Database:
             ).fetchone()
             return json.loads(row["record_json"]) if row else None
 
-    def all_crates(self) -> list[dict[str, Any]]:
-        """Every stored record, newest first. One query, not one per crate."""
+    def list_crate_headers(self) -> list[dict[str, Any]]:
+        """source, title, updated and the partial flag, without parsing a record.
+
+        The sidebar only shows titles, but the listing used to deserialise
+        every track of every crate to draw it - at startup and again after each
+        dig. ``partial`` lives inside the JSON, so it comes out through SQLite's
+        own parser (json_extract is built in since SQLite 3.38).
+        """
 
         with self.connection() as conn:
             rows = conn.execute(
-                "SELECT record_json FROM crates ORDER BY updated DESC"
+                """SELECT source, title, updated,
+                          json_extract(record_json, '$.partial') AS partial
+                   FROM crates ORDER BY updated DESC"""
             ).fetchall()
-        records = []
-        for row in rows:
-            try:
-                records.append(json.loads(row["record_json"]))
-            except ValueError as exc:
-                LOGGER.warning("Skipping an unreadable crate row: %s", exc)
-        return records
+        return [
+            {
+                "source": row["source"],
+                "title": row["title"],
+                "updated": row["updated"],
+                "partial": bool(row["partial"]),
+            }
+            for row in rows
+        ]
 
     def delete_crate(self, source: str) -> None:
         with self.connection() as conn:
@@ -201,12 +210,19 @@ class Database:
             cur = conn.execute("SELECT path, mtime, normalized_stem FROM local_files")
             return {row["path"]: (row["mtime"], row["normalized_stem"]) for row in cur.fetchall()}
 
-    def upsert_local_file(self, path: str, mtime: float, size: int, artist: str, title: str, normalized_stem: str) -> None:
+    def upsert_local_files(self, rows: list[tuple[str, float, str]]) -> None:
+        """Write a batch of ``(path, mtime, normalized_stem)``.
+
+        One transaction for the lot: the scan used to commit per file, which on
+        a Windows drive mounted into WSL meant an fsync per track.
+        """
+        if not rows:
+            return
         with self.connection() as conn:
-            conn.execute(
-                """INSERT OR REPLACE INTO local_files (path, mtime, size, artist, title, normalized_stem)
-                   VALUES (?, ?, ?, ?, ?, ?)""",
-                (path, mtime, size, artist, title, normalized_stem)
+            conn.executemany(
+                """INSERT OR REPLACE INTO local_files (path, mtime, normalized_stem)
+                   VALUES (?, ?, ?)""",
+                rows,
             )
 
     def delete_local_files(self, paths: list[str]) -> None:
@@ -223,3 +239,21 @@ class Database:
             cur = conn.execute("SELECT path FROM local_files WHERE normalized_stem = ? LIMIT 1", (normalized_stem,))
             row = cur.fetchone()
             return row["path"] if row else None
+
+    def find_unique_local_match(
+        self, containing: str, also_containing: str = ""
+    ) -> str | None:
+        """Return a decorated filename match only when it is unambiguous."""
+        condition = "instr(normalized_stem, ?) > 0"
+        values = [containing]
+        if also_containing:
+            condition += " AND instr(normalized_stem, ?) > 0"
+            values.append(also_containing)
+        with self.connection() as conn:
+            row = conn.execute(
+                f"""SELECT MIN(path) AS path,
+                           COUNT(DISTINCT normalized_stem) AS variants
+                    FROM local_files WHERE {condition}""",
+                values,
+            ).fetchone()
+            return row["path"] if row and row["variants"] == 1 else None

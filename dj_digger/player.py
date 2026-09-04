@@ -68,6 +68,8 @@ WAVEFORM_GAMMA = 3.0
 
 PLAYED_STYLE = "cyan"
 UNPLAYED_STYLE = "bright_black"
+
+
 # How far back from the playhead the sound of this instant is allowed to show.
 # Two columns: twelve was a band wide enough that its 30fps pulsing read as the
 # whole tail of the played waveform flickering.
@@ -195,9 +197,18 @@ def column_levels(samples: list[int], width: int) -> list[float]:
     return levels
 
 
-def glow_style(level: float) -> str:
-    step = int(max(0.0, min(1.0, level)) * len(GLOW_STYLES))
-    return GLOW_STYLES[min(step, len(GLOW_STYLES) - 1)]
+def glow_style(level: float, steps: tuple[str, ...] = GLOW_STYLES) -> str:
+    step = int(max(0.0, min(1.0, level)) * len(steps))
+    return steps[min(step, len(steps) - 1)]
+
+
+# How the meter follows the signal: the fall per frame, how fast its window
+# tracks the loudest and quietest of what it has heard, the curve that spreads a
+# brickwalled master over the bar, and the span below which nothing is playing.
+METER_RELEASE = 0.72
+METER_ADAPT = 0.03
+METER_GAMMA = 1.6
+METER_QUIETEST_SPAN = 0.02
 
 
 class LevelMeter:
@@ -220,17 +231,11 @@ class LevelMeter:
     as dark, rather than as its own hiss stretched to full height.
     """
 
-    def __init__(
-        self,
-        release: float = 0.72,
-        adapt: float = 0.03,
-        gamma: float = 1.6,
-        quietest_span: float = 0.02,
-    ) -> None:
-        self.release = release
-        self.adapt = adapt
-        self.gamma = gamma
-        self.quietest_span = quietest_span
+    def __init__(self) -> None:
+        self.release = METER_RELEASE
+        self.adapt = METER_ADAPT
+        self.gamma = METER_GAMMA
+        self.quietest_span = METER_QUIETEST_SPAN
         self.reset()
 
     def reset(self) -> None:
@@ -284,7 +289,14 @@ def waveform_rows(
     return drawn
 
 
-def paint_waveform(rows: list[str], played_fraction: float, level: float = 0.0) -> Text:
+def paint_waveform(
+    rows: list[str],
+    played_fraction: float,
+    level: float = 0.0,
+    unplayed: str = UNPLAYED_STYLE,
+    played: str = PLAYED_STYLE,
+    glow: tuple[str, ...] = GLOW_STYLES,
+) -> Text:
     """Colour prebuilt rows: what has played, what has not, and the leading edge.
 
     A frame costs a handful of style ranges rather than an append per character,
@@ -297,18 +309,18 @@ def paint_waveform(rows: list[str], played_fraction: float, level: float = 0.0) 
         return text
 
     width = len(rows[0])
-    played = int(width * max(0.0, min(1.0, played_fraction)))
+    played_columns = int(width * max(0.0, min(1.0, played_fraction)))
     # The played region is history and flicker there only tires the eye, so the
     # pulse is confined to the columns just behind the playhead.
-    glow_from = max(0, played - GLOW_COLUMNS)
-    head = glow_style(level)
+    glow_from = max(0, played_columns - GLOW_COLUMNS)
+    head = glow_style(level, glow)
     for index in range(len(rows)):
         start = index * (width + 1)
         if glow_from:
-            text.stylize(PLAYED_STYLE, start, start + glow_from)
-        if played > glow_from:
-            text.stylize(head, start + glow_from, start + played)
-        text.stylize(UNPLAYED_STYLE, start + played, start + width)
+            text.stylize(played, start, start + glow_from)
+        if played_columns > glow_from:
+            text.stylize(head, start + glow_from, start + played_columns)
+        text.stylize(unplayed, start + played_columns, start + width)
     return text
 
 
@@ -627,12 +639,6 @@ class Player:
                 return None
             if event.generation == self._generation:
                 return event
-
-    def take_finished(self) -> bool:
-        """Compatibility helper for callers interested only in a clean EOF."""
-
-        event = self.take_event()
-        return event is not None and event.kind == "finished"
 
     @property
     def duration(self) -> float:
@@ -990,9 +996,17 @@ class PlayerBar(Static):
         loaded = self.player.loaded
         if loaded is None:
             self.meter.reset()
-            return Text(self.message, style="bright_black")
+            return Text(self.message, style=self.app.muted)
         level = self.meter.feed(self.player.take_level())
-        return paint_waveform(self._rows(loaded), self.player.fraction, level)
+        palette = self.app.palette
+        return paint_waveform(
+            self._rows(loaded),
+            self.player.fraction,
+            level,
+            unplayed=palette.muted,
+            played=palette.accent,
+            glow=palette.glow,
+        )
 
     def _rows(self, loaded: Loaded) -> list[str]:
         width = self._bar_width()
@@ -1061,11 +1075,13 @@ class VolumeSlider(Static):
     def render(self) -> Text:
         volume = self.player.volume
         filled = round(volume * VOLUME_TRACK)
+        palette = self.app.palette
         bar = Text("\u00d8 " if volume <= 0 else "\u266a ", style="bold")
-        bar.append("━" * filled, style="cyan")
-        bar.append("●", style="bold cyan")
-        bar.append("─" * (VOLUME_TRACK - filled), style="bright_black")
-        bar.append(f" {int(volume * 100):>3}%", style="bright_black")
+        bar.append("━" * filled, style=palette.primary)
+        bar.append("●", style=f"bold {palette.primary}")
+        muted = palette.muted
+        bar.append("─" * (VOLUME_TRACK - filled), style=muted)
+        bar.append(f" {int(volume * 100):>3}%", style=muted)
         return bar
 
     def set_from_x(self, x: int) -> None:
@@ -1188,14 +1204,14 @@ class PlayerControls(Horizontal):
         # Text(), not markup: a title like "Rido - Sexy Thing [Clip]" keeps its
         # brackets, and a message is the one thing worth the room over a title.
         self.query_one("#player-title", Static).update(
-            Text(message, style="yellow")
+            Text(message, style=self.app.palette.warning)
             if message
             else Text(loaded.track.label, no_wrap=True, overflow="ellipsis")
         )
         self.query_one("#player-time", Static).update(
             Text(
                 f"{format_time(self.player.position)} / {format_time(self.player.duration)}",
-                style="bright_black",
+                style=self.app.muted,
             )
         )
         self.query_one(VolumeSlider).refresh()

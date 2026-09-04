@@ -4,29 +4,33 @@ Mixed into ``DiggerApp``; the attributes these reach for are set up in its
 ``__init__``.
 """
 
-import logging
-from collections import Counter
-
-from rich.table import Table
 from rich.text import Text
 from textual.coordinate import Coordinate
 from textual.widgets import DataTable, Static
 
 from .. import links as links_module
-from ..state import GOT, NEW, OPENED, SKIP
+from ..state import GOT, NEW, SKIP
+from .filters import SORT_COLUMN
 from .keymap import (
     DOMAIN_BADGE_CATEGORIES,
     FLASH,
+    GENRE_WIDTH,
+    INDEX_WIDTH,
+    LEADING_WIDTH,
     LOCAL_FILE_GLYPH,
+    MARK_WIDTH,
+    MIN_TITLE_WIDTH,
+    OPTIONAL_COLUMN_SPECS,
     PLAYING_GLYPH,
     QUICK_FILTER_KEYS,
+    SPINNER,
+    SPINNER_EVERY,
     STATUS_STYLES,
     STORES_WIDTH,
+    TIME_WIDTH,
 )
 from .rows import Row
 from .widgets import TrackTable
-
-LOGGER = logging.getLogger(__name__)
 
 
 class RenderMixin:
@@ -41,19 +45,18 @@ class RenderMixin:
             if badges:
                 badges.append(" ")
             free = record.link_text == links_module.FREE_DOWNLOAD
+            if record is not opening or record.link_text == links_module.NO_STORE_LINK:
+                style = self.muted
+            elif free:
+                style = f"bold {self.palette.success}"
+            else:
+                style = f"bold {self.palette.primary}"
             if record.category == "gate":
                 host = links_module.host_of(record.link_url)
-                name = "\u2193gate" if free else "gate"
-                if record is not opening:
-                    style = "bright_black"
-                elif free:
-                    style = "bold green"
-                else:
-                    style = "bold cyan"
-                badges.append(name, style=style)
+                badges.append("\u2193gate" if free else "gate", style=style)
                 if host and host != "gate":
                     clean_host = host.rpartition(".")[0] or host
-                    badges.append(f"({clean_host})", style="bright_black")
+                    badges.append(f"({clean_host})", style=self.muted)
             else:
                 if record.category in DOMAIN_BADGE_CATEGORIES:
                     name = links_module.host_of(record.link_url) or record.category
@@ -61,15 +64,6 @@ class RenderMixin:
                     name = "\u2193" + record.category
                 else:
                     name = record.category
-
-                if record is not opening:
-                    style = "bright_black"
-                elif free:
-                    style = "bold green"
-                elif record.link_text == links_module.NO_STORE_LINK:
-                    style = "bright_black"
-                else:
-                    style = "bold cyan"
                 badges.append(name, style=style)
         # DataTable clips the cell at STORES_WIDTH with nothing to show for it,
         # so "gate(hypeddit)" arrives as "gate(hypedd" and reads as a misspelt
@@ -85,41 +79,46 @@ class RenderMixin:
     def _cells(self, row: Row, playing_key: str | None) -> list[Text]:
         status = self.status_of(row)
         glyph, style, _meaning = STATUS_STYLES[status]
+        style = self.role(style)
         label_text = row.track.label
-        dim = "bright_black" if status == SKIP else ""
+        dim = self.muted if status == SKIP else ""
 
         if row.track.key in self.download_progress:
             pct = self.download_progress[row.track.key]
             glyph = "\u29d7"
-            style = "bold yellow"
+            style = f"bold {self.palette.warning}"
             label_text = f"[{int(pct * 100)}%] {row.track.label}"
-            dim = "bold black on yellow"
+            dim = self.palette.download
         else:
             if status == GOT:
-                dim = "bold green"
+                dim = f"bold {self.palette.success}"
 
         label_cell = Text(label_text, style=dim)
         if self.crate is not None and row.track.key in self.crate.new_track_keys:
             # Sorted to the top of the crate by CrateRecord.active_tracks.
-            label_cell = Text("NEW ", style="bold yellow").append_text(label_cell)
+            label_cell = Text("NEW ", style=f"bold {self.palette.secondary}").append_text(label_cell)
+        selected = row.track.key in self.selected
+        if selected:
+            label_cell = Text("\u258c", style=f"bold {self.palette.primary}").append_text(label_cell)
 
         leading = Text(
             LOCAL_FILE_GLYPH if row.track.local_path else " ",
-            style="bold cyan",
+            style=f"bold {self.palette.primary}",
         )
         leading.append(
             PLAYING_GLYPH if row.track.key == playing_key else " ",
-            style="green",
+            style=self.palette.accent,
         )
 
         return [
             leading,
             Text(glyph, style=style),
-            Text(str(row.position), style="bright_black"),
+            Text(str(row.position), style="reverse" if selected else self.muted),
             label_cell,
             self._store_badges(row),
-            Text(row.track.genre_label or "-", style="bright_black"),
-            Text(row.track.duration_label or "-", style="bright_black"),
+            Text(row.track.genre_label or "-", style=self.muted),
+            *self._optional_cells(row),
+            Text(row.track.duration_label or "-", style=self.muted),
         ]
 
     def _paint_row(self, index: int, flash: str = "") -> None:
@@ -134,6 +133,74 @@ class RenderMixin:
             if flash:
                 cell.stylize(flash)
             table.update_cell_at(Coordinate(index, column), cell, update_width=False)
+
+    def enabled_columns(self) -> list[tuple[str, str, int]]:
+        """The optional column specs switched on in Settings, in table order."""
+
+        wanted = set(self.config.columns)
+        return [spec for spec in OPTIONAL_COLUMN_SPECS if spec[0] in wanted]
+
+    def build_columns(self, table: TrackTable) -> None:
+        keys = self._column_keys = {}
+        keys["leading"] = table.add_column(
+            Text(LOCAL_FILE_GLYPH + PLAYING_GLYPH, style=self.muted),
+            width=LEADING_WIDTH,
+        )
+        keys["mark"] = table.add_column("", width=MARK_WIDTH)
+        keys["#"] = table.add_column("#", width=INDEX_WIDTH)
+        table.flexible_column = keys["Track"] = table.add_column("Track", width=MIN_TITLE_WIDTH)
+        keys["Stores"] = table.add_column("Stores", width=STORES_WIDTH)
+        keys["Genre"] = table.add_column("Genre", width=GENRE_WIDTH)
+        for _name, header, width in self.enabled_columns():
+            keys[header] = table.add_column(header, width=width)
+        keys["Time"] = table.add_column("Time", width=TIME_WIDTH)
+        self._paint_headers(table)
+
+    def _paint_headers(self, table: TrackTable | None = None) -> None:
+        """Put the sort arrow on the sorted column's header and nowhere else."""
+
+        table = table or self.query_one("#tracks", TrackTable)
+        arrow = " \u25bc" if self.sort_reverse else " \u25b2"
+        sorted_header = SORT_COLUMN.get(self.sort_key or "", "")
+        for name, key in self._column_keys.items():
+            if key not in table.columns or name == "leading":
+                continue
+            base = "" if name == "mark" else name
+            table.columns[key].label = Text(base + (arrow if name == sorted_header else ""))
+        # The header is cached per column; the label change alone does not
+        # redraw it. Private, like _post_selected_message in widgets.py.
+        table._clear_caches()
+        table.refresh()
+
+    def rebuild_columns(self) -> None:
+        """Settings changed which columns show; start the table over."""
+
+        table = self.query_one("#tracks", TrackTable)
+        table.clear(columns=True)
+        self.build_columns(table)
+        self.refresh_rows()
+        self.call_after_refresh(table.fit_flexible_column)
+
+    def _optional_cells(self, row: Row) -> list[Text]:
+        track = row.track
+        values = {
+            "bpm": track.bpm_label,
+            "key": track.key_signature,
+            "year": str(track.release_year or ""),
+            "label": track.label_name,
+        }
+        return [
+            Text(values[name] or "-", style=self.muted)
+            for name, _header, _width in self.enabled_columns()
+        ]
+
+    def _paint_key(self, key: str) -> None:
+        """Repaint the row showing this track, if it is on screen."""
+
+        for index, row in enumerate(self.visible_rows):
+            if row.track.key == key:
+                self._paint_row(index)
+                return
 
     def _flash_row(self, index: int, style: str) -> None:
         """Light the row you acted on, so a keypress is visibly a change."""
@@ -182,44 +249,38 @@ class RenderMixin:
         self.update_status()
 
     def update_status(self) -> None:
-        """One bar: the store legend on the left, where you are up to on the right.
+        """The legend on the left, the running job (or the view's state) on the right.
 
-        These were two stacked bars above the footer, which made three rows of
-        chrome under the table. The crate name went with them - the sidebar
-        already highlights which crate you are in.
+        The legend is the whole list of stores, always; the bar scrolls sideways
+        when it is wider than the terminal. Track counts used to sit on the
+        right and were never looked at, so what is there now is only what
+        changes how the list reads: a job in progress, a search, a sort, a
+        selection, hidden rows.
         """
 
-        bar = self.query_one("#status", Static)
-        stores = self._store_line()
-        progress = self._progress_line()
-
-        grid = Table.grid(expand=True)
-        grid.add_column(no_wrap=True)
-        # Narrow terminals cannot have both. The legend is what the number keys
-        # are documented by, so the counts are what goes.
-        if len(stores) + len(progress) + 2 <= bar.size.width:
-            grid.add_column(justify="right", no_wrap=True)
-            grid.add_row(stores, progress)
-        else:
-            grid.add_row(stores)
-        bar.update(grid)
+        # A worker's last word can land after the widgets are gone.
+        if not self.query("#status-legend"):
+            return
+        self.query_one("#status-legend", Static).update(self._store_line())
+        self.query_one("#status-job", Static).update(self._progress_line())
 
     def _progress_line(self) -> Text:
-        counts = Counter(self.status_of(row) for row in self.rows)
-
-        pieces = [f"{len(self.visible_rows)}/{len(self.rows)} tracks"]
-        pieces += [
-            f"got {counts[GOT]}",
-            f"skipped {counts[SKIP]}",
-            f"opened {counts[OPENED]}",
-        ]
+        pieces = []
+        job = self.job
+        if job is not None:
+            glyph = SPINNER[(self._frame // SPINNER_EVERY) % len(SPINNER)]
+            pieces.append(f"{glyph} {job.describe()}")
+        if self.selected:
+            pieces.append(f"{len(self.selected)} selected")
+        if self.sort_key:
+            pieces.append(f"sort: {self.sort_key}{' \u25bc' if self.sort_reverse else ' \u25b2'}")
         if self.search_term:
             pieces.append(f"search: {self.search_term!r}")
         if self.hide_handled:
             pieces.append("hiding handled")
         if self.crate is not None and self.crate.partial:
             pieces.append("imported from a file, press r to complete it")
-        return Text(" \u00b7 ".join(pieces), style="bright_black")
+        return Text(" \u00b7 ".join(pieces), style=self.muted)
 
     def _store_line(self) -> Text:
         """The stores in this crate, numbered, so the number keys explain themselves."""
@@ -227,7 +288,7 @@ class RenderMixin:
         line = Text()
         self._badge_click_regions = []
         if not self.rows:
-            line.append("press d to dig a link", style="bright_black")
+            line.append("press d to dig a link", style=self.muted)
             return line
 
         # Counted over what the search and hide-handled left, so the legend does
@@ -245,7 +306,7 @@ class RenderMixin:
         line.append("\u25b8 " if showing_all else "  ", style="bold")
 
         start = line.cell_len
-        line.append("0 all", style="bold reverse" if showing_all else "bright_black")
+        line.append("0 all", style="bold reverse" if showing_all else self.muted)
         self._badge_click_regions.append((start, line.cell_len, 0))
 
         for index, category in enumerate(self.present, start=1):
@@ -254,8 +315,9 @@ class RenderMixin:
 
             label = f"{index} {category}" if index <= QUICK_FILTER_KEYS else category
             start = line.cell_len
-            line.append(label, style="bold reverse cyan" if active else "cyan")
-            line.append(f"\u00b7{by_category[category]}", style="bright_black")
+            primary = self.palette.primary
+            line.append(label, style=f"bold reverse {primary}" if active else primary)
+            line.append(f"\u00b7{by_category[category]}", style=self.muted)
             self._badge_click_regions.append((start, line.cell_len, index))
 
         return line
@@ -267,12 +329,26 @@ class RenderMixin:
             # The row is on its way out of the list, so there is nothing to light.
             self.refresh_rows()
             return
-        self._flash_row(index, STATUS_STYLES[status][1])
+        self._flash_row(index, self.role(STATUS_STYLES[status][1]))
         self.update_status()
+
+    def _mark_selected(self, status: str, message: str) -> bool:
+        """Mark every selected row at once. False when nothing is selected."""
+
+        rows = self.selected_rows()
+        if not rows:
+            return False
+        for row in rows:
+            self.state.set(row.track.key, status)
+        self.notify(f"{message}: {len(rows)} tracks", timeout=2)
+        self.refresh_rows()
+        return True
 
     def _toggle_status(self, status: str, message: str) -> None:
         """Pressing the same key again clears the mark, which is what people try."""
 
+        if self._mark_selected(status, message):
+            return
         row = self.current_row()
         if row is None:
             return
@@ -302,6 +378,8 @@ class RenderMixin:
         self._toggle_status(SKIP, "Skipped")
 
     def action_mark_new(self) -> None:
+        if self._mark_selected(NEW, "Unmarked"):
+            return
         row = self.current_row()
         if row is None:
             return

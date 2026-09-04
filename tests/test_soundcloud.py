@@ -1,7 +1,10 @@
+import threading
+
 import pytest
+from conftest import FakeResponse
 
 from dj_digger import gates, soundcloud
-from dj_digger.models import Track
+from dj_digger.models import Cancelled, Track
 from dj_digger.soundcloud import (
     SoundCloudClient,
     SoundCloudError,
@@ -12,33 +15,9 @@ from dj_digger.soundcloud import (
 DUMMY_CLIENT_ID = "0" * 32
 
 
-class FakeResponse:
-    def __init__(self, status_code=200, payload=None, text="{}", headers=None):
-        self.status_code = status_code
-        self._payload = payload
-        self.text = text
-        self.headers = headers or {}
-
-    def json(self):
-        if self._payload is None:
-            raise ValueError("no json")
-        return self._payload
-
-
 class FakeSession:
-    def __init__(self, responses):
-        self.responses = list(responses)
-        self.calls = []
+    """Answers queued responses in order, recording (url, params, kwargs)."""
 
-    def get(self, url, params=None, timeout=None, **kwargs):
-        self.calls.append((url, dict(params or {})))
-        return self.responses.pop(0)
-
-    def close(self):
-        pass
-
-
-class SequenceSession:
     def __init__(self, responses):
         self.responses = list(responses)
         self.calls = []
@@ -60,6 +39,9 @@ class DownloadResponse:
 
     def iter_content(self, chunk_size):
         return iter(self.chunks)
+
+    def close(self):
+        pass
 
 
 class DownloadSession:
@@ -92,7 +74,7 @@ def medusa_track():
 
 def test_a_free_download_without_a_url_explains_that_login_is_required(tmp_path):
     client = SoundCloudClient(
-        session=SequenceSession([]), client_id=DUMMY_CLIENT_ID, oauth_token=""
+        session=FakeSession([]), client_id=DUMMY_CLIENT_ID, oauth_token=""
     )
 
     with pytest.raises(SoundCloudLoginRequired, match="SoundCloud login is required"):
@@ -101,7 +83,7 @@ def test_a_free_download_without_a_url_explains_that_login_is_required(tmp_path)
 
 def test_a_rejected_download_endpoint_explains_that_login_expired(tmp_path):
     client = SoundCloudClient(
-        session=SequenceSession([FakeResponse(status_code=401)]),
+        session=FakeSession([FakeResponse(status_code=401)]),
         client_id=DUMMY_CLIENT_ID,
         oauth_token="expired",
     )
@@ -113,7 +95,7 @@ def test_a_rejected_download_endpoint_explains_that_login_expired(tmp_path):
 def test_a_free_download_without_a_url_uses_the_authenticated_endpoint(tmp_path):
     endpoint = FakeResponse(payload={"redirectUri": "https://cdn.example/medusa.wav"})
     audio = DownloadResponse([b"RIFF"], headers={"Content-Type": "audio/wav"})
-    session = SequenceSession([endpoint, audio])
+    session = FakeSession([endpoint, audio])
     client = SoundCloudClient(
         session=session, client_id=DUMMY_CLIENT_ID, oauth_token="valid"
     )
@@ -175,7 +157,9 @@ def test_a_lookalike_host_is_not_handed_our_client_id(tmp_path):
 def test_a_track_named_after_a_windows_device_still_gets_a_filename(name):
     """CON.mp3 is as reserved as CON, and the OSError lands after the download."""
 
-    cleaned = soundcloud._sanitize_filename(name)
+    cleaned = soundcloud._download_stem(
+        Track(title=name, permalink_url="https://soundcloud.com/a/t")
+    )
     assert cleaned.upper() not in soundcloud.WINDOWS_RESERVED
     assert name.lower() in cleaned.lower()
 
@@ -466,7 +450,7 @@ def test_collect_playlist_hydrates_every_stub(monkeypatch, playlist_payload):
 
     requested = []
 
-    def fake_hydrate(ids, on_progress=None):
+    def fake_hydrate(ids, on_progress=None, cancel=None):
         requested.extend(ids)
         return [Track.from_api(track_payload(track_id)) for track_id in ids]
 
@@ -482,7 +466,7 @@ def test_collect_playlist_hydrates_every_stub(monkeypatch, playlist_payload):
 def test_collect_playlist_honours_limit(monkeypatch, playlist_payload):
     client = make_client()
     monkeypatch.setattr(client, "resolve", lambda url: playlist_payload)
-    monkeypatch.setattr(client, "hydrate_tracks", lambda ids, on_progress=None: list(ids))
+    monkeypatch.setattr(client, "hydrate_tracks", lambda ids, on_progress=None, cancel=None: list(ids))
 
     crate = client.collect("https://soundcloud.com/a/sets/b", limit=7)
     assert len(crate.tracks) == 7
@@ -519,6 +503,56 @@ def test_collect_user_likes_unwraps_and_paginates(monkeypatch):
 
     assert [track.id for track in crate.tracks] == [1, 2]
     assert crate.title == "Someone - likes"
+
+
+def test_pagination_stops_when_cancelled(monkeypatch):
+    client = make_client()
+    monkeypatch.setattr(
+        client, "resolve", lambda url: {"kind": "user", "id": 7, "username": "Someone"}
+    )
+    cancel = threading.Event()
+    requested = []
+
+    def page(path, **params):
+        requested.append(path)
+        return {"collection": [track_payload(len(requested))], "next_href": f"next-{len(requested)}"}
+
+    monkeypatch.setattr(client, "_get", page)
+    monkeypatch.setattr(client, "_request", lambda url, params=None: page(url))
+
+    def stop_after_first_page(done, total):
+        cancel.set()
+
+    with pytest.raises(Cancelled):
+        client.collect(
+            "https://soundcloud.com/someone/likes", on_progress=stop_after_first_page, cancel=cancel
+        )
+    assert requested == ["/users/7/likes"], "the next page is never asked for"
+
+
+def test_a_cancelled_download_leaves_no_part_file(tmp_path):
+    cancel = threading.Event()
+    session = DownloadSession(
+        DownloadResponse([b"\xff\xfb" + b"a" * 100, b"b" * 100], headers={"Content-Type": "audio/mpeg"})
+    )
+    client = make_client(session)
+    track = Track(
+        title="T",
+        artist="A",
+        permalink_url="https://soundcloud.com/a/t",
+        downloadable=True,
+        has_downloads_left=True,
+        download_url="https://gate.example/file",
+    )
+    destination = tmp_path / "downloads"
+
+    def stop_after_first_chunk(downloaded, total):
+        cancel.set()
+
+    with pytest.raises(Cancelled):
+        client.download_track(track, destination, on_progress=stop_after_first_chunk, cancel=cancel)
+
+    assert list(destination.iterdir()) == []
 
 
 def test_collect_user_profile_defaults_to_their_tracks(monkeypatch):

@@ -3,10 +3,17 @@
 [![Python Version](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
 [![Built with Textual](https://img.shields.io/badge/TUI-Textual-ff69b4.svg)](https://textual.textualize.io/)
-[![Version](https://img.shields.io/badge/version-0.15.0-orange.svg)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-1.0.0-orange.svg)](pyproject.toml)
 
-> **The ultimate crate-digging companion for DJs and electronic music collectors.**
-> Instantly extract purchase links, free downloads, and download gates from SoundCloud playlists, user likes, or artist profiles—then preview tracks and manage your library in a high-performance terminal interface.
+> **A local-first playlist workflow for DJs.**
+> Turn SoundCloud playlists, likes, and artist profiles into an auditionable,
+> searchable library, then find the safest available path to download or buy
+> each track.
+
+`dj-soundcloud-digger` keeps the whole digging loop in one terminal application:
+collect a playlist, preview and filter it, mark decisions, match music already on
+disk, and follow verified store or download links. Your library and preferences
+stay on your machine, and checkout always stays in your hands.
 
 The current implemented behavior, architecture, interfaces, data model, and
 security/privacy boundaries are maintained in
@@ -18,20 +25,45 @@ dj-digger https://soundcloud.com/someone/sets/that-playlist
 
 ---
 
-## ⚡ Highlights & Features
+## ⚡ The workflow
 
-- **🚀 Ultra-Fast API v2 Digging**: Reads a 300-track playlist off the API in ~3 seconds using batch hydration calls—no browser scrolling or DOM scraping required. That figure is the SoundCloud half; a crate whose purchase links need following (see *Link-Hub Expansion* below) then spends as long as those third-party servers take, which on a 484-track playlist is around a minute.
-- **🏷️ Smart Store & Gate Classification**: Group links automatically into **Bandcamp**, **Beatport**, **Traxsource**, **JunoDownload**, **Record Shops**, **Download Gates** (Hypeddit, Toneden, etc.), **Smart links**, and **Direct SoundCloud Downloads**.
-- **🎶 In-Memory Audio Preview**: Zero-latency streaming and seeking powered by `miniaudio`. Pre-fetches upcoming tracks and renders dynamic 16-level block waveforms with reactive audio level meters.
-- **📦 Multi-Crate Local Library**: Save dig sessions as local crates in `~/.local/share/dj-digger/digger.db`. Switch, refresh, or search across crates seamlessly.
-- **🧠 Cross-Crate Track Memory**: Track decisions (`got it` / `skipped`) are stored globally by SoundCloud track ID. Buying a track once marks it across all future playlists.
-- **🔓 Download Gate Automation**: Resolves follow-to-download gates (Hypeddit, ToneDen, GateRush, Droploud) through their supported download flows. SoundCloud, Instagram, YouTube and similar link steps are click-through markers: the app does not call their follow, like, repost, comment APIs or open external social links to simulate a click. A gate may receive the name or email configured in Settings when its manifest requires them, and an explicit Spotify ART/PLAY step can modify the user's Spotify library after OAuth. CAPTCHA and unknown provider steps remain manual in the private Chromium profile. Gate automation remains subject to the provider's terms.
-- **🔐 Spotify Gate Login**: Hypeddit gates that explicitly require saving a Spotify artist or public playlist can use an optional one-time PKCE login. No Spotify client secret is stored, and disabling gate social actions keeps these gates manual.
+- **Collect complete playlists**: SoundCloud API v2 reads playlists, likes, profiles,
+  and individual tracks without relying on the page's finite rendered list. A
+  saved-HTML fallback covers private and unlisted sources.
+- **Audition and narrow down**: Preview, seek, search, filter, and sort tracks in
+  the Textual interface without leaving the playlist.
+- **Remember every decision**: Local playlists keep `got it` / `skipped` status across
+  playlists, refreshes identify new additions, and a library scan finds tracks
+  already on disk.
+- **Find the track, not just a link**: Store, smart-link, and download-gate URLs
+  are classified and expanded into useful Bandcamp, Beatport, shop, or download
+  destinations.
+- **Acquire with guardrails**: Download artist-provided files, resolve supported
+  gates, verify Bandcamp products, or prepare a Beatport playlist. Ambiguous
+  matches and checkout remain manual.
+- **Keep control locally**: Playlists, decisions, credentials, and browser profiles
+  remain on your machine; there is no project-hosted account or backend.
+
+## Additional capabilities
+
+- **API-first collection**: A 300-track playlist can be read from SoundCloud in
+  about three seconds using batch hydration. Following third-party purchase links
+  takes as long as those providers take; a 484-track playlist is around a minute.
+- **Store and gate classification**: Group links into **Bandcamp**, **Beatport**,
+  **Traxsource**, **JunoDownload**, **record shops**, **download gates**, **smart
+  links**, and **direct SoundCloud downloads**.
+- **In-memory audio preview**: Stream, seek, prefetch upcoming tracks, and render
+  block waveforms with a reactive audio meter, powered by `miniaudio`.
+- **Multi-playlist local library**: Save, switch, refresh, and search playlists stored in
+  `~/.local/share/dj-digger/digger.db`.
+- **Cross-playlist track memory**: A decision made for a SoundCloud track applies
+  when that track appears in another playlist.
+- **🔓 Download Gate Automation**: Resolves follow-to-download gates (Hypeddit, ToneDen, GateRush, Droploud) through their supported download flows. SoundCloud, Instagram, YouTube and similar link steps are click-through markers: the app does not call their follow, like, repost, comment APIs or open external social links to simulate a click. A gate may receive the name or email configured in Settings when its manifest requires them. Spotify steps are reported like the other click-throughs: Hypeddit clears them through its own Spotify app, so no Spotify login is needed or used. CAPTCHA and unknown provider steps remain manual in the private Chromium profile. Gate automation remains subject to the provider's terms.
 - **🔗 Link-Hub Expansion**: A purchase link that turns out to be a list of shops rather than a download—an ampsuite release page, a gate running in smart-link mode—is opened, and the Bandcamp and Beatport links behind it are added to the track directly instead of a `gate` badge.
 - **🛒 Store Purchase Assistance**: An optional, user-triggered flow verifies Bandcamp additions and prepares Beatport tracks as an importable playlist. Login, playlist transfer, and checkout stay manual.
-- **🆕 New Since Last Refresh**: Refreshing a crate marks whatever the playlist gained with `NEW` and sorts it to the top.
+- **🆕 New Since Last Refresh**: Refreshing a playlist marks whatever it gained with `NEW` and sorts it to the top.
 - **📄 Saved-HTML Fallback**: Fully supports saved HTML pages (`Ctrl+S`) for private or unlisted SoundCloud playlists.
-- **⚙️ CLI & Non-Interactive Mode**: Export crates directly to JSON or CSV for automated pipelines and scripts.
+- **⚙️ CLI & Non-Interactive Mode**: Export playlists directly to JSON or CSV for automated pipelines and scripts.
 
 ---
 
@@ -73,7 +105,7 @@ use `--log-file`:
 uv run --extra play dj-digger --log-level DEBUG --log-file /tmp/dj-digger.log
 ```
 
-To try it against a throwaway library instead of your real crates, point the XDG
+To try it against a throwaway library instead of your real playlists, point the XDG
 directories somewhere temporary for that one run:
 
 ```bash
@@ -98,14 +130,14 @@ XDG_DATA_HOME=/tmp/dj-dev XDG_CONFIG_HOME=/tmp/dj-dev XDG_CACHE_HOME=/tmp/dj-dev
 | **Artist Profile** | `soundcloud.com/user` | All tracks uploaded by the artist |
 | **Single Track** | `soundcloud.com/user/track-name` | Single track metadata & purchase links |
 | **Saved HTML** | `playlist.html` | Private / unlisted playlist saved locally |
-| **Interactive Prompt**| *Run without arguments* | Prompts for a link or opens saved crates |
+| **Interactive Prompt**| *Run without arguments* | Prompts for a link or opens saved playlists |
 
 ---
 
 ## 🖥️ Interactive TUI Workflow
 
 Launching `dj-digger` opens an interactive Textual browser divided into three key areas:
-1. **Crate Sidebar (`Ctrl+B`)**: Switch between saved crates, add new links (`d`), or refresh existing crates (`r`).
+1. **Playlist Sidebar (`Ctrl+B`)**: Switch between saved playlists, add new links (`a`), or refresh existing playlists (`r`).
 2. **Track Table**: Displays tracks with status badges (`·` untouched, `○` opened, `✓` got, `✗` skipped), position, artist/title, available store badges, genre, and duration.
 3. **Player & Waveform Bar**: A four-row, 32-level waveform with a real-time VU level meter, over a one-row control strip: previous / play-pause / next buttons, track title, clock, a drag-to-set volume slider, and a close button.
 
@@ -120,16 +152,17 @@ Press `?` inside the TUI at any time to view the full grouped keybinding modal.
 #### Track Navigation & Status Marks
 | Key | Action |
 | --- | --- |
-| `Up` / `Down` / `j` / `k` | Navigate track rows |
+| `Up` / `Down` | Navigate track rows |
 | `o` or `Enter` | Open the best link (or active store filter) in your default web browser |
-| `w` | Download the highlighted artist-provided or gate file to your download folder (set it with `S`) |
-| `W` | Batch-download all eligible tracks in the current view |
-| `Ctrl+X` | Stop an active Hypeddit browser batch; unfinished tracks remain new |
+| `d` | Download the highlighted artist-provided or gate file to your download folder (set it with `s`) |
+| `Shift+d` | Download all eligible tracks in the current view |
+| `Ctrl+X` | Stop the running dig or download batch; finished files are kept, unfinished tracks stay new |
 | `g` | Mark track as **Got** (`✓`) and move to next track |
-| `s` | Mark track as **Skipped** (`✗`) and move to next track |
+| `k` | Mark track as **Skipped** (`✗`) and move to next track |
 | `u` | Clear track status mark (`·`) |
-| `x` | Remove track from current crate (`Ctrl+Z` to undo) |
+| `x` | Remove track from current playlist (`Ctrl+Z` to undo) |
 | `y` | Copy the path of the local file that matches this track (`▣` in the first column) |
+| `b` / `Shift+b` | Search in Bandcamp / Search in Beatport for the highlighted track |
 
 #### Audio Preview Controls
 | Key | Action |
@@ -144,18 +177,26 @@ Press `?` inside the TUI at any time to view the full grouped keybinding modal.
 #### Filtering, Stores & Library
 | Key | Action |
 | --- | --- |
-| `/` | Live search/filter by artist, title, or genre |
-| `f` / `F` | Step forward / backward through store filters |
+| `/` | Live search/filter by artist, title, genre, tag or label (every word must match, any order) |
+| `t` / `Shift+t` | Sort by title, time, genre, status or store (`t` cycles, `Shift+t` reverses); the header shows the arrow |
+| `v` / `Shift+v` / `Ctrl+A` | Select a row / extend the selection to here / select everything shown; batch keys then act on the selection |
 | `1` – `9` | Jump directly to store category filter |
 | `0` | Reset store filter (show all tracks) |
 | `h` | Toggle hiding handled tracks (`got` / `skipped`) |
-| `Shift+O` | Open all visible store links in browser (asks confirmation for >20 links) |
+| `Escape` | Clear the selection; then the search; then the store filter and hiding |
+| `Shift+o` | Open all visible store links in browser (asks confirmation for >20 links) |
 | `c` | Add the highlighted track to Bandcamp, or prepare it for a Beatport playlist |
-| `C` | Review visible store tracks, add Bandcamp items, and prepare a Beatport playlist |
+| `Shift+c` | Review visible store tracks, add Bandcamp items, and prepare a Beatport playlist |
+| `Shift+p` | Open every exact Beatport track page shown in your regular browser, to add to cart by hand (asks above 20) |
 | `e` | Export visible rows to file |
-| `d` | Add a new crate from a SoundCloud URL |
-| `r` | Refresh current crate from SoundCloud (preserves local deletions) |
-| `Ctrl+B` | Toggle Crate Sidebar |
+| `a` | Add a new playlist from a SoundCloud URL |
+| `r` | Refresh current playlist from SoundCloud (preserves local deletions) |
+| `Shift+x` | Delete the highlighted playlist, after confirming |
+| `Shift+u` | Reset every track in the playlist to untouched |
+| `Ctrl+B` | Toggle Playlist Sidebar |
+| `s` | Settings: profile, folders, browser, store session |
+| `?` | Full keybinding help |
+| `q` / `Ctrl+C` | Quit |
 
 ---
 
@@ -180,8 +221,13 @@ Links are parsed and categorized using strict domain-boundary matching:
 
 ### Bandcamp carts and Beatport playlists
 
-Pressing `c` or `C` performs product checks in hidden Chromium and shows its
-window only when the completed Bandcamp cart is ready. If the matching browser
+Pressing `c` or `C` does the product checks and the cart clicks in a hidden
+Chromium; nothing pops up while it works. A window appears only when there is
+something for you: the completed Bandcamp cart, or items left to finish by
+hand. That window is a separate browser carrying the same cookies, so the
+hidden session is never disturbed. A desktop display is needed for those
+moments only (WSL users need WSLg); without one the additions still stand and
+the result screen says the window could not be shown. If the matching browser
 build is absent, the app asks before downloading it in the background and then
 resumes the cart preflight. The app uses a dedicated persistent browser profile,
 separate from your everyday browser. A Bandcamp account is not required for its
@@ -216,22 +262,37 @@ exact track matches and inspects at most three returned album pages; it never
 enters the CAPTCHA-protected full results page. A track sold only as part of a
 full album is reported as album-only instead of silently adding the whole album.
 After a click, verification uses the cart count, a visible removable row in the
-opened side cart, and one reload check. An uncertain cart remains open for
-inspection and is never clicked again automatically.
+opened side cart, and one reload check, each on its own clock. An uncertain
+cart remains open for inspection and is never clicked again automatically; the
+app saves a screenshot and a redacted copy of the page under
+`cart-diagnostics` in its data folder (last ten kept) so a broken flow can be
+reported with the page that broke it. After two unverified clicks in one
+batch the app stops clicking: it opens the remaining products with Buy
+expanded and the price filled, asks you to press Add to cart yourself, and
+then checks the cart once. The result screen offers the same **Finish in
+browser** for anything left uncertain.
 
-Beatport login and cart mutation are not automated. The result screen creates a
-new `Beatport playlist.txt` in the crate's download folder, copies its contents,
-and opens Beatport's official Soundiiz transfer page. Choose **Import playlist →
-Plain text** and paste; if the clipboard is unavailable, upload the saved file.
-Exact Beatport track URLs are preferred. Release links and blocked public pages
-are looked up for the exact title/remix and fall back to `artist - title`, which
+Beatport login and cart mutation are not automated: `c`/`Shift+C` prepare a
+playlist, and `Shift+P` opens the exact Beatport track pages in your everyday
+browser, where you are already logged in, so adding to the cart is one click
+each. The result screen creates a
+new `Beatport playlist.txt` in the playlist's download folder, copies its contents,
+creates a temporary Soundiiz import with Beatport already selected, and opens
+the returned review page. Confirm the matches and finish the transfer there;
+Soundiiz accepts up to 200 tracks per import. The saved file and clipboard remain
+available as a fallback. Promo prefixes, uploader names, preview markers and
+trailing label fields are removed before matching, including titles whose artist
+separator has no surrounding spaces. Exact Beatport track URLs are preferred in that
+file and replace stored release links so later imports can reuse them. Release links and blocked public pages
+are looked up for the exact title/remix and fall back to cleaned `artist - title`, which
 Soundiiz presents for review before writing the Beatport playlist. Already-exact
-numeric track URLs bypass Chromium. In Beatport DJ, that playlist can then be
+numeric track URLs bypass Chromium. Old `pro.beatport.com` links are automatically
+rewritten and saved under `www.beatport.com`. In Beatport DJ, that playlist can then be
 added to the default cart in one action.
 
 Only canonical Bandcamp and Beatport HTTPS domains are inspected. Custom artist
 domains remain outside this version. The feature depends on the stores' and
-Soundiiz's current visible interfaces; use it in line with their terms. Showing
+Soundiiz's public import interface; use it in line with their terms. Showing
 the completed Bandcamp cart or opening its manual session needs a graphical
 session; WSL users need WSLg or another working display.
 
@@ -276,45 +337,28 @@ name and email before it submits the gate. It explains who receives those data,
 rejects placeholders and malformed addresses, and retries only the downloads
 that were waiting for the profile. Cancelling sends no retry request.
 
-### Spotify-backed download gates
+### Spotify steps on download gates
 
-Some Hypeddit gates require following an artist or public playlist on Spotify. The first command
-opens the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
-and walks you through creating a Web API app. Add this exact redirect URI:
+Hypeddit gates that show a Spotify step are handled like the other click-through
+steps: the gate clears that step through Hypeddit's own Spotify app and server
+session, so nothing dj-digger could do with your Spotify account would reach it.
+Releases before 1.0 asked for a Spotify developer app and stored a login in
+`~/.config/dj-digger/spotify.json`; that file is no longer read, and you can
+delete it yourself.
 
-```text
-http://127.0.0.1:43821/callback
-```
-
-Then paste the public Client ID when prompted. `--client-id` remains available
-for scripts and skips the Dashboard step:
-
-```bash
-dj-digger auth spotify login
-dj-digger auth spotify login --client-id YOUR_CLIENT_ID
-dj-digger auth spotify status
-```
-
-The login uses Authorization Code with PKCE and requests only
-`user-follow-modify playlist-modify-public`. It listens temporarily on the fixed loopback callback
-above; if port `43821` is occupied it stops before opening the authorization
-page. A Client Secret is neither requested nor stored. Credentials stay in the
-owner-only `~/.config/dj-digger/spotify.json`. See
-Spotify's [redirect URI rules](https://developer.spotify.com/documentation/web-api/concepts/redirect_uri)
-and [PKCE guide](https://developer.spotify.com/documentation/web-api/tutorials/code-pkce-flow).
-
-Disable **gate social actions** in Settings to prevent the program from changing
-Spotify or SoundCloud. Gates requiring those actions will then remain manual.
-Spotify development apps currently require the owner to have Premium and allow
-up to five authenticated, allowlisted users; each dj-digger user should normally
-supply their own Client ID. See Spotify's current
-[quota modes](https://developer.spotify.com/documentation/web-api/concepts/quota-modes).
-
-Remove the saved login with:
-
-```bash
-dj-digger auth spotify logout
-```
+When a gate ends up in the private Chromium profile (a refusal, a CAPTCHA, a
+provider login), a hidden browser walks the gate's own step slides for you:
+it ticks the follow and like links (closing the provider pages they open,
+unread), presses the Connect of a Spotify step - whose login popup comes back
+by itself once you have signed in to Spotify in that profile - fills the email
+slide with the address from Settings (and the name, when the gate asks for
+one), and presses Download. Only a step no program can do alone - a provider
+asking you to sign in, a CAPTCHA, a missing email or name - opens a window, where the same driver keeps walking the steps before
+and after the one that needs you. Sign in to Spotify there once and later
+gates finish out of sight. Nothing outside the Hypeddit page is clicked.
+Disable **gate social actions** in Settings to keep the program from
+reporting or clicking any social step at all. Gates requiring those actions
+will then remain manual.
 
 ---
 
@@ -339,10 +383,10 @@ dj-digger https://soundcloud.com/user/sets/playlist --no-tui -f csv -o playlist.
 # Limit extraction to first 20 tracks and export to JSON
 dj-digger https://soundcloud.com/user/likes -n 20 -f json -o likes.json
 
-# Re-open a previously exported JSON crate in the TUI browser
+# Re-open a previously exported JSON playlist in the TUI browser
 dj-digger open likes.json
 
-# Open all Bandcamp links directly in browser from a saved crate
+# Open all Bandcamp links directly in browser from a saved playlist
 dj-digger open likes.json --category bandcamp
 ```
 
@@ -368,7 +412,7 @@ dj-digger open likes.json --category bandcamp
            ┌────────────────────────┼────────────────────────┐
            │                        │                        │
 ┌──────────▼──────────┐  ┌──────────▼──────────┐  ┌──────────▼──────────┐
-│   Textual TUI App   │  │ Local Crate Library│  │ In-Memory Player   │
+│   Textual TUI App   │  │  Playlist Library  │  │ In-Memory Player   │
 │ (Interactive Grid)  │  │ (~/.../crates/)    │  │ (Miniaudio & VU)   │
 └─────────────────────┘  └────────────────────┘  └────────────────────┘
 ```

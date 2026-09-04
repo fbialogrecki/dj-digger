@@ -347,9 +347,27 @@ def test_export_csv_is_flat(tmp_path, tracks):
     records = links.categorise_all(tracks)
     path = links.export_records(records, "csv", tmp_path / "out.csv")
     with path.open(encoding="utf-8") as handle:
-        rows = list(csv.DictReader(handle))
+        reader = csv.DictReader(handle)
+        rows = list(reader)
     assert len(rows) == len(records)
     assert rows[0]["category"] in links.CATEGORY_NAMES
+    assert reader.fieldnames[:5] == ["category", "artist", "title", "track_url", "shop_link"]
+    assert reader.fieldnames[5:] == ["bpm", "key", "release_year", "label"]
+
+
+def test_export_json_carries_bpm_key_year_label(tmp_path, tracks):
+    with_fields = next(track for track in tracks if track.bpm)
+    records = links.categorise_all([with_fields])
+    path = links.export_records(records, "json", tmp_path / "out.json")
+    entry = next(item for items in json.loads(path.read_text()).values() for item in items)
+    assert (entry["bpm"], entry["key"], entry["release_year"], entry["label"]) == (
+        128.0, "F#m", 2024, "Fixture Records"
+    )
+
+    reloaded = links.load_summary(path)[0].track
+    assert (reloaded.bpm, reloaded.key_signature, reloaded.release_year, reloaded.label_name) == (
+        128.0, "F#m", 2024, "Fixture Records"
+    )
 
 
 def test_export_none_writes_nothing(tmp_path, tracks):
@@ -466,3 +484,18 @@ def test_a_hub_link_has_to_be_a_web_address():
 
     track = Track(title="T", permalink_url="https://soundcloud.com/a/t", purchase_url="file:///etc/passwd")
     assert links.hub_links(track) == []
+
+
+@pytest.mark.parametrize(
+    "url,expected",
+    [
+        ("https://hypeddit.com/track/abc", True),
+        ("https://www.hypd.it/t/abc", True),
+        ("http://HYPEDDIT.com/x", True),
+        ("https://hypeddit.com.attacker.example/track/abc", False),
+        ("ftp://hypeddit.com/track/abc", False),
+        ("hypeddit.com/track/abc", False),
+    ],
+)
+def test_is_hypeddit_url_needs_a_web_scheme_and_an_exact_host(url, expected):
+    assert links.is_hypeddit_url(url) is expected

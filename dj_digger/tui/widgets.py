@@ -4,14 +4,14 @@ from rich.text import Text
 from textual import events
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, VerticalScroll
+from textual.containers import Horizontal, ScrollableContainer, VerticalScroll
 from textual.message import Message
 from textual.widget import Widget
 from textual.widgets import Button, DataTable, Footer, Input, Label, ListItem, Static
 from textual.widgets._footer import FooterKey
 from textual.widgets.data_table import ColumnKey
 
-from ..library import CrateRecord
+from ..library import CrateHeader
 from .keymap import FOOTER_OPTIONAL, MIN_TITLE_WIDTH
 
 
@@ -28,7 +28,7 @@ class FittedFooter(Footer):
     def _dropped_actions(self) -> set[str]:
         """Which bindings will not fit, decided before any widget is built."""
 
-        budget = self.size.width or self.app.size.width
+        budget = self.size.width or self.screen.size.width
         cost: dict[str, int] = {}
         for _node, binding, _enabled, _tooltip in self.screen.active_bindings.values():
             if binding.show and binding.action not in cost:
@@ -136,19 +136,11 @@ class SearchInput(Input):
     it was simply never on screen.
     """
 
-    BINDINGS = [Binding("escape", "app.clear_filters", "Clear search")]
+    BINDINGS = [Binding("escape", "app.leave_search", "Back to the list")]
 
 
-class StatusBar(Static):
-    """The bottom bar, which has to be rebuilt whenever its width changes.
-
-    Whether the counts fit beside the store legend is a width question, and the
-    app-level resize event fires before the layout settles - so the widget that
-    actually changed size is the one that has to ask.
-    """
-
-    def on_resize(self, event: events.Resize) -> None:
-        self.app.update_status()
+class LegendText(Static):
+    """The store legend; a click on a store name is the number key for it."""
 
     def on_click(self, event: events.Click) -> None:
         app = self.app
@@ -157,6 +149,56 @@ class StatusBar(Static):
             if start_x <= x < end_x:
                 app.action_filter_index(store_idx)
                 break
+
+
+class StatusBar(ScrollableContainer, can_focus=False, can_focus_children=False):
+    """The bar above the footer: the store legend, and the running job on the right.
+
+    Built the way Textual's Footer is - a horizontal scrollable container with
+    its scrollbar hidden - so a legend wider than the terminal is never clipped:
+    the mouse wheel (or a drag) scrolls it sideways, and every store stays
+    reachable by its number key regardless. The job line is docked right so a
+    spinner is never scrolled out of sight.
+    """
+
+    ALLOW_SELECT = False
+    DEFAULT_CSS = """
+    StatusBar {
+        layout: horizontal;
+        height: 1;
+        padding: 0 1;
+        scrollbar-size: 0 0;
+        color: $text-muted;
+    }
+    StatusBar > #status-legend {
+        width: auto;
+        height: 1;
+    }
+    StatusBar > #status-job {
+        dock: right;
+        width: auto;
+        height: 1;
+        padding-left: 2;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        yield LegendText(id="status-legend")
+        yield Static(id="status-job")
+
+    def on_resize(self, event: events.Resize) -> None:
+        self.app.update_status()
+
+    # Textual scrolls a container sideways only with shift or ctrl held; a
+    # plain wheel scrolls vertically, and a one-line bar has no vertical to
+    # give. Here the wheel is the sideways scroll, whichever way it is turned.
+    def _on_mouse_scroll_down(self, event: events.MouseScrollDown) -> None:
+        if self._scroll_right_for_pointer(animate=False):
+            event.stop()
+
+    def _on_mouse_scroll_up(self, event: events.MouseScrollUp) -> None:
+        if self._scroll_left_for_pointer(animate=False):
+            event.stop()
 
 
 class ErrorBanner(Widget):
@@ -275,7 +317,10 @@ class ErrorBanner(Widget):
         count = len(self.errors)
         plural = "" if count == 1 else "s"
         summary.update(
-            Text(f"{arrow} {count} error{plural} - click to {verb}", style="bold yellow")
+            Text(
+                f"{arrow} {count} error{plural} - click to {verb}",
+                style=f"bold {self.app.palette.warning}",
+            )
         )
         # Text(), not markup: a failure that quotes a track called "Rido - Sexy
         # Thing [Clip]" must not lose the bracket to the markup parser.
@@ -297,14 +342,16 @@ class ErrorBanner(Widget):
 class CrateButton(Button):
     """A per-crate icon button. Carries its crate so no widget ids are needed."""
 
-    def __init__(self, label: str, record: CrateRecord, intent: str, tooltip: str) -> None:
+    def __init__(self, label: str, record: CrateHeader, intent: str, tooltip: str) -> None:
         super().__init__(label, classes="crate-icon", tooltip=tooltip)
         self.record = record
         self.intent = intent
 
 
 class CrateItem(ListItem):
-    def __init__(self, record: CrateRecord) -> None:
+    """One sidebar row. Carries the crate's header only; the tracks load on select."""
+
+    def __init__(self, record: CrateHeader) -> None:
         super().__init__()
         self.record = record
 
@@ -319,4 +366,4 @@ class CrateItem(ListItem):
             Text(title, no_wrap=True, overflow="ellipsis"), classes="crate-name"
         ).with_tooltip(title)
         yield CrateButton("\u21bb", self.record, "refresh", "Refresh from SoundCloud (r)")
-        yield CrateButton("\u2715", self.record, "delete", "Delete crate (shift+X)")
+        yield CrateButton("\u2715", self.record, "delete", "Delete playlist (shift+X)")

@@ -39,6 +39,15 @@ class Row:
     def categories(self) -> list[str]:
         return [record.category for record in self.records]
 
+    @property
+    def haystack(self) -> str:
+        """Everything the search box matches against, lower-cased."""
+
+        track = self.track
+        return " ".join(
+            (track.artist, track.title, track.genre, *track.tags, track.label_name)
+        ).lower()
+
     def record_for(self, category: str) -> LinkRecord | None:
         for record in self.records:
             if record.category == category:

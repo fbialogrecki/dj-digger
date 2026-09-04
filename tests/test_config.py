@@ -93,6 +93,29 @@ def test_the_browser_choice_round_trips(tmp_path):
     assert AppConfig(path).browser == "firefox"
 
 
+def test_the_column_choice_round_trips_and_ignores_unknown_names(tmp_path):
+    path = tmp_path / "config.json"
+    config = AppConfig(path)
+    assert config.columns == []
+
+    config.columns = ["year", "bpm"]
+    config.save()
+    path.write_text(path.read_text().replace('"year"', '"year", "nonsense"'))
+
+    assert AppConfig(path).columns == ["bpm", "year"], "canonical order, unknown names dropped"
+
+
+def test_the_theme_round_trips(tmp_path):
+    path = tmp_path / "config.json"
+    config = AppConfig(path)
+    assert config.theme == "", "empty means Textual's default"
+
+    config.theme = "nord"
+    config.save()
+
+    assert AppConfig(path).theme == "nord"
+
+
 def test_the_download_directory_round_trips(tmp_path):
     """It was ~/Downloads written into the download code in two places."""
 

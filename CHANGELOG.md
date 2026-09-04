@@ -2,6 +2,213 @@
 
 ## Unreleased
 
+## 1.0.0
+
+### Added
+
+- The footer labels `b` and `shift+b` as searches in Bandcamp and Beatport,
+  shows `c` beside `shift+c`, and displays shifted letter keys in lowercase.
+- Download now uses `d`, `Shift+D` is labelled Download all, and adding a
+  playlist moves to `a`.
+- The interface and documentation now call saved collections playlists rather
+  than crates. Internal data names stay unchanged for compatibility.
+- Ctrl+C quits the playlist browser like `q`, from the search box too. Textual
+  only showed a hint to press Ctrl+Q.
+- `ctrl+x` stops whatever long job is running: a dig, a download batch, a bulk
+  open, a scan or a store cart. What was already collected or downloaded is
+  kept, and nothing partial is saved.
+- The status bar shows the running job with a spinner, progress counts and
+  `^X stop`. A refresh no longer blanks the table while it digs, and a scan
+  that hits folders it cannot read says so in the error banner.
+- Multi-select: `v` toggles a row, `Shift+V` extends to the cursor, `Ctrl+A`
+  selects everything shown; batch download, open, cart, export, marks and
+  removal then act on the selection.
+- The `f`/`Shift+F` store-cycling keys are gone; the number keys, `0`, and a
+  click on the legend's `…` cover it, and the footer has the room back.
+- Sorting with `t` (title, time, genre, status, store, and any enabled BPM,
+  key or year column) and `Shift+T` to reverse; the header shows the arrow.
+- The search box matches every word in any order against artist, title,
+  genre, tags and label. Escape in the box keeps the filter; on the list it
+  clears the selection, then the search, then the store filters. `f`/`Shift+F`
+  step from the store toggled last instead of jumping to the first.
+- Tracks carry BPM, key, release year and label when SoundCloud has them;
+  Settings can show them as columns, and JSON/CSV exports include them (the
+  four CSV columns are appended after the original five).
+- A theme choice in Settings, remembered between runs. Every colour the
+  interface paints now comes from the theme (badges, marks, waveform, volume
+  bar, banner, help) instead of the terminal's cyan, green and yellow.
+- `Shift+U` (reset statuses) asks before it wipes the marks.
+- `Shift+P` opens every exact Beatport track page shown in your regular,
+  logged-in browser so each can be added to the cart with one click; the `c`
+  and `Shift+C` labels now say that Beatport goes to a playlist, not a cart.
+- When a Bandcamp click cannot be verified, the app saves a screenshot and a
+  redacted page copy under `cart-diagnostics` in its data folder (last ten
+  kept). After two unverified clicks in a batch it stops clicking, opens the
+  remaining products with Buy expanded, and asks you to finish them; the
+  result screen offers **Finish in browser** for anything left uncertain.
+- A gate handed to the private browser is now finished out of sight: a
+  hidden Chromium walks the gate's own step slides the way a fan does (the
+  follow and like links, whose provider pages are closed unread; the
+  Connect of a Spotify, Deezer, Apple Music or Threads step, whose login
+  popup comes back by itself when the profile is signed in there; the email
+  slide, filled with the address from Settings) and presses its Download.
+  Only a step no program can do alone - a provider asking you to sign in, a
+  CAPTCHA, an email the profile lacks - opens a window, with every such gate
+  of the batch in it, and there the same driver keeps walking the steps
+  before and after the one that needs you. A page without those controls is
+  only watched.
+- Two opt-in test suites for the Bandcamp cart: `bandcamp_dom` replays
+  recorded store pages in a real headless Chromium with no network, and
+  `shop_mutate` performs one add/verify/remove on a name-your-price track.
+
+### Fixed
+
+- Legacy `pro.beatport.com` links are canonicalized to `www.beatport.com` and
+  persisted when preparing a playlist, instead of targeting a retired host.
+- Soundiiz imports now derive artist/title from promo-style SoundCloud titles
+  instead of sending uploader names and `PREMIERE`/label noise, including compact
+  separators, preview markers, and a third dash-separated label. Featured
+  performers and remixers are sent as additional catalog artists. Exact
+  Beatport track results replace stored release links for reuse by later imports.
+- Beatport playlist handoff now creates a real temporary Soundiiz import with
+  Beatport preselected instead of opening Soundiiz's marketing/tutorial page.
+- Bandcamp batches verify `already_in_cart` against the global cart and finish
+  on that cart page; a seller-specific side cart can no longer suppress an
+  addition or leave Chromium showing the last product with an incomplete cart.
+- The footer now measures the application width on its first composition, so
+  clicking or focusing the table no longer makes additional shortcuts appear.
+- Footer actions are grouped as `o`/`Shift+O` and `b`/`Shift+B`; Beatport and
+  unmark are visible. Settings moves to `s`, and skip moves to `k`.
+- The status bar scrolls sideways like the footer instead of clipping the
+  store legend (a plain mouse wheel over it scrolls it, no Shift needed), and the track counts (`tracks · got · skipped · opened`) are
+  gone from it; only the running job and the view's state remain on the right.
+- Bandcamp cart verification now recognises the side cart as Bandcamp renders
+  it (a row with the product link and an `x` delete control) and counts its
+  rows, instead of looking for a "remove" link and a menubar badge that artist
+  pages do not have. The first diagnostics dump from a real batch showed both
+  additions sitting in the cart unrecognised. The manual-finish step also no
+  longer crashes the batch on its progress label.
+- Recorded Bandcamp pages (`tests/fixtures/bandcamp/`) now back the
+  `bandcamp_dom` suite, and the test run keeps its data under a temporary
+  directory instead of writing diagnostics into the real data folder.
+- A Hypeddit gate that refuses the first unlock is retried once the way its own
+  skip buttons do (`is_skippable=1`); pages offering alternative steps get the
+  cheapest one (direct download, then click-through, then email). Gate flows
+  are limited to two per host instead of one at a time overall.
+- A Hypeddit gate that refuses the unlock, or one whose social steps are
+  disabled in Settings, now opens in the private browser instead of failing;
+  the failure message keeps the HTTP reason. A batch hands at most eight such
+  gates to the browser per run.
+- A Bandcamp batch whose clicks all verified no longer shows "Cart automation
+  failed" when the final cart window cannot be shown; the additions are kept
+  and the window problem is one warning row. The cause was the hidden work
+  context being relaunched as a visible one on the same profile, which raced
+  Chromium's profile lock. The work stays hidden; the finished cart and the
+  manual-finish pages open in a separate visible browser carrying the same
+  cookies, and a still-locked profile is retried before it is reported.
+- Bandcamp click verification runs its count, side-cart and reload checks on
+  separate clocks inside a 45-second budget and says which stage gave up,
+  instead of one 30-second timeout shorter than the checks inside it.
+- Quitting no longer waits on a background thread that cannot be stopped: the
+  browser closes within three seconds and the process ends with the reason in
+  the log, and a second Ctrl+C during shutdown exits at once.
+- Opening a link or a store search no longer freezes the interface while the
+  browser is being reached; on WSL that handoff could take twenty seconds.
+- The README key tables now match the playlist browser: no phantom keys,
+  every bound key listed, shifted keys shown as `Shift+…` in the footer and
+  help, and the bulk-open confirmation names the right key.
+- The browser gate driver looked for step buttons the desktop gate does not
+  show - its steps are slides revealed by the sidebar's Download - so a gate
+  handed to the browser had to be clicked through by hand, including the
+  steps around a Spotify login. The driver now follows the slides.
+- A download saved by a provider popup was never credited to the tab that
+  opened it, and a popup was never recognised as one, because Playwright's
+  `opener` is a method and the code read it as an attribute.
+- A browser batch of gates no longer gives up on a still-open tab when one of
+  the other rows was refused up front, and a batch that finds the private
+  profile busy reports those refusals alongside the lock error instead of
+  dropping them.
+- A SoundCloud track URL with query parameters other than `in=` is no longer
+  rewritten with a doubled `??`.
+- A gate whose email slide also asks for a name no longer stalls the hidden
+  browser on "Please enter your name.": the name from Settings is filled in
+  with the address, and a profile still carrying the placeholder name sends
+  the row to the window with that reason.
+- The hidden browser no longer hands a gate to a window merely because
+  Hypeddit sent the first visit after a download to its hot-or-not poll: the
+  tab is pointed at the gate again and walked out of sight, so the window
+  with its flashing provider popups only appears for a login or a CAPTCHA.
+- In a hidden batch every gate after the first waited five minutes for a
+  file that never came: Hypeddit refuses a download while the
+  `filedownloading` cookie of the previous one is still set, and the next
+  tab pressed its Download seconds later. The cookie is cleared before each
+  Download now.
+
+### Changed
+
+- Textual is now pinned to the 8.x line; the playlist browser depends on its
+  binding semantics and a few private hooks, so a major upgrade needs review.
+- Track statuses are mirrored in memory after the first read, the playlist
+  sidebar lists headers and reads a playlist's tracks only when it is opened,
+  and single-row changes (a mark, an opened link, the playing marker, download
+  progress) repaint that row instead of rebuilding the table. A large library
+  starts, refreshes and searches without stutter.
+- The local scan writes in batches, follows symlinked folders as before, and
+  reports folders it could not enter instead of skipping them silently.
+- The managed Chromium lifecycle (profile, display check, launch errors,
+  installer) lives in one module, `browser_session.py`, shared by the cart,
+  the gate fallback and the SoundCloud login instead of two copies.
+- `cart.py` is split: its errors and dataclasses, store URL rules, product
+  matching, page parsing and Beatport playlist helpers each live in their own
+  module, re-exported from `cart` so nothing importing it changes.
+- A repo-wide cleanup removed about a thousand lines without changing what
+  the app does: dead helpers and never-read fields (`db.get_track_status`,
+  `library.all_crates`, sync locator helpers and an unread session state in
+  `cart.py`, `Palette.panel`, the always-`None` `direct_url`), duplicated
+  code folded into one place (the redirect walker, the Chrome request
+  headers, the browser profile directory, the Bandcamp Buy-dialog sequence,
+  the cart "cancelled" and preflight-failure results, the store URL parser,
+  the crate builders in the tests) and the longest functions split
+  (`_preflight`, `_execute_store`, `run_batch`, the Hypeddit inspection and
+  browser batch, `download_track`, the CLI login).
+- A single Hypeddit browser download is now a batch of one: its five-minute
+  limit is one deadline, counted once the automatic steps are done, instead
+  of one per popup plus one for the download, and only tabs its own page
+  opened are watched. A hidden pass always has that limit; a window without
+  one stays as long as a tab stays open.
+- The browser batch toast reads "Finishing N Hypeddit gates in the hidden
+  browser; a window opens only for a step that needs you" instead of asking
+  you to complete the tabs and close Chromium.
+- The local file cache keeps only the path, modification time and normalised
+  stem; the unread size, artist and title columns are dropped, so an
+  existing cache is rebuilt by the next scan.
+- The redirect and browser-download refusals read "Redirected to an unsafe
+  address" and "That link returned a web page rather than an audio file".
+- A SoundCloud login that completes while a download still holds the old
+  client no longer queues a hidden client swap: it says "Signed in to
+  SoundCloud, but a download is still running on the old login: let it finish
+  or stop it with ctrl+x, then press w again" and leaves the retry to you.
+- The dig reports only through its job: when another job starts during a
+  dig, the status line and spinner follow the newer job.
+- The "more than 20 tabs, press again" confirmation is one key: pressing
+  `Shift+O`, then `Shift+P`, then `Shift+O` again asks again instead of
+  opening.
+- Escape on the confirm, manual-cart and gate-profile dialogs answers "no"
+  through one shared action; the footer keys are unchanged.
+
+### Removed
+
+- The Spotify integration (`dj-digger auth spotify`, the PKCE login, and the
+  library writes for Hypeddit `sp` steps). Hypeddit clears its Spotify step
+  through its own OAuth app and server session, so a user's own Spotify login
+  could never satisfy the gate; the step is now reported like the other
+  click-throughs. A saved `spotify.json` is no longer read and may be deleted.
+- The unused synchronous cart stack in `cart.py` (about a thousand lines with
+  no caller since the asynchronous session took over) and its tests.
+- The unreachable Beatport cart code (cart page, add-to-cart control, cart
+  membership check, login). Beatport items have been playlist entries since
+  0.15.0; the code that would have clicked a Beatport cart never ran.
+
 ## 0.15.0
 
 ### Added

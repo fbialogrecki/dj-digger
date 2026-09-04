@@ -5,10 +5,25 @@ from typing import Any
 
 import pytest
 
-from dj_digger import auth, config, db, state
+from dj_digger import auth, config, db
 from dj_digger.models import Track
 
 FIXTURES = Path(__file__).parent / "fixtures"
+
+
+class FakeResponse:
+    """A requests-shaped reply: status, headers, text, and a json() that can fail."""
+
+    def __init__(self, status_code=200, payload=None, text="{}", headers=None):
+        self.status_code = status_code
+        self._payload = payload
+        self.text = text
+        self.headers = headers or {}
+
+    def json(self):
+        if self._payload is None:
+            raise ValueError("no json")
+        return self._payload
 
 # Land animations on their final value at once rather than over 200ms. Textual
 # reads this when it is imported, so it has to be set before anything pulls it
@@ -42,11 +57,32 @@ def isolate_user_data(tmp_path, monkeypatch):
         json.dumps({"scan_directories": [str(scan_dir)]}), encoding="utf-8"
     )
 
-    monkeypatch.setattr(state, "default_state_path", lambda: tmp_path / "state.json")
+    # Everything that goes through paths.data_dir() / config_dir() - the store
+    # browser profile, cart diagnostics - lands under tmp_path as well; a test
+    # run once left eight diagnostics folders in the developer's real data dir.
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "xdg-data"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg-config"))
     monkeypatch.setattr(config, "default_config_path", lambda: config_path)
     monkeypatch.setattr(db, "default_db_path", lambda: tmp_path / "digger.db")
     monkeypatch.setattr(auth, "CONFIG_DIR", tmp_path / "auth")
     monkeypatch.setattr(auth, "AUTH_FILE", tmp_path / "auth" / "auth.json")
+
+
+@pytest.fixture(autouse=True)
+def no_real_exit(monkeypatch):
+    """run_tui may end the process when a thread lingers; never from a test.
+
+    The exit codes are recorded rather than raised, so a test about that very
+    shutdown can read them back - and must clear what it expected, because
+    anything still in the list at teardown fails the test.
+    """
+
+    from dj_digger import tui
+
+    exits: list[int] = []
+    monkeypatch.setattr(tui, "HARD_EXIT", exits.append)
+    yield exits
+    assert exits == [], f"run_tui hard-exited with {exits}"
 
 
 def load_fixture(name: str) -> Any:

@@ -7,19 +7,19 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Event, Lock
 
-from rich.text import Text
 from textual import events
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.timer import Timer
 from textual.widgets import Button, DataTable, ListView, Static
+from textual.widgets.data_table import ColumnKey
 
 from .. import cart as cart_module
 from .. import dig as dig_module
 from .. import links as links_module
 from ..config import AppConfig
-from ..library import CrateRecord
+from ..library import CrateHeader, CrateRecord
 from ..models import LinkRecord
 from ..player import (
     Player,
@@ -32,19 +32,12 @@ from .crates import CrateMixin
 from .digging import DiggingMixin
 from .downloads import DownloadMixin
 from .filters import FilterMixin
+from .jobs import Job, JobMixin
 from .keymap import (
-    GENRE_WIDTH,
-    INDEX_WIDTH,
     KEY_DISPLAY,
     KEYMAP,
-    LEADING_WIDTH,
-    LOCAL_FILE_GLYPH,
-    MARK_WIDTH,
-    MIN_TITLE_WIDTH,
-    PLAYING_GLYPH,
+    PRIORITY_KEYS,
     QUICK_FILTER_KEYS,
-    STORES_WIDTH,
-    TIME_WIDTH,
 )
 from .library_scan import LibraryScanMixin
 from .opening import OpeningMixin
@@ -52,6 +45,7 @@ from .playback import PlaybackMixin
 from .render import RenderMixin
 from .rows import Prepared, Row
 from .screens import ContextMenuScreen, HelpScreen, SettingsScreen
+from .theme import FALLBACK_PALETTE, Palette, palette_for
 from .widgets import ErrorBanner, FittedFooter, SearchInput, StatusBar, TrackTable
 
 LOGGER = logging.getLogger(__name__)
@@ -64,6 +58,7 @@ NARROW_WIDTH = 110
 
 class DiggerApp(
     CrateMixin,
+    JobMixin,
     RenderMixin,
     FilterMixin,
     PlaybackMixin,
@@ -81,6 +76,9 @@ class DiggerApp(
     the bindings, the state they all reach for, and setup and teardown.
     """
     # The built-in palette showed up in the footer as an unexplained "palette".
+    # Off: it brings Textual's own Screenshot, Maximize and Theme commands
+    # along, none of which belongs in a crate browser. Settings and ? cover
+    # everything the app itself offers.
     ENABLE_COMMAND_PALETTE = False
     # Otherwise the terminal's window and tab say "DiggerApp", which is the name
     # of the class rather than of anything the user installed.
@@ -158,11 +156,6 @@ class DiggerApp(
     }
     /* Exactly one line. Left to wrap, this bar grew back into the three rows of
        chrome it was meant to replace. */
-    #status {
-        height: 1;
-        padding: 0 1;
-        color: $text-muted;
-    }
     /* One line, like the status bar: the default Input spends three rows on a
        border to hold one row of text, and this sits above the list you are
        filtering. */
@@ -182,8 +175,21 @@ class DiggerApp(
     """
 
     BINDINGS = [
-        Binding(key, action, label, show=show, key_display=KEY_DISPLAY.get(key))
+        Binding(
+            key,
+            action,
+            label,
+            show=show,
+            key_display=KEY_DISPLAY.get(key),
+            priority=key in PRIORITY_KEYS,
+        )
         for key, action, label, _group, show, _detail in KEYMAP
+    ] + [
+        # Textual 8 answers ctrl+c with a toast saying to press ctrl+q, which
+        # is not what anyone reaching for ctrl+c wants. A binding on the app
+        # replaces the base one for the same key; priority puts it ahead of
+        # the search box, where Input would otherwise take ctrl+c as "copy".
+        Binding("ctrl+c", "quit", "Quit", show=False, priority=True),
     ] + [
         # 0 is declared in KEYMAP so it shows in the footer as the way back.
         Binding(str(index), f"filter_index({index})", f"Store {index}", show=False)
@@ -209,7 +215,7 @@ class DiggerApp(
         # your name and email rather than a copy loaded before you changed them.
         self.config = AppConfig()
         self.crate = crate_record
-        self.crates: list[CrateRecord] = []
+        self.crates: list[CrateHeader] = []
         self.crate_title = crate_title or (crate_record.title if crate_record else "")
         # load_records sets this when you switch crates; this covers the one the
         # command line opened us on.
@@ -221,17 +227,26 @@ class DiggerApp(
         self._badge_click_regions: list[tuple[int, int, int]] = []
         self.search_term: str = ""
         self.hide_handled: bool = False
+        # Track keys chosen with v / V / ctrl+a; whole-list actions prefer them.
+        self.selected: set[str] = set()
+        self._anchor: int | None = None
+        self.sort_key: str | None = None
+        self.sort_reverse: bool = False
+        self._column_keys: dict[str, ColumnKey] = {}
         self.visible_rows: list[Row] = []
         self.present: list[str] = []
-        self._pending_open_all = False
+        # The key whose bulk open is waiting for a second press (see _confirm_many).
+        self._pending_open: str | None = None
         self._cart_busy = False
         self._cart_cancel = asyncio.Event()
         self._cart_session = cart_module.CartBrowserSession()
         self._cart_progress_screen = None
-        self._cart_decision_screen = None
         self._gate_cancel = Event()
+        self._dig_cancel = Event()
+        self._scan_cancel = Event()
         self._browser_batch_active = False
-        self._digging = False
+        # The long job the status bar reports on, if any (see jobs.py).
+        self.job: Job | None = None
         self._undone: list[str] = []
         self._ticker: Timer | None = None
         # Decided fresh each time playback moves: does the cursor come along?
@@ -239,22 +254,23 @@ class DiggerApp(
         self._prepared: Prepared | None = None
         self._preparing: str = ""
         self._frame = 0
-        self._dig_message = ""
         self.download_progress: dict[str, float] = {}
         self._dirty_download_rows: set[str] = set()
         self._last_progress_redraw: float = 0.0
         # Only a batch download builds one. Declared here so the teardown path
         # can ask about it plainly rather than through getattr.
         self._download_executor: ThreadPoolExecutor | None = None
+        # How many download threads hold the SoundCloud client right now: a
+        # fresh login must not close it under them (see downloads._adopt_login).
         self._download_worker_lock = Lock()
         self._active_download_workers = 0
-        self._client_refresh_pending = False
-        self._client_refresh_token: str | None = None
-        self._client_refresh_callbacks: list = []
         # None until the first resize, so the first one always applies.
         self._narrow: bool | None = None
         self.player = Player()
         self._client: SoundCloudClient | None = None
+        # The interface's colour roles under the active theme, recomputed
+        # whenever the theme changes (see tui/theme.py).
+        self.palette: Palette = FALLBACK_PALETTE
         self._set_records(records)
 
     def compose(self) -> ComposeResult:
@@ -263,11 +279,11 @@ class DiggerApp(
         yield PlayerControls(self.player, id="player-controls")
         with Horizontal(id="body"):
             with Vertical(id="sidebar"):
-                yield Static("Crates", id="sidebar-title")
+                yield Static("Playlists", id="sidebar-title")
                 yield ListView(id="crates")
-                yield Button("+ Add crate", id="crate-add", tooltip="Add a crate (d)")
+                yield Button("+ Add playlist", id="crate-add", tooltip="Add a playlist (d)")
             with Vertical(id="main"):
-                yield SearchInput(placeholder="Filter by artist or title", id="search")
+                yield SearchInput(placeholder="Filter by artist, title, genre, tag or label", id="search")
                 yield TrackTable(id="tracks", cursor_type="row", zebra_stripes=True)
         yield StatusBar(id="status")
         yield FittedFooter()
@@ -314,22 +330,17 @@ class DiggerApp(
 
     async def on_mount(self) -> None:
         table = self.query_one("#tracks", TrackTable)
-        table.add_column(
-            Text(LOCAL_FILE_GLYPH + PLAYING_GLYPH, style="bright_black"),
-            width=LEADING_WIDTH,
-        )
-        table.add_column("", width=MARK_WIDTH)
-        table.add_column("#", width=INDEX_WIDTH)
-        table.flexible_column = table.add_column("Track", width=MIN_TITLE_WIDTH)
-        table.add_column("Stores", width=STORES_WIDTH)
-        table.add_column("Genre", width=GENRE_WIDTH)
-        table.add_column("Time", width=TIME_WIDTH)
+        self.build_columns(table)
+        if self.config.theme in self.available_themes and self.theme != self.config.theme:
+            self.theme = self.config.theme
+        else:
+            self.palette = palette_for(self.get_css_variables(), self.current_theme)
         await self.reload_sidebar()
         if not self.rows:
             # Someone with a library wants to see it, not be interrogated.
             latest = self.latest_crate()
             if latest is not None:
-                self.load_crate(latest)
+                self.open_crate(latest)
         self.refresh_rows()
         table.focus()
         # Needs a laid-out width to size itself against.
@@ -366,6 +377,8 @@ class DiggerApp(
         # cancelled its workers by now; close the persistent profile explicitly.
         self._cart_cancel.set()
         self._gate_cancel.set()
+        self._dig_cancel.set()
+        self._scan_cancel.set()
         # A tick landing after the widgets have gone would go looking for a
         # player bar that no longer exists. Textual does stop its timers, but
         # only further down the same teardown, so this one goes first.
@@ -377,10 +390,47 @@ class DiggerApp(
             self._download_executor = None
         self._discard_prepared()
         self.player.close()
-        await self._cart_session.close()
+        # This runs before Textual gives the terminal back, so a Playwright
+        # that will not answer would hang the exit with no key able to reach
+        # us. Five seconds, then the process-exit guard in run_tui takes over.
+        try:
+            await asyncio.wait_for(self._cart_session.close(), timeout=5)
+        except Exception as exc:  # TimeoutError included
+            LOGGER.warning("Store browser did not close cleanly: %s", exc)
         if self._client is not None:
             self._client.close()
             self._client = None
+
+    @property
+    def muted(self) -> str:
+        """Rich style for secondary text under the current theme."""
+
+        return self.palette.muted
+
+    def role(self, style: str) -> str:
+        """A keymap style such as "bold success" resolved to the theme's colour."""
+
+        words = style.split()
+        if not words:
+            return style
+        name = words[-1]
+        colour = getattr(self.palette, name, None)
+        if not isinstance(colour, str) or not colour:
+            return style
+        return " ".join([*words[:-1], colour])
+
+    def watch_theme(self, theme: str) -> None:
+        """Keep the colour roles and the saved preference in step with the theme."""
+
+        try:
+            self.palette = palette_for(self.get_css_variables(), self.current_theme)
+        except Exception:
+            self.palette = FALLBACK_PALETTE
+        if self.config.theme != theme and not self.config.first_run:
+            self.config.theme = theme
+            self.config.save()
+        if self.is_mounted and self.query("#tracks"):
+            self.refresh_rows()
 
     @property
     def client(self) -> SoundCloudClient:
@@ -408,7 +458,7 @@ class DiggerApp(
         if self.export_format == "none":
             self.notify("Export is disabled for this run", timeout=3)
             return
-        records = [record for row in self.visible_rows for record in row.records]
+        records = [record for row in self.targets() for record in row.records]
         if not records:
             self.notify("Nothing to export", timeout=2)
             return
@@ -430,7 +480,7 @@ class DiggerApp(
         if row is None:
             return
         if self._forget_missing_local_file(row.track):
-            self.refresh_rows()
+            self._paint_key(row.track.key)
         entries = [
             ("open", "Open best link", self.action_open_link),
             ("got", "Mark as got", self.action_mark_got),

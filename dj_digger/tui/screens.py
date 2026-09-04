@@ -35,6 +35,7 @@ from .keymap import (
     HELP_SCOPES,
     KEY_DISPLAY,
     KEYMAP,
+    OPTIONAL_COLUMN_SPECS,
     OTHER,
     PLAYBACK,
     PLAYING_GLYPH,
@@ -68,6 +69,11 @@ class _Modal(ModalScreen[ResultType]):
     }
     """
 
+    # Every dialog's Escape lands here: closed with no answer, which each
+    # caller reads as a no. Not declared as the base's own binding on purpose:
+    # Textual keeps a merged key in the slot of the class that declared it
+    # first, so a base escape would jump to the front of the footer on the
+    # dialogs that show other keys before it (Confirm, the cart plan).
     def action_cancel(self) -> None:
         self.dismiss(None)
 
@@ -138,6 +144,8 @@ class HelpScreen(_Modal[None]):
         yield Footer()
 
     def _body(self) -> Text:
+        muted = self.app.muted
+        palette = self.app.palette
         body = Text()
         sections = (SELECTED, PLAYBACK, WHOLE_LIST, CRATES, OTHER)
         for section in sections:
@@ -152,26 +160,23 @@ class HelpScreen(_Modal[None]):
                 continue
             body.append(section + "\n", style="bold")
             if HELP_SCOPES[section]:
-                body.append(f"  {HELP_SCOPES[section]}\n", style="bright_black")
+                body.append(f"  {HELP_SCOPES[section]}\n", style=muted)
             for key, label in entries:
-                body.append(f"  {key:<10}", style="cyan")
+                body.append(f"  {key:<10}", style=palette.primary)
                 body.append(f"{label}\n")
             body.append("\n")
 
         # The marks are one glyph wide in the table, so this is where they get
         # to say what they mean.
         body.append("Marks\n", style="bold")
-        body.append(f"  {PLAYING_GLYPH:<10}", style="cyan")
+        body.append(f"  {PLAYING_GLYPH:<10}", style=palette.accent)
         body.append("playing now\n")
-        body.append(f"  {'NEW':<10}", style="bold yellow")
+        body.append(f"  {'NEW':<10}", style=f"bold {palette.secondary}")
         body.append("added by the last refresh\n")
         for glyph, style, meaning in STATUS_STYLES.values():
-            body.append(f"  {glyph:<10}", style=style)
+            body.append(f"  {glyph:<10}", style=self.app.role(style))
             body.append(f"{meaning}\n")
         return body
-
-    def action_dismiss(self) -> None:
-        self.dismiss(None)
 
 
 class ConfirmScreen(_Modal[bool]):
@@ -192,7 +197,7 @@ class ConfirmScreen(_Modal[bool]):
 
     BINDINGS = [
         Binding("y", "confirm", "Yes"),
-        Binding("n,escape", "refuse", "No"),
+        Binding("n,escape", "cancel", "No"),
     ]
 
     def __init__(self, question: str) -> None:
@@ -212,9 +217,6 @@ class ConfirmScreen(_Modal[bool]):
 
     def action_confirm(self) -> None:
         self.dismiss(True)
-
-    def action_refuse(self) -> None:
-        self.dismiss(False)
 
 
 class CartProgressScreen(_Modal[None]):
@@ -250,11 +252,12 @@ class CartProgressScreen(_Modal[None]):
             "preflight": "Checking products — nothing is added until review",
             "approval": "Ready for review",
             "adding": "Adding to Bandcamp",
+            "manual": "Finish these in the browser window",
             "ready": "Results ready",
         }[progress.phase]
         count = f" {progress.completed}/{progress.total}" if progress.total else ""
         self.query_one("#cart-progress-title", Label).update(phase + count)
-        detail = progress.message or progress.track_label or progress.store.capitalize()
+        detail = progress.track_label or progress.store.capitalize()
         self.query_one("#cart-progress-detail", Static).update(detail)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -469,6 +472,47 @@ class CartPlanScreen(_Modal[cart_module.CartPlan | None]):
             self.action_cancel()
 
 
+class CartManualScreen(_Modal[bool]):
+    """Hand the last few cart clicks to the person at the browser window."""
+
+    CSS = """
+    #cart-manual { width: 72; border: round $warning; }
+    #cart-manual-hint { color: $text-muted; margin: 1 0; }
+    #cart-manual-buttons { height: auto; margin-top: 1; }
+    """
+    BINDINGS = [
+        Binding("escape", "cancel", "Give up"),
+        Binding("enter", "done", "Done", priority=True),
+    ]
+
+    def __init__(self, items: list[cart_module.CartItem]) -> None:
+        super().__init__()
+        self.items = items
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="cart-manual", classes="modal-box"):
+            count = len(self.items)
+            yield Label(f"Finish {count} item{'s' if count != 1 else ''} in the Chromium window")
+            yield Label(
+                "Each product page is open with Buy expanded and the price filled in. "
+                "Press Add to cart on each, then come back here and press Enter. "
+                "Escape gives up on them; nothing is clicked for you.",
+                id="cart-manual-hint",
+            )
+            for item in self.items[:8]:
+                yield Label(f"  {item.track_label} — {item.currency} {item.price:.2f}")
+            with Horizontal(id="cart-manual-buttons"):
+                yield Button("Done, check the cart", variant="primary", id="cart-manual-done")
+                yield Button("Give up", id="cart-manual-cancel")
+        yield Footer()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        self.dismiss(event.button.id == "cart-manual-done")
+
+    def action_done(self) -> None:
+        self.dismiss(True)
+
+
 class CartResultScreen(_Modal[str | None]):
     """Compact batch result with safe retry and cart-focus actions."""
 
@@ -492,6 +536,8 @@ class CartResultScreen(_Modal[str | None]):
                     yield Button("Retry safe failures", variant="primary", id="cart-result-retry")
                 if self.outcome.cart_stores:
                     yield Button("Show carts", id="cart-result-focus")
+                if self.outcome.manual_candidates:
+                    yield Button("Finish in browser", id="cart-result-manual")
                 if self.outcome.beatport_playlist_ready:
                     yield Button(
                         "Prepare Beatport playlist (Soundiiz)",
@@ -510,6 +556,7 @@ class CartResultScreen(_Modal[str | None]):
         actions = {
             "cart-result-retry": "retry",
             "cart-result-focus": "focus",
+            "cart-result-manual": "manual",
             "cart-result-playlist": "playlist",
             "cart-result-close": None,
         }
@@ -602,9 +649,6 @@ class GateProfileScreen(_Modal[bool]):
         self.config.user_email = email
         self.config.save()
         self.dismiss(True)
-
-    def action_cancel(self) -> None:
-        self.dismiss(False)
 
 
 class SoundCloudAuthScreen(_Modal[str | None]):
@@ -729,15 +773,18 @@ class SettingsScreen(_Modal[None]):
         padding: 0;
         background: transparent;
     }
-    #settings-store-buttons, #settings-buttons {
+    #settings-store-buttons, #settings-buttons, #settings-columns {
         height: auto;
         margin-top: 1;
     }
+    #settings-columns Checkbox {
+        border: none;
+        padding: 0 1 0 0;
+        background: transparent;
+    }
     """
 
-    BINDINGS = [
-        Binding("escape", "dismiss", "Cancel"),
-    ]
+    BINDINGS = [Binding("escape", "cancel", "Cancel")]
 
     def __init__(self, config: AppConfig) -> None:
         super().__init__()
@@ -769,6 +816,17 @@ class SettingsScreen(_Modal[None]):
                 "Turning this off keeps your account out of it. Some gates hand "
                 "over nothing without it.",
                 classes="settings-hint",
+            )
+            yield Label("Extra track columns:", classes="settings-label")
+            with Horizontal(id="settings-columns"):
+                for name, header, _width in OPTIONAL_COLUMN_SPECS:
+                    yield Checkbox(header, value=name in self.config.columns, id=f"column-{name}")
+            yield Label("Theme:", classes="settings-label")
+            themes = sorted(self.app.available_themes)
+            yield Select(
+                [(name, name) for name in themes],
+                value=self.app.theme if self.app.theme in themes else Select.BLANK,
+                id="input-theme",
             )
             yield Label("Open links with:", classes="settings-label")
             # Only what this machine reported. The saved value names a program
@@ -824,13 +882,24 @@ class SettingsScreen(_Modal[None]):
             if scan_dirs:
                 self.config.scan_directories = scan_dirs
             self.config.gate_social_actions = self.query_one("#input-gate-social", Checkbox).value
+            columns_before = list(self.config.columns)
+            self.config.columns = [
+                name
+                for name, _header, _width in OPTIONAL_COLUMN_SPECS
+                if self.query_one(f"#column-{name}", Checkbox).value
+            ]
+
+            theme = self.query_one("#input-theme", Select).value
+            if isinstance(theme, str) and theme:
+                self.config.theme = theme
 
             self.config.first_run = False
             self.config.save()
             self.app.notify("Settings saved!", timeout=4)
             self.dismiss()
+            if isinstance(theme, str) and theme and self.app.theme != theme:
+                self.app.theme = theme
+            if self.config.columns != columns_before:
+                self.app.rebuild_columns()
         else:
             self.dismiss()
-
-    def action_dismiss(self) -> None:
-        self.dismiss()

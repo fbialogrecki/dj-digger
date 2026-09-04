@@ -36,7 +36,12 @@ PERSISTED_FIELDS = (
     "browser",
     "download_directory",
     "gate_social_actions",
+    "columns",
+    "theme",
 )
+
+# Optional track-table columns, in the order they appear when switched on.
+OPTIONAL_COLUMNS = ("bpm", "key", "year", "label")
 
 
 def is_real_email(value: str) -> bool:
@@ -60,7 +65,7 @@ class AppConfig:
             str(Path.home() / "Music"),
             str(Path.home() / "Downloads"),
         ]
-        # Where `w` and `W` put the files they fetch. It was ~/Downloads written
+        # Where `d` and `D` put the files they fetch. It was ~/Downloads written
         # into two places in the download code, which is not where anybody with a
         # sorted collection wants their records to land.
         self.download_directory: str = str(Path.home() / "Downloads")
@@ -75,6 +80,11 @@ class AppConfig:
         # changes behaviour - but now it is a sentence on the first-run screen
         # rather than a line in somebody else's source.
         self.gate_social_actions: bool = True
+        # Which of OPTIONAL_COLUMNS the track table shows. Off by default: the
+        # title column is what an 80-column terminal has room for.
+        self.columns: list[str] = []
+        # Textual theme name; empty means Textual's default.
+        self.theme: str = ""
         # True when there was no config file to read, i.e. this is the first
         # launch. The TUI uses it to ask for the settings before anything needs
         # them - gates submit the name and email without asking again.
@@ -105,6 +115,12 @@ class AppConfig:
                     self.download_directory = download_dir
                 if "gate_social_actions" in raw:
                     self.gate_social_actions = bool(raw["gate_social_actions"])
+                self.theme = str(raw.get("theme") or "").strip()
+                columns = raw.get("columns")
+                if isinstance(columns, list):
+                    self.columns = [
+                        name for name in OPTIONAL_COLUMNS if name in {str(c) for c in columns}
+                    ]
         except FileNotFoundError:
             self.first_run = True
             self.save()

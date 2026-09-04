@@ -14,6 +14,7 @@ from pathlib import Path
 from textual import work
 
 from .. import library as library_module
+from ..paths import unique_target
 from ..scanner import LocalScanner, copy_to_clipboard
 from ..state import GOT
 
@@ -67,14 +68,30 @@ class LibraryScanMixin:
             # second Database means a second pool and a second legacy import.
             db=self.state.db,
         )
+        self._scan_cancel.clear()
         try:
-            scanned = scanner.scan()
-        except OSError as exc:
-            LOGGER.debug("Local scan stopped early: %s", exc)
-            return
-        LOGGER.info("Scanned %s new local files", scanned)
-        try:
+            self.call_from_thread(
+                self.start_job, "Scanning", cancel=self._scan_cancel, animate=False
+            )
+            try:
+                scanned = scanner.scan(cancel=self._scan_cancel)
+            except OSError as exc:
+                LOGGER.warning("Local scan stopped early: %s", exc)
+                self.call_from_thread(self.show_error, f"Scan stopped: {exc}")
+                self.call_from_thread(self.finish_job)
+                return
+            LOGGER.info("Scanned %s new local files", scanned)
+            if scanner.errors:
+                shown = "; ".join(scanner.errors[:3])
+                more = len(scanner.errors) - 3
+                self.call_from_thread(
+                    self.show_error,
+                    f"Scan skipped {len(scanner.errors)} unreadable folder"
+                    f"{'s' if len(scanner.errors) != 1 else ''}: {shown}"
+                    + (f" (+{more} more)" if more > 0 else ""),
+                )
             self.call_from_thread(self.apply_local_file_matches, scanner)
+            self.call_from_thread(self.finish_job)
         except RuntimeError:
             # A thread worker cannot be interrupted, so a scan that outlives the
             # app arrives here with nothing left to talk to.
@@ -123,7 +140,7 @@ class LibraryScanMixin:
         if row is None:
             return
         if self._forget_missing_local_file(row.track) or not row.track.local_path:
-            self.refresh_rows()
+            self._paint_key(row.track.key)
             self.notify("No local file matched for this track", timeout=3)
             return
         if copy_to_clipboard(row.track.local_path):
@@ -164,7 +181,8 @@ class LibraryScanMixin:
                 library_module.save(self.crate)
             except Exception as exc:
                 LOGGER.warning("Could not persist copied local path: %s", exc)
-        self.refresh_rows()
+        self._paint_key(track.key)
+        self.update_status()
         self.notify(f"Copied to {target}", timeout=5)
 
 
@@ -175,12 +193,7 @@ def _copy_local_file(source: Path, directory: Path) -> Path:
     if source.is_relative_to(directory):
         return source
 
-    target = directory / source.name
-    counter = 1
-    while target.exists():
-        target = directory / f"{source.stem} ({counter}){source.suffix}"
-        counter += 1
-
+    target = unique_target(directory, source.stem, source.suffix)
     descriptor, temporary_name = tempfile.mkstemp(
         prefix=".dj-digger-copy-", suffix=".part", dir=directory
     )

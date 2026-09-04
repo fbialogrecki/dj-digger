@@ -11,7 +11,11 @@
     "genre": "Techno",
     "user": {
       "username": "Sinxergy"
-    }
+    },
+    "bpm": 128.0,
+    "key_signature": "F#m",
+    "release_date": "2024/03/01 00:00:00 +0000",
+    "label_name": "Fixture Records"
   },
   {
     "id": 846243631,

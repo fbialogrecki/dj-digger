@@ -24,6 +24,7 @@ from ..soundcloud import SoundCloudError
 from .keymap import (
     CALM_TICK,
     PREFETCH_LEAD,
+    SPINNER_EVERY,
     TICK,
 )
 from .rows import Prepared
@@ -43,8 +44,9 @@ class PlaybackMixin:
         if not self.query("#player"):
             return
         self._frame += 1
-        if self._digging:
-            self._spin()
+        animating = self.job is not None and self.job.animate
+        if animating and self._frame % SPINNER_EVERY == 0:
+            self.update_status()
         if event := self.player.take_event():
             if event.kind == "error":
                 self._player_op(self.player.stop)
@@ -57,7 +59,7 @@ class PlaybackMixin:
         if self.player.playing:
             self._player_bar().refresh_bar()
             self._prepare_next()
-        elif not self._digging:
+        elif not animating:
             self._sleep()
 
     @property
@@ -213,10 +215,12 @@ class PlaybackMixin:
         """
 
         self._player_bar().message = ""
+        was_playing = self._playing_key()
         self._player_op(self.player.unload)
         self._discard_prepared()
         self._sleep()
-        self.refresh_rows()
+        if was_playing is not None:
+            self._paint_key(was_playing)
 
     def _start_playback(self, track: Track) -> None:
         if not track.id:
@@ -256,6 +260,7 @@ class PlaybackMixin:
     ) -> None:
         bar = self._player_bar()
         bar.message = ""
+        previously_playing = self._playing_key()
         try:
             self.player.load(track, stream, self.client.session, samples, source)
             self.player.play()
@@ -269,8 +274,11 @@ class PlaybackMixin:
         # the middle of it finds nothing playing and puts the timer back to
         # sleep - so this is where it has to be woken, not where it was asked for.
         self._wake()
-        # Redraw first so the play marker lands on the new row, then chase it.
-        self.refresh_rows()
+        # Repaint the two rows the marker moves between, then chase it. A full
+        # rebuild here made every play a visible flicker on a long crate.
+        if previously_playing is not None:
+            self._paint_key(previously_playing)
+        self._paint_key(track.key)
         self._focus_playing_track()
         bar.refresh_bar()
 

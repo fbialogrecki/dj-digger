@@ -11,7 +11,7 @@ import json
 import logging
 import re
 from pathlib import Path
-from urllib.parse import urljoin, urlparse
+from urllib.parse import parse_qsl, urlencode, urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -63,14 +63,13 @@ LOGGER = logging.getLogger(__name__)
 
 
 def clean_track_url(url: str) -> str:
+    """Drop the ``in=`` playlist context and the fragment from a track link."""
+
     parsed = urlparse(url)
-    cleaned_query = ""
-    if parsed.query:
-        params = [p for p in parsed.query.split("&") if not p.startswith("in=")]
-        if params:
-            cleaned_query = "?" + "&".join(params)
-    cleaned = parsed._replace(query=cleaned_query, fragment="")
-    return cleaned.geturl().rstrip("?")
+    query = urlencode(
+        [pair for pair in parse_qsl(parsed.query, keep_blank_values=True) if pair[0] != "in"]
+    )
+    return parsed._replace(query=query, fragment="").geturl()
 
 
 def is_reserved_path(path_segments: list[str]) -> bool:
@@ -230,12 +229,6 @@ def extract_title(soup: BeautifulSoup) -> str:
     return "Unknown title"
 
 
-def normalize_link(track_url: str, href: str) -> str:
-    # urljoin already covers every branch this used to spell out by hand:
-    # scheme-relative //host, absolute /path, full http(s) URLs and relatives.
-    return urljoin(track_url, href)
-
-
 def scrape_track_page(
     track_url: str,
     session: requests.Session,
@@ -261,7 +254,7 @@ def scrape_track_page(
             continue
         text = anchor.get_text(strip=True)
         if any(keyword in text.lower() for keyword in LINK_KEYWORDS):
-            extra_links.append((normalize_link(track_url, href), text))
+            extra_links.append((urljoin(track_url, href), text))
 
     return Track(
         title=extract_title(soup),

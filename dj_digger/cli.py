@@ -14,6 +14,7 @@ import logging
 import os
 import sys
 from collections.abc import Sequence
+from dataclasses import asdict
 from pathlib import Path
 
 from rich.console import Console
@@ -26,7 +27,7 @@ from rich.progress import (
 )
 from rich.table import Table
 
-from . import __version__, library, links, soundcloud, spotify
+from . import __version__, library, links, soundcloud
 from . import auth as auth_module
 from . import browser as browser_module
 from . import dig as dig_module
@@ -174,27 +175,17 @@ def build_parser() -> argparse.ArgumentParser:
     auth_sub.add_parser("logout", help="Remove saved credentials.")
     auth_sub.add_parser("status", help="Show current authentication status.")
 
-    spotify_auth = auth_sub.add_parser(
-        "spotify", help="Manage Spotify gate authentication."
-    )
-    spotify_sub = spotify_auth.add_subparsers(dest="spotify_action", required=True)
-    spotify_login = spotify_sub.add_parser("login", help="Log in to Spotify with PKCE.")
-    spotify_login.add_argument(
-        "--client-id", help="Spotify developer app client ID."
-    )
-    spotify_sub.add_parser("status", help="Show Spotify authentication status.")
-    spotify_sub.add_parser("logout", help="Remove saved Spotify credentials.")
     _add_shared_arguments(auth_cmd)
 
     return parser
 
 
-def _run_tui(*args, **kwargs) -> None:
+def _run_tui(args: argparse.Namespace, records: Sequence[LinkRecord], **kwargs) -> None:
     # Imported here rather than at module top on purpose: textual and its
     # dependency tree stay entirely off the --no-tui and export-only paths.
     from .tui import run_tui
 
-    run_tui(*args, **kwargs)
+    run_tui(records, state=TrackState(), keep_logging=bool(args.log_file), **kwargs)
 
 
 def inject_default_command(argv: Sequence[str]) -> list[str]:
@@ -223,20 +214,17 @@ def _progress(console: Console) -> Progress:
     )
 
 
-def _dig_with_progress(target: str, args: argparse.Namespace, console: Console) -> Crate:
+def _dig_with_progress(
+    target: str, options: dig_module.DigOptions, console: Console
+) -> Crate:
     with _progress(console) as progress:
         task = progress.add_task(dig_module.STAGE_LINK, total=None)
 
         def on_progress(stage: str, done: int, total: int | None) -> None:
             progress.update(task, description=stage, completed=done, total=total)
 
-        return dig_module.dig(
-            target,
-            limit=args.limit,
-            timeout=args.timeout,
-            delay=args.delay,
-            on_progress=on_progress,
-        )
+        # DigOptions is dig()'s keyword arguments, bundled.
+        return dig_module.dig(target, on_progress=on_progress, **asdict(options))
 
 
 def _print_summary(
@@ -271,6 +259,7 @@ def _dig_options(args: argparse.Namespace) -> dig_module.DigOptions:
 
 def handle_dig(args: argparse.Namespace) -> int:
     console = Console(stderr=True)
+    options = _dig_options(args)
 
     if args.target is None:
         if not _should_use_tui(args):
@@ -279,16 +268,15 @@ def handle_dig(args: argparse.Namespace) -> int:
                 "to be asked for one."
             )
         _run_tui(
+            args,
             [],
-            state=TrackState(),
             export_format=args.export_format,
             export_path=args.output,
-            dig_options=_dig_options(args),
-            keep_logging=bool(args.log_file),
+            dig_options=options,
         )
         return 0
 
-    crate = _dig_with_progress(str(args.target), args, console)
+    crate = _dig_with_progress(str(args.target), options, console)
 
     if not crate.tracks:
         LOGGER.warning("No tracks found behind '%s'.", args.target)
@@ -313,14 +301,13 @@ def handle_dig(args: argparse.Namespace) -> int:
 
     if _should_use_tui(args):
         _run_tui(
+            args,
             records,
-            state=TrackState(),
             crate_title=crate.title,
             export_format=args.export_format,
             export_path=export_path or args.output,
-            dig_options=_dig_options(args),
+            dig_options=options,
             crate_record=record,
-            keep_logging=bool(args.log_file),
         )
     return 0
 
@@ -387,16 +374,15 @@ def handle_open(args: argparse.Namespace) -> int:
     )
 
     _run_tui(
+        args,
         # Re-derived from the URLs rather than trusting the category names in
         # the file, so a summary written by an older version still groups the
         # way this one does.
         links.categorise_all(record.active_tracks),
-        state=TrackState(),
         crate_title=record.title,
         export_format="json",
         export_path=path,
         crate_record=record,
-        keep_logging=bool(args.log_file),
     )
     return 0
 
@@ -404,9 +390,7 @@ def handle_open(args: argparse.Namespace) -> int:
 def handle_auth(args: argparse.Namespace) -> int:
     console = Console()
     # No action given means status; argparse leaves auth_action as None then.
-    action = getattr(args, "auth_action", None) or "status"
-    if action == "spotify":
-        return _auth_spotify(args, console)
+    action = args.auth_action or "status"
     if action == "login":
         return _auth_login(args, console)
     if action == "logout":
@@ -416,123 +400,89 @@ def handle_auth(args: argparse.Namespace) -> int:
     return _auth_status(console)
 
 
-def _auth_spotify(args: argparse.Namespace, console: Console) -> int:
-    spotify_action = args.spotify_action
-    if spotify_action == "login":
-        config = AppConfig()
-        client_id = (getattr(args, "client_id", None) or "").strip()
-        if not client_id:
-            client_id = str(spotify.load_credentials().get("client_id") or "").strip()
-        if not client_id:
-            if not sys.stdin.isatty():
-                console.print(
-                    "[red]Spotify Client ID is required without an interactive "
-                    "terminal; use --client-id CLIENT_ID.[/red]"
-                )
-                return 1
-            console.print("Create a Spotify Web API app in the Developer Dashboard.")
-            console.print("Add this exact Redirect URI:")
-            console.print(f"  [bold]{spotify.REDIRECT_URI}[/bold]")
-            console.print("Client Secret is not needed.")
-            browser_module.open_url(spotify.DASHBOARD_URL, config.browser)
-            client_id = input("Paste Spotify Client ID: ").strip()
-            if not client_id:
-                console.print("[red]Spotify Client ID cannot be empty.[/red]")
-                return 1
-        spotify.login(client_id, browser=config.browser)
-        console.print("[green]Spotify login saved.[/green]")
-        return 0
-    if spotify_action == "logout":
-        spotify.clear_credentials()
-        console.print("[green]Spotify credentials removed.[/green]")
-        return 0
-    credentials = spotify.load_credentials()
-    if credentials.get("refresh_token"):
-        console.print("[green]Spotify authentication: configured.[/green]")
-    else:
-        console.print("[yellow]Spotify authentication: not configured.[/yellow]")
+def _auth_login(args: argparse.Namespace, console: Console) -> int:
+    token = (args.token or "").strip()
+    if token:
+        return _login_with_token(token, console)
+    return _login_interactively(console)
+
+
+def _report_login(console: Console, username: str, user_id: int | None) -> int:
+    console.print(
+        f"[green]Logged in as [bold]{username}[/bold] "
+        f"(ID: {user_id or 'N/A'}). Credentials saved securely.[/green]"
+    )
     return 0
 
 
-def _auth_login(args: argparse.Namespace, console: Console) -> int:
-    token = getattr(args, "token", None)
-    if token and token.strip():
-        env_token = os.environ.get("SOUNDCLOUD_OAUTH_TOKEN", "").strip()
-        if env_token and env_token != token.strip():
+def _verify_and_report(token: str, client_id: str, console: Console) -> int:
+    try:
+        _, username, user_id = auth_module.verify_and_save(token, client_id)
+    except auth_module.SoundCloudAuthError:
+        console.print("[red]Verification failed. The provided OAuth token is invalid.[/red]")
+        return 1
+    return _report_login(console, username, user_id)
+
+
+def _login_with_token(token: str, console: Console) -> int:
+    env_token = os.environ.get("SOUNDCLOUD_OAUTH_TOKEN", "").strip()
+    if env_token and env_token != token:
+        console.print(
+            "[red]SOUNDCLOUD_OAUTH_TOKEN overrides --token. Unset or "
+            "update the environment variable first.[/red]"
+        )
+        return 1
+    with soundcloud.SoundCloudClient(oauth_token=token) as client:
+        return _verify_and_report(token, client.client_id, console)
+
+
+def _login_interactively(console: Console) -> int:
+    with soundcloud.SoundCloudClient() as client:
+        stored_token = auth_module.get_stored_token()
+        if stored_token:
+            user_data = auth_module.verify_token(stored_token, client.client_id)
+            if user_data:
+                username = user_data.get("username") or "User"
+                console.print(
+                    f"[green]Already logged in as [bold]{username}[/bold].[/green]"
+                )
+                return 0
+            if os.environ.get("SOUNDCLOUD_OAUTH_TOKEN", "").strip():
+                console.print(
+                    "[red]SOUNDCLOUD_OAUTH_TOKEN is invalid and overrides "
+                    "saved logins. Unset or update it before logging in.[/red]"
+                )
+                return 1
+
+        console.print("Scanning Firefox for an active SoundCloud session...")
+        res = auth_module.auto_detect_and_verify(client.client_id)
+        if res:
+            _, username, user_id = res
+            console.print(f"[green]Successfully detected session for [bold]{username}[/bold] (ID: {user_id or 'N/A'}). Credentials saved securely.[/green]")
+            return 0
+
+        if not sys.stdin.isatty():
             console.print(
-                "[red]SOUNDCLOUD_OAUTH_TOKEN overrides --token. Unset or "
-                "update the environment variable first.[/red]"
+                "[red]Interactive SoundCloud login needs a terminal; use "
+                "--token TOKEN in scripts.[/red]"
             )
             return 1
-        with soundcloud.SoundCloudClient(oauth_token=token.strip()) as client:
-            try:
-                _, username, user_id = auth_module.verify_and_save(
-                    token.strip(), client.client_id
-                )
-                console.print(f"[green]Logged in as [bold]{username}[/bold] (ID: {user_id or 'N/A'}). Credentials saved securely.[/green]")
-                return 0
-            except auth_module.SoundCloudAuthError:
-                console.print("[red]Verification failed. The provided OAuth token is invalid.[/red]")
-                return 1
-    else:
-        with soundcloud.SoundCloudClient() as client:
-            stored_token = auth_module.get_stored_token()
-            if stored_token:
-                user_data = auth_module.verify_token(stored_token, client.client_id)
-                if user_data:
-                    username = user_data.get("username") or "User"
-                    console.print(
-                        f"[green]Already logged in as [bold]{username}[/bold].[/green]"
-                    )
-                    return 0
-                if os.environ.get("SOUNDCLOUD_OAUTH_TOKEN", "").strip():
-                    console.print(
-                        "[red]SOUNDCLOUD_OAUTH_TOKEN is invalid and overrides "
-                        "saved logins. Unset or update it before logging in.[/red]"
-                    )
-                    return 1
 
-            console.print("Scanning Firefox for an active SoundCloud session...")
-            res = auth_module.auto_detect_and_verify(client.client_id)
-            if res:
-                _, username, user_id = res
-                console.print(f"[green]Successfully detected session for [bold]{username}[/bold] (ID: {user_id or 'N/A'}). Credentials saved securely.[/green]")
-                return 0
-
-            if not sys.stdin.isatty():
-                console.print(
-                    "[red]Interactive SoundCloud login needs a terminal; use "
-                    "--token TOKEN in scripts.[/red]"
-                )
-                return 1
-
-            try:
-                _, username, user_id = auth_module.login_with_chromium(
-                    client.client_id,
-                    status=lambda message: console.print(message),
-                )
-            except auth_module.SoundCloudAuthError as exc:
-                console.print(f"[yellow]{exc}[/yellow]")
-                token = getpass.getpass(
-                    "Paste oauth_token instead (input is hidden; blank cancels): "
-                ).strip()
-                if not token:
-                    console.print("[yellow]SoundCloud login cancelled.[/yellow]")
-                    return 1
-                try:
-                    _, username, user_id = auth_module.verify_and_save(
-                        token, client.client_id
-                    )
-                except auth_module.SoundCloudAuthError:
-                    console.print(
-                        "[red]Verification failed. The provided OAuth token is invalid.[/red]"
-                    )
-                    return 1
-            console.print(
-                f"[green]Logged in as [bold]{username}[/bold] "
-                f"(ID: {user_id or 'N/A'}). Credentials saved securely.[/green]"
+        try:
+            _, username, user_id = auth_module.login_with_chromium(
+                client.client_id,
+                status=lambda message: console.print(message),
             )
-            return 0
+        except auth_module.SoundCloudAuthError as exc:
+            console.print(f"[yellow]{exc}[/yellow]")
+            token = getpass.getpass(
+                "Paste oauth_token instead (input is hidden; blank cancels): "
+            ).strip()
+            if not token:
+                console.print("[yellow]SoundCloud login cancelled.[/yellow]")
+                return 1
+            return _verify_and_report(token, client.client_id, console)
+        return _report_login(console, username, user_id)
 
 
 def _auth_status(console: Console) -> int:
@@ -635,7 +585,3 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 130
 
     return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

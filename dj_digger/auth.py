@@ -12,13 +12,16 @@ import shutil
 import sqlite3
 import tempfile
 import time
+from contextlib import closing
 from pathlib import Path
 from threading import Event, Lock
 from typing import Any
 
 import requests
 
-from .paths import config_dir, data_dir
+from . import browser_session
+from .browser import USER_AGENT
+from .paths import config_dir
 
 CONFIG_DIR = config_dir()
 AUTH_FILE = CONFIG_DIR / "auth.json"
@@ -39,13 +42,7 @@ class SoundCloudAuthCancelled(SoundCloudAuthError):
 def soundcloud_browser_profile_path() -> Path:
     """Return the private app-managed browser profile used only for SoundCloud."""
 
-    path = data_dir() / "soundcloud-browser"
-    # mkdir's mode is masked by the umask and ignored when the directory already
-    # exists, so the explicit chmod below is what guarantees 0700.
-    path.mkdir(parents=True, exist_ok=True, mode=0o700)
-    if os.name != "nt":
-        path.chmod(0o700)
-    return path
+    return browser_session.profile_path("soundcloud-browser")
 
 
 def get_stored_token() -> str | None:
@@ -137,13 +134,7 @@ def verify_token(token: str, client_id: str, timeout: float = 10.0) -> dict[str,
         return None
 
     url = f"https://api-v2.soundcloud.com/me?client_id={client_id}"
-    headers = {
-        "Authorization": f"OAuth {token}",
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
-        ),
-    }
+    headers = {"Authorization": f"OAuth {token}", "User-Agent": USER_AGENT}
 
     try:
         res = requests.get(url, headers=headers, timeout=timeout)
@@ -172,36 +163,27 @@ def _extract_sqlite_cookies(db_path: str) -> list[str]:
         return []
 
     tokens: list[str] = []
-    tmp_path = None
     try:
-        with tempfile.NamedTemporaryFile(suffix=".sqlite", delete=False) as tmp_file:
-            tmp_path = tmp_file.name
-        # NamedTemporaryFile already creates at 0600; no chmod needed.
-        shutil.copyfile(db_path, tmp_path)
-
-        conn = sqlite3.connect(tmp_path)
-        cursor = conn.cursor()
-
-        try:
-            cursor.execute(
-                "SELECT name, value FROM moz_cookies WHERE host LIKE '%soundcloud%' AND name = 'oauth_token'"
-            )
-            for row in cursor.fetchall():
+        # A copy, because Firefox holds the live store locked; in a private
+        # directory of its own that goes away with the copy.
+        with tempfile.TemporaryDirectory() as scratch:
+            copy = os.path.join(scratch, "cookies.sqlite")
+            shutil.copyfile(db_path, copy)
+            with closing(sqlite3.connect(copy)) as conn:
+                try:
+                    rows = conn.execute(
+                        "SELECT name, value FROM moz_cookies "
+                        "WHERE host LIKE '%soundcloud%' AND name = 'oauth_token'"
+                    ).fetchall()
+                except sqlite3.OperationalError as exc:
+                    # Not a Firefox store, or a schema we do not know.
+                    LOGGER.debug("No moz_cookies in %s: %s", db_path, exc)
+                    rows = []
+            for row in rows:
                 if row[1] and isinstance(row[1], str) and row[1].strip():
                     tokens.append(row[1].strip())
-        except sqlite3.OperationalError as exc:
-            # Not a Firefox store, or a schema we do not know.
-            LOGGER.debug("No moz_cookies in %s: %s", db_path, exc)
-
-        conn.close()
     except (OSError, sqlite3.Error) as exc:
         LOGGER.debug("Could not read cookies from %s: %s", db_path, exc)
-    finally:
-        if tmp_path and os.path.exists(tmp_path):
-            try:
-                os.remove(tmp_path)
-            except OSError:
-                pass
 
     return tokens
 
@@ -217,11 +199,10 @@ def find_browser_cookie_paths() -> list[str]:
     # stores only copied the user's cookie database to a temp file for nothing.
     candidate_paths.extend(glob.glob(str(home / ".mozilla/firefox/*/cookies.sqlite")))
 
-    # WSL Windows paths (/mnt/c/Users/<user>/...)
-    if os.path.exists("/mnt/c/Users"):
-        for win_user_dir in glob.glob("/mnt/c/Users/*"):
-            # Firefox on Windows (unencrypted SQLite)
-            candidate_paths.extend(glob.glob(f"{win_user_dir}/AppData/Roaming/Mozilla/Firefox/Profiles/*/cookies.sqlite"))
+    # WSL Windows paths (/mnt/c/Users/<user>/...): Firefox on Windows keeps an
+    # unencrypted SQLite store too.
+    for win_user_dir in glob.glob("/mnt/c/Users/*"):
+        candidate_paths.extend(glob.glob(f"{win_user_dir}/AppData/Roaming/Mozilla/Firefox/Profiles/*/cookies.sqlite"))
 
     return candidate_paths
 
@@ -241,14 +222,11 @@ def auto_detect_and_verify(client_id: str) -> tuple[str, str, int] | None:
 
     Returns (token, username, user_id) if a working session is found, else None.
     """
-    tokens = scan_browser_cookies()
-    for token in tokens:
-        user_data = verify_token(token, client_id)
-        if user_data:
-            username = user_data.get("username") or "User"
-            user_id = user_data.get("id")
-            save_token(token, username, user_id)
-            return token, username, user_id
+    for token in scan_browser_cookies():
+        try:
+            return verify_and_save(token, client_id)
+        except SoundCloudAuthError:
+            continue
     return None
 
 
@@ -264,12 +242,54 @@ def verify_and_save(token: str, client_id: str) -> tuple[str, str, int]:
     return token, username, user_id
 
 
+def _oauth_cookie(cookies: list[dict[str, Any]]) -> str:
+    """The one cookie the API needs, out of everything the browser holds."""
+
+    return next(
+        (
+            str(cookie.get("value") or "").strip()
+            for cookie in cookies
+            if cookie.get("name") == "oauth_token"
+        ),
+        "",
+    )
+
+
+def _wait_for_oauth_cookie(
+    context: Any, client_id: str, timeout: float, cancel: Event, status: Any
+) -> tuple[str, str, int]:
+    """Watch the sign-in tab until a verified ``oauth_token`` appears, then save it."""
+
+    page = context.pages[0] if context.pages else context.new_page()
+    page.goto(SOUNDCLOUD_SIGN_IN_URL)
+    deadline = time.monotonic() + timeout
+    status("Log in to SoundCloud in Chromium. Waiting for completion…")
+    rejected_tokens: set[str] = set()
+    while time.monotonic() < deadline:
+        if cancel.wait(0.25):
+            raise SoundCloudAuthCancelled("SoundCloud login was cancelled.")
+        token = _oauth_cookie(context.cookies(["https://soundcloud.com"]))
+        if token and token not in rejected_tokens:
+            status("Verifying the SoundCloud login…")
+            try:
+                return verify_and_save(token, client_id)
+            except SoundCloudAuthError:
+                rejected_tokens.add(token)
+                status(
+                    "That SoundCloud session is no longer valid. Log in again "
+                    "in Chromium…"
+                )
+    raise SoundCloudAuthError(
+        f"SoundCloud login timed out after {timeout / 60:g} minutes; "
+        "no credentials were saved."
+    )
+
+
 def login_with_chromium(
     client_id: str,
     *,
     timeout: float = 300.0,
     cancel: Event | None = None,
-    context_factory=None,
     status=None,
 ) -> tuple[str, str, int]:
     """Open an isolated browser and persist only its verified ``oauth_token``.
@@ -287,63 +307,19 @@ def login_with_chromium(
         raise SoundCloudAuthError("The private browser profile is already in use.")
 
     try:
-        install_chromium = None
-        chromium_missing = ()
-        if context_factory is None:
-            # The cart already owns the small Playwright lifecycle layer. Importing
-            # lazily keeps Playwright optional for every non-browser command.
-            from . import cart
-
-            context_factory = cart._browser_context
-            install_chromium = cart.install_chromium
-            chromium_missing = (cart.ChromiumMissing,)
-
         status("Opening the private SoundCloud browser…")
 
-        def wait_for_cookie(context) -> tuple[str, str, int]:
-            page = context.pages[0] if context.pages else context.new_page()
-            page.goto(SOUNDCLOUD_SIGN_IN_URL)
-            deadline = time.monotonic() + timeout
-            status("Log in to SoundCloud in Chromium. Waiting for completion…")
-            rejected_tokens: set[str] = set()
-            while time.monotonic() < deadline:
-                if cancel.wait(0.25):
-                    raise SoundCloudAuthCancelled("SoundCloud login was cancelled.")
-                cookies = context.cookies(["https://soundcloud.com"])
-                token = next(
-                    (
-                        str(cookie.get("value") or "").strip()
-                        for cookie in cookies
-                        if cookie.get("name") == "oauth_token"
-                    ),
-                    "",
-                )
-                if token and token not in rejected_tokens:
-                    status("Verifying the SoundCloud login…")
-                    try:
-                        return verify_and_save(token, client_id)
-                    except SoundCloudAuthError:
-                        rejected_tokens.add(token)
-                        status(
-                            "That SoundCloud session is no longer valid. Log in again "
-                            "in Chromium…"
-                        )
-            raise SoundCloudAuthError(
-                f"SoundCloud login timed out after {timeout / 60:g} minutes; "
-                "no credentials were saved."
-            )
-
-        def run_browser(profile: Path):
-            with context_factory(profile) as context:
-                return wait_for_cookie(context)
+        def run_browser(profile: Path) -> tuple[str, str, int]:
+            with browser_session.sync_browser_context(profile) as context:
+                return _wait_for_oauth_cookie(context, client_id, timeout, cancel, status)
 
         try:
             profile = soundcloud_browser_profile_path()
             try:
                 return run_browser(profile)
-            except chromium_missing:
+            except browser_session.ChromiumMissing:
                 status("Installing the matching Playwright Chromium build…")
-                install_chromium(cancel)
+                browser_session.install_chromium(cancel)
                 return run_browser(profile)
         except (SoundCloudAuthError, KeyboardInterrupt):
             raise

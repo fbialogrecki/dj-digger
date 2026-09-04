@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from . import gates, html_fallback, links, soundcloud
-from .models import Crate, Track
+from .models import Cancelled, Crate, Track, check_cancelled
 
 # stage, done, total (total is None while it is still unknown)
 ProgressHook = Callable[[str, int, int | None], None]
@@ -74,6 +74,7 @@ def dig_html(
     timeout: float = 20.0,
     delay: float = 0.5,
     on_progress: ProgressHook | None = None,
+    cancel: threading.Event | None = None,
 ) -> Crate:
     """Read a saved page.
 
@@ -94,6 +95,7 @@ def dig_html(
             track_ids,
             timeout=timeout,
             on_progress=lambda done, total: _notify(on_progress, STAGE_TRACKS, done, total),
+            cancel=cancel,
         )
     elif track_urls:
         LOGGER.info(
@@ -105,6 +107,7 @@ def dig_html(
         tracks = []
         try:
             for index, track_url in enumerate(track_urls, start=1):
+                check_cancelled(cancel)
                 tracks.append(html_fallback.scrape_track_page(track_url, session, timeout))
                 _notify(on_progress, STAGE_PAGES, index, len(track_urls))
                 if delay > 0:
@@ -150,7 +153,12 @@ class DeadHosts:
             LOGGER.info("%s is not answering - skipping it for the rest of this dig.", host)
 
 
-def _expand_one(track: Track, timeout: float, dead: DeadHosts) -> bool:
+def _expand_one(
+    track: Track,
+    timeout: float,
+    dead: DeadHosts,
+    cancel: threading.Event | None = None,
+) -> bool:
     """Swap a track's link hubs for the shops behind them. True if any changed."""
 
     changed = False
@@ -163,6 +171,7 @@ def _expand_one(track: Track, timeout: float, dead: DeadHosts) -> bool:
     hub_timeout = (HUB_CONNECT_TIMEOUT, timeout)
     try:
         for url in links.hub_links(track):
+            check_cancelled(cancel)
             if dead.written_off(url):
                 continue
             inspection = gates.inspect_link_page(url, session, timeout=hub_timeout)
@@ -208,6 +217,7 @@ def expand_link_hubs(
     *,
     timeout: float = 20.0,
     on_progress: ProgressHook | None = None,
+    cancel: threading.Event | None = None,
 ) -> int:
     """Read the shops off purchase links that turn out to be lists of shops.
 
@@ -222,11 +232,19 @@ def expand_link_hubs(
     expanded = 0
     dead = DeadHosts()
     with ThreadPoolExecutor(max_workers=HUB_WORKERS) as pool:
-        futures = [pool.submit(_expand_one, track, timeout, dead) for track in pending]
+        futures = [pool.submit(_expand_one, track, timeout, dead, cancel) for track in pending]
         for done, future in enumerate(as_completed(futures), start=1):
+            if cancel is not None and cancel.is_set():
+                # Queued hubs are dropped; the ones already talking to a host
+                # finish their own timeout. ponytail: the pool's exit still
+                # waits for those, which is at most HUB_WORKERS timeouts.
+                pool.shutdown(wait=False, cancel_futures=True)
+                raise Cancelled()
             try:
                 if future.result():
                     expanded += 1
+            except Cancelled:
+                raise
             except Exception as exc:  # one unreadable page must not sink the dig
                 LOGGER.warning("Could not expand a link hub: %s", exc)
             _notify(on_progress, STAGE_HUBS, done, len(pending))
@@ -240,8 +258,13 @@ def dig(
     timeout: float = 20.0,
     delay: float = 0.5,
     on_progress: ProgressHook | None = None,
+    cancel: threading.Event | None = None,
 ) -> Crate:
-    """Dig a SoundCloud link or a saved HTML file."""
+    """Dig a SoundCloud link or a saved HTML file.
+
+    ``cancel`` is checked between requests; a set event raises ``Cancelled``
+    rather than returning a partial crate, so nothing half-collected is saved.
+    """
 
     target = target.strip()
     if soundcloud.is_soundcloud_url(target):
@@ -251,14 +274,20 @@ def dig(
             limit=limit,
             timeout=timeout,
             on_progress=lambda done, total: _notify(on_progress, STAGE_TRACKS, done, total),
+            cancel=cancel,
         )
     else:
         path = Path(target).expanduser()
         if not path.exists():
             raise TargetNotFound(target)
         crate = dig_html(
-            path, limit=limit, timeout=timeout, delay=delay, on_progress=on_progress
+            path,
+            limit=limit,
+            timeout=timeout,
+            delay=delay,
+            on_progress=on_progress,
+            cancel=cancel,
         )
 
-    expand_link_hubs(crate.tracks, timeout=timeout, on_progress=on_progress)
+    expand_link_hubs(crate.tracks, timeout=timeout, on_progress=on_progress, cancel=cancel)
     return crate

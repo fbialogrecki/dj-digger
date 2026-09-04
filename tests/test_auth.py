@@ -4,12 +4,31 @@ from contextlib import contextmanager
 from threading import Event
 
 import pytest
+from conftest import FakeResponse
 
-from dj_digger import auth
+from dj_digger import auth, browser_session
+
+
+def _browser(monkeypatch, context):
+    """The private browser opens on ``context``; the profile path is ignored."""
+
+    @contextmanager
+    def sync_browser_context(_profile, **_kwargs):
+        yield context
+
+    monkeypatch.setattr(browser_session, "sync_browser_context", sync_browser_context)
+
+
+def _no_browser(monkeypatch):
+    monkeypatch.setattr(
+        browser_session,
+        "sync_browser_context",
+        lambda *_args, **_kwargs: pytest.fail("browser was opened"),
+    )
 
 
 def test_private_json_writer_is_atomic_and_owner_only(tmp_path):
-    target = tmp_path / "credentials" / "spotify.json"
+    target = tmp_path / "credentials" / "auth.json"
 
     auth.write_private_json(target, {"refresh_token": "secret"})
 
@@ -22,24 +41,14 @@ def test_private_json_writer_is_atomic_and_owner_only(tmp_path):
         assert os.stat(target.parent).st_mode & 0o777 == 0o700
 
 
-def test_chromium_login_refuses_a_busy_private_profile():
+def test_chromium_login_refuses_a_busy_private_profile(monkeypatch):
+    _no_browser(monkeypatch)
     assert auth.BROWSER_PROFILE_LOCK.acquire(blocking=False)
     try:
         with pytest.raises(auth.SoundCloudAuthError, match="profile is already in use"):
-            auth.login_with_chromium(
-                "client", context_factory=lambda _profile: pytest.fail("must not open")
-            )
+            auth.login_with_chromium("client")
     finally:
         auth.BROWSER_PROFILE_LOCK.release()
-
-
-class DummyResponse:
-    def __init__(self, status_code, payload=None):
-        self.status_code = status_code
-        self._payload = payload or {}
-
-    def json(self):
-        return self._payload
 
 
 def test_get_stored_token_from_env(monkeypatch):
@@ -76,7 +85,7 @@ def test_verify_token_valid(monkeypatch):
     monkeypatch.setattr(
         auth.requests,
         "get",
-        lambda url, headers=None, timeout=10.0: DummyResponse(200, {"username": "valid_user", "id": 123}),
+        lambda url, headers=None, timeout=10.0: FakeResponse(200, {"username": "valid_user", "id": 123}),
     )
     user = auth.verify_token("token_abc", "dummy_client")
     assert user is not None
@@ -87,7 +96,7 @@ def test_verify_token_invalid(monkeypatch):
     monkeypatch.setattr(
         auth.requests,
         "get",
-        lambda url, headers=None, timeout=10.0: DummyResponse(401),
+        lambda url, headers=None, timeout=10.0: FakeResponse(401),
     )
     assert auth.verify_token("invalid_token", "dummy_client") is None
 
@@ -152,10 +161,7 @@ def test_browser_login_reads_only_oauth_token_and_saves_after_verification(monke
                 {"name": "oauth_token", "value": "secret-token"},
             ]
 
-    @contextmanager
-    def context_factory(_profile):
-        yield Context()
-
+    _browser(monkeypatch, Context())
     monkeypatch.setattr(
         auth,
         "verify_token",
@@ -165,9 +171,7 @@ def test_browser_login_reads_only_oauth_token_and_saves_after_verification(monke
     )
     monkeypatch.setattr(auth, "save_token", lambda *args: saved.append(args))
 
-    result = auth.login_with_chromium(
-        "client", context_factory=context_factory, cancel=Event()
-    )
+    result = auth.login_with_chromium("client", cancel=Event())
 
     assert result == ("secret-token", "DJ", 7)
     assert saved == [("secret-token", "DJ", 7)]
@@ -183,10 +187,7 @@ def test_rejected_browser_cookie_is_ignored_until_login_changes_it(monkeypatch):
         def cookies(self, _urls):
             return [{"name": "oauth_token", "value": next(cookies)}]
 
-    @contextmanager
-    def context_factory(_profile):
-        yield Context()
-
+    _browser(monkeypatch, Context())
     monkeypatch.setattr(
         auth,
         "verify_token",
@@ -196,9 +197,7 @@ def test_rejected_browser_cookie_is_ignored_until_login_changes_it(monkeypatch):
     )
     monkeypatch.setattr(auth, "save_token", lambda *args: saved.append(args))
 
-    result = auth.login_with_chromium(
-        "client", context_factory=context_factory, cancel=Event()
-    )
+    result = auth.login_with_chromium("client", cancel=Event())
 
     assert result == ("working", "DJ", 4)
     assert saved == [("working", "DJ", 4)]
@@ -211,28 +210,22 @@ def test_browser_login_times_out_without_saving_any_cookie(monkeypatch):
         def cookies(self, _urls):
             return []
 
-    @contextmanager
-    def context_factory(_profile):
-        yield Context()
-
+    _browser(monkeypatch, Context())
     monkeypatch.setattr(
         auth, "save_token", lambda *_args: pytest.fail("missing token was saved")
     )
 
     with pytest.raises(auth.SoundCloudAuthError, match="timed out"):
-        auth.login_with_chromium("client", timeout=0, context_factory=context_factory)
+        auth.login_with_chromium("client", timeout=0)
 
 
-def test_browser_login_honours_cancellation_before_opening_browser():
+def test_browser_login_honours_cancellation_before_opening_browser(monkeypatch):
+    _no_browser(monkeypatch)
     cancel = Event()
     cancel.set()
 
     with pytest.raises(auth.SoundCloudAuthCancelled):
-        auth.login_with_chromium(
-            "client",
-            cancel=cancel,
-            context_factory=lambda _profile: pytest.fail("browser was opened"),
-        )
+        auth.login_with_chromium("client", cancel=cancel)
 
 
 def test_browser_profile_permission_failure_is_a_safe_auth_error(monkeypatch):
@@ -242,15 +235,14 @@ def test_browser_profile_permission_failure_is_a_safe_auth_error(monkeypatch):
         lambda: (_ for _ in ()).throw(PermissionError("private filesystem detail")),
     )
 
+    _no_browser(monkeypatch)
     with pytest.raises(auth.SoundCloudAuthError, match="Could not start") as caught:
-        auth.login_with_chromium("client", context_factory=lambda _profile: None)
+        auth.login_with_chromium("client")
 
     assert "private filesystem detail" not in str(caught.value)
 
 
 def test_browser_login_installs_missing_playwright_chromium_once(monkeypatch):
-    from dj_digger import cart
-
     attempts = []
     installs = []
 
@@ -264,11 +256,11 @@ def test_browser_login_installs_missing_playwright_chromium_once(monkeypatch):
     def browser_context(_profile):
         attempts.append(True)
         if len(attempts) == 1:
-            raise cart.ChromiumMissing("missing")
+            raise browser_session.ChromiumMissing("missing")
         yield Context()
 
-    monkeypatch.setattr(cart, "_browser_context", browser_context)
-    monkeypatch.setattr(cart, "install_chromium", lambda cancel: installs.append(cancel))
+    monkeypatch.setattr(browser_session, "sync_browser_context", browser_context)
+    monkeypatch.setattr(browser_session, "install_chromium", lambda cancel: installs.append(cancel))
     monkeypatch.setattr(
         auth, "verify_and_save", lambda token, client_id: (token, "DJ", 1)
     )
