@@ -66,6 +66,10 @@ def isolate_user_data(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "default_db_path", lambda: tmp_path / "digger.db")
     monkeypatch.setattr(auth, "CONFIG_DIR", tmp_path / "auth")
     monkeypatch.setattr(auth, "AUTH_FILE", tmp_path / "auth" / "auth.json")
+    yield
+    for instance in list(db._DATABASES):
+        instance.close()
+    db._INSTANCES.clear()
 
 
 @pytest.fixture(autouse=True)

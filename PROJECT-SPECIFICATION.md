@@ -5,8 +5,8 @@
 - Product version verified: 1.0.0
 - Owner: Filip Białogrecki
 - Updated: 2026-09-04
-- Document lines: <!-- SPEC TOTAL LINES -->1103<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1103<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1112<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1112<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -65,48 +65,48 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 5.1 | ↳ Entry, orchestration, and models | 470–480 |
 | 5.2 | ↳ Network and external-system adapters | 481–499 |
 | 5.3 | ↳ Persistence, local media, and UI | 500–516 |
-| 6 | Runtime architecture and environments | 517–590 |
+| 6 | Runtime architecture and environments | 517–591 |
 | 6.1 | ↳ Runtime and dependencies | 519–532 |
-| 6.2 | ↳ Concurrency and lifecycle | 533–575 |
-| 6.3 | ↳ Local paths and environment variables | 576–590 |
-| 7 | Data model and persistence | 591–660 |
-| 7.1 | ↳ Domain objects and identity | 593–607 |
-| 7.2 | ↳ SQLite schema and invariants | 608–632 |
-| 7.3 | ↳ Crate persistence and deletion | 633–644 |
-| 7.4 | ↳ Configuration and credential stores | 645–660 |
-| 8 | Public interfaces and contracts | 661–706 |
-| 8.1 | ↳ CLI arguments and exit behavior | 663–682 |
-| 8.2 | ↳ JSON and CSV summary input | 683–697 |
-| 8.3 | ↳ URL-opening contract | 698–706 |
-| 9 | Authentication and authorization | 707–743 |
-| 9.1 | ↳ SoundCloud authentication | 709–726 |
-| 9.2 | ↳ Gate action consent | 727–743 |
-| 10 | External integrations | 744–876 |
-| 10.1 | ↳ SoundCloud API and media | 746–757 |
-| 10.2 | ↳ Link hubs and download gates | 758–817 |
-| 10.2 · block | ↳ ↳ Hypeddit | 766–803 |
-| 10.2 · block | ↳ ↳ Other resolvers | 805–810 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 812–817 |
-| 10.3 | ↳ Browsers and clipboard | 818–829 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 830–876 |
-| 11 | Security requirements and threat model | 877–923 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 879–897 |
-| 11.2 | ↳ Secret and personal-data handling | 898–910 |
-| 11.3 | ↳ File and mutation safety | 911–923 |
-| 12 | Privacy, lifecycle, and retention | 924–962 |
-| 12.1 | ↳ Data stored locally | 926–941 |
-| 12.2 | ↳ Data sent to third parties | 942–953 |
-| 12.3 | ↳ User-controlled deletion | 954–962 |
-| 13 | Failure behavior and current limitations | 963–1017 |
-| 13.1 | ↳ Error isolation and reporting | 965–984 |
-| 13.2 | ↳ Confirmed limitations | 985–1017 |
-| 14 | Verification, CI, and release | 1018–1081 |
-| 14.1 | ↳ Offline and live test suites | 1020–1050 |
-| 14.2 | ↳ Continuous integration and publishing | 1051–1066 |
-| 14.3 | ↳ Specification-map verification | 1067–1081 |
-| 15 | Evidence and operational references | 1082–1103 |
-| 15.1 | ↳ Primary implementation evidence | 1084–1096 |
-| 15.2 | ↳ User and historical documentation | 1097–1103 |
+| 6.2 | ↳ Concurrency and lifecycle | 533–576 |
+| 6.3 | ↳ Local paths and environment variables | 577–591 |
+| 7 | Data model and persistence | 592–669 |
+| 7.1 | ↳ Domain objects and identity | 594–608 |
+| 7.2 | ↳ SQLite schema and invariants | 609–641 |
+| 7.3 | ↳ Crate persistence and deletion | 642–653 |
+| 7.4 | ↳ Configuration and credential stores | 654–669 |
+| 8 | Public interfaces and contracts | 670–715 |
+| 8.1 | ↳ CLI arguments and exit behavior | 672–691 |
+| 8.2 | ↳ JSON and CSV summary input | 692–706 |
+| 8.3 | ↳ URL-opening contract | 707–715 |
+| 9 | Authentication and authorization | 716–752 |
+| 9.1 | ↳ SoundCloud authentication | 718–735 |
+| 9.2 | ↳ Gate action consent | 736–752 |
+| 10 | External integrations | 753–885 |
+| 10.1 | ↳ SoundCloud API and media | 755–766 |
+| 10.2 | ↳ Link hubs and download gates | 767–826 |
+| 10.2 · block | ↳ ↳ Hypeddit | 775–812 |
+| 10.2 · block | ↳ ↳ Other resolvers | 814–819 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 821–826 |
+| 10.3 | ↳ Browsers and clipboard | 827–838 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 839–885 |
+| 11 | Security requirements and threat model | 886–932 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 888–906 |
+| 11.2 | ↳ Secret and personal-data handling | 907–919 |
+| 11.3 | ↳ File and mutation safety | 920–932 |
+| 12 | Privacy, lifecycle, and retention | 933–971 |
+| 12.1 | ↳ Data stored locally | 935–950 |
+| 12.2 | ↳ Data sent to third parties | 951–962 |
+| 12.3 | ↳ User-controlled deletion | 963–971 |
+| 13 | Failure behavior and current limitations | 972–1026 |
+| 13.1 | ↳ Error isolation and reporting | 974–993 |
+| 13.2 | ↳ Confirmed limitations | 994–1026 |
+| 14 | Verification, CI, and release | 1027–1090 |
+| 14.1 | ↳ Offline and live test suites | 1029–1059 |
+| 14.2 | ↳ Continuous integration and publishing | 1060–1075 |
+| 14.3 | ↳ Specification-map verification | 1076–1090 |
+| 15 | Evidence and operational references | 1091–1112 |
+| 15.1 | ↳ Primary implementation evidence | 1093–1105 |
+| 15.2 | ↳ User and historical documentation | 1106–1112 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -499,7 +499,7 @@ crate record.
 
 ### 5.3 Persistence, local media, and UI
 
-- `dj_digger/db.py` owns the shared thread-local-connection SQLite engine and
+- `dj_digger/db.py` owns the shared single-owner SQLite engine and
   schema. `state.py` owns status semantics; `library.py` owns crate lifecycle;
   `scanner.py` owns local media indexing and matching.
 - `dj_digger/paths.py` is the leaf module for XDG data/config directories.
@@ -532,13 +532,14 @@ integration.
 
 ### 6.2 Concurrency and lifecycle
 
-SQLite exposes one `Database` instance per path, thread-local connections, WAL,
-foreign keys, a 10-second busy timeout, commit on context success, and rollback
-on exception. `TrackState` serializes its compound operations with a lock and
-mirrors the `track_states` and `track_local_files` tables in memory after the
-first read, so painting a crate costs no per-row query; every write goes
-through the same object and updates the mirror. Another process writing the
-same database is not reconciled.
+SQLite exposes one `Database` instance per path and one dedicated owning thread.
+The connection is created, used and closed there, with WAL, foreign keys and a
+10-second busy timeout. Repository calls use explicit short transactions; nested
+calls participate in the same transaction. Synchronous callers use workers;
+connection and cursor objects never cross the owner boundary. `TrackState`
+serializes compound status/provenance updates and updates its in-memory mirrors
+only after commit. Painting rows reads the mirrors, without per-row SQLite reads.
+Another process writing the same database is not reconciled.
 
 Digging, hub expansion, hydration, downloads, and the local scan accept a
 cancel event checked between requests, pages, chunks, or files; a set event
@@ -625,10 +626,18 @@ The default database is `digger.db`. `_init_db()` creates:
 file provenance. `set_local_file()` atomically records `got` and the path;
 clearing provenance resets `got` only when that mark depended on the file.
 
-An old `crates` table without `record_json`, or an old `local_files` table
-with the unread `size`, `artist` and `title` columns, is dropped at
-initialization rather than migrated; the next scan rebuilds the file cache. The current code does not import or mirror legacy JSON state or
-crate files. There is no schema-version table or separate migration framework.
+The shipped table shape is registered as `PRAGMA user_version=1`. An existing
+unversioned database is recognized read-only before any schema write. Older,
+newer and unknown shapes raise `UnsupportedSchema`; no table is dropped and
+library listing does not turn this error into an empty library. Before registering
+an existing version-zero schema, the SQLite backup API writes a unique backup
+under the database directory's private `backups/` directory, including committed
+WAL data. Its temporary file is created with mode 0600 on POSIX, checked for
+integrity and renamed. Backup waiting is bounded to five seconds; failure blocks
+registration. The schema and version are checked again inside `BEGIN IMMEDIATE`.
+Opening version 1 creates no further backup. Successful copies are retained;
+restoration requires a user decision. POSIX modes do not promise Windows ACLs.
+There are no historical converters or speculative migration framework.
 
 ### 7.3 Crate persistence and deletion
 

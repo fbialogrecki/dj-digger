@@ -66,10 +66,9 @@ class TrackState:
             raise ValueError(f"Unknown status: {status}")
         with self._lock:
             self._load()
-            self.db.set_track_status(key, status)
+            self.db.set_track_state(key, status, None)
             # A direct user decision is no longer contingent on a particular
             # file. Automated scans/downloads use set_local_file instead.
-            self.db.delete_track_local_file(key)
             self._remember(key, status)
             self._files.pop(str(key), None)
 
@@ -87,8 +86,7 @@ class TrackState:
     def set_local_file(self, key: str, path: str | Path) -> None:
         with self._lock:
             self._load()
-            self.db.set_track_status(key, GOT)
-            self.db.set_track_local_file(key, str(path))
+            self.db.set_track_state(key, GOT, str(path))
             self._remember(key, GOT)
             self._files[str(key)] = str(path)
 
@@ -99,9 +97,8 @@ class TrackState:
             self._load()
             if self._files.get(str(key)) is None:
                 return False
-            self.db.delete_track_local_file(key)
+            status = NEW if self._statuses.get(str(key)) == GOT else self._statuses.get(str(key), NEW)
+            self.db.set_track_state(key, status, None)
             self._files.pop(str(key), None)
-            if self._statuses.get(str(key)) == GOT:
-                self.db.set_track_status(key, NEW)
-                self._remember(key, NEW)
+            self._remember(key, status)
             return True

@@ -118,11 +118,7 @@ class CrateHeader(NamedTuple):
 
 
 def list_crate_headers() -> list[CrateHeader]:
-    try:
-        raw = database().list_crate_headers()
-    except Exception as exc:
-        LOGGER.warning("Could not read crates from SQLite: %s", exc)
-        return []
+    raw = database().list_crate_headers()
     headers = [CrateHeader(**row) for row in raw if row.get("source")]
     return sorted(headers, key=lambda header: header.title.lower())
 
