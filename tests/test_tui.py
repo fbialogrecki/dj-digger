@@ -3359,7 +3359,10 @@ def test_a_dig_keeps_the_rows_on_screen(records, state, monkeypatch):
             await pilot.pause()
             app._start_dig("https://soundcloud.com/x/sets/y")
             assert await asyncio.to_thread(entered.wait, 2)
-            await pilot.pause()
+            for _ in range(20):
+                await pilot.pause()
+                if "Digging" in bar_text(app):
+                    break
             table = app.query_one("#tracks", DataTable)
             assert table.row_count == len(records)
             assert not table.loading
