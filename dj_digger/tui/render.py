@@ -256,6 +256,8 @@ class RenderController:
         self.set_timer(FLASH, lambda: self._paint_row(index))
 
     def refresh_rows(self, *, keep_cursor: bool = True) -> None:
+        if not self.query("#tracks"):
+            return
         table = self.query_one("#tracks", TrackTable)
         previous = table.cursor_row if keep_cursor else 0
         previous_scroll = table.scroll_offset if keep_cursor else None

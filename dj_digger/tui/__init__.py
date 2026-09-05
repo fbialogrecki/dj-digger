@@ -83,8 +83,25 @@ def run_tui(
     grace: float = EXIT_GRACE,
 ) -> None:
     services = ApplicationServices(state=state or TrackState())
+    # The guard must run during asyncio's teardown, before app.run can return.
+    # It never closes resources underneath a live worker.
+    def force_shutdown():
+        LOGGER.warning("Forcing exit: application teardown exceeded its deadline")
+        HARD_EXIT(0)
+
+    guard = threading.Timer(grace, force_shutdown)
+    guard.daemon = True
+    guard_started = False
+
+    def shutdown_started():
+        nonlocal guard_started
+        if not guard_started:
+            guard_started = True
+            guard.start()
+
     app = DiggerApp(
         records,
+        shutdown_started=shutdown_started,
         state=state,
         services=services,
         crate_title=crate_title,
@@ -118,5 +135,8 @@ def run_tui(
             logger.setLevel(level)
         if on_main_thread:
             signal.signal(signal.SIGINT, previous_handler)
-        services.stop()
+        try:
+            services.stop()
+        finally:
+            guard.cancel()
         _finish_or_exit(grace, code)

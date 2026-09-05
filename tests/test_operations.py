@@ -100,3 +100,22 @@ def test_shutdown_closes_database_last_even_if_another_close_fails():
     services.stop()
     services.stop()
     assert closed == ["audio", "client", "database"]
+
+
+def test_adopted_login_observes_later_replacement_and_logout(monkeypatch):
+    from dj_digger import auth
+    from dj_digger.services.runtime import ApplicationServices
+
+    stored = ["first"]
+    monkeypatch.delenv("SOUNDCLOUD_OAUTH_TOKEN", raising=False)
+    monkeypatch.setattr(auth, "get_stored_token", lambda: stored[0])
+    services = ApplicationServices()
+    try:
+        services.adopt_login("first")
+        assert services.client.oauth_token == "first"
+        stored[0] = "second"
+        assert services.client.oauth_token == "second"
+        stored[0] = None
+        assert services.client.oauth_token is None
+    finally:
+        services.stop()

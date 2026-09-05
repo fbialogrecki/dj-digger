@@ -4,7 +4,7 @@ from pathlib import Path
 
 from ..library import CrateRecord
 from ..scanner import SCAN_BATCH, LocalScanner
-from ..state import GOT, NEW
+from ..state import GOT, FileMatch
 
 
 class LibraryService:
@@ -20,13 +20,13 @@ class LibraryService:
         return CrateRecord.from_json(raw) if raw is not None else None
 
     def forget_missing(self, track):
-        if not track.local_path or Path(track.local_path).is_file():
+        observed = self.state.observe_file(track.key)
+        path = observed.path or track.local_path
+        if not path or Path(path).is_file():
             return False
-        was_file_backed = self.state.clear_local_file(track.key)
-        if not was_file_backed and self.state.get(track.key) == GOT:
-            self.state.set(track.key, NEW)
-        track.local_path = None
-        return True
+        self.state.apply_file_matches([FileMatch(track.key, None, False, True, observed.revision)])
+        track.local_path = self.state.local_file(track.key)
+        return track.local_path is None
 
     def mark_existing(self, track):
         remembered = self.state.local_file(track.key)
@@ -52,7 +52,8 @@ class LibraryService:
         paths = {}
         pending = []
         for track in tracks:
-            remembered = self.state.local_file(track.key) or track.local_path
+            observed = self.state.observe_file(track.key)
+            remembered = observed.path or track.local_path
             stale = bool(remembered) and not Path(remembered).is_file()
             if remembered and not stale:
                 path, confident = remembered, True
@@ -62,9 +63,10 @@ class LibraryService:
                 stale = stale or scanner.had_stale_match(track)
             if path is not None or stale or track.local_path is not None:
                 paths[track.key] = path
-            pending.append((track.key, path, confident, stale))
+            pending.append(FileMatch(track.key, path, confident, stale, observed.revision))
             if len(pending) == SCAN_BATCH:
                 self.state.apply_file_matches(pending)
                 pending.clear()
         self.state.apply_file_matches(pending)
-        return paths
+        # A newer completed transfer can supersede a missing-file observation.
+        return {key: self.state.local_file(key) or path for key, path in paths.items()}

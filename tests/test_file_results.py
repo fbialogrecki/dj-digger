@@ -102,7 +102,7 @@ def test_cancellation_at_publication_removes_only_own_temporary_file(tmp_path, m
 
 
 def test_scanner_batch_rolls_back_status_and_provenance_mirrors(tmp_path, monkeypatch):
-    from dj_digger.state import TrackState
+    from dj_digger.state import FileMatch, TrackState
 
     state = TrackState(tmp_path / "library.db")
     state.set("one", "skip")
@@ -115,7 +115,7 @@ def test_scanner_batch_rolls_back_status_and_provenance_mirrors(tmp_path, monkey
 
     monkeypatch.setattr(state.db, "set_track_state", fail_second)
     with pytest.raises(OSError):
-        state.apply_file_matches([("one", "/one.wav", True, False), ("two", "/two.wav", True, False)])
+        state.apply_file_matches([FileMatch("one", "/one.wav", True, False, 0), FileMatch("two", "/two.wav", True, False, 0)])
     assert state.get("one") == "skip"
     assert state.local_file("one") is None
     assert state.db.all_track_statuses() == {"one": "skip"}
@@ -145,3 +145,45 @@ def test_browser_batch_records_other_files_after_one_database_failure(tmp_path, 
     assert isinstance(result.failures[0][1], PublishedFileUnrecorded)
     assert recorded == [("two", files[1])]
     assert all(path.exists() for path in files)
+
+
+@pytest.mark.parametrize("newer", ["download", "manual"])
+def test_missing_file_scan_cannot_clear_a_later_completed_decision(tmp_path, newer):
+    from dj_digger.models import Track
+    from dj_digger.services.library import LibraryService
+    from dj_digger.state import GOT, TrackState
+
+    state = TrackState(tmp_path / "library.db")
+    state.set_local_file("1", tmp_path / "missing.wav")
+    complete = tmp_path / "new.wav"
+    complete.write_bytes(b"audio")
+
+    class Scanner:
+        def match_track(self, track):
+            if newer == "download":
+                state.set_local_file(track.key, complete)
+            else:
+                state.set(track.key, GOT)
+            return None
+
+        def had_stale_match(self, track):
+            return False
+
+    paths = LibraryService(state).match_tracks([Track(id=1, title="one", permalink_url="https://soundcloud.com/a/one")], Scanner())
+    assert state.get("1") == GOT
+    assert state.local_file("1") == (str(complete) if newer == "download" else None)
+    assert paths["1"] == state.local_file("1")
+
+
+def test_first_refresh_keeps_concurrent_row_removal_without_discarding_arrivals(tmp_path):
+    from dj_digger.db import Database
+
+    db = Database(tmp_path / "library.db")
+    crate = dict(source="crate", title="before", tracks=[dict(id=1)], partial=False)
+    db.save_crate(crate)
+    snapshot = db.snapshot_generations()
+    db.set_removed_tracks("crate", db.crate_generation("crate"), ["1"], True)
+    updated = db.remember_collection(dict(crate, title="after", tracks=[dict(id=1), dict(id=2)]), snapshot)
+    assert updated["title"] == "after"
+    assert updated["removed_track_keys"] == ["1"]
+    assert updated["new_track_keys"] == ["2"]

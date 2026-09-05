@@ -1,7 +1,7 @@
 """Account and preference I/O used by both interactive front ends."""
 
 from copy import copy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from threading import Event, Lock
 
 from .. import auth, browser
@@ -10,7 +10,7 @@ from ..diagnostics import log_safe_text
 
 @dataclass(frozen=True)
 class AuthenticationResult:
-    token: str | None = None
+    token: str | None = field(default=None, repr=False)
     error: str = ""
 
 

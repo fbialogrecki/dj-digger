@@ -113,7 +113,7 @@ class ApplicationServices:
 
     def adopt_login(self, oauth_token):
         from ..soundcloud import SoundCloudClient
-        self.retire_client(SoundCloudClient(config=self.config, oauth_token=oauth_token))
+        self.retire_client(SoundCloudClient(config=self.config))
         return True
 
     async def io(self, function, *args, **kwargs):

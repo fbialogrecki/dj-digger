@@ -11,7 +11,7 @@ from pathlib import Path
 from threading import Event, Lock
 
 from rich.text import Text
-from textual import events
+from textual import events, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
@@ -205,8 +205,10 @@ class DiggerApp(
         export_path: Path | None = None,
         dig_options: dig_module.DigOptions | None = None,
         crate_record: CrateRecord | None = None,
+        shutdown_started=lambda: None,
     ) -> None:
         super().__init__()
+        self.shutdown_started = shutdown_started
         self.playlist_state = PlaylistState()
         self.audio_state = AudioState()
         self.download_state = DownloadState()
@@ -637,6 +639,7 @@ class DiggerApp(
 
         # The async Playwright context lives on this same event loop. Textual has
         # cancelled its workers by now; close the persistent profile explicitly.
+        self.shutdown_started()
         self.services.operations.stop_accepting()
         self.cart_state._cart_cancel.set()
         self.download_state._gate_cancel.set()
@@ -741,9 +744,11 @@ class DiggerApp(
         choices = await asyncio.to_thread(self.services.accounts.browser_choices)
         return SettingsScreen(self.config, self.services.accounts, choices)
 
+    @work
     async def action_open_settings(self) -> None:
         self.push_screen(await self._settings_screen())
 
+    @work
     async def action_export(self) -> None:
         if self.export_format == "none":
             self.notify("Export is disabled for this run", timeout=3)
@@ -762,6 +767,7 @@ class DiggerApp(
         event.stop()
         self.opening_controller.action_open_link()
 
+    @work
     async def on_track_table_context_menu_requested(
         self, event: TrackTable.ContextMenuRequested
     ) -> None:
@@ -773,16 +779,16 @@ class DiggerApp(
             self.table_controller._paint_key(row.track.key)
         entries = [
             ("open", "Open best link", self.opening_controller.action_open_link),
-            ("got", "Mark as got", self.table_controller.action_mark_got),
-            ("skip", "Mark as skipped", self.table_controller.action_mark_skip),
-            ("new", "Clear mark", self.table_controller.action_mark_new),
-            ("remove", "Remove track", self.crate_controller.action_remove_track),
+            ("got", "Mark as got", self.action_mark_got),
+            ("skip", "Mark as skipped", self.action_mark_skip),
+            ("new", "Clear mark", self.action_mark_new),
+            ("remove", "Remove track", self.action_remove_track),
         ]
         if row.track.local_path:
-            entries.insert(1, ("copy", "Copy local file path", self.scan_controller.action_copy_path))
+            entries.insert(1, ("copy", "Copy local file path", self.action_copy_path))
             if await self.scan_controller._local_file_needs_copy(row.track):
                 entries.insert(
-                    2, ("copy_file", "Copy file to playlist folder", self.scan_controller.action_copy_local_file)
+                    2, ("copy_file", "Copy file to playlist folder", self.action_copy_local_file)
                 )
 
         actions = {key: handler for key, _label, handler in entries}
@@ -812,10 +818,10 @@ class DiggerApp(
         return self.crate_controller.on_button_pressed(*args, **kwargs)
 
     def action_remove_track(self, *args, **kwargs):
-        return self.crate_controller.action_remove_track(*args, **kwargs)
+        self.run_worker(self.crate_controller.action_remove_track(*args, **kwargs), description="remove_track")
 
     def action_undo_remove(self, *args, **kwargs):
-        return self.crate_controller.action_undo_remove(*args, **kwargs)
+        self.run_worker(self.crate_controller.action_undo_remove(*args, **kwargs), description="undo_remove")
 
     def action_filter_index(self, *args, **kwargs):
         return self.filter_controller.action_filter_index(*args, **kwargs)
@@ -854,13 +860,13 @@ class DiggerApp(
         return self.filter_controller.on_input_submitted(*args, **kwargs)
 
     def action_mark_got(self, *args, **kwargs):
-        return self.table_controller.action_mark_got(*args, **kwargs)
+        self.run_worker(self.table_controller.action_mark_got(*args, **kwargs), description="mark_got")
 
     def action_mark_skip(self, *args, **kwargs):
-        return self.table_controller.action_mark_skip(*args, **kwargs)
+        self.run_worker(self.table_controller.action_mark_skip(*args, **kwargs), description="mark_skip")
 
     def action_mark_new(self, *args, **kwargs):
-        return self.table_controller.action_mark_new(*args, **kwargs)
+        self.run_worker(self.table_controller.action_mark_new(*args, **kwargs), description="mark_new")
 
     def action_play_pause(self, *args, **kwargs):
         return self.playback_controller.action_play_pause(*args, **kwargs)
@@ -884,10 +890,10 @@ class DiggerApp(
         return self.playback_controller.action_mute(*args, **kwargs)
 
     def action_download_track(self, *args, **kwargs):
-        return self.download_controller.action_download_track(*args, **kwargs)
+        self.run_worker(self.download_controller.action_download_track(*args, **kwargs), description="download_track")
 
     def action_batch_download(self, *args, **kwargs):
-        return self.download_controller.action_batch_download(*args, **kwargs)
+        self.run_worker(self.download_controller.action_batch_download(*args, **kwargs), description="batch_download")
 
     def action_open_link(self, *args, **kwargs):
         return self.opening_controller.action_open_link(*args, **kwargs)
@@ -917,10 +923,10 @@ class DiggerApp(
         return self.opening_controller.action_open_beatport_tracks(*args, **kwargs)
 
     def action_copy_path(self, *args, **kwargs):
-        return self.scan_controller.action_copy_path(*args, **kwargs)
+        self.run_worker(self.scan_controller.action_copy_path(*args, **kwargs), description="copy_path")
 
     def action_copy_local_file(self, *args, **kwargs):
-        return self.scan_controller.action_copy_local_file(*args, **kwargs)
+        self.run_worker(self.scan_controller.action_copy_local_file(*args, **kwargs), description="copy_local_file")
 
     def update_status(self):
         self.table_controller.update_status()

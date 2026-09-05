@@ -5,8 +5,8 @@
 - Product version verified: 1.0.0
 - Owner: Filip Białogrecki
 - Updated: 2026-09-04
-- Document lines: <!-- SPEC TOTAL LINES -->1154<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1154<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1159<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1159<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -65,48 +65,48 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 5.1 | ↳ Entry, orchestration, and models | 472–482 |
 | 5.2 | ↳ Network and external-system adapters | 483–501 |
 | 5.3 | ↳ Persistence, local media, and UI | 502–526 |
-| 6 | Runtime architecture and environments | 527–613 |
+| 6 | Runtime architecture and environments | 527–618 |
 | 6.1 | ↳ Runtime and dependencies | 529–542 |
-| 6.2 | ↳ Concurrency and lifecycle | 543–598 |
-| 6.3 | ↳ Local paths and environment variables | 599–613 |
-| 7 | Data model and persistence | 614–695 |
-| 7.1 | ↳ Domain objects and identity | 616–630 |
-| 7.2 | ↳ SQLite schema and invariants | 631–663 |
-| 7.3 | ↳ Crate persistence and deletion | 664–679 |
-| 7.4 | ↳ Configuration and credential stores | 680–695 |
-| 8 | Public interfaces and contracts | 696–741 |
-| 8.1 | ↳ CLI arguments and exit behavior | 698–717 |
-| 8.2 | ↳ JSON and CSV summary input | 718–732 |
-| 8.3 | ↳ URL-opening contract | 733–741 |
-| 9 | Authentication and authorization | 742–785 |
-| 9.1 | ↳ SoundCloud authentication | 744–764 |
-| 9.2 | ↳ Gate action consent | 765–785 |
-| 10 | External integrations | 786–918 |
-| 10.1 | ↳ SoundCloud API and media | 788–799 |
-| 10.2 | ↳ Link hubs and download gates | 800–859 |
-| 10.2 · block | ↳ ↳ Hypeddit | 808–845 |
-| 10.2 · block | ↳ ↳ Other resolvers | 847–852 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 854–859 |
-| 10.3 | ↳ Browsers and clipboard | 860–871 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 872–918 |
-| 11 | Security requirements and threat model | 919–973 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 921–939 |
-| 11.2 | ↳ Secret and personal-data handling | 940–955 |
-| 11.3 | ↳ File and mutation safety | 956–973 |
-| 12 | Privacy, lifecycle, and retention | 974–1012 |
-| 12.1 | ↳ Data stored locally | 976–991 |
-| 12.2 | ↳ Data sent to third parties | 992–1003 |
-| 12.3 | ↳ User-controlled deletion | 1004–1012 |
-| 13 | Failure behavior and current limitations | 1013–1067 |
-| 13.1 | ↳ Error isolation and reporting | 1015–1034 |
-| 13.2 | ↳ Confirmed limitations | 1035–1067 |
-| 14 | Verification, CI, and release | 1068–1132 |
-| 14.1 | ↳ Offline and live test suites | 1070–1101 |
-| 14.2 | ↳ Continuous integration and publishing | 1102–1117 |
-| 14.3 | ↳ Specification-map verification | 1118–1132 |
-| 15 | Evidence and operational references | 1133–1154 |
-| 15.1 | ↳ Primary implementation evidence | 1135–1147 |
-| 15.2 | ↳ User and historical documentation | 1148–1154 |
+| 6.2 | ↳ Concurrency and lifecycle | 543–603 |
+| 6.3 | ↳ Local paths and environment variables | 604–618 |
+| 7 | Data model and persistence | 619–700 |
+| 7.1 | ↳ Domain objects and identity | 621–635 |
+| 7.2 | ↳ SQLite schema and invariants | 636–668 |
+| 7.3 | ↳ Crate persistence and deletion | 669–684 |
+| 7.4 | ↳ Configuration and credential stores | 685–700 |
+| 8 | Public interfaces and contracts | 701–746 |
+| 8.1 | ↳ CLI arguments and exit behavior | 703–722 |
+| 8.2 | ↳ JSON and CSV summary input | 723–737 |
+| 8.3 | ↳ URL-opening contract | 738–746 |
+| 9 | Authentication and authorization | 747–790 |
+| 9.1 | ↳ SoundCloud authentication | 749–769 |
+| 9.2 | ↳ Gate action consent | 770–790 |
+| 10 | External integrations | 791–923 |
+| 10.1 | ↳ SoundCloud API and media | 793–804 |
+| 10.2 | ↳ Link hubs and download gates | 805–864 |
+| 10.2 · block | ↳ ↳ Hypeddit | 813–850 |
+| 10.2 · block | ↳ ↳ Other resolvers | 852–857 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 859–864 |
+| 10.3 | ↳ Browsers and clipboard | 865–876 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 877–923 |
+| 11 | Security requirements and threat model | 924–978 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 926–944 |
+| 11.2 | ↳ Secret and personal-data handling | 945–960 |
+| 11.3 | ↳ File and mutation safety | 961–978 |
+| 12 | Privacy, lifecycle, and retention | 979–1017 |
+| 12.1 | ↳ Data stored locally | 981–996 |
+| 12.2 | ↳ Data sent to third parties | 997–1008 |
+| 12.3 | ↳ User-controlled deletion | 1009–1017 |
+| 13 | Failure behavior and current limitations | 1018–1072 |
+| 13.1 | ↳ Error isolation and reporting | 1020–1039 |
+| 13.2 | ↳ Confirmed limitations | 1040–1072 |
+| 14 | Verification, CI, and release | 1073–1137 |
+| 14.1 | ↳ Offline and live test suites | 1075–1106 |
+| 14.2 | ↳ Continuous integration and publishing | 1107–1122 |
+| 14.3 | ↳ Specification-map verification | 1123–1137 |
+| 15 | Evidence and operational references | 1138–1159 |
+| 15.1 | ↳ Primary implementation evidence | 1140–1152 |
+| 15.2 | ↳ User and historical documentation | 1153–1159 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -549,6 +549,10 @@ calls participate in the same transaction. Synchronous callers use workers;
 connection and cursor objects never cross the owner boundary. `TrackState`
 serializes compound status/provenance updates and updates its in-memory mirrors
 only after commit. Painting rows reads the mirrors, without per-row SQLite reads.
+Missing-file observations carry a per-track revision: a stale scan cannot clear
+a newer completed download or manual status decision. Certain positive matches
+retain the 1.0 rule allowing `got` after `skip`. Status actions run as workers so
+keyboard navigation remains available while a write waits.
 Another process writing the same database is not reconciled.
 
 `OperationCoordinator` admits one main operation (dig/refresh, download, local
@@ -580,9 +584,10 @@ Shutdown first refuses new operations and signals cancellation/dialogs. Worker
 scopes count actual thread execution, including account verification. Asynchronous
 I/O waits for its thread to settle on cancellation. Prepared media is discarded;
 worker-owned clients/audio resources close after active workers, with SQLite
-last. Asynchronous Playwright close retains its five-second limit. After
-`App.run()`, `run_tui` retains the three-second non-daemon thread grace and forced
-exit fallback; SIGINT after restoring the terminal exits with status 130.
+last. Asynchronous Playwright close retains its five-second local timeout. The
+three-second emergency exit guard starts during unmount, covering asyncio thread
+draining before `App.run()` returns; lingering non-daemon threads after return
+also have a bounded grace. SIGINT after restoring the terminal exits with status 130.
 Resources in use by an unfinished thread are not closed underneath it.
 
 Cart automation uses Playwright's asynchronous API on Textual's event loop.

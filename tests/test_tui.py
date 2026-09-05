@@ -3756,7 +3756,7 @@ def test_soundcloud_login_refreshes_the_client_then_retries_once(
     assert old.calls == 1
     assert old.closed is True
     assert new.calls == 1
-    assert refreshed_with == ["hidden-token"]
+    assert refreshed_with == [None], "the adopted client must read current persisted credentials"
     assert state.get(record.track.key) == GOT
 
 
@@ -3774,7 +3774,7 @@ def test_a_soundcloud_login_retires_the_client_after_workers_settle(state):
                 assert app.download_controller._adopt_login("fresh-token") is True
                 assert app._client is not client
                 assert client.closed is False
-                assert app._client._oauth_token == "fresh-token"
+                assert app._client._oauth_token is None
     run(scenario)
     assert client.closed is True
 
@@ -4904,5 +4904,62 @@ def test_stale_coalesced_bytes_cannot_change_a_new_operation(state):
             app.download_controller._update_track_progress("1", .5, old.id)
             assert "1" not in app.download_state.download_progress
             app.services.operations.finish(newer)
+
+    run(scenario)
+
+
+def test_keyboard_navigation_remains_available_while_a_status_write_waits(state, monkeypatch):
+    app = make_app(synthetic_records(3), state)
+    entered, release = Event(), Event()
+    original = state.db.set_track_state
+
+    def blocked(*args):
+        entered.set()
+        assert release.wait(3), "test must release its fake database lock"
+        return original(*args)
+
+    monkeypatch.setattr(state.db, "set_track_state", blocked)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            table = app.query_one("#tracks", TrackTable)
+            mark = asyncio.create_task(pilot.press("g"))
+            move = None
+            try:
+                while not entered.is_set():
+                    await asyncio.sleep(.001)
+                move = asyncio.create_task(pilot.press("down"))
+                await asyncio.sleep(.15)
+                cursor_during_write = table.cursor_row
+            finally:
+                release.set()
+                await asyncio.gather(mark, *([move] if move else []))
+            assert cursor_during_write == 1
+            assert table.cursor_row == 1, "late status completion must not advance the moved cursor"
+
+    run(scenario)
+
+
+def test_loaded_a_keyboard_intent_invalidates_pending_b(state, monkeypatch):
+    app = player_app(synthetic_records(2), state)
+    asked = []
+    monkeypatch.setattr(app.playback_controller, "fetch_audio", lambda track, generation: asked.append((track, generation)))
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            controller = app.playback_controller
+            a, b = [row.track for row in app.playlist_state.rows]
+            controller._audio_ready(a, a_stream(), [])
+            table = app.query_one("#tracks", TrackTable)
+            table.move_cursor(row=1)
+            await pilot.press("space")
+            table.move_cursor(row=0)
+            await pilot.press("space")
+            assert asked[-1][0].key == b.key
+            source = FakeSource()
+            controller._audio_ready(b, a_stream(), [], source, asked[-1][1])
+            assert source.closed
+            assert app.player.loaded.track.key == a.key
 
     run(scenario)

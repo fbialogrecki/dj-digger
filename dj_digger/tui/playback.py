@@ -226,6 +226,8 @@ class PlaybackController:
             return
         loaded = self.player.loaded
         if loaded is not None and loaded.track.key == row.track.key:
+            self.audio_state._playback_generation += 1
+            self._player_bar().message = ""
             self._player_op(self.player.toggle)
             self._wake()
             return

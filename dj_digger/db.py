@@ -157,7 +157,7 @@ class Database:
 
     def crate_generation(self, source: str) -> str:
         with self._generation_lock:
-            return self._generations.setdefault(source, uuid4().hex)
+            return self._generations.get(source, "initial")
 
     def snapshot_generations(self):
         with self._generation_lock:
@@ -169,7 +169,7 @@ class Database:
         source = incoming["source"]
         with self.connection(write=True):
             if isinstance(generation, dict):
-                if generation.get(source) != self.snapshot_generations().get(source):
+                if generation.get(source, "initial") != self.crate_generation(source):
                     return None
             elif generation is not None and self.crate_generation(source) != generation:
                 return None

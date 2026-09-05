@@ -12,6 +12,7 @@ JSON import path; a state.json written by an older version is left alone.
 
 import logging
 import threading
+from dataclasses import dataclass
 from pathlib import Path
 
 from .db import database
@@ -23,6 +24,21 @@ GOT = "got"
 STATUSES = (NEW, OPENED, SKIP, GOT)
 
 LOGGER = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class FileObservation:
+    path: str | None
+    revision: int
+
+
+@dataclass(frozen=True)
+class FileMatch:
+    key: str
+    path: str | None
+    confident: bool
+    stale: bool
+    revision: int
 
 
 class TrackState:
@@ -39,6 +55,7 @@ class TrackState:
         # writing the same database is not something the TUI has ever handled.
         self._statuses: dict[str, str] | None = None
         self._files: dict[str, str] | None = None
+        self._revisions: dict[str, int] = {}
 
     @property
     def path(self) -> Path:
@@ -83,6 +100,7 @@ class TrackState:
                 self._files.pop(str(key), None)
 
     def _remember(self, key: str, status: str) -> None:
+        self._revisions[str(key)] = self._revisions.get(str(key), 0) + 1
         if status == NEW:
             self._statuses.pop(str(key), None)
         else:
@@ -114,15 +132,23 @@ class TrackState:
             self._remember(key, status)
             return True
 
-    def apply_file_matches(self, matches: list[tuple[str, str | None, bool, bool]]) -> None:
+    def observe_file(self, key: str) -> FileObservation:
+        """Read provenance and its revision together before inspecting the disk."""
+        with self._lock:
+            self._load()
+            return FileObservation(self._files.get(str(key)), self._revisions.get(str(key), 0))
+
+    def apply_file_matches(self, matches: list[FileMatch]) -> None:
         """Commit one scanner batch, then publish its status/provenance mirrors."""
         with self._lock:
             self._load()
             updates = []
-            for key, path, confident, stale in matches:
+            for match in matches:
+                key, path = match.key, match.path
+                confident, stale = match.confident, match.stale
                 if path and confident:
                     updates.append((key, GOT, path))
-                elif stale and (key in self._files or self.get(key) == GOT):
+                elif stale and match.revision == self._revisions.get(key, 0) and (key in self._files or self.get(key) == GOT):
                     status = NEW if self.get(key) == GOT else self.get(key)
                     updates.append((key, status, None))
             self.db.set_track_states(updates)
