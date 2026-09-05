@@ -45,5 +45,18 @@ jobs:
       # --extra dev, because pytest lives in an optional dependency rather than
       # in the default set: without it uv resolves an environment that cannot
       # run the suite at all.
+      - name: Install FFmpeg (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install FFmpeg (macOS)
+        if: runner.os == 'macOS'
+        run: command -v ffmpeg || brew install ffmpeg
+      - name: Install FFmpeg (Windows)
+        if: runner.os == 'Windows'
+        run: choco install ffmpeg --yes --no-progress
       - name: Run tests
-        run: uv run --frozen --extra dev --python ${{ matrix.python-version }} pytest
+        run: uv run --frozen --extra dev --extra analyze --python ${{ matrix.python-version }} pytest
+      - name: Build and verify isolated installation
+        run: |
+          uv build
+          uv run --no-sync --python ${{ matrix.python-version }} python scripts/package_smoke.py

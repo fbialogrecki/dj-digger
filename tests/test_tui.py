@@ -317,6 +317,7 @@ def test_choosing_a_theme_in_settings_persists_it(records, state):
         async with app.run_test() as pilot:
             await pilot.pause()
             await pilot.press("s")
+            await app.workers.wait_for_complete()
             await pilot.pause()
             assert isinstance(app.screen, SettingsScreen)
             app.screen.query_one("#input-theme", Select).value = "nord"
@@ -1010,7 +1011,7 @@ def test_soundiiz_import_posts_the_tracklist_and_returns_its_review_url(monkeypa
     assert posted["url"] == "https://soundiiz.com/go/import-playlist"
     assert posted["json"] == {
         "title": "Dig finds",
-        "sourceName": "dj-soundcloud-digger",
+        "sourceName": "dj-digger",
         "destination": "beatport",
         "tracklist": [{"title": "Lights On", "artists": ["Revan"]}],
     }
@@ -5112,5 +5113,45 @@ def test_queued_mark_is_discarded_when_the_playlist_changes(state, monkeypatch):
                 release.set()
             await app.workers.wait_for_complete()
             assert state.get('500') == 'new'
+
+    run(scenario)
+
+
+def test_local_explorer_and_export_dialog_defaults(state, tmp_path, monkeypatch):
+    from textual.widgets import Checkbox, Tree
+
+    from dj_digger.services.local_library import LocalLibrary
+    from dj_digger.tui.local_screens import ExportOptions
+
+    path = tmp_path / 'local.wav'
+    path.write_bytes(b'not decoded in this UI test')
+    local = LocalLibrary(state.db)
+    track = local.register(path)
+    monkeypatch.setattr(LocalLibrary, 'register', lambda self, path, **kwargs: track)
+    app = make_app([], state)
+
+    async def scenario():
+        async with app.run_test(size=(140, 50)) as pilot:
+            app.local_controller.open(tmp_path)
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            assert len(app.playlist_state.rows) == 1
+            assert app.playlist_state.rows[0].records == []
+            assert app.playlist_state.rows[0].track.local_id
+            assert app.query_one('#explorer', Tree)
+            app.action_local_export()
+            await pilot.pause()
+            assert isinstance(app.screen, ExportOptions)
+            assert app.screen.profile().bits == 24
+            assert app.screen.profile().rate == 48000
+            assert not app.screen.query_one('#replace', Checkbox).value
+            await pilot.press('escape')
+            app.action_local_edit()
+            await pilot.pause()
+            app.screen.query_one('#bpm', Input).value = '128'
+            app.screen.query_one('#save', Button).press()
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            assert app.playlist_state.rows[0].track.bpm == 128
 
     run(scenario)
