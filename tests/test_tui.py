@@ -556,6 +556,7 @@ def test_marking_got_persists_and_moves_on(records, state):
     async def scenario():
         async with app.run_test() as pilot:
             await pilot.press("g")
+            await settle(app, pilot)
             assert state.get(records[0].track.key) == GOT
             # Cursor should have advanced so you can keep hammering the key.
             assert app.query_one("#tracks", DataTable).cursor_row == 1
@@ -572,6 +573,7 @@ def test_skipping_persists(records, state):
     async def scenario():
         async with app.run_test() as pilot:
             await pilot.press("k")
+            await settle(app, pilot)
 
     run(scenario)
     assert state.get(records[0].track.key) == SKIP
@@ -623,6 +625,7 @@ def test_unmarking_clears_the_status(records, state):
     async def scenario():
         async with app.run_test() as pilot:
             await pilot.press("u")
+            await settle(app, pilot)
 
     run(scenario)
     assert state.get(records[0].track.key) == "new"
@@ -1551,7 +1554,7 @@ def test_sorting_survives_a_mark(state):
             await pilot.press("t")
             await pilot.press("t")
             await pilot.press("g")
-            await pilot.pause()
+            await settle(app, pilot)
             assert [row.position for row in app.playlist_state.visible_rows] == [2, 3, 1]
 
     run(scenario)
@@ -1609,7 +1612,7 @@ def test_marking_a_selection_marks_every_selected_row(state):
             await pilot.press("down")
             await pilot.press("v")
             await pilot.press("g")
-            await pilot.pause()
+            await settle(app, pilot)
 
     run(scenario)
     assert [state.get(r.track.key) for r in records] == [GOT, "new", GOT]
@@ -2169,7 +2172,7 @@ def test_removing_keeps_the_active_filter(state):
             await pilot.press("1")  # bandcamp, the only store here
             assert app.playlist_state.store_filters == {"bandcamp"}
             await pilot.press("x")
-            await pilot.pause()
+            await settle(app, pilot)
             # A removal must not reset what you filtered down to.
             assert app.playlist_state.store_filters == {"bandcamp"}
             assert app.query_one("#tracks", DataTable).row_count == 2
@@ -2184,7 +2187,7 @@ def test_removing_without_a_saved_crate_is_refused_not_a_crash(records, state):
         async with app.run_test() as pilot:
             assert app.playlist_state.crate is None
             await pilot.press("x")
-            await pilot.pause()
+            await settle(app, pilot)
             assert app.query_one("#tracks", DataTable).row_count == len(records)
 
     run(scenario)
@@ -2198,7 +2201,7 @@ def test_undo_with_nothing_removed_is_harmless(state):
         async with app.run_test() as pilot:
             await pilot.pause()
             await pilot.press("ctrl+z")
-            await pilot.pause()
+            await settle(app, pilot)
             assert app.query_one("#tracks", DataTable).row_count == 2
 
     run(scenario)
@@ -2699,7 +2702,7 @@ def test_marking_the_track_you_are_hearing_moves_listening_on_too(state, monkeyp
             await pilot.press("space")
             await pilot.pause()
             await pilot.press("k")
-            await pilot.pause()
+            await settle(app, pilot)
             assert app.query_one("#tracks", DataTable).cursor_row == 1
 
     run(scenario)
@@ -2718,7 +2721,7 @@ def test_marking_a_track_you_are_not_hearing_leaves_playback_alone(state, monkey
             await pilot.pause()
             table.move_cursor(row=2)
             await pilot.press("k")
-            await pilot.pause()
+            await settle(app, pilot)
 
     run(scenario)
     assert started == [1]
@@ -3972,7 +3975,7 @@ def test_a_row_that_is_about_to_be_hidden_is_not_lit(state):
         async with app.run_test() as pilot:
             await pilot.press("h")  # hide handled
             await pilot.press("g")
-            await pilot.pause()
+            await settle(app, pilot)
             assert app.query_one("#tracks", DataTable).row_count == 2
 
     run(scenario)
@@ -4519,6 +4522,7 @@ def test_context_menu_can_copy_a_local_track_into_the_playlist_folder(
 
     async def scenario():
         async with app.run_test() as pilot:
+            await settle(app, pilot)
             await pilot.click("#tracks", offset=(10, 1), button=3)
             await pilot.pause()
             assert isinstance(app.screen, ContextMenuScreen)
@@ -5034,7 +5038,7 @@ def test_cancelling_profile_write_holds_download_slot_and_does_not_open_late_aut
                         break
                 app.screen.query_one('#gate-profile-name', Input).value = 'Test'
                 app.screen.query_one('#gate-profile-email', Input).value = 'test@example.com'
-                await pilot.click('#gate-profile-save')
+                app.screen.query_one('#gate-profile-save', Button).press()
                 assert await asyncio.to_thread(entered.wait, 2)
                 handle = app.services.operations.active()
                 await pilot.press('ctrl+x')
