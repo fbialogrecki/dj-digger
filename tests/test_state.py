@@ -1,8 +1,8 @@
 
 import pytest
 
-from dj_digger.models import Track
-from dj_digger.state import GOT, NEW, SKIP, TrackState
+from dj_digger.models import GOT, NEW, SKIP, Track
+from dj_digger.state import TrackState
 
 
 def test_unknown_tracks_start_as_new(tmp_path):
@@ -113,3 +113,19 @@ def test_a_set_updates_the_cache_and_the_database(tmp_path):
     assert state.clear_local_file("2") is True
     assert state.get("2") == NEW
     assert state.clear_local_file("2") is False
+
+
+def test_status_and_provenance_rollback_together(tmp_path, monkeypatch):
+    state = TrackState(db_path=tmp_path / 'state.db')
+    state.set('one', 'skip')
+    original = state.db.set_track_local_file
+    def fail(key, path):
+        original(key, path)
+        raise OSError('commit failed')
+    monkeypatch.setattr(state.db, 'set_track_local_file', fail)
+    with pytest.raises(OSError, match='commit failed'):
+        state.set_local_file('one', '/finished.wav')
+    assert state.get('one') == 'skip'
+    assert state.local_file('one') is None
+    assert state.db.all_track_statuses() == {'one': 'skip'}
+    assert state.db.all_track_local_files() == {}

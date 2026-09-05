@@ -1,208 +1,210 @@
 """Matching the crate against audio files you already have on disk.
 
-Mixed into ``DiggerApp``; the attributes these reach for are set up in its
-``__init__``.
+Composed by ``DiggerApp`` with explicit state and presentation callbacks.
 """
 
 import logging
-import os
-import shutil
-import tempfile
-from contextlib import suppress
+from copy import deepcopy
+from functools import partial
 from pathlib import Path
 
-from textual import work
-
-from .. import library as library_module
-from ..paths import unique_target
-from ..scanner import LocalScanner, copy_to_clipboard
-from ..state import GOT
+from ..clipboard import copy_to_clipboard
 
 LOGGER = logging.getLogger(__name__)
 
 
-class LibraryScanMixin:
+class LibraryScanController:
     """Matching the crate against audio files you already have on disk."""
 
-    def _forget_missing_local_file(self, track) -> bool:
-        if not track.local_path or Path(track.local_path).is_file():
-            return False
-        was_file_backed = self.state.clear_local_file(track.key)
-        if not was_file_backed and self.state.get(track.key) == GOT:
-            # Compatibility with auto-GOT rows created before file provenance
-            # was stored separately.
-            self.state.set(track.key, "new")
-        track.local_path = None
-        return True
+    def __init__(
+        self,
+        *,
+        _download_directory,
+        _main_available,
+        _paint_key,
+        call_from_thread,
+        get_config,
+        current_row,
+        download_service,
+        finish_job,
+        notify,
+        operations,
+        playlist_state,
+        refresh_rows,
+        run_worker,
+        scan_state,
+        show_error,
+        start_job,
+        state,
+        update_status,
+        worker_scope,
+        library_service,
+        io,
+    ):
+        self.io = io
+        self._download_directory = _download_directory
+        self._main_available = _main_available
+        self._paint_key = _paint_key
+        self.call_from_thread = call_from_thread
+        self.get_config = get_config
+        self.current_row = current_row
+        self.download_service = download_service
+        self.finish_job = finish_job
+        self.notify = notify
+        self.operations = operations
+        self.playlist_state = playlist_state
+        self.refresh_rows = refresh_rows
+        self.run_worker = run_worker
+        self.scan_state = scan_state
+        self.show_error = show_error
+        self.start_job = start_job
+        self.state = state
+        self.library_service = library_service
+        self.update_status = update_status
+        self.worker_scope = worker_scope
 
-    def _mark_existing_local_file(self, track) -> bool:
-        remembered = self.state.local_file(track.key)
-        if remembered:
-            track.local_path = remembered
-        if self._forget_missing_local_file(track) or not track.local_path:
-            return False
-        if self.state.get(track.key) != GOT or remembered != track.local_path:
-            self.state.set_local_file(track.key, track.local_path)
-        return True
+    @property
+    def config(self):
+        return self.get_config()
 
-    def _local_file_needs_copy(self, track) -> bool:
-        if not track.local_path:
-            return False
-        source = Path(track.local_path)
-        if not source.is_file():
-            return False
-        return not source.resolve().is_relative_to(self._download_directory().resolve())
+    async def _forget_missing_local_file(self, track) -> bool:
+        snapshot = deepcopy(track)
+        missing = await self.io(self.library_service.forget_missing, snapshot)
+        track.local_path = snapshot.local_path
+        return missing
 
-    @work(thread=True, group="scan")
-    def scan_local_files(self) -> None:
-        """Walk the configured folders in the background, then mark what turns up.
+    async def _mark_existing_local_file(self, track) -> bool:
+        snapshot = deepcopy(track)
+        found = await self.io(self.library_service.mark_existing, snapshot)
+        track.local_path = snapshot.local_path
+        return found
 
-        The group is spelled out because the default one is shared, and
-        ``dig_in_background`` sits in it with ``exclusive=True`` - so digging a
-        link would cancel a scan that happened to still be running.
-        """
+    async def _local_file_needs_copy(self, track) -> bool:
+        return await self.io(self.library_service.needs_copy, track.local_path, self._download_directory())
 
-        scanner = LocalScanner(
-            directories=[Path(d).expanduser() for d in self.config.scan_directories],
-            # The status store already holds a connection to this database; a
-            # second Database means a second pool and a second legacy import.
-            db=self.state.db,
-        )
-        self._scan_cancel.clear()
-        try:
-            self.call_from_thread(
-                self.start_job, "Scanning", cancel=self._scan_cancel, animate=False
-            )
+    def scan_local_files_work(self, tracks, directories, view, handle) -> None:
+        with self.worker_scope():
+            """Walk the configured folders in the background, then mark what turns up.
+
+            The group is spelled out because the default one is shared, and
+            ``dig_in_background`` sits in it with ``exclusive=True`` - so digging a
+            link would cancel a scan that happened to still be running.
+            """
+
+            scanner = self.library_service.scanner(directories)
             try:
-                scanned = scanner.scan(cancel=self._scan_cancel)
-            except OSError as exc:
-                LOGGER.warning("Local scan stopped early: %s", exc)
-                self.call_from_thread(self.show_error, f"Scan stopped: {exc}")
-                self.call_from_thread(self.finish_job)
-                return
-            LOGGER.info("Scanned %s new local files", scanned)
-            if scanner.errors:
-                shown = "; ".join(scanner.errors[:3])
-                more = len(scanner.errors) - 3
-                self.call_from_thread(
-                    self.show_error,
-                    f"Scan skipped {len(scanner.errors)} unreadable folder"
-                    f"{'s' if len(scanner.errors) != 1 else ''}: {shown}"
-                    + (f" (+{more} more)" if more > 0 else ""),
-                )
-            self.call_from_thread(self.apply_local_file_matches, scanner)
-            self.call_from_thread(self.finish_job)
-        except RuntimeError:
-            # A thread worker cannot be interrupted, so a scan that outlives the
-            # app arrives here with nothing left to talk to.
-            LOGGER.debug("Scan finished after the app had gone")
+                try:
+                    scanned = scanner.scan(cancel=self.scan_state._scan_cancel)
+                except OSError as exc:
+                    LOGGER.warning("Local scan stopped early: %s", exc)
+                    self.call_from_thread(self.show_error, f"Scan stopped: {exc}")
+                    self.call_from_thread(self.finish_job, handle)
+                    return
+                LOGGER.info("Scanned %s new local files", scanned)
+                if scanner.errors:
+                    shown = "; ".join(scanner.errors[:3])
+                    more = len(scanner.errors) - 3
+                    self.call_from_thread(
+                        self.show_error,
+                        f"Scan skipped {len(scanner.errors)} unreadable folder"
+                        f"{'s' if len(scanner.errors) != 1 else ''}: {shown}"
+                        + (f" (+{more} more)" if more > 0 else ""),
+                    )
+                paths = self.library_service.match_tracks(tracks, scanner)
+                self.call_from_thread(self._apply_paths, paths, view)
+                self.call_from_thread(self.finish_job, handle)
+            except RuntimeError:
+                # A thread worker cannot be interrupted, so a scan that outlives the
+                # app arrives here with nothing left to talk to.
+                LOGGER.debug("Scan finished after the app had gone")
+            finally:
+                if "handle" in locals():
+                    self.operations.finish(handle)
 
-    def apply_local_file_matches(self, scanner: LocalScanner) -> None:
-        """Badge every track we have a file for, but only promote the certain ones.
+    async def apply_local_file_matches(self, scanner) -> None:
+        view = self.playlist_state._view_generation
+        tracks = deepcopy([row.track for row in self.playlist_state.rows])
+        paths = await self.io(self.library_service.match_tracks, tracks, scanner)
+        self._apply_paths(paths, view)
 
-        A loose match is a title that happens to agree, which is enough to point
-        at a file and nowhere near enough to overwrite a decision. So the badge
-        goes on either way, and the status only moves when artist and title both
-        matched. A confident file match is the strongest available evidence
-        that the track is already owned, so it becomes ``got`` regardless of a
-        stale new, opened or skipped status.
-        """
-
+    def _apply_paths(self, paths, view):
+        if view != self.playlist_state._view_generation:
+            return
         touched = False
-        # No batching any more: this used to run inside state.batched(), which
-        # existed only to stop each mark rewriting the whole of state.json. With
-        # the mirror gone a mark is one SQLite write.
-        for row in self.rows:
-            track = row.track
-            remembered = self.state.local_file(track.key)
-            if remembered:
-                track.local_path = remembered
-            if self._forget_missing_local_file(track):
+        for row in self.playlist_state.rows:
+            if row.track.key in paths:
+                row.track.local_path = paths[row.track.key]
                 touched = True
-            if self._mark_existing_local_file(track):
-                touched = True
-                continue
-            match = scanner.match_track(track)
-            if match is None:
-                if scanner.had_stale_match(track) and self.state.get(track.key) == GOT:
-                    self.state.set(track.key, "new")
-                    touched = True
-                continue
-            track.local_path = match.path
-            touched = True
-            if match.confident:
-                self.state.set_local_file(track.key, match.path)
         if touched:
             self.refresh_rows()
 
-    def action_copy_path(self) -> None:
+    async def action_copy_path(self) -> None:
         row = self.current_row()
         if row is None:
             return
-        if self._forget_missing_local_file(row.track) or not row.track.local_path:
+        if await self._forget_missing_local_file(row.track) or not row.track.local_path:
             self._paint_key(row.track.key)
             self.notify("No local file matched for this track", timeout=3)
             return
-        if copy_to_clipboard(row.track.local_path):
+        if await self.io(copy_to_clipboard, row.track.local_path):
             self.notify(f"Copied {row.track.local_path}", timeout=4)
         else:
             self.notify(
                 "Could not reach a clipboard tool", severity="warning", timeout=5
             )
 
-    def action_copy_local_file(self) -> None:
+    async def action_copy_local_file(self) -> None:
         row = self.current_row()
-        if row is None or not self._local_file_needs_copy(row.track):
+        if row is None or not await self._local_file_needs_copy(row.track):
             self.notify("The local file is unavailable or already in this playlist folder", timeout=4)
             return
         self.notify(f"Copying {row.track.label} to the playlist folder…", timeout=3)
         self.copy_local_file_in_background(row.track)
 
-    @work(thread=True, exclusive=True, group="copy_local_file")
-    def copy_local_file_in_background(self, track) -> None:
-        source = Path(track.local_path or "")
-        try:
-            target = _copy_local_file(source, self._download_directory())
-        except (OSError, ValueError) as exc:
-            self.call_from_thread(
-                self.notify,
-                f"Could not copy local file: {exc}",
-                severity="error",
-                timeout=6,
-            )
-            return
-        self.call_from_thread(self._local_file_copied, track, target)
+    def copy_local_file_in_background(self, track):
+        if not self._main_available():
+            return None
+        handle = self.start_job("Copying")
+        return self._copy_local_worker(deepcopy(track), self._download_directory(), handle)
 
-    def _local_file_copied(self, track, target: Path) -> None:
-        track.local_path = str(target)
-        self.state.set_local_file(track.key, target)
-        if self.crate is not None:
+    def _copy_local_worker_work(self, track, directory, handle):
+        with self.worker_scope():
             try:
-                library_module.save(self.crate)
+                target = self.download_service.copy(
+                    track.key, Path(track.local_path or ""), directory, handle.cancel,
+                )
+                self.call_from_thread(self._local_file_copied, track.key, target)
             except Exception as exc:
-                LOGGER.warning("Could not persist copied local path: %s", exc)
-        self._paint_key(track.key)
+                self.call_from_thread(self.notify, f"Could not copy local file: {exc}", severity="error", timeout=6)
+            finally:
+                self.operations.finish(handle)
+                try:
+                    self.call_from_thread(self.update_status)
+                except RuntimeError:
+                    pass
+
+    def _local_file_copied(self, key, target: Path) -> None:
+        for row in self.playlist_state.rows:
+            if row.track.key == key:
+                row.track.local_path = str(target)
+        self._paint_key(key)
         self.update_status()
         self.notify(f"Copied to {target}", timeout=5)
 
+    def scan_local_files(self):
+        if self.operations.active("scan") is not None:
+            return None
+        self.scan_state._scan_cancel.clear()
+        handle = self.start_job("Scanning", cancel=self.scan_state._scan_cancel, animate=False)
+        tracks = deepcopy([row.track for row in self.playlist_state.rows])
+        return self.run_worker(
+            partial(self.scan_local_files_work, tracks, tuple(self.config.scan_directories),
+                    self.playlist_state._view_generation, handle),
+            thread=True, group="scan", description="scan_local_files",
+        )
 
-def _copy_local_file(source: Path, directory: Path) -> Path:
-    source = source.resolve(strict=True)
-    directory.mkdir(parents=True, exist_ok=True)
-    directory = directory.resolve()
-    if source.is_relative_to(directory):
-        return source
-
-    target = unique_target(directory, source.stem, source.suffix)
-    descriptor, temporary_name = tempfile.mkstemp(
-        prefix=".dj-digger-copy-", suffix=".part", dir=directory
-    )
-    os.close(descriptor)
-    temporary = Path(temporary_name)
-    try:
-        shutil.copy2(source, temporary)
-        os.replace(temporary, target)
-        return target
-    finally:
-        with suppress(OSError):
-            temporary.unlink(missing_ok=True)
+    def _copy_local_worker(self, *args, **kwargs):
+        return self.run_worker(
+            partial(self._copy_local_worker_work, *args, **kwargs), thread=True, group='copy_local_file',
+            description="_copy_local_worker",
+        )

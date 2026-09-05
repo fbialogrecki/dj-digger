@@ -5,7 +5,9 @@ import pytest
 
 from dj_digger import player
 from dj_digger.models import Track
+from dj_digger.services import playback
 from dj_digger.soundcloud import SoundCloudError
+from dj_digger.tui import audio
 
 PROGRESSIVE = {"format": {"protocol": "progressive"}, "url": "https://api/media/prog"}
 HLS = {"format": {"protocol": "hls"}, "url": "https://api/media/hls"}
@@ -28,11 +30,11 @@ class FakeClient:
 
 
 
-def render_waveform(samples, width, played_fraction=0.0, rows=player.WAVEFORM_ROWS, level=0.0):
+def render_waveform(samples, width, played_fraction=0.0, rows=audio.WAVEFORM_ROWS, level=0.0):
     """Compose the two real drawing stages the way the app does."""
 
-    return player.paint_waveform(
-        player.waveform_rows(samples, width, rows), played_fraction, level
+    return audio.paint_waveform(
+        audio.waveform_rows(samples, width, rows), played_fraction, level
     )
 
 def playable_payload(**overrides):
@@ -52,20 +54,20 @@ def playable_payload(**overrides):
 
 
 def test_a_playable_track_has_no_complaint():
-    assert player.unplayable_reason(playable_payload()) is None
+    assert playback.unplayable_reason(playable_payload()) is None
 
 
 def test_a_snipped_track_is_reported():
-    assert "snippet" in player.unplayable_reason(playable_payload(policy="SNIP"))
+    assert "snippet" in playback.unplayable_reason(playable_payload(policy="SNIP"))
 
 
 def test_an_unstreamable_track_is_reported():
-    assert "not streamable" in player.unplayable_reason(playable_payload(streamable=False))
+    assert "not streamable" in playback.unplayable_reason(playable_payload(streamable=False))
 
 
 def test_hls_only_is_reported():
     payload = playable_payload(media={"transcodings": [HLS]})
-    assert "plain MP3" in player.unplayable_reason(payload)
+    assert "plain MP3" in playback.unplayable_reason(payload)
 
 
 # Resolving the stream
@@ -73,7 +75,7 @@ def test_hls_only_is_reported():
 
 def test_resolve_picks_progressive_and_passes_the_authorisation():
     client = FakeClient()
-    stream = player.resolve_stream(client, 1)
+    stream = playback.resolve_stream(client, 1)
 
     assert stream.url == "https://cdn/a.mp3"
     assert stream.waveform_url == "https://wave.sndcdn.com/x.json"
@@ -86,22 +88,22 @@ def test_resolve_reads_the_duration_off_the_payload():
     """Nothing is written to disk, so duration cannot be measured from a file."""
 
     client = FakeClient(playable_payload(full_duration=273000, duration=270000))
-    assert player.resolve_stream(client, 1).duration == pytest.approx(273.0)
+    assert playback.resolve_stream(client, 1).duration == pytest.approx(273.0)
 
 
 def test_duration_falls_back_when_there_is_no_full_duration():
     client = FakeClient(playable_payload(duration=200500))
-    assert player.resolve_stream(client, 1).duration == pytest.approx(200.5)
+    assert playback.resolve_stream(client, 1).duration == pytest.approx(200.5)
 
 
 def test_resolve_refuses_a_snipped_track():
     with pytest.raises(SoundCloudError, match="snippet"):
-        player.resolve_stream(FakeClient(playable_payload(policy="SNIP")), 1)
+        playback.resolve_stream(FakeClient(playable_payload(policy="SNIP")), 1)
 
 
 def test_resolve_complains_when_no_url_comes_back():
     with pytest.raises(SoundCloudError, match="stream URL"):
-        player.resolve_stream(FakeClient(authorized={}), 1)
+        playback.resolve_stream(FakeClient(authorized={}), 1)
 
 
 # Waveform
@@ -118,7 +120,7 @@ def test_the_waveform_fills_every_row_of_the_bar():
     """One row of eight blocks is what made a loud master look like a rectangle."""
 
     rows = str(render_waveform(list(range(50)), 12)).split("\n")
-    assert len(rows) == player.WAVEFORM_ROWS
+    assert len(rows) == audio.WAVEFORM_ROWS
     assert all(len(row) == 12 for row in rows)
 
 
@@ -133,7 +135,7 @@ def test_the_bottom_row_fills_before_the_top():
 
 def test_a_missing_waveform_draws_flat_lines():
     rows = str(render_waveform([], 5)).split("\n")
-    assert rows == ["\u2500" * 5] * player.WAVEFORM_ROWS
+    assert rows == ["\u2500" * 5] * audio.WAVEFORM_ROWS
 
 
 def styled_width(text, style):
@@ -145,45 +147,45 @@ def styled_width(text, style):
 def test_the_played_part_is_styled_differently():
     rendered = render_waveform([100] * 10, 10, played_fraction=0.5, rows=1)
 
-    assert styled_width(rendered, player.PLAYED_STYLE) == 5
-    assert styled_width(rendered, player.UNPLAYED_STYLE) == 5
-    played = [span for span in rendered.spans if span.style == player.PLAYED_STYLE]
-    todo = [span for span in rendered.spans if span.style == player.UNPLAYED_STYLE]
+    assert styled_width(rendered, audio.PLAYED_STYLE) == 5
+    assert styled_width(rendered, audio.UNPLAYED_STYLE) == 5
+    played = [span for span in rendered.spans if span.style == audio.PLAYED_STYLE]
+    todo = [span for span in rendered.spans if span.style == audio.UNPLAYED_STYLE]
     assert max(span.end for span in played) <= min(span.start for span in todo)
 
 
 @pytest.mark.parametrize("fraction,expected_played", [(0.0, 0), (0.5, 5), (1.0, 10)])
 def test_the_progress_boundary_follows_the_fraction(fraction, expected_played):
     rendered = render_waveform([100] * 10, 10, played_fraction=fraction, rows=1)
-    assert styled_width(rendered, player.PLAYED_STYLE) == expected_played
+    assert styled_width(rendered, audio.PLAYED_STYLE) == expected_played
 
 
 def test_a_frame_costs_a_handful_of_spans_not_one_per_column():
     """Thirty frames a second is only affordable because of this."""
 
     rendered = render_waveform([100] * 400, 400, played_fraction=0.5, level=1.0)
-    assert len(rendered.spans) <= 3 * player.WAVEFORM_ROWS
+    assert len(rendered.spans) <= 3 * audio.WAVEFORM_ROWS
 
 
 def test_the_leading_edge_brightens_with_the_level():
     quiet = render_waveform([100] * 60, 60, played_fraction=0.5, rows=1, level=0.0)
     loud = render_waveform([100] * 60, 60, played_fraction=0.5, rows=1, level=1.0)
 
-    assert styled_width(quiet, player.GLOW_STYLES[-1]) == 0
-    assert styled_width(loud, player.GLOW_STYLES[-1]) == player.GLOW_COLUMNS
+    assert styled_width(quiet, audio.GLOW_STYLES[-1]) == 0
+    assert styled_width(loud, audio.GLOW_STYLES[-1]) == audio.GLOW_COLUMNS
 
 
 def test_the_played_history_does_not_flicker_with_it():
     """Only the columns behind the playhead move; the rest is a record."""
 
     loud = render_waveform([100] * 60, 60, played_fraction=0.5, rows=1, level=1.0)
-    assert styled_width(loud, player.PLAYED_STYLE) == 30 - player.GLOW_COLUMNS
+    assert styled_width(loud, audio.PLAYED_STYLE) == 30 - audio.GLOW_COLUMNS
 
 
 def test_the_shape_of_a_track_is_the_same_however_it_is_coloured():
-    rows = player.waveform_rows([100, 20, 140, 60], 4, rows=1)
+    rows = audio.waveform_rows([100, 20, 140, 60], 4, rows=1)
     for level in (0.0, 0.5, 1.0):
-        painted = player.paint_waveform(rows, 0.5, level)
+        painted = audio.paint_waveform(rows, 0.5, level)
         assert str(painted) == rows[0]
 
 
@@ -201,12 +203,12 @@ def settled(meter, level=0.3, frames=30):
 def test_a_steady_sound_does_not_flicker():
     """Left to decay below what is arriving, the release halves it every frame."""
 
-    shown = [player.LevelMeter().feed(0.435) for _ in range(8)]
+    shown = [audio.LevelMeter().feed(0.435) for _ in range(8)]
     assert len(set(shown)) == 1
 
 
 def test_a_hit_shows_at_once_and_falls_away_afterwards():
-    meter = settled(player.LevelMeter())
+    meter = settled(audio.LevelMeter())
     struck = meter.feed(1.0)
     after = [meter.feed(0.3) for _ in range(4)]
 
@@ -218,7 +220,7 @@ def test_a_hit_shows_at_once_and_falls_away_afterwards():
 def test_a_brickwalled_master_still_moves():
     """Measured on a real one: it lives between 0.92 and 1.00 the whole way."""
 
-    meter = player.LevelMeter()
+    meter = audio.LevelMeter()
     shown = []
     for _ in range(40):
         shown.append(meter.feed(1.0))  # the kick
@@ -229,7 +231,7 @@ def test_a_brickwalled_master_still_moves():
 
 
 def test_one_stray_transient_does_not_black_out_the_next_second():
-    meter = settled(player.LevelMeter())
+    meter = settled(audio.LevelMeter())
     meter.feed(1.0)
     recovered = [meter.feed(0.3 if index % 7 else 0.6) for index in range(60)]
 
@@ -237,13 +239,13 @@ def test_one_stray_transient_does_not_black_out_the_next_second():
 
 
 def test_silence_reads_as_silence_rather_than_amplified_hiss():
-    meter = player.LevelMeter()
+    meter = audio.LevelMeter()
     assert meter.feed(0.0) == 0.0
     assert max(meter.feed(0.001) for _ in range(20)) == 0.0
 
 
 def test_a_new_track_starts_the_meter_again():
-    meter = settled(player.LevelMeter())
+    meter = settled(audio.LevelMeter())
     meter.feed(1.0)
     meter.reset()
     assert meter.feed(0.0) == 0.0
@@ -251,7 +253,7 @@ def test_a_new_track_starts_the_meter_again():
 
 @pytest.mark.parametrize("level", [-1.0, 0.0, 0.4, 1.0, 5.0])
 def test_the_glow_never_falls_off_the_end_of_the_palette(level):
-    assert player.glow_style(level) in player.GLOW_STYLES
+    assert audio.glow_style(level) in audio.GLOW_STYLES
 
 
 def test_a_fraction_outside_the_range_is_clamped():
@@ -270,15 +272,15 @@ def test_zero_width_is_not_a_crash():
 
 
 def test_levels_are_measured_against_the_peak():
-    assert player.column_levels([140, 140], 2) == [1.0, 1.0]
-    assert player.column_levels([0, 140], 2)[0] == 0.0
+    assert audio.column_levels([140, 140], 2) == [1.0, 1.0]
+    assert audio.column_levels([0, 140], 2)[0] == 0.0
 
 
 def test_a_loud_master_still_shows_shape():
     """Real samples for a loud track sit at 120-140 out of 140."""
 
     loud = [138, 140, 122, 139, 128, 140, 131, 137]
-    levels = player.column_levels(loud, 8)
+    levels = audio.column_levels(loud, 8)
     # The power curve has to spread the top of the range enough to see.
     assert max(levels) - min(levels) > 0.2
     assert len(set(str(render_waveform(loud, 8, rows=1)))) > 2
@@ -288,7 +290,7 @@ def test_a_track_with_no_dynamics_is_not_faked_into_having_some():
     """Stretching min to max made the flattest track look the most dynamic."""
 
     flat = [130, 131, 130, 132, 131, 130]
-    levels = player.column_levels(flat, 6)
+    levels = audio.column_levels(flat, 6)
     assert max(levels) - min(levels) < 0.1
     assert all(level > 0.8 for level in levels), "a loud flat track must still read loud"
 
@@ -297,21 +299,21 @@ def test_columns_average_rather_than_peak():
     """At ~16 samples per column, taking the peak pins everything to the ceiling."""
 
     samples = [0, 100, 0, 100]
-    assert player.column_levels(samples, 2) == [0.5**player.WAVEFORM_GAMMA] * 2
+    assert audio.column_levels(samples, 2) == [0.5**audio.WAVEFORM_GAMMA] * 2
 
 
 def test_a_flat_waveform_does_not_divide_by_zero():
-    assert player.column_levels([50, 50, 50], 3) == [1.0, 1.0, 1.0]
-    assert player.column_levels([0, 0], 2) == [0.0, 0.0]
+    assert audio.column_levels([50, 50, 50], 3) == [1.0, 1.0, 1.0]
+    assert audio.column_levels([0, 0], 2) == [0.0, 0.0]
 
 
 def test_column_levels_of_nothing():
-    assert player.column_levels([], 5) == []
-    assert player.column_levels([1, 2], 0) == []
+    assert audio.column_levels([], 5) == []
+    assert audio.column_levels([1, 2], 0) == []
 
 
 def test_fetch_waveform_of_nothing_is_empty():
-    assert player.fetch_waveform(FakeClient(), "") == []
+    assert playback.fetch_waveform(FakeClient(), "") == []
 
 
 # Clock
@@ -322,7 +324,7 @@ def test_fetch_waveform_of_nothing_is_empty():
     [(0, "0:00"), (5, "0:05"), (65, "1:05"), (432, "7:12"), (-3, "0:00")],
 )
 def test_format_time(seconds, expected):
-    assert player.format_time(seconds) == expected
+    assert audio.format_time(seconds) == expected
 
 
 # Player state without an audio device
@@ -374,7 +376,7 @@ def test_a_missing_miniaudio_is_reported_not_raised_raw(monkeypatch):
     monkeypatch.setattr(player, "_import_miniaudio", no_miniaudio)
     with pytest.raises(player.PlaybackUnavailable, match="miniaudio"):
         player.Player().load(
-            Track(title="t", permalink_url="u"), player.Stream(url="https://cdn/x.mp3"), None
+            Track(title="t", permalink_url="u"), playback.Stream(url="https://cdn/x.mp3"), None
         )
 
 
@@ -441,7 +443,7 @@ def loaded_player(monkeypatch, chunks=None):
     monkeypatch.setattr(subject, "_open_stream", lambda seek_frame: fake_inner())
     subject._loaded = player.Loaded(
         track=Track(title="t", permalink_url="u"),
-        stream=player.Stream(url="https://cdn/x.mp3", duration=300.0),
+        stream=playback.Stream(url="https://cdn/x.mp3", duration=300.0),
     )
     subject._miniaudio = object()
     return subject, device

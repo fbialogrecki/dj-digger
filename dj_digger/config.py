@@ -11,8 +11,8 @@ import random
 import re
 from pathlib import Path
 
-from .auth import write_private_json
 from .paths import config_dir
+from .private_json import write_private_json
 
 LOGGER = logging.getLogger(__name__)
 

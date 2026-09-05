@@ -14,8 +14,11 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import gates, html_fallback, links, soundcloud
-from .models import Cancelled, Crate, Track, check_cancelled
+from dj_digger.gates import hubs as gate_hubs
+
+from .. import html_fallback, links, soundcloud
+from ..crate_models import CrateRecord
+from ..models import Cancelled, Crate, Track, check_cancelled
 
 # stage, done, total (total is None while it is still unknown)
 ProgressHook = Callable[[str, int, int | None], None]
@@ -56,9 +59,7 @@ class TargetNotFound(ValueError):
     """The target is neither a soundcloud.com link nor a file on disk."""
 
     def __init__(self, target: str) -> None:
-        super().__init__(
-            f"'{target}' is neither a soundcloud.com link nor an existing file."
-        )
+        super().__init__(f"'{target}' is neither a soundcloud.com link nor an existing file.")
         self.target = target
 
 
@@ -174,15 +175,11 @@ def _expand_one(
             check_cancelled(cancel)
             if dead.written_off(url):
                 continue
-            inspection = gates.inspect_link_page(url, session, timeout=hub_timeout)
+            inspection = gate_hubs.inspect_link_page(url, session, timeout=hub_timeout)
             if inspection is None:
                 dead.failed(url)
                 continue
-            if (
-                not inspection.recognized
-                and not inspection.shops
-                and not inspection.gate_urls
-            ):
+            if not inspection.recognized and not inspection.shops and not inspection.gate_urls:
                 continue
             for pair in inspection.shops:
                 if pair not in track.extra_links:
@@ -291,3 +288,52 @@ def dig(
 
     expand_link_hubs(crate.tracks, timeout=timeout, on_progress=on_progress, cancel=cancel)
     return crate
+
+
+@dataclass(frozen=True)
+class CollectionResult:
+    record: CrateRecord | None
+    exported: Path | None
+
+
+class CollectionService:
+    def __init__(self, get_db):
+        self.get_db = get_db
+
+    @property
+    def db(self):
+        return self.get_db()
+
+    def read(self, target, options, *, cancel=None, progress=None):
+        return dig(
+            target,
+            limit=options.limit,
+            timeout=options.timeout,
+            delay=options.delay,
+            on_progress=progress,
+            cancel=cancel,
+        )
+
+    def remember(self, crate, *, generation=None, partial=False):
+        incoming = CrateRecord.from_crate(crate, partial=partial).to_json()
+        raw = self.db.remember_collection(incoming, generation)
+        return CrateRecord.from_json(raw) if raw is not None else None
+
+    def persist(self, crate, generation, export_format, export_path):
+        record = self.remember(crate, generation=generation)
+        if record is None:
+            return CollectionResult(None, None)
+        records = links.categorise_all(record.active_tracks)
+        exported = (
+            links.export_records(records, export_format, export_path)
+            if export_format != "none"
+            else None
+        )
+        return CollectionResult(record, exported)
+
+    def collect(self, target, options, generation, export_format, export_path, cancel, progress):
+        crate = self.read(target, options, cancel=cancel, progress=progress)
+        check_cancelled(cancel)
+        if not crate.tracks:
+            raise ValueError(f"Found no tracks behind {crate.source}")
+        return self.persist(crate, generation, export_format, export_path)

@@ -1,0 +1,10 @@
+# Architecture corpus: current source, tests and operational documentation.
+.agents/
+.claude/
+docs/superpowers/
+CHANGELOG.md
+# Generated commentary must not feed back into extraction.
+docs/graph-notes.md
+graphify-out/
+# Index the fixture-driven tests, not third-party HTML and API payloads.
+tests/fixtures/

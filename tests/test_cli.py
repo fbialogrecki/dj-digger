@@ -1,3 +1,4 @@
+
 import argparse
 import contextlib
 import io
@@ -6,9 +7,9 @@ import logging
 
 import pytest
 
-from dj_digger import cli, library, links
-from dj_digger.dig import TargetNotFound
+from dj_digger import cli, crate_models, library, links
 from dj_digger.models import Crate, LinkRecord, Track
+from dj_digger.services.collection import TargetNotFound
 
 
 @pytest.mark.parametrize(
@@ -239,7 +240,7 @@ def test_no_arguments_opens_the_tui_to_ask(monkeypatch):
     captured = {}
 
     def fake_run(self):
-        captured["records"] = self.rows
+        captured["records"] = self.playlist_state.rows
         captured["options"] = self.dig_options
 
     monkeypatch.setattr("dj_digger.tui.DiggerApp.run", fake_run)
@@ -257,7 +258,7 @@ def test_a_cli_dig_joins_the_library(tmp_path, monkeypatch):
         title="From the CLI",
         tracks=[Track(title="T", permalink_url="https://soundcloud.com/a/t", id=7)],
     )
-    monkeypatch.setattr("dj_digger.dig.dig", lambda target, **kwargs: crate)
+    monkeypatch.setattr("dj_digger.services.collection.dig", lambda target, **kwargs: crate)
 
     assert cli.main(["https://soundcloud.com/a/sets/b", "--no-tui", "-f", "none"]) == 0
     assert [record.title for record in library.list_crates()] == ["From the CLI"]
@@ -271,11 +272,11 @@ def test_a_cli_dig_respects_earlier_local_deletions(tmp_path, monkeypatch):
     ]
     crate = Crate(source="https://soundcloud.com/a/sets/b", title="Crate", tracks=tracks)
 
-    record = library.CrateRecord.from_crate(crate)
+    record = crate_models.CrateRecord.from_crate(crate)
     record.remove("2")
     library.save(record)
 
-    monkeypatch.setattr("dj_digger.dig.dig", lambda target, **kwargs: crate)
+    monkeypatch.setattr("dj_digger.services.collection.dig", lambda target, **kwargs: crate)
     cli.main(["https://soundcloud.com/a/sets/b", "--no-tui", "-f", "json", "-o", "out.json"])
 
     written = json.loads((tmp_path / "out.json").read_text(encoding="utf-8"))

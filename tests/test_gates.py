@@ -7,10 +7,13 @@ import pytest
 import requests
 from bs4 import BeautifulSoup
 
-from dj_digger import gates
+from dj_digger import gate_models
 from dj_digger.config import DEFAULT_NAME
-from dj_digger.gates import (
-    inspect_link_page,
+from dj_digger.gates import browser as gate_browser
+from dj_digger.gates import hubs as gate_hubs
+from dj_digger.gates import providers as gates
+from dj_digger.gates.hubs import inspect_link_page
+from dj_digger.gates.providers import (
     resolve_gate_download_url,
     resolve_gaterush_download_url,
     resolve_hypeddit_download_url,
@@ -390,7 +393,7 @@ def test_a_group_offering_only_provider_logins_still_needs_the_browser():
     )
     session = session_for_gate(page)
 
-    with pytest.raises(gates.GateAuthenticationRequired):
+    with pytest.raises(gate_models.GateAuthenticationRequired):
         resolve_hypeddit_download_url(
             "https://hypeddit.com/track/oauth-only", session, config=StubConfig("dj@example.com")
         )
@@ -451,7 +454,7 @@ def test_download_flow_captcha_reply_is_typed_for_browser_completion():
         download_payload={"download_status": False, "captcha_required": True},
     )
 
-    with pytest.raises(gates.GateCaptchaRequired, match="CAPTCHA"):
+    with pytest.raises(gate_models.GateCaptchaRequired, match="CAPTCHA"):
         resolve_hypeddit_download_url(
             "https://hypeddit.com/track/captcha-reply",
             session,
@@ -536,7 +539,7 @@ def test_a_recognised_empty_smartlink_is_still_a_hub():
 def test_unknown_hypeddit_page_is_a_protocol_error_not_no_download():
     session = session_for_gate("<html><body>new client-rendered gate</body></html>")
 
-    with pytest.raises(gates.GateProtocolChanged, match="no supported download manifest"):
+    with pytest.raises(gate_models.GateProtocolChanged, match="no supported download manifest"):
         resolve_hypeddit_download_url(
             "https://hypeddit.com/future/gate", session, config=StubConfig("dj@example.com")
         )
@@ -581,7 +584,7 @@ def test_hypeddit_page_redirect_to_localhost_is_blocked_before_second_get():
     )
     session.get.return_value = redirect
 
-    with pytest.raises(gates.GateProtocolChanged, match="unsafe address"):
+    with pytest.raises(gate_models.GateProtocolChanged, match="unsafe address"):
         resolve_hypeddit_download_url(
             "https://hypeddit.com/track/x",
             session,
@@ -596,8 +599,8 @@ def test_hypeddit_fallback_shares_the_soundcloud_browser_profile_lock(tmp_path):
 
     assert auth.BROWSER_PROFILE_LOCK.acquire(blocking=False)
     try:
-        with pytest.raises(gates.GateUnavailable, match="profile is already in use"):
-            gates.download_hypeddit_in_browser(
+        with pytest.raises(gate_models.GateUnavailable, match="profile is already in use"):
+            gate_browser.download_hypeddit_in_browser(
                 Track(title="T", permalink_url="https://soundcloud.com/a/t"),
                 "https://hypeddit.com/track/x",
                 tmp_path,
@@ -673,7 +676,7 @@ def test_hypeddit_browser_batch_uses_one_context_and_maps_each_tab_download(
         for index in (1, 2)
     ]
 
-    result = gates.download_hypeddit_batch_in_browser(
+    result = gate_browser.download_hypeddit_batch_in_browser(
         [
             (tracks[0], "https://hypeddit.com/track/one"),
             (tracks[1], "https://hypeddit.com/track/two"),
@@ -811,24 +814,24 @@ class _GatePage:
         return self.steps[self.index] if self.index < len(self.steps) else None
 
     def locator(self, selector):
-        slide = self.index if selector == gates.GATE_CURRENT_SLIDE else None
+        slide = self.index if selector == gate_browser.GATE_CURRENT_SLIDE else None
         return _Control(self, selector, slide)
 
     def count(self, selector, slide):
-        if selector == gates.GATE_CURRENT_SLIDE:
+        if selector == gate_browser.GATE_CURRENT_SLIDE:
             return 1 if self.kind and self.on_gate else 0
-        if selector == gates.GATE_PENDING_ACTION:
+        if selector == gate_browser.GATE_PENDING_ACTION:
             return self.pending.get(slide, 0)
-        if selector == gates.GATE_NAME_INPUT:
+        if selector == gate_browser.GATE_NAME_INPUT:
             return int(self.asks_name)
         return 1
 
     def visible(self, selector):
-        if selector == gates.GATE_START_BUTTON:
+        if selector == gate_browser.GATE_START_BUTTON:
             return self.on_gate and not self.clicked
-        if selector == gates.GATE_CAPTCHA:
+        if selector == gate_browser.GATE_CAPTCHA:
             return self.captcha_shown
-        if selector == gates.HYPEDDIT_DOWNLOAD_BUTTON:
+        if selector == gate_browser.HYPEDDIT_DOWNLOAD_BUTTON:
             return self.kind == "dw"
         return True
 
@@ -838,35 +841,35 @@ class _GatePage:
         return str(slide)
 
     def fill(self, selector, value):
-        if selector == gates.GATE_EMAIL_INPUT:
+        if selector == gate_browser.GATE_EMAIL_INPUT:
             self.email = value
-        elif selector == gates.GATE_NAME_INPUT:
+        elif selector == gate_browser.GATE_NAME_INPUT:
             self.name = value
 
     def click(self, selector, slide):
         self.clicked.append((self.kind, selector))
-        if selector == gates.GATE_PENDING_ACTION:
+        if selector == gate_browser.GATE_PENDING_ACTION:
             self.pending[slide] -= 1
             self._open(_SOCIAL_PAGE)
-        elif selector == gates.GATE_NEXT_BUTTON:
+        elif selector == gate_browser.GATE_NEXT_BUTTON:
             if not self.pending.get(slide):
                 self.index += 1
-        elif selector == gates.GATE_CONNECT_BUTTON:
+        elif selector == gate_browser.GATE_CONNECT_BUTTON:
             if self.late_popup:
                 self.opening = _SPOTIFY_LOGIN  # reaches the client on the next poll
             else:
                 self._open(_SPOTIFY_LOGIN)
-        elif selector == gates.GATE_EMAIL_SUBMIT:
+        elif selector == gate_browser.GATE_EMAIL_SUBMIT:
             if self.captcha:
                 self.captcha_shown = True
             elif self.asks_name and not self.name:
                 pass  # "Please enter your name." - the slide stays.
             else:
                 self.index += 1
-        elif selector == gates.HYPEDDIT_DOWNLOAD_BUTTON:
-            if gates.GATE_DOWNLOAD_COOKIE in self.context.cookies:
+        elif selector == gate_browser.HYPEDDIT_DOWNLOAD_BUTTON:
+            if gate_browser.GATE_DOWNLOAD_COOKIE in self.context.cookies:
                 return  # Hypeddit answers download_status false; nothing arrives
-            self.context.cookies.add(gates.GATE_DOWNLOAD_COOKIE)
+            self.context.cookies.add(gate_browser.GATE_DOWNLOAD_COOKIE)
             self.handlers["download"](_download("gate.wav", b"RIFF-gate"))
 
     def _open(self, url):
@@ -922,7 +925,7 @@ def _gate_browser(monkeypatch, page_factory):
     """Every context the batch opens, as (headless, context), on a clock the fakes advance."""
 
     clock = {"t": 0.0}
-    monkeypatch.setattr(gates, "_now", lambda: clock["t"])
+    monkeypatch.setattr(gate_browser, "_now", lambda: clock["t"])
     launches = []
 
     @contextmanager
@@ -959,14 +962,14 @@ _DJ = _Profile("dj@example.com")
 _PLACEHOLDER = _Profile("digger@example.invalid", real=False)
 _NAMELESS = _Profile("dj@example.com", name=DEFAULT_NAME)
 _WALKED = [
-    gates.GATE_START_BUTTON,
-    gates.GATE_PENDING_ACTION,
-    gates.GATE_NEXT_BUTTON,
-    gates.GATE_CONNECT_BUTTON,
-    gates.GATE_PENDING_ACTION,
-    gates.GATE_NEXT_BUTTON,
-    gates.GATE_EMAIL_SUBMIT,
-    gates.HYPEDDIT_DOWNLOAD_BUTTON,
+    gate_browser.GATE_START_BUTTON,
+    gate_browser.GATE_PENDING_ACTION,
+    gate_browser.GATE_NEXT_BUTTON,
+    gate_browser.GATE_CONNECT_BUTTON,
+    gate_browser.GATE_PENDING_ACTION,
+    gate_browser.GATE_NEXT_BUTTON,
+    gate_browser.GATE_EMAIL_SUBMIT,
+    gate_browser.HYPEDDIT_DOWNLOAD_BUTTON,
 ]
 
 
@@ -978,7 +981,7 @@ def test_a_hidden_browser_walks_the_gate_and_downloads_without_a_window(tmp_path
     launches = _gate_browser(monkeypatch, lambda ctx: _GatePage(ctx))
     messages = []
 
-    path = gates.download_hypeddit_in_browser(
+    path = gate_browser.download_hypeddit_in_browser(
         _track(), "https://hypeddit.com/track/seven", tmp_path, None,
         status=messages.append, config=_DJ,
     )
@@ -996,7 +999,7 @@ def test_a_hidden_browser_walks_the_gate_and_downloads_without_a_window(tmp_path
 def test_a_gate_detoured_to_the_hot_or_not_poll_is_opened_again_hidden(tmp_path, monkeypatch):
     launches = _gate_browser(monkeypatch, lambda ctx: _GatePage(ctx, detours=1))
 
-    path = gates.download_hypeddit_in_browser(_track(), _GATE, tmp_path, None, config=_DJ)
+    path = gate_browser.download_hypeddit_in_browser(_track(), _GATE, tmp_path, None, config=_DJ)
 
     assert [headless for headless, _context in launches] == [True], "no window for a detour"
     page = launches[0][1].pages[0]
@@ -1009,7 +1012,7 @@ def test_a_second_gate_downloads_although_the_first_left_its_cookie(tmp_path, mo
     launches = _gate_browser(monkeypatch, lambda ctx: _GatePage(ctx, steps=("email", "dw")))
     tracks = [Track(id=n, title=f"Track {n}", permalink_url=f"https://soundcloud.com/a/{n}") for n in (1, 2)]
 
-    result = gates.download_hypeddit_batch_in_browser(
+    result = gate_browser.download_hypeddit_batch_in_browser(
         [(tracks[0], _GATE), (tracks[1], "https://hypeddit.com/track/eight")],
         tmp_path, None, config=_DJ,
     )
@@ -1023,14 +1026,14 @@ def test_a_provider_that_wants_a_login_moves_the_gate_to_a_window(tmp_path, monk
     launches = _gate_browser(monkeypatch, lambda ctx: _GatePage(ctx, spotify_signed_in=False))
     messages = []
 
-    path = gates.download_hypeddit_in_browser(
+    path = gate_browser.download_hypeddit_in_browser(
         _track(), "https://hypeddit.com/track/seven", tmp_path, None,
         status=messages.append, config=_DJ,
     )
 
     assert [headless for headless, _context in launches] == [True, False]
     hidden = launches[0][1].pages[0]
-    assert hidden.kind == "sp" and hidden.clicked[-1][1] == gates.GATE_CONNECT_BUTTON
+    assert hidden.kind == "sp" and hidden.clicked[-1][1] == gate_browser.GATE_CONNECT_BUTTON
     assert messages[0] == (
         "Opening the browser window for 1 gate: accounts.spotify.com wants you to sign in"
     )
@@ -1047,7 +1050,7 @@ def test_a_login_popup_that_shows_up_a_moment_after_the_click_is_still_waited_fo
 ):
     launches = _gate_browser(monkeypatch, lambda ctx: _GatePage(ctx, late_popup=True))
 
-    path = gates.download_hypeddit_in_browser(
+    path = gate_browser.download_hypeddit_in_browser(
         _track(), "https://hypeddit.com/track/seven", tmp_path, None, config=_DJ
     )
 
@@ -1060,7 +1063,7 @@ def test_a_login_popup_that_shows_up_a_moment_after_the_click_is_still_waited_fo
 def test_a_callback_popup_that_stays_open_is_closed_once_it_is_home(tmp_path, monkeypatch):
     launches = _gate_browser(monkeypatch, lambda ctx: _GatePage(ctx, callback_closes=False))
 
-    path = gates.download_hypeddit_in_browser(
+    path = gate_browser.download_hypeddit_in_browser(
         _track(), "https://hypeddit.com/track/seven", tmp_path, None, config=_DJ
     )
 
@@ -1076,7 +1079,7 @@ def test_a_missing_email_is_left_to_the_person_at_the_window(tmp_path, monkeypat
     )
     messages = []
 
-    path = gates.download_hypeddit_in_browser(
+    path = gate_browser.download_hypeddit_in_browser(
         _track(), "https://hypeddit.com/track/seven", tmp_path, None,
         status=messages.append, config=_PLACEHOLDER,
     )
@@ -1096,7 +1099,7 @@ def test_a_gate_that_asks_for_a_name_gets_it_from_the_profile(tmp_path, monkeypa
     )
     messages = []
 
-    path = gates.download_hypeddit_in_browser(
+    path = gate_browser.download_hypeddit_in_browser(
         _track(), "https://hypeddit.com/track/seven", tmp_path, None,
         status=messages.append, config=_DJ,
     )
@@ -1115,7 +1118,7 @@ def test_a_missing_name_is_left_to_the_person_at_the_window(tmp_path, monkeypatc
     )
     messages = []
 
-    path = gates.download_hypeddit_in_browser(
+    path = gate_browser.download_hypeddit_in_browser(
         _track(), "https://hypeddit.com/track/seven", tmp_path, None,
         status=messages.append, config=_NAMELESS,
     )
@@ -1136,7 +1139,7 @@ def test_a_captcha_on_the_email_step_needs_the_window(tmp_path, monkeypatch):
     )
     messages = []
 
-    path = gates.download_hypeddit_in_browser(
+    path = gate_browser.download_hypeddit_in_browser(
         _track(), "https://hypeddit.com/track/seven", tmp_path, None,
         status=messages.append, config=_DJ,
     )
@@ -1160,7 +1163,7 @@ def test_social_actions_disabled_uses_passive_watcher_only(tmp_path, monkeypatch
 
     launches = _gate_browser(monkeypatch, page_factory)
 
-    path = gates.download_hypeddit_in_browser(
+    path = gate_browser.download_hypeddit_in_browser(
         _track(), "https://hypeddit.com/track/nine", tmp_path, None, social=False
     )
 
@@ -1191,7 +1194,7 @@ def test_unknown_gate_dom_is_handed_to_the_window(tmp_path, monkeypatch):
     launches = _gate_browser(monkeypatch, BarePage)
     messages = []
 
-    path = gates.download_hypeddit_in_browser(
+    path = gate_browser.download_hypeddit_in_browser(
         _track(), "https://hypeddit.com/track/ten", tmp_path, None, status=messages.append
     )
 
@@ -1238,7 +1241,7 @@ def test_all_social_click_through_steps_are_skipped_without_external_requests():
 
 def test_social_steps_stop_before_any_post_when_they_were_refused():
     session = _stepping_gate_session()
-    with pytest.raises(gates.GateSocialActionsDisabled):
+    with pytest.raises(gate_models.GateSocialActionsDisabled):
         resolve_hypeddit_download_url(
             "https://hypeddit.com/track/abc1234",
             session,
@@ -1280,7 +1283,7 @@ def test_a_shop_page_that_merely_mentions_downloads_is_still_a_shop():
       <script>var downloadTracker = init("download");</script>
     </body></html>
     """
-    assert gates._offers_a_download(_soup(page)) is False
+    assert gate_hubs._offers_a_download(_soup(page)) is False
 
 
 def test_a_gate_in_another_language_is_recognised_as_a_gate():
@@ -1288,12 +1291,12 @@ def test_a_gate_in_another_language_is_recognised_as_a_gate():
 
     for button in ("Herunterladen", "Descargar", "Télécharger", "Pobierz"):
         page = f'<html><body><button class="gate-cta">{button}</button></body></html>'
-        assert gates._offers_a_download(_soup(page)) is True, button
+        assert gate_hubs._offers_a_download(_soup(page)) is True, button
 
 
 def test_a_download_button_is_still_found_when_it_is_a_submit_input():
     page = '<html><body><input type="submit" value="Free Download"></body></html>'
-    assert gates._offers_a_download(_soup(page)) is True
+    assert gate_hubs._offers_a_download(_soup(page)) is True
 
 
 class HubSession:
@@ -1462,3 +1465,102 @@ def test_an_address_on_our_own_network_is_never_fetched():
     inspection = inspect_link_page("http://169.254.169.254/latest/meta-data/", session)
     assert inspection.shops == () and inspection.keep_original is False
     session.get.assert_not_called()
+
+
+def test_revoked_social_consent_stops_the_next_browser_click(tmp_path, monkeypatch):
+    profile = _Profile("dj@example.com")
+    profile.gate_social_actions = True
+
+    class RevokingPage(_GatePage):
+        def click(self, selector, slide):
+            super().click(selector, slide)
+            if selector == gate_browser.GATE_PENDING_ACTION:
+                profile.gate_social_actions = False
+
+    launches = _gate_browser(monkeypatch, RevokingPage)
+    with pytest.raises(gate_models.GateSocialActionsDisabled):
+        gate_browser.download_hypeddit_in_browser(_track(), _GATE, tmp_path, None, config=profile)
+    assert len(launches) == 1
+    clicks = [selector for _, selector in launches[0][1].pages[0].clicked]
+    assert clicks == [gate_browser.GATE_START_BUTTON, gate_browser.GATE_PENDING_ACTION]
+
+
+def test_profile_changed_during_fill_is_not_submitted(tmp_path, monkeypatch):
+    profile = _Profile("dj@example.com")
+
+    class RevokingPage(_GatePage):
+        def fill(self, selector, value):
+            super().fill(selector, value)
+            if selector == gate_browser.GATE_EMAIL_INPUT:
+                profile.real = False
+
+    launches = _gate_browser(monkeypatch, RevokingPage)
+    with pytest.raises(gate_models.GateProfileRequired):
+        gate_browser.download_hypeddit_in_browser(_track(), _GATE, tmp_path, None, config=profile)
+    clicks = [selector for _, selector in launches[0][1].pages[0].clicked]
+    assert gate_browser.GATE_EMAIL_SUBMIT not in clicks
+
+
+def test_cancellation_after_telemetry_prevents_unlock(monkeypatch):
+    from threading import Event
+
+    from dj_digger.models import Cancelled
+
+    cancel = Event()
+    session = session_for_gate(fixture_html("hypeddit_gate_hot_or_not.html"))
+    monkeypatch.setattr(gates, "_ping_telemetry", lambda *args: cancel.set())
+    with pytest.raises(Cancelled):
+        resolve_hypeddit_download_url(_GATE, session, config=StubConfig("dj@example.com"), cancel=cancel)
+    assert not _posted_to(session, "/gate/download/ul")
+
+
+def test_browser_cancellation_keeps_completed_files_and_real_errors_only(tmp_path, monkeypatch):
+    from threading import Event
+    from types import SimpleNamespace
+
+    from dj_digger.gates import browser as adapter
+    from dj_digger.models import Cancelled, Track
+
+    items = [(Track(id=i, title=str(i), permalink_url=f'https://soundcloud.com/a/{i}'),
+              'https://hypeddit.com/a/b') for i in (1, 2, 3)]
+    cancel = Event()
+    cancel.set()
+    result = adapter.download_hypeddit_batch_in_browser(items, tmp_path, cancel)
+    assert result.cancelled and not result.failures and not result.completed
+    with pytest.raises(Cancelled):
+        adapter.download_hypeddit_in_browser(*items[0], tmp_path, cancel)
+
+    watch = adapter._TabWatch({track.key: (track, url) for track, url in items}, tmp_path, cancel, {})
+    finished = tmp_path / 'complete.wav'
+    finished.write_bytes(b'audio')
+    watch.completed['1'] = finished
+    watch.failures['2'] = adapter.GateDownloadError('real failure')
+    stopped = adapter._await_downloads(SimpleNamespace(pages=[]), [], watch, None,
+                                      social=False, email=None, name=None,
+                                      attended=False, time_limit=1)
+    result = watch.result(stopped)
+    assert result.cancelled
+    assert result.completed == (('1', finished),)
+    assert [key for key, _error in result.failures] == ['2']
+
+    # The workflow sees the actual adapter result, including mixed outcomes.
+    from dj_digger.config import AppConfig
+    from dj_digger.services.downloads import DownloadRequest, DownloadService, DownloadWorkflow
+    from dj_digger.services.operations import OperationCoordinator
+
+    monkeypatch.setattr(adapter, 'download_hypeddit_batch_in_browser', lambda *a, **k: result)
+    class State:
+        def set_local_file(self, key, path):
+            pass
+    operations = OperationCoordinator()
+    handle = operations.start('Downloading')
+    events = []
+    workflow = DownloadWorkflow(DownloadService(State()), DownloadRequest('', 'initial', tmp_path, 20),
+                                handle, client=lambda: None, config=AppConfig(),
+                                emit=events.append, prerequisites=lambda *args: [])
+    from dj_digger.services.downloads import _BatchProgress
+    progress = _BatchProgress(total=3, browser_items=items)
+    workflow.browser_pass(progress)
+    assert progress.completed == progress.failed == progress.cancelled == 1
+    assert [event.key for event in events if event.kind == 'cancelled'] == ['3']
+    operations.finish(handle)

@@ -18,6 +18,7 @@ from pathlib import Path
 from threading import Event
 from typing import Any
 
+from .automation_errors import AutomationError, ChromiumMissing
 from .paths import data_dir
 
 LOGGER = logging.getLogger(__name__)
@@ -27,14 +28,6 @@ ACTION_TIMEOUT_MS = 15_000
 
 # What every persistent profile is launched with, headed or not.
 LAUNCH_OPTIONS = {"locale": "en-US", "chromium_sandbox": True}
-
-
-class AutomationError(RuntimeError):
-    """A technical or structural failure which must never trigger store fallback."""
-
-
-class ChromiumMissing(AutomationError):
-    """The Playwright browser required by store carts has not been downloaded."""
 
 
 def profile_path(name: str) -> Path:

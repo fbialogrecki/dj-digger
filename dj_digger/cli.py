@@ -14,7 +14,6 @@ import logging
 import os
 import sys
 from collections.abc import Sequence
-from dataclasses import asdict
 from pathlib import Path
 
 from rich.console import Console
@@ -27,13 +26,14 @@ from rich.progress import (
 )
 from rich.table import Table
 
-from . import __version__, library, links, soundcloud
+from . import __version__, links, soundcloud
 from . import auth as auth_module
 from . import browser as browser_module
-from . import dig as dig_module
 from .config import AppConfig
+from .diagnostics import RedactingFormatter
 from .models import Crate, LinkRecord
-from .state import TrackState
+from .services import collection as dig_module
+from .services.runtime import ApplicationServices
 
 SUBCOMMANDS = {"dig", "open", "auth"}
 HELP_FLAGS = {"-h", "--help", "-v", "--version"}
@@ -180,12 +180,12 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _run_tui(args: argparse.Namespace, records: Sequence[LinkRecord], **kwargs) -> None:
+def _run_tui(args: argparse.Namespace, records: Sequence[LinkRecord], *, services, **kwargs) -> None:
     # Imported here rather than at module top on purpose: textual and its
     # dependency tree stay entirely off the --no-tui and export-only paths.
     from .tui import run_tui
 
-    run_tui(records, state=TrackState(), keep_logging=bool(args.log_file), **kwargs)
+    run_tui(records, services=services, keep_logging=bool(args.log_file), **kwargs)
 
 
 def inject_default_command(argv: Sequence[str]) -> list[str]:
@@ -215,7 +215,7 @@ def _progress(console: Console) -> Progress:
 
 
 def _dig_with_progress(
-    target: str, options: dig_module.DigOptions, console: Console
+    target: str, options: dig_module.DigOptions, console: Console, service
 ) -> Crate:
     with _progress(console) as progress:
         task = progress.add_task(dig_module.STAGE_LINK, total=None)
@@ -223,8 +223,7 @@ def _dig_with_progress(
         def on_progress(stage: str, done: int, total: int | None) -> None:
             progress.update(task, description=stage, completed=done, total=total)
 
-        # DigOptions is dig()'s keyword arguments, bundled.
-        return dig_module.dig(target, on_progress=on_progress, **asdict(options))
+        return service.read(target, options, progress=on_progress)
 
 
 def _print_summary(
@@ -258,6 +257,11 @@ def _dig_options(args: argparse.Namespace) -> dig_module.DigOptions:
 
 
 def handle_dig(args: argparse.Namespace) -> int:
+    with ApplicationServices() as services:
+        return _handle_dig(args, services)
+
+
+def _handle_dig(args, services) -> int:
     console = Console(stderr=True)
     options = _dig_options(args)
 
@@ -270,13 +274,14 @@ def handle_dig(args: argparse.Namespace) -> int:
         _run_tui(
             args,
             [],
+            services=services,
             export_format=args.export_format,
             export_path=args.output,
             dig_options=options,
         )
         return 0
 
-    crate = _dig_with_progress(str(args.target), options, console)
+    crate = _dig_with_progress(str(args.target), options, console, services.collection)
 
     if not crate.tracks:
         LOGGER.warning("No tracks found behind '%s'.", args.target)
@@ -294,9 +299,9 @@ def handle_dig(args: argparse.Namespace) -> int:
         LOGGER.info("Collected %s tracks.", len(crate.tracks))
 
     # The library is the source of truth, so a CLI dig joins it too.
-    record = library.remember(crate)
+    result = services.collection.persist(crate, None, args.export_format, args.output)
+    record, export_path = result.record, result.exported
     records = links.categorise_all(record.active_tracks)
-    export_path = links.export_records(records, args.export_format, args.output)
     _print_summary(console, records, crate)
 
     if _should_use_tui(args):
@@ -304,6 +309,7 @@ def handle_dig(args: argparse.Namespace) -> int:
             args,
             records,
             crate_title=crate.title,
+            services=services,
             export_format=args.export_format,
             export_path=export_path or args.output,
             dig_options=options,
@@ -350,6 +356,11 @@ def _batch_open(args: argparse.Namespace, records: Sequence[LinkRecord]) -> None
 
 
 def handle_open(args: argparse.Namespace) -> int:
+    with ApplicationServices() as services:
+        return _handle_open(args, services)
+
+
+def _handle_open(args, services) -> int:
     console = Console(stderr=True)
     path = Path(args.summary_file)
     records = links.load_summary(path)
@@ -364,7 +375,7 @@ def handle_open(args: argparse.Namespace) -> int:
 
     # An export carries fewer fields than the API does, so the crate joins the
     # library marked partial - refreshing it fills in genre and the rest.
-    record = library.remember(
+    record = services.collection.remember(
         Crate(
             source=str(path),
             title=path.stem,
@@ -379,6 +390,7 @@ def handle_open(args: argparse.Namespace) -> int:
         # the file, so a summary written by an older version still groups the
         # way this one does.
         links.categorise_all(record.active_tracks),
+        services=services,
         crate_title=record.title,
         export_format="json",
         export_path=path,
@@ -528,7 +540,7 @@ def _configure_logging(level_name: str, log_path: str | None = None) -> None:
         destination.parent.mkdir(parents=True, exist_ok=True)
         handler = logging.FileHandler(destination, encoding="utf-8")
         handler.setFormatter(
-            logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+            RedactingFormatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
         )
         # A native crash - miniaudio is C - kills the process without a Python
         # traceback, which from the outside is an app that vanished without a
@@ -537,7 +549,7 @@ def _configure_logging(level_name: str, log_path: str | None = None) -> None:
         faulthandler.enable(handler.stream)
     else:
         handler = logging.StreamHandler()
-        handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
+        handler.setFormatter(RedactingFormatter("%(levelname)s: %(message)s"))
 
     root = logging.getLogger()
     ours = logging.getLogger("dj_digger")

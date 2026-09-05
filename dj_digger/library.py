@@ -14,85 +14,12 @@ whole library with every track attached, which only the tests need.
 """
 
 import logging
-from dataclasses import asdict, dataclass, field, fields
-from datetime import UTC, datetime
-from typing import Any, NamedTuple, Self
 
+from .crate_models import CrateHeader, CrateRecord, _now
 from .db import database
-from .models import Crate, Track
-
-VERSION = 1
+from .models import Crate
 
 LOGGER = logging.getLogger(__name__)
-
-
-def _now() -> str:
-    return datetime.now(UTC).isoformat(timespec="seconds")
-
-
-def _track_from_json(data: dict[str, Any]) -> Track:
-    # Filtered by field name so a crate written by another version still loads.
-    known = {f.name for f in fields(Track)}
-    values = {key: value for key, value in data.items() if key in known}
-    values["extra_links"] = [tuple(pair) for pair in values.get("extra_links") or []]
-    return Track(**values)
-
-
-@dataclass
-class CrateRecord:
-    source: str
-    title: str
-    tracks: list[Track] = field(default_factory=list)
-    removed_track_keys: list[str] = field(default_factory=list)
-    # What the last refresh brought in that the crate did not already have.
-    new_track_keys: list[str] = field(default_factory=list)
-    imported_at: str = ""
-    refreshed_at: str | None = None
-    partial: bool = False
-
-    @property
-    def active_tracks(self) -> list[Track]:
-        removed = set(self.removed_track_keys)
-        kept = [track for track in self.tracks if track.key not in removed]
-        # What the last refresh added goes to the top; sorted is stable, so the
-        # playlist's own order survives inside each half.
-        arrived = set(self.new_track_keys)
-        return sorted(kept, key=lambda track: track.key not in arrived)
-
-    def remove(self, track_key: str) -> None:
-        if track_key not in self.removed_track_keys:
-            self.removed_track_keys.append(track_key)
-
-    def restore(self, track_key: str) -> None:
-        if track_key in self.removed_track_keys:
-            self.removed_track_keys.remove(track_key)
-
-    @classmethod
-    def from_crate(cls, crate: Crate, *, partial: bool = False) -> Self:
-        return cls(
-            source=crate.source,
-            title=crate.title or crate.source,
-            tracks=list(crate.tracks),
-            imported_at=_now(),
-            partial=partial,
-        )
-
-    def to_json(self) -> dict[str, Any]:
-        # asdict recurses into the Track dataclasses too.
-        return {"version": VERSION, **asdict(self)}
-
-    @classmethod
-    def from_json(cls, data: dict[str, Any]) -> Self:
-        return cls(
-            source=data.get("source") or "",
-            title=data.get("title") or data.get("source") or "crate",
-            tracks=[_track_from_json(item) for item in data.get("tracks") or []],
-            removed_track_keys=list(data.get("removed_track_keys") or []),
-            new_track_keys=list(data.get("new_track_keys") or []),
-            imported_at=data.get("imported_at") or "",
-            refreshed_at=data.get("refreshed_at"),
-            partial=bool(data.get("partial")),
-        )
 
 
 def save(record: CrateRecord) -> None:
@@ -108,21 +35,8 @@ def load(source: str) -> CrateRecord | None:
     return CrateRecord.from_json(raw) if raw else None
 
 
-class CrateHeader(NamedTuple):
-    """What the sidebar needs to list a crate: no tracks attached."""
-
-    source: str
-    title: str
-    updated: str
-    partial: bool = False
-
-
 def list_crate_headers() -> list[CrateHeader]:
-    try:
-        raw = database().list_crate_headers()
-    except Exception as exc:
-        LOGGER.warning("Could not read crates from SQLite: %s", exc)
-        return []
+    raw = database().list_crate_headers()
     headers = [CrateHeader(**row) for row in raw if row.get("source")]
     return sorted(headers, key=lambda header: header.title.lower())
 
@@ -152,11 +66,7 @@ def refresh(record: CrateRecord, crate: Crate, *, partial: bool = False) -> Crat
     return record
 
 
-def remember(crate: Crate, *, partial: bool = False) -> CrateRecord:
-    stored = load(crate.source)
-    if stored is not None:
-        record = refresh(stored, crate, partial=partial)
-    else:
-        record = CrateRecord.from_crate(crate, partial=partial)
-    save(record)
-    return record
+def remember(crate: Crate, *, partial: bool = False, generation: str | None = None) -> CrateRecord | None:
+    incoming = CrateRecord.from_crate(crate, partial=partial).to_json()
+    raw = database().remember_collection(incoming, generation)
+    return CrateRecord.from_json(raw) if raw is not None else None

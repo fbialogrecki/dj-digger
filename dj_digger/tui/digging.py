@@ -1,102 +1,85 @@
-"""Turning a pasted link into a crate, without blocking the interface.
+"""Collection controller; workers use a service and immutable operation settings."""
 
-Mixed into ``DiggerApp``; the attributes these reach for are set up in its
-``__init__``.
-"""
+from copy import deepcopy
 
-from textual import work
+from ..models import Cancelled
+from ..services.operations import OperationBusy
 
-from .. import dig as dig_module
-from .. import library as library_module
-from .. import links as links_module
-from ..models import Cancelled, Crate
-from .screens import AskLinkScreen
-
-DIG_JOB = "Digging"
+DIG_JOB = 'Digging'
 
 
-class DiggingMixin:
-    """Turning a pasted link into a crate, without blocking the interface."""
+class DiggingController:
+    def __init__(self, service, operations, *, run, dispatch, prompt, notify,
+                 has_rows, view_generation, options, export_settings, display, changed, exit_empty):
+        self.service = service
+        self.operations = operations
+        self.run = run
+        self.dispatch = dispatch
+        self.prompt = prompt
+        self.notify = notify
+        self.has_rows = has_rows
+        self.view_generation = view_generation
+        self.options = options
+        self.export_settings = export_settings
+        self.display = display
+        self.changed = changed
+        self.exit_empty = exit_empty
 
-    def _dig_running(self) -> bool:
-        return self.job is not None and self.job.name == DIG_JOB
-
-    def action_dig_link(self) -> None:
-        if self._dig_running():
-            self.notify("Already digging - hold on", timeout=2)
+    def ask(self):
+        if self.operations.active() is not None:
+            self.notify('Another operation is still running; ctrl+x stops it', timeout=3)
             return
-        message = "Paste a SoundCloud link" if self.rows else "What are we digging?"
-        self.push_screen(AskLinkScreen(message=message), self._link_entered)
+        self.prompt('Paste a SoundCloud link' if self.has_rows() else 'What are we digging?', self.entered)
 
-    def _link_entered(self, target: str | None) -> None:
-        if not target:
-            if not self.rows:
-                # Nothing was asked for and there is nothing to show.
-                self.exit()
-            return
-        self._start_dig(target)
+    def entered(self, target):
+        if target:
+            self.start(target)
+        elif not self.has_rows():
+            self.exit_empty()
 
-    def _start_dig(self, target: str) -> None:
-        self._dig_cancel.clear()
-        # The rows stay on screen: a refresh of a big crate used to blank the
-        # table for as long as the dig took. The job line's spinner is what
-        # says the app is working rather than hung.
-        self.start_job(DIG_JOB, cancel=self._dig_cancel, detail=f"Digging {target}")
-        self.dig_in_background(target)
-
-    @work(thread=True, exclusive=True)
-    def dig_in_background(self, target: str) -> None:
-        def on_progress(stage: str, done: int, total: int | None) -> None:
-            suffix = f" {done}/{total}" if total else ""
-            try:
-                self.call_from_thread(self.job_progress, detail=f"{stage}{suffix}")
-            except RuntimeError:
-                pass  # the app is gone; the worker finishes on its own
-
+    def start(self, target):
         try:
-            crate = dig_module.dig(
-                target,
-                limit=self.dig_options.limit,
-                timeout=self.dig_options.timeout,
-                delay=self.dig_options.delay,
-                on_progress=on_progress,
-                cancel=self._dig_cancel,
+            handle = self.operations.start(DIG_JOB, detail=f'Digging {target}')
+        except OperationBusy as exc:
+            self.notify(str(exc), timeout=3)
+            return
+        generation = self.service.db.snapshot_generations()
+        view_generation = self.view_generation()
+        options = deepcopy(self.options())
+        export_format, export_path = self.export_settings()
+        self.changed()
+        return self.run(lambda: self._collect(
+            target, handle, generation, view_generation, options, export_format, export_path,
+        ))
+
+    def _collect(self, target, handle, generation, view_generation, options, export_format, export_path):
+        def progress(stage, done, total):
+            suffix = f' {done}/{total}' if total else ''
+            if self.operations.progress(handle, detail=f'{stage}{suffix}'):
+                self._send(self.changed)
+        failure = None
+        try:
+            result = self.service.collect(
+                target, options, generation, export_format, export_path, handle.cancel, progress,
             )
+            self._send(lambda: self.display(result, view_generation))
         except Cancelled:
-            self.call_from_thread(self._dig_failed, "Dig stopped")
-            return
-        except Exception as exc:  # a worker must never take the app down with it
-            self.call_from_thread(self._dig_failed, str(exc))
-            return
-        self.call_from_thread(self._dig_finished, crate)
+            failure = "Dig stopped"
+        except Exception as exc:
+            failure = str(exc)
+        finally:
+            self.operations.finish(handle)
+            self._send(self.changed)
+            if failure is not None:
+                self._send(lambda: self._failed(failure))
 
-    def _dig_failed(self, message: str) -> None:
-        self.finish_job()
-        self.refresh_rows(keep_cursor=False)
+    def _failed(self, message):
         self.notify(message, severity="error", timeout=8)
-        # Only re-ask when there is nothing to fall back to; a failed refresh
-        # should not turn into a prompt for a different link.
-        if not self.rows:
-            self.action_dig_link()
+        if not self.has_rows():
+            self.ask()
 
-    def _dig_finished(self, crate: Crate) -> None:
-        self.finish_job()
-        if not crate.tracks:
-            self._dig_failed(f"Found no tracks behind {crate.source}")
-            return
-
-        # Adding and refreshing both land here, so both persist the same way.
-        record = library_module.remember(crate)
-        self.load_crate(record)
-        self.call_next(self.reload_sidebar)
-        records = self.all_records()
-
-        written = None
-        if self.export_format != "none":
-            written = links_module.export_records(
-                records, self.export_format, self.export_path
-            )
-        message = f"{len(crate.tracks)} tracks, {len(records)} links"
-        if written:
-            message += f" - saved to {written}"
-        self.notify(message, timeout=5)
+    def _send(self, callback):
+        try:
+            self.dispatch(callback)
+        except RuntimeError:
+            pass

@@ -2,49 +2,52 @@
 
 import asyncio
 import logging
+import traceback
 from collections.abc import Sequence
-from concurrent.futures import ThreadPoolExecutor
+from copy import deepcopy
+from functools import partial
 from pathlib import Path
-from threading import Event, Lock
+from threading import Event
 
-from textual import events
+from rich.text import Text
+from textual import events, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
-from textual.timer import Timer
 from textual.widgets import Button, DataTable, ListView, Static
-from textual.widgets.data_table import ColumnKey
 
-from .. import cart as cart_module
-from .. import dig as dig_module
 from .. import links as links_module
-from ..config import AppConfig
-from ..library import CrateHeader, CrateRecord
+from ..crate_models import CrateRecord
+from ..diagnostics import log_safe_text
 from ..models import LinkRecord
-from ..player import (
-    Player,
-    PlayerBar,
-    PlayerControls,
-)
-from ..soundcloud import SoundCloudClient
+from ..services import collection as dig_module
+from ..services.runtime import ApplicationServices
 from ..state import TrackState
-from .crates import CrateMixin
-from .digging import DiggingMixin
-from .downloads import DownloadMixin
-from .filters import FilterMixin
-from .jobs import Job, JobMixin
+from .audio import PlayerBar, PlayerControls
+from .crates import CrateController
+from .digging import DiggingController
+from .downloads import DownloadController
+from .filters import FilterController
+from .jobs import JobController
 from .keymap import (
     KEY_DISPLAY,
     KEYMAP,
     PRIORITY_KEYS,
     QUICK_FILTER_KEYS,
 )
-from .library_scan import LibraryScanMixin
-from .opening import OpeningMixin
-from .playback import PlaybackMixin
-from .render import RenderMixin
-from .rows import Prepared, Row
-from .screens import ContextMenuScreen, HelpScreen, SettingsScreen
+from .library_scan import LibraryScanController
+from .opening import OpeningController
+from .playback import PlaybackController
+from .presentation import (
+    AudioState,
+    CartState,
+    DownloadState,
+    PlaylistState,
+    ScanState,
+    SidebarState,
+)
+from .render import RenderController
+from .screens import AskLinkScreen, ContextMenuScreen, HelpScreen, SettingsScreen
 from .theme import FALLBACK_PALETTE, Palette, palette_for
 from .widgets import ErrorBanner, FittedFooter, SearchInput, StatusBar, TrackTable
 
@@ -56,24 +59,11 @@ LOGGER = logging.getLogger(__name__)
 NARROW_WIDTH = 110
 
 
-class DiggerApp(
-    CrateMixin,
-    JobMixin,
-    RenderMixin,
-    FilterMixin,
-    PlaybackMixin,
-    DiggingMixin,
-    DownloadMixin,
-    OpeningMixin,
-    LibraryScanMixin,
-    App,
-):
+class DiggerApp(App):
     """The crate browser.
 
-    The mixins carry one concern each and never override one another - there is
-    a test that says so, because a name defined twice is how this class lost an
-    ``on_unmount`` for two releases. What is left here is the shell: the layout,
-    the bindings, the state they all reach for, and setup and teardown.
+    Controllers own presentation and operations through explicit dependencies.
+    The application composes the screen, routes actions and manages lifecycle.
     """
     # The built-in palette showed up in the footer as an unexplained "palette".
     # Off: it brings Textual's own Screenshot, Maximize and Theme commands
@@ -201,77 +191,278 @@ class DiggerApp(
         records: Sequence[LinkRecord] = (),
         *,
         state: TrackState | None = None,
+        services: ApplicationServices | None = None,
         crate_title: str = "",
         export_format: str = "json",
         export_path: Path | None = None,
         dig_options: dig_module.DigOptions | None = None,
         crate_record: CrateRecord | None = None,
+        shutdown_started=lambda: None,
     ) -> None:
         super().__init__()
-        self.rows: list[Row] = []
-        self.state = state or TrackState()
-        # One profile for the whole app: Settings edits this object, and the
-        # SoundCloud client is handed the same one so the gate resolvers see
-        # your name and email rather than a copy loaded before you changed them.
-        self.config = AppConfig()
-        self.crate = crate_record
-        self.crates: list[CrateHeader] = []
-        self.crate_title = crate_title or (crate_record.title if crate_record else "")
-        # load_records sets this when you switch crates; this covers the one the
-        # command line opened us on.
-        self.sub_title = self.crate_title
+        self.shutdown_started = shutdown_started
+        self.playlist_state = PlaylistState()
+        self.audio_state = AudioState()
+        self.download_state = DownloadState()
+        self.cart_state = CartState()
+        self.sidebar_state = SidebarState()
+        self.scan_state = ScanState()
+        self.services = services or ApplicationServices(state=state)
+        self.state = self.services.state
+        self.state.get("")  # Warm the mirrors before mounting any widgets.
+        self.config = self.services.config
+        self.playlist_state.crate = crate_record
+        self.playlist_state.crate_title = crate_title or (crate_record.title if crate_record else "")
+        self.sub_title = self.playlist_state.crate_title
         self.export_format = export_format
         self.export_path = export_path
         self.dig_options = dig_options or dig_module.DigOptions()
-        self.store_filters: set[str] = set()
-        self._badge_click_regions: list[tuple[int, int, int]] = []
-        self.search_term: str = ""
-        self.hide_handled: bool = False
-        # Track keys chosen with v / V / ctrl+a; whole-list actions prefer them.
-        self.selected: set[str] = set()
-        self._anchor: int | None = None
-        self.sort_key: str | None = None
-        self.sort_reverse: bool = False
-        self._column_keys: dict[str, ColumnKey] = {}
-        self.visible_rows: list[Row] = []
-        self.present: list[str] = []
-        # The key whose bulk open is waiting for a second press (see _confirm_many).
-        self._pending_open: str | None = None
-        self._cart_busy = False
-        self._cart_cancel = asyncio.Event()
-        self._cart_session = cart_module.CartBrowserSession()
-        self._cart_progress_screen = None
-        self._gate_cancel = Event()
         self._dig_cancel = Event()
-        self._scan_cancel = Event()
-        self._browser_batch_active = False
-        # The long job the status bar reports on, if any (see jobs.py).
-        self.job: Job | None = None
-        self._undone: list[str] = []
-        self._ticker: Timer | None = None
-        # Decided fresh each time playback moves: does the cursor come along?
-        self._cursor_follows = True
-        self._prepared: Prepared | None = None
-        self._preparing: str = ""
-        self._frame = 0
-        self.download_progress: dict[str, float] = {}
-        self._dirty_download_rows: set[str] = set()
-        self._last_progress_redraw: float = 0.0
-        # Only a batch download builds one. Declared here so the teardown path
-        # can ask about it plainly rather than through getattr.
-        self._download_executor: ThreadPoolExecutor | None = None
-        # How many download threads hold the SoundCloud client right now: a
-        # fresh login must not close it under them (see downloads._adopt_login).
-        self._download_worker_lock = Lock()
-        self._active_download_workers = 0
-        # None until the first resize, so the first one always applies.
         self._narrow: bool | None = None
-        self.player = Player()
-        self._client: SoundCloudClient | None = None
         # The interface's colour roles under the active theme, recomputed
         # whenever the theme changes (see tui/theme.py).
         self.palette: Palette = FALLBACK_PALETTE
-        self._set_records(records)
+        self.crate_controller = CrateController(
+            run_worker=self.run_worker,
+            _start_dig=lambda *a, **k: self._start_dig(*a, **k),
+            action_dig_link=lambda *a, **k: self.action_dig_link(*a, **k),
+            call_next=lambda *a, **k: self.call_next(*a, **k),
+            current_row=lambda *a, **k: self.filter_controller.current_row(*a, **k),
+            notify=lambda *a, **k: self.notify(*a, **k),
+            playlist_state=self.playlist_state,
+            push_screen=lambda *a, **k: self.push_screen(*a, **k),
+            query_one=lambda *a, **k: self.query_one(*a, **k),
+            refresh_rows=lambda *a, **k: self.table_controller.refresh_rows(*a, **k),
+            selected_rows=lambda *a, **k: self.filter_controller.selected_rows(*a, **k),
+            sidebar_state=self.sidebar_state,
+            state=self.state,
+            library_service=self.services.library,
+            io=self.services.io,
+            set_subtitle=lambda title: setattr(self, "sub_title", title),
+        )
+        self.filter_controller = FilterController(
+            _paint_headers=lambda *a, **k: self.table_controller._paint_headers(*a, **k),
+            _paint_row=lambda *a, **k: self.table_controller._paint_row(*a, **k),
+            cart_state=self.cart_state,
+            enabled_columns=lambda *a, **k: self.table_controller.enabled_columns(*a, **k),
+            notify=lambda *a, **k: self.notify(*a, **k),
+            playlist_state=self.playlist_state,
+            query_one=lambda *a, **k: self.query_one(*a, **k),
+            refresh_rows=lambda *a, **k: self.table_controller.refresh_rows(*a, **k),
+            state=self.state,
+            update_status=lambda *a, **k: self.table_controller.update_status(*a, **k),
+        )
+        self.table_controller = RenderController(
+            _drop_stale_preparation=lambda *a, **k: self.playback_controller._drop_stale_preparation(*a, **k),
+            _playing_index=lambda *a, **k: self.playback_controller._playing_index(*a, **k),
+            action_play_step=lambda *a, **k: self.playback_controller.action_play_step(*a, **k),
+            audio_state=self.audio_state,
+            call_after_refresh=lambda *a, **k: self.call_after_refresh(*a, **k),
+            get_config=lambda: self.config,
+            current_row=lambda *a, **k: self.filter_controller.current_row(*a, **k),
+            download_state=self.download_state,
+            get_job=lambda: self.job,
+            matching_rows=lambda *a, **k: self.filter_controller.matching_rows(*a, **k),
+            get_muted=lambda: self.muted,
+            notify=lambda *a, **k: self.notify(*a, **k),
+            get_palette=lambda: self.palette,
+            get_player=lambda: self.player,
+            playlist_state=self.playlist_state,
+            query=lambda *a, **k: self.query(*a, **k),
+            query_one=lambda *a, **k: self.query_one(*a, **k),
+            record_to_open=lambda *a, **k: self.filter_controller.record_to_open(*a, **k),
+            role=lambda *a, **k: self.role(*a, **k),
+            selected_rows=lambda *a, **k: self.filter_controller.selected_rows(*a, **k),
+            set_timer=lambda *a, **k: self.set_timer(*a, **k),
+            soft_matching_rows=lambda *a, **k: self.filter_controller.soft_matching_rows(*a, **k),
+            state=self.state,
+            status_of=lambda *a, **k: self.filter_controller.status_of(*a, **k),
+            io=self.services.io,
+        )
+        self.playback_controller = PlaybackController(
+            _paint_key=lambda *a, **k: self.table_controller._paint_key(*a, **k),
+            _playing_key=lambda *a, **k: self.table_controller._playing_key(*a, **k),
+            _update_track_progress=lambda *a, **k: self.download_controller._update_track_progress(*a, **k),
+            get_animation_level=lambda: self.animation_level,
+            audio_state=self.audio_state,
+            call_from_thread=lambda *a, **k: self.call_from_thread(*a, **k),
+            get_client=lambda: self.client,
+            current_row=lambda *a, **k: self.filter_controller.current_row(*a, **k),
+            download_state=self.download_state,
+            get_job=lambda: self.job,
+            notify=lambda *a, **k: self.notify(*a, **k),
+            get_player=lambda: self.player,
+            playlist_state=self.playlist_state,
+            query=lambda *a, **k: self.query(*a, **k),
+            query_one=lambda *a, **k: self.query_one(*a, **k),
+            run_worker=lambda *a, **k: self.run_worker(*a, **k),
+            update_status=lambda *a, **k: self.table_controller.update_status(*a, **k),
+            worker_scope=self.services.worker,
+        )
+        self.download_controller = DownloadController(
+            _find_gate_url=lambda *a, **k: self.opening_controller._find_gate_url(*a, **k),
+            _main_available=lambda *a, **k: self._main_available(*a, **k),
+            _mark_existing_local_file=lambda *a, **k: self.scan_controller._mark_existing_local_file(*a, **k),
+            _paint_key=lambda *a, **k: self.table_controller._paint_key(*a, **k),
+            _set_records=lambda *a, **k: self.crate_controller._set_records(*a, **k),
+            call_from_thread=lambda *a, **k: self.call_from_thread(*a, **k),
+            call_later=lambda *a, **k: self.call_later(*a, **k),
+            get_client=lambda: self.client,
+            get_config=lambda: self.config,
+            current_row=lambda *a, **k: self.filter_controller.current_row(*a, **k),
+            get_dig_options=lambda: self.dig_options,
+            download_service=self.services.downloads,
+            download_state=self.download_state,
+            job_progress=lambda *a, **k: self.job_progress(*a, **k),
+            notify=lambda *a, **k: self.notify(*a, **k),
+            operations=self.services.operations,
+            playlist_state=self.playlist_state,
+            push_screen=lambda *a, **k: self.push_screen(*a, **k),
+            refresh_rows=lambda *a, **k: self.table_controller.refresh_rows(*a, **k),
+            adopt_login=self.services.adopt_login,
+            accounts=self.services.accounts,
+            run_worker=lambda *a, **k: self.run_worker(*a, **k),
+            show_error=lambda *a, **k: self.show_error(*a, **k),
+            start_job=lambda *a, **k: self.start_job(*a, **k),
+            state=self.state,
+            status_of=lambda *a, **k: self.filter_controller.status_of(*a, **k),
+            targets=lambda *a, **k: self.filter_controller.targets(*a, **k),
+            update_status=lambda *a, **k: self.table_controller.update_status(*a, **k),
+            worker_scope=self.services.worker,
+            io=self.services.io,
+        )
+        self.opening_controller = OpeningController(
+            get__cart_session=lambda: self._cart_session,
+            _download_directory=lambda *a, **k: self.download_controller._download_directory(*a, **k),
+            _main_available=lambda *a, **k: self._main_available(*a, **k),
+            _paint_key=lambda *a, **k: self.table_controller._paint_key(*a, **k),
+            get_browser=lambda: self.browser,
+            call_from_thread=lambda *a, **k: self.call_from_thread(*a, **k),
+            cart_state=self.cart_state,
+            current_row=lambda *a, **k: self.filter_controller.current_row(*a, **k),
+            finish_job=lambda *a, **k: self.finish_job(*a, **k),
+            job_progress=lambda *a, **k: self.job_progress(*a, **k),
+            notify=lambda *a, **k: self.notify(*a, **k),
+            operations=self.services.operations,
+            playlist_state=self.playlist_state,
+            push_screen=lambda *a, **k: self.push_screen(*a, **k),
+            push_screen_wait=lambda *a, **k: self.push_screen_wait(*a, **k),
+            record_to_open=lambda *a, **k: self.filter_controller.record_to_open(*a, **k),
+            run_worker=lambda *a, **k: self.run_worker(*a, **k),
+            show_error=lambda *a, **k: self.show_error(*a, **k),
+            start_job=lambda *a, **k: self.start_job(*a, **k),
+            state=self.state,
+            opening_service=self.services.opening,
+            library_service=self.services.library,
+            io=self.services.io,
+            status_of=lambda *a, **k: self.filter_controller.status_of(*a, **k),
+            targets=lambda *a, **k: self.filter_controller.targets(*a, **k),
+            update_status=lambda *a, **k: self.table_controller.update_status(*a, **k),
+            worker_scope=self.services.worker,
+        )
+        self.scan_controller = LibraryScanController(
+            _download_directory=lambda *a, **k: self.download_controller._download_directory(*a, **k),
+            _main_available=lambda *a, **k: self._main_available(*a, **k),
+            _paint_key=lambda *a, **k: self.table_controller._paint_key(*a, **k),
+            call_from_thread=lambda *a, **k: self.call_from_thread(*a, **k),
+            get_config=lambda: self.config,
+            current_row=lambda *a, **k: self.filter_controller.current_row(*a, **k),
+            download_service=self.services.downloads,
+            finish_job=lambda *a, **k: self.finish_job(*a, **k),
+            notify=lambda *a, **k: self.notify(*a, **k),
+            operations=self.services.operations,
+            playlist_state=self.playlist_state,
+            refresh_rows=lambda *a, **k: self.table_controller.refresh_rows(*a, **k),
+            run_worker=lambda *a, **k: self.run_worker(*a, **k),
+            scan_state=self.scan_state,
+            show_error=lambda *a, **k: self.show_error(*a, **k),
+            start_job=lambda *a, **k: self.start_job(*a, **k),
+            state=self.state,
+            library_service=self.services.library,
+            update_status=lambda *a, **k: self.table_controller.update_status(*a, **k),
+            worker_scope=self.services.worker,
+            io=self.services.io,
+        )
+        self.jobs = JobController(
+            self.services.operations, changed=self.table_controller.update_status, wake=self.playback_controller._wake,
+            sleep=self.playback_controller._sleep, playing=lambda: self.player.playing, notify=self.notify,
+        )
+        self.digging = DiggingController(
+            self.services.collection, self.services.operations,
+            run=lambda function: self.run_worker(self._owned_work(function), thread=True, group="dig"),
+            dispatch=self.call_from_thread,
+            prompt=lambda message, answer: self.push_screen(AskLinkScreen(message=message), answer),
+            notify=self.notify, has_rows=lambda: bool(self.playlist_state.rows),
+            view_generation=lambda: self.playlist_state._view_generation, options=lambda: self.dig_options,
+            export_settings=lambda: (self.export_format, self.export_path),
+            display=self._display_collection, changed=self._job_changed, exit_empty=self.exit,
+        )
+        self.crate_controller._set_records(records)
+
+    def _owned_work(self, function):
+        def run():
+            with self.services.worker():
+                return function()
+        return run
+
+    def _job_changed(self):
+        self.table_controller.update_status()
+        if self.job is not None:
+            self.playback_controller._wake()
+        elif not self.player.playing:
+            self.playback_controller._sleep()
+
+    def action_dig_link(self):
+        self.digging.ask()
+
+    def _start_dig(self, target):
+        worker = self.digging.start(target)
+        if self.job is not None and self.job.name == "Digging":
+            self._dig_cancel = self.job.cancel
+        return worker
+
+    def _dig_running(self):
+        handle = self.services.operations.active()
+        return handle is not None and handle.name == "Digging"
+
+    def _display_collection(self, result, view_generation):
+        record = result.record
+        if record is None:
+            return
+        if view_generation == self.playlist_state._view_generation:
+            self.crate_controller.load_crate(record)
+        self.call_next(self.crate_controller.reload_sidebar)
+        records = links_module.categorise_all(record.active_tracks)
+        message = f"{len(record.tracks)} tracks, {len(records)} links"
+        if result.exported:
+            message += f" - saved to {result.exported}"
+        self.notify(message, timeout=5)
+
+    @property
+    def job(self):
+        return self.services.operations.visible
+
+    def _main_available(self):
+        handle = self.services.operations.active()
+        if handle is None:
+            return True
+        self.notify(f"{handle.name} is still running; ctrl+x stops it", timeout=3)
+        return False
+
+    def start_job(self, name, total=None, **kwargs):
+        return self.jobs.start(name, total, **kwargs)
+
+    def job_progress(self, done=0, *, handle=None, **kwargs):
+        self.jobs.progress(handle or self.job, done, **kwargs)
+
+    def finish_job(self, handle=None):
+        self.jobs.finish(handle or self.job)
+
+    def action_cancel_job(self):
+        self.jobs.cancel()
+        from .screens import GateProfileScreen, SoundCloudAuthScreen
+        if isinstance(self.screen, (GateProfileScreen, SoundCloudAuthScreen)):
+            self.screen.action_cancel()
 
     def compose(self) -> ComposeResult:
         yield ErrorBanner(id="error-banner")
@@ -316,11 +507,22 @@ class DiggerApp(
         API, pinned by the test that mounts and crashes an app on purpose.
         """
 
-        LOGGER.exception("Unhandled exception in the TUI", exc_info=error)
-        super()._handle_exception(error)
+        LOGGER.error("Unhandled exception in the TUI: %s\n%s", log_safe_text(error),
+                     "".join(traceback.format_tb(error.__traceback__)))
+        # Keep Textual's test/exit bookkeeping, but never render locals or an
+        # exception's provider-supplied Rich representation (which can hold tokens).
+        self._return_code = 1
+        if self._exception is None:
+            self._exception = error
+            self._exception_event.set()
+        self.panic(Text(f"{type(error).__name__}: {log_safe_text(error)}"))
+
+    def notify(self, message, *, markup=False, **kwargs):
+        super().notify(log_safe_text(message), markup=False, **kwargs)
 
     def show_error(self, message: str) -> None:
         """Display an error/debug message in the top ErrorBanner."""
+        message = log_safe_text(message)
         try:
             banner = self.query_one(ErrorBanner)
             banner.add_error(message)
@@ -330,36 +532,36 @@ class DiggerApp(
 
     async def on_mount(self) -> None:
         table = self.query_one("#tracks", TrackTable)
-        self.build_columns(table)
+        self.table_controller.build_columns(table)
         if self.config.theme in self.available_themes and self.theme != self.config.theme:
             self.theme = self.config.theme
         else:
             self.palette = palette_for(self.get_css_variables(), self.current_theme)
-        await self.reload_sidebar()
-        if not self.rows:
+        await self.crate_controller.reload_sidebar()
+        if not self.playlist_state.rows:
             # Someone with a library wants to see it, not be interrogated.
-            latest = self.latest_crate()
+            latest = self.crate_controller.latest_crate()
             if latest is not None:
-                self.open_crate(latest)
-        self.refresh_rows()
+                await self.crate_controller.open_crate(latest)
+        self.table_controller.refresh_rows()
         table.focus()
         # Needs a laid-out width to size itself against.
         self.call_after_refresh(table.fit_flexible_column)
         # Asleep until there is something to animate: waking thirty times a
         # second to look at a list nobody is playing is just a warm laptop.
-        self._ticker = self.set_interval(self.frame_interval, self._tick, pause=True)
+        self.audio_state._ticker = self.set_interval(self.playback_controller.frame_interval, self.playback_controller._tick, pause=True)
         if self.config.first_run:
             # Nothing is configured yet, and one of the things being asked about
             # is which folders to scan, so the scan waits for the answer too.
-            self.push_screen(SettingsScreen(self.config), lambda _: self._after_setup())
+            self.push_screen(await self._settings_screen(), lambda _: self._after_setup())
         else:
             self._after_setup()
 
     def _after_setup(self) -> None:
         # Off the interface thread: a first scan of a real music folder takes a
         # while, and the crate is usable long before it finishes.
-        self.scan_local_files()
-        if not self.rows:
+        self.scan_controller.scan_local_files()
+        if not self.playlist_state.rows:
             self.action_dig_link()
 
     async def on_unmount(self) -> None:
@@ -375,31 +577,29 @@ class DiggerApp(
 
         # The async Playwright context lives on this same event loop. Textual has
         # cancelled its workers by now; close the persistent profile explicitly.
-        self._cart_cancel.set()
-        self._gate_cancel.set()
+        self.shutdown_started()
+        self.services.operations.stop_accepting()
+        self.cart_state._cart_cancel.set()
+        self.download_state._gate_cancel.set()
         self._dig_cancel.set()
-        self._scan_cancel.set()
+        self.scan_state._scan_cancel.set()
         # A tick landing after the widgets have gone would go looking for a
         # player bar that no longer exists. Textual does stop its timers, but
         # only further down the same teardown, so this one goes first.
-        if self._ticker is not None:
-            self._ticker.stop()
-            self._ticker = None
-        if self._download_executor is not None:
-            self._download_executor.shutdown(wait=False, cancel_futures=True)
-            self._download_executor = None
-        self._discard_prepared()
-        self.player.close()
+        if self.audio_state._ticker is not None:
+            self.audio_state._ticker.stop()
+            self.audio_state._ticker = None
+        self.audio_state._playback_generation += 1
+        self.playback_controller._discard_prepared()
         # This runs before Textual gives the terminal back, so a Playwright
         # that will not answer would hang the exit with no key able to reach
-        # us. Five seconds, then the process-exit guard in run_tui takes over.
+        # us. The independent process guard also covers this bounded close.
         try:
-            await asyncio.wait_for(self._cart_session.close(), timeout=5)
+            if self.services._cart is not None:
+                await asyncio.wait_for(self._cart_session.close(), timeout=5)
         except Exception as exc:  # TimeoutError included
             LOGGER.warning("Store browser did not close cleanly: %s", exc)
-        if self._client is not None:
-            self._client.close()
-            self._client = None
+        await asyncio.to_thread(self.services.stop)
 
     @property
     def muted(self) -> str:
@@ -427,16 +627,40 @@ class DiggerApp(
         except Exception:
             self.palette = FALLBACK_PALETTE
         if self.config.theme != theme and not self.config.first_run:
-            self.config.theme = theme
-            self.config.save()
+            self.run_worker(
+                partial(self.services.accounts.save_preferences, {"theme": theme}),
+                thread=True, description="Save theme",
+            )
         if self.is_mounted and self.query("#tracks"):
-            self.refresh_rows()
+            self.table_controller.refresh_rows()
 
     @property
-    def client(self) -> SoundCloudClient:
-        if self._client is None:
-            self._client = SoundCloudClient(config=self.config)
-        return self._client
+    def client(self):
+        return self.services.client
+
+    @property
+    def player(self):
+        return self.services.player
+
+    @player.setter
+    def player(self, value):
+        self.services._player = value
+
+    @property
+    def _client(self):
+        return self.services._client
+
+    @_client.setter
+    def _client(self, value):
+        self.services._client = value
+
+    @property
+    def _cart_session(self):
+        return self.services.cart
+
+    @_cart_session.setter
+    def _cart_session(self, value):
+        self.services._cart = value
 
     @property
     def browser(self) -> str:
@@ -451,18 +675,24 @@ class DiggerApp(
     def action_help(self) -> None:
         self.push_screen(HelpScreen())
 
-    def action_open_settings(self) -> None:
-        self.push_screen(SettingsScreen(self.config))
+    async def _settings_screen(self):
+        choices = await asyncio.to_thread(self.services.accounts.browser_choices)
+        return SettingsScreen(self.config, self.services.accounts, choices)
 
-    def action_export(self) -> None:
+    @work
+    async def action_open_settings(self) -> None:
+        self.push_screen(await self._settings_screen())
+
+    @work
+    async def action_export(self) -> None:
         if self.export_format == "none":
             self.notify("Export is disabled for this run", timeout=3)
             return
-        records = [record for row in self.targets() for record in row.records]
+        records = deepcopy([record for row in self.filter_controller.targets() for record in row.records])
         if not records:
             self.notify("Nothing to export", timeout=2)
             return
-        path = links_module.export_records(records, self.export_format, self.export_path)
+        path = await self.services.io(links_module.export_records, records, self.export_format, self.export_path)
         if path:
             self.notify(f"Exported {len(records)} links to {path}", timeout=4)
         else:
@@ -470,27 +700,28 @@ class DiggerApp(
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         event.stop()
-        self.action_open_link()
+        self.opening_controller.action_open_link()
 
-    def on_track_table_context_menu_requested(
+    @work
+    async def on_track_table_context_menu_requested(
         self, event: TrackTable.ContextMenuRequested
     ) -> None:
         event.stop()
-        row = self.current_row()
+        row = self.filter_controller.current_row()
         if row is None:
             return
-        if self._forget_missing_local_file(row.track):
-            self._paint_key(row.track.key)
+        if await self.scan_controller._forget_missing_local_file(row.track):
+            self.table_controller._paint_key(row.track.key)
         entries = [
-            ("open", "Open best link", self.action_open_link),
+            ("open", "Open best link", self.opening_controller.action_open_link),
             ("got", "Mark as got", self.action_mark_got),
             ("skip", "Mark as skipped", self.action_mark_skip),
             ("new", "Clear mark", self.action_mark_new),
             ("remove", "Remove track", self.action_remove_track),
         ]
-        if row.track.local_path and Path(row.track.local_path).is_file():
+        if row.track.local_path:
             entries.insert(1, ("copy", "Copy local file path", self.action_copy_path))
-            if self._local_file_needs_copy(row.track):
+            if await self.scan_controller._local_file_needs_copy(row.track):
                 entries.insert(
                     2, ("copy_file", "Copy file to playlist folder", self.action_copy_local_file)
                 )
@@ -502,3 +733,135 @@ class DiggerApp(
             ),
             lambda action: actions.get(action, lambda: None)(),
         )
+
+    def action_refresh_crate(self, *args, **kwargs):
+        return self.crate_controller.action_refresh_crate(*args, **kwargs)
+
+    def action_delete_crate(self, *args, **kwargs):
+        return self.crate_controller.action_delete_crate(*args, **kwargs)
+
+    def action_reset_crate_statuses(self, *args, **kwargs):
+        return self.crate_controller.action_reset_crate_statuses(*args, **kwargs)
+
+    def action_toggle_sidebar(self, *args, **kwargs):
+        return self.crate_controller.action_toggle_sidebar(*args, **kwargs)
+
+    def on_list_view_selected(self, *args, **kwargs):
+        return self.crate_controller.on_list_view_selected(*args, **kwargs)
+
+    def on_button_pressed(self, *args, **kwargs):
+        return self.crate_controller.on_button_pressed(*args, **kwargs)
+
+    def action_remove_track(self, *args, **kwargs):
+        self.run_worker(self.crate_controller.action_remove_track(*args, **kwargs), description="remove_track")
+
+    def action_undo_remove(self, *args, **kwargs):
+        self.run_worker(self.crate_controller.action_undo_remove(*args, **kwargs), description="undo_remove")
+
+    def action_filter_index(self, *args, **kwargs):
+        return self.filter_controller.action_filter_index(*args, **kwargs)
+
+    def action_sort_next(self, *args, **kwargs):
+        return self.filter_controller.action_sort_next(*args, **kwargs)
+
+    def action_sort_flip(self, *args, **kwargs):
+        return self.filter_controller.action_sort_flip(*args, **kwargs)
+
+    def action_toggle_select(self, *args, **kwargs):
+        return self.filter_controller.action_toggle_select(*args, **kwargs)
+
+    def action_select_range(self, *args, **kwargs):
+        return self.filter_controller.action_select_range(*args, **kwargs)
+
+    def action_select_visible(self, *args, **kwargs):
+        return self.filter_controller.action_select_visible(*args, **kwargs)
+
+    def action_toggle_handled(self, *args, **kwargs):
+        return self.filter_controller.action_toggle_handled(*args, **kwargs)
+
+    def action_start_search(self, *args, **kwargs):
+        return self.filter_controller.action_start_search(*args, **kwargs)
+
+    def action_leave_search(self, *args, **kwargs):
+        return self.filter_controller.action_leave_search(*args, **kwargs)
+
+    def action_clear_filters(self, *args, **kwargs):
+        return self.filter_controller.action_clear_filters(*args, **kwargs)
+
+    def on_input_changed(self, *args, **kwargs):
+        return self.filter_controller.on_input_changed(*args, **kwargs)
+
+    def on_input_submitted(self, *args, **kwargs):
+        return self.filter_controller.on_input_submitted(*args, **kwargs)
+
+    def action_mark_got(self, *args, **kwargs):
+        self.run_worker(self.table_controller.action_mark_got(*args, **kwargs), description="mark_got")
+
+    def action_mark_skip(self, *args, **kwargs):
+        self.run_worker(self.table_controller.action_mark_skip(*args, **kwargs), description="mark_skip")
+
+    def action_mark_new(self, *args, **kwargs):
+        self.run_worker(self.table_controller.action_mark_new(*args, **kwargs), description="mark_new")
+
+    def action_play_pause(self, *args, **kwargs):
+        return self.playback_controller.action_play_pause(*args, **kwargs)
+
+    def action_toggle_loaded(self, *args, **kwargs):
+        return self.playback_controller.action_toggle_loaded(*args, **kwargs)
+
+    def action_close_player(self, *args, **kwargs):
+        return self.playback_controller.action_close_player(*args, **kwargs)
+
+    def action_seek(self, *args, **kwargs):
+        return self.playback_controller.action_seek(*args, **kwargs)
+
+    def action_play_step(self, *args, **kwargs):
+        return self.playback_controller.action_play_step(*args, **kwargs)
+
+    def action_volume(self, *args, **kwargs):
+        return self.playback_controller.action_volume(*args, **kwargs)
+
+    def action_mute(self, *args, **kwargs):
+        return self.playback_controller.action_mute(*args, **kwargs)
+
+    def action_download_track(self, *args, **kwargs):
+        self.run_worker(self.download_controller.action_download_track(*args, **kwargs), description="download_track")
+
+    def action_batch_download(self, *args, **kwargs):
+        self.run_worker(self.download_controller.action_batch_download(*args, **kwargs), description="batch_download")
+
+    def action_open_link(self, *args, **kwargs):
+        return self.opening_controller.action_open_link(*args, **kwargs)
+
+    def action_search(self, *args, **kwargs):
+        return self.opening_controller.action_search(*args, **kwargs)
+
+    def action_cart_track(self, *args, **kwargs):
+        return self.opening_controller.action_cart_track(*args, **kwargs)
+
+    def action_cart_visible(self, *args, **kwargs):
+        return self.opening_controller.action_cart_visible(*args, **kwargs)
+
+    def action_setup_store_logins(self, *args, **kwargs):
+        return self.opening_controller.action_setup_store_logins(*args, **kwargs)
+
+    def action_check_store_logins(self, *args, **kwargs):
+        return self.opening_controller.action_check_store_logins(*args, **kwargs)
+
+    def action_reset_store_profile(self, *args, **kwargs):
+        return self.opening_controller.action_reset_store_profile(*args, **kwargs)
+
+    def action_open_visible(self, *args, **kwargs):
+        return self.opening_controller.action_open_visible(*args, **kwargs)
+
+    def action_open_beatport_tracks(self, *args, **kwargs):
+        return self.opening_controller.action_open_beatport_tracks(*args, **kwargs)
+
+    def action_copy_path(self, *args, **kwargs):
+        self.run_worker(self.scan_controller.action_copy_path(*args, **kwargs), description="copy_path")
+
+    def action_copy_local_file(self, *args, **kwargs):
+        self.run_worker(self.scan_controller.action_copy_local_file(*args, **kwargs), description="copy_local_file")
+
+    def update_status(self):
+        self.table_controller.update_status()

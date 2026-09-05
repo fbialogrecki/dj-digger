@@ -12,8 +12,9 @@ from pathlib import Path
 
 import pytest
 
-from dj_digger import cart
+from dj_digger import cart_models, store_urls
 from dj_digger.models import Track
+from dj_digger.stores import bandcamp as bandcamp_adapter
 
 pytestmark = pytest.mark.bandcamp_dom
 
@@ -72,13 +73,13 @@ def test_page_products_read_tralbum_and_price_button():
     async def scenario():
         playwright, browser, page, product_url = await _serve("track_page")
         try:
-            products = await cart._page_products_async(page, "bandcamp")
+            products = await bandcamp_adapter._page_products_async(page, "bandcamp")
         finally:
             await browser.close()
             await playwright.stop()
         assert products, "the recorded track page exposes a product"
         assert any(
-            cart.canonical_store_url(product.url, "bandcamp") == cart.canonical_store_url(product_url, "bandcamp")
+            store_urls.canonical_store_url(product.url, "bandcamp") == store_urls.canonical_store_url(product_url, "bandcamp")
             for product in products
         )
 
@@ -89,12 +90,12 @@ def test_quote_reads_user_price_min_and_step():
     async def scenario():
         playwright, browser, page, product_url = await _serve("buy_open")
         try:
-            products = await cart._page_products_async(page, "bandcamp")
+            products = await bandcamp_adapter._page_products_async(page, "bandcamp")
             product = next(
                 p for p in products
-                if cart.canonical_store_url(p.url, "bandcamp") == cart.canonical_store_url(product_url, "bandcamp")
+                if store_urls.canonical_store_url(p.url, "bandcamp") == store_urls.canonical_store_url(product_url, "bandcamp")
             )
-            quote = await cart._bandcamp_quote_async(page, product)
+            quote = await bandcamp_adapter._bandcamp_quote_async(page, product)
         finally:
             await browser.close()
             await playwright.stop()
@@ -109,25 +110,25 @@ def test_add_click_then_sidecart_row_verifies():
     async def scenario():
         playwright, browser, page, product_url = await _serve("sidecart")
         try:
-            products = await cart._page_products_async(page, "bandcamp")
+            products = await bandcamp_adapter._page_products_async(page, "bandcamp")
             product = next(
                 p for p in products
-                if cart.canonical_store_url(p.url, "bandcamp") == cart.canonical_store_url(product_url, "bandcamp")
+                if store_urls.canonical_store_url(p.url, "bandcamp") == store_urls.canonical_store_url(product_url, "bandcamp")
             )
             track = Track(title=product.title, artist=product.artist, permalink_url="https://soundcloud.com/x/y")
-            item = cart.CartItem(
+            item = cart_models.CartItem(
                 track_key=track.key,
                 track_label=track.label,
                 store="bandcamp",
                 source_url=product_url,
-                product_url=cart.canonical_store_url(product.url, "bandcamp") or product_url,
+                product_url=store_urls.canonical_store_url(product.url, "bandcamp") or product_url,
                 product_id=product.product_id,
                 product_title=product.title,
                 price=product.price or Decimal("0"),
                 currency=product.currency or "USD",
             )
-            present = await cart._bandcamp_cart_contains_async(page, item)
-            count = await cart._bandcamp_cart_count_async(page)
+            present = await bandcamp_adapter._bandcamp_cart_contains_async(page, item)
+            count = await bandcamp_adapter._bandcamp_cart_count_async(page)
         finally:
             await browser.close()
             await playwright.stop()
@@ -141,7 +142,7 @@ def test_cart_count_from_menubar_icon():
     async def scenario():
         playwright, browser, page, _url = await _serve("sidecart")
         try:
-            count = await cart._bandcamp_cart_count_async(page)
+            count = await bandcamp_adapter._bandcamp_cart_count_async(page)
         finally:
             await browser.close()
             await playwright.stop()

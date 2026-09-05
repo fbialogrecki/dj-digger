@@ -4,7 +4,7 @@ One source for the bindings, the footer and the help screen, so the three
 cannot drift apart.
 """
 
-from ..state import GOT, NEW, OPENED, SKIP
+from ..models import GOT, NEW, OPENED, SKIP
 
 # A mark is one glyph in a one-cell gutter. Spelling "skipped" out cost seven
 # columns on every row to say "new" on nearly all of them; the width belongs to
@@ -93,9 +93,7 @@ DOMAIN_BADGE_CATEGORIES = {"shop", "others"}
 
 # Categories whose link goes to a shop page, which is not something a gate
 # resolver can unwrap into a file.
-DIRECT_STORE_CATEGORIES = frozenset(
-    {"beatport", "bandcamp", "traxsource", "junodownload", "apple", "shop", "streaming"}
-)
+
 
 SELECTED = "Selected track"
 WHOLE_LIST = "Whole visible list"

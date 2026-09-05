@@ -1,19 +1,22 @@
-"""Unified SQLite storage engine for track states, crates, and scanned local files.
-
-Replaces flat JSON files with a thread-safe SQLite database (~/.local/share/dj-digger/digger.db).
-Supports WAL mode for concurrent background worker writes without UI thread locks.
-"""
+"""SQLite repositories with a single connection owner and explicit transactions."""
 
 import json
 import sqlite3
 import threading
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from datetime import UTC, datetime
+from functools import wraps
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
+from weakref import WeakSet
 
 from .paths import data_dir
+from .schema import open_database
+
+_DATABASES = WeakSet()
 
 # One Database per file for the whole process. Before this, library._db() built a
 # fresh one on every call, and each one opened its own connection, re-ran every
@@ -30,92 +33,94 @@ def default_db_path() -> Path:
 def database(db_path: Path | None = None) -> "Database":
     """The shared Database for this file, built on first use."""
 
-    path = Path(db_path) if db_path else default_db_path()
+    path = (Path(db_path) if db_path else default_db_path()).expanduser().resolve()
     with _LOCK:
         instance = _INSTANCES.get(path)
-        if instance is None:
+        if instance is None or instance._closed:
             instance = Database(path)
             _INSTANCES[path] = instance
         return instance
 
+def owned(method):
+    """Run one repository call on the connection's owning thread."""
+    @wraps(method)
+    def invoke(self, *args, **kwargs):
+        if threading.get_ident() == self._owner:
+            return method(self, *args, **kwargs)
+        return self._executor.submit(method, self, *args, **kwargs).result()
+    return invoke
+
+
 class Database:
-    """Thread-safe SQLite database manager with WAL mode."""
+    """One connection, created, used and closed on a dedicated thread.
+
+    Public calls are synchronous for CLI/worker use. UI callers must await
+    asyncio.to_thread; no cursor or connection crosses this boundary.
+    """
 
     def __init__(self, db_path: Path) -> None:
         self.path = Path(db_path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self._local = threading.local()
-        self._init_db()
+        self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="digger-db")
+        self._owner = None
+        self._closed = False
+        self._generations: dict[str, str] = {}
+        self._generation_lock = threading.Lock()
+        try:
+            self._executor.submit(self._open).result()
+        except BaseException:
+            self._executor.shutdown()
+            raise
+        _DATABASES.add(self)
+
+    def _open(self) -> None:
+        self._owner = threading.get_ident()
+        self._conn = open_database(self.path)
+
+    def close(self) -> None:
+        if not self._closed:
+            self._executor.submit(self._conn.close).result()
+            self._closed = True
+            self._executor.shutdown()
 
     @contextmanager
-    def connection(self) -> Iterator[sqlite3.Connection]:
-        """Get or create a thread-local SQLite connection."""
-        conn = getattr(self._local, "conn", None)
-        if conn is None:
-            # SQLite busy-timeout: the background library scan and the UI
-            # thread write concurrently, so a briefly locked database waits
-            # instead of raising.
-            conn = sqlite3.connect(str(self.path), timeout=10.0)
-            conn.row_factory = sqlite3.Row
-            conn.execute("PRAGMA journal_mode=WAL;")
-            conn.execute("PRAGMA foreign_keys=ON;")
-            self._local.conn = conn
+    def connection(self, *, write: bool = False) -> Iterator[sqlite3.Connection]:
+        if threading.get_ident() != self._owner:
+            raise RuntimeError("SQLite connection belongs to its database thread")
+        conn = self._conn
+        # Nested repository calls participate in the outer transaction.
+        if conn.in_transaction:
+            yield conn
+            return
+        conn.execute("BEGIN IMMEDIATE" if write else "BEGIN")
         try:
             yield conn
             conn.commit()
-        except Exception:
+        except BaseException:
             conn.rollback()
             raise
 
-    def _init_db(self) -> None:
-        with self.connection() as conn:
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS track_states (
-                    key TEXT PRIMARY KEY,
-                    status TEXT NOT NULL,
-                    updated TEXT NOT NULL
-                )
-            """)
-            # Until 1.0 local_files also held size, artist and title, which
-            # nothing read; they were NOT NULL, so the narrower INSERT below
-            # would fail on the old shape. It is a cache: dropped, not migrated.
-            file_columns = {row["name"] for row in conn.execute("PRAGMA table_info(local_files)")}
-            if "size" in file_columns:
-                conn.execute("DROP TABLE local_files")
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS local_files (
-                    path TEXT PRIMARY KEY,
-                    mtime REAL NOT NULL,
-                    normalized_stem TEXT NOT NULL
-                )
-            """)
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS track_local_files (
-                    key TEXT PRIMARY KEY,
-                    path TEXT NOT NULL
-                )
-            """)
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_local_normalized ON local_files(normalized_stem);")
-            # A crates table written by <=0.8 has five chosen columns instead of
-            # record_json, and CREATE TABLE IF NOT EXISTS would silently keep it,
-            # breaking every crate read. The pre-0.9 one-time JSON import is gone,
-            # so an old-shaped table is dropped, not migrated (see CHANGELOG).
-            crate_columns = {row["name"] for row in conn.execute("PRAGMA table_info(crates)")}
-            if crate_columns and "record_json" not in crate_columns:
-                conn.execute("DROP TABLE crates")
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS crates (
-                    source TEXT PRIMARY KEY,
-                    title TEXT NOT NULL,
-                    updated TEXT NOT NULL,
-                    record_json TEXT NOT NULL
-                )
-            """)
+    @owned
+    def set_track_state(self, key: str, status: str, path: str | None) -> None:
+        """Commit status and provenance together, including manual removal."""
+        with self.connection(write=True):
+            self.set_track_status(key, status)
+            if path is None:
+                self.delete_track_local_file(key)
+            else:
+                self.set_track_local_file(key, path)
+
+    @owned
+    def set_track_states(self, updates: list[tuple[str, str, str | None]]) -> None:
+        with self.connection(write=True):
+            for key, status, path in updates:
+                self.set_track_state(key, status, path)
 
     # --- Track State API ---
+    @owned
     def set_track_status(self, key: str, status: str) -> None:
         updated = datetime.now(UTC).isoformat(timespec="seconds")
-        with self.connection() as conn:
+        with self.connection(write=True) as conn:
             if status == "new":
                 conn.execute("DELETE FROM track_states WHERE key = ?", (str(key),))
             else:
@@ -124,29 +129,123 @@ class Database:
                     (str(key), status, updated)
                 )
 
+    @owned
     def all_track_statuses(self) -> dict[str, str]:
         """Every non-new status at once; the table only holds the marked rows."""
         with self.connection() as conn:
             rows = conn.execute("SELECT key, status FROM track_states").fetchall()
             return {row["key"]: row["status"] for row in rows}
 
+    @owned
     def all_track_local_files(self) -> dict[str, str]:
         with self.connection() as conn:
             rows = conn.execute("SELECT key, path FROM track_local_files").fetchall()
             return {row["key"]: row["path"] for row in rows}
 
+    @owned
     def set_track_local_file(self, key: str, path: str) -> None:
-        with self.connection() as conn:
+        with self.connection(write=True) as conn:
             conn.execute(
                 "INSERT OR REPLACE INTO track_local_files (key, path) VALUES (?, ?)",
                 (str(key), path),
             )
 
+    @owned
     def delete_track_local_file(self, key: str) -> None:
-        with self.connection() as conn:
+        with self.connection(write=True) as conn:
             conn.execute("DELETE FROM track_local_files WHERE key = ?", (str(key),))
 
+    def crate_generation(self, source: str) -> str:
+        with self._generation_lock:
+            return self._generations.get(source, "initial")
+
+    def snapshot_generations(self):
+        with self._generation_lock:
+            return dict(self._generations)
+
+    @owned
+    def remember_collection(self, incoming: dict, generation: str | None = None):
+        """Refresh current collection fields, retaining unrelated local decisions."""
+        source = incoming["source"]
+        with self.connection(write=True):
+            if isinstance(generation, dict):
+                if generation.get(source, "initial") != self.crate_generation(source):
+                    return None
+            elif generation is not None and self.crate_generation(source) != generation:
+                return None
+            current = self.load_crate(source)
+            if current is None:
+                current = incoming
+            else:
+                def key(track):
+                    return str(track["id"]) if track.get("id") else track.get("permalink_url", "")
+                known = {key(track) for track in current.get("tracks", [])}
+                arrived = [key(track) for track in incoming["tracks"] if key(track) not in known]
+                if arrived:
+                    current["new_track_keys"] = arrived
+                current["tracks"] = incoming["tracks"]
+                current["title"] = incoming.get("title") or current["title"]
+                current["partial"] = incoming["partial"]
+                current["refreshed_at"] = datetime.now(UTC).isoformat(timespec="seconds")
+            self.save_crate(current)
+            return current
+
+    @owned
+    def set_removed_tracks(self, source: str, generation: str, keys: list[str], removed: bool):
+        with self.connection(write=True):
+            if self.crate_generation(source) != generation:
+                return None
+            record = self.load_crate(source)
+            if record is None:
+                return None
+            kept = list(record.get("removed_track_keys", []))
+            for key in keys:
+                if removed and key not in kept:
+                    kept.append(key)
+                elif not removed and key in kept:
+                    kept.remove(key)
+            record["removed_track_keys"] = kept
+            self.save_crate(record)
+            return record
+
+    @owned
+    def remember_beatport(self, source, generation, outcome):
+        from .crate_models import CrateRecord
+        from .store_match import _remember_exact_beatport_links
+        with self.connection(write=True):
+            if self.crate_generation(source) != generation:
+                return None
+            raw = self.load_crate(source)
+            if raw is None:
+                return None
+            record = CrateRecord.from_json(raw)
+            if _remember_exact_beatport_links(record, outcome):
+                raw = record.to_json()
+                self.save_crate(raw)
+            return raw
+
+    @owned
+    def merge_track_metadata(self, source: str, generation: str, updates: dict) -> bool:
+        """Patch link/file fields of current tracks; never recreate a deleted crate."""
+        allowed = {"purchase_url", "purchase_title", "extra_links", "download_url", "local_path", "description"}
+        if any(set(fields) - allowed for fields in updates.values()):
+            raise ValueError("Not a track metadata patch")
+        with self.connection(write=True):
+            if self.crate_generation(source) != generation:
+                return False
+            record = self.load_crate(source)
+            if record is None:
+                return False
+            removed = set(record.get("removed_track_keys", []))
+            for track in record.get("tracks", []):
+                key = str(track["id"]) if track.get("id") else track.get("permalink_url", "")
+                if key in updates and key not in removed:
+                    track.update(updates[key])
+            self.save_crate(record)
+            return True
+
     # --- Crates API ---
+    @owned
     def save_crate(self, record: dict[str, Any]) -> None:
         """Store a whole ``CrateRecord.to_json()``.
 
@@ -155,7 +254,7 @@ class Database:
         """
 
         updated = record.get("refreshed_at") or record.get("imported_at") or ""
-        with self.connection() as conn:
+        with self.connection(write=True) as conn:
             conn.execute(
                 """INSERT OR REPLACE INTO crates (source, title, updated, record_json)
                    VALUES (?, ?, ?, ?)""",
@@ -167,6 +266,7 @@ class Database:
                 ),
             )
 
+    @owned
     def load_crate(self, source: str) -> dict[str, Any] | None:
         with self.connection() as conn:
             row = conn.execute(
@@ -174,6 +274,7 @@ class Database:
             ).fetchone()
             return json.loads(row["record_json"]) if row else None
 
+    @owned
     def list_crate_headers(self) -> list[dict[str, Any]]:
         """source, title, updated and the partial flag, without parsing a record.
 
@@ -199,17 +300,22 @@ class Database:
             for row in rows
         ]
 
+    @owned
     def delete_crate(self, source: str) -> None:
-        with self.connection() as conn:
+        with self.connection(write=True) as conn:
             conn.execute("DELETE FROM crates WHERE source = ?", (source,))
+        with self._generation_lock:
+            self._generations[source] = uuid4().hex
 
     # --- Local File Cache API ---
+    @owned
     def get_cached_files(self) -> dict[str, tuple[float, str]]:
         """Return dict of path -> (mtime, normalized_stem)."""
         with self.connection() as conn:
             cur = conn.execute("SELECT path, mtime, normalized_stem FROM local_files")
             return {row["path"]: (row["mtime"], row["normalized_stem"]) for row in cur.fetchall()}
 
+    @owned
     def upsert_local_files(self, rows: list[tuple[str, float, str]]) -> None:
         """Write a batch of ``(path, mtime, normalized_stem)``.
 
@@ -218,28 +324,31 @@ class Database:
         """
         if not rows:
             return
-        with self.connection() as conn:
+        with self.connection(write=True) as conn:
             conn.executemany(
                 """INSERT OR REPLACE INTO local_files (path, mtime, normalized_stem)
                    VALUES (?, ?, ?)""",
                 rows,
             )
 
+    @owned
     def delete_local_files(self, paths: list[str]) -> None:
         if not paths:
             return
-        with self.connection() as conn:
+        with self.connection(write=True) as conn:
             conn.executemany(
                 "DELETE FROM local_files WHERE path = ?",
                 ((path,) for path in paths),
             )
 
+    @owned
     def find_local_match(self, normalized_stem: str) -> str | None:
         with self.connection() as conn:
             cur = conn.execute("SELECT path FROM local_files WHERE normalized_stem = ? LIMIT 1", (normalized_stem,))
             row = cur.fetchone()
             return row["path"] if row else None
 
+    @owned
     def find_unique_local_match(
         self, containing: str, also_containing: str = ""
     ) -> str | None:

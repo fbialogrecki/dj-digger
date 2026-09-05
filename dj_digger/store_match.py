@@ -9,7 +9,9 @@ import unicodedata
 from urllib.parse import urlparse
 
 from .cart_models import CartItem, ProductUnavailable, StoreProduct, UnsafeMatch
+from .links import store_for_url
 from .models import Track
+from .store_urls import _direct_beatport_track_url, canonical_store_url
 
 VERSION_PHRASES = (
     "original mix",
@@ -235,3 +237,57 @@ def _same_product(
     if expected.product_id and product.product_id:
         return expected.product_id == product.product_id
     return urlparse(_product_url(expected)).path == urlparse(_product_url(product)).path
+
+
+def _remember_exact_beatport_links(
+    record, outcome
+) -> bool:
+    """Replace stored Beatport release links only when an exact track URL is known."""
+
+    exact_urls = {
+        result.track_key: exact
+        for result in outcome.results
+        if result.store == "beatport"
+        and result.code == "playlist_ready"
+        and (exact := _direct_beatport_track_url(result.url)) is not None
+    }
+    changed = False
+    for track in record.tracks:
+        if store_for_url(track.purchase_url or "") == "beatport":
+            canonical = canonical_store_url(track.purchase_url or "", "beatport")
+            if canonical is not None and canonical != track.purchase_url:
+                track.purchase_url = canonical
+                changed = True
+        normalized_extra = []
+        for url, text in track.extra_links:
+            canonical = (
+                canonical_store_url(url, "beatport")
+                if store_for_url(url) == "beatport"
+                else None
+            )
+            normalized_extra.append((canonical or url, text))
+            changed |= canonical is not None and canonical != url
+        track.extra_links = normalized_extra
+
+        exact = exact_urls.get(track.key)
+        if exact is None:
+            continue
+        if store_for_url(track.purchase_url or "") == "beatport":
+            if track.purchase_url != exact:
+                track.purchase_url = exact
+                changed = True
+            continue
+        updated = []
+        replaced = False
+        for url, text in track.extra_links:
+            if not replaced and store_for_url(url) == "beatport":
+                updated.append((exact, text))
+                replaced = True
+                changed |= url != exact
+            else:
+                updated.append((url, text))
+        if not replaced:
+            updated.append((exact, "Buy on Beatport"))
+            changed = True
+        track.extra_links = updated
+    return changed

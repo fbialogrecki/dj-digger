@@ -12,17 +12,28 @@ JSON import path; a state.json written by an older version is left alone.
 
 import logging
 import threading
+from dataclasses import dataclass
 from pathlib import Path
 
 from .db import database
-
-NEW = "new"
-OPENED = "opened"
-SKIP = "skip"
-GOT = "got"
-STATUSES = (NEW, OPENED, SKIP, GOT)
+from .models import GOT, NEW, OPENED, STATUSES
 
 LOGGER = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class FileObservation:
+    path: str | None
+    revision: int
+
+
+@dataclass(frozen=True)
+class FileMatch:
+    key: str
+    path: str | None
+    confident: bool
+    stale: bool
+    revision: int
 
 
 class TrackState:
@@ -39,6 +50,7 @@ class TrackState:
         # writing the same database is not something the TUI has ever handled.
         self._statuses: dict[str, str] | None = None
         self._files: dict[str, str] | None = None
+        self._revisions: dict[str, int] = {}
 
     @property
     def path(self) -> Path:
@@ -57,38 +69,48 @@ class TrackState:
             self._files = self.db.all_track_local_files()
 
     def get(self, key: str) -> str:
-        with self._lock:
-            self._load()
-            return self._statuses.get(str(key), NEW)
+        if self._statuses is None:
+            with self._lock:
+                self._load()
+        return self._statuses.get(str(key), NEW)
 
     def set(self, key: str, status: str) -> None:
         if status not in STATUSES:
             raise ValueError(f"Unknown status: {status}")
         with self._lock:
             self._load()
-            self.db.set_track_status(key, status)
+            self.db.set_track_state(key, status, None)
             # A direct user decision is no longer contingent on a particular
             # file. Automated scans/downloads use set_local_file instead.
-            self.db.delete_track_local_file(key)
             self._remember(key, status)
             self._files.pop(str(key), None)
 
+    def mark_opened(self, key: str) -> None:
+        """A completed browser handoff never replaces a later got/skip decision."""
+        with self._lock:
+            self._load()
+            if self.get(key) == NEW:
+                self.db.set_track_state(key, OPENED, None)
+                self._remember(key, OPENED)
+                self._files.pop(str(key), None)
+
     def _remember(self, key: str, status: str) -> None:
+        self._revisions[str(key)] = self._revisions.get(str(key), 0) + 1
         if status == NEW:
             self._statuses.pop(str(key), None)
         else:
             self._statuses[str(key)] = status
 
     def local_file(self, key: str) -> str | None:
-        with self._lock:
-            self._load()
-            return self._files.get(str(key))
+        if self._files is None:
+            with self._lock:
+                self._load()
+        return self._files.get(str(key))
 
     def set_local_file(self, key: str, path: str | Path) -> None:
         with self._lock:
             self._load()
-            self.db.set_track_status(key, GOT)
-            self.db.set_track_local_file(key, str(path))
+            self.db.set_track_state(key, GOT, str(path))
             self._remember(key, GOT)
             self._files[str(key)] = str(path)
 
@@ -99,9 +121,35 @@ class TrackState:
             self._load()
             if self._files.get(str(key)) is None:
                 return False
-            self.db.delete_track_local_file(key)
+            status = NEW if self._statuses.get(str(key)) == GOT else self._statuses.get(str(key), NEW)
+            self.db.set_track_state(key, status, None)
             self._files.pop(str(key), None)
-            if self._statuses.get(str(key)) == GOT:
-                self.db.set_track_status(key, NEW)
-                self._remember(key, NEW)
+            self._remember(key, status)
             return True
+
+    def observe_file(self, key: str) -> FileObservation:
+        """Read provenance and its revision together before inspecting the disk."""
+        with self._lock:
+            self._load()
+            return FileObservation(self._files.get(str(key)), self._revisions.get(str(key), 0))
+
+    def apply_file_matches(self, matches: list[FileMatch]) -> None:
+        """Commit one scanner batch, then publish its status/provenance mirrors."""
+        with self._lock:
+            self._load()
+            updates = []
+            for match in matches:
+                key, path = match.key, match.path
+                confident, stale = match.confident, match.stale
+                if path and confident:
+                    updates.append((key, GOT, path))
+                elif stale and match.revision == self._revisions.get(key, 0) and (key in self._files or self.get(key) == GOT):
+                    status = NEW if self.get(key) == GOT else self.get(key)
+                    updates.append((key, status, None))
+            self.db.set_track_states(updates)
+            for key, status, path in updates:
+                self._remember(key, status)
+                if path is None:
+                    self._files.pop(key, None)
+                else:
+                    self._files[key] = path

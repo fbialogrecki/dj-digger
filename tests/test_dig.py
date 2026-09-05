@@ -3,8 +3,9 @@ import threading
 import pytest
 from helpers import a_crate, page_with_hydration
 
-from dj_digger import dig, gates
+from dj_digger import gate_models
 from dj_digger.models import Cancelled, Track
+from dj_digger.services import collection as dig
 
 
 def page_with_ids(*ids):
@@ -161,8 +162,8 @@ def test_a_link_hub_is_replaced_by_the_shops_behind_it(monkeypatch):
     from dj_digger import links
 
     monkeypatch.setattr(
-        "dj_digger.gates.inspect_link_page",
-        lambda url, session, timeout=10.0: gates.LinkPageInspection(
+        "dj_digger.gates.hubs.inspect_link_page",
+        lambda url, session, timeout=10.0: gate_models.LinkPageInspection(
             shops=(
                 ("https://www.beatport.com/release/kyp/7057750", "Beatport"),
                 ("https://label.bandcamp.com/album/kyp", "Bandcamp"),
@@ -190,9 +191,9 @@ def test_hub_expansion_stops_when_cancelled(monkeypatch):
     def inspect(url, session, timeout=10.0):
         inspected.append(url)
         cancel.set()
-        return gates.LinkPageInspection(shops=(("https://label.bandcamp.com/album/x", "Bandcamp"),))
+        return gate_models.LinkPageInspection(shops=(("https://label.bandcamp.com/album/x", "Bandcamp"),))
 
-    monkeypatch.setattr("dj_digger.gates.inspect_link_page", inspect)
+    monkeypatch.setattr("dj_digger.gates.hubs.inspect_link_page", inspect)
     monkeypatch.setattr("dj_digger.soundcloud.create_requests_session", lambda **kw: FakeSession())
     tracks = [a_hub_track() for _ in range(40)]
 
@@ -206,8 +207,8 @@ def test_a_hub_that_turned_out_to_be_a_gate_is_left_alone(monkeypatch):
     from dj_digger import links
 
     monkeypatch.setattr(
-        "dj_digger.gates.inspect_link_page",
-        lambda *a, **kw: gates.LinkPageInspection(keep_original=True),
+        "dj_digger.gates.hubs.inspect_link_page",
+        lambda *a, **kw: gate_models.LinkPageInspection(keep_original=True),
     )
     monkeypatch.setattr("dj_digger.soundcloud.create_requests_session", lambda **kw: FakeSession())
 
@@ -224,8 +225,8 @@ def test_a_hub_that_turned_out_to_be_a_gate_is_left_alone(monkeypatch):
 def test_hypeddit_smartlink_becomes_nested_gate_and_shops(monkeypatch):
     nested = "https://hypeddit.com/track/nmqt0z"
     monkeypatch.setattr(
-        "dj_digger.gates.inspect_link_page",
-        lambda *a, **kw: gates.LinkPageInspection(
+        "dj_digger.gates.hubs.inspect_link_page",
+        lambda *a, **kw: gate_models.LinkPageInspection(
             shops=(
                 ("https://www.beatport.com/release/ghetto-bass/2470877", "Beatport"),
                 ("https://terrenceandphillip.bandcamp.com/", "Bandcamp"),
@@ -260,7 +261,7 @@ def test_hypeddit_in_a_description_is_expanded_without_scraping_other_descriptio
 
     def inspect(url, *_args, **_kwargs):
         inspected.append(url)
-        return gates.LinkPageInspection(
+        return gate_models.LinkPageInspection(
             shops=(
                 ("https://www.beatport.com/release/epitome/4194268", "Beatport"),
                 ("https://duxnbass.bandcamp.com/album/epitome", "Bandcamp"),
@@ -268,7 +269,7 @@ def test_hypeddit_in_a_description_is_expanded_without_scraping_other_descriptio
             recognized=True,
         )
 
-    monkeypatch.setattr("dj_digger.gates.inspect_link_page", inspect)
+    monkeypatch.setattr("dj_digger.gates.hubs.inspect_link_page", inspect)
     monkeypatch.setattr(
         "dj_digger.soundcloud.create_requests_session", lambda **kw: FakeSession()
     )
@@ -295,8 +296,8 @@ def test_a_recognised_empty_hypeddit_hub_becomes_no_link(monkeypatch):
 
     wrapper = "https://hypeddit.com/empty"
     monkeypatch.setattr(
-        "dj_digger.gates.inspect_link_page",
-        lambda *_args, **_kwargs: gates.LinkPageInspection(recognized=True),
+        "dj_digger.gates.hubs.inspect_link_page",
+        lambda *_args, **_kwargs: gate_models.LinkPageInspection(recognized=True),
     )
     monkeypatch.setattr(
         "dj_digger.soundcloud.create_requests_session", lambda **kw: FakeSession()
@@ -342,7 +343,7 @@ def test_a_host_that_stops_answering_is_asked_twice_and_no_more(monkeypatch):
         asked.append(url)
         return None  # the host said nothing at all
 
-    monkeypatch.setattr("dj_digger.gates.inspect_link_page", never_answers)
+    monkeypatch.setattr("dj_digger.gates.hubs.inspect_link_page", never_answers)
     monkeypatch.setattr("dj_digger.soundcloud.create_requests_session", lambda **kw: FakeSession())
 
     # Forty tracks, all pointing at the same dead host.
@@ -371,9 +372,9 @@ def test_a_host_that_answers_is_asked_every_time(monkeypatch):
 
     def answers_with_nothing(url, session, timeout=10.0):
         asked.append(url)
-        return gates.LinkPageInspection()
+        return gate_models.LinkPageInspection()
 
-    monkeypatch.setattr("dj_digger.gates.inspect_link_page", answers_with_nothing)
+    monkeypatch.setattr("dj_digger.gates.hubs.inspect_link_page", answers_with_nothing)
     monkeypatch.setattr("dj_digger.soundcloud.create_requests_session", lambda **kw: FakeSession())
 
     tracks = [
@@ -392,8 +393,8 @@ def test_a_host_that_answers_is_asked_every_time(monkeypatch):
 
 def test_hub_expansion_reports_progress(monkeypatch):
     monkeypatch.setattr(
-        "dj_digger.gates.inspect_link_page",
-        lambda *a, **kw: gates.LinkPageInspection(
+        "dj_digger.gates.hubs.inspect_link_page",
+        lambda *a, **kw: gate_models.LinkPageInspection(
             shops=(("https://label.bandcamp.com/album/a", "Bandcamp"),)
         ),
     )

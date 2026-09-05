@@ -21,9 +21,10 @@ import time
 from collections.abc import Sequence
 from pathlib import Path
 
-from .. import dig as dig_module
-from ..library import CrateRecord
+from ..crate_models import CrateRecord
 from ..models import LinkRecord
+from ..services import collection as dig_module
+from ..services.runtime import ApplicationServices
 from ..state import TrackState
 from .app import DiggerApp
 
@@ -73,6 +74,7 @@ def run_tui(
     records: Sequence[LinkRecord] = (),
     *,
     state: TrackState | None = None,
+    services: ApplicationServices | None = None,
     crate_title: str = "",
     export_format: str = "json",
     export_path: Path | None = None,
@@ -81,9 +83,28 @@ def run_tui(
     keep_logging: bool = False,
     grace: float = EXIT_GRACE,
 ) -> None:
+    services = services or ApplicationServices(state=state)
+    # The guard must run during asyncio's teardown, before app.run can return.
+    # It never closes resources underneath a live worker.
+    def force_shutdown():
+        LOGGER.warning("Forcing exit: application teardown exceeded its deadline")
+        HARD_EXIT(0)
+
+    guard = threading.Timer(grace, force_shutdown)
+    guard.daemon = True
+    shutdown_deadline = None
+
+    def shutdown_started():
+        nonlocal shutdown_deadline
+        if shutdown_deadline is None:
+            shutdown_deadline = time.monotonic() + grace
+            guard.start()
+
     app = DiggerApp(
         records,
+        shutdown_started=shutdown_started,
         state=state,
+        services=services,
         crate_title=crate_title,
         export_format=export_format,
         export_path=export_path,
@@ -115,4 +136,9 @@ def run_tui(
             logger.setLevel(level)
         if on_main_thread:
             signal.signal(signal.SIGINT, previous_handler)
-        _finish_or_exit(grace, code)
+        try:
+            services.stop()
+        finally:
+            guard.cancel()
+        remaining = max(0, shutdown_deadline - time.monotonic()) if shutdown_deadline is not None else grace
+        _finish_or_exit(remaining, code)

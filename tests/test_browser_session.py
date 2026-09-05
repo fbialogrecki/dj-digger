@@ -6,7 +6,7 @@ from threading import Event
 
 import pytest
 
-from dj_digger import browser_session
+from dj_digger import automation_errors, browser_session
 
 
 def test_store_profile_lives_in_private_app_data(tmp_path, monkeypatch):
@@ -91,7 +91,7 @@ def test_browser_context_reports_a_missing_chromium_before_launch(tmp_path, monk
         lambda: FakePlaywrightManager(chromium),
     )
 
-    with pytest.raises(browser_session.ChromiumMissing):
+    with pytest.raises(automation_errors.ChromiumMissing):
         with browser_session.sync_browser_context(tmp_path):
             pass
 
@@ -176,7 +176,7 @@ def test_chromium_installer_terminates_its_child_when_cancelled(monkeypatch):
 
         monkeypatch.setattr(browser_session.os, "killpg", killpg)
 
-    with pytest.raises(browser_session.AutomationError, match="cancelled"):
+    with pytest.raises(automation_errors.AutomationError, match="cancelled"):
         browser_session.install_chromium(cancel)
 
     assert not process.terminated
@@ -211,7 +211,7 @@ def test_linux_launch_failure_explains_how_to_install_system_dependencies(
         lambda: FakePlaywrightManager(BrokenChromium(executable)),
     )
 
-    with pytest.raises(browser_session.AutomationError, match=r"install --with-deps chromium"):
+    with pytest.raises(automation_errors.AutomationError, match=r"install --with-deps chromium"):
         with browser_session.sync_browser_context(tmp_path):
             pass
 
@@ -229,11 +229,11 @@ def test_install_deps_message_is_not_mistaken_for_a_missing_browser(tmp_path, mo
         lambda: FakePlaywrightManager(MissingLibrariesChromium(executable)),
     )
 
-    with pytest.raises(browser_session.AutomationError) as caught:
+    with pytest.raises(automation_errors.AutomationError) as caught:
         with browser_session.sync_browser_context(tmp_path):
             pass
 
-    assert not isinstance(caught.value, browser_session.ChromiumMissing)
+    assert not isinstance(caught.value, automation_errors.ChromiumMissing)
     assert "install --with-deps chromium" in str(caught.value)
 
 
@@ -272,7 +272,7 @@ def test_the_viewer_needs_a_display_and_gets_the_cookies(monkeypatch):
     monkeypatch.delenv("WAYLAND_DISPLAY", raising=False)
     monkeypatch.setattr(browser_session.sys, "platform", "linux")
 
-    with pytest.raises(browser_session.AutomationError, match="desktop window"):
+    with pytest.raises(automation_errors.AutomationError, match="desktop window"):
         asyncio.run(browser_session.launch_viewer(object(), []))
 
     monkeypatch.setenv("DISPLAY", ":1")

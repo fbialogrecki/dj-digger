@@ -11,8 +11,8 @@ from urllib.parse import urlparse
 
 import requests
 
-from .browser import REQUEST_HEADERS
 from .cart_models import CartBatchOutcome, CartRequest, CartResult
+from .http import REQUEST_HEADERS
 from .links import redact_url
 from .store_urls import canonical_store_url
 

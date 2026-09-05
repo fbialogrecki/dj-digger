@@ -3,7 +3,7 @@ import threading
 import pytest
 from conftest import FakeResponse
 
-from dj_digger import gates, soundcloud
+from dj_digger import files, gate_models, soundcloud
 from dj_digger.models import Cancelled, Track
 from dj_digger.soundcloud import (
     SoundCloudClient,
@@ -58,7 +58,8 @@ class DownloadSession:
 
 
 def make_client(session=None):
-    return SoundCloudClient(session=session or FakeSession([]), client_id=DUMMY_CLIENT_ID)
+    session = session or FakeSession([])
+    return SoundCloudClient(session=session, public_session=session, client_id=DUMMY_CLIENT_ID)
 
 
 def medusa_track():
@@ -97,7 +98,7 @@ def test_a_free_download_without_a_url_uses_the_authenticated_endpoint(tmp_path)
     audio = DownloadResponse([b"RIFF"], headers={"Content-Type": "audio/wav"})
     session = FakeSession([endpoint, audio])
     client = SoundCloudClient(
-        session=session, client_id=DUMMY_CLIENT_ID, oauth_token="valid"
+        session=session, public_session=session, client_id=DUMMY_CLIENT_ID, oauth_token="valid"
     )
 
     path = client.download_track(medusa_track(), tmp_path)
@@ -157,10 +158,10 @@ def test_a_lookalike_host_is_not_handed_our_client_id(tmp_path):
 def test_a_track_named_after_a_windows_device_still_gets_a_filename(name):
     """CON.mp3 is as reserved as CON, and the OSError lands after the download."""
 
-    cleaned = soundcloud._download_stem(
+    cleaned = files._download_stem(
         Track(title=name, permalink_url="https://soundcloud.com/a/t")
     )
-    assert cleaned.upper() not in soundcloud.WINDOWS_RESERVED
+    assert cleaned.upper() not in files.WINDOWS_RESERVED
     assert name.lower() in cleaned.lower()
 
 
@@ -218,11 +219,11 @@ def test_gate_derived_html_keeps_a_typed_protocol_failure(tmp_path, monkeypatch)
     client = make_client(session)
     track = Track(title="T", artist="A", permalink_url="https://soundcloud.com/a/t")
     monkeypatch.setattr(
-        "dj_digger.gates.resolve_gate_download_url",
+        "dj_digger.gates.providers.resolve_gate_download_url",
         lambda *_args, **_kwargs: "https://www.dropbox.com/foreign.wav?dl=0",
     )
 
-    with pytest.raises(gates.GateProtocolChanged, match="web page"):
+    with pytest.raises(gate_models.GateProtocolChanged, match="web page"):
         client.download_track(
             track,
             tmp_path / "downloads",
@@ -265,7 +266,7 @@ def test_a_download_runs_on_the_session_it_was_given(tmp_path, monkeypatch):
         seen.append(session)
         return "https://cdn.example/file.mp3"
 
-    monkeypatch.setattr("dj_digger.gates.resolve_gate_download_url", fake_resolve)
+    monkeypatch.setattr("dj_digger.gates.providers.resolve_gate_download_url", fake_resolve)
 
     # The client's own session raises if anything reaches for it: it has no
     # queued responses. That is the point of the test.
@@ -284,7 +285,7 @@ def test_a_download_runs_on_the_session_it_was_given(tmp_path, monkeypatch):
 def test_a_download_that_never_ends_is_stopped(tmp_path, monkeypatch):
     """Content-Length is a claim; without a ceiling the loop ends when the server says so."""
 
-    monkeypatch.setattr(soundcloud, "MAX_DOWNLOAD_BYTES", 1024)
+    monkeypatch.setattr(files, "MAX_DOWNLOAD_BYTES", 1024)
     endless = DownloadResponse([b"a" * 512] * 10)
     session = DownloadSession(endless)
     client = make_client(session)
@@ -308,7 +309,7 @@ def test_a_download_that_never_ends_is_stopped(tmp_path, monkeypatch):
 
 
 def test_a_download_declaring_more_than_the_limit_is_refused_before_writing(tmp_path, monkeypatch):
-    monkeypatch.setattr(soundcloud, "MAX_DOWNLOAD_BYTES", 1024)
+    monkeypatch.setattr(files, "MAX_DOWNLOAD_BYTES", 1024)
     session = DownloadSession(
         DownloadResponse([b"a"], headers={"Content-Length": str(50 * 1024 * 1024)})
     )
@@ -608,3 +609,51 @@ def test_request_reports_other_http_errors():
 def test_client_id_regex_matches_both_bundle_styles():
     assert soundcloud.CLIENT_ID_RE.search('client_id:"' + "a" * 32 + '"').group(1) == "a" * 32
     assert soundcloud.CLIENT_ID_RE.search("client_id=" + "b" * 32).group(1) == "b" * 32
+
+
+def test_api_token_is_current_and_environment_has_priority(monkeypatch):
+    saved = {"token": "first"}
+    monkeypatch.delenv("SOUNDCLOUD_OAUTH_TOKEN", raising=False)
+    monkeypatch.setattr(soundcloud.auth, "get_stored_token", lambda: saved["token"])
+    session = FakeSession([FakeResponse(payload={}) for _ in range(3)])
+    client = SoundCloudClient(session=session, client_id=DUMMY_CLIENT_ID)
+    client._get("/tracks/1")
+    saved["token"] = "second"
+    client._get("/tracks/1")
+    monkeypatch.setenv("SOUNDCLOUD_OAUTH_TOKEN", "environment")
+    client._get("/tracks/1")
+    assert [kwargs["headers"]["Authorization"] for _, _, kwargs in session.calls] == [
+        "OAuth first", "OAuth second", "OAuth environment",
+    ]
+    assert all(kwargs["allow_redirects"] is False for _, _, kwargs in session.calls)
+
+
+@pytest.mark.parametrize("url", ["https://api-v2.soundcloud.com.evil.test/tracks/1", "http://api-v2.soundcloud.com/tracks/1", "https://user@api-v2.soundcloud.com/tracks/1"])
+def test_api_rejects_foreign_target_before_reading_credentials(url, monkeypatch):
+    def forbidden():
+        raise AssertionError("credentials read before validating target")
+    monkeypatch.setattr(soundcloud.auth, "get_stored_token", forbidden)
+    session = FakeSession([])
+    client = SoundCloudClient(session=session, client_id=DUMMY_CLIENT_ID)
+    with pytest.raises(SoundCloudError, match="untrusted"):
+        client._request(url)
+    assert session.calls == []
+
+
+def test_each_gate_transfer_gets_its_own_session_without_api_credentials(tmp_path, monkeypatch):
+    api = FakeSession([])
+    created = []
+
+    def session_factory():
+        session = DownloadSession(DownloadResponse([b"audio"]))
+        created.append(session)
+        return session
+
+    monkeypatch.setattr(soundcloud, "create_requests_session", session_factory)
+    client = SoundCloudClient(session=api, client_id=DUMMY_CLIENT_ID, oauth_token="private")
+    track = Track(id=1, title="test", permalink_url="https://soundcloud.com/a/1", downloadable=True, has_downloads_left=True, download_url="https://cdn.example/file.wav")
+    for _ in range(2):
+        client.download_track(track, tmp_path)
+    assert len(created) == 2
+    assert api.calls == []
+    assert all(session.calls[0][1] == {} for session in created)

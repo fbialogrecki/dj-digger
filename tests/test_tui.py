@@ -1,11 +1,12 @@
+
 import asyncio
 import io
 import json
 import logging
 import threading
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from decimal import Decimal
+from pathlib import Path
 from threading import Event
 from types import SimpleNamespace
 
@@ -15,28 +16,36 @@ from textual import events
 from textual.coordinate import Coordinate
 from textual.widgets import Button, DataTable, Input, Label, ListView, Select, Static
 
-from dj_digger import cart, gates, library, links, soundcloud
+from dj_digger import (
+    automation_errors,
+    beatport_playlist,
+    cart_models,
+    crate_models,
+    gate_models,
+    library,
+    links,
+    soundcloud,
+    store_match,
+)
 from dj_digger.config import AppConfig
-from dj_digger.dig import DigOptions, TargetNotFound
-from dj_digger.models import Cancelled, Crate, LinkRecord, Track
-from dj_digger.player import (
+from dj_digger.models import GOT, OPENED, SKIP, Cancelled, Crate, LinkRecord, Track
+from dj_digger.player import Loaded, PlaybackUnavailable
+from dj_digger.scanner import LocalMatch
+from dj_digger.services import purchases as cart
+from dj_digger.services.collection import DigOptions, TargetNotFound
+from dj_digger.services.playback import Prepared, Stream
+from dj_digger.state import TrackState
+from dj_digger.tui import DiggerApp, keymap
+from dj_digger.tui.audio import (
     PAUSE_GLYPH,
     PLAYER_HEIGHT,
     VOLUME_TRACK,
     VOLUME_TRACK_START,
-    Loaded,
-    PlaybackUnavailable,
     PlayerBar,
     PlayerControls,
-    Stream,
     VolumeSlider,
 )
-from dj_digger.scanner import LocalMatch
-from dj_digger.state import GOT, OPENED, SKIP, TrackState
-from dj_digger.tui import DiggerApp, keymap
-from dj_digger.tui import downloads as tui_downloads
-from dj_digger.tui import opening as opening_module
-from dj_digger.tui.rows import Prepared, Row
+from dj_digger.tui.rows import Row
 from dj_digger.tui.screens import (
     AskLinkScreen,
     CartPlanScreen,
@@ -60,18 +69,18 @@ def run(scenario):
 @pytest.mark.parametrize(
     ("error", "group"),
     [
-        (gates.GateAuthenticationRequired("Deezer"), "auth"),
-        (gates.GateCaptchaRequired("captcha"), "captcha"),
-        (gates.GateManualActionRequired("future"), "manual"),
-        (gates.GateProtocolChanged("changed"), "protocol"),
-        (gates.GateRejected("rejected"), "rejected"),
-        (gates.GateSocialActionsDisabled("consent"), "consent"),
-        (gates.GateDownloadError("download"), "download"),
+        (gate_models.GateAuthenticationRequired("Deezer"), "auth"),
+        (gate_models.GateCaptchaRequired("captcha"), "captcha"),
+        (gate_models.GateManualActionRequired("future"), "manual"),
+        (gate_models.GateProtocolChanged("changed"), "protocol"),
+        (gate_models.GateRejected("rejected"), "rejected"),
+        (gate_models.GateSocialActionsDisabled("consent"), "consent"),
+        (gate_models.GateDownloadError("download"), "download"),
         (soundcloud.SoundCloudError("download"), "download"),
     ],
 )
 def test_batch_gate_failures_have_actionable_summary_groups(error, group):
-    from dj_digger.tui.downloads import _gate_failure_group
+    from dj_digger.services.downloads import _gate_failure_group
 
     assert _gate_failure_group(error) == group
 
@@ -118,7 +127,7 @@ def test_batch_summary_toast_renders_literal_failure_groups(state):
 
     async def scenario():
         async with app.run_test(notifications=True) as pilot:
-            app._on_batch_download_complete(
+            app.download_controller._on_batch_download_complete(
                 1,
                 5,
                 6,
@@ -250,7 +259,7 @@ def test_optional_columns_follow_the_settings(records, state):
             table = app.query_one("#tracks", DataTable)
             assert len(table.columns) == 7
             app.config.columns = ["bpm", "year"]
-            app.rebuild_columns()
+            app.table_controller.rebuild_columns()
             await pilot.pause()
             assert len(table.columns) == 9
             row = table.get_row_at(0)
@@ -267,11 +276,11 @@ def test_the_dim_colour_follows_the_theme(records, state):
 
     async def scenario():
         async with app.run_test() as pilot:
-            await pilot.pause()
+            await settle(app, pilot)
             dark = app.muted
             assert dark.startswith("#")
             app.theme = "textual-light"
-            await pilot.pause()
+            await settle(app, pilot)
             assert app.muted != dark and app.muted.startswith("#")
             assert app.config.theme == "textual-light", "the choice is saved"
 
@@ -291,11 +300,11 @@ def test_the_interface_colours_come_from_the_theme(records, state):
             primary = app.palette.primary.lower()
             assert primary.startswith("#")
             assert app.role("bold success").lower() == f"bold {app.palette.success.lower()}"
-            legend = app._store_line()
+            legend = app.table_controller._store_line()
             assert primary in str(legend.spans[-2].style).lower() or any(
                 primary in str(span.style).lower() for span in legend.spans
             )
-            cells = app._cells(app.visible_rows[0], None)
+            cells = app.table_controller._cells(app.playlist_state.visible_rows[0], None)
             assert any(primary in str(cell.style).lower() for cell in cells), "badges wear the theme's primary"
 
     run(scenario)
@@ -463,10 +472,10 @@ def test_the_bottom_bar_is_the_legend_with_the_view_state_on_the_right(records, 
 
     async def scenario():
         async with app.run_test(size=(160, 24)) as pilot:
-            await pilot.pause()
+            await settle(app, pilot)
             legend = str(app.query_one("#status-legend", Static).content)
             job = str(app.query_one("#status-job", Static).content)
-            assert "0 all" in legend and all(store in legend for store in app.present)
+            assert "0 all" in legend and all(store in legend for store in app.playlist_state.present)
             assert job == "", "no track counts: they were never looked at"
             assert app.query_one("#status").size.height == 1
             await pilot.press("h")
@@ -489,7 +498,7 @@ def test_the_bar_stays_one_line_and_scrolls_when_cramped(records, state):
             bar = app.query_one("#status")
             assert bar.size.height == 1
             assert bar.max_scroll_x > 0
-            assert all(store in str(app.query_one("#status-legend", Static).content) for store in app.present)
+            assert all(store in str(app.query_one("#status-legend", Static).content) for store in app.playlist_state.present)
 
     run(scenario)
 
@@ -536,7 +545,7 @@ def test_a_track_in_two_stores_is_still_one_row(state):
     async def scenario():
         async with app.run_test():
             assert app.query_one("#tracks", DataTable).row_count == 1
-            assert app.rows[0].categories == ["bandcamp", "gate"]
+            assert app.playlist_state.rows[0].categories == ["bandcamp", "gate"]
 
     run(scenario)
 
@@ -547,6 +556,7 @@ def test_marking_got_persists_and_moves_on(records, state):
     async def scenario():
         async with app.run_test() as pilot:
             await pilot.press("g")
+            await settle(app, pilot)
             assert state.get(records[0].track.key) == GOT
             # Cursor should have advanced so you can keep hammering the key.
             assert app.query_one("#tracks", DataTable).cursor_row == 1
@@ -563,6 +573,7 @@ def test_skipping_persists(records, state):
     async def scenario():
         async with app.run_test() as pilot:
             await pilot.press("k")
+            await settle(app, pilot)
 
     run(scenario)
     assert state.get(records[0].track.key) == SKIP
@@ -578,11 +589,13 @@ def test_pressing_the_same_mark_again_clears_it(records, state, key, status):
         async with app.run_test() as pilot:
             table = app.query_one("#tracks", DataTable)
             await pilot.press(key)
+            await settle(app, pilot)
             assert state.get(records[0].track.key) == status
             assert table.cursor_row == 1
 
             table.move_cursor(row=0)
             await pilot.press(key)
+            await settle(app, pilot)
             assert state.get(records[0].track.key) == "new"
             # Undoing should not march the cursor onwards.
             assert table.cursor_row == 0
@@ -612,6 +625,7 @@ def test_unmarking_clears_the_status(records, state):
     async def scenario():
         async with app.run_test() as pilot:
             await pilot.press("u")
+            await settle(app, pilot)
 
     run(scenario)
     assert state.get(records[0].track.key) == "new"
@@ -780,9 +794,9 @@ def test_right_click_opens_the_track_menu_without_opening_a_link(
 
 
 def cart_plan_for(record, *, already=False):
-    return cart.CartPlan(
+    return cart_models.CartPlan(
         items=(
-            cart.CartItem(
+            cart_models.CartItem(
                 track_key=record.track.key,
                 track_label=record.track.label,
                 store=record.category,
@@ -815,9 +829,9 @@ def test_c_preflights_and_adds_the_selected_track(records, state, monkeypatch):
         plan = cart_plan_for(bandcamp_record)
         assert await approve(plan)
         executed.append(plan)
-        return cart.CartBatchOutcome(
+        return cart_models.CartBatchOutcome(
             (
-                cart.CartResult(
+                cart_models.CartResult(
                     bandcamp_record.track.key,
                     bandcamp_record.track.label,
                     "bandcamp",
@@ -858,9 +872,9 @@ def test_beatport_result_creates_playlist_and_opens_supported_transfer(
         "https://www.beatport.com/track/signal/123?token=secret",
         "Buy",
     )
-    outcome = cart.CartBatchOutcome(
+    outcome = cart_models.CartBatchOutcome(
         (
-            cart.CartResult(
+            cart_models.CartResult(
                 candidate.key,
                 candidate.label,
                 "beatport",
@@ -882,13 +896,13 @@ def test_beatport_result_creates_playlist_and_opens_supported_transfer(
         return True
 
     patch_cart_session(monkeypatch, run_cart)
-    monkeypatch.setattr("dj_digger.tui.opening.browser_module.open_url", open_url)
+    monkeypatch.setattr("dj_digger.browser.open_url", open_url)
     monkeypatch.setattr(
-        "dj_digger.tui.opening._create_soundiiz_import",
+        "dj_digger.beatport_playlist._create_soundiiz_import",
         lambda requests, outcome, title: "https://soundiiz.com/go/import-playlist/test-token",
     )
     monkeypatch.setattr(
-        "dj_digger.tui.opening.copy_to_clipboard",
+        "dj_digger.clipboard.copy_to_clipboard",
         lambda text: copied.append(text) or True,
     )
     app = make_app([record], state)
@@ -924,13 +938,13 @@ def test_beatport_playlist_uses_metadata_for_a_release_link(tmp_path):
         permalink_url="https://soundcloud.com/revan/lights-on",
         id=4243,
     )
-    request = cart.CartRequest(
+    request = cart_models.CartRequest(
         candidate,
         (("beatport", "https://www.beatport.com/release/lights-on/123"),),
     )
-    outcome = cart.CartBatchOutcome(
+    outcome = cart_models.CartBatchOutcome(
         (
-            cart.CartResult(
+            cart_models.CartResult(
                 candidate.key,
                 candidate.label,
                 "beatport",
@@ -942,9 +956,9 @@ def test_beatport_playlist_uses_metadata_for_a_release_link(tmp_path):
         )
     )
 
-    lines = opening_module._beatport_playlist_lines([request], outcome)
-    first = opening_module._write_beatport_playlist(lines, tmp_path)
-    second = opening_module._write_beatport_playlist(lines, tmp_path)
+    lines = beatport_playlist._beatport_playlist_lines([request], outcome)
+    first = beatport_playlist._write_beatport_playlist(lines, tmp_path)
+    second = beatport_playlist._write_beatport_playlist(lines, tmp_path)
 
     assert lines == ("Revan - Lights On",)
     assert first.name == "Beatport playlist.txt"
@@ -958,13 +972,13 @@ def test_soundiiz_import_posts_the_tracklist_and_returns_its_review_url(monkeypa
         permalink_url="https://soundcloud.com/revan/lights-on",
         id=4243,
     )
-    request = cart.CartRequest(
+    request = cart_models.CartRequest(
         candidate,
         (("beatport", "https://www.beatport.com/track/lights-on/123"),),
     )
-    outcome = cart.CartBatchOutcome(
+    outcome = cart_models.CartBatchOutcome(
         (
-            cart.CartResult(
+            cart_models.CartResult(
                 candidate.key,
                 candidate.label,
                 "beatport",
@@ -990,7 +1004,7 @@ def test_soundiiz_import_posts_the_tracklist_and_returns_its_review_url(monkeypa
 
     monkeypatch.setattr("dj_digger.beatport_playlist.requests.post", post)
 
-    url = opening_module._create_soundiiz_import([request], outcome, "Dig finds")
+    url = beatport_playlist._create_soundiiz_import([request], outcome, "Dig finds")
 
     assert url == "https://soundiiz.com/go/import-playlist/token"
     assert posted["url"] == "https://soundiiz.com/go/import-playlist"
@@ -1065,9 +1079,9 @@ def test_soundiiz_metadata_removes_promo_uploader_noise(
     raw_title, uploader, title, artists
 ):
     track = Track(title=raw_title, artist=uploader, permalink_url="https://soundcloud.com/x/y")
-    request = cart.CartRequest(track, (("beatport", "https://www.beatport.com/release/x/1"),))
+    request = cart_models.CartRequest(track, (("beatport", "https://www.beatport.com/release/x/1"),))
 
-    assert opening_module._soundiiz_metadata(request) == {
+    assert beatport_playlist._soundiiz_metadata(request) == {
         "title": title,
         "artists": artists,
     }
@@ -1079,9 +1093,9 @@ def test_soundiiz_metadata_adds_remixer_to_catalog_artists():
         artist="Return of the Jaded",
         permalink_url="https://soundcloud.com/x/keep-on-trying",
     )
-    request = cart.CartRequest(track, (("beatport", "https://www.beatport.com/release/x/1"),))
+    request = cart_models.CartRequest(track, (("beatport", "https://www.beatport.com/release/x/1"),))
 
-    assert opening_module._soundiiz_metadata(request) == {
+    assert beatport_playlist._soundiiz_metadata(request) == {
         "title": "Keep On Trying (Return Of The Jaded Remix)",
         "artists": ["Jochen Pash", "Return Of The Jaded"],
     }
@@ -1094,11 +1108,11 @@ def test_exact_beatport_result_replaces_the_saved_release_link():
         permalink_url="https://soundcloud.com/x/signal",
         purchase_url="https://www.beatport.com/release/signal/12",
     )
-    record = library.CrateRecord("source", "Playlist", [track])
+    record = crate_models.CrateRecord("source", "Playlist", [track])
     exact = "https://www.beatport.com/track/signal/34"
-    outcome = cart.CartBatchOutcome(
+    outcome = cart_models.CartBatchOutcome(
         (
-            cart.CartResult(
+            cart_models.CartResult(
                 track.key,
                 track.label,
                 "beatport",
@@ -1109,7 +1123,7 @@ def test_exact_beatport_result_replaces_the_saved_release_link():
         )
     )
 
-    assert opening_module._remember_exact_beatport_links(record, outcome)
+    assert store_match._remember_exact_beatport_links(record, outcome)
     assert track.purchase_url == exact
 
     legacy = Track(
@@ -1117,9 +1131,9 @@ def test_exact_beatport_result_replaces_the_saved_release_link():
         permalink_url="https://soundcloud.com/x/keep",
         purchase_url="https://pro.beatport.com/release/keep-on-trying-part-2/1491414",
     )
-    legacy_record = library.CrateRecord("source", "Playlist", [legacy])
-    assert opening_module._remember_exact_beatport_links(
-        legacy_record, cart.CartBatchOutcome(())
+    legacy_record = crate_models.CrateRecord("source", "Playlist", [legacy])
+    assert store_match._remember_exact_beatport_links(
+        legacy_record, cart_models.CartBatchOutcome(())
     )
     assert legacy.purchase_url == (
         "https://www.beatport.com/release/keep-on-trying-part-2/1491414"
@@ -1140,7 +1154,7 @@ def test_store_settings_only_open_the_bandcamp_session(records, state, monkeypat
             app.action_setup_store_logins()
             for _ in range(20):
                 await pilot.pause()
-                if not app._cart_busy:
+                if not app.cart_state._cart_busy:
                     break
 
     run(scenario)
@@ -1156,13 +1170,13 @@ def test_c_installs_missing_chromium_then_retries_preflight(records, state, monk
     async def run_cart(requests, _cancel, approve, _progress):
         prepared.append(requests)
         if not installed:
-            raise cart.ChromiumMissing("Chromium is required for store carts")
+            raise automation_errors.ChromiumMissing("Chromium is required for store carts")
         plan = cart_plan_for(bandcamp_record)
         assert await approve(plan)
         executed.append(plan)
-        return cart.CartBatchOutcome(
+        return cart_models.CartBatchOutcome(
             (
-                cart.CartResult(
+                cart_models.CartResult(
                     bandcamp_record.track.key,
                     bandcamp_record.track.label,
                     "bandcamp",
@@ -1208,10 +1222,10 @@ def test_shift_c_confirms_the_visible_preflight_before_mutating(state, monkeypat
     async def run_cart(_requests, _cancel, approve, _progress):
         approved = await approve(plan)
         if approved is None:
-            return cart.CartBatchOutcome((), cancelled=True)
+            return cart_models.CartBatchOutcome((), cancelled=True)
         executed.append(approved)
-        return cart.CartBatchOutcome(
-            (cart.CartResult(record.track.key, record.track.label, "bandcamp", "added"),),
+        return cart_models.CartBatchOutcome(
+            (cart_models.CartResult(record.track.key, record.track.label, "bandcamp", "added"),),
             ("bandcamp",),
         )
 
@@ -1242,7 +1256,7 @@ def test_shift_c_confirms_the_visible_preflight_before_mutating(state, monkeypat
 def test_cart_plan_accepts_a_comma_price_and_recalculates_the_total(state):
     record = synthetic_records(1)[0]
     base = cart_plan_for(record).items[0]
-    plan = cart.CartPlan(
+    plan = cart_models.CartPlan(
         items=(
             replace(
                 base,
@@ -1276,7 +1290,7 @@ def test_cart_plan_accepts_a_comma_price_and_recalculates_the_total(state):
 def test_cart_plan_keeps_continue_visible_in_a_short_terminal(state):
     record = synthetic_records(1)[0]
     base = cart_plan_for(record).items[0]
-    plan = cart.CartPlan(
+    plan = cart_models.CartPlan(
         tuple(
             replace(base, track_key=str(index), track_label=f"Track {index}")
             for index in range(6)
@@ -1310,11 +1324,11 @@ def test_batch_cart_refuses_a_filter_without_supported_stores(state, monkeypatch
 
     monkeypatch.setattr(cart.CartBrowserSession, "run_batch", fail)
     app = make_app([record], state)
-    app.store_filters = {"gate"}
+    app.playlist_state.store_filters = {"gate"}
 
     app.action_cart_visible()
 
-    assert app._cart_busy is False
+    assert app.cart_state._cart_busy is False
 
 
 def test_cart_fallback_request_keeps_bandcamp_first(state):
@@ -1326,9 +1340,9 @@ def test_cart_fallback_request_keeps_bandcamp_first(state):
         description="https://www.beatport.com/release/release/99",
     )
     app = make_app(links.categorise(track), state)
-    app.store_filters = {"beatport", "bandcamp"}
+    app.playlist_state.store_filters = {"beatport", "bandcamp"}
 
-    request = app._cart_request(app.rows[0])
+    request = app.opening_controller._cart_request(app.playlist_state.rows[0])
 
     assert [store for store, _url in request.links] == ["bandcamp", "beatport"]
 
@@ -1342,9 +1356,9 @@ def test_explicit_bandcamp_and_beatport_filters_create_independent_requests(stat
         description="https://www.beatport.com/release/release/99",
     )
     app = make_app(links.categorise(track), state)
-    app.store_filters = {"beatport", "bandcamp"}
+    app.playlist_state.store_filters = {"beatport", "bandcamp"}
 
-    requests = app._cart_requests(app.rows[0])
+    requests = app.opening_controller._cart_requests(app.playlist_state.rows[0])
 
     assert [request.links for request in requests] == [
         (("bandcamp", "https://label.bandcamp.com/album/release"),),
@@ -1360,9 +1374,9 @@ def test_batch_cart_leaves_got_and_skipped_tracks_out(state, monkeypatch):
 
     async def run_cart(requests, _cancel, _approve, _progress):
         seen.extend(requests)
-        return cart.CartBatchOutcome(
+        return cart_models.CartBatchOutcome(
             (
-                cart.CartResult(
+                cart_models.CartResult(
                     records[2].track.key,
                     records[2].track.label,
                     "bandcamp",
@@ -1393,18 +1407,18 @@ def test_number_keys_select_the_stores_this_crate_actually_has(records, state):
 
     async def scenario():
         async with app.run_test() as pilot:
-            assert app.present == ["no-link", "bandcamp", "others"]
+            assert app.playlist_state.present == ["no-link", "bandcamp", "others"]
 
             await pilot.press("2")
-            assert app.store_filters == {"bandcamp"}
+            assert app.playlist_state.store_filters == {"bandcamp"}
             expected = sum(1 for record in records if record.category == "bandcamp")
             assert app.query_one("#tracks", DataTable).row_count == expected
 
             await pilot.press("3")
-            assert app.store_filters == {"bandcamp", "others"}
+            assert app.playlist_state.store_filters == {"bandcamp", "others"}
 
             await pilot.press("0")
-            assert app.store_filters == set()
+            assert app.playlist_state.store_filters == set()
             assert app.query_one("#tracks", DataTable).row_count == len(records)
 
     run(scenario)
@@ -1416,7 +1430,7 @@ def test_a_number_key_beyond_the_stores_present_is_a_no_op(records, state):
     async def scenario():
         async with app.run_test() as pilot:
             await pilot.press("9")
-            assert app.store_filters == set()
+            assert app.playlist_state.store_filters == set()
 
     run(scenario)
 
@@ -1459,7 +1473,7 @@ def test_search_matches_any_word_in_any_order(state):
             await pilot.press("slash")
             app.query_one("#search").value = "extended bonobo"
             await pilot.pause()
-            assert [row.track.artist for row in app.visible_rows] == ["Bonobo"]
+            assert [row.track.artist for row in app.playlist_state.visible_rows] == ["Bonobo"]
 
     run(scenario)
 
@@ -1475,10 +1489,10 @@ def test_search_reaches_genre_and_tags(state):
             await pilot.press("slash")
             app.query_one("#search").value = "dub"
             await pilot.pause()
-            assert [row.position for row in app.visible_rows] == [3]
+            assert [row.position for row in app.playlist_state.visible_rows] == [3]
             app.query_one("#search").value = "berlin"
             await pilot.pause()
-            assert [row.position for row in app.visible_rows] == [1]
+            assert [row.position for row in app.playlist_state.visible_rows] == [1]
 
     run(scenario)
 
@@ -1495,11 +1509,11 @@ def test_escape_drops_the_selection_before_the_search(state):
             await pilot.press("escape")  # leaves the box, keeps the term
             await pilot.pause()
             await pilot.press("v")
-            assert app.selected == {records[0].track.key}
+            assert app.playlist_state.selected == {records[0].track.key}
             await pilot.press("escape")
-            assert app.selected == set() and app.search_term == "track"
+            assert app.playlist_state.selected == set() and app.playlist_state.search_term == "track"
             await pilot.press("escape")
-            assert app.search_term == ""
+            assert app.playlist_state.search_term == ""
 
     run(scenario)
 
@@ -1516,14 +1530,14 @@ def test_t_sorts_by_time_and_shows_it_in_the_header(state):
             await pilot.press("t")  # title
             await pilot.press("t")  # time
             await pilot.pause()
-            assert [row.position for row in app.visible_rows] == [2, 3, 1]
+            assert [row.position for row in app.playlist_state.visible_rows] == [2, 3, 1]
             table = app.query_one("#tracks", DataTable)
-            assert "\u25b2" in str(table.columns[app._column_keys["Time"]].label)
+            assert "\u25b2" in str(table.columns[app.playlist_state._column_keys["Time"]].label)
             await pilot.press("T")
             await pilot.pause()
-            assert [row.position for row in app.visible_rows] == [1, 3, 2]
-            assert "\u25bc" in str(table.columns[app._column_keys["Time"]].label)
-            assert "sort: time" in str(app._progress_line())
+            assert [row.position for row in app.playlist_state.visible_rows] == [1, 3, 2]
+            assert "\u25bc" in str(table.columns[app.playlist_state._column_keys["Time"]].label)
+            assert "sort: time" in str(app.table_controller._progress_line())
 
     run(scenario)
 
@@ -1540,8 +1554,8 @@ def test_sorting_survives_a_mark(state):
             await pilot.press("t")
             await pilot.press("t")
             await pilot.press("g")
-            await pilot.pause()
-            assert [row.position for row in app.visible_rows] == [2, 3, 1]
+            await settle(app, pilot)
+            assert [row.position for row in app.playlist_state.visible_rows] == [2, 3, 1]
 
     run(scenario)
 
@@ -1557,12 +1571,12 @@ def test_v_selects_and_shift_v_extends(state):
             await pilot.press("down")
             await pilot.press("V")
             await pilot.pause()
-            assert app.selected == {records[i].track.key for i in range(3)}
+            assert app.playlist_state.selected == {records[i].track.key for i in range(3)}
             assert "3 selected" in bar_text(app)
             await pilot.press("ctrl+a")
-            assert len(app.selected) == 4
+            assert len(app.playlist_state.selected) == 4
             await pilot.press("ctrl+a")
-            assert app.selected == set()
+            assert app.playlist_state.selected == set()
 
     run(scenario)
 
@@ -1574,7 +1588,7 @@ def test_batch_download_uses_the_selection_when_there_is_one(state, monkeypatch)
         record.track.has_downloads_left = True
     app = make_app(records, state)
     started = []
-    monkeypatch.setattr(app, "batch_download_in_background", lambda items: started.extend(items))
+    monkeypatch.setattr(app.download_controller, "batch_download_in_background", lambda items, handle=None: started.extend(items))
 
     async def scenario():
         async with app.run_test() as pilot:
@@ -1598,7 +1612,7 @@ def test_marking_a_selection_marks_every_selected_row(state):
             await pilot.press("down")
             await pilot.press("v")
             await pilot.press("g")
-            await pilot.pause()
+            await settle(app, pilot)
 
     run(scenario)
     assert [state.get(r.track.key) for r in records] == [GOT, "new", GOT]
@@ -1612,8 +1626,8 @@ def test_escape_clears_every_filter(records, state):
             await pilot.press("2")
             await pilot.press("h")
             await pilot.press("escape")
-            assert app.store_filters == set()
-            assert app.hide_handled is False
+            assert app.playlist_state.store_filters == set()
+            assert app.playlist_state.hide_handled is False
             assert app.query_one("#tracks", DataTable).row_count == len(records)
 
     run(scenario)
@@ -1674,7 +1688,7 @@ def crate_of(count, *, title="Fresh crate", source="https://soundcloud.com/a/set
 
 
 async def settle(app, pilot):
-    """Wait for the background dig to land and the UI to catch up."""
+    """Wait for background workers to finish and the UI to catch up."""
 
     await app.workers.wait_for_complete()
     await pilot.pause()
@@ -1692,7 +1706,7 @@ def test_an_empty_app_asks_for_a_link(state):
 
 
 def test_entering_a_link_fills_the_table(state, monkeypatch, tmp_path):
-    monkeypatch.setattr("dj_digger.dig.dig", lambda target, **kwargs: crate_of(3))
+    monkeypatch.setattr("dj_digger.services.collection.dig", lambda target, **kwargs: crate_of(3))
     app = make_app([], state, export_path=tmp_path / "out.json")
 
     async def scenario():
@@ -1703,7 +1717,7 @@ def test_entering_a_link_fills_the_table(state, monkeypatch, tmp_path):
             await settle(app, pilot)
 
             assert app.query_one("#tracks", DataTable).row_count == 3
-            assert app.present == ["bandcamp"]
+            assert app.playlist_state.present == ["bandcamp"]
             assert app.sub_title == "Fresh crate"
 
     run(scenario)
@@ -1720,7 +1734,7 @@ def test_the_target_is_passed_through_with_the_dig_options(state, monkeypatch):
         seen["kwargs"] = kwargs
         return crate_of(1)
 
-    monkeypatch.setattr("dj_digger.dig.dig", fake_dig)
+    monkeypatch.setattr("dj_digger.services.collection.dig", fake_dig)
     app = make_app([], state, dig_options=DigOptions(limit=7, timeout=5.0, delay=0.0))
 
     async def scenario():
@@ -1739,7 +1753,7 @@ def test_the_target_is_passed_through_with_the_dig_options(state, monkeypatch):
 def test_cancelling_with_nothing_loaded_quits(state, monkeypatch):
     app = make_app([], state)
     exited = []
-    monkeypatch.setattr(app, "exit", lambda *a, **k: exited.append(True))
+    monkeypatch.setattr(app.digging, "exit_empty", lambda: exited.append(True))
 
     async def scenario():
         async with app.run_test() as pilot:
@@ -1767,7 +1781,7 @@ def test_cancelling_keeps_a_crate_you_already_have(records, state):
 
 
 def test_digging_a_second_link_replaces_the_crate(records, state, monkeypatch):
-    monkeypatch.setattr("dj_digger.dig.dig", lambda target, **kwargs: crate_of(2, title="Second"))
+    monkeypatch.setattr("dj_digger.services.collection.dig", lambda target, **kwargs: crate_of(2, title="Second"))
     app = make_app(records, state, export_format="none")
 
     async def scenario():
@@ -1788,7 +1802,7 @@ def test_a_failed_dig_reports_and_asks_again(state, monkeypatch):
     def boom(target, **kwargs):
         raise TargetNotFound("nope.html")
 
-    monkeypatch.setattr("dj_digger.dig.dig", boom)
+    monkeypatch.setattr("dj_digger.services.collection.dig", boom)
     app = make_app([], state)
 
     async def scenario():
@@ -1806,7 +1820,7 @@ def test_a_failed_dig_reports_and_asks_again(state, monkeypatch):
 
 
 def test_a_crate_with_no_tracks_is_treated_as_a_failure(state, monkeypatch):
-    monkeypatch.setattr("dj_digger.dig.dig", lambda target, **kwargs: crate_of(0))
+    monkeypatch.setattr("dj_digger.services.collection.dig", lambda target, **kwargs: crate_of(0))
     app = make_app([], state)
 
     async def scenario():
@@ -1821,7 +1835,7 @@ def test_a_crate_with_no_tracks_is_treated_as_a_failure(state, monkeypatch):
 
 
 def saved_crate(count=3, *, source="https://soundcloud.com/a/sets/saved", title="Saved crate"):
-    record = library.CrateRecord.from_crate(
+    record = crate_models.CrateRecord.from_crate(
         Crate(
             source=source,
             title=title,
@@ -1847,7 +1861,7 @@ def test_the_sidebar_lists_saved_crates(state):
 
     async def scenario():
         async with app.run_test():
-            assert [record.title for record in app.crates] == ["Alpha", "Beta"]
+            assert [record.title for record in app.sidebar_state.crates] == ["Alpha", "Beta"]
             assert app.query_one("#crates", ListView).children
 
     run(scenario)
@@ -1863,7 +1877,7 @@ def test_a_library_is_opened_instead_of_being_asked_for_a_link(state):
         async with app.run_test() as pilot:
             await pilot.pause()
             assert not isinstance(app.screen, AskLinkScreen)
-            assert app.crate is not None and app.crate.title == "Already here"
+            assert app.playlist_state.crate is not None and app.playlist_state.crate.title == "Already here"
             assert app.query_one("#tracks", DataTable).row_count == 3
 
     run(scenario)
@@ -1881,8 +1895,9 @@ def test_selecting_a_crate_switches_to_it(state):
             listing.index = 1
             listing.action_select_cursor()
             await pilot.pause()
+            await settle(app, pilot)
 
-            assert app.crate.title == "Two"
+            assert app.playlist_state.crate.title == "Two"
             assert app.query_one("#tracks", DataTable).row_count == 4
 
     run(scenario)
@@ -1896,21 +1911,22 @@ def test_selecting_a_crate_loads_it_on_demand(state, monkeypatch):
     loads: list[str] = []
     real_load = library.load
     monkeypatch.setattr(
-        "dj_digger.tui.crates.library_module.load",
-        lambda source: (loads.append(source), real_load(source))[1],
+        "dj_digger.services.library.LibraryService.load",
+        lambda self, source: (loads.append(source), real_load(source))[1],
     )
     app = make_app([], state)
 
     async def scenario():
         async with app.run_test() as pilot:
-            await pilot.pause()
-            assert not hasattr(app.crates[0], "tracks")
+            await settle(app, pilot)
+            assert not hasattr(app.sidebar_state.crates[0], "tracks")
             listing = app.query_one("#crates", ListView)
             listing.index = 1
             listing.action_select_cursor()
-            await pilot.pause()
+            await pilot.pause()  # Dispatch Selected before waiting for its worker.
+            await settle(app, pilot)
 
-            assert app.crate.title == "Two"
+            assert app.playlist_state.crate.title == "Two"
             assert loads[-1] == "https://soundcloud.com/a/sets/two"
 
     run(scenario)
@@ -1923,7 +1939,7 @@ def test_refreshing_redigs_the_saved_source_and_keeps_deletions(state, monkeypat
 
     # Like the real dig, which reports back the source it was given.
     monkeypatch.setattr(
-        "dj_digger.dig.dig",
+        "dj_digger.services.collection.dig",
         lambda target, **kwargs: crate_of(4, title="Refreshed", source=target),
     )
     app = make_app([], state, export_format="none")
@@ -2045,7 +2061,7 @@ def test_each_crate_row_carries_its_own_buttons(state, monkeypatch, intent, expe
     target = saved_crate(1, source="https://soundcloud.com/a/sets/two", title="Two")
     app = make_app([], state)
     called = []
-    monkeypatch.setattr(app, expected, lambda record: called.append(record.title))
+    monkeypatch.setattr(app.crate_controller, expected, lambda record: called.append(record.title))
 
     async def scenario():
         async with app.run_test() as pilot:
@@ -2108,7 +2124,7 @@ def test_a_long_crate_name_is_trimmed_rather_than_wrapped_away(state):
 
 
 def test_a_dig_lands_in_the_library(state, monkeypatch):
-    monkeypatch.setattr("dj_digger.dig.dig", lambda target, **kwargs: crate_of(2, title="Dug"))
+    monkeypatch.setattr("dj_digger.services.collection.dig", lambda target, **kwargs: crate_of(2, title="Dug"))
     app = make_app([], state, export_format="none")
 
     async def scenario():
@@ -2131,16 +2147,16 @@ def test_removing_a_track_persists_and_undo_brings_it_back(state):
 
     async def scenario():
         async with app.run_test() as pilot:
-            await pilot.pause()
+            await settle(app, pilot)
             assert app.query_one("#tracks", DataTable).row_count == 3
 
             await pilot.press("x")
-            await pilot.pause()
+            await settle(app, pilot)
             assert app.query_one("#tracks", DataTable).row_count == 2
             assert library.load(record.source).removed_track_keys == ["500"]
 
             await pilot.press("ctrl+z")
-            await pilot.pause()
+            await settle(app, pilot)
             assert app.query_one("#tracks", DataTable).row_count == 3
             assert library.load(record.source).removed_track_keys == []
 
@@ -2155,11 +2171,11 @@ def test_removing_keeps_the_active_filter(state):
         async with app.run_test() as pilot:
             await pilot.pause()
             await pilot.press("1")  # bandcamp, the only store here
-            assert app.store_filters == {"bandcamp"}
+            assert app.playlist_state.store_filters == {"bandcamp"}
             await pilot.press("x")
-            await pilot.pause()
+            await settle(app, pilot)
             # A removal must not reset what you filtered down to.
-            assert app.store_filters == {"bandcamp"}
+            assert app.playlist_state.store_filters == {"bandcamp"}
             assert app.query_one("#tracks", DataTable).row_count == 2
 
     run(scenario)
@@ -2170,9 +2186,9 @@ def test_removing_without_a_saved_crate_is_refused_not_a_crash(records, state):
 
     async def scenario():
         async with app.run_test() as pilot:
-            assert app.crate is None
+            assert app.playlist_state.crate is None
             await pilot.press("x")
-            await pilot.pause()
+            await settle(app, pilot)
             assert app.query_one("#tracks", DataTable).row_count == len(records)
 
     run(scenario)
@@ -2186,7 +2202,7 @@ def test_undo_with_nothing_removed_is_harmless(state):
         async with app.run_test() as pilot:
             await pilot.pause()
             await pilot.press("ctrl+z")
-            await pilot.pause()
+            await settle(app, pilot)
             assert app.query_one("#tracks", DataTable).row_count == 2
 
     run(scenario)
@@ -2241,12 +2257,12 @@ def test_the_store_column_badges_every_store_and_picks_out_the_one_o_opens(state
             # clipped by the table into "gate(hypedd".
             assert str(table.get_row_at(0)[STORES_CELL]) == "bandcamp gate(hypeddi…"
             # Bandcamp comes first, so that is what o would follow.
-            assert app.record_to_open(app.rows[0]).category == "bandcamp"
+            assert app.filter_controller.record_to_open(app.playlist_state.rows[0]).category == "bandcamp"
 
             # Filtering to the gate is how you say you want the gate instead.
             await pilot.press("2")
-            assert app.store_filters == {"gate"}
-            assert app.record_to_open(app.rows[0]).category == "gate"
+            assert app.playlist_state.store_filters == {"gate"}
+            assert app.filter_controller.record_to_open(app.playlist_state.rows[0]).category == "gate"
 
     run(scenario)
 
@@ -2267,7 +2283,7 @@ def test_a_free_soundcloud_download_is_badged_and_opened_first(state):
         async with app.run_test():
             table = app.query_one("#tracks", DataTable)
             assert str(table.get_row_at(0)[STORES_CELL]) == "\u2193soundcloud bandcamp"
-            chosen = app.record_to_open(app.rows[0])
+            chosen = app.filter_controller.record_to_open(app.playlist_state.rows[0])
             assert chosen.category == "soundcloud"
             assert chosen.link_url == track.download_url
 
@@ -2319,10 +2335,10 @@ def test_the_legend_lists_every_store_and_scrolls_instead_of_clipping(state):
     async def scenario():
         async with app.run_test(size=(40, 24)) as pilot:
             await pilot.pause()
-            line = app._store_line()
-            assert all(store in str(line) for store in app.present)
+            line = app.table_controller._store_line()
+            assert all(store in str(line) for store in app.playlist_state.present)
             assert "\u00b73" in str(line)
-            assert [idx for _s, _e, idx in app._badge_click_regions] == list(range(len(app.present) + 1))
+            assert [idx for _s, _e, idx in app.playlist_state._badge_click_regions] == list(range(len(app.playlist_state.present) + 1))
             bar = app.query_one("#status")
             assert bar.max_scroll_x > 0, "wider than the terminal, so it can scroll"
             assert bar.styles.scrollbar_size_horizontal == 0
@@ -2518,14 +2534,14 @@ def player_app(records, state, **kwargs):
 def loading_fetch(app, started):
     """Stand in for the audio worker, doing what _audio_ready would do."""
 
-    def fetch(track):
+    def fetch(track, generation=None):
         started.append(track.id)
-        app._player_bar().message = ""
+        app.playback_controller._player_bar().message = ""
         app.player.load(track, a_stream(), None)
         app.player.play()
-        app.refresh_rows()
-        app._focus_playing_track()
-        app._player_bar().refresh_bar()
+        app.table_controller.refresh_rows()
+        app.playback_controller._focus_playing_track()
+        app.playback_controller._player_bar().refresh_bar()
 
     return fetch
 
@@ -2538,23 +2554,23 @@ def test_three_links_over_two_tracks_make_two_rows():
 
     async def scenario():
         async with app.run_test():
-            assert [row.track.id for row in app.rows] == [901, 902]
+            assert [row.track.id for row in app.playlist_state.rows] == [901, 902]
 
     run(scenario)
 
 
 def test_playback_start_repaints_the_two_rows_involved(state, monkeypatch):
     app = player_app(two_tracks_three_links(), state)
-    monkeypatch.setattr(app, "fetch_audio", lambda track: app._audio_ready(track, a_stream(), []))
+    monkeypatch.setattr(app.playback_controller, "fetch_audio", lambda track, generation=None: app.playback_controller._audio_ready(track, a_stream(), []))
     clears = []
     painted = []
-    real_paint = app._paint_key
+    real_paint = app.table_controller._paint_key
 
     async def scenario():
         async with app.run_test() as pilot:
             await pilot.pause()
             monkeypatch.setattr(DataTable, "clear", lambda self, *a, **k: clears.append(1))
-            monkeypatch.setattr(app, "_paint_key", lambda key: (painted.append(key), real_paint(key)))
+            monkeypatch.setattr(app.table_controller, "_paint_key", lambda key: (painted.append(key), real_paint(key)))
             await pilot.press("space")
             await pilot.pause()
             await pilot.press("n")
@@ -2568,7 +2584,7 @@ def test_playback_start_repaints_the_two_rows_involved(state, monkeypatch):
 def test_next_track_moves_on_to_the_next_track(state, monkeypatch):
     app = player_app(two_tracks_three_links(), state)
     started = []
-    monkeypatch.setattr(app, "fetch_audio", lambda track: started.append(track.id))
+    monkeypatch.setattr(app.playback_controller, "fetch_audio", lambda track, generation=None: started.append(track.id))
 
     async def scenario():
         async with app.run_test() as pilot:
@@ -2584,7 +2600,7 @@ def test_next_track_moves_on_to_the_next_track(state, monkeypatch):
 def test_previous_track_walks_back(state, monkeypatch):
     app = player_app(two_tracks_three_links(), state)
     started = []
-    monkeypatch.setattr(app, "fetch_audio", lambda track: started.append(track.id))
+    monkeypatch.setattr(app.playback_controller, "fetch_audio", lambda track, generation=None: started.append(track.id))
 
     async def scenario():
         async with app.run_test() as pilot:
@@ -2602,14 +2618,14 @@ def test_a_finished_track_rolls_on_to_the_next(state, monkeypatch):
 
     app = player_app(synthetic_records(4), state)
     started = []
-    monkeypatch.setattr(app, "fetch_audio", loading_fetch(app, started))
+    monkeypatch.setattr(app.playback_controller, "fetch_audio", loading_fetch(app, started))
 
     async def scenario():
         async with app.run_test() as pilot:
             await pilot.press("space")
             await pilot.pause()
             app.player.finished = True
-            app._tick()
+            app.playback_controller._tick()
             await pilot.pause()
             assert app.query_one("#tracks", DataTable).cursor_row == 1
 
@@ -2620,7 +2636,7 @@ def test_a_finished_track_rolls_on_to_the_next(state, monkeypatch):
 def test_the_end_of_the_list_stops_instead_of_wrapping(state, monkeypatch):
     app = player_app(synthetic_records(2), state)
     started = []
-    monkeypatch.setattr(app, "fetch_audio", loading_fetch(app, started))
+    monkeypatch.setattr(app.playback_controller, "fetch_audio", loading_fetch(app, started))
 
     async def scenario():
         async with app.run_test() as pilot:
@@ -2628,7 +2644,7 @@ def test_the_end_of_the_list_stops_instead_of_wrapping(state, monkeypatch):
             await pilot.press("space")
             await pilot.pause()
             app.player.finished = True
-            app._tick()
+            app.playback_controller._tick()
             await pilot.pause()
 
     run(scenario)
@@ -2640,7 +2656,7 @@ def test_wandering_off_leaves_the_cursor_where_you_put_it(state, monkeypatch):
 
     app = player_app(synthetic_records(4), state)
     started = []
-    monkeypatch.setattr(app, "fetch_audio", loading_fetch(app, started))
+    monkeypatch.setattr(app.playback_controller, "fetch_audio", loading_fetch(app, started))
 
     async def scenario():
         async with app.run_test() as pilot:
@@ -2651,7 +2667,7 @@ def test_wandering_off_leaves_the_cursor_where_you_put_it(state, monkeypatch):
             await pilot.pause()
 
             app.player.finished = True
-            app._tick()
+            app.playback_controller._tick()
             await pilot.pause()
             assert table.cursor_row == 3
 
@@ -2662,7 +2678,7 @@ def test_wandering_off_leaves_the_cursor_where_you_put_it(state, monkeypatch):
 
 def test_the_playing_row_carries_a_marker(state, monkeypatch):
     app = player_app(synthetic_records(3), state)
-    monkeypatch.setattr(app, "fetch_audio", loading_fetch(app, []))
+    monkeypatch.setattr(app.playback_controller, "fetch_audio", loading_fetch(app, []))
 
     async def scenario():
         async with app.run_test() as pilot:
@@ -2680,14 +2696,14 @@ def test_marking_the_track_you_are_hearing_moves_listening_on_too(state, monkeyp
 
     app = player_app(synthetic_records(4), state)
     started = []
-    monkeypatch.setattr(app, "fetch_audio", loading_fetch(app, started))
+    monkeypatch.setattr(app.playback_controller, "fetch_audio", loading_fetch(app, started))
 
     async def scenario():
         async with app.run_test() as pilot:
             await pilot.press("space")
             await pilot.pause()
             await pilot.press("k")
-            await pilot.pause()
+            await settle(app, pilot)
             assert app.query_one("#tracks", DataTable).cursor_row == 1
 
     run(scenario)
@@ -2697,7 +2713,7 @@ def test_marking_the_track_you_are_hearing_moves_listening_on_too(state, monkeyp
 def test_marking_a_track_you_are_not_hearing_leaves_playback_alone(state, monkeypatch):
     app = player_app(synthetic_records(4), state)
     started = []
-    monkeypatch.setattr(app, "fetch_audio", loading_fetch(app, started))
+    monkeypatch.setattr(app.playback_controller, "fetch_audio", loading_fetch(app, started))
 
     async def scenario():
         async with app.run_test() as pilot:
@@ -2706,7 +2722,7 @@ def test_marking_a_track_you_are_not_hearing_leaves_playback_alone(state, monkey
             await pilot.pause()
             table.move_cursor(row=2)
             await pilot.press("k")
-            await pilot.pause()
+            await settle(app, pilot)
 
     run(scenario)
     assert started == [1]
@@ -2724,7 +2740,7 @@ class FakeSource:
 
 
 def prepared_for(app, index, source=None):
-    track = app.visible_rows[index].track
+    track = app.playlist_state.visible_rows[index].track
     return Prepared(track=track, stream=a_stream(), waveform=[1, 2], source=source)
 
 
@@ -2732,9 +2748,9 @@ def test_the_next_track_is_got_ready_before_this_one_ends(state, monkeypatch):
     """Otherwise every track in the crate is followed by a second of Loading."""
 
     app = player_app(synthetic_records(3), state)
-    monkeypatch.setattr(app, "fetch_audio", loading_fetch(app, []))
+    monkeypatch.setattr(app.playback_controller, "fetch_audio", loading_fetch(app, []))
     asked = []
-    monkeypatch.setattr(app, "prepare_track", lambda track: asked.append(track.id))
+    monkeypatch.setattr(app.playback_controller, "prepare_track", lambda track, generation=None: asked.append(track.id))
 
     async def scenario():
         async with app.run_test() as pilot:
@@ -2742,7 +2758,7 @@ def test_the_next_track_is_got_ready_before_this_one_ends(state, monkeypatch):
             await pilot.pause()
 
             app.player.position = 290.0  # ten seconds left of three hundred
-            app._tick()
+            app.playback_controller._tick()
             await pilot.pause()
 
     run(scenario)
@@ -2751,16 +2767,16 @@ def test_the_next_track_is_got_ready_before_this_one_ends(state, monkeypatch):
 
 def test_nothing_is_got_ready_while_there_is_time_left(state, monkeypatch):
     app = player_app(synthetic_records(3), state)
-    monkeypatch.setattr(app, "fetch_audio", loading_fetch(app, []))
+    monkeypatch.setattr(app.playback_controller, "fetch_audio", loading_fetch(app, []))
     asked = []
-    monkeypatch.setattr(app, "prepare_track", lambda track: asked.append(track.id))
+    monkeypatch.setattr(app.playback_controller, "prepare_track", lambda track, generation=None: asked.append(track.id))
 
     async def scenario():
         async with app.run_test() as pilot:
             await pilot.press("space")
             await pilot.pause()
             app.player.position = 100.0
-            app._tick()
+            app.playback_controller._tick()
             await pilot.pause()
 
     run(scenario)
@@ -2769,16 +2785,16 @@ def test_nothing_is_got_ready_while_there_is_time_left(state, monkeypatch):
 
 def test_the_last_track_has_nothing_to_get_ready(state, monkeypatch):
     app = player_app(synthetic_records(1), state)
-    monkeypatch.setattr(app, "fetch_audio", loading_fetch(app, []))
+    monkeypatch.setattr(app.playback_controller, "fetch_audio", loading_fetch(app, []))
     asked = []
-    monkeypatch.setattr(app, "prepare_track", lambda track: asked.append(track.id))
+    monkeypatch.setattr(app.playback_controller, "prepare_track", lambda track, generation=None: asked.append(track.id))
 
     async def scenario():
         async with app.run_test() as pilot:
             await pilot.press("space")
             await pilot.pause()
             app.player.position = 295.0
-            app._tick()
+            app.playback_controller._tick()
             await pilot.pause()
 
     run(scenario)
@@ -2788,12 +2804,12 @@ def test_the_last_track_has_nothing_to_get_ready(state, monkeypatch):
 def test_a_prepared_track_plays_without_asking_for_it_again(state, monkeypatch):
     app = player_app(synthetic_records(3), state)
     started = []
-    monkeypatch.setattr(app, "fetch_audio", lambda track: started.append(track.id))
+    monkeypatch.setattr(app.playback_controller, "fetch_audio", lambda track, generation=None: started.append(track.id))
 
     async def scenario():
         async with app.run_test() as pilot:
             source = FakeSource()
-            app._prepared = prepared_for(app, 1, source)
+            app.audio_state._prepared = prepared_for(app, 1, source)
             app.query_one("#tracks", DataTable).move_cursor(row=1)
             await pilot.press("space")
             await pilot.pause()
@@ -2807,15 +2823,15 @@ def test_a_prepared_track_plays_without_asking_for_it_again(state, monkeypatch):
 
 def test_using_the_prepared_track_leaves_nothing_behind(state, monkeypatch):
     app = player_app(synthetic_records(3), state)
-    monkeypatch.setattr(app, "fetch_audio", lambda track: None)
+    monkeypatch.setattr(app.playback_controller, "fetch_audio", lambda track, generation=None: None)
 
     async def scenario():
         async with app.run_test() as pilot:
-            app._prepared = prepared_for(app, 1)
+            app.audio_state._prepared = prepared_for(app, 1)
             app.query_one("#tracks", DataTable).move_cursor(row=1)
             await pilot.press("space")
             await pilot.pause()
-            assert app._prepared is None
+            assert app.audio_state._prepared is None
 
     run(scenario)
 
@@ -2823,19 +2839,19 @@ def test_using_the_prepared_track_leaves_nothing_behind(state, monkeypatch):
 def test_a_filter_that_changes_what_comes_next_throws_it_away(state, monkeypatch):
     records = synthetic_records(2) + synthetic_records(1, category="beatport")
     app = player_app(records, state)
-    monkeypatch.setattr(app, "fetch_audio", loading_fetch(app, []))
+    monkeypatch.setattr(app.playback_controller, "fetch_audio", loading_fetch(app, []))
 
     async def scenario():
         async with app.run_test() as pilot:
             await pilot.press("space")  # the first track
             await pilot.pause()
             source = FakeSource()
-            app._prepared = prepared_for(app, 1, source)
+            app.audio_state._prepared = prepared_for(app, 1, source)
 
             await pilot.press("2")  # only the beatport track survives
             await pilot.pause()
 
-            assert app._prepared is None
+            assert app.audio_state._prepared is None
             assert source.closed is True
 
     run(scenario)
@@ -2847,10 +2863,10 @@ def test_a_preparation_that_arrives_too_late_is_thrown_away(state):
     async def scenario():
         async with app.run_test():
             source = FakeSource()
-            app._preparing = "someone else"
-            app._preparation_done("2", prepared_for(app, 1, source))
+            app.audio_state._preparing = "someone else"
+            app.playback_controller._preparation_done("2", prepared_for(app, 1, source))
 
-            assert app._prepared is None
+            assert app.audio_state._prepared is None
             assert source.closed is True
 
     run(scenario)
@@ -2862,7 +2878,7 @@ def test_leaving_the_app_lets_go_of_the_prepared_track(state):
 
     async def scenario():
         async with app.run_test():
-            app._prepared = prepared_for(app, 1, source)
+            app.audio_state._prepared = prepared_for(app, 1, source)
 
     run(scenario)
     assert source.closed is True
@@ -2882,7 +2898,7 @@ def test_marking_a_track_lights_the_row_then_lets_it_settle(state):
         async with app.run_test() as pilot:
             table = app.query_one("#tracks", TrackTable)
             await pilot.press("g")
-            await pilot.pause()
+            await settle(app, pilot)
             lit = app.role(keymap.STATUS_STYLES[GOT][1])
             row_cells = table.get_row_at(0)
             if len(row_cells) > TITLE_CELL and row_cells[TITLE_CELL].spans:
@@ -2907,7 +2923,7 @@ def test_marking_a_track_does_not_redraw_the_whole_table(state, monkeypatch):
             monkeypatch.setattr(table, "clear", lambda *a, **k: rebuilds.append(1))
 
             await pilot.press("g")
-            await pilot.pause()
+            await settle(app, pilot)
 
             assert rebuilds == []
             assert str(table.get_row_at(0)[MARK_CELL]) == "\u2713"
@@ -2928,8 +2944,8 @@ def test_download_progress_does_not_move_the_viewport(state, monkeypatch):
             rebuilds = []
             monkeypatch.setattr(table, "clear", lambda *a, **k: rebuilds.append(1))
 
-            row = app.visible_rows[35]
-            app._update_track_progress(row.track.key, 0.42)
+            row = app.playlist_state.visible_rows[35]
+            app.download_controller._update_track_progress(row.track.key, 0.42)
             await pilot.pause()
 
             assert rebuilds == []
@@ -2945,13 +2961,13 @@ def test_batch_progress_repaints_every_row_waiting_for_the_throttle(state):
 
     async def scenario():
         async with app.run_test():
-            first, second = app.visible_rows[:2]
-            app._last_progress_redraw = float("inf")
-            app._update_track_progress(first.track.key, 0.21)
-            app._update_track_progress(second.track.key, 0.37)
+            first, second = app.playlist_state.visible_rows[:2]
+            app.download_state._last_progress_redraw = float("inf")
+            app.download_controller._update_track_progress(first.track.key, 0.21)
+            app.download_controller._update_track_progress(second.track.key, 0.37)
 
-            app._last_progress_redraw = 0
-            app._update_track_progress(first.track.key, 0.42)
+            app.download_state._last_progress_redraw = 0
+            app.download_controller._update_track_progress(first.track.key, 0.42)
 
             table = app.query_one("#tracks", TrackTable)
             assert "[42%]" in str(table.get_row_at(0)[TITLE_CELL])
@@ -2967,7 +2983,7 @@ class ProgressProbeClient:
         self.output = output
 
     def download_track(self, track, directory, **kwargs):
-        self.seen.append(self.app.download_progress[track.key])
+        self.seen.append(self.app.download_state.download_progress[track.key])
         self.output.parent.mkdir(parents=True, exist_ok=True)
         self.output.write_bytes(b"audio")
         return self.output
@@ -2984,7 +3000,7 @@ class ProfileRetryClient:
     def download_track(self, *_args, **_kwargs):
         self.calls += 1
         if self.calls == 1:
-            raise gates.GateProfileRequired("real email required")
+            raise gate_models.GateProfileRequired("real email required")
         return self.output
 
     def close(self):
@@ -3001,7 +3017,7 @@ def test_single_download_uses_a_playlist_named_subdirectory(state, tmp_path):
         download_url="https://api-v2.soundcloud.com/tracks/80/download",
     )
     app = make_app(links.categorise(track), state)
-    app.crate_title = "Warehouse / Session: 01"
+    app.playlist_state.crate_title = "Warehouse / Session: 01"
     app.config.download_directory = str(tmp_path / "Downloads")
     directories = []
 
@@ -3020,7 +3036,7 @@ def test_single_download_uses_a_playlist_named_subdirectory(state, tmp_path):
 
     async def scenario():
         async with app.run_test():
-            worker = app.download_track_in_background(track)
+            worker = app.download_controller.download_track_in_background(track)
             await worker.wait()
 
     run(scenario)
@@ -3047,9 +3063,14 @@ def test_gate_profile_wizard_retries_a_single_download_at_most_once(
 
     async def scenario():
         async with app.run_test() as pilot:
-            row = app.visible_rows[0]
-            worker = app.download_track_in_background(row.track, record.link_url)
-            await worker.wait()
+            row = app.playlist_state.visible_rows[0]
+            worker = app.download_controller.download_track_in_background(row.track, record.link_url)
+            for _ in range(50):
+                await pilot.pause()
+                if isinstance(app.screen, GateProfileScreen):
+                    break
+            assert app.job is not None, "The operation owns its dialog"
+            assert not worker.is_finished
             await pilot.pause()
             assert isinstance(app.screen, GateProfileScreen)
             if save_profile:
@@ -3085,7 +3106,7 @@ def test_a_repeated_prerequisite_error_does_not_open_a_wizard_loop(state, tmp_pa
 
         def download_track(self, *_args, **_kwargs):
             self.calls += 1
-            raise gates.GateProfileRequired("still missing")
+            raise gate_models.GateProfileRequired("still missing")
 
         def close(self):
             pass
@@ -3095,10 +3116,15 @@ def test_a_repeated_prerequisite_error_does_not_open_a_wizard_loop(state, tmp_pa
 
     async def scenario():
         async with app.run_test() as pilot:
-            worker = app.download_track_in_background(
-                app.visible_rows[0].track, record.link_url
+            worker = app.download_controller.download_track_in_background(
+                app.playlist_state.visible_rows[0].track, record.link_url
             )
-            await worker.wait()
+            for _ in range(50):
+                await pilot.pause()
+                if isinstance(app.screen, GateProfileScreen):
+                    break
+            assert app.job is not None, "The operation owns its dialog"
+            assert not worker.is_finished
             await pilot.pause()
             app.screen.query_one("#gate-profile-name", Input).value = "Filip"
             app.screen.query_one("#gate-profile-email", Input).value = "filip@example.com"
@@ -3149,7 +3175,7 @@ def test_batch_finishes_independent_tracks_before_prompting_and_retries_only_pen
         def download_track(self, track, *_args, **_kwargs):
             self.calls[track.id] += 1
             if track.id == 91 and self.calls[91] == 1:
-                raise gates.GateProfileRequired("email")
+                raise gate_models.GateProfileRequired("email")
             path = tmp_path / f"{track.id}.mp3"
             path.write_bytes(b"audio")
             return path
@@ -3166,13 +3192,17 @@ def test_batch_finishes_independent_tracks_before_prompting_and_retries_only_pen
 
     client = Client()
     app._client = client
-    monkeypatch.setattr("dj_digger.tui.downloads.soundcloud.create_requests_session", Session)
+    monkeypatch.setattr("dj_digger.soundcloud.create_requests_session", Session)
 
     async def scenario():
         async with app.run_test() as pilot:
-            items = [(row, app._find_gate_url(row)) for row in app.visible_rows]
-            worker = app.batch_download_in_background(items)
-            await worker.wait()
+            items = [(row, app.opening_controller._find_gate_url(row)) for row in app.playlist_state.visible_rows]
+            worker = app.download_controller.batch_download_in_background(items)
+            async with asyncio.timeout(5):
+                while not isinstance(app.screen, GateProfileScreen) or not app.screen.is_mounted:
+                    await pilot.pause(.01)
+            assert app.job is not None, "The operation owns its dialog"
+            assert not worker.is_finished
             await pilot.pause()
             assert state.get(records[1].track.key) == GOT
             assert state.get(records[0].track.key) != GOT
@@ -3180,11 +3210,10 @@ def test_batch_finishes_independent_tracks_before_prompting_and_retries_only_pen
 
             app.screen.query_one("#gate-profile-name", Input).value = "Filip"
             app.screen.query_one("#gate-profile-email", Input).value = "filip@example.com"
-            await pilot.click("#gate-profile-save")
-            for _ in range(20):
-                await pilot.pause()
-                if state.get(records[0].track.key) == GOT:
-                    break
+            app.screen.query_one("#gate-profile-save", Button).press()
+            async with asyncio.timeout(5):
+                await worker.wait()
+            assert state.get(records[0].track.key) == GOT
 
     run(scenario)
     assert client.calls == {91: 2, 92: 1}
@@ -3210,7 +3239,7 @@ def test_browser_required_batch_is_one_call_for_several_tracks(
 
     class Client:
         def download_track(self, *_args, **_kwargs):
-            raise gates.GateManualActionRequired("browser")
+            raise gate_models.GateManualActionRequired("browser")
 
         def close(self):
             pass
@@ -3228,21 +3257,21 @@ def test_browser_required_batch_is_one_call_for_several_tracks(
             path = tmp_path / f"{track.id}.mp3"
             path.write_bytes(b"audio")
             completed.append((track.key, path))
-        return gates.HypedditBrowserBatchResult(completed=tuple(completed))
+        return gate_models.HypedditBrowserBatchResult(completed=tuple(completed))
 
     app._client = Client()
     monkeypatch.setattr(
-        "dj_digger.tui.downloads.soundcloud.create_requests_session", Session
+        "dj_digger.soundcloud.create_requests_session", Session
     )
     monkeypatch.setattr(
-        "dj_digger.tui.downloads.gates.download_hypeddit_batch_in_browser",
+        "dj_digger.gates.browser.download_hypeddit_batch_in_browser",
         browser_batch,
     )
 
     async def scenario():
         async with app.run_test():
-            items = [(row, app._find_gate_url(row)) for row in app.visible_rows]
-            worker = app.batch_download_in_background(items)
+            items = [(row, app.opening_controller._find_gate_url(row)) for row in app.playlist_state.visible_rows]
+            worker = app.download_controller.batch_download_in_background(items)
             await worker.wait()
 
     run(scenario)
@@ -3272,7 +3301,7 @@ def test_batch_starts_downloads_before_every_hypeddit_preflight_finishes(
             )
         )
     app = make_app(records, state)
-    app.crate = library.CrateRecord(
+    app.playlist_state.crate = crate_models.CrateRecord(
         source="https://soundcloud.com/a/sets/batch",
         title="Batch",
         tracks=[record.track for record in records],
@@ -3280,8 +3309,8 @@ def test_batch_starts_downloads_before_every_hypeddit_preflight_finishes(
     first_download = Event()
     started = []
 
-    def normalise(row, gate_url):
-        if row.track.id == 206:
+    def normalise(self, track, gate_url):
+        if track.id == 206:
             assert first_download.wait(2)
         return gate_url, False
 
@@ -3303,18 +3332,15 @@ def test_batch_starts_downloads_before_every_hypeddit_preflight_finishes(
             pass
 
     app._client = Client()
-    monkeypatch.setattr(app, "_normalise_hypeddit_item", normalise)
+    monkeypatch.setattr("dj_digger.services.downloads.DownloadWorkflow.normalise", normalise)
     monkeypatch.setattr(
-        "dj_digger.tui.downloads.soundcloud.create_requests_session", Session
-    )
-    monkeypatch.setattr(
-        "dj_digger.tui.downloads.library_module.save", lambda _crate: None
+        "dj_digger.soundcloud.create_requests_session", Session
     )
 
     async def scenario():
         async with app.run_test():
-            items = [(row, app._find_gate_url(row)) for row in app.visible_rows]
-            worker = app.batch_download_in_background(items)
+            items = [(row, app.opening_controller._find_gate_url(row)) for row in app.playlist_state.visible_rows]
+            worker = app.download_controller.batch_download_in_background(items)
             await worker.wait()
 
     run(scenario)
@@ -3351,7 +3377,7 @@ def test_a_dig_keeps_the_rows_on_screen(records, state, monkeypatch):
         release.wait(5)
         return crate_of(1)
 
-    monkeypatch.setattr("dj_digger.dig.dig", slow_dig)
+    monkeypatch.setattr("dj_digger.services.collection.dig", slow_dig)
     app = make_app(records, state, export_format="none")
 
     async def scenario():
@@ -3390,14 +3416,14 @@ def test_an_unreadable_scan_folder_is_reported_in_the_banner(records, state, mon
         def had_stale_match(self, _track):
             return False
 
-    monkeypatch.setattr("dj_digger.tui.library_scan.LocalScanner", NoisyScanner)
+    monkeypatch.setattr("dj_digger.services.library.LocalScanner", NoisyScanner)
     app = make_app(records, state)
     errors = []
 
     async def scenario():
         async with app.run_test() as pilot:
             await pilot.pause()
-            app.scan_local_files()
+            app.scan_controller.scan_local_files()
             await app.workers.wait_for_complete()
             await pilot.pause()
             errors.extend(app.query_one(ErrorBanner).errors)
@@ -3415,7 +3441,7 @@ def test_ctrl_x_stops_a_dig(records, state, monkeypatch):
         assert cancel.wait(2), "the UI did not signal the dig"
         raise Cancelled()
 
-    monkeypatch.setattr("dj_digger.dig.dig", slow_dig)
+    monkeypatch.setattr("dj_digger.services.collection.dig", slow_dig)
     app = make_app(records, state, export_format="none")
 
     async def scenario():
@@ -3430,7 +3456,7 @@ def test_ctrl_x_stops_a_dig(records, state, monkeypatch):
     run(scenario)
     assert app._dig_cancel.is_set()
     assert app.job is None
-    assert len(app.rows) == len(records), "a stopped dig leaves the crate as it was"
+    assert len(app.playlist_state.rows) == len(records), "a stopped dig leaves the crate as it was"
 
 
 def test_unmount_signals_every_cancel_event(records, state):
@@ -3442,9 +3468,9 @@ def test_unmount_signals_every_cancel_event(records, state):
 
     run(scenario)
     assert app._dig_cancel.is_set()
-    assert app._gate_cancel.is_set()
-    assert app._scan_cancel.is_set()
-    assert app._cart_cancel.is_set()
+    assert app.download_state._gate_cancel.is_set()
+    assert app.scan_state._scan_cancel.is_set()
+    assert app.cart_state._cart_cancel.is_set()
 
 
 def _hypeddit_record(track_id=203, title="Refused gate"):
@@ -3466,7 +3492,7 @@ def test_rejected_hypeddit_gate_falls_back_to_the_browser_with_its_reason(
 
     class Client:
         def download_track(self, *_args, **_kwargs):
-            raise gates.GateRejected("did not unlock")
+            raise gate_models.GateRejected("did not unlock")
 
         def close(self):
             pass
@@ -3474,9 +3500,9 @@ def test_rejected_hypeddit_gate_falls_back_to_the_browser_with_its_reason(
     app._client = Client()
     browser_calls = []
     monkeypatch.setattr(
-        "dj_digger.tui.downloads.gates.download_hypeddit_in_browser",
+        "dj_digger.gates.browser.download_hypeddit_in_browser",
         lambda track, url, directory, cancel, **_kwargs: browser_calls.append(url)
-        or (_ for _ in ()).throw(gates.GateManualActionRequired("closed the tab")),
+        or (_ for _ in ()).throw(gate_models.GateManualActionRequired("closed the tab")),
     )
 
     async def scenario():
@@ -3496,7 +3522,7 @@ def test_a_batch_hands_at_most_eight_refused_gates_to_the_browser(state, monkeyp
 
     class Client:
         def download_track(self, *_args, **_kwargs):
-            raise gates.GateRejected("did not unlock")
+            raise gate_models.GateRejected("did not unlock")
 
         def close(self):
             pass
@@ -3509,22 +3535,22 @@ def test_a_batch_hands_at_most_eight_refused_gates_to_the_browser(state, monkeyp
 
     def browser_batch(items, _directory, cancel, **_kwargs):
         handed.extend(track.key for track, _url in items)
-        return gates.HypedditBrowserBatchResult(
-            failures=tuple((track.key, gates.GateManualActionRequired("skipped")) for track, _ in items)
+        return gate_models.HypedditBrowserBatchResult(
+            failures=tuple((track.key, gate_models.GateManualActionRequired("skipped")) for track, _ in items)
         )
 
     app._client = Client()
-    monkeypatch.setattr("dj_digger.tui.downloads.soundcloud.create_requests_session", Session)
+    monkeypatch.setattr("dj_digger.soundcloud.create_requests_session", Session)
     monkeypatch.setattr(
-        "dj_digger.tui.downloads.gates.download_hypeddit_batch_in_browser", browser_batch
+        "dj_digger.gates.browser.download_hypeddit_batch_in_browser", browser_batch
     )
 
     errors = []
 
     async def scenario():
         async with app.run_test() as pilot:
-            worker = app.batch_download_in_background(
-                [(row, row.records[0].link_url) for row in app.visible_rows]
+            worker = app.download_controller.batch_download_in_background(
+                [(row, row.records[0].link_url) for row in app.playlist_state.visible_rows]
             )
             await worker.wait()
             await pilot.pause()
@@ -3553,7 +3579,7 @@ def test_stop_browser_batch_leaves_unfinished_tracks_new(
 
     class Client:
         def download_track(self, *_args, **_kwargs):
-            raise gates.GateManualActionRequired("browser")
+            raise gate_models.GateManualActionRequired("browser")
 
         def close(self):
             pass
@@ -3567,37 +3593,37 @@ def test_stop_browser_batch_leaves_unfinished_tracks_new(
     def browser_batch(items, _directory, cancel, **_kwargs):
         entered.set()
         assert cancel.wait(2), "the UI did not signal the browser worker"
-        return gates.HypedditBrowserBatchResult(
-            failures=((items[0][0].key, gates.GateManualActionRequired("cancelled")),),
+        return gate_models.HypedditBrowserBatchResult(
+            failures=((items[0][0].key, gate_models.GateManualActionRequired("cancelled")),),
             cancelled=True,
         )
 
     app._client = Client()
     monkeypatch.setattr(
-        "dj_digger.tui.downloads.soundcloud.create_requests_session", Session
+        "dj_digger.soundcloud.create_requests_session", Session
     )
     monkeypatch.setattr(
-        "dj_digger.tui.downloads.gates.download_hypeddit_batch_in_browser",
+        "dj_digger.gates.browser.download_hypeddit_batch_in_browser",
         browser_batch,
     )
 
     async def scenario():
         async with app.run_test() as pilot:
-            row = app.visible_rows[0]
-            worker = app.batch_download_in_background([(row, record.link_url)])
+            row = app.playlist_state.visible_rows[0]
+            worker = app.download_controller.batch_download_in_background([(row, record.link_url)])
             assert await asyncio.to_thread(entered.wait, 2)
             for _ in range(20):
                 await pilot.pause(0.01)
-                if app._browser_batch_active:
+                if app.download_state._browser_batch_active:
                     break
             app.action_cancel_job()
             await worker.wait()
             await pilot.pause()
 
     run(scenario)
-    assert app._gate_cancel.is_set()
+    assert app.download_state._gate_cancel.is_set()
     assert state.get(record.track.key) != GOT
-    assert app._browser_batch_active is False
+    assert app.download_state._browser_batch_active is False
 
 
 def test_saved_hypeddit_hub_is_normalised_before_batch_and_never_opens_chromium(
@@ -3611,7 +3637,7 @@ def test_saved_hypeddit_hub_is_normalised_before_batch_and_never_opens_chromium(
         description=f"Download: {wrapper}",
     )
     app = make_app(links.categorise(track), state)
-    app.crate = library.CrateRecord(source="saved", title="Saved", tracks=[track])
+    app.playlist_state.crate = crate_models.CrateRecord(source="saved", title="Saved", tracks=[track])
 
     class Client:
         def download_track(self, *_args, **_kwargs):
@@ -3628,8 +3654,8 @@ def test_saved_hypeddit_hub_is_normalised_before_batch_and_never_opens_chromium(
             pass
 
     monkeypatch.setattr(
-        "dj_digger.tui.downloads.gates.inspect_link_page",
-        lambda *_args, **_kwargs: gates.LinkPageInspection(
+        "dj_digger.gates.hubs.inspect_link_page",
+        lambda *_args, **_kwargs: gate_models.LinkPageInspection(
             shops=(
                 ("https://www.beatport.com/release/epitome/4194268", "Beatport"),
                 ("https://duxnbass.bandcamp.com/album/epitome", "Bandcamp"),
@@ -3638,26 +3664,23 @@ def test_saved_hypeddit_hub_is_normalised_before_batch_and_never_opens_chromium(
         ),
     )
     monkeypatch.setattr(
-        "dj_digger.tui.downloads.soundcloud.create_requests_session", Session
+        "dj_digger.soundcloud.create_requests_session", Session
     )
     monkeypatch.setattr(
-        "dj_digger.tui.downloads.library_module.save", lambda _crate: None
-    )
-    monkeypatch.setattr(
-        "dj_digger.tui.downloads.gates.download_hypeddit_batch_in_browser",
+        "dj_digger.gates.browser.download_hypeddit_batch_in_browser",
         lambda *_args, **_kwargs: pytest.fail("a hub must not enter Chromium"),
     )
     app._client = Client()
 
     async def scenario():
         async with app.run_test() as pilot:
-            row = app.visible_rows[0]
-            worker = app.batch_download_in_background([(row, wrapper)])
+            row = app.playlist_state.visible_rows[0]
+            worker = app.download_controller.batch_download_in_background([(row, wrapper)])
             await worker.wait()
             await pilot.pause()
 
     run(scenario)
-    assert sorted(app.rows[0].categories) == ["bandcamp", "beatport"]
+    assert sorted(app.playlist_state.rows[0].categories) == ["bandcamp", "beatport"]
     assert wrapper not in track.description
     assert state.get(track.key) != GOT
 
@@ -3709,19 +3732,23 @@ def test_soundcloud_login_refreshes_the_client_then_retries_once(
     refreshed_with = []
     app._client = old
     monkeypatch.setattr(
-        "dj_digger.tui.downloads.soundcloud.SoundCloudClient",
+        "dj_digger.soundcloud.SoundCloudClient",
         lambda **kwargs: refreshed_with.append(kwargs.get("oauth_token")) or new,
     )
     monkeypatch.setattr(
-        "dj_digger.tui.screens.auth_module.verify_and_save",
+        "dj_digger.auth.verify_and_save",
         lambda token, client_id: (token, "DJ", 1),
     )
 
     async def scenario():
         async with app.run_test() as pilot:
-            row = app.visible_rows[0]
-            worker = app.download_track_in_background(row.track)
-            await worker.wait()
+            row = app.playlist_state.visible_rows[0]
+            worker = app.download_controller.download_track_in_background(row.track)
+            for _ in range(50):
+                await pilot.pause()
+                if isinstance(app.screen, SoundCloudAuthScreen):
+                    break
+            assert not worker.is_finished
             await pilot.pause()
             assert isinstance(app.screen, SoundCloudAuthScreen)
             app.screen.query_one("#soundcloud-token", Input).value = "hidden-token"
@@ -3735,39 +3762,27 @@ def test_soundcloud_login_refreshes_the_client_then_retries_once(
     assert old.calls == 1
     assert old.closed is True
     assert new.calls == 1
-    assert refreshed_with == ["hidden-token"]
+    assert refreshed_with == [None], "the adopted client must read current persisted credentials"
     assert state.get(record.track.key) == GOT
 
 
-def test_a_soundcloud_login_waits_while_a_download_still_holds_the_client(state):
-    """Closing the client under a download thread is a crash, so the person is asked to retry."""
-
+def test_a_soundcloud_login_retires_the_client_after_workers_settle(state):
     app = make_app(synthetic_records(1), state)
-
     class Client:
         closed = False
-
         def close(self):
             self.closed = True
-
     client = Client()
     app._client = client
-    toasts = []
-    app.notify = lambda message, **kwargs: toasts.append(message)
-
     async def scenario():
         async with app.run_test():
-            with app._download_worker():
-                assert app._adopt_login("fresh-token") is False
-                assert app._client is client
+            with app.services.worker():
+                assert app.download_controller._adopt_login("fresh-token") is True
+                assert app._client is not client
                 assert client.closed is False
-                assert toasts == [tui_downloads.LOGIN_WAITS_FOR_DOWNLOADS]
-
-            assert app._adopt_login("fresh-token") is True
-            assert app._client._oauth_token == "fresh-token"
-            assert client.closed is True
-
+                assert app._client._oauth_token is None
     run(scenario)
+    assert client.closed is True
 
 
 @pytest.mark.parametrize("batch", [False, True])
@@ -3794,15 +3809,15 @@ def test_download_stays_at_zero_while_the_link_is_being_resolved(
         def close(self):
             pass
 
-    monkeypatch.setattr("dj_digger.tui.downloads.soundcloud.create_requests_session", Session)
+    monkeypatch.setattr("dj_digger.soundcloud.create_requests_session", Session)
 
     async def scenario():
         async with app.run_test():
-            row = app.visible_rows[0]
+            row = app.playlist_state.visible_rows[0]
             worker = (
-                app.batch_download_in_background([(row, None)])
+                app.download_controller.batch_download_in_background([(row, None)])
                 if batch
-                else app.download_track_in_background(row.track)
+                else app.download_controller.download_track_in_background(row.track)
             )
             await worker.wait()
 
@@ -3828,26 +3843,28 @@ def test_download_results_do_not_move_the_viewport(state, monkeypatch, tmp_path,
             table = app.query_one("#tracks", TrackTable)
             table.move_cursor(row=30)
             await scroll_table(pilot, table, 20)
-            row = app.visible_rows[35]
+            row = app.playlist_state.visible_rows[35]
             key = row.track.key
-            app.download_progress[key] = 0.42
-            app._paint_key(key)
+            app.download_state.download_progress[key] = 0.42
+            app.table_controller._paint_key(key)
             await pilot.pause()
             cursor = table.cursor_row
             viewport = table.scroll_offset
             rebuilds = []
             monkeypatch.setattr(table, "clear", lambda *a, **k: rebuilds.append(1))
 
+            if completed:
+                await asyncio.to_thread(app.services.downloads.record, key, tmp_path / "track.mp3")
             if outcome == "single_success":
-                app._download_finished(key, tmp_path / "track.mp3")
+                app.download_controller._download_finished(key, tmp_path / "track.mp3")
             elif outcome == "single_failure":
-                app._download_failed(key, "network broke")
+                app.download_controller._download_failed(key, "network broke")
             elif outcome == "batch_success":
-                app._download_finished(key, str(tmp_path / "track.mp3"), toast=False)
+                app.download_controller._download_finished(key, str(tmp_path / "track.mp3"), toast=False)
             elif outcome == "batch_failure":
-                app._download_failed(key, "network broke", banner_label=row.track.label)
+                app.download_controller._download_failed(key, "network broke", banner_label=row.track.label)
             else:
-                app._on_batch_download_complete(0, 1, 1)
+                app.download_controller._on_batch_download_complete(0, 1, 1)
             await pilot.pause()
 
             assert rebuilds == []
@@ -3864,18 +3881,18 @@ def test_hidden_completion_outside_the_current_view_does_not_rebuild(state, monk
 
     async def scenario():
         async with app.run_test():
-            hidden_row = app.visible_rows[0]
-            app.search_term = "Track 3"
-            app.hide_handled = True
-            app.refresh_rows(keep_cursor=False)
+            hidden_row = app.playlist_state.visible_rows[0]
+            app.playlist_state.search_term = "Track 3"
+            app.playlist_state.hide_handled = True
+            app.table_controller.refresh_rows(keep_cursor=False)
             table = app.query_one("#tracks", TrackTable)
             rebuilds = []
             monkeypatch.setattr(table, "clear", lambda *a, **k: rebuilds.append(1))
 
-            app._download_finished(hidden_row.track.key, tmp_path / "track.mp3")
+            app.download_controller._download_finished(hidden_row.track.key, tmp_path / "track.mp3")
 
             assert rebuilds == []
-            assert len(app.visible_rows) == 1
+            assert len(app.playlist_state.visible_rows) == 1
 
     run(scenario)
 
@@ -3892,7 +3909,7 @@ def test_refresh_rows_preserves_the_viewport(state, cursor_row, scroll_y):
             cursor = table.cursor_row
             viewport = table.scroll_offset
 
-            app.refresh_rows()
+            app.table_controller.refresh_rows()
             await pilot.pause()
 
             assert table.cursor_row == cursor
@@ -3909,16 +3926,16 @@ def test_refresh_rows_keeps_the_same_tracks_after_rows_above_are_removed(state):
             table = app.query_one("#tracks", TrackTable)
             table.move_cursor(row=45)
             await scroll_table(pilot, table, 40)
-            cursor_key = app.visible_rows[table.cursor_row].track.key
-            top_key = app.visible_rows[table.scroll_offset.y].track.key
+            cursor_key = app.playlist_state.visible_rows[table.cursor_row].track.key
+            top_key = app.playlist_state.visible_rows[table.scroll_offset.y].track.key
 
-            app.hide_handled = True
-            state.set(app.visible_rows[10].track.key, GOT)
-            app.refresh_rows()
+            app.playlist_state.hide_handled = True
+            state.set(app.playlist_state.visible_rows[10].track.key, GOT)
+            app.table_controller.refresh_rows()
             await pilot.pause()
 
-            assert app.visible_rows[table.cursor_row].track.key == cursor_key
-            assert app.visible_rows[table.scroll_offset.y].track.key == top_key
+            assert app.playlist_state.visible_rows[table.cursor_row].track.key == cursor_key
+            assert app.playlist_state.visible_rows[table.scroll_offset.y].track.key == top_key
 
     run(scenario)
 
@@ -3931,19 +3948,19 @@ def test_back_to_back_refreshes_keep_the_same_tracks(state):
             table = app.query_one("#tracks", TrackTable)
             table.move_cursor(row=10)
             await scroll_table(pilot, table, 40)
-            cursor_key = app.visible_rows[table.cursor_row].track.key
-            top_key = app.visible_rows[table.scroll_offset.y].track.key
+            cursor_key = app.playlist_state.visible_rows[table.cursor_row].track.key
+            top_key = app.playlist_state.visible_rows[table.scroll_offset.y].track.key
             assert table.scroll_offset.y > 0
 
-            app.hide_handled = True
-            state.set(app.rows[20].track.key, GOT)
-            app.refresh_rows()
-            state.set(app.rows[21].track.key, GOT)
-            app.refresh_rows()
+            app.playlist_state.hide_handled = True
+            state.set(app.playlist_state.rows[20].track.key, GOT)
+            app.table_controller.refresh_rows()
+            state.set(app.playlist_state.rows[21].track.key, GOT)
+            app.table_controller.refresh_rows()
             await pilot.pause()
 
-            assert app.visible_rows[table.cursor_row].track.key == cursor_key
-            assert app.visible_rows[table.scroll_offset.y].track.key == top_key
+            assert app.playlist_state.visible_rows[table.cursor_row].track.key == cursor_key
+            assert app.playlist_state.visible_rows[table.scroll_offset.y].track.key == top_key
 
     run(scenario)
 
@@ -3957,7 +3974,7 @@ def test_a_row_that_is_about_to_be_hidden_is_not_lit(state):
         async with app.run_test() as pilot:
             await pilot.press("h")  # hide handled
             await pilot.press("g")
-            await pilot.pause()
+            await settle(app, pilot)
             assert app.query_one("#tracks", DataTable).row_count == 2
 
     run(scenario)
@@ -3967,16 +3984,16 @@ def test_the_frame_timer_sleeps_until_something_plays(state, monkeypatch):
     """Waking thirty times a second to watch a still list is just a warm laptop."""
 
     app = player_app(synthetic_records(3), state)
-    monkeypatch.setattr(app, "fetch_audio", loading_fetch(app, []))
+    monkeypatch.setattr(app.playback_controller, "fetch_audio", loading_fetch(app, []))
 
     async def scenario():
         async with app.run_test() as pilot:
             await pilot.pause()
-            assert app._ticker._active.is_set() is False
+            assert app.audio_state._ticker._active.is_set() is False
 
             await pilot.press("space")
             await pilot.pause()
-            assert app._ticker._active.is_set() is True
+            assert app.audio_state._ticker._active.is_set() is True
 
     run(scenario)
 
@@ -3987,33 +4004,33 @@ def test_the_frame_timer_wakes_when_the_audio_actually_arrives(state, monkeypatc
 
     app = player_app(synthetic_records(2), state)
     asked = []
-    monkeypatch.setattr(app, "fetch_audio", lambda track: asked.append(track))
+    monkeypatch.setattr(app.playback_controller, "fetch_audio", lambda track, generation=None: asked.append(track))
 
     async def scenario():
         async with app.run_test() as pilot:
             await pilot.press("space")
             await pilot.pause()
-            app._tick()  # a frame lands while the stream is still resolving
-            assert app._ticker._active.is_set() is False
+            app.playback_controller._tick()  # a frame lands while the stream is still resolving
+            assert app.audio_state._ticker._active.is_set() is False
 
-            app._audio_ready(asked[0], a_stream(), [1, 2])
+            app.playback_controller._audio_ready(asked[0], a_stream(), [1, 2])
             await pilot.pause()
-            assert app._ticker._active.is_set() is True
+            assert app.audio_state._ticker._active.is_set() is True
 
     run(scenario)
 
 
 def test_the_frame_timer_stops_again_when_playback_does(state, monkeypatch):
     app = player_app(synthetic_records(3), state)
-    monkeypatch.setattr(app, "fetch_audio", loading_fetch(app, []))
+    monkeypatch.setattr(app.playback_controller, "fetch_audio", loading_fetch(app, []))
 
     async def scenario():
         async with app.run_test() as pilot:
             await pilot.press("space")
             await pilot.pause()
             app.player.playing = False
-            app._tick()
-            assert app._ticker._active.is_set() is False
+            app.playback_controller._tick()
+            assert app.audio_state._ticker._active.is_set() is False
 
     run(scenario)
 
@@ -4026,16 +4043,16 @@ def test_turning_animation_off_slows_the_frame_timer_down(state):
     async def scenario():
         async with app.run_test():
             app.animation_level = "full"
-            assert app.frame_interval == keymap.TICK
+            assert app.playback_controller.frame_interval == keymap.TICK
             app.animation_level = "none"
-            assert app.frame_interval == keymap.CALM_TICK
+            assert app.playback_controller.frame_interval == keymap.CALM_TICK
 
     run(scenario)
 
 
 def test_the_player_bar_grows_instead_of_appearing_from_nothing(state, monkeypatch):
     app = player_app(synthetic_records(2), state)
-    monkeypatch.setattr(app, "fetch_audio", loading_fetch(app, []))
+    monkeypatch.setattr(app.playback_controller, "fetch_audio", loading_fetch(app, []))
 
     async def scenario():
         async with app.run_test() as pilot:
@@ -4060,7 +4077,7 @@ def test_any_player_failure_becomes_a_message_not_a_crash(state, monkeypatch):
             def refuse():
                 raise RuntimeError("failed to start audio device, -1")
 
-            app.player.load(app.visible_rows[0].track, a_stream(), None)
+            app.player.load(app.playlist_state.visible_rows[0].track, a_stream(), None)
             app.player.toggle = refuse
             await pilot.press("space")
             await pilot.pause()
@@ -4119,7 +4136,7 @@ def test_the_transport_row_comes_and_goes_with_the_bar_and_closes_it(state, monk
     """The waveform had no way out: nothing stopped it short of quitting."""
 
     app = player_app(synthetic_records(2), state)
-    monkeypatch.setattr(app, "fetch_audio", loading_fetch(app, []))
+    monkeypatch.setattr(app.playback_controller, "fetch_audio", loading_fetch(app, []))
 
     async def scenario():
         async with app.run_test() as pilot:
@@ -4131,7 +4148,8 @@ def test_the_transport_row_comes_and_goes_with_the_bar_and_closes_it(state, monk
             assert controls.display
             assert str(app.query_one("#player-play", Button).label) == PAUSE_GLYPH
 
-            await pilot.click("#player-close")
+            await pilot.wait_for_scheduled_animations()
+            assert await pilot.click("#player-close")
             await pilot.pause()
             assert app.player.loaded is None
             assert not app.player.playing
@@ -4162,7 +4180,7 @@ def test_the_volume_slider_maps_a_click_to_a_level(state):
 
 def test_the_player_bar_folds_away_when_there_is_nothing_to_say(state, monkeypatch):
     app = player_app(synthetic_records(2), state)
-    monkeypatch.setattr(app, "fetch_audio", loading_fetch(app, []))
+    monkeypatch.setattr(app.playback_controller, "fetch_audio", loading_fetch(app, []))
 
     async def scenario():
         async with app.run_test() as pilot:
@@ -4180,7 +4198,7 @@ def test_the_player_bar_folds_away_when_there_is_nothing_to_say(state, monkeypat
 def test_digging_shows_something_turning(state, monkeypatch):
     """A spinner is the difference between "working" and "hung"."""
 
-    monkeypatch.setattr("dj_digger.dig.dig", lambda target, **kwargs: crate_of(1))
+    monkeypatch.setattr("dj_digger.services.collection.dig", lambda target, **kwargs: crate_of(1))
     app = make_app([], state, export_format="none")
 
     async def scenario():
@@ -4188,11 +4206,11 @@ def test_digging_shows_something_turning(state, monkeypatch):
             await pilot.pause()
             app.start_job("Digging", cancel=app._dig_cancel, detail="Fetching tracks 3/9")
 
-            app._frame = keymap.SPINNER_EVERY - 1
-            app._tick()
+            app.audio_state._frame = keymap.SPINNER_EVERY - 1
+            app.playback_controller._tick()
             first = bar_text(app)
-            app._frame = 2 * keymap.SPINNER_EVERY - 1
-            app._tick()
+            app.audio_state._frame = 2 * keymap.SPINNER_EVERY - 1
+            app.playback_controller._tick()
 
             assert "Fetching tracks 3/9" in first
             assert any(glyph in first for glyph in keymap.SPINNER)
@@ -4204,11 +4222,11 @@ def test_digging_shows_something_turning(state, monkeypatch):
 
 def test_space_toggles_a_track_that_is_already_loaded(records, state, monkeypatch):
     app = player_app(records, state)
-    monkeypatch.setattr(app, "fetch_audio", lambda track: None)
+    monkeypatch.setattr(app.playback_controller, "fetch_audio", lambda track, generation=None: None)
 
     async def scenario():
         async with app.run_test() as pilot:
-            track = app.visible_rows[0].track
+            track = app.playlist_state.visible_rows[0].track
             app.player.load(track, a_stream(), None)
             await pilot.press("space")
             assert app.player.playing is True
@@ -4223,7 +4241,7 @@ def test_seek_keys_nudge_the_position(records, state):
 
     async def scenario():
         async with app.run_test() as pilot:
-            app.player.load(app.visible_rows[0].track, a_stream(), None)
+            app.player.load(app.playlist_state.visible_rows[0].track, a_stream(), None)
             app.player.position = 100.0
             await pilot.press("right_square_bracket")
             await pilot.press("left_square_bracket")
@@ -4250,7 +4268,7 @@ def test_volume_and_mute_keys(records, state):
 def test_a_track_without_an_id_cannot_be_previewed(state, monkeypatch):
     track = Track(title="No id", permalink_url="https://soundcloud.com/a/x")
     app = player_app(links.categorise_all([track]), state)
-    monkeypatch.setattr(app, "fetch_audio", lambda t: pytest.fail("should not fetch"))
+    monkeypatch.setattr(app.playback_controller, "fetch_audio", lambda t: pytest.fail("should not fetch"))
 
     async def scenario():
         async with app.run_test() as pilot:
@@ -4311,7 +4329,7 @@ def test_a_playback_failure_shows_a_message_instead_of_crashing(records, state):
 
     async def scenario():
         async with app.run_test() as pilot:
-            app._playback_failed("This machine has no audio output")
+            app.playback_controller._playback_failed("This machine has no audio output")
             await pilot.pause()
             bar = app.query_one("#player", PlayerBar)
             assert "no audio output" in str(bar.render())
@@ -4325,7 +4343,7 @@ def test_clicking_the_waveform_maps_to_a_time(records, state):
     async def scenario():
         async with app.run_test():
             bar = app.query_one("#player", PlayerBar)
-            app.player.load(app.visible_rows[0].track, a_stream(), None)
+            app.player.load(app.playlist_state.visible_rows[0].track, a_stream(), None)
             width = bar._bar_width()
             assert bar.seconds_at(1) == pytest.approx(0.0)
             assert bar.seconds_at(1 + width) == pytest.approx(app.player.duration)
@@ -4369,8 +4387,8 @@ def test_clean_gate_badge_name(state):
         link_text="Download",
     )
     app = make_app([rec], state)
-    row = app.rows[0]
-    badges = app._store_badges(row)
+    row = app.playlist_state.rows[0]
+    badges = app.table_controller._store_badges(row)
     assert str(badges) == "gate(hypeddit)"
 
 
@@ -4391,7 +4409,7 @@ def test_batch_download_skips_skipped_tracks(state, monkeypatch):
     app = make_app([rec1, rec2], state)
 
     started = []
-    monkeypatch.setattr(app, "batch_download_in_background", lambda items: started.extend(items))
+    monkeypatch.setattr(app.download_controller, "batch_download_in_background", lambda items, handle=None: started.extend(items))
 
     async def scenario():
         async with app.run_test() as pilot:
@@ -4420,7 +4438,7 @@ def test_batch_marks_an_existing_local_file_got_without_downloading(
     app = make_app(links.categorise(track), state)
     started = []
     monkeypatch.setattr(
-        app, "batch_download_in_background", lambda items: started.extend(items)
+        app.download_controller, "batch_download_in_background", lambda items, handle=None: started.extend(items)
     )
 
     async def scenario():
@@ -4445,7 +4463,7 @@ def test_a_missing_file_clears_its_path_and_file_backed_got(state, tmp_path):
 
     async def scenario():
         async with app.run_test() as pilot:
-            app.apply_local_file_matches(StubScanner({}))
+            await app.scan_controller.apply_local_file_matches(StubScanner({}))
             await pilot.pause()
 
             assert track.local_path is None
@@ -4477,7 +4495,7 @@ def test_a_legacy_stale_cache_match_clears_its_old_got_status(records, state):
 
     async def scenario():
         async with app.run_test():
-            app.apply_local_file_matches(StaleScanner())
+            await app.scan_controller.apply_local_file_matches(StaleScanner())
 
     run(scenario)
     assert state.get(key) == "new"
@@ -4499,18 +4517,19 @@ def test_context_menu_can_copy_a_local_track_into_the_playlist_folder(
     )
     state.set_local_file(track.key, source)
     app = make_app(links.categorise(track), state)
-    app.crate_title = "Playlist / One"
+    app.playlist_state.crate_title = "Playlist / One"
     app.config.download_directory = str(tmp_path / "Downloads")
 
     async def scenario():
         async with app.run_test() as pilot:
+            await settle(app, pilot)
             await pilot.click("#tracks", offset=(10, 1), button=3)
             await pilot.pause()
             assert isinstance(app.screen, ContextMenuScreen)
             assert ("copy_file", "Copy file to playlist folder") in app.screen.options
             await pilot.press("escape")
 
-            worker = app.copy_local_file_in_background(track)
+            worker = app.scan_controller.copy_local_file_in_background(track)
             await worker.wait()
             await pilot.pause()
 
@@ -4544,26 +4563,21 @@ def test_leaving_stops_the_ticker_and_lets_go_of_everything(records, state, monk
 
     async def scenario():
         async with app.run_test() as pilot:
-            await pilot.pause()
+            await settle(app, pilot)
             monkeypatch.setattr(
                 type(app.player), "close", lambda self: closed.append("player")
             )
-            app._prepared = Prepared(
+            app.audio_state._prepared = Prepared(
                 track=Track(title="next", permalink_url="https://soundcloud.com/a/2", id=2),
                 stream=Stream(url="https://cdn/2.mp3"),
                 source=source,
             )
-            app._download_executor = ThreadPoolExecutor(max_workers=1)
-            executor = app._download_executor
             app.exit()
 
-        assert app._ticker is None, "the ticker was left running"
+        assert app.audio_state._ticker is None, "the ticker was left running"
         assert closed == ["player"], "the audio device was not handed back"
         assert source.closed, "the prefetched stream was left open"
-        assert app._download_executor is None
-        assert app._cart_cancel.is_set(), "the store browser worker was not signalled"
-        with pytest.raises(RuntimeError):
-            executor.submit(lambda: None)
+        assert app.cart_state._cart_cancel.is_set(), "the store browser worker was not signalled"
 
     run(scenario)
 
@@ -4611,34 +4625,24 @@ def gate_row(*pairs):
 def test_the_gate_link_w_would_use(state, row, expected):
     """Three passes: the declared gate, then a host gates knows, then anything left."""
 
-    assert make_app([], state)._find_gate_url(row) == expected
+    assert make_app([], state).opening_controller._find_gate_url(row) == expected
 
 
-def test_no_two_parts_of_the_app_define_the_same_method():
-    """A name defined twice is how this class lost an on_unmount for two releases.
+def test_app_lifecycle_and_routes_cannot_be_shadowed():
+    """Keep the regression for the accidentally shadowed on_unmount handler."""
+    import ast
+    import inspect
 
-    DiggerApp is assembled from seven mixins. Python resolves a clash silently by
-    taking the first in the MRO, so the only thing standing between a rename and
-    a method that quietly stops running is this.
-    """
-
-    ours = [base for base in DiggerApp.__mro__ if base.__module__.startswith("dj_digger.tui")]
-    # Not an exact count, which would need editing every time a concern moves
-    # out - just enough to prove the scan below is looking at something.
-    assert len(ours) >= 8, f"expected DiggerApp and its mixins, got {len(ours)}"
-
-    owner = {}
-    clashes = []
-    for base in ours:
-        for name, value in vars(base).items():
-            if name.startswith("__") or not (callable(value) or isinstance(value, property)):
-                continue
-            if name in owner:
-                clashes.append(f"{name} ({owner[name].__name__} and {base.__name__})")
-            owner[name] = base
-
-    assert len(owner) > 100, "the scan found almost nothing, so it proves nothing"
-    assert not clashes, "defined more than once: " + ", ".join(clashes)
+    from textual.app import App
+    assert DiggerApp.__bases__ == (App,)
+    tree = ast.parse(Path(inspect.getfile(DiggerApp)).read_text())
+    app_class = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "DiggerApp")
+    methods = [node.name for node in app_class.body
+               if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+               and not any(isinstance(d, ast.Attribute) and d.attr == "setter"
+                           for d in node.decorator_list)]
+    assert methods.count("on_unmount") == 1
+    assert len(methods) == len(set(methods))
 
 
 class StubScanner:
@@ -4662,10 +4666,10 @@ def test_a_confident_match_marks_an_untouched_track_as_got(records, state):
     async def scenario():
         async with app.run_test() as pilot:
             await pilot.pause()
-            app.apply_local_file_matches(scanner)
+            await app.scan_controller.apply_local_file_matches(scanner)
 
             assert state.get(key) == GOT
-            assert app.rows[0].track.local_path == "/music/a.mp3"
+            assert app.playlist_state.rows[0].track.local_path == "/music/a.mp3"
 
     run(scenario)
 
@@ -4679,10 +4683,10 @@ def test_a_confident_match_promotes_an_opened_track_to_got(records, state):
     async def scenario():
         async with app.run_test() as pilot:
             await pilot.pause()
-            app.apply_local_file_matches(scanner)
+            await app.scan_controller.apply_local_file_matches(scanner)
 
             assert state.get(key) == GOT
-            assert app.rows[0].track.local_path == "/music/a.mp3"
+            assert app.playlist_state.rows[0].track.local_path == "/music/a.mp3"
 
     run(scenario)
 
@@ -4697,9 +4701,9 @@ def test_a_loose_match_points_at_the_file_without_claiming_you_have_it(records, 
     async def scenario():
         async with app.run_test() as pilot:
             await pilot.pause()
-            app.apply_local_file_matches(scanner)
+            await app.scan_controller.apply_local_file_matches(scanner)
 
-            assert app.rows[0].track.local_path == "/music/maybe.mp3"
+            assert app.playlist_state.rows[0].track.local_path == "/music/maybe.mp3"
             assert state.get(key) == "new", "a loose match must not mark anything"
 
     run(scenario)
@@ -4716,10 +4720,10 @@ def test_a_confident_scan_marks_even_a_skipped_track_as_got(records, state):
     async def scenario():
         async with app.run_test() as pilot:
             await pilot.pause()
-            app.apply_local_file_matches(scanner)
+            await app.scan_controller.apply_local_file_matches(scanner)
 
             assert state.get(key) == GOT
-            assert app.rows[0].track.local_path == "/music/a.mp3", "the badge still belongs"
+            assert app.playlist_state.rows[0].track.local_path == "/music/a.mp3", "the badge still belongs"
 
     run(scenario)
 
@@ -4731,9 +4735,9 @@ def test_a_matched_track_is_badged_in_the_table(records, state):
 
     async def scenario():
         async with app.run_test() as pilot:
-            await pilot.pause()
-            app.apply_local_file_matches(scanner)
-            await pilot.pause()
+            await settle(app, pilot)
+            await app.scan_controller.apply_local_file_matches(scanner)
+            await settle(app, pilot)
 
             table = app.query_one("#tracks", DataTable)
             leading = table.get_cell_at(Coordinate(0, 0))
@@ -4758,7 +4762,7 @@ def test_copying_the_path_says_so_either_way(records, state, monkeypatch, tmp_pa
             await pilot.press("y")
             assert "No local file matched" in said[-1]
 
-            app.apply_local_file_matches(
+            await app.scan_controller.apply_local_file_matches(
                 StubScanner({key: LocalMatch(str(local_file), confident=True)})
             )
             monkeypatch.setattr(
@@ -4806,7 +4810,7 @@ def test_tracks_a_refresh_brought_in_are_marked_and_sorted_to_the_top(state):
 
     async def scenario():
         async with app.run_test() as pilot:
-            app.load_crate(record)
+            app.crate_controller.load_crate(record)
             await pilot.pause()
             table = app.query_one("#tracks", DataTable)
             first = table.get_cell_at(Coordinate(0, TITLE_CELL))
@@ -4814,5 +4818,299 @@ def test_tracks_a_refresh_brought_in_are_marked_and_sorted_to_the_top(state):
             assert "Arrived" in first.plain
             second = table.get_cell_at(Coordinate(1, TITLE_CELL))
             assert not second.plain.startswith("NEW ")
+
+    run(scenario)
+
+
+def test_playback_a_b_a_rejects_the_first_a_result(state, monkeypatch):
+    app = player_app(synthetic_records(2), state)
+    asked = []
+    monkeypatch.setattr(app.playback_controller, "fetch_audio", lambda track, generation: asked.append((track, generation)))
+
+    async def scenario():
+        async with app.run_test():
+            controller = app.playback_controller
+            a, b = [row.track for row in app.playlist_state.rows]
+            for track in (a, b, a):
+                controller._start_playback(track)
+            old = FakeSource()
+            track, generation = asked[0]
+            controller._audio_ready(track, a_stream(), [], old, generation)
+            assert old.closed
+            assert app.player.loaded is None
+            track, generation = asked[-1]
+            controller._audio_ready(track, a_stream(), [], None, generation)
+            assert app.player.loaded.track.key == a.key
+
+    run(scenario)
+
+
+def test_prefetch_a_b_a_rejects_old_generation_even_when_key_matches(state):
+    app = player_app(synthetic_records(2), state)
+
+    async def scenario():
+        async with app.run_test():
+            controller = app.playback_controller
+            app.audio_state._preparing = "2"
+            generation = app.audio_state._preparation_generation
+            controller._discard_prepared()
+            app.audio_state._preparing = "1"
+            controller._discard_prepared()
+            app.audio_state._preparing = "2"
+            source = FakeSource()
+            controller._preparation_done("2", prepared_for(app, 1, source), generation)
+            assert source.closed
+            assert app.audio_state._prepared is None
+            assert app.audio_state._preparing == "2"
+
+    run(scenario)
+
+
+def test_cancel_job_dismisses_a_cart_owned_dialog_and_releases_after_return(state):
+    app = make_app(synthetic_records(1), state)
+    returned = []
+
+    async def waiting():
+        controller = app.opening_controller
+        try:
+            returned.append(await controller._wait_cart_screen(ConfirmScreen("Continue?")))
+        finally:
+            app.services.operations.finish(app.cart_state._cart_handle)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            assert app.opening_controller._claim_cart()
+            worker = app.run_worker(waiting(), group="cart")
+            async with asyncio.timeout(5):
+                while not isinstance(app.screen, ConfirmScreen) or not app.screen.is_mounted:
+                    await pilot.pause(.01)
+            assert isinstance(app.screen, ConfirmScreen)
+            app.action_cancel_job()
+            await worker.wait()
+            await pilot.pause()
+            assert returned == [None]
+            assert app.services.operations.active() is None
+            assert not isinstance(app.screen, ConfirmScreen)
+
+    run(scenario)
+
+
+def test_stale_coalesced_bytes_cannot_change_a_new_operation(state):
+    app = make_app(synthetic_records(1), state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            old = app.services.operations.start("Downloading")
+            app.services.operations.finish(old)
+            newer = app.services.operations.start("Downloading")
+            app.download_state._download_handle = newer
+            app.download_controller._update_track_progress("1", .5, old.id)
+            assert "1" not in app.download_state.download_progress
+            app.services.operations.finish(newer)
+
+    run(scenario)
+
+
+def test_keyboard_navigation_remains_available_while_a_status_write_waits(state, monkeypatch):
+    app = make_app(synthetic_records(3), state)
+    entered, release = Event(), Event()
+    original = state.db.set_track_state
+
+    def blocked(*args):
+        entered.set()
+        assert release.wait(3), "test must release its fake database lock"
+        return original(*args)
+
+    monkeypatch.setattr(state.db, "set_track_state", blocked)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            table = app.query_one("#tracks", TrackTable)
+            mark = asyncio.create_task(pilot.press("g"))
+            move = None
+            try:
+                while not entered.is_set():
+                    await asyncio.sleep(.001)
+                move = asyncio.create_task(pilot.press("down"))
+                await asyncio.sleep(.15)
+                cursor_during_write = table.cursor_row
+            finally:
+                release.set()
+                await asyncio.gather(mark, *([move] if move else []))
+                await settle(app, pilot)
+            assert cursor_during_write == 1
+            assert table.cursor_row == 1, "late status completion must not advance the moved cursor"
+
+    run(scenario)
+
+
+def test_loaded_a_keyboard_intent_invalidates_pending_b(state, monkeypatch):
+    app = player_app(synthetic_records(2), state)
+    asked = []
+    monkeypatch.setattr(app.playback_controller, "fetch_audio", lambda track, generation: asked.append((track, generation)))
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            controller = app.playback_controller
+            a, b = [row.track for row in app.playlist_state.rows]
+            controller._audio_ready(a, a_stream(), [])
+            table = app.query_one("#tracks", TrackTable)
+            table.move_cursor(row=1)
+            await pilot.press("space")
+            table.move_cursor(row=0)
+            await pilot.press("space")
+            assert asked[-1][0].key == b.key
+            source = FakeSource()
+            controller._audio_ready(b, a_stream(), [], source, asked[-1][1])
+            assert source.closed
+            assert app.player.loaded.track.key == a.key
+
+    run(scenario)
+
+
+@pytest.mark.parametrize('count', [1, 3])
+def test_rapid_mark_keys_keep_toggle_and_advance_order_while_database_waits(state, monkeypatch, count):
+    app = make_app(synthetic_records(count), state)
+    entered, release = Event(), Event()
+    original = state.db.set_track_state
+
+    def blocked(*args):
+        entered.set()
+        assert release.wait(3)
+        return original(*args)
+
+    monkeypatch.setattr(state.db, 'set_track_state', blocked)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press('g')
+            assert await asyncio.to_thread(entered.wait, 2)
+            try:
+                await pilot.press('g')
+            finally:
+                release.set()
+            await app.workers.wait_for_complete()
+            keys = [row.track.key for row in app.playlist_state.rows]
+            if count == 1:
+                assert state.get(keys[0]) == 'new'
+            else:
+                assert [state.get(key) for key in keys] == [GOT, GOT, 'new']
+                assert app.query_one('#tracks', TrackTable).cursor_row == 2
+
+    run(scenario)
+
+
+def test_cancelling_profile_write_holds_download_slot_and_does_not_open_late_auth(state, monkeypatch):
+    records = synthetic_records(2)
+    for record in records:
+        record.track.downloadable = record.track.has_downloads_left = True
+    app = make_app(records, state)
+    entered, release = Event(), Event()
+    calls = []
+
+    class Client:
+        def download_track(self, track, *args, **kwargs):
+            calls.append(track.key)
+            if track.key == records[0].track.key:
+                raise gate_models.GateProfileRequired('profile')
+            raise soundcloud.SoundCloudLoginRequired('login')
+
+        def close(self):
+            pass
+
+    def save(answer):
+        entered.set()
+        assert release.wait(3)
+
+    app._client = Client()
+    monkeypatch.setattr(app.services.accounts, 'save_profile', save)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            worker = app.download_controller.batch_download_in_background([(row, None) for row in app.playlist_state.rows])
+            try:
+                for _ in range(50):
+                    await pilot.pause()
+                    if isinstance(app.screen, GateProfileScreen):
+                        break
+                app.screen.query_one('#gate-profile-name', Input).value = 'Test'
+                app.screen.query_one('#gate-profile-email', Input).value = 'test@example.com'
+                app.screen.query_one('#gate-profile-save', Button).press()
+                assert await asyncio.to_thread(entered.wait, 2)
+                handle = app.services.operations.active()
+                await pilot.press('ctrl+x')
+                await asyncio.sleep(.1)
+                assert handle.state == 'cancelling'
+                assert app.services.operations.active() is handle
+                assert not worker.is_finished
+            finally:
+                release.set()
+            await worker.wait()
+            await pilot.pause()
+            assert app.services.operations.active() is None
+            assert not isinstance(app.screen, SoundCloudAuthScreen)
+            assert len(calls) == 2
+
+    run(scenario)
+
+
+def test_late_sidebar_read_cannot_replace_a_more_recent_selection(state, monkeypatch):
+    first = saved_crate(1, source='https://soundcloud.com/a/sets/one', title='One')
+    second = saved_crate(1, source='https://soundcloud.com/a/sets/two', title='Two')
+    app = make_app(synthetic_records(1), state)
+    entered, release = Event(), Event()
+    original = app.services.library.load
+
+    def load(source):
+        record = original(source)
+        if source == first.source:
+            entered.set()
+            assert release.wait(3)
+        return record
+
+    monkeypatch.setattr(app.services.library, 'load', load)
+
+    async def scenario():
+        async with app.run_test():
+            slow = app.run_worker(app.crate_controller.open_crate(crate_models.CrateHeader(first.source, first.title, '')))
+            try:
+                assert await asyncio.to_thread(entered.wait, 2)
+                await app.crate_controller.open_crate(crate_models.CrateHeader(second.source, second.title, ''))
+                assert app.playlist_state.crate.source == second.source
+            finally:
+                release.set()
+            await slow.wait()
+            assert app.playlist_state.crate.source == second.source
+
+    run(scenario)
+
+
+def test_queued_mark_is_discarded_when_the_playlist_changes(state, monkeypatch):
+    app = make_app(synthetic_records(1), state)
+    entered, release = Event(), Event()
+    original = state.db.set_track_state
+
+    def blocked(*args):
+        entered.set()
+        assert release.wait(3)
+        return original(*args)
+
+    monkeypatch.setattr(state.db, 'set_track_state', blocked)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press('g')
+            assert await asyncio.to_thread(entered.wait, 2)
+            try:
+                await pilot.press('g')
+                new_track = Track(id=500, title='Another playlist', permalink_url='https://soundcloud.com/a/500')
+                app.crate_controller.load_records(links.categorise(new_track))
+            finally:
+                release.set()
+            await app.workers.wait_for_complete()
+            assert state.get('500') == 'new'
 
     run(scenario)
