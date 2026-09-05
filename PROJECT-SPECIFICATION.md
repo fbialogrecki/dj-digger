@@ -5,8 +5,8 @@
 - Product version verified: 1.1.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-09-05
-- Document lines: <!-- SPEC TOTAL LINES -->1288<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1288<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1289<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1289<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,63 +51,63 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 142–176 |
 | 2.1 | ↳ Problem and product boundary | 144–157 |
 | 2.2 | ↳ Execution modes | 158–176 |
-| 3 | User-visible capabilities | 177–512 |
+| 3 | User-visible capabilities | 177–513 |
 | 3.1 | ↳ Track collection and saved HTML | 179–198 |
 | 3.2 | ↳ Link classification and exports | 199–217 |
 | 3.3 | ↳ TUI playlist library and interaction | 218–288 |
 | 3.4 | ↳ Audio preview | 289–339 |
 | 3.5 | ↳ Downloads and local-file matching | 340–369 |
 | 3.6 | ↳ Store purchase assistance | 370–449 |
-| 3.7 | ↳ Local library, analysis and audio export | 450–512 |
-| 4 | System context and data flow | 513–553 |
-| 4.1 | ↳ Context diagram | 515–537 |
-| 4.2 | ↳ Collection-to-library flow | 538–553 |
-| 5 | Repository layout and component ownership | 554–619 |
-| 5.1 | ↳ Entry, orchestration, and models | 556–567 |
-| 5.2 | ↳ Network and external-system adapters | 568–586 |
-| 5.3 | ↳ Persistence, local media, and UI | 587–619 |
-| 6 | Runtime architecture and environments | 620–721 |
-| 6.1 | ↳ Runtime and dependencies | 622–637 |
-| 6.2 | ↳ Concurrency and lifecycle | 638–706 |
-| 6.3 | ↳ Local paths and environment variables | 707–721 |
-| 7 | Data model and persistence | 722–809 |
-| 7.1 | ↳ Domain objects and identity | 724–738 |
-| 7.2 | ↳ SQLite schema and invariants | 739–776 |
-| 7.3 | ↳ Crate persistence and deletion | 777–792 |
-| 7.4 | ↳ Configuration and credential stores | 793–809 |
-| 8 | Public interfaces and contracts | 810–855 |
-| 8.1 | ↳ CLI arguments and exit behavior | 812–831 |
-| 8.2 | ↳ JSON and CSV summary input | 832–846 |
-| 8.3 | ↳ URL-opening contract | 847–855 |
-| 9 | Authentication and authorization | 856–899 |
-| 9.1 | ↳ SoundCloud authentication | 858–878 |
-| 9.2 | ↳ Gate action consent | 879–899 |
-| 10 | External integrations | 900–1035 |
-| 10.1 | ↳ SoundCloud API and media | 902–913 |
-| 10.2 | ↳ Link hubs and download gates | 914–976 |
-| 10.2 · block | ↳ ↳ Hypeddit | 922–962 |
-| 10.2 · block | ↳ ↳ Other resolvers | 964–969 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 971–976 |
-| 10.3 | ↳ Browsers and clipboard | 977–988 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 989–1035 |
-| 11 | Security requirements and threat model | 1036–1090 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1038–1056 |
-| 11.2 | ↳ Secret and personal-data handling | 1057–1072 |
-| 11.3 | ↳ File and mutation safety | 1073–1090 |
-| 12 | Privacy, lifecycle, and retention | 1091–1129 |
-| 12.1 | ↳ Data stored locally | 1093–1108 |
-| 12.2 | ↳ Data sent to third parties | 1109–1120 |
-| 12.3 | ↳ User-controlled deletion | 1121–1129 |
-| 13 | Failure behavior and current limitations | 1130–1190 |
-| 13.1 | ↳ Error isolation and reporting | 1132–1151 |
-| 13.2 | ↳ Confirmed limitations | 1152–1190 |
-| 14 | Verification, CI, and release | 1191–1259 |
-| 14.1 | ↳ Offline and live test suites | 1193–1224 |
-| 14.2 | ↳ Continuous integration and publishing | 1225–1244 |
-| 14.3 | ↳ Specification-map verification | 1245–1259 |
-| 15 | Evidence and operational references | 1260–1288 |
-| 15.1 | ↳ Primary implementation evidence | 1262–1278 |
-| 15.2 | ↳ User and historical documentation | 1279–1288 |
+| 3.7 | ↳ Local library, analysis and audio export | 450–513 |
+| 4 | System context and data flow | 514–554 |
+| 4.1 | ↳ Context diagram | 516–538 |
+| 4.2 | ↳ Collection-to-library flow | 539–554 |
+| 5 | Repository layout and component ownership | 555–620 |
+| 5.1 | ↳ Entry, orchestration, and models | 557–568 |
+| 5.2 | ↳ Network and external-system adapters | 569–587 |
+| 5.3 | ↳ Persistence, local media, and UI | 588–620 |
+| 6 | Runtime architecture and environments | 621–722 |
+| 6.1 | ↳ Runtime and dependencies | 623–638 |
+| 6.2 | ↳ Concurrency and lifecycle | 639–707 |
+| 6.3 | ↳ Local paths and environment variables | 708–722 |
+| 7 | Data model and persistence | 723–810 |
+| 7.1 | ↳ Domain objects and identity | 725–739 |
+| 7.2 | ↳ SQLite schema and invariants | 740–777 |
+| 7.3 | ↳ Crate persistence and deletion | 778–793 |
+| 7.4 | ↳ Configuration and credential stores | 794–810 |
+| 8 | Public interfaces and contracts | 811–856 |
+| 8.1 | ↳ CLI arguments and exit behavior | 813–832 |
+| 8.2 | ↳ JSON and CSV summary input | 833–847 |
+| 8.3 | ↳ URL-opening contract | 848–856 |
+| 9 | Authentication and authorization | 857–900 |
+| 9.1 | ↳ SoundCloud authentication | 859–879 |
+| 9.2 | ↳ Gate action consent | 880–900 |
+| 10 | External integrations | 901–1036 |
+| 10.1 | ↳ SoundCloud API and media | 903–914 |
+| 10.2 | ↳ Link hubs and download gates | 915–977 |
+| 10.2 · block | ↳ ↳ Hypeddit | 923–963 |
+| 10.2 · block | ↳ ↳ Other resolvers | 965–970 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 972–977 |
+| 10.3 | ↳ Browsers and clipboard | 978–989 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 990–1036 |
+| 11 | Security requirements and threat model | 1037–1091 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1039–1057 |
+| 11.2 | ↳ Secret and personal-data handling | 1058–1073 |
+| 11.3 | ↳ File and mutation safety | 1074–1091 |
+| 12 | Privacy, lifecycle, and retention | 1092–1130 |
+| 12.1 | ↳ Data stored locally | 1094–1109 |
+| 12.2 | ↳ Data sent to third parties | 1110–1121 |
+| 12.3 | ↳ User-controlled deletion | 1122–1130 |
+| 13 | Failure behavior and current limitations | 1131–1191 |
+| 13.1 | ↳ Error isolation and reporting | 1133–1152 |
+| 13.2 | ↳ Confirmed limitations | 1153–1191 |
+| 14 | Verification, CI, and release | 1192–1260 |
+| 14.1 | ↳ Offline and live test suites | 1194–1225 |
+| 14.2 | ↳ Continuous integration and publishing | 1226–1245 |
+| 14.3 | ↳ Specification-map verification | 1246–1260 |
+| 15 | Evidence and operational references | 1261–1289 |
+| 15.1 | ↳ Primary implementation evidence | 1263–1279 |
+| 15.2 | ↳ User and historical documentation | 1280–1289 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -450,6 +450,7 @@ and checkout remain manual.
 ### 3.7 Local library, analysis and audio export
 
 The sidebar has playlists above a lazy directory explorer, initially 50/50.
+Both section headings are centered and use the same muted text color.
 Saved splits are 30/70, 50/50 and 70/30; `ctrl+r` switches visible sections,
 including on short terminals. Pins, configured directories, downloads and mounted
 volumes form the roots. `ctrl+f` opens any explicit directory; `ctrl+n` cycles

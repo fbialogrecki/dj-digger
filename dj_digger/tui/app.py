@@ -90,12 +90,12 @@ class DiggerApp(App):
     }
     /* Centred over the list it heads, with a blank row under it: the crate
        names started immediately below and read as one more crate. */
-    #sidebar-title {
+    #sidebar-title, #explorer-title {
         padding: 0 1;
-        margin-bottom: 1;
         text-align: center;
         color: $text-muted;
     }
+    #sidebar-title { margin-bottom: 1; }
     /* Auto height so the add button sits right under the last crate, not pinned
        to the bottom of the sidebar. */
     #crates {
