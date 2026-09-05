@@ -221,7 +221,6 @@ def prepare(item: Item, profile: Profile, target: Path, *, cancel=None) -> dict:
                 output.write(block)
             output.flush()
             os.fsync(output.fileno())
-        os.chmod(target, stat.S_IMODE(source.stat().st_mode))
         if hashed.hexdigest() != item.sha256 or digest(target, cancel) != item.sha256:
             raise MediaError('Copy verification failed')
         pcm_summary(target, cancel=cancel)  # full decode, including copied files
@@ -256,7 +255,6 @@ def prepare(item: Item, profile: Profile, target: Path, *, cancel=None) -> dict:
         skipped = wav.canonicalise(encoded, target) if profile.format == 'wav' else []
         if target.stat().st_size > 0xffffffff:
             raise MediaError('File exceeds FAT32 file size limit')
-        os.chmod(target, stat.S_IMODE(source.stat().st_mode))
         result = probe(target, cancel)
         if (result['bits'], result['rate'], result['channels']) != (item.bits, item.rate, metadata['channels']):
             raise MediaError('Converted audio does not match the reviewed parameters')
@@ -266,8 +264,9 @@ def prepare(item: Item, profile: Profile, target: Path, *, cancel=None) -> dict:
             raise MediaError('Converted audio length verification failed')
         if not quantize and (old_hash != new_hash or old_samples != new_samples):
             raise MediaError('Lossless conversion changed audio samples')
-        with target.open('rb') as stream:
+        with target.open('r+b') as stream:
             os.fsync(stream.fileno())
+        os.chmod(target, stat.S_IMODE(source.stat().st_mode))
         if signature(source) != item.signature:
             raise MediaError('Source changed during conversion')
         omitted = [key for key in metadata.get('tags', {}) if key not in result.get('tags', {})]

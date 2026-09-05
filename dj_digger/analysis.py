@@ -79,11 +79,16 @@ def analyze_file(path: str, cancel=None) -> dict:
         bpm = None
         if frame_count > 8:
             envelope = np.memmap(envelope_path, dtype='float32', mode='r')
-            if np.max(envelope) > 1e-5 and np.std(envelope) > 1e-5:
-                tempo, beats = librosa.beat.beat_track(onset_envelope=envelope, sr=RATE, hop_length=HOP)
-                if len(beats) >= 4:
-                    bpm = round(float(np.asarray(tempo).reshape(-1)[0]), 2)
-            del envelope
+            try:
+                if np.max(envelope) > 1e-5 and np.std(envelope) > 1e-5:
+                    tempo, beats = librosa.beat.beat_track(onset_envelope=envelope, sr=RATE, hop_length=HOP)
+                    if len(beats) >= 4:
+                        bpm = round(float(np.asarray(tempo).reshape(-1)[0]), 2)
+            finally:
+                # NumPy/Numba may retain views; Windows requires an explicit
+                # release before the temporary directory can be removed.
+                envelope._mmap.close()
+                del envelope
     major = np.array([6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88])
     minor = np.array([6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17])
 

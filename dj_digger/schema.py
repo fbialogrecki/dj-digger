@@ -73,7 +73,7 @@ def backup(conn: sqlite3.Connection, path: Path) -> Path:
             conn.backup(destination, pages=128, progress=progress, sleep=0.05)
             if destination.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':
                 raise UnsupportedSchema('Library backup failed integrity check')
-        with temporary.open('rb') as output:
+        with temporary.open('r+b') as output:
             os.fsync(output.fileno())
         final = temporary.with_suffix('.db')
         os.replace(temporary, final)
