@@ -276,11 +276,11 @@ def test_the_dim_colour_follows_the_theme(records, state):
 
     async def scenario():
         async with app.run_test() as pilot:
-            await pilot.pause()
+            await settle(app, pilot)
             dark = app.muted
             assert dark.startswith("#")
             app.theme = "textual-light"
-            await pilot.pause()
+            await settle(app, pilot)
             assert app.muted != dark and app.muted.startswith("#")
             assert app.config.theme == "textual-light", "the choice is saved"
 
@@ -587,11 +587,13 @@ def test_pressing_the_same_mark_again_clears_it(records, state, key, status):
         async with app.run_test() as pilot:
             table = app.query_one("#tracks", DataTable)
             await pilot.press(key)
+            await settle(app, pilot)
             assert state.get(records[0].track.key) == status
             assert table.cursor_row == 1
 
             table.move_cursor(row=0)
             await pilot.press(key)
+            await settle(app, pilot)
             assert state.get(records[0].track.key) == "new"
             # Undoing should not march the cursor onwards.
             assert table.cursor_row == 0
@@ -1683,7 +1685,7 @@ def crate_of(count, *, title="Fresh crate", source="https://soundcloud.com/a/set
 
 
 async def settle(app, pilot):
-    """Wait for the background dig to land and the UI to catch up."""
+    """Wait for background workers to finish and the UI to catch up."""
 
     await app.workers.wait_for_complete()
     await pilot.pause()
@@ -1912,12 +1914,13 @@ def test_selecting_a_crate_loads_it_on_demand(state, monkeypatch):
 
     async def scenario():
         async with app.run_test() as pilot:
-            await pilot.pause()
+            await settle(app, pilot)
             assert not hasattr(app.sidebar_state.crates[0], "tracks")
             listing = app.query_one("#crates", ListView)
             listing.index = 1
             listing.action_select_cursor()
-            await pilot.pause()
+            await pilot.pause()  # Dispatch Selected before waiting for its worker.
+            await settle(app, pilot)
 
             assert app.playlist_state.crate.title == "Two"
             assert loads[-1] == "https://soundcloud.com/a/sets/two"
@@ -2140,16 +2143,16 @@ def test_removing_a_track_persists_and_undo_brings_it_back(state):
 
     async def scenario():
         async with app.run_test() as pilot:
-            await pilot.pause()
+            await settle(app, pilot)
             assert app.query_one("#tracks", DataTable).row_count == 3
 
             await pilot.press("x")
-            await pilot.pause()
+            await settle(app, pilot)
             assert app.query_one("#tracks", DataTable).row_count == 2
             assert library.load(record.source).removed_track_keys == ["500"]
 
             await pilot.press("ctrl+z")
-            await pilot.pause()
+            await settle(app, pilot)
             assert app.query_one("#tracks", DataTable).row_count == 3
             assert library.load(record.source).removed_track_keys == []
 
@@ -2891,7 +2894,7 @@ def test_marking_a_track_lights_the_row_then_lets_it_settle(state):
         async with app.run_test() as pilot:
             table = app.query_one("#tracks", TrackTable)
             await pilot.press("g")
-            await pilot.pause()
+            await settle(app, pilot)
             lit = app.role(keymap.STATUS_STYLES[GOT][1])
             row_cells = table.get_row_at(0)
             if len(row_cells) > TITLE_CELL and row_cells[TITLE_CELL].spans:
@@ -2916,7 +2919,7 @@ def test_marking_a_track_does_not_redraw_the_whole_table(state, monkeypatch):
             monkeypatch.setattr(table, "clear", lambda *a, **k: rebuilds.append(1))
 
             await pilot.press("g")
-            await pilot.pause()
+            await settle(app, pilot)
 
             assert rebuilds == []
             assert str(table.get_row_at(0)[MARK_CELL]) == "\u2713"
@@ -4728,9 +4731,9 @@ def test_a_matched_track_is_badged_in_the_table(records, state):
 
     async def scenario():
         async with app.run_test() as pilot:
-            await pilot.pause()
+            await settle(app, pilot)
             await app.scan_controller.apply_local_file_matches(scanner)
-            await pilot.pause()
+            await settle(app, pilot)
 
             table = app.query_one("#tracks", DataTable)
             leading = table.get_cell_at(Coordinate(0, 0))
@@ -4875,7 +4878,9 @@ def test_cancel_job_dismisses_a_cart_owned_dialog_and_releases_after_return(stat
             await pilot.pause()
             assert app.opening_controller._claim_cart()
             worker = app.run_worker(waiting(), group="cart")
-            await pilot.pause()
+            async with asyncio.timeout(5):
+                while not isinstance(app.screen, ConfirmScreen) or not app.screen.is_mounted:
+                    await pilot.pause(.01)
             assert isinstance(app.screen, ConfirmScreen)
             app.action_cancel_job()
             await worker.wait()
@@ -4931,6 +4936,7 @@ def test_keyboard_navigation_remains_available_while_a_status_write_waits(state,
             finally:
                 release.set()
                 await asyncio.gather(mark, *([move] if move else []))
+                await settle(app, pilot)
             assert cursor_during_write == 1
             assert table.cursor_row == 1, "late status completion must not advance the moved cursor"
 
