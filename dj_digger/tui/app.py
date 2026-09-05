@@ -131,7 +131,7 @@ class DiggerApp(App):
     .crate-icon:hover {
         background: $accent;
     }
-    #crate-add {
+    #crate-add, #folder-open, #folder-next {
         width: 1fr;
         height: 1;
         border: none;
@@ -140,7 +140,7 @@ class DiggerApp(App):
         content-align: left middle;
         padding: 0 1;
     }
-    #crate-add:hover {
+    #crate-add:hover, #folder-open:hover, #folder-next:hover {
         background: $accent;
         color: $text;
     }
@@ -166,9 +166,9 @@ class DiggerApp(App):
 
     CSS = CSS + """
     #playlist-pane, #explorer-pane { height: 50%; }
-    #explorer { height: 1fr; }
-    #explorer-title, #folder-page { height: 1; }
-    #folder-open { height: 3; min-width: 12; }
+    #explorer { height: 1fr; scrollbar-size: 1 1; }
+    #explorer-title { height: 1; }
+    #folder-next { display: none; }
     """
 
     BINDINGS = [
@@ -482,11 +482,11 @@ class DiggerApp(App):
                     yield ListView(id="crates")
                     yield Button("+ Add playlist", id="crate-add", tooltip="Add a playlist (d)")
                 with Vertical(id="explorer-pane"):
-                    yield Static("Local files · ^F open", id="explorer-title")
+                    yield Static("Local files", id="explorer-title")
                     from textual.widgets import Tree
                     yield Tree("Directories", id="explorer")
-                    yield Static("^E export · j analyze", id="folder-page")
-                    yield Button("Open folder", id="folder-open")
+                    yield Button("Next page", id="folder-next")
+                    yield Button("+ Open folder", id="folder-open")
             with Vertical(id="main"):
                 yield SearchInput(placeholder="Filter by artist, title, genre, tag or label", id="search")
                 yield TrackTable(id="tracks", cursor_type="row", zebra_stripes=True)
@@ -775,6 +775,10 @@ class DiggerApp(App):
         return self.crate_controller.on_list_view_selected(*args, **kwargs)
 
     def on_button_pressed(self, event):
+        if event.button.id == 'folder-next':
+            event.stop()
+            self.local_controller.next_page()
+            return
         if event.button.id == 'folder-open':
             event.stop()
             self.local_controller.choose_folder()

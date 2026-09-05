@@ -5178,3 +5178,54 @@ def test_playback_advances_past_duplicate_playlist_occurrences(state, monkeypatc
             assert controller._step_from_playing(-1) == 1
 
     run(scenario)
+
+
+def test_local_waveform_arrives_after_pause_and_rejects_replaced_audio(state, tmp_path, monkeypatch):
+    import shutil
+    import subprocess
+
+    from dj_digger import local_audio
+    from dj_digger.services.local_library import LocalLibrary
+
+    if not shutil.which('ffmpeg'):
+        pytest.skip('FFmpeg is not installed')
+    path = tmp_path / 'waveform.wav'
+    subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i',
+                    'sine=frequency=440:duration=0.2', str(path)], check=True)
+    track = LocalLibrary(state.db).register(path)
+    app = player_app([], state)
+    entered, release = Event(), Event()
+    actual_waveform = local_audio.waveform
+
+    def delayed_waveform(*args):
+        entered.set()
+        assert release.wait(10)
+        return actual_waveform(*args)
+
+    monkeypatch.setattr(local_audio, 'waveform', delayed_waveform)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            app.crate_controller.set_tracks([track])
+            source = SimpleNamespace(_closed=False, close=lambda: None)
+            controller = app.playback_controller
+            controller._audio_ready(track, a_stream(), [], source)
+            loaded = app.player.loaded
+            bar = app.query_one('#player', PlayerBar)
+            empty_shape = list(bar._rows(loaded))
+            try:
+                assert await asyncio.to_thread(entered.wait, 5)
+                controller.action_play_pause()
+                assert not app.player.playing
+            finally:
+                release.set()
+            await settle(app, pilot)
+            assert len(loaded.waveform) == 1024
+            assert max(loaded.waveform) > 0
+            assert bar._rows(loaded) != empty_shape
+            # A new load of the same file must not receive the old result.
+            replacement = app.player.load(track, a_stream(), None, [])
+            controller._waveform_ready(loaded, [99])
+            assert replacement.waveform == []
+
+    run(scenario)

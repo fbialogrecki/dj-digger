@@ -5,8 +5,8 @@
 - Product version verified: 1.1.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-09-05
-- Document lines: <!-- SPEC TOTAL LINES -->1283<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1283<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1288<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1288<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,63 +51,63 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 142–176 |
 | 2.1 | ↳ Problem and product boundary | 144–157 |
 | 2.2 | ↳ Execution modes | 158–176 |
-| 3 | User-visible capabilities | 177–507 |
+| 3 | User-visible capabilities | 177–512 |
 | 3.1 | ↳ Track collection and saved HTML | 179–198 |
 | 3.2 | ↳ Link classification and exports | 199–217 |
 | 3.3 | ↳ TUI playlist library and interaction | 218–288 |
-| 3.4 | ↳ Audio preview | 289–337 |
-| 3.5 | ↳ Downloads and local-file matching | 338–367 |
-| 3.6 | ↳ Store purchase assistance | 368–447 |
-| 3.7 | ↳ Local library, analysis and audio export | 448–507 |
-| 4 | System context and data flow | 508–548 |
-| 4.1 | ↳ Context diagram | 510–532 |
-| 4.2 | ↳ Collection-to-library flow | 533–548 |
-| 5 | Repository layout and component ownership | 549–614 |
-| 5.1 | ↳ Entry, orchestration, and models | 551–562 |
-| 5.2 | ↳ Network and external-system adapters | 563–581 |
-| 5.3 | ↳ Persistence, local media, and UI | 582–614 |
-| 6 | Runtime architecture and environments | 615–716 |
-| 6.1 | ↳ Runtime and dependencies | 617–632 |
-| 6.2 | ↳ Concurrency and lifecycle | 633–701 |
-| 6.3 | ↳ Local paths and environment variables | 702–716 |
-| 7 | Data model and persistence | 717–804 |
-| 7.1 | ↳ Domain objects and identity | 719–733 |
-| 7.2 | ↳ SQLite schema and invariants | 734–771 |
-| 7.3 | ↳ Crate persistence and deletion | 772–787 |
-| 7.4 | ↳ Configuration and credential stores | 788–804 |
-| 8 | Public interfaces and contracts | 805–850 |
-| 8.1 | ↳ CLI arguments and exit behavior | 807–826 |
-| 8.2 | ↳ JSON and CSV summary input | 827–841 |
-| 8.3 | ↳ URL-opening contract | 842–850 |
-| 9 | Authentication and authorization | 851–894 |
-| 9.1 | ↳ SoundCloud authentication | 853–873 |
-| 9.2 | ↳ Gate action consent | 874–894 |
-| 10 | External integrations | 895–1030 |
-| 10.1 | ↳ SoundCloud API and media | 897–908 |
-| 10.2 | ↳ Link hubs and download gates | 909–971 |
-| 10.2 · block | ↳ ↳ Hypeddit | 917–957 |
-| 10.2 · block | ↳ ↳ Other resolvers | 959–964 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 966–971 |
-| 10.3 | ↳ Browsers and clipboard | 972–983 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 984–1030 |
-| 11 | Security requirements and threat model | 1031–1085 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1033–1051 |
-| 11.2 | ↳ Secret and personal-data handling | 1052–1067 |
-| 11.3 | ↳ File and mutation safety | 1068–1085 |
-| 12 | Privacy, lifecycle, and retention | 1086–1124 |
-| 12.1 | ↳ Data stored locally | 1088–1103 |
-| 12.2 | ↳ Data sent to third parties | 1104–1115 |
-| 12.3 | ↳ User-controlled deletion | 1116–1124 |
-| 13 | Failure behavior and current limitations | 1125–1185 |
-| 13.1 | ↳ Error isolation and reporting | 1127–1146 |
-| 13.2 | ↳ Confirmed limitations | 1147–1185 |
-| 14 | Verification, CI, and release | 1186–1254 |
-| 14.1 | ↳ Offline and live test suites | 1188–1219 |
-| 14.2 | ↳ Continuous integration and publishing | 1220–1239 |
-| 14.3 | ↳ Specification-map verification | 1240–1254 |
-| 15 | Evidence and operational references | 1255–1283 |
-| 15.1 | ↳ Primary implementation evidence | 1257–1273 |
-| 15.2 | ↳ User and historical documentation | 1274–1283 |
+| 3.4 | ↳ Audio preview | 289–339 |
+| 3.5 | ↳ Downloads and local-file matching | 340–369 |
+| 3.6 | ↳ Store purchase assistance | 370–449 |
+| 3.7 | ↳ Local library, analysis and audio export | 450–512 |
+| 4 | System context and data flow | 513–553 |
+| 4.1 | ↳ Context diagram | 515–537 |
+| 4.2 | ↳ Collection-to-library flow | 538–553 |
+| 5 | Repository layout and component ownership | 554–619 |
+| 5.1 | ↳ Entry, orchestration, and models | 556–567 |
+| 5.2 | ↳ Network and external-system adapters | 568–586 |
+| 5.3 | ↳ Persistence, local media, and UI | 587–619 |
+| 6 | Runtime architecture and environments | 620–721 |
+| 6.1 | ↳ Runtime and dependencies | 622–637 |
+| 6.2 | ↳ Concurrency and lifecycle | 638–706 |
+| 6.3 | ↳ Local paths and environment variables | 707–721 |
+| 7 | Data model and persistence | 722–809 |
+| 7.1 | ↳ Domain objects and identity | 724–738 |
+| 7.2 | ↳ SQLite schema and invariants | 739–776 |
+| 7.3 | ↳ Crate persistence and deletion | 777–792 |
+| 7.4 | ↳ Configuration and credential stores | 793–809 |
+| 8 | Public interfaces and contracts | 810–855 |
+| 8.1 | ↳ CLI arguments and exit behavior | 812–831 |
+| 8.2 | ↳ JSON and CSV summary input | 832–846 |
+| 8.3 | ↳ URL-opening contract | 847–855 |
+| 9 | Authentication and authorization | 856–899 |
+| 9.1 | ↳ SoundCloud authentication | 858–878 |
+| 9.2 | ↳ Gate action consent | 879–899 |
+| 10 | External integrations | 900–1035 |
+| 10.1 | ↳ SoundCloud API and media | 902–913 |
+| 10.2 | ↳ Link hubs and download gates | 914–976 |
+| 10.2 · block | ↳ ↳ Hypeddit | 922–962 |
+| 10.2 · block | ↳ ↳ Other resolvers | 964–969 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 971–976 |
+| 10.3 | ↳ Browsers and clipboard | 977–988 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 989–1035 |
+| 11 | Security requirements and threat model | 1036–1090 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1038–1056 |
+| 11.2 | ↳ Secret and personal-data handling | 1057–1072 |
+| 11.3 | ↳ File and mutation safety | 1073–1090 |
+| 12 | Privacy, lifecycle, and retention | 1091–1129 |
+| 12.1 | ↳ Data stored locally | 1093–1108 |
+| 12.2 | ↳ Data sent to third parties | 1109–1120 |
+| 12.3 | ↳ User-controlled deletion | 1121–1129 |
+| 13 | Failure behavior and current limitations | 1130–1190 |
+| 13.1 | ↳ Error isolation and reporting | 1132–1151 |
+| 13.2 | ↳ Confirmed limitations | 1152–1190 |
+| 14 | Verification, CI, and release | 1191–1259 |
+| 14.1 | ↳ Offline and live test suites | 1193–1224 |
+| 14.2 | ↳ Continuous integration and publishing | 1225–1244 |
+| 14.3 | ↳ Specification-map verification | 1245–1259 |
+| 15 | Evidence and operational references | 1260–1288 |
+| 15.1 | ↳ Primary implementation evidence | 1262–1278 |
+| 15.2 | ↳ User and historical documentation | 1279–1288 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -296,6 +296,8 @@ while EOF and decoder failures remain distinct. Playback sources hold leases
 until their decoder has actually stopped; prefetched files are also protected
 from replacement. Local waveforms are generated independently after playback is
 ready and cached in at most 128 files, each containing at most 1024 peaks.
+The rendered waveform updates when these peaks arrive; pause and seek do not
+discard them, while switching the loaded audio rejects obsolete results.
 This playback PCM is never reused for analysis or export.
 
 Playback is optional and requires the `play` extra containing `miniaudio`.
@@ -451,7 +453,10 @@ The sidebar has playlists above a lazy directory explorer, initially 50/50.
 Saved splits are 30/70, 50/50 and 70/30; `ctrl+r` switches visible sections,
 including on short terminals. Pins, configured directories, downloads and mounted
 volumes form the roots. `ctrl+f` opens any explicit directory; `ctrl+n` cycles
-250-file pages. Names load before metadata; no audio analysis or content hashing
+250-file pages. The explorer uses one-cell scrollbars and a one-line
+“+ Open folder” button matching “+ Add playlist”. Shortcut hints and file counters
+are omitted; a compact “Next page” button appears only for multi-page folders.
+Names load before metadata; no audio analysis or content hashing
 runs just because a directory is opened. At most 1000 immediate subdirectories
 are shown per expanded tree node; additional paths can be entered directly.
 Local rows do not require a `LinkRecord`. `ctrl+l` creates/appends a local playlist.

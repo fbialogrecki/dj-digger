@@ -343,21 +343,20 @@ class PlaybackController:
                 if source is not None:
                     source.close()
                 return
-    def _local_waveform_work(self, track, source, generation):
+    def _local_waveform_work(self, loaded, source):
         from ..local_audio import waveform
         class Closed:
             def is_set(self):
                 return source._closed
         with self.worker_scope():
             try:
-                samples = waveform(track.local_path, Closed())
-                self.call_from_thread(self._waveform_ready, track.key, samples, generation)
+                samples = waveform(loaded.track.local_path, Closed())
+                self.call_from_thread(self._waveform_ready, loaded, samples)
             except Exception as exc:
                 LOGGER.debug('Local waveform unavailable: %s', exc)
 
-    def _waveform_ready(self, key, samples, generation):
-        loaded = self.player.loaded
-        if loaded and loaded.track.key == key and generation == self.audio_state._playback_generation:
+    def _waveform_ready(self, loaded, samples):
+        if self.player.loaded is loaded:
             loaded.waveform = samples
             self._player_bar().refresh_bar()
 
@@ -393,8 +392,8 @@ class PlaybackController:
         self._focus_playing_track()
         bar.refresh_bar()
         if track.local_id and source is not None:
-            current_generation = self.audio_state._playback_generation
-            self.run_worker(lambda: self._local_waveform_work(track, source, current_generation),
+            loaded = self.player.loaded
+            self.run_worker(lambda: self._local_waveform_work(loaded, source),
                             thread=True, group='local-waveform', exclusive=True)
 
     def _playback_failed(self, message: str, generation: int | None = None) -> None:

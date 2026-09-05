@@ -4,7 +4,7 @@ import os
 import uuid
 from pathlib import Path
 
-from textual.widgets import Static, Tree
+from textual.widgets import Button, Tree
 
 from ..analysis import analyze_track
 from ..export import execute, plan_export, recover, resume_plan
@@ -98,7 +98,7 @@ class LocalController:
             self.crates.load_records([], title=str(folder))
             self.crates.set_tracks(tracks)
             view = self.playlist_state._view_generation
-            self.query_one('#folder-page', Static).update(f'{offset + 1 if total else 0}–{min(offset + PAGE_SIZE, total)} / {total} · ^N next')
+            self.query_one('#folder-next', Button).display = total > PAGE_SIZE
             if node is not None and not node.children:
                 for name in directories[:1000]:
                     node.add(name, data=folder / name)
