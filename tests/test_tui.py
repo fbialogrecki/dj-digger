@@ -4563,7 +4563,7 @@ def test_leaving_stops_the_ticker_and_lets_go_of_everything(records, state, monk
 
     async def scenario():
         async with app.run_test() as pilot:
-            await pilot.pause()
+            await settle(app, pilot)
             monkeypatch.setattr(
                 type(app.player), "close", lambda self: closed.append("player")
             )
