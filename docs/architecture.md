@@ -9,7 +9,8 @@ where an implementation change belongs.
 
 `services/runtime.py:ApplicationServices` composes lazy application resources.
 Constructing it imports no Textual, opens no database/device and launches no
-Chromium. CLI collection can use the same collection flow without mounting UI.
+Chromium. CLI and TUI obtain the same lazy collection service there; collection
+read/persist operations do not require mounting UI.
 Textual owns its workers and timers. Synchronous requests remain in threads;
 store Playwright remains asynchronous on its creating loop.
 
@@ -23,7 +24,8 @@ claim the main status bar. Main work takes precedence over scanning there.
 Textual's cancellation flags. `io()` awaits the actual thread even when its
 caller is cancelled. Shutdown stops admission, signals operations and dialogs,
 settles workers, closes their resources and closes SQLite last. The existing
-bounded browser close and process-exit fallback remain.
+bounded browser close remains. An independent three-second emergency guard
+starts during unmount, before asyncio can wait on an uninterruptible thread.
 
 ## UI ownership
 
@@ -58,7 +60,9 @@ cannot write into a new playlist with the same source.
 SQLite has one owning thread and explicit short transactions. Repositories read
 current records when applying metadata, removal and refresh changes; no network,
 browser or dialog occurs inside a transaction. Status and file provenance commit
-together, and status mirrors change after commit. The scanner writes batches.
+together, and status mirrors change after commit. The scanner writes batches;
+missing-file observations compare a per-key revision before clearing provenance,
+so a stale scan cannot erase a completed transfer or later manual decision.
 Rendering reads the mirrors rather than issuing a query per row.
 
 `schema.py` recognizes existing schema read-only. It registers the unchanged 1.0
@@ -72,6 +76,14 @@ a filename lock. Publication and SQLite are separate effects:
 `PublishedFileUnrecorded` identifies a completed file whose status write failed.
 The file remains, transfer retry is forbidden, and other completed batch files
 are still settled. There is no durable job journal or process-crash resumption.
+
+`DownloadWorkflow` owns the single/batch shared attempt, HTTP pool, browser pass
+and approved prerequisite retries. It receives copied tracks, a `DownloadRequest`,
+a handle, current client/configuration access and narrow event/answer callbacks.
+The pool belongs to the workflow and closes only when all submitted work settles.
+`DownloadEvent` uses an operation ID and track key; the controller coalesces byte
+progress and renders terminal outcomes individually. An account/profile wizard
+can resume only the pending items it approved.
 
 ## Integration boundaries
 

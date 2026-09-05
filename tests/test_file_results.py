@@ -149,9 +149,9 @@ def test_browser_batch_records_other_files_after_one_database_failure(tmp_path, 
 
 @pytest.mark.parametrize("newer", ["download", "manual"])
 def test_missing_file_scan_cannot_clear_a_later_completed_decision(tmp_path, newer):
-    from dj_digger.models import Track
+    from dj_digger.models import GOT, Track
     from dj_digger.services.library import LibraryService
-    from dj_digger.state import GOT, TrackState
+    from dj_digger.state import TrackState
 
     state = TrackState(tmp_path / "library.db")
     state.set_local_file("1", tmp_path / "missing.wav")

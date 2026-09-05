@@ -31,6 +31,7 @@ for module in pkgutil.iter_modules(dj_digger.services.__path__):
     importlib.import_module('dj_digger.services.' + module.name)
 from dj_digger.services.runtime import ApplicationServices
 services = ApplicationServices()
+services.collection
 assert services._state is services._client is services._player is services._cart is None
 services.stop()
 '''

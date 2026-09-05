@@ -19,6 +19,7 @@ class ApplicationServices:
         self._state = state
         self._config = config
         self.operations = OperationCoordinator()
+        self._collection = None
         self._downloads = None
         self._library = None
         self._accounts = None
@@ -31,6 +32,20 @@ class ApplicationServices:
         self._closing = False
         self._closed = False
         self._retired = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        self.stop()
+
+    @property
+    def collection(self):
+        if self._collection is None:
+            from .collection import CollectionService
+
+            self._collection = CollectionService(lambda: self.state.db)
+        return self._collection
 
     @property
     def state(self):
@@ -48,6 +63,7 @@ class ApplicationServices:
     def opening(self):
         if self._opening is None:
             from .opening import OpeningService
+
             self._opening = OpeningService(self.state)
         return self._opening
 
@@ -55,6 +71,7 @@ class ApplicationServices:
     def accounts(self):
         if self._accounts is None:
             from .accounts import AccountService
+
             self._accounts = AccountService(self.config, lambda: self.client.client_id, self.worker)
         return self._accounts
 
@@ -62,13 +79,14 @@ class ApplicationServices:
     def library(self):
         if self._library is None:
             from .library import LibraryService
+
             self._library = LibraryService(self.state)
         return self._library
 
     @property
     def downloads(self):
         if self._downloads is None:
-            self._downloads = DownloadService(self.state)
+            self._downloads = DownloadService(self.state, self.state.db)
         return self._downloads
 
     @property
@@ -76,6 +94,7 @@ class ApplicationServices:
         with self._condition:
             if self._client is None:
                 from ..soundcloud import SoundCloudClient
+
                 self._client = SoundCloudClient(config=self.config)
             return self._client
 
@@ -83,6 +102,7 @@ class ApplicationServices:
     def player(self):
         if self._player is None:
             from ..player import Player
+
             self._player = Player()
         return self._player
 
@@ -90,6 +110,7 @@ class ApplicationServices:
     def cart(self):
         if self._cart is None:
             from dj_digger.services.purchases import CartBrowserSession
+
             self._cart = CartBrowserSession()
         return self._cart
 
@@ -113,14 +134,17 @@ class ApplicationServices:
 
     def adopt_login(self, oauth_token):
         from ..soundcloud import SoundCloudClient
+
         self.retire_client(SoundCloudClient(config=self.config))
         return True
 
     async def io(self, function, *args, **kwargs):
         """Await actual thread completion even if the awaiting coroutine is cancelled."""
+
         def call():
             with self.worker():
                 return function(*args, **kwargs)
+
         task = asyncio.create_task(asyncio.to_thread(call))
         cancelled = False
         while not task.done():

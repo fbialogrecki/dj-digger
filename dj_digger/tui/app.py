@@ -4,26 +4,21 @@ import asyncio
 import logging
 import traceback
 from collections.abc import Sequence
-from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from functools import partial
 from pathlib import Path
-from threading import Event, Lock
+from threading import Event
 
 from rich.text import Text
 from textual import events, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
-from textual.timer import Timer
 from textual.widgets import Button, DataTable, ListView, Static
-from textual.widgets.data_table import ColumnKey
-
-from dj_digger.services.playback import Prepared
 
 from .. import links as links_module
 from ..diagnostics import log_safe_text
-from ..library import CrateHeader, CrateRecord
+from ..library import CrateRecord
 from ..models import LinkRecord
 from ..services import collection as dig_module
 from ..services.runtime import ApplicationServices
@@ -52,7 +47,6 @@ from .presentation import (
     SidebarState,
 )
 from .render import RenderController
-from .rows import Row
 from .screens import AskLinkScreen, ContextMenuScreen, HelpScreen, SettingsScreen
 from .theme import FALLBACK_PALETTE, Palette, palette_for
 from .widgets import ErrorBanner, FittedFooter, SearchInput, StatusBar, TrackTable
@@ -65,9 +59,7 @@ LOGGER = logging.getLogger(__name__)
 NARROW_WIDTH = 110
 
 
-class DiggerApp(
-    App,
-):
+class DiggerApp(App):
     """The crate browser.
 
     Controllers own presentation and operations through explicit dependencies.
@@ -215,73 +207,18 @@ class DiggerApp(
         self.cart_state = CartState()
         self.sidebar_state = SidebarState()
         self.scan_state = ScanState()
-        self.playlist_state.rows: list[Row] = []
         self.services = services or ApplicationServices(state=state)
         self.state = self.services.state
-        self.state.get("")  # Warm the status mirrors before mounting any widgets.
-        # One profile for the whole app: Settings edits this object, and the
-        # SoundCloud client is handed the same one so the gate resolvers see
-        # your name and email rather than a copy loaded before you changed them.
+        self.state.get("")  # Warm the mirrors before mounting any widgets.
         self.config = self.services.config
         self.playlist_state.crate = crate_record
-        self.playlist_state._view_generation = 0
-        self.sidebar_state.crates: list[CrateHeader] = []
         self.playlist_state.crate_title = crate_title or (crate_record.title if crate_record else "")
-        # load_records sets this when you switch crates; this covers the one the
-        # command line opened us on.
         self.sub_title = self.playlist_state.crate_title
         self.export_format = export_format
         self.export_path = export_path
         self.dig_options = dig_options or dig_module.DigOptions()
-        self.playlist_state.store_filters: set[str] = set()
-        self.playlist_state._badge_click_regions: list[tuple[int, int, int]] = []
-        self.playlist_state.search_term: str = ""
-        self.playlist_state.hide_handled: bool = False
-        # Track keys chosen with v / V / ctrl+a; whole-list actions prefer them.
-        self.playlist_state.selected: set[str] = set()
-        self.playlist_state._anchor: int | None = None
-        self.playlist_state.sort_key: str | None = None
-        self.playlist_state.sort_reverse: bool = False
-        self.playlist_state._column_keys: dict[str, ColumnKey] = {}
-        self.playlist_state.visible_rows: list[Row] = []
-        self.playlist_state.present: list[str] = []
-        # The key whose bulk open is waiting for a second press (see _confirm_many).
-        self.cart_state._pending_open: str | None = None
-        self.cart_state._cart_busy = False
-        self.cart_state._cart_handle = None
-        self.cart_state._cart_cancel = asyncio.Event()
-        self.cart_state._cart_progress_screen = None
-        self.download_state._gate_cancel = Event()
         self._dig_cancel = Event()
-        self.scan_state._scan_cancel = Event()
-        self.download_state._browser_batch_active = False
-        # The long job the status bar reports on, if any (see jobs.py).
-        self.playlist_state._undone: list[str] = []
-        self.audio_state._ticker: Timer | None = None
-        # Decided fresh each time playback moves: does the cursor come along?
-        self.audio_state._cursor_follows = True
-        self.audio_state._prepared: Prepared | None = None
-        self.audio_state._preparing: str = ""
-        self.audio_state._playback_generation = 0
-        self.audio_state._preparation_generation = 0
-        self.audio_state._frame = 0
-        self.download_state.download_progress: dict[str, float] = {}
-        self.download_state._download_context = None
-        self.download_state._dirty_download_rows: set[str] = set()
-        self.download_state._progress_lock = Lock()
-        self.download_state._pending_progress = {}
-        self.download_state._last_progress_redraw: float = 0.0
-        # Only a batch download builds one. Declared here so the teardown path
-        # can ask about it plainly rather than through getattr.
-        self.download_state._download_executor: ThreadPoolExecutor | None = None
-        # How many download threads hold the SoundCloud client right now: a
-        # fresh login must not close it under them (see downloads._adopt_login).
-        self.download_state._download_worker_lock = Lock()
-        self.download_state._active_download_workers = 0
-        # None until the first resize, so the first one always applies.
         self._narrow: bool | None = None
-        self.player = self.services.player
-        self._client = None
         # The interface's colour roles under the active theme, recomputed
         # whenever the theme changes (see tui/theme.py).
         self.palette: Palette = FALLBACK_PALETTE
@@ -450,7 +387,7 @@ class DiggerApp(
             sleep=self.playback_controller._sleep, playing=lambda: self.player.playing, notify=self.notify,
         )
         self.digging = DiggingController(
-            dig_module.CollectionService(self.state.db), self.services.operations,
+            self.services.collection, self.services.operations,
             run=lambda function: self.run_worker(self._owned_work(function), thread=True, group="dig"),
             dispatch=self.call_from_thread,
             prompt=lambda message, answer: self.push_screen(AskLinkScreen(message=message), answer),
@@ -651,9 +588,6 @@ class DiggerApp(
         if self.audio_state._ticker is not None:
             self.audio_state._ticker.stop()
             self.audio_state._ticker = None
-        if self.download_state._download_executor is not None and not self.download_state._active_download_workers:
-            self.download_state._download_executor.shutdown(wait=False, cancel_futures=True)
-            self.download_state._download_executor = None
         self.audio_state._playback_generation += 1
         self.playback_controller._discard_prepared()
         # This runs before Textual gives the terminal back, so a Playwright

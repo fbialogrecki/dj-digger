@@ -28,7 +28,28 @@ LOGGER = logging.getLogger(__name__)
 class PlaybackController:
     """Previewing tracks: the frame ticker, prefetching the next one, and the transport keys."""
 
-    def __init__(self, *, _paint_key, _playing_key, _update_track_progress, get_animation_level, audio_state, call_from_thread, get_client, current_row, download_state, get_job, notify, get_player, playlist_state, query, query_one, run_worker, update_status, worker_scope):
+    def __init__(
+        self,
+        *,
+        _paint_key,
+        _playing_key,
+        _update_track_progress,
+        get_animation_level,
+        audio_state,
+        call_from_thread,
+        get_client,
+        current_row,
+        download_state,
+        get_job,
+        notify,
+        get_player,
+        playlist_state,
+        query,
+        query_one,
+        run_worker,
+        update_status,
+        worker_scope,
+    ):
         self._paint_key = _paint_key
         self._playing_key = _playing_key
         self._update_track_progress = _update_track_progress

@@ -3,8 +3,9 @@
 from pathlib import Path
 
 from ..library import CrateRecord
+from ..models import GOT
 from ..scanner import SCAN_BATCH, LocalScanner
-from ..state import GOT, FileMatch
+from ..state import FileMatch
 
 
 class LibraryService:

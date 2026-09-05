@@ -16,12 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .db import database
-
-NEW = "new"
-OPENED = "opened"
-SKIP = "skip"
-GOT = "got"
-STATUSES = (NEW, OPENED, SKIP, GOT)
+from .models import GOT, NEW, OPENED, STATUSES
 
 LOGGER = logging.getLogger(__name__)
 

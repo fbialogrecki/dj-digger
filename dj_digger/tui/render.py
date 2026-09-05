@@ -9,7 +9,7 @@ from textual.coordinate import Coordinate
 from textual.widgets import DataTable, Static
 
 from .. import links as links_module
-from ..state import GOT, NEW, SKIP
+from ..models import GOT, NEW, SKIP
 from .filters import SORT_COLUMN
 from .keymap import (
     DOMAIN_BADGE_CATEGORIES,
@@ -36,7 +36,35 @@ from .widgets import TrackTable
 class RenderController:
     """Drawing the table and the status bar, and the marks that change what they say."""
 
-    def __init__(self, *, _drop_stale_preparation, _playing_index, action_play_step, audio_state, call_after_refresh, get_config, current_row, download_state, get_job, matching_rows, get_muted, notify, get_palette, get_player, playlist_state, query, query_one, record_to_open, role, selected_rows, set_timer, soft_matching_rows, state, status_of, io):
+    def __init__(
+        self,
+        *,
+        _drop_stale_preparation,
+        _playing_index,
+        action_play_step,
+        audio_state,
+        call_after_refresh,
+        get_config,
+        current_row,
+        download_state,
+        get_job,
+        matching_rows,
+        get_muted,
+        notify,
+        get_palette,
+        get_player,
+        playlist_state,
+        query,
+        query_one,
+        record_to_open,
+        role,
+        selected_rows,
+        set_timer,
+        soft_matching_rows,
+        state,
+        status_of,
+        io,
+    ):
         self.io = io
         self._drop_stale_preparation = _drop_stale_preparation
         self._playing_index = _playing_index

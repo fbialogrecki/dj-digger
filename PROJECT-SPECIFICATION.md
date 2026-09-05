@@ -5,8 +5,8 @@
 - Product version verified: 1.0.0
 - Owner: Filip Białogrecki
 - Updated: 2026-09-04
-- Document lines: <!-- SPEC TOTAL LINES -->1159<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1159<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1164<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1164<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -61,52 +61,52 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 4 | System context and data flow | 431–469 |
 | 4.1 | ↳ Context diagram | 433–454 |
 | 4.2 | ↳ Collection-to-library flow | 455–469 |
-| 5 | Repository layout and component ownership | 470–526 |
-| 5.1 | ↳ Entry, orchestration, and models | 472–482 |
-| 5.2 | ↳ Network and external-system adapters | 483–501 |
-| 5.3 | ↳ Persistence, local media, and UI | 502–526 |
-| 6 | Runtime architecture and environments | 527–618 |
-| 6.1 | ↳ Runtime and dependencies | 529–542 |
-| 6.2 | ↳ Concurrency and lifecycle | 543–603 |
-| 6.3 | ↳ Local paths and environment variables | 604–618 |
-| 7 | Data model and persistence | 619–700 |
-| 7.1 | ↳ Domain objects and identity | 621–635 |
-| 7.2 | ↳ SQLite schema and invariants | 636–668 |
-| 7.3 | ↳ Crate persistence and deletion | 669–684 |
-| 7.4 | ↳ Configuration and credential stores | 685–700 |
-| 8 | Public interfaces and contracts | 701–746 |
-| 8.1 | ↳ CLI arguments and exit behavior | 703–722 |
-| 8.2 | ↳ JSON and CSV summary input | 723–737 |
-| 8.3 | ↳ URL-opening contract | 738–746 |
-| 9 | Authentication and authorization | 747–790 |
-| 9.1 | ↳ SoundCloud authentication | 749–769 |
-| 9.2 | ↳ Gate action consent | 770–790 |
-| 10 | External integrations | 791–923 |
-| 10.1 | ↳ SoundCloud API and media | 793–804 |
-| 10.2 | ↳ Link hubs and download gates | 805–864 |
-| 10.2 · block | ↳ ↳ Hypeddit | 813–850 |
-| 10.2 · block | ↳ ↳ Other resolvers | 852–857 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 859–864 |
-| 10.3 | ↳ Browsers and clipboard | 865–876 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 877–923 |
-| 11 | Security requirements and threat model | 924–978 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 926–944 |
-| 11.2 | ↳ Secret and personal-data handling | 945–960 |
-| 11.3 | ↳ File and mutation safety | 961–978 |
-| 12 | Privacy, lifecycle, and retention | 979–1017 |
-| 12.1 | ↳ Data stored locally | 981–996 |
-| 12.2 | ↳ Data sent to third parties | 997–1008 |
-| 12.3 | ↳ User-controlled deletion | 1009–1017 |
-| 13 | Failure behavior and current limitations | 1018–1072 |
-| 13.1 | ↳ Error isolation and reporting | 1020–1039 |
-| 13.2 | ↳ Confirmed limitations | 1040–1072 |
-| 14 | Verification, CI, and release | 1073–1137 |
-| 14.1 | ↳ Offline and live test suites | 1075–1106 |
-| 14.2 | ↳ Continuous integration and publishing | 1107–1122 |
-| 14.3 | ↳ Specification-map verification | 1123–1137 |
-| 15 | Evidence and operational references | 1138–1159 |
-| 15.1 | ↳ Primary implementation evidence | 1140–1152 |
-| 15.2 | ↳ User and historical documentation | 1153–1159 |
+| 5 | Repository layout and component ownership | 470–531 |
+| 5.1 | ↳ Entry, orchestration, and models | 472–483 |
+| 5.2 | ↳ Network and external-system adapters | 484–502 |
+| 5.3 | ↳ Persistence, local media, and UI | 503–531 |
+| 6 | Runtime architecture and environments | 532–623 |
+| 6.1 | ↳ Runtime and dependencies | 534–547 |
+| 6.2 | ↳ Concurrency and lifecycle | 548–608 |
+| 6.3 | ↳ Local paths and environment variables | 609–623 |
+| 7 | Data model and persistence | 624–705 |
+| 7.1 | ↳ Domain objects and identity | 626–640 |
+| 7.2 | ↳ SQLite schema and invariants | 641–673 |
+| 7.3 | ↳ Crate persistence and deletion | 674–689 |
+| 7.4 | ↳ Configuration and credential stores | 690–705 |
+| 8 | Public interfaces and contracts | 706–751 |
+| 8.1 | ↳ CLI arguments and exit behavior | 708–727 |
+| 8.2 | ↳ JSON and CSV summary input | 728–742 |
+| 8.3 | ↳ URL-opening contract | 743–751 |
+| 9 | Authentication and authorization | 752–795 |
+| 9.1 | ↳ SoundCloud authentication | 754–774 |
+| 9.2 | ↳ Gate action consent | 775–795 |
+| 10 | External integrations | 796–928 |
+| 10.1 | ↳ SoundCloud API and media | 798–809 |
+| 10.2 | ↳ Link hubs and download gates | 810–869 |
+| 10.2 · block | ↳ ↳ Hypeddit | 818–855 |
+| 10.2 · block | ↳ ↳ Other resolvers | 857–862 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 864–869 |
+| 10.3 | ↳ Browsers and clipboard | 870–881 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 882–928 |
+| 11 | Security requirements and threat model | 929–983 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 931–949 |
+| 11.2 | ↳ Secret and personal-data handling | 950–965 |
+| 11.3 | ↳ File and mutation safety | 966–983 |
+| 12 | Privacy, lifecycle, and retention | 984–1022 |
+| 12.1 | ↳ Data stored locally | 986–1001 |
+| 12.2 | ↳ Data sent to third parties | 1002–1013 |
+| 12.3 | ↳ User-controlled deletion | 1014–1022 |
+| 13 | Failure behavior and current limitations | 1023–1077 |
+| 13.1 | ↳ Error isolation and reporting | 1025–1044 |
+| 13.2 | ↳ Confirmed limitations | 1045–1077 |
+| 14 | Verification, CI, and release | 1078–1142 |
+| 14.1 | ↳ Offline and live test suites | 1080–1111 |
+| 14.2 | ↳ Continuous integration and publishing | 1112–1127 |
+| 14.3 | ↳ Specification-map verification | 1128–1142 |
+| 15 | Evidence and operational references | 1143–1164 |
+| 15.1 | ↳ Primary implementation evidence | 1145–1157 |
+| 15.2 | ↳ User and historical documentation | 1158–1164 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -454,11 +454,11 @@ synchronized to a repository-owned backend.
 
 ### 4.2 Collection-to-library flow
 
-`cli.handle_dig()` and `DiggingController` use the same
-`services.collection.dig()` collection flow. `CollectionService` persists
-completed TUI collections before delivering the result to the view.
+`cli.handle_dig()` and `DiggingController` obtain the same `CollectionService`
+from `ApplicationServices`. Its read/persist flow collects and commits completed
+collections before delivering the result to either front end.
 The target becomes a `Crate`, link hubs may enrich or replace wrapper links, and
-`library.remember()` persists the whole current track representation. Active
+the collection repository persists the current track representation. Active
 tracks are categorized only after loading, allowing improved classification code
 to affect crates stored by earlier versions.
 
@@ -476,7 +476,8 @@ crate record.
 - `dj_digger/services/collection.py` owns source selection, saved-HTML orchestration, progress
   stages, and concurrent link-hub expansion.
 - `dj_digger/models.py` owns `Track`, `Crate`, and `LinkRecord`, the vocabulary
-  shared across collection, classification, persistence, playback, and UI.
+  shared across collection, classification, persistence, playback, and UI; it
+  also defines the pure track-status vocabulary.
 - `dj_digger/links.py` owns category/domain policy, record grouping, and the
   JSON/CSV contracts.
 
@@ -509,6 +510,10 @@ crate record.
   Collection, downloads, library reconciliation, accounts, browser opening and
   purchases are services; none imports Textual. Operation admission and
   settlement live in `services/operations.py`, independently of execution.
+  `DownloadWorkflow` owns the common single/batch attempt, eight-thread HTTP
+  pool, browser completion and approved prerequisite retry. Its request holds
+  source/generation, destination and timeout; keyed events carry the operation
+  ID. The TUI coalesces byte events and presents outcomes after persistence.
 - `paths.py` owns XDG directories. `config.py` owns preferences;
   `private_json.py` owns private atomic JSON writes; `clipboard.py` owns clipboard
   subprocesses. `diagnostics.py` redacts credential fields and URL queries.

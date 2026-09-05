@@ -9,6 +9,11 @@ import threading
 from dataclasses import dataclass, field
 from typing import Any, Self
 
+NEW = "new"
+OPENED = "opened"
+SKIP = "skip"
+GOT = "got"
+STATUSES = (NEW, OPENED, SKIP, GOT)
 
 def parse_tags(tag_list: str) -> list[str]:
     """Split SoundCloud's tag_list, where multi-word tags are quoted."""

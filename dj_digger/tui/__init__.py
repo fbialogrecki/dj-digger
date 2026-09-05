@@ -74,6 +74,7 @@ def run_tui(
     records: Sequence[LinkRecord] = (),
     *,
     state: TrackState | None = None,
+    services: ApplicationServices | None = None,
     crate_title: str = "",
     export_format: str = "json",
     export_path: Path | None = None,
@@ -82,7 +83,7 @@ def run_tui(
     keep_logging: bool = False,
     grace: float = EXIT_GRACE,
 ) -> None:
-    services = ApplicationServices(state=state or TrackState())
+    services = services or ApplicationServices(state=state)
     # The guard must run during asyncio's teardown, before app.run can return.
     # It never closes resources underneath a live worker.
     def force_shutdown():
@@ -91,12 +92,12 @@ def run_tui(
 
     guard = threading.Timer(grace, force_shutdown)
     guard.daemon = True
-    guard_started = False
+    shutdown_deadline = None
 
     def shutdown_started():
-        nonlocal guard_started
-        if not guard_started:
-            guard_started = True
+        nonlocal shutdown_deadline
+        if shutdown_deadline is None:
+            shutdown_deadline = time.monotonic() + grace
             guard.start()
 
     app = DiggerApp(
@@ -139,4 +140,5 @@ def run_tui(
             services.stop()
         finally:
             guard.cancel()
-        _finish_or_exit(grace, code)
+        remaining = max(0, shutdown_deadline - time.monotonic()) if shutdown_deadline is not None else grace
+        _finish_or_exit(remaining, code)

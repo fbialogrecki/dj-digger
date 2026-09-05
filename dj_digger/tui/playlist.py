@@ -1,7 +1,7 @@
 """Pure playlist filtering, stable sorting and target selection."""
 
 from ..links import CATEGORY_NAMES
-from ..state import GOT, NEW, OPENED, SKIP
+from ..models import GOT, NEW, OPENED, SKIP
 
 _STATUS_RANK = {NEW: 0, OPENED: 1, SKIP: 2, GOT: 3}
 SORT_KEYS = {

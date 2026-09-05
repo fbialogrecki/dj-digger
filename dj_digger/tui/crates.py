@@ -10,8 +10,7 @@ from textual.widgets import Button, DataTable, Input, ListView
 from .. import library as library_module
 from .. import links as links_module
 from ..library import CrateHeader, CrateRecord
-from ..models import LinkRecord
-from ..state import NEW
+from ..models import NEW, LinkRecord
 from .rows import Row
 from .screens import ConfirmScreen
 from .widgets import CrateButton, CrateItem
@@ -20,7 +19,25 @@ from .widgets import CrateButton, CrateItem
 class CrateController:
     """The crate library: loading one, refreshing it, deleting it, and the sidebar that lists them."""
 
-    def __init__(self, *, _start_dig, action_dig_link, call_next, current_row, notify, playlist_state, push_screen, query_one, refresh_rows, selected_rows, sidebar_state, state, library_service, io, set_subtitle):
+    def __init__(
+        self,
+        *,
+        _start_dig,
+        action_dig_link,
+        call_next,
+        current_row,
+        notify,
+        playlist_state,
+        push_screen,
+        query_one,
+        refresh_rows,
+        selected_rows,
+        sidebar_state,
+        state,
+        library_service,
+        io,
+        set_subtitle,
+    ):
         self.io = io
         self.set_subtitle = set_subtitle
         self._start_dig = _start_dig

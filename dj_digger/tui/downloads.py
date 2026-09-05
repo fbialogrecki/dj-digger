@@ -6,23 +6,23 @@ Composed by ``DiggerApp`` with explicit state and presentation callbacks.
 import logging
 import re
 import time
-from collections import Counter
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
 from copy import deepcopy
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 from threading import Event
 
-from dj_digger import gate_models
-
 from .. import links as links_module
-from .. import soundcloud_errors as soundcloud
-from ..models import Cancelled, Track, check_cancelled
-from ..services import collection as dig_module
-from ..services.downloads import FileBatchResult, PublishedFileUnrecorded
-from ..state import GOT, SKIP
+from ..models import GOT, SKIP, Cancelled, Track, check_cancelled
+from ..services.downloads import (
+    BROWSER_BATCH_MAX,
+    FAILURE_GROUPS,
+    DownloadEvent,
+    DownloadRequest,
+    DownloadWorkflow,
+    downloadable,
+)
 from .rows import Row
 from .screens import GateProfileScreen, SoundCloudAuthScreen
 
@@ -39,40 +39,6 @@ def _playlist_folder_name(title: str) -> str:
     return cleaned[:120].rstrip(" .") or "playlist"
 
 
-# Classification and summary order in one place. GateProfileRequired is
-# deliberately absent - it pauses for configuration instead of failing.
-# How many gates one batch hands to the private browser. Each open tab waits
-# up to five minutes for its download; a playlist of refused gates must not
-# become fifty tabs. The rest are left new for another run.
-BROWSER_BATCH_MAX = 8
-
-FAILURE_GROUPS = (
-    ("auth", (gate_models.GateAuthenticationRequired,)),
-    ("captcha", (gate_models.GateCaptchaRequired,)),
-    ("consent", (gate_models.GateSocialActionsDisabled,)),
-    ("manual", (gate_models.GateManualActionRequired,)),
-    ("protocol", (gate_models.GateProtocolChanged, gate_models.GateUnavailable)),
-    ("rejected", (gate_models.GateRejected,)),
-    ("download", (gate_models.GateDownloadError, soundcloud.SoundCloudError)),
-)
-
-
-def _is_hypeddit(url: str | None) -> bool:
-    return bool(url) and links_module.is_hypeddit_url(url)
-
-
-def _downloadable(track: Track, gate_url: str | None) -> bool:
-    """Whether there is anything to fetch: a free download, a direct file or a gate."""
-
-    return bool(track.free_download or gate_url or track.has_direct_download)
-
-
-def _gate_failure_group(error: Exception) -> str:
-    return next(
-        (name for name, types in FAILURE_GROUPS if isinstance(error, types)), "other"
-    )
-
-
 @dataclass(frozen=True)
 class DownloadContext:
     source: str
@@ -82,70 +48,43 @@ class DownloadContext:
     timeout: float
 
 
-@dataclass
-class _BatchProgress:
-    """What one batch pass has produced so far, shared between its two stages."""
-
-    total: int = 0
-    completed: int = 0
-    failed: int = 0
-    hubs_changed: bool = False
-    profile_items: list[tuple[Row, str | None]] = field(default_factory=list)
-    auth_items: list[tuple[Row, str | None]] = field(default_factory=list)
-    browser_items: list[tuple[Row, str]] = field(default_factory=list)
-    # Why the HTTP flow gave up on each browser item, keyed by track: the
-    # browser's own failure is only half the story without it.
-    browser_reasons: dict[str, str] = field(default_factory=dict)
-    deferred: int = 0
-    failure_groups: Counter = field(default_factory=Counter)
-
-    def record(
-        self,
-        row: Row,
-        gate_url: str | None,
-        outcome: str,
-        result,
-        changed: bool,
-        *,
-        retry_prerequisites: bool,
-    ) -> str:
-        """Sort one finished pool item into the bag.
-
-        Returns what its row should show now: "downloaded", "failed", or
-        "waiting" for everything that is going on to a wizard, the browser
-        or another run.
-        """
-
-        self.hubs_changed = self.hubs_changed or changed
-        if outcome == "hub":
-            self.total -= 1
-        elif outcome == "cancelled":
-            pass  # Stopped by the user: not a failure, nothing to report.
-        elif outcome == "downloaded":
-            self.completed += 1
-            return "downloaded"
-        elif retry_prerequisites and isinstance(result, gate_models.GateProfileRequired):
-            self.profile_items.append((row, gate_url))
-        elif retry_prerequisites and isinstance(result, soundcloud.SoundCloudLoginRequired):
-            self.auth_items.append((row, gate_url))
-        elif isinstance(result, gate_models.BROWSER_REQUIRED_ERRORS) and _is_hypeddit(gate_url):
-            if len(self.browser_items) < BROWSER_BATCH_MAX:
-                self.browser_items.append((row, gate_url))
-                self.browser_reasons[row.track.key] = str(result)
-            else:
-                self.deferred += 1
-        else:
-            self.failed += 1
-            if isinstance(result, Exception):
-                self.failure_groups[_gate_failure_group(result)] += 1
-            return "failed"
-        return "waiting"
-
-
 class DownloadController:
     """Fetching artist-provided files, one at a time or the whole visible list."""
 
-    def __init__(self, *, _find_gate_url, _main_available, _mark_existing_local_file, _paint_key, _set_records, call_from_thread, call_later, get_client, get_config, current_row, get_dig_options, download_service, download_state, job_progress, notify, operations, playlist_state, push_screen, refresh_rows, adopt_login, accounts, run_worker, show_error, start_job, state, status_of, targets, update_status, worker_scope, io):
+    def __init__(
+        self,
+        *,
+        _find_gate_url,
+        _main_available,
+        _mark_existing_local_file,
+        _paint_key,
+        _set_records,
+        call_from_thread,
+        call_later,
+        get_client,
+        get_config,
+        current_row,
+        get_dig_options,
+        download_service,
+        download_state,
+        job_progress,
+        notify,
+        operations,
+        playlist_state,
+        push_screen,
+        refresh_rows,
+        adopt_login,
+        accounts,
+        run_worker,
+        show_error,
+        start_job,
+        state,
+        status_of,
+        targets,
+        update_status,
+        worker_scope,
+        io,
+    ):
         self.io = io
         self._find_gate_url = _find_gate_url
         self._main_available = _main_available
@@ -224,7 +163,7 @@ class DownloadController:
             if handle.cancel.is_set():
                 return
             gate_url = self._find_gate_url(row)
-            if not _downloadable(row.track, gate_url):
+            if not downloadable(row.track, gate_url):
                 self.notify("This track has no active SoundCloud free download or supported gate link", timeout=4)
                 return
             self.notify(f"Downloading {row.track.label}...", timeout=3)
@@ -252,127 +191,85 @@ class DownloadController:
     ) -> None:
         with self.worker_scope():
             with self._download_worker(handle):
-                self._download_track_once(track, gate_url, allow_prerequisite_retry)
+                try:
+                    self._workflow(batch=False).run_one(track, gate_url, allow_prerequisite_retry)
+                except Cancelled:
+                    pass
 
     @contextmanager
     def _download_worker(self, handle=None):
-        """Count this thread among the downloads holding the SoundCloud client."""
+        """Hold admission until this worker and any authentication have settled."""
 
         if handle is None:
             self._capture_download_context()
         handle = handle or self.operations.start("Downloading", cancel=self.download_state._gate_cancel)
         self.download_state._download_handle = handle
-        with self.download_state._download_worker_lock:
-            self.download_state._active_download_workers += 1
         try:
             yield
         finally:
             self.accounts.wait_authentication()
-            with self.download_state._download_worker_lock:
-                self.download_state._active_download_workers -= 1
             self.operations.finish(handle)
             try:
                 self.call_from_thread(self.update_status)
             except RuntimeError:
                 pass
 
-    def _download_track_once(
-        self,
-        track: Track,
-        gate_url: str | None,
-        allow_prerequisite_retry: bool,
-    ) -> None:
-        key = track.key
-        gate_url, changed = self._normalise_hypeddit_item(
-            Row(0, track, links_module.categorise(track)), gate_url
+    def _workflow(self, *, batch):
+        context = self.download_state._download_context
+        return DownloadWorkflow(
+            self.download_service,
+            DownloadRequest(context.source, context.generation, context.directory, context.timeout),
+            self.download_state._download_handle,
+            client=self.get_client, config=self.config,
+            emit=lambda event: self._receive_from_thread(event, batch=batch),
+            prerequisites=self._wait_download_prerequisites,
         )
-        if changed:
-            self._persist_normalised_hubs()
-        if not _downloadable(track, gate_url):
-            self.call_from_thread(
-                self._download_failed,
-                key,
-                "Hypeddit link is a store hub rather than a download gate",
-            )
-            return
 
-        try:
-            try:
-                path = self._fetch_one(track, gate_url, self.download_state._download_context.directory)
-            except gate_models.BROWSER_REQUIRED_ERRORS as exc:
-                path = self._browser_fallback(track, gate_url, exc)
-        except Cancelled:
-            self.call_from_thread(self._settle_download_row, key)
-            return
-        except (gate_models.GateProfileRequired, soundcloud.SoundCloudLoginRequired) as exc:
-            self.call_from_thread(self._settle_download_row, key)
-            if allow_prerequisite_retry:
-                item = (track, gate_url)
-                ready = self._wait_download_prerequisites(
-                    [item] if isinstance(exc, gate_models.GateProfileRequired) else [],
-                    [item] if isinstance(exc, soundcloud.SoundCloudLoginRequired) else [],
-                )
-                if ready:
-                    self._download_track_once(track, gate_url, False)
-            else:
-                self.call_from_thread(self._download_failed, key, str(exc))
-            return
-        except Exception as exc:
-            self.call_from_thread(self._download_failed, key, str(exc))
-            return
-        self.call_from_thread(self._download_finished, key, path)
-
-    def _fetch_one(
-        self, track: Track, gate_url: str | None, directory: Path, session=None
-    ) -> Path:
-        """Fetch one track through the client, its byte progress painted on its row."""
-
-        key = track.key
-
-        def on_progress(downloaded: int, total_bytes: int | None) -> None:
-            # 0.5 when the server sent no Content-Length: visibly moving
-            # without pretending to know how far along it is.
-            pct = min(1.0, downloaded / total_bytes) if total_bytes and total_bytes > 0 else 0.5
+    def _receive_from_thread(self, event: DownloadEvent, *, batch):
+        if event.kind == 'progress' and event.progress:
             with self.download_state._progress_lock:
-                self.download_state._pending_progress[key] = (self.download_state._download_handle.id, pct)
-
-        self.call_from_thread(self._update_track_progress, key, 0.0)
-        return self.download_service.fetch(
-            self.client,
-            track,
-            directory,
-            gate_url=gate_url,
-            on_progress=on_progress,
-            session=session,
-            cancel=self.download_state._gate_cancel,
-        )
-
-    def _browser_fallback(self, track: Track, gate_url: str | None, exc: Exception) -> Path:
-        """Finish a Hypeddit gate the HTTP flow gave up on in the private browser.
-
-        Anything else is not the browser's to fix, so its error passes straight
-        through; a browser failure keeps the HTTP reason after it.
-        """
-
-        if not _is_hypeddit(gate_url):
-            raise exc
-        self.call_from_thread(
-            self.notify, f"Finishing in the hidden browser: {exc}", timeout=5, markup=False
-        )
+                self.download_state._pending_progress[event.key] = (event.operation_id, event.progress)
+            return
         try:
-            path = self.download_service.finish_gate(
-                track,
-                gate_url,
-                self.download_state._download_context.directory,
-                self.download_state._gate_cancel,
-                status=self._gate_status,
-                config=self.config,
+            self.call_from_thread(self._receive, event, batch=batch)
+        except RuntimeError:
+            # The service already settled its effect; a closed view needs no update.
+            pass
+
+    def _receive(self, event: DownloadEvent, *, batch):
+        handle = self.download_state._download_handle
+        if handle is None or event.operation_id != handle.id:
+            return
+        context = self.download_state._download_context
+        current_view = context.view_generation == self.playlist_state._view_generation
+        if event.kind == 'progress':
+            self._update_track_progress(event.key, event.progress, event.operation_id)
+        elif event.kind == 'downloaded':
+            self._download_finished(event.key, event.path, toast=not batch)
+        elif event.kind == 'failed':
+            self._download_failed(event.key, event.message, banner_label=event.label if batch else None)
+        elif event.kind == 'waiting':
+            self._settle_download_row(event.key)
+        elif event.kind == 'metadata' and current_view:
+            self._hub_metadata_ready(event.key, event.fields, context.view_generation)
+        elif event.kind == 'hubs' and current_view:
+            self._hub_preflight_finished()
+        elif event.kind == 'status':
+            self.notify(event.message, timeout=6, markup=False)
+        elif event.kind == 'browser_started':
+            self._browser_batch_started(event.count)
+        elif event.kind == 'browser_finished':
+            self._browser_batch_finished()
+        elif event.kind == 'deferred':
+            self.notify(
+                f"{event.count} more gate{'s' if event.count != 1 else ''} left new: "
+                f"the browser takes {BROWSER_BATCH_MAX} at a time, run the batch again for the rest",
+                timeout=8, markup=False,
             )
-            return path
-        except PublishedFileUnrecorded:
-            raise
-        except Exception as browser_exc:
-            raise RuntimeError(f"{browser_exc} (after: {exc})") from browser_exc
+        elif event.kind == 'summary':
+            summary = event.summary
+            self._on_batch_download_complete(summary.completed, summary.failed, summary.total,
+                                             summary.pending, summary.failure_groups)
 
     def _adopt_login(self, oauth_token: str) -> bool:
         return self.adopt_login(oauth_token)
@@ -522,7 +419,7 @@ class DownloadController:
                 if self.status_of(row) in (GOT, SKIP):
                     continue
                 gate_url = self._find_gate_url(row)
-                if _downloadable(row.track, gate_url):
+                if downloadable(row.track, gate_url):
                     eligible.append((row, gate_url))
             if not eligible:
                 self.notify("No downloadable free or gate tracks in current view", timeout=3)
@@ -552,158 +449,10 @@ class DownloadController:
     ) -> None:
         with self.worker_scope():
             with self._download_worker(handle):
-                self._run_batch_download(items, allow_prerequisite_retry)
-
-    def _run_batch_download(
-        self,
-        items: list[tuple[Row, str | None]],
-        allow_prerequisite_retry: bool,
-    ) -> None:
-        items = [(row, gate_url) for row, gate_url in items if _downloadable(row.track, gate_url)]
-        download_directory = self.download_state._download_context.directory
-        progress = self._batch_pool_pass(
-            items, download_directory, allow_prerequisite_retry
-        )
-
-        if progress.hubs_changed:
-            self._persist_normalised_hubs()
-        if progress.browser_items:
-            self._batch_browser_pass(progress, download_directory)
-        if progress.deferred:
-            self.call_from_thread(
-                self.notify,
-                f"{progress.deferred} more gate{'s' if progress.deferred != 1 else ''} left new: "
-                f"the browser takes {BROWSER_BATCH_MAX} at a time, run the batch again for the rest",
-                timeout=8,
-                markup=False,
-            )
-
-        pending = len(progress.profile_items) + len(progress.auth_items)
-        self.call_from_thread(
-            self._on_batch_download_complete,
-            progress.completed,
-            progress.failed,
-            progress.total,
-            pending,
-            dict(progress.failure_groups),
-        )
-        if pending:
-            ready = self._wait_download_prerequisites(progress.profile_items, progress.auth_items)
-            if ready:
-                self._run_batch_download(ready, False)
-
-    def _batch_download_one(
-        self, item: tuple[Row, str | None], download_directory: Path
-    ):
-        row, gate_url = item
-        if self.download_state._gate_cancel.is_set():
-            return (row, gate_url, "cancelled", None, False)
-        gate_url, changed = self._normalise_hypeddit_item(row, gate_url)
-        if not _downloadable(row.track, gate_url):
-            return (row, gate_url, "hub", None, changed)
-
-        # Its own session, not the client's: a gate is a multi-step flow held
-        # together by its own cookies, and four of them sharing one jar
-        # overwrite each other's state. Same reason dig._expand_one builds one
-        # per track - this path simply never got the fix.
-        try:
-            path = self._fetch_one(row.track, gate_url, download_directory)
-            return (row, gate_url, "downloaded", str(path), changed)
-        except Cancelled:
-            return (row, gate_url, "cancelled", None, changed)
-        except Exception as exc:
-            return (row, gate_url, "failed", exc, changed)
-
-    def _batch_pool_pass(
-        self,
-        items: list[tuple[Row, str | None]],
-        download_directory: Path,
-        allow_prerequisite_retry: bool,
-    ) -> "_BatchProgress":
-        """Run the pool downloads and sort every outcome into the progress bag."""
-
-        progress = _BatchProgress(total=len(items))
-        # Gate providers enforce their own per-host limit; extra workers let
-        # direct files continue while those slots are waiting on gate pages.
-        self.download_state._download_executor = ThreadPoolExecutor(max_workers=8)
-        try:
-            futures = [
-                self.download_state._download_executor.submit(
-                    self._batch_download_one, item, download_directory
-                )
-                for item in items
-            ]
-            for future in as_completed(futures):
-                row, gate_url, outcome, result, changed = future.result()
-                verdict = progress.record(
-                    row, gate_url, outcome, result, changed,
-                    retry_prerequisites=allow_prerequisite_retry,
-                )
-                key = row.track.key
-                if verdict == "downloaded":
-                    self.call_from_thread(self._download_finished, key, result, toast=False)
-                elif verdict == "failed":
-                    self.call_from_thread(
-                        self._download_failed, key, str(result), banner_label=row.track.label
-                    )
-                else:
-                    self.call_from_thread(self._settle_download_row, key)
-        finally:
-            if self.download_state._download_executor is not None:
-                self.download_state._download_executor.shutdown(wait=True, cancel_futures=True)
-                self.download_state._download_executor = None
-        return progress
-
-    def _batch_browser_pass(
-        self, progress: "_BatchProgress", download_directory: Path
-    ) -> None:
-        # One persistent profile cannot be driven by several Playwright threads.
-        # All manual gates therefore share this worker's one context - hidden
-        # first, a window only for what needs a person - and open as separate
-        # tabs, with each tab's download bound back to its own row.
-        rows_by_key = {row.track.key: row for row, _url in progress.browser_items}
-        self.call_from_thread(self._browser_batch_started, len(progress.browser_items))
-        try:
-            browser_result = self.download_service.finish_gates(
-                [(row.track, gate_url) for row, gate_url in progress.browser_items],
-                download_directory,
-                self.download_state._gate_cancel,
-                status=self._gate_status,
-                config=self.config,
-            )
-        except Exception as exc:
-            browser_result = FileBatchResult(
-                failures=tuple((key, gate_models.GateUnavailable(str(exc))) for key in rows_by_key)
-            )
-        finally:
-            self.call_from_thread(self._browser_batch_finished)
-
-        for result in browser_result.completed:
-            key, path = result.key, result.path
-            row = rows_by_key[key]
-            progress.completed += 1
-            self.call_from_thread(self._download_finished, row.track.key, str(path), toast=False)
-        for key, exc in browser_result.failures:
-            row = rows_by_key[key]
-            progress.failed += 1
-            progress.failure_groups[_gate_failure_group(exc)] += 1
-            reason = progress.browser_reasons.get(key)
-            message = f"{exc} (after: {reason})" if reason else str(exc)
-            self.call_from_thread(self._download_failed, row.track.key, message, banner_label=row.track.label)
-
-    def _normalise_hypeddit_item(self, row: Row, gate_url: str | None) -> tuple[str | None, bool]:
-        context = self.download_state._download_context or self._capture_download_context()
-        if not context.source or not _is_hypeddit(gate_url):
-            return gate_url, False
-        changed = bool(dig_module.expand_link_hubs([row.track], timeout=context.timeout))
-        if changed:
-            fields = {name: deepcopy(getattr(row.track, name)) for name in (
-                "purchase_url", "purchase_title", "extra_links", "description",
-            )}
-            self.state.db.merge_track_metadata(context.source, context.generation, {row.track.key: fields})
-            self.call_from_thread(self._hub_metadata_ready, row.track.key, fields, context.view_generation)
-        refreshed = Row(row.position, row.track, links_module.categorise(row.track))
-        return self._find_gate_url(refreshed), changed
+                try:
+                    self._workflow(batch=True).run_batch([(row.track, url) for row, url in items], allow_prerequisite_retry)
+                except Cancelled:
+                    pass
 
     def _hub_metadata_ready(self, key, fields, view_generation):
         if view_generation != self.playlist_state._view_generation:
@@ -713,22 +462,10 @@ class DownloadController:
                 for name, value in fields.items():
                     setattr(row.track, name, value)
 
-    def _persist_normalised_hubs(self):
-        if self.download_state._download_context.view_generation == self.playlist_state._view_generation:
-            self.call_from_thread(self._hub_preflight_finished)
-
     def _hub_preflight_finished(self) -> None:
         tracks = [row.track for row in self.playlist_state.rows]
         self._set_records(links_module.categorise_all(tracks))
         self.refresh_rows()
-
-    def _gate_status(self, message: str) -> None:
-        """A word from the browser worker about what it is waiting on."""
-
-        try:
-            self.call_from_thread(self.notify, message, timeout=6, markup=False)
-        except RuntimeError:
-            pass
 
     def _browser_batch_started(self, count: int) -> None:
         self.download_state._browser_batch_active = True

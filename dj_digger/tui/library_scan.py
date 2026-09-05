@@ -16,7 +16,31 @@ LOGGER = logging.getLogger(__name__)
 class LibraryScanController:
     """Matching the crate against audio files you already have on disk."""
 
-    def __init__(self, *, _download_directory, _main_available, _paint_key, call_from_thread, get_config, current_row, download_service, finish_job, notify, operations, playlist_state, refresh_rows, run_worker, scan_state, show_error, start_job, state, update_status, worker_scope, library_service, io):
+    def __init__(
+        self,
+        *,
+        _download_directory,
+        _main_available,
+        _paint_key,
+        call_from_thread,
+        get_config,
+        current_row,
+        download_service,
+        finish_job,
+        notify,
+        operations,
+        playlist_state,
+        refresh_rows,
+        run_worker,
+        scan_state,
+        show_error,
+        start_job,
+        state,
+        update_status,
+        worker_scope,
+        library_service,
+        io,
+    ):
         self.io = io
         self._download_directory = _download_directory
         self._main_available = _main_available

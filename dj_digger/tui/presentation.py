@@ -1,7 +1,6 @@
 """Presentation state owned by the playlist, audio, sidebar and operation panels."""
 
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from threading import Event, Lock
 from typing import TYPE_CHECKING
@@ -41,6 +40,7 @@ class PlaylistState:
 
 @dataclass
 class AudioState:
+    _ticker: Timer | None = None
     _cursor_follows: bool = True
     _prepared: Prepared | None = None
     _preparing: str = ""
@@ -56,9 +56,6 @@ class DownloadState:
     download_progress: dict[str, float] = field(default_factory=dict)
     _dirty_download_rows: set[str] = field(default_factory=set)
     _last_progress_redraw: float = 0.0
-    _download_executor: ThreadPoolExecutor | None = None
-    _download_worker_lock: Lock = field(default_factory=Lock)
-    _active_download_workers: int = 0
     _gate_cancel: Event = field(default_factory=Event)
     _browser_batch_active: bool = False
     _download_context: "DownloadContext | None" = None

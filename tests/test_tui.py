@@ -3,7 +3,6 @@ import io
 import json
 import logging
 import threading
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
@@ -27,13 +26,13 @@ from dj_digger import (
     store_match,
 )
 from dj_digger.config import AppConfig
-from dj_digger.models import Cancelled, Crate, LinkRecord, Track
+from dj_digger.models import GOT, OPENED, SKIP, Cancelled, Crate, LinkRecord, Track
 from dj_digger.player import Loaded, PlaybackUnavailable
 from dj_digger.scanner import LocalMatch
 from dj_digger.services import purchases as cart
 from dj_digger.services.collection import DigOptions, TargetNotFound
 from dj_digger.services.playback import Prepared, Stream
-from dj_digger.state import GOT, OPENED, SKIP, TrackState
+from dj_digger.state import TrackState
 from dj_digger.tui import DiggerApp, keymap
 from dj_digger.tui.audio import (
     PAUSE_GLYPH,
@@ -79,7 +78,7 @@ def run(scenario):
     ],
 )
 def test_batch_gate_failures_have_actionable_summary_groups(error, group):
-    from dj_digger.tui.downloads import _gate_failure_group
+    from dj_digger.services.downloads import _gate_failure_group
 
     assert _gate_failure_group(error) == group
 
@@ -3303,8 +3302,8 @@ def test_batch_starts_downloads_before_every_hypeddit_preflight_finishes(
     first_download = Event()
     started = []
 
-    def normalise(row, gate_url):
-        if row.track.id == 206:
+    def normalise(self, track, gate_url):
+        if track.id == 206:
             assert first_download.wait(2)
         return gate_url, False
 
@@ -3326,7 +3325,7 @@ def test_batch_starts_downloads_before_every_hypeddit_preflight_finishes(
             pass
 
     app._client = Client()
-    monkeypatch.setattr(app.download_controller, "_normalise_hypeddit_item", normalise)
+    monkeypatch.setattr("dj_digger.services.downloads.DownloadWorkflow.normalise", normalise)
     monkeypatch.setattr(
         "dj_digger.soundcloud.create_requests_session", Session
     )
@@ -4564,17 +4563,12 @@ def test_leaving_stops_the_ticker_and_lets_go_of_everything(records, state, monk
                 stream=Stream(url="https://cdn/2.mp3"),
                 source=source,
             )
-            app.download_state._download_executor = ThreadPoolExecutor(max_workers=1)
-            executor = app.download_state._download_executor
             app.exit()
 
         assert app.audio_state._ticker is None, "the ticker was left running"
         assert closed == ["player"], "the audio device was not handed back"
         assert source.closed, "the prefetched stream was left open"
-        assert app.download_state._download_executor is None
         assert app.cart_state._cart_cancel.is_set(), "the store browser worker was not signalled"
-        with pytest.raises(RuntimeError):
-            executor.submit(lambda: None)
 
     run(scenario)
 

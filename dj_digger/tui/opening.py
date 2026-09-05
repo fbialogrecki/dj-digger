@@ -15,10 +15,10 @@ from dj_digger import automation_errors, cart_models
 from dj_digger.diagnostics import log_safe_text
 
 from .. import links as links_module
+from ..models import GOT, OPENED, SKIP
 from ..services import purchases as cart_module
-from ..state import GOT, OPENED, SKIP
+from ..services.downloads import find_gate_url
 from .keymap import (
-    DIRECT_STORE_CATEGORIES,
     OPEN_ALL_CONFIRM_THRESHOLD,
 )
 from .rows import Row
@@ -41,7 +41,37 @@ SEARCH_URLS = {
 class OpeningController:
     """Handing links to the browser: the best one, a shop search, or everything shown."""
 
-    def __init__(self, *, get__cart_session, _download_directory, _main_available, _paint_key, get_browser, call_from_thread, cart_state, current_row, finish_job, job_progress, notify, operations, playlist_state, push_screen, push_screen_wait, record_to_open, run_worker, show_error, start_job, state, status_of, targets, update_status, worker_scope, opening_service, library_service, io):
+    def __init__(
+        self,
+        *,
+        get__cart_session,
+        _download_directory,
+        _main_available,
+        _paint_key,
+        get_browser,
+        call_from_thread,
+        cart_state,
+        current_row,
+        finish_job,
+        job_progress,
+        notify,
+        operations,
+        playlist_state,
+        push_screen,
+        push_screen_wait,
+        record_to_open,
+        run_worker,
+        show_error,
+        start_job,
+        state,
+        status_of,
+        targets,
+        update_status,
+        worker_scope,
+        opening_service,
+        library_service,
+        io,
+    ):
         self.get__cart_session = get__cart_session
         self._download_directory = _download_directory
         self._main_available = _main_available
@@ -118,29 +148,7 @@ class OpeningController:
         self.update_status()
 
     def _find_gate_url(self, row: Row) -> str | None:
-        """The link ``d`` hands to the gate resolvers, surest bet first.
-
-        Three passes over one shortlist rather than three shortlists, and the
-        host list comes from ``gates`` rather than being spelled out again here.
-        """
-
-        candidates = [
-            record
-            for record in row.records
-            if record.link_url
-            and "soundcloud.com" not in record.link_url
-            and record.link_text != links_module.NO_STORE_LINK
-        ]
-        for record in candidates:
-            if record.category == "gate":
-                return record.link_url
-        for record in candidates:
-            if self.opening_service.can_resolve(record.link_url):
-                return record.link_url
-        for record in candidates:
-            if record.category not in DIRECT_STORE_CATEGORIES:
-                return record.link_url
-        return None
+        return find_gate_url(row.records)
 
     def action_search(self, store: str) -> None:
         row = self.current_row()
