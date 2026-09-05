@@ -19,7 +19,7 @@ Old PyPI package gets an informational 1.0.1 release, NOT a metapackage.
 - [x] Bounded analysis and manual overrides (invariant tests; corpus evaluation still needed)
 - [x] Profile playlist import (fixture tests cover identity/session/partial responses)
 - [x] Documentation, multimedia tests, Linux pip/pipx/uv migration checks
-- [ ] Cross-platform CI on the final commit
+- [x] Cross-platform CI on implemented code (77983e0); final test-only stabilization rerun
 - [x] GitHub repository and remote renamed to fbialogrecki/dj-digger
 - [x] Separate informational 1.0.1 worktree and artifacts based on v1.0.0
 - [ ] PyPI publication (new first, legacy second); owner authentication/publisher setup missing
@@ -32,7 +32,8 @@ analysis accuracy requires a licensed, human-labelled evaluation corpus.
 ## Validation recorded during implementation
 
 - Original main baseline: 838 offline tests passed.
-- Feature suite before the final playback/UI refinements: 868 passed, 81 live tests deselected.
+- Feature suite: 869 passed, 81 live tests deselected; subsequent focused UI
+  synchronization checks: 7 passed.
 - Legacy informational branch: 788 passed, 81 live tests deselected, including
   read-only downgrade refusal.
 - Real FFmpeg: mixed MP3/WAV/FLAC, canonical 24-bit RIFF, copy hashes,
@@ -43,6 +44,9 @@ analysis accuracy requires a licensed, human-labelled evaluation corpus.
 - Actual pip, pipx and uv-tool old-uninstall/new-install smoke checks passed on Linux,
   with temporary data sentinels preserved. No user's installed app or library was modified.
 - Public SoundCloud owner resolution and a paginated playlist response were checked live.
+- CI run [33970627345](https://github.com/fbialogrecki/dj-digger/actions/runs/33970627345)
+  passed all nine OS/Python combinations, isolated builds/installs and pip/pipx/uv
+  old-name migration on Linux, macOS and Windows (Python 3.14).
 - Windows CI exposed writable-handle fsync and explicit mmap cleanup requirements;
   both fixed. A UI test now dispatches its button event before waiting for workers.
 - No private-session or physical-deck test has been performed. Human-labelled
