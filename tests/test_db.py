@@ -210,3 +210,15 @@ def test_connection_never_crosses_thread_boundary(tmp_path):
     assert len(db.all_track_local_files()) == 40
     db.close()
     db.close()
+
+
+def test_wal_read_does_not_wait_for_external_writer(tmp_path):
+    import sqlite3
+    from contextlib import closing
+    db = Database(tmp_path / 'library.db')
+    db.set_track_status('one', 'skip')
+    with closing(sqlite3.connect(db.path)) as writer:
+        writer.execute('BEGIN IMMEDIATE')
+        writer.execute("UPDATE track_states SET status='got'")
+        assert db.all_track_statuses() == {'one': 'skip'}
+        writer.rollback()

@@ -21,9 +21,10 @@ import time
 from collections.abc import Sequence
 from pathlib import Path
 
-from .. import dig as dig_module
 from ..library import CrateRecord
 from ..models import LinkRecord
+from ..services import collection as dig_module
+from ..services.runtime import ApplicationServices
 from ..state import TrackState
 from .app import DiggerApp
 
@@ -81,9 +82,11 @@ def run_tui(
     keep_logging: bool = False,
     grace: float = EXIT_GRACE,
 ) -> None:
+    services = ApplicationServices(state=state or TrackState())
     app = DiggerApp(
         records,
         state=state,
+        services=services,
         crate_title=crate_title,
         export_format=export_format,
         export_path=export_path,
@@ -115,4 +118,5 @@ def run_tui(
             logger.setLevel(level)
         if on_main_thread:
             signal.signal(signal.SIGINT, previous_handler)
+        services.stop()
         _finish_or_exit(grace, code)

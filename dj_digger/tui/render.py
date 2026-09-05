@@ -1,8 +1,8 @@
 """Drawing the table and the status bar, and the marks that change what they say.
 
-Mixed into ``DiggerApp``; the attributes these reach for are set up in its
-``__init__``.
+Composed by ``DiggerApp`` with explicit state and presentation callbacks.
 """
+
 
 from rich.text import Text
 from textual.coordinate import Coordinate
@@ -33,8 +33,55 @@ from .rows import Row
 from .widgets import TrackTable
 
 
-class RenderMixin:
+class RenderController:
     """Drawing the table and the status bar, and the marks that change what they say."""
+
+    def __init__(self, *, _drop_stale_preparation, _playing_index, action_play_step, audio_state, call_after_refresh, get_config, current_row, download_state, get_job, matching_rows, get_muted, notify, get_palette, get_player, playlist_state, query, query_one, record_to_open, role, selected_rows, set_timer, soft_matching_rows, state, status_of, io):
+        self.io = io
+        self._drop_stale_preparation = _drop_stale_preparation
+        self._playing_index = _playing_index
+        self.action_play_step = action_play_step
+        self.audio_state = audio_state
+        self.call_after_refresh = call_after_refresh
+        self.get_config = get_config
+        self.current_row = current_row
+        self.download_state = download_state
+        self.get_job = get_job
+        self.matching_rows = matching_rows
+        self.get_muted = get_muted
+        self.notify = notify
+        self.get_palette = get_palette
+        self.get_player = get_player
+        self.playlist_state = playlist_state
+        self.query = query
+        self.query_one = query_one
+        self.record_to_open = record_to_open
+        self.role = role
+        self.selected_rows = selected_rows
+        self.set_timer = set_timer
+        self.soft_matching_rows = soft_matching_rows
+        self.state = state
+        self.status_of = status_of
+
+    @property
+    def config(self):
+        return self.get_config()
+
+    @property
+    def job(self):
+        return self.get_job()
+
+    @property
+    def muted(self):
+        return self.get_muted()
+
+    @property
+    def palette(self):
+        return self.get_palette()
+
+    @property
+    def player(self):
+        return self.get_player()
 
     def _store_badges(self, row: Row) -> Text:
         """Every store this track turned up in, the one ``o`` opens picked out."""
@@ -83,8 +130,8 @@ class RenderMixin:
         label_text = row.track.label
         dim = self.muted if status == SKIP else ""
 
-        if row.track.key in self.download_progress:
-            pct = self.download_progress[row.track.key]
+        if row.track.key in self.download_state.download_progress:
+            pct = self.download_state.download_progress[row.track.key]
             glyph = "\u29d7"
             style = f"bold {self.palette.warning}"
             label_text = f"[{int(pct * 100)}%] {row.track.label}"
@@ -94,10 +141,10 @@ class RenderMixin:
                 dim = f"bold {self.palette.success}"
 
         label_cell = Text(label_text, style=dim)
-        if self.crate is not None and row.track.key in self.crate.new_track_keys:
+        if self.playlist_state.crate is not None and row.track.key in self.playlist_state.crate.new_track_keys:
             # Sorted to the top of the crate by CrateRecord.active_tracks.
             label_cell = Text("NEW ", style=f"bold {self.palette.secondary}").append_text(label_cell)
-        selected = row.track.key in self.selected
+        selected = row.track.key in self.playlist_state.selected
         if selected:
             label_cell = Text("\u258c", style=f"bold {self.palette.primary}").append_text(label_cell)
 
@@ -124,12 +171,12 @@ class RenderMixin:
     def _paint_row(self, index: int, flash: str = "") -> None:
         """Rewrite one row in place, rather than rebuilding the whole table."""
 
-        if not self.query("#tracks") or not 0 <= index < len(self.visible_rows):
+        if not self.query("#tracks") or not 0 <= index < len(self.playlist_state.visible_rows):
             return
         table = self.query_one("#tracks", TrackTable)
         if index >= table.row_count:
             return
-        for column, cell in enumerate(self._cells(self.visible_rows[index], self._playing_key())):
+        for column, cell in enumerate(self._cells(self.playlist_state.visible_rows[index], self._playing_key())):
             if flash:
                 cell.stylize(flash)
             table.update_cell_at(Coordinate(index, column), cell, update_width=False)
@@ -141,7 +188,7 @@ class RenderMixin:
         return [spec for spec in OPTIONAL_COLUMN_SPECS if spec[0] in wanted]
 
     def build_columns(self, table: TrackTable) -> None:
-        keys = self._column_keys = {}
+        keys = self.playlist_state._column_keys = {}
         keys["leading"] = table.add_column(
             Text(LOCAL_FILE_GLYPH + PLAYING_GLYPH, style=self.muted),
             width=LEADING_WIDTH,
@@ -160,9 +207,9 @@ class RenderMixin:
         """Put the sort arrow on the sorted column's header and nowhere else."""
 
         table = table or self.query_one("#tracks", TrackTable)
-        arrow = " \u25bc" if self.sort_reverse else " \u25b2"
-        sorted_header = SORT_COLUMN.get(self.sort_key or "", "")
-        for name, key in self._column_keys.items():
+        arrow = " \u25bc" if self.playlist_state.sort_reverse else " \u25b2"
+        sorted_header = SORT_COLUMN.get(self.playlist_state.sort_key or "", "")
+        for name, key in self.playlist_state._column_keys.items():
             if key not in table.columns or name == "leading":
                 continue
             base = "" if name == "mark" else name
@@ -197,7 +244,7 @@ class RenderMixin:
     def _paint_key(self, key: str) -> None:
         """Repaint the row showing this track, if it is on screen."""
 
-        for index, row in enumerate(self.visible_rows):
+        for index, row in enumerate(self.playlist_state.visible_rows):
             if row.track.key == key:
                 self._paint_row(index)
                 return
@@ -214,25 +261,25 @@ class RenderMixin:
         previous_scroll = table.scroll_offset if keep_cursor else None
         cursor_key = None
         top_key = None
-        if keep_cursor and self.visible_rows:
-            if 0 <= previous < len(self.visible_rows):
-                cursor_key = self.visible_rows[previous].track.key
-            top_index = min(previous_scroll.y, len(self.visible_rows) - 1)
-            top_key = self.visible_rows[top_index].track.key
-        self.visible_rows = self.matching_rows()
+        if keep_cursor and self.playlist_state.visible_rows:
+            if 0 <= previous < len(self.playlist_state.visible_rows):
+                cursor_key = self.playlist_state.visible_rows[previous].track.key
+            top_index = min(previous_scroll.y, len(self.playlist_state.visible_rows) - 1)
+            top_key = self.playlist_state.visible_rows[top_index].track.key
+        self.playlist_state.visible_rows = self.matching_rows()
         playing_key = self._playing_key()
 
         table.clear()
-        for row in self.visible_rows:
+        for row in self.playlist_state.visible_rows:
             table.add_row(*self._cells(row, playing_key))
 
-        if self.visible_rows:
-            indexes = {row.track.key: index for index, row in enumerate(self.visible_rows)}
-            cursor = indexes.get(cursor_key, min(previous, len(self.visible_rows) - 1))
+        if self.playlist_state.visible_rows:
+            indexes = {row.track.key: index for index, row in enumerate(self.playlist_state.visible_rows)}
+            cursor = indexes.get(cursor_key, min(previous, len(self.playlist_state.visible_rows) - 1))
             table.move_cursor(row=cursor, scroll=not keep_cursor)
         table.fit_flexible_column()
         if previous_scroll is not None:
-            scroll_y = indexes.get(top_key, previous_scroll.y) if self.visible_rows else 0
+            scroll_y = indexes.get(top_key, previous_scroll.y) if self.playlist_state.visible_rows else 0
 
             def restore_scroll() -> None:
                 table.scroll_to(
@@ -268,17 +315,17 @@ class RenderMixin:
         pieces = []
         job = self.job
         if job is not None:
-            glyph = SPINNER[(self._frame // SPINNER_EVERY) % len(SPINNER)]
+            glyph = SPINNER[(self.audio_state._frame // SPINNER_EVERY) % len(SPINNER)]
             pieces.append(f"{glyph} {job.describe()}")
-        if self.selected:
-            pieces.append(f"{len(self.selected)} selected")
-        if self.sort_key:
-            pieces.append(f"sort: {self.sort_key}{' \u25bc' if self.sort_reverse else ' \u25b2'}")
-        if self.search_term:
-            pieces.append(f"search: {self.search_term!r}")
-        if self.hide_handled:
+        if self.playlist_state.selected:
+            pieces.append(f"{len(self.playlist_state.selected)} selected")
+        if self.playlist_state.sort_key:
+            pieces.append(f"sort: {self.playlist_state.sort_key}{' \u25bc' if self.playlist_state.sort_reverse else ' \u25b2'}")
+        if self.playlist_state.search_term:
+            pieces.append(f"search: {self.playlist_state.search_term!r}")
+        if self.playlist_state.hide_handled:
             pieces.append("hiding handled")
-        if self.crate is not None and self.crate.partial:
+        if self.playlist_state.crate is not None and self.playlist_state.crate.partial:
             pieces.append("imported from a file, press r to complete it")
         return Text(" \u00b7 ".join(pieces), style=self.muted)
 
@@ -286,8 +333,8 @@ class RenderMixin:
         """The stores in this crate, numbered, so the number keys explain themselves."""
 
         line = Text()
-        self._badge_click_regions = []
-        if not self.rows:
+        self.playlist_state._badge_click_regions = []
+        if not self.playlist_state.rows:
             line.append("press d to dig a link", style=self.muted)
             return line
 
@@ -299,7 +346,7 @@ class RenderMixin:
         by_category = links_module.count_by_category(
             [record for row in self.soft_matching_rows() for record in row.records]
         )
-        showing_all = not self.store_filters
+        showing_all = not self.playlist_state.store_filters
 
         # Click regions are terminal-cell offsets (on_click compares event.x),
         # so spans come from cell_len of what has actually been appended.
@@ -307,10 +354,10 @@ class RenderMixin:
 
         start = line.cell_len
         line.append("0 all", style="bold reverse" if showing_all else self.muted)
-        self._badge_click_regions.append((start, line.cell_len, 0))
+        self.playlist_state._badge_click_regions.append((start, line.cell_len, 0))
 
-        for index, category in enumerate(self.present, start=1):
-            active = category in self.store_filters
+        for index, category in enumerate(self.playlist_state.present, start=1):
+            active = category in self.playlist_state.store_filters
             line.append("  \u25b8" if active else "   ", style="bold")
 
             label = f"{index} {category}" if index <= QUICK_FILTER_KEYS else category
@@ -318,36 +365,46 @@ class RenderMixin:
             primary = self.palette.primary
             line.append(label, style=f"bold reverse {primary}" if active else primary)
             line.append(f"\u00b7{by_category[category]}", style=self.muted)
-            self._badge_click_regions.append((start, line.cell_len, index))
+            self.playlist_state._badge_click_regions.append((start, line.cell_len, index))
 
         return line
 
-    def _mark(self, row: Row, index: int, status: str, message: str) -> None:
-        self.state.set(row.track.key, status)
+    async def _mark(self, row: Row, status: str, message: str) -> None:
+        view = self.playlist_state._view_generation
+        key = row.track.key
+        await self.io(self.state.set, key, status)
+        if view != self.playlist_state._view_generation:
+            return
         self.notify(f"{message}: {row.track.label}", timeout=2)
-        if self.hide_handled:
+        if self.playlist_state.hide_handled:
             # The row is on its way out of the list, so there is nothing to light.
             self.refresh_rows()
             return
-        self._flash_row(index, self.role(STATUS_STYLES[status][1]))
+        for index, visible in enumerate(self.playlist_state.visible_rows):
+            if visible.track.key == key:
+                self._flash_row(index, self.role(STATUS_STYLES[status][1]))
+                break
         self.update_status()
 
-    def _mark_selected(self, status: str, message: str) -> bool:
+    async def _mark_selected(self, status: str, message: str) -> bool:
         """Mark every selected row at once. False when nothing is selected."""
 
         rows = self.selected_rows()
         if not rows:
             return False
+        view = self.playlist_state._view_generation
         for row in rows:
-            self.state.set(row.track.key, status)
+            await self.io(self.state.set, row.track.key, status)
+        if view != self.playlist_state._view_generation:
+            return True
         self.notify(f"{message}: {len(rows)} tracks", timeout=2)
         self.refresh_rows()
         return True
 
-    def _toggle_status(self, status: str, message: str) -> None:
+    async def _toggle_status(self, status: str, message: str) -> None:
         """Pressing the same key again clears the mark, which is what people try."""
 
-        if self._mark_selected(status, message):
+        if await self._mark_selected(status, message):
             return
         row = self.current_row()
         if row is None:
@@ -356,31 +413,37 @@ class RenderMixin:
         cursor = self.query_one("#tracks", DataTable).cursor_row
         judging_what_plays = self._playing_index() == cursor
         label = "Unmarked" if clearing else message
-        self._mark(row, cursor, NEW if clearing else status, label)
+        view = self.playlist_state._view_generation
+        playback = self.audio_state._playback_generation
+        await self._mark(row, NEW if clearing else status, label)
+        if view != self.playlist_state._view_generation:
+            return
+        if not self.playlist_state.hide_handled and self.current_row() is not row:
+            return
         if clearing:
             # Undoing a mark should leave you looking at what you just undid.
             return
         self._advance_cursor()
-        if judging_what_plays and self.player.playing:
+        if judging_what_plays and self.player.playing and playback == self.audio_state._playback_generation:
             # You marked the track you were listening to, so listening moves on
             # with you rather than finishing something you already ruled on.
             self.action_play_step(1)
 
     def _advance_cursor(self) -> None:
         table = self.query_one("#tracks", DataTable)
-        if self.visible_rows and table.cursor_row < len(self.visible_rows) - 1:
+        if self.playlist_state.visible_rows and table.cursor_row < len(self.playlist_state.visible_rows) - 1:
             table.move_cursor(row=table.cursor_row + 1)
 
-    def action_mark_got(self) -> None:
-        self._toggle_status(GOT, "Got it")
+    async def action_mark_got(self) -> None:
+        await self._toggle_status(GOT, "Got it")
 
-    def action_mark_skip(self) -> None:
-        self._toggle_status(SKIP, "Skipped")
+    async def action_mark_skip(self) -> None:
+        await self._toggle_status(SKIP, "Skipped")
 
-    def action_mark_new(self) -> None:
-        if self._mark_selected(NEW, "Unmarked"):
+    async def action_mark_new(self) -> None:
+        if await self._mark_selected(NEW, "Unmarked"):
             return
         row = self.current_row()
         if row is None:
             return
-        self._mark(row, self.query_one("#tracks", DataTable).cursor_row, NEW, "Unmarked")
+        await self._mark(row, NEW, "Unmarked")

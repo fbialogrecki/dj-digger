@@ -17,7 +17,7 @@ from itertools import chain
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
-from .browser import is_fetchable, is_openable
+from .http import is_fetchable, is_openable
 from .models import LinkRecord, Track
 
 LINK_KEYWORDS = {"download", "free download", "free d/l", "buy", "purchase", "premiere", "kup"}

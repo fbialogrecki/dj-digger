@@ -30,9 +30,10 @@ from rich.table import Table
 from . import __version__, library, links, soundcloud
 from . import auth as auth_module
 from . import browser as browser_module
-from . import dig as dig_module
 from .config import AppConfig
+from .diagnostics import RedactingFormatter
 from .models import Crate, LinkRecord
+from .services import collection as dig_module
 from .state import TrackState
 
 SUBCOMMANDS = {"dig", "open", "auth"}
@@ -528,7 +529,7 @@ def _configure_logging(level_name: str, log_path: str | None = None) -> None:
         destination.parent.mkdir(parents=True, exist_ok=True)
         handler = logging.FileHandler(destination, encoding="utf-8")
         handler.setFormatter(
-            logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+            RedactingFormatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
         )
         # A native crash - miniaudio is C - kills the process without a Python
         # traceback, which from the outside is an app that vanished without a
@@ -537,7 +538,7 @@ def _configure_logging(level_name: str, log_path: str | None = None) -> None:
         faulthandler.enable(handler.stream)
     else:
         handler = logging.StreamHandler()
-        handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
+        handler.setFormatter(RedactingFormatter("%(levelname)s: %(message)s"))
 
     root = logging.getLogger()
     ours = logging.getLogger("dj_digger")

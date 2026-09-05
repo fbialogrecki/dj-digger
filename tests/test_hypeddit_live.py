@@ -10,7 +10,8 @@ from urllib.parse import urlparse
 import pytest
 import requests
 
-from dj_digger import browser, gates
+from dj_digger import browser
+from dj_digger.gates import providers as gates
 
 HYPEDDIT_URLS = (
     "https://hypeddit.com/sinexvsylum/starryeyed",

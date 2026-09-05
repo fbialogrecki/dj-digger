@@ -20,6 +20,9 @@ class FakeResponse:
         self.text = text
         self.headers = headers or {}
 
+    def close(self):
+        pass
+
     def json(self):
         if self._payload is None:
             raise ValueError("no json")
@@ -115,3 +118,14 @@ def playlist_payload() -> dict[str, Any]:
     """A real /resolve reply: full envelope, id-only track stubs."""
 
     return load_fixture("playlist_resolve.json")
+
+
+@pytest.fixture(autouse=True)
+def offline_requests_only(request, monkeypatch):
+    """An omitted fake must fail locally instead of reaching a provider."""
+    if any(request.node.get_closest_marker(name) for name in ("live", "shop_live", "hypeddit_live", "shop_mutate")):
+        return
+    import requests
+    def blocked(*args, **kwargs):
+        raise AssertionError("Offline test attempted an unfaked HTTP request")
+    monkeypatch.setattr(requests.Session, "send", blocked)

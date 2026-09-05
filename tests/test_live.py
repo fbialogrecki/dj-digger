@@ -128,8 +128,8 @@ def test_a_link_hub_still_gives_up_its_shops():
     reading the anchors, and following the wrappers to where they land.
     """
 
-    from dj_digger import dig
     from dj_digger.models import Track
+    from dj_digger.services import collection as dig
 
     track = Track(
         title="Know Your Place",

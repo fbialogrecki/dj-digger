@@ -5,8 +5,8 @@
 - Product version verified: 1.0.0
 - Owner: Filip Białogrecki
 - Updated: 2026-09-04
-- Document lines: <!-- SPEC TOTAL LINES -->1112<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1112<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1154<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1154<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -58,55 +58,55 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 3.4 | ↳ Audio preview | 286–322 |
 | 3.5 | ↳ Downloads and local-file matching | 323–350 |
 | 3.6 | ↳ Store purchase assistance | 351–430 |
-| 4 | System context and data flow | 431–467 |
+| 4 | System context and data flow | 431–469 |
 | 4.1 | ↳ Context diagram | 433–454 |
-| 4.2 | ↳ Collection-to-library flow | 455–467 |
-| 5 | Repository layout and component ownership | 468–516 |
-| 5.1 | ↳ Entry, orchestration, and models | 470–480 |
-| 5.2 | ↳ Network and external-system adapters | 481–499 |
-| 5.3 | ↳ Persistence, local media, and UI | 500–516 |
-| 6 | Runtime architecture and environments | 517–591 |
-| 6.1 | ↳ Runtime and dependencies | 519–532 |
-| 6.2 | ↳ Concurrency and lifecycle | 533–576 |
-| 6.3 | ↳ Local paths and environment variables | 577–591 |
-| 7 | Data model and persistence | 592–669 |
-| 7.1 | ↳ Domain objects and identity | 594–608 |
-| 7.2 | ↳ SQLite schema and invariants | 609–641 |
-| 7.3 | ↳ Crate persistence and deletion | 642–653 |
-| 7.4 | ↳ Configuration and credential stores | 654–669 |
-| 8 | Public interfaces and contracts | 670–715 |
-| 8.1 | ↳ CLI arguments and exit behavior | 672–691 |
-| 8.2 | ↳ JSON and CSV summary input | 692–706 |
-| 8.3 | ↳ URL-opening contract | 707–715 |
-| 9 | Authentication and authorization | 716–752 |
-| 9.1 | ↳ SoundCloud authentication | 718–735 |
-| 9.2 | ↳ Gate action consent | 736–752 |
-| 10 | External integrations | 753–885 |
-| 10.1 | ↳ SoundCloud API and media | 755–766 |
-| 10.2 | ↳ Link hubs and download gates | 767–826 |
-| 10.2 · block | ↳ ↳ Hypeddit | 775–812 |
-| 10.2 · block | ↳ ↳ Other resolvers | 814–819 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 821–826 |
-| 10.3 | ↳ Browsers and clipboard | 827–838 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 839–885 |
-| 11 | Security requirements and threat model | 886–932 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 888–906 |
-| 11.2 | ↳ Secret and personal-data handling | 907–919 |
-| 11.3 | ↳ File and mutation safety | 920–932 |
-| 12 | Privacy, lifecycle, and retention | 933–971 |
-| 12.1 | ↳ Data stored locally | 935–950 |
-| 12.2 | ↳ Data sent to third parties | 951–962 |
-| 12.3 | ↳ User-controlled deletion | 963–971 |
-| 13 | Failure behavior and current limitations | 972–1026 |
-| 13.1 | ↳ Error isolation and reporting | 974–993 |
-| 13.2 | ↳ Confirmed limitations | 994–1026 |
-| 14 | Verification, CI, and release | 1027–1090 |
-| 14.1 | ↳ Offline and live test suites | 1029–1059 |
-| 14.2 | ↳ Continuous integration and publishing | 1060–1075 |
-| 14.3 | ↳ Specification-map verification | 1076–1090 |
-| 15 | Evidence and operational references | 1091–1112 |
-| 15.1 | ↳ Primary implementation evidence | 1093–1105 |
-| 15.2 | ↳ User and historical documentation | 1106–1112 |
+| 4.2 | ↳ Collection-to-library flow | 455–469 |
+| 5 | Repository layout and component ownership | 470–526 |
+| 5.1 | ↳ Entry, orchestration, and models | 472–482 |
+| 5.2 | ↳ Network and external-system adapters | 483–501 |
+| 5.3 | ↳ Persistence, local media, and UI | 502–526 |
+| 6 | Runtime architecture and environments | 527–613 |
+| 6.1 | ↳ Runtime and dependencies | 529–542 |
+| 6.2 | ↳ Concurrency and lifecycle | 543–598 |
+| 6.3 | ↳ Local paths and environment variables | 599–613 |
+| 7 | Data model and persistence | 614–695 |
+| 7.1 | ↳ Domain objects and identity | 616–630 |
+| 7.2 | ↳ SQLite schema and invariants | 631–663 |
+| 7.3 | ↳ Crate persistence and deletion | 664–679 |
+| 7.4 | ↳ Configuration and credential stores | 680–695 |
+| 8 | Public interfaces and contracts | 696–741 |
+| 8.1 | ↳ CLI arguments and exit behavior | 698–717 |
+| 8.2 | ↳ JSON and CSV summary input | 718–732 |
+| 8.3 | ↳ URL-opening contract | 733–741 |
+| 9 | Authentication and authorization | 742–785 |
+| 9.1 | ↳ SoundCloud authentication | 744–764 |
+| 9.2 | ↳ Gate action consent | 765–785 |
+| 10 | External integrations | 786–918 |
+| 10.1 | ↳ SoundCloud API and media | 788–799 |
+| 10.2 | ↳ Link hubs and download gates | 800–859 |
+| 10.2 · block | ↳ ↳ Hypeddit | 808–845 |
+| 10.2 · block | ↳ ↳ Other resolvers | 847–852 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 854–859 |
+| 10.3 | ↳ Browsers and clipboard | 860–871 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 872–918 |
+| 11 | Security requirements and threat model | 919–973 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 921–939 |
+| 11.2 | ↳ Secret and personal-data handling | 940–955 |
+| 11.3 | ↳ File and mutation safety | 956–973 |
+| 12 | Privacy, lifecycle, and retention | 974–1012 |
+| 12.1 | ↳ Data stored locally | 976–991 |
+| 12.2 | ↳ Data sent to third parties | 992–1003 |
+| 12.3 | ↳ User-controlled deletion | 1004–1012 |
+| 13 | Failure behavior and current limitations | 1013–1067 |
+| 13.1 | ↳ Error isolation and reporting | 1015–1034 |
+| 13.2 | ↳ Confirmed limitations | 1035–1067 |
+| 14 | Verification, CI, and release | 1068–1132 |
+| 14.1 | ↳ Offline and live test suites | 1070–1101 |
+| 14.2 | ↳ Continuous integration and publishing | 1102–1117 |
+| 14.3 | ↳ Specification-map verification | 1118–1132 |
+| 15 | Evidence and operational references | 1133–1154 |
+| 15.1 | ↳ Primary implementation evidence | 1135–1147 |
+| 15.2 | ↳ User and historical documentation | 1148–1154 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -454,7 +454,9 @@ synchronized to a repository-owned backend.
 
 ### 4.2 Collection-to-library flow
 
-`cli.handle_dig()` and `DiggingMixin` call the same `dig.dig()` orchestration.
+`cli.handle_dig()` and `DiggingController` use the same
+`services.collection.dig()` collection flow. `CollectionService` persists
+completed TUI collections before delivering the result to the view.
 The target becomes a `Crate`, link hubs may enrich or replace wrapper links, and
 `library.remember()` persists the whole current track representation. Active
 tracks are categorized only after loading, allowing improved classification code
@@ -471,7 +473,7 @@ crate record.
 
 - `dj_digger/cli.py` owns argument parsing, terminal selection, reporting,
   export/open flows, authentication commands, and process exit codes.
-- `dj_digger/dig.py` owns source selection, saved-HTML orchestration, progress
+- `dj_digger/services/collection.py` owns source selection, saved-HTML orchestration, progress
   stages, and concurrent link-hub expansion.
 - `dj_digger/models.py` owns `Track`, `Crate`, and `LinkRecord`, the vocabulary
   shared across collection, classification, persistence, playback, and UI.
@@ -480,39 +482,47 @@ crate record.
 
 ### 5.2 Network and external-system adapters
 
-- `dj_digger/soundcloud.py` owns API v2 discovery, requests, hydration,
-  pagination, media authorization, and validated file transfer.
-- `dj_digger/html_fallback.py` owns parsing local SoundCloud pages and the slow
-  per-track page fallback.
-- `dj_digger/gates.py` owns link-hub inspection, gate protocols, typed gate
-  failures, and manual Hypeddit Chromium fallback.
-- `dj_digger/browser.py` owns URL handoff policy, browser selection, and WSL
-  bridging. `dj_digger/browser_session.py` owns the managed Chromium lifecycle
-  shared by carts, gate fallback, and SoundCloud login: profile path, display
-  check, launch-error classification, and the Chromium installer.
-  `dj_digger/cart.py` owns the Bandcamp page adapter and the batch session on
-  top of it, and re-exports the pure pieces it was split into:
-  `cart_models.py` (errors, items, results, plans, callbacks), `store_urls.py`
-  (store domain checks and canonical URLs), `store_match.py` (exact product
-  matching), `store_parse.py` (products and prices out of page HTML), and
-  `beatport_playlist.py` (playlist results, lines, and the file writer).
+- `soundcloud.py` owns API v2 discovery, authenticated requests, hydration,
+  pagination and media authorization. `files.py` owns validated HTTP/browser
+  file publication and local copies under one filename lock.
+- `html_fallback.py` owns saved SoundCloud page parsing and the slow per-track
+  page fallback.
+- `gates/hubs.py` inspects link hubs, `gates/providers.py` implements HTTP gate
+  protocols and `gates/browser.py` drives Hypeddit completion in Chromium.
+  `gate_models.py` owns their typed outcomes and inspection data.
+- `http.py` owns URL/redirect validation; `browser.py` owns OS browser handoff
+  and WSL bridging. `browser_session.py` owns managed Chromium launch, profile
+  paths, display checks and installation.
+- `stores/bandcamp.py` owns Bandcamp selectors and page interaction.
+  `services/purchases.py` owns batch approval, preflight, mutation and manual
+  completion, and Soundiiz handoff. `cart_models.py`, `store_urls.py`,
+  `store_match.py` and `store_parse.py` retain store data, URL checks, matching
+  and HTML parsing. `beatport_playlist.py` owns Soundiiz metadata and transport.
 
 ### 5.3 Persistence, local media, and UI
 
-- `dj_digger/db.py` owns the shared single-owner SQLite engine and
-  schema. `state.py` owns status semantics; `library.py` owns crate lifecycle;
-  `scanner.py` owns local media indexing and matching.
-- `dj_digger/paths.py` is the leaf module for XDG data/config directories.
-- `dj_digger/config.py` owns user profile and preferences.
-  `private_json.py` owns private atomic JSON writes; `clipboard.py` owns
-  clipboard subprocesses independently of authentication and scanning.
-- `dj_digger/player.py` owns stream resolution helpers, buffering, decoder/device
-  lifecycle. `tui/audio.py` owns waveform rendering, the level meter and
-  transport widgets; the engine imports neither Rich nor Textual.
-- `dj_digger/tui/app.py` is the Textual shell. Mixins under `dj_digger/tui/`
-  separate crates, rendering, filters, playback, digging, downloads, opening,
-  and local-library scanning. Long-running work returns to the UI thread through
-  Textual worker callbacks.
+- `db.py` owns the single-thread SQLite connection and short transactions;
+  `schema.py` recognizes and registers the 1.0 schema. `state.py` owns atomic
+  status/provenance and committed caches. `library.py` owns crate records and
+  persistence; `scanner.py` owns local media indexing and matching.
+- `services/runtime.py` is the lazy application composition root.
+  Collection, downloads, library reconciliation, accounts, browser opening and
+  purchases are services; none imports Textual. Operation admission and
+  settlement live in `services/operations.py`, independently of execution.
+- `paths.py` owns XDG directories. `config.py` owns preferences;
+  `private_json.py` owns private atomic JSON writes; `clipboard.py` owns clipboard
+  subprocesses. `diagnostics.py` redacts credential fields and URL queries.
+- `player.py` owns buffering, decoding and device lifecycle. Stream resolution
+  and prepared media live in `services/playback.py`, independently of table rows.
+  `tui/audio.py` owns waveform, meter and transport rendering. The engine imports
+  neither Rich nor Textual.
+- `tui/app.py` composes the screen and routes actions, messages and lifecycle to
+  concrete controllers. `tui/presentation.py` separates playlist, audio, sidebar,
+  download, cart and scan state. Controllers receive concrete services and the
+  presentation callbacks they use, rather than the application object.
+  `tui/playlist.py` computes filtering, stable sorting and operation targets.
+  `tui/render.py` preserves incremental row updates and cursor/viewport position.
+  Account and settings dialogs delegate disk/network work to services.
 
 ## 6. Runtime architecture and environments
 
@@ -541,27 +551,39 @@ serializes compound status/provenance updates and updates its in-memory mirrors
 only after commit. Painting rows reads the mirrors, without per-row SQLite reads.
 Another process writing the same database is not reconciled.
 
-Digging, hub expansion, hydration, downloads, and the local scan accept a
-cancel event checked between requests, pages, chunks, or files; a set event
-raises a typed `Cancelled` so a stopped dig is never saved as a partial crate
-and a stopped download is not reported as a failure. The TUI owns one event
-per job kind (`_dig_cancel`, `_gate_cancel`, `_scan_cancel`, `_cart_cancel`),
-sets them all on unmount, and `ctrl+x` stops the running dig or download batch.
-Link hubs use eight threads and stop trying a host after two observed failures
-within one dig, though already-running requests continue. Batch downloads use
-eight threads. Hypeddit HTTP flows are bounded to two at a time per host, with
-nested gates followed outside that limit, and one
-persistent browser profile cannot be driven by concurrent Playwright threads.
-Player buffering uses a daemon thread and generation identifiers to discard
-late bytes after close or seek.
+`OperationCoordinator` admits one main operation (dig/refresh, download, local
+copy, cart or bulk opening) and one independent scan, with no task queue or
+scheduler. Existing Textual workers, thread pools and asynchronous Playwright
+execute the work. Each `OperationHandle` identifies progress, cancellation and
+settlement; cancellation leaves its slot occupied until workers and suboperations
+finish. The main operation owns the status bar; otherwise the scan is shown.
+`ctrl+x` cancels the visible operation. Single-link opening, export, playback
+and prefetch run independently of the main slot.
 
-On TUI unmount, cart/gate cancellation is signalled, the ticker stops, pending
-download futures are cancelled when possible, prepared media is closed, and the
-player, asynchronous Playwright context (bounded to five seconds), and SoundCloud
-session are released. After `App.run()` returns, `run_tui` waits up to three
-seconds for non-daemon threads and then ends the process with the reason
-logged; a SIGINT received once the terminal is restored ends it immediately
-with status 130.
+Digging, hub expansion, hydration, downloads, and scanning check cancellation
+between requests, pages, chunks or files. A cancelled dig is not persisted.
+Workers receive copies of track inputs; collection and file services persist
+completed effects before delivering view updates. Playlist view generations
+reject late metadata/progress, while database generations prevent an old result
+from recreating a deleted/recreated playlist. Playback requests and prefetch
+have separate counters, including repeated A→B→A requests. Byte progress is
+coalesced to the latest value per track/operation; terminal outcomes are delivered
+individually. Painting retains the existing throttling and stable cursor.
+
+Hub expansion and download batches use eight threads. Hypeddit HTTP flows allow
+two concurrent requests per host; nested gates release the host limit before
+recursing. A persistent profile is never driven by concurrent Playwright threads.
+SoundCloud API and public transfer sessions are separate, and each gate flow has
+its own cookie jar. Retired clients remain open until their active workers settle.
+
+Shutdown first refuses new operations and signals cancellation/dialogs. Worker
+scopes count actual thread execution, including account verification. Asynchronous
+I/O waits for its thread to settle on cancellation. Prepared media is discarded;
+worker-owned clients/audio resources close after active workers, with SQLite
+last. Asynchronous Playwright close retains its five-second limit. After
+`App.run()`, `run_tui` retains the three-second non-daemon thread grace and forced
+exit fallback; SIGINT after restoring the terminal exits with status 130.
+Resources in use by an unfinished thread are not closed underneath it.
 
 Cart automation uses Playwright's asynchronous API on Textual's event loop.
 Textual awaits the editable plan inside an async worker, while one context at a
@@ -608,7 +630,7 @@ plus `bpm`, `key`, `release_year`, and `label`, which are read back when present
 
 ### 7.2 SQLite schema and invariants
 
-The default database is `digger.db`. `_init_db()` creates:
+The default database is `digger.db`. `schema.open_database()` recognizes or creates:
 
 - `track_states(key PRIMARY KEY, status, updated)`;
 - `local_files(path PRIMARY KEY, mtime, normalized_stem)` plus an index on
@@ -646,7 +668,11 @@ keys, newly arrived keys, import/refresh timestamps, and a partial flag inside
 `record_json`. Unknown track fields are ignored when reading, while known fields
 are reconstructed. Stream URLs are not part of `Track` and are not persisted.
 
-The source string is the crate primary key. Saving replaces the whole record.
+The source string is the crate primary key. Full import saves a complete record;
+refresh, track removal and metadata updates read the current record in a short
+transaction and change their own fields. Later removed keys and unrelated NEW
+metadata survive link updates. Each deletion changes a session generation;
+results carrying the previous generation cannot update a recreated crate.
 Listing orders the database query by update time but returns records sorted by
 case-folded title. Deleting a crate deletes its database row and does not delete
 track states, credentials, downloads, or source media.
@@ -730,7 +756,10 @@ Chromium-family cookie databases are not scanned because the values are
 encrypted. Candidate tokens are verified with SoundCloud `/me` before saving.
 
 `SOUNDCLOUD_OAUTH_TOKEN` has precedence and an invalid value blocks replacement
-until it is unset or changed. Logout deletes `auth.json`; it does not delete the
+until it is unset or changed. API credentials are read for each request and
+validated against the exact HTTPS API host before sending, with automatic
+redirects disabled. Login changes apply to subsequent requests without closing
+sessions under active transfers. Logout deletes `auth.json`; it does not delete the
 managed browser profile or an environment variable.
 
 ### 9.2 Gate action consent
@@ -740,7 +769,11 @@ in Settings. When false, Hypeddit gates declaring non-email steps fail with a
 typed `GateSocialActionsDisabled`, which the TUI hands to the private browser
 where the user completes the steps themselves; GateRush does not post the
 configured comment. Gates that require a real email fail before submission while the
-reserved placeholder remains configured.
+reserved placeholder remains configured. Browser steps recheck current consent
+before each social action and re-read the profile before submission. Changing
+profile data during form filling blocks submission of the old values. HTTP
+unlocks recheck cancellation/consent after telemetry and before their permitted
+retry. A settings snapshot is never treated as indefinite authorization.
 
 Hypeddit click-through steps for SoundCloud, YouTube, Instagram, Twitter,
 Facebook, TikTok, Bandcamp, Mixcloud, Dailymotion, Messenger, and Spotify are
@@ -915,14 +948,22 @@ the SoundCloud managed login copies only the verified `oauth_token` to
 Browser preferences cannot name arbitrary commands. Subprocess calls use
 argument arrays and `shell=False`; the PowerShell URL boundary is described in
 §8.3. Test fixtures and offline tests substitute temporary XDG/config/database
-paths so they do not read user credentials, crates, or music folders.
+paths so they do not read user credentials, crates, or music folders. CLI log
+formatters redact URL queries and credential fields. TUI messages render external
+text literally; unexpected crashes omit local-variable dumps and custom provider
+Rich representations. Worker descriptions never include token arguments.
 
 ### 11.3 File and mutation safety
 
 Download filenames are reduced to basenames, invalid platform characters are
 replaced, Windows reserved names are prefixed, and final names are selected under
 a process lock. HTTP and browser downloads use temporary files and atomic rename;
-partial files are removed on failure. Declared and observed sizes are limited to
+partial files are removed on failure or cancellation. HTTP, Chromium and local
+copies share the name lock and check cancellation at final publication. Finished
+files are retained even when the subsequent library write fails;
+`PublishedFileUnrecorded` carries the published path and is never a transfer retry.
+There is no filesystem/SQLite distributed transaction or crash recovery journal.
+Declared and observed sizes are limited to
 2 GiB, and HTML bodies are rejected.
 
 Store-cart writes require exact-item preflight and immediate revalidation.
@@ -1031,7 +1072,8 @@ as player events instead of escaping through Python-CFFI.
 The default pytest configuration excludes `live`, `shop_live`, `hypeddit_live`,
 `bandcamp_dom`, and `shop_mutate`. Its autouse fixture redirects config, auth, database, and scan
 folders to a temporary directory. Network interactions in offline tests use fake
-sessions or repository fixtures; player tests do not require a real output
+sessions or repository fixtures; the default requests transport is blocked by
+an autouse fixture. Player tests do not require a real output
 device.
 
 Commands implemented by repository configuration are:
@@ -1095,11 +1137,11 @@ markers, unowned named blocks, or absent numbered headings are explicit errors.
 - Packaging and command contract: `pyproject.toml`, `dj_digger/cli.py`,
   `dj_digger/__main__.py`.
 - Collection and link behavior: `dj_digger/soundcloud.py`,
-  `dj_digger/html_fallback.py`, `dj_digger/dig.py`, `dj_digger/links.py`.
+  `dj_digger/html_fallback.py`, `dj_digger/services/collection.py`, `dj_digger/links.py`.
 - Local state: `dj_digger/models.py`, `dj_digger/db.py`, `dj_digger/state.py`,
   `dj_digger/library.py`, `dj_digger/config.py`, `dj_digger/scanner.py`.
 - Authentication and integrations: `dj_digger/auth.py`,
-  `dj_digger/gates.py`, `dj_digger/browser.py`, `dj_digger/cart.py`.
+  `dj_digger/gates/`, `dj_digger/browser.py`, `dj_digger/services/purchases.py`.
 - UI and playback: `dj_digger/player.py`, `dj_digger/tui/`.
 - Verification and release: `tests/`, `pyproject.toml`, `.github/workflows/`.
 

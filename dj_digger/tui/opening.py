@@ -1,32 +1,22 @@
 """Handing links to the browser: the best one, a shop search, or everything shown.
 
-Mixed into ``DiggerApp``; the attributes these reach for are set up in its
-``__init__``.
+Composed by ``DiggerApp`` with explicit state and presentation callbacks.
 """
 
 import asyncio
 import logging
 import urllib.parse
 from collections import Counter
+from copy import deepcopy
+from functools import partial
 from threading import Event
 
-from requests import RequestException
-from textual import work
+from dj_digger import automation_errors, cart_models
+from dj_digger.diagnostics import log_safe_text
 
-from .. import browser as browser_module
-from .. import cart as cart_module
-from .. import gates
-from .. import library as library_module
 from .. import links as links_module
-from ..beatport_playlist import (  # noqa: F401 - re-exported for tests
-    _beatport_playlist_lines,
-    _create_soundiiz_import,
-    _soundiiz_metadata,
-    _write_beatport_playlist,
-)
-from ..clipboard import copy_to_clipboard
-from ..state import GOT, NEW, OPENED, SKIP
-from ..store_urls import _direct_beatport_track_url, canonical_store_url
+from ..services import purchases as cart_module
+from ..state import GOT, OPENED, SKIP
 from .keymap import (
     DIRECT_STORE_CATEGORIES,
     OPEN_ALL_CONFIRM_THRESHOLD,
@@ -48,62 +38,45 @@ SEARCH_URLS = {
 }
 
 
-def _remember_exact_beatport_links(
-    record: library_module.CrateRecord, outcome: cart_module.CartBatchOutcome
-) -> bool:
-    """Replace stored Beatport release links only when an exact track URL is known."""
-
-    exact_urls = {
-        result.track_key: exact
-        for result in outcome.results
-        if result.store == "beatport"
-        and result.code == "playlist_ready"
-        and (exact := _direct_beatport_track_url(result.url)) is not None
-    }
-    changed = False
-    for track in record.tracks:
-        if links_module.store_for_url(track.purchase_url or "") == "beatport":
-            canonical = canonical_store_url(track.purchase_url or "", "beatport")
-            if canonical is not None and canonical != track.purchase_url:
-                track.purchase_url = canonical
-                changed = True
-        normalized_extra = []
-        for url, text in track.extra_links:
-            canonical = (
-                canonical_store_url(url, "beatport")
-                if links_module.store_for_url(url) == "beatport"
-                else None
-            )
-            normalized_extra.append((canonical or url, text))
-            changed |= canonical is not None and canonical != url
-        track.extra_links = normalized_extra
-
-        exact = exact_urls.get(track.key)
-        if exact is None:
-            continue
-        if links_module.store_for_url(track.purchase_url or "") == "beatport":
-            if track.purchase_url != exact:
-                track.purchase_url = exact
-                changed = True
-            continue
-        updated = []
-        replaced = False
-        for url, text in track.extra_links:
-            if not replaced and links_module.store_for_url(url) == "beatport":
-                updated.append((exact, text))
-                replaced = True
-                changed |= url != exact
-            else:
-                updated.append((url, text))
-        if not replaced:
-            updated.append((exact, "Buy on Beatport"))
-            changed = True
-        track.extra_links = updated
-    return changed
-
-
-class OpeningMixin:
+class OpeningController:
     """Handing links to the browser: the best one, a shop search, or everything shown."""
+
+    def __init__(self, *, get__cart_session, _download_directory, _main_available, _paint_key, get_browser, call_from_thread, cart_state, current_row, finish_job, job_progress, notify, operations, playlist_state, push_screen, push_screen_wait, record_to_open, run_worker, show_error, start_job, state, status_of, targets, update_status, worker_scope, opening_service, library_service, io):
+        self.get__cart_session = get__cart_session
+        self._download_directory = _download_directory
+        self._main_available = _main_available
+        self._paint_key = _paint_key
+        self.get_browser = get_browser
+        self.call_from_thread = call_from_thread
+        self.cart_state = cart_state
+        self.current_row = current_row
+        self.finish_job = finish_job
+        self.job_progress = job_progress
+        self.notify = notify
+        self.operations = operations
+        self.playlist_state = playlist_state
+        self.push_screen = push_screen
+        self.push_screen_wait = push_screen_wait
+        self.record_to_open = record_to_open
+        self.run_worker = run_worker
+        self.show_error = show_error
+        self.start_job = start_job
+        self.state = state
+        self.opening_service = opening_service
+        self.library_service = library_service
+        self.io = io
+        self.status_of = status_of
+        self.targets = targets
+        self.update_status = update_status
+        self.worker_scope = worker_scope
+
+    @property
+    def _cart_session(self):
+        return self.get__cart_session()
+
+    @property
+    def browser(self):
+        return self.get_browser()
 
     def action_open_link(self) -> None:
         row = self.current_row()
@@ -121,29 +94,27 @@ class OpeningMixin:
         )
         self.open_link_in_background(url, row)
 
-    @work(thread=True, group="open_link")
-    def open_link_in_background(self, url: str, row: Row | None = None) -> None:
-        """Hand one link to the browser off the interface thread.
+    def open_link_in_background_work(self, url: str, key: str | None, browser: str) -> None:
+        with self.worker_scope():
+            """Hand one link to the browser off the interface thread.
 
-        On WSL the handoff is a subprocess that can take seconds - twenty at
-        the limit - and while it ran nothing on screen answered, Ctrl+C
-        included. The mark is written back on the UI thread as before; a
-        shop search has no row to mark.
-        """
+            On WSL the handoff is a subprocess that can take seconds - twenty at
+            the limit - and while it ran nothing on screen answered, Ctrl+C
+            included. The mark is written back on the UI thread as before; a
+            shop search has no row to mark.
+            """
 
-        opened = browser_module.open_url(url, self.browser)
-        self.call_from_thread(self._link_opened, row, opened)
+            opened = self.opening_service.open_one(url, key, browser)
+            self.call_from_thread(self._link_opened, key, opened)
 
-    def _link_opened(self, row: Row | None, opened: bool) -> None:
+    def _link_opened(self, key: str | None, opened: bool) -> None:
         if not opened:
-            what = "link" if row is not None else "search"
+            what = "link" if key is not None else "search"
             self.notify(f"Could not open the {what}", severity="error")
             return
-        if row is None:
+        if key is None:
             return
-        if self.status_of(row) == NEW:
-            self.state.set(row.track.key, OPENED)
-        self._paint_key(row.track.key)
+        self._paint_key(key)
         self.update_status()
 
     def _find_gate_url(self, row: Row) -> str | None:
@@ -164,7 +135,7 @@ class OpeningMixin:
             if record.category == "gate":
                 return record.link_url
         for record in candidates:
-            if gates.can_resolve(record.link_url):
+            if self.opening_service.can_resolve(record.link_url):
                 return record.link_url
         for record in candidates:
             if record.category not in DIRECT_STORE_CATEGORIES:
@@ -181,26 +152,26 @@ class OpeningMixin:
 
     def _cart_store_order(self) -> tuple[str, ...]:
         supported = {"bandcamp", "beatport"}
-        if not self.store_filters:
+        if not self.playlist_state.store_filters:
             return ("bandcamp", "beatport")
-        selected = self.store_filters & supported
+        selected = self.playlist_state.store_filters & supported
         return tuple(store for store in ("bandcamp", "beatport") if store in selected)
 
-    def _cart_request(self, row: Row) -> cart_module.CartRequest:
+    def _cart_request(self, row: Row) -> cart_models.CartRequest:
         links = []
         for store in self._cart_store_order():
             record = row.record_for(store)
             if record is not None and record.link_url:
                 links.append((store, record.link_url))
-        return cart_module.CartRequest(row.track, tuple(links))
+        return cart_models.CartRequest(row.track, tuple(links))
 
-    def _cart_requests(self, row: Row) -> list[cart_module.CartRequest]:
+    def _cart_requests(self, row: Row) -> list[cart_models.CartRequest]:
         request = self._cart_request(row)
         if not request.links:
             return []
-        if {"bandcamp", "beatport"} <= self.store_filters:
+        if {"bandcamp", "beatport"} <= self.playlist_state.store_filters:
             return [
-                cart_module.CartRequest(row.track, ((store, url),))
+                cart_models.CartRequest(row.track, ((store, url),))
                 for store, url in request.links
             ]
         return [request]
@@ -238,38 +209,48 @@ class OpeningMixin:
         Whoever claims it hands it back by clearing ``_cart_busy`` when done.
         """
 
-        if self._cart_busy:
+        if self.cart_state._cart_busy or not self._main_available():
             self.notify(taken, timeout=3)
             return False
-        self._cart_busy = True
+        self.cart_state._cart_busy = True
+        self.cart_state._cart_handle = self.start_job("Cart", cancel=self.cart_state._cart_cancel)
         return True
 
     def _start_cart_preflight(
-        self, requests: list[cart_module.CartRequest], *, single: bool
+        self, requests: list[cart_models.CartRequest], *, single: bool
     ) -> None:
         if not self._claim_cart("The dedicated store browser is already open"):
             return
-        self._cart_cancel.clear()
-        self.start_job("Cart", cancel=self._cart_cancel)
-        self._run_cart_batch(requests, single)
+        self.cart_state._cart_cancel.clear()
+        self._capture_cart_context()
+        self._run_cart_batch(deepcopy(requests), single)
+
+    def _capture_cart_context(self):
+        record = self.playlist_state.crate
+        source = record.source if record else ""
+        context = (source, self.state.db.crate_generation(source),
+                   self.playlist_state._view_generation, self._download_directory(),
+                   self.playlist_state.crate_title)
+        self.cart_state._cart_context = context
+        return context
 
     def _show_cart_progress(self) -> CartProgressScreen:
-        screen = CartProgressScreen(self._cart_cancel)
-        self._cart_progress_screen = screen
+        screen = CartProgressScreen(self.cart_state._cart_cancel)
+        self.cart_state._cart_progress_screen = screen
         self.push_screen(screen)
         return screen
 
     def _hide_cart_progress(self) -> None:
-        screen = self._cart_progress_screen
-        self._cart_progress_screen = None
+        screen = self.cart_state._cart_progress_screen
+        self.cart_state._cart_progress_screen = None
         if screen is not None and screen.is_mounted:
             try:
                 screen.dismiss(None)
             except Exception:
                 pass
 
-    def _cart_progress(self, progress: cart_module.CartProgress) -> None:
-        screen = self._cart_progress_screen
+    def _cart_progress(self, progress: cart_models.CartProgress) -> None:
+        screen = self.cart_state._cart_progress_screen
         if screen is not None:
             screen.update_progress(progress)
 
@@ -282,21 +263,34 @@ class OpeningMixin:
         """
 
         self._hide_cart_progress()
+        answer = asyncio.create_task(self.push_screen_wait(screen))
+        cancelled = asyncio.create_task(self.cart_state._cart_cancel.wait())
         try:
-            result = await self.push_screen_wait(screen)
+            done, _ = await asyncio.wait((answer, cancelled), return_when=asyncio.FIRST_COMPLETED)
+            if cancelled in done:
+                if screen.is_mounted:
+                    screen.dismiss(None)
+                answer.cancel()
+                result = None
+            else:
+                result = await answer
         finally:
+            cancelled.cancel()
+            if not answer.done():
+                answer.cancel()
+            await asyncio.gather(answer, cancelled, return_exceptions=True)
             if screen.is_mounted:
                 try:
                     screen.dismiss(None)
                 except Exception:
                     pass
-        if restore_progress and result and not self._cart_cancel.is_set():
+        if restore_progress and result and not self.cart_state._cart_cancel.is_set():
             self._show_cart_progress()
         return result
 
     async def _approve_cart_async(
-        self, plan: cart_module.CartPlan, single: bool
-    ) -> cart_module.CartPlan | None:
+        self, plan: cart_models.CartPlan, single: bool
+    ) -> cart_models.CartPlan | None:
         if single and len(plan.items) == 1 and not plan.items[0].price_editable:
             item = plan.items[0]
             if item.store == "beatport":
@@ -314,7 +308,7 @@ class OpeningMixin:
         )
         return approved
 
-    async def _manual_cart_async(self, items: list[cart_module.CartItem]) -> bool:
+    async def _manual_cart_async(self, items: list[cart_models.CartItem]) -> bool:
         """Let the person finish the staged pages; True once they say they are done."""
 
         LOGGER.info("Manual cart completion opened: items=%d", len(items))
@@ -335,23 +329,23 @@ class OpeningMixin:
         self.notify("Installing Chromium in the background...", timeout=4)
         install_cancel = Event()
         install_task = asyncio.create_task(
-            asyncio.to_thread(cart_module.install_chromium, install_cancel)
+            self.io(cart_module.install_chromium, install_cancel)
         )
         try:
             while not install_task.done():
-                if self._cart_cancel.is_set():
+                if self.cart_state._cart_cancel.is_set():
                     install_cancel.set()
                 await asyncio.sleep(0.1)
             await install_task
         finally:
             if not install_task.done():
                 install_cancel.set()
+                await asyncio.shield(install_task)
         self._show_cart_progress()
         return True
 
-    @work(exclusive=True, group="cart", exit_on_error=False)
-    async def _run_cart_batch(
-        self, requests: list[cart_module.CartRequest], single: bool
+    async def _run_cart_batch_work(
+        self, requests: list[cart_models.CartRequest], single: bool
     ) -> None:
         current_requests = list(requests)
         try:
@@ -360,18 +354,18 @@ class OpeningMixin:
                 try:
                     outcome = await self._cart_session.run_batch(
                         current_requests,
-                        self._cart_cancel,
+                        self.cart_state._cart_cancel,
                         approve=lambda plan: self._approve_cart_async(plan, single),
                         progress=self._cart_progress,
                         manual=self._manual_cart_async,
                     )
-                except cart_module.ChromiumMissing:
+                except automation_errors.ChromiumMissing:
                     if not await self._install_cart_chromium():
                         self.notify("Chromium installation cancelled", timeout=3)
                         return
                     continue
                 except Exception as exc:
-                    if not self._cart_cancel.is_set():
+                    if not self.cart_state._cart_cancel.is_set():
                         self._cart_failed(str(exc))
                     return
                 finally:
@@ -395,98 +389,55 @@ class OpeningMixin:
                     return
                 if action != "retry":
                     return
-                self._cart_cancel.clear()
+                self.cart_state._cart_cancel.clear()
                 current_requests, single = self._retry_subset(current_requests, outcome)
         finally:
             self._hide_cart_progress()
-            self._cart_busy = False
+            self.cart_state._cart_busy = False
+            if self.cart_state._cart_handle is not None:
+                self.finish_job(self.cart_state._cart_handle)
+                self.cart_state._cart_handle = None
 
-    async def _finish_cart_manually(self, outcome: cart_module.CartBatchOutcome) -> None:
+    async def _finish_cart_manually(self, outcome: cart_models.CartBatchOutcome) -> None:
         """Hand the items the automation could not add to the person at the browser."""
 
         settled = await self._cart_session.finish_manually(
-            list(outcome.manual_candidates), self._manual_cart_async, self._cart_cancel
+            list(outcome.manual_candidates), self._manual_cart_async, self.cart_state._cart_cancel
         )
         self._cart_results_finished(tuple(settled))
         await self._wait_cart_screen(
-            CartResultScreen(cart_module.CartBatchOutcome(tuple(settled))),
+            CartResultScreen(cart_models.CartBatchOutcome(tuple(settled))),
             restore_progress=False,
         )
 
-    async def _prepare_beatport_playlist(
-        self, requests: list[cart_module.CartRequest], outcome: cart_module.CartBatchOutcome
-    ) -> None:
-        """Write the Beatport tracks as a Soundiiz import, copy them, and open Soundiiz."""
-
-        lines = _beatport_playlist_lines(requests, outcome)
-        if not lines:
-            self.notify(
-                "No Beatport tracks were available for the playlist",
-                severity="warning",
-                timeout=5,
-            )
-            return
-        if self.crate is not None and _remember_exact_beatport_links(self.crate, outcome):
-            await asyncio.to_thread(library_module.save, self.crate)
+    async def _prepare_beatport_playlist(self, requests, outcome) -> None:
+        source, generation, view, directory, title = self.cart_state._cart_context or self._capture_cart_context()
+        if source:
+            record = await asyncio.to_thread(self.library_service.remember_beatport, source, generation, outcome)
+            if record is not None and view == self.playlist_state._view_generation:
+                self.playlist_state.crate = record
         try:
-            path = await asyncio.to_thread(
-                _write_beatport_playlist,
-                lines,
-                self._download_directory(),
-            )
-        except OSError as exc:
-            LOGGER.error(
-                "Could not save Beatport playlist: %s",
-                cart_module.log_safe_text(exc),
-            )
+            result = await cart_module.prepare_playlist(requests, outcome, title, directory, self.browser, io=self.io)
+        except OSError:
             self.show_error("Could not save the Beatport playlist")
-            self.notify(
-                "Could not save the Beatport playlist",
-                severity="error",
-                timeout=6,
-            )
+            self.notify("Could not save the Beatport playlist", severity="error", timeout=6)
             return
-        try:
-            import_url = await asyncio.to_thread(
-                _create_soundiiz_import,
-                requests,
-                outcome,
-                self.crate_title or "DJ Digger Beatport playlist",
-            )
-        except (OSError, ValueError, RequestException) as exc:
-            LOGGER.warning("Could not create Soundiiz import: %s", cart_module.log_safe_text(exc))
-            self.notify(
-                f"Playlist saved to {path}, but Soundiiz import failed",
-                severity="warning",
-                timeout=9,
-            )
+        if not result.count:
+            self.notify("No Beatport tracks were available for the playlist", severity="warning", timeout=5)
             return
-        copied, opened = await asyncio.gather(
-            asyncio.to_thread(copy_to_clipboard, "\n".join(lines)),
-            asyncio.to_thread(browser_module.open_url, import_url, self.browser),
-        )
-        LOGGER.info(
-            "Prepared Beatport playlist: tracks=%d copied=%s opened=%s path=%s",
-            len(lines),
-            copied,
-            opened,
-            path,
-        )
-        if opened and copied:
-            message = f"Beatport playlist ready in Soundiiz ({len(lines)} tracks)"
-        elif opened:
-            message = f"Beatport playlist saved to {path}; upload it in Soundiiz"
+        if result.import_failed:
+            message = f"Playlist saved to {result.path}, but Soundiiz import failed"
+        elif result.opened and result.copied:
+            message = f"Beatport playlist ready in Soundiiz ({result.count} tracks)"
+        elif result.opened:
+            message = f"Beatport playlist saved to {result.path}; upload it in Soundiiz"
         else:
-            message = f"Beatport playlist saved to {path}; Soundiiz did not open"
-        self.notify(
-            message,
-            severity="warning" if not opened else "information",
-            timeout=9,
-        )
+            message = f"Beatport playlist saved to {result.path}; Soundiiz did not open"
+        self.notify(message, severity="warning" if not result.opened else "information", timeout=9)
 
     def _retry_subset(
-        self, requests: list[cart_module.CartRequest], outcome: cart_module.CartBatchOutcome
-    ) -> tuple[list[cart_module.CartRequest], bool]:
+        self, requests: list[cart_models.CartRequest], outcome: cart_models.CartBatchOutcome
+    ) -> tuple[list[cart_models.CartRequest], bool]:
         """The requests worth another pass, and whether it may skip the review."""
 
         retryable = outcome.retryable_targets
@@ -501,11 +452,11 @@ class OpeningMixin:
         return remaining, len(remaining) == 1 and not force_review
 
     def _cart_failed(self, message: str) -> None:
-        LOGGER.error("Cart automation failed: %s", cart_module.log_safe_text(message))
+        LOGGER.error("Cart automation failed: %s", log_safe_text(message))
         self.show_error(f"Cart automation failed: {message}")
         self.notify("Cart automation failed", severity="error", timeout=6)
 
-    def _cart_results_finished(self, results: tuple[cart_module.CartResult, ...]) -> None:
+    def _cart_results_finished(self, results: tuple[cart_models.CartResult, ...]) -> None:
         counts = Counter(result.status for result in results)
         grouped: Counter[tuple[str, str, str]] = Counter(
             (result.store, result.code, result.reason)
@@ -519,7 +470,7 @@ class OpeningMixin:
                 store or "none",
                 _code or "none",
                 count,
-                cart_module.log_safe_text(reason),
+                log_safe_text(reason),
             )
             self.show_error(f"{store or 'no store'}: {reason}{suffix}")
         self.notify(
@@ -529,8 +480,7 @@ class OpeningMixin:
             timeout=6,
         )
 
-    @work(exclusive=True, group="cart", exit_on_error=False)
-    async def _run_cart_op(
+    async def _run_cart_op_work(
         self, operation, success, *, timeout: int = 4, progress: bool = False
     ) -> None:
         """One store-browser chore on a claimed browser: a toast when it works, the banner when not.
@@ -552,15 +502,18 @@ class OpeningMixin:
         finally:
             if progress:
                 self._hide_cart_progress()
-            self._cart_busy = False
+            self.cart_state._cart_busy = False
+            if self.cart_state._cart_handle is not None:
+                self.finish_job(self.cart_state._cart_handle)
+                self.cart_state._cart_handle = None
 
     def action_setup_store_logins(self) -> None:
         if not self._claim_cart():
             return
-        self._cart_cancel.clear()
+        self.cart_state._cart_cancel.clear()
         self._run_cart_op(
             lambda: self._cart_session.setup_logins(
-                ("bandcamp",), self._cart_cancel, self._cart_progress
+                ("bandcamp",), self.cart_state._cart_cancel, self._cart_progress
             ),
             lambda _: "Bandcamp session is ready",
             progress=True,
@@ -651,10 +604,10 @@ class OpeningMixin:
         count it was about is gone.
         """
 
-        if count <= OPEN_ALL_CONFIRM_THRESHOLD or self._pending_open == key:
-            self._pending_open = None
+        if count <= OPEN_ALL_CONFIRM_THRESHOLD or self.cart_state._pending_open == key:
+            self.cart_state._pending_open = None
             return True
-        self._pending_open = key
+        self.cart_state._pending_open = key
         self.notify(
             f"That opens {count} {what}. Press {key} again to confirm, "
             "or filter the list down first.",
@@ -663,28 +616,36 @@ class OpeningMixin:
         )
         return False
 
-    @work(thread=True, exclusive=True, group="open_all")
-    def open_visible_in_background(self, rows: list[Row], urls: list[str] | None = None) -> None:
+    def open_visible_in_background(self, rows: list[Row], urls: list[str] | None = None):
+        if not self._main_available():
+            return None
         if urls is None:
             urls = [self.record_to_open(row).link_url for row in rows]
-        cancel = Event()
-        self.call_from_thread(self.start_job, "Opening", len(rows), cancel=cancel)
+        handle = self.start_job("Opening", len(rows), cancel=Event())
+        return self._open_visible_worker(deepcopy(rows), list(urls), self.browser, handle)
 
-        def on_success(idx: int, url: str) -> None:
-            row = rows[idx]
-            if self.status_of(row) == NEW:
-                self.state.set(row.track.key, OPENED)
-                self.call_from_thread(self._paint_key, row.track.key)
-            self.call_from_thread(self.job_progress, 1)
+    def _open_visible_worker_work(self, rows, urls, browser, handle):
+        with self.worker_scope():
+            try:
+                def on_success(idx, url):
+                    key = rows[idx].track.key
+                    self.call_from_thread(self._paint_key, key)
+                    self.call_from_thread(self.job_progress, 1, handle=handle)
 
-        def handle_error(err_msg: str) -> None:
-            self.call_from_thread(self.show_error, err_msg)
-            self.call_from_thread(self.job_progress, failed=1)
+                def handle_error(message):
+                    self.call_from_thread(self.show_error, message)
+                    self.call_from_thread(self.job_progress, failed=1, handle=handle)
 
-        opened = browser_module.open_urls(
-            urls, self.browser, on_success=on_success, on_error=handle_error, cancel=cancel
-        )
-        self.call_from_thread(self._open_visible_finished, opened, len(rows))
+                opened = self.opening_service.open_many(
+                    urls, [row.track.key for row in rows], browser, on_success=on_success, on_error=handle_error, cancel=handle.cancel,
+                )
+                self.call_from_thread(self._open_visible_finished, opened, len(rows))
+            finally:
+                self.operations.finish(handle)
+                try:
+                    self.call_from_thread(self.update_status)
+                except RuntimeError:
+                    pass
 
     def _open_visible_finished(self, opened: int, total: int) -> None:
         if opened < total:
@@ -693,4 +654,27 @@ class OpeningMixin:
                 "(OS process / browser tab opening limit reached)."
             )
         self.notify(f"Opened {opened}/{total} links", timeout=3)
-        self.finish_job()
+
+    def open_link_in_background(self, url, row=None):
+        return self.run_worker(
+            partial(self.open_link_in_background_work, url, row.track.key if row else None, self.browser), thread=True, group='open_link',
+            description="open_link_in_background",
+        )
+
+    def _run_cart_batch(self, *args, **kwargs):
+        return self.run_worker(
+            partial(self._run_cart_batch_work, *args, **kwargs), exclusive=True, group='cart', exit_on_error=False,
+            description="_run_cart_batch",
+        )
+
+    def _run_cart_op(self, *args, **kwargs):
+        return self.run_worker(
+            partial(self._run_cart_op_work, *args, **kwargs), exclusive=True, group='cart', exit_on_error=False,
+            description="_run_cart_op",
+        )
+
+    def _open_visible_worker(self, *args, **kwargs):
+        return self.run_worker(
+            partial(self._open_visible_worker_work, *args, **kwargs), thread=True, group='open_all',
+            description="_open_visible_worker",
+        )

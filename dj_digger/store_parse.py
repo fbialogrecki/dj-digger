@@ -12,7 +12,8 @@ from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup
 
-from .browser_session import AutomationError
+from dj_digger.automation_errors import AutomationError
+
 from .cart_models import SecurityChallengeBlocked, StoreProduct
 from .store_urls import _beatport_track_id, is_store_url
 

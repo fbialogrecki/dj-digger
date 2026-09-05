@@ -24,7 +24,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
       - name: Ruff
-        run: uv run --extra dev ruff check .
+        run: uv run --frozen --extra dev ruff check .
 
   test:
     name: ${{ matrix.os }} / Python ${{ matrix.python-version }}
@@ -46,4 +46,4 @@ jobs:
       # in the default set: without it uv resolves an environment that cannot
       # run the suite at all.
       - name: Run tests
-        run: uv run --extra dev --python ${{ matrix.python-version }} pytest
+        run: uv run --frozen --extra dev --python ${{ matrix.python-version }} pytest

@@ -148,11 +148,7 @@ def refresh(record: CrateRecord, crate: Crate, *, partial: bool = False) -> Crat
     return record
 
 
-def remember(crate: Crate, *, partial: bool = False) -> CrateRecord:
-    stored = load(crate.source)
-    if stored is not None:
-        record = refresh(stored, crate, partial=partial)
-    else:
-        record = CrateRecord.from_crate(crate, partial=partial)
-    save(record)
-    return record
+def remember(crate: Crate, *, partial: bool = False, generation: str | None = None) -> CrateRecord | None:
+    incoming = CrateRecord.from_crate(crate, partial=partial).to_json()
+    raw = database().remember_collection(incoming, generation)
+    return CrateRecord.from_json(raw) if raw is not None else None

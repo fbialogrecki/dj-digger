@@ -4,25 +4,15 @@ A leaf module: nothing here touches a browser, so the adapter and the batch
 runner can both import it without a cycle.
 """
 
-import re
 from collections import defaultdict
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Literal
 
-from .browser_session import AutomationError
-from .links import redact_url
+from dj_digger.automation_errors import AutomationError
+
 from .models import Track
-
-LOG_URL = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
-
-
-LOG_SECRET = re.compile(
-    r"\b([a-z0-9_-]*(?:token|password|authorization|cookie|session)[a-z0-9_-]*)"
-    r"\s*[:=]\s*[^\s,;]+",
-    re.IGNORECASE,
-)
 
 
 class ProductUnavailable(RuntimeError):
@@ -164,13 +154,6 @@ def _display_text(value: str) -> str:
     return " ".join((value or "").split())
 
 
-def log_safe_text(value: object) -> str:
-    """Bound an external diagnostic and remove URL queries and obvious secrets."""
-
-    text = _display_text(str(value))
-    text = LOG_URL.sub(lambda match: redact_url(match.group(0)), text)
-    text = LOG_SECRET.sub(lambda match: f"{match.group(1)}=<redacted>", text)
-    return text[:1000]
 
 
 @dataclass(frozen=True)

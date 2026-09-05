@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from functools import wraps
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 from weakref import WeakSet
 
 from .paths import data_dir
@@ -32,7 +33,7 @@ def default_db_path() -> Path:
 def database(db_path: Path | None = None) -> "Database":
     """The shared Database for this file, built on first use."""
 
-    path = Path(db_path) if db_path else default_db_path()
+    path = (Path(db_path) if db_path else default_db_path()).expanduser().resolve()
     with _LOCK:
         instance = _INSTANCES.get(path)
         if instance is None or instance._closed:
@@ -63,6 +64,8 @@ class Database:
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="digger-db")
         self._owner = None
         self._closed = False
+        self._generations: dict[str, str] = {}
+        self._generation_lock = threading.Lock()
         try:
             self._executor.submit(self._open).result()
         except BaseException:
@@ -81,7 +84,7 @@ class Database:
             self._executor.shutdown()
 
     @contextmanager
-    def connection(self) -> Iterator[sqlite3.Connection]:
+    def connection(self, *, write: bool = False) -> Iterator[sqlite3.Connection]:
         if threading.get_ident() != self._owner:
             raise RuntimeError("SQLite connection belongs to its database thread")
         conn = self._conn
@@ -89,7 +92,7 @@ class Database:
         if conn.in_transaction:
             yield conn
             return
-        conn.execute("BEGIN IMMEDIATE")
+        conn.execute("BEGIN IMMEDIATE" if write else "BEGIN")
         try:
             yield conn
             conn.commit()
@@ -100,18 +103,24 @@ class Database:
     @owned
     def set_track_state(self, key: str, status: str, path: str | None) -> None:
         """Commit status and provenance together, including manual removal."""
-        with self.connection():
+        with self.connection(write=True):
             self.set_track_status(key, status)
             if path is None:
                 self.delete_track_local_file(key)
             else:
                 self.set_track_local_file(key, path)
 
+    @owned
+    def set_track_states(self, updates: list[tuple[str, str, str | None]]) -> None:
+        with self.connection(write=True):
+            for key, status, path in updates:
+                self.set_track_state(key, status, path)
+
     # --- Track State API ---
     @owned
     def set_track_status(self, key: str, status: str) -> None:
         updated = datetime.now(UTC).isoformat(timespec="seconds")
-        with self.connection() as conn:
+        with self.connection(write=True) as conn:
             if status == "new":
                 conn.execute("DELETE FROM track_states WHERE key = ?", (str(key),))
             else:
@@ -135,7 +144,7 @@ class Database:
 
     @owned
     def set_track_local_file(self, key: str, path: str) -> None:
-        with self.connection() as conn:
+        with self.connection(write=True) as conn:
             conn.execute(
                 "INSERT OR REPLACE INTO track_local_files (key, path) VALUES (?, ?)",
                 (str(key), path),
@@ -143,8 +152,97 @@ class Database:
 
     @owned
     def delete_track_local_file(self, key: str) -> None:
-        with self.connection() as conn:
+        with self.connection(write=True) as conn:
             conn.execute("DELETE FROM track_local_files WHERE key = ?", (str(key),))
+
+    def crate_generation(self, source: str) -> str:
+        with self._generation_lock:
+            return self._generations.setdefault(source, uuid4().hex)
+
+    def snapshot_generations(self):
+        with self._generation_lock:
+            return dict(self._generations)
+
+    @owned
+    def remember_collection(self, incoming: dict, generation: str | None = None):
+        """Refresh current collection fields, retaining unrelated local decisions."""
+        source = incoming["source"]
+        with self.connection(write=True):
+            if isinstance(generation, dict):
+                if generation.get(source) != self.snapshot_generations().get(source):
+                    return None
+            elif generation is not None and self.crate_generation(source) != generation:
+                return None
+            current = self.load_crate(source)
+            if current is None:
+                current = incoming
+            else:
+                def key(track):
+                    return str(track["id"]) if track.get("id") else track.get("permalink_url", "")
+                known = {key(track) for track in current.get("tracks", [])}
+                arrived = [key(track) for track in incoming["tracks"] if key(track) not in known]
+                if arrived:
+                    current["new_track_keys"] = arrived
+                current["tracks"] = incoming["tracks"]
+                current["title"] = incoming.get("title") or current["title"]
+                current["partial"] = incoming["partial"]
+                current["refreshed_at"] = datetime.now(UTC).isoformat(timespec="seconds")
+            self.save_crate(current)
+            return current
+
+    @owned
+    def set_removed_tracks(self, source: str, generation: str, keys: list[str], removed: bool):
+        with self.connection(write=True):
+            if self.crate_generation(source) != generation:
+                return None
+            record = self.load_crate(source)
+            if record is None:
+                return None
+            kept = list(record.get("removed_track_keys", []))
+            for key in keys:
+                if removed and key not in kept:
+                    kept.append(key)
+                elif not removed and key in kept:
+                    kept.remove(key)
+            record["removed_track_keys"] = kept
+            self.save_crate(record)
+            return record
+
+    @owned
+    def remember_beatport(self, source, generation, outcome):
+        from .library import CrateRecord
+        from .store_match import _remember_exact_beatport_links
+        with self.connection(write=True):
+            if self.crate_generation(source) != generation:
+                return None
+            raw = self.load_crate(source)
+            if raw is None:
+                return None
+            record = CrateRecord.from_json(raw)
+            if _remember_exact_beatport_links(record, outcome):
+                raw = record.to_json()
+                self.save_crate(raw)
+            return raw
+
+    @owned
+    def merge_track_metadata(self, source: str, generation: str, updates: dict) -> bool:
+        """Patch link/file fields of current tracks; never recreate a deleted crate."""
+        allowed = {"purchase_url", "purchase_title", "extra_links", "download_url", "local_path", "description"}
+        if any(set(fields) - allowed for fields in updates.values()):
+            raise ValueError("Not a track metadata patch")
+        with self.connection(write=True):
+            if self.crate_generation(source) != generation:
+                return False
+            record = self.load_crate(source)
+            if record is None:
+                return False
+            removed = set(record.get("removed_track_keys", []))
+            for track in record.get("tracks", []):
+                key = str(track["id"]) if track.get("id") else track.get("permalink_url", "")
+                if key in updates and key not in removed:
+                    track.update(updates[key])
+            self.save_crate(record)
+            return True
 
     # --- Crates API ---
     @owned
@@ -156,7 +254,7 @@ class Database:
         """
 
         updated = record.get("refreshed_at") or record.get("imported_at") or ""
-        with self.connection() as conn:
+        with self.connection(write=True) as conn:
             conn.execute(
                 """INSERT OR REPLACE INTO crates (source, title, updated, record_json)
                    VALUES (?, ?, ?, ?)""",
@@ -204,8 +302,10 @@ class Database:
 
     @owned
     def delete_crate(self, source: str) -> None:
-        with self.connection() as conn:
+        with self.connection(write=True) as conn:
             conn.execute("DELETE FROM crates WHERE source = ?", (source,))
+        with self._generation_lock:
+            self._generations[source] = uuid4().hex
 
     # --- Local File Cache API ---
     @owned
@@ -224,7 +324,7 @@ class Database:
         """
         if not rows:
             return
-        with self.connection() as conn:
+        with self.connection(write=True) as conn:
             conn.executemany(
                 """INSERT OR REPLACE INTO local_files (path, mtime, normalized_stem)
                    VALUES (?, ?, ?)""",
@@ -235,7 +335,7 @@ class Database:
     def delete_local_files(self, paths: list[str]) -> None:
         if not paths:
             return
-        with self.connection() as conn:
+        with self.connection(write=True) as conn:
             conn.executemany(
                 "DELETE FROM local_files WHERE path = ?",
                 ((path,) for path in paths),

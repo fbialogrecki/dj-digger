@@ -1,14 +1,14 @@
 """The modal screens: asking for a link, help, confirmation and settings."""
 
+import asyncio
 import re
-from collections.abc import Callable
 from dataclasses import replace
 from decimal import Decimal, InvalidOperation
+from functools import partial
 from threading import Event
 from typing import TypeVar
 
 from rich.text import Text
-from textual import work
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
@@ -26,10 +26,10 @@ from textual.widgets import (
 )
 from textual.widgets.option_list import Option
 
-from .. import auth as auth_module
-from .. import browser as browser_module
-from .. import cart as cart_module
+from dj_digger import cart_models
+
 from ..config import AppConfig, is_real_email
+from ..services.accounts import AccountService, GateProfileAnswer
 from .keymap import (
     CRATES,
     HELP_SCOPES,
@@ -232,7 +232,7 @@ class CartProgressScreen(_Modal[None]):
     def __init__(self, cancel) -> None:
         super().__init__()
         self.cancel_event = cancel
-        self.progress = cart_module.CartProgress("starting", 0, 0)
+        self.progress = cart_models.CartProgress("starting", 0, 0)
 
     def compose(self) -> ComposeResult:
         with Vertical(id="cart-progress", classes="modal-box"):
@@ -242,7 +242,7 @@ class CartProgressScreen(_Modal[None]):
                 yield Button("Cancel", id="cart-progress-cancel")
         yield Footer()
 
-    def update_progress(self, progress: cart_module.CartProgress) -> None:
+    def update_progress(self, progress: cart_models.CartProgress) -> None:
         self.progress = progress
         if not self.is_mounted:
             return
@@ -269,7 +269,7 @@ class CartProgressScreen(_Modal[None]):
         self.query_one("#cart-progress-detail", Static).update("Stopping safely…")
 
 
-class CartPlanScreen(_Modal[cart_module.CartPlan | None]):
+class CartPlanScreen(_Modal[cart_models.CartPlan | None]):
     """Select exact products and edit only prices the seller allows to vary."""
 
     CSS = """
@@ -289,7 +289,7 @@ class CartPlanScreen(_Modal[cart_module.CartPlan | None]):
         Binding("escape", "cancel", "Cancel"),
     ]
 
-    def __init__(self, plan: cart_module.CartPlan) -> None:
+    def __init__(self, plan: cart_models.CartPlan) -> None:
         super().__init__()
         self.plan = plan
         self.items = list(plan.items)
@@ -360,7 +360,7 @@ class CartPlanScreen(_Modal[cart_module.CartPlan | None]):
         self._apply_visible_price(quiet=True)
         self._select_price_row(event.cursor_row)
 
-    def _parse_price(self, item: cart_module.CartItem, raw: str) -> Decimal:
+    def _parse_price(self, item: cart_models.CartItem, raw: str) -> Decimal:
         try:
             value = Decimal(raw.strip().replace(",", "."))
         except (InvalidOperation, ValueError) as exc:
@@ -448,7 +448,7 @@ class CartPlanScreen(_Modal[cart_module.CartPlan | None]):
         deselected = [self.items[index] for index in range(len(self.items)) if index not in self.selected]
         results = list(self.plan.results)
         results.extend(
-            cart_module.CartResult(
+            cart_models.CartResult(
                 item.track_key,
                 item.track_label,
                 item.store,
@@ -459,7 +459,7 @@ class CartPlanScreen(_Modal[cart_module.CartPlan | None]):
             for item in deselected
         )
         self.dismiss(
-            cart_module.CartPlan(
+            cart_models.CartPlan(
                 tuple(self.items[index] for index in sorted(self.selected)),
                 tuple(results),
             )
@@ -485,7 +485,7 @@ class CartManualScreen(_Modal[bool]):
         Binding("enter", "done", "Done", priority=True),
     ]
 
-    def __init__(self, items: list[cart_module.CartItem]) -> None:
+    def __init__(self, items: list[cart_models.CartItem]) -> None:
         super().__init__()
         self.items = items
 
@@ -523,7 +523,7 @@ class CartResultScreen(_Modal[str | None]):
     """
     BINDINGS = [Binding("escape", "cancel", "Close")]
 
-    def __init__(self, outcome: cart_module.CartBatchOutcome) -> None:
+    def __init__(self, outcome: cart_models.CartBatchOutcome) -> None:
         super().__init__()
         self.outcome = outcome
 
@@ -593,7 +593,7 @@ class ContextMenuScreen(_Modal[str | None]):
         self.dismiss(str(event.option.id))
 
 
-class GateProfileScreen(_Modal[bool]):
+class GateProfileScreen(_Modal[GateProfileAnswer | None]):
     """Ask only for the identity a download gate is about to submit."""
 
     CSS = """
@@ -633,7 +633,7 @@ class GateProfileScreen(_Modal[bool]):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id != "gate-profile-save":
-            self.dismiss(False)
+            self.dismiss(None)
             return
         name = self.query_one("#gate-profile-name", Input).value.strip()
         email = self.query_one("#gate-profile-email", Input).value.strip()
@@ -645,10 +645,7 @@ class GateProfileScreen(_Modal[bool]):
                 "Enter a valid email address without spaces."
             )
             return
-        self.config.user_name = name
-        self.config.user_email = email
-        self.config.save()
-        self.dismiss(True)
+        self.dismiss(GateProfileAnswer(name, email))
 
 
 class SoundCloudAuthScreen(_Modal[str | None]):
@@ -662,9 +659,9 @@ class SoundCloudAuthScreen(_Modal[str | None]):
 
     BINDINGS = [Binding("escape", "cancel", "Cancel")]
 
-    def __init__(self, client_id: Callable[[], str]) -> None:
+    def __init__(self, accounts: AccountService) -> None:
         super().__init__()
-        self.client_id = client_id
+        self.accounts = accounts
         self.cancel = Event()
 
     def compose(self) -> ComposeResult:
@@ -697,15 +694,7 @@ class SoundCloudAuthScreen(_Modal[str | None]):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "soundcloud-browser":
             self._set_busy(True)
-            self._authenticate(
-                lambda: auth_module.login_with_chromium(
-                    self.client_id(),
-                    cancel=self.cancel,
-                    status=lambda message: self.app.call_from_thread(
-                        self._set_status, message
-                    ),
-                )
-            )
+            self._authenticate("browser", "")
         elif event.button.id == "soundcloud-paste":
             token = self.query_one("#soundcloud-token", Input).value.strip()
             if not token:
@@ -713,24 +702,28 @@ class SoundCloudAuthScreen(_Modal[str | None]):
             else:
                 self._set_busy(True)
                 self._set_status("Verifying the SoundCloud token…")
-                self._authenticate(
-                    lambda: auth_module.verify_and_save(token, self.client_id())
-                )
+                self._authenticate("token", token)
         else:
             self.action_cancel()
 
-    @work(thread=True, exclusive=True, group="soundcloud-auth")
-    def _authenticate(self, action: Callable[[], tuple[str, str, int | None]]) -> None:
-        try:
-            token, _username, _user_id = action()
-        except auth_module.SoundCloudAuthCancelled:
+    def _authenticate(self, method: str, token: str):
+        self.accounts.begin_authentication()
+        return self.app.run_worker(
+            partial(self._authenticate_work, method, token), thread=True,
+            exclusive=True, group="soundcloud-auth", description="SoundCloud authentication",
+        )
+
+    def _authenticate_work(self, method: str, token: str) -> None:
+        result = self.accounts.authenticate(
+            method, token, self.cancel,
+            lambda message: self.app.call_from_thread(self._set_status, message),
+        )
+        if self.cancel.is_set():
             return
-        except auth_module.SoundCloudAuthError as exc:
-            if not self.cancel.is_set():
-                self.app.call_from_thread(self._show_auth_error, str(exc))
-            return
-        if not self.cancel.is_set():
-            self.app.call_from_thread(self.dismiss, token)
+        if result.error:
+            self.app.call_from_thread(self._show_auth_error, result.error)
+        elif result.token:
+            self.app.call_from_thread(self.dismiss, result.token)
 
     def action_cancel(self) -> None:
         self.cancel.set()
@@ -786,9 +779,11 @@ class SettingsScreen(_Modal[None]):
 
     BINDINGS = [Binding("escape", "cancel", "Cancel")]
 
-    def __init__(self, config: AppConfig) -> None:
+    def __init__(self, config: AppConfig, accounts: AccountService, browser_choices) -> None:
         super().__init__()
         self.config = config
+        self.accounts = accounts
+        self.browser_choices = browser_choices
 
     def compose(self) -> ComposeResult:
         with Vertical(id="settings-dialog", classes="modal-box"):
@@ -831,10 +826,10 @@ class SettingsScreen(_Modal[None]):
             yield Label("Open links with:", classes="settings-label")
             # Only what this machine reported. The saved value names a program
             # that gets executed, so the list is the whitelist.
-            choices = browser_module.available_browsers()
+            choices, browser_choice = self.browser_choices
             yield Select(
                 [(label, value) for value, label in choices],
-                value=browser_module.resolve_choice(self.config.browser),
+                value=browser_choice,
                 allow_blank=False,
                 id="input-browser",
             )
@@ -848,7 +843,7 @@ class SettingsScreen(_Modal[None]):
                 yield Button("Cancel", id="btn-cancel-settings")
         yield Footer()
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
+    async def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id in {
             "btn-store-logins",
             "btn-store-check",
@@ -863,7 +858,7 @@ class SettingsScreen(_Modal[None]):
             action()
             return
         if event.button.id == "btn-save-settings":
-            self.config.browser = self.query_one("#input-browser", Select).value
+            values = {"browser": self.query_one("#input-browser", Select).value}
 
             # Blank fields keep their previous value.
             for widget_id, attribute in (
@@ -873,17 +868,17 @@ class SettingsScreen(_Modal[None]):
             ):
                 value = self.query_one(widget_id, Input).value.strip()
                 if value:
-                    setattr(self.config, attribute, value)
+                    values[attribute] = value
             comments_text = self.query_one("#input-comments", Input).value
             comments = [c.strip() for c in re.split(r"[|\n]", comments_text) if c.strip()]
             if comments:
-                self.config.custom_comments = comments
+                values["custom_comments"] = comments
             scan_dirs = [d.strip() for d in self.query_one("#input-scan-dirs", Input).value.split("|") if d.strip()]
             if scan_dirs:
-                self.config.scan_directories = scan_dirs
-            self.config.gate_social_actions = self.query_one("#input-gate-social", Checkbox).value
+                values["scan_directories"] = scan_dirs
+            values["gate_social_actions"] = self.query_one("#input-gate-social", Checkbox).value
             columns_before = list(self.config.columns)
-            self.config.columns = [
+            values["columns"] = [
                 name
                 for name, _header, _width in OPTIONAL_COLUMN_SPECS
                 if self.query_one(f"#column-{name}", Checkbox).value
@@ -891,15 +886,15 @@ class SettingsScreen(_Modal[None]):
 
             theme = self.query_one("#input-theme", Select).value
             if isinstance(theme, str) and theme:
-                self.config.theme = theme
+                values["theme"] = theme
 
-            self.config.first_run = False
-            self.config.save()
+            values["first_run"] = False
+            await asyncio.to_thread(self.accounts.save_preferences, values)
             self.app.notify("Settings saved!", timeout=4)
             self.dismiss()
             if isinstance(theme, str) and theme and self.app.theme != theme:
                 self.app.theme = theme
             if self.config.columns != columns_before:
-                self.app.rebuild_columns()
+                self.app.table_controller.rebuild_columns()
         else:
             self.dismiss()

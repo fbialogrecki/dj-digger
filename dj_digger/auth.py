@@ -19,8 +19,10 @@ from typing import Any
 
 import requests
 
+from dj_digger import automation_errors
+
 from . import browser_session
-from .browser import USER_AGENT
+from .http import USER_AGENT
 from .paths import config_dir
 from .private_json import write_private_json
 
@@ -284,7 +286,7 @@ def login_with_chromium(
             profile = soundcloud_browser_profile_path()
             try:
                 return run_browser(profile)
-            except browser_session.ChromiumMissing:
+            except automation_errors.ChromiumMissing:
                 status("Installing the matching Playwright Chromium build…")
                 browser_session.install_chromium(cancel)
                 return run_browser(profile)

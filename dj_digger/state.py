@@ -57,9 +57,10 @@ class TrackState:
             self._files = self.db.all_track_local_files()
 
     def get(self, key: str) -> str:
-        with self._lock:
-            self._load()
-            return self._statuses.get(str(key), NEW)
+        if self._statuses is None:
+            with self._lock:
+                self._load()
+        return self._statuses.get(str(key), NEW)
 
     def set(self, key: str, status: str) -> None:
         if status not in STATUSES:
@@ -72,6 +73,15 @@ class TrackState:
             self._remember(key, status)
             self._files.pop(str(key), None)
 
+    def mark_opened(self, key: str) -> None:
+        """A completed browser handoff never replaces a later got/skip decision."""
+        with self._lock:
+            self._load()
+            if self.get(key) == NEW:
+                self.db.set_track_state(key, OPENED, None)
+                self._remember(key, OPENED)
+                self._files.pop(str(key), None)
+
     def _remember(self, key: str, status: str) -> None:
         if status == NEW:
             self._statuses.pop(str(key), None)
@@ -79,9 +89,10 @@ class TrackState:
             self._statuses[str(key)] = status
 
     def local_file(self, key: str) -> str | None:
-        with self._lock:
-            self._load()
-            return self._files.get(str(key))
+        if self._files is None:
+            with self._lock:
+                self._load()
+        return self._files.get(str(key))
 
     def set_local_file(self, key: str, path: str | Path) -> None:
         with self._lock:
@@ -102,3 +113,22 @@ class TrackState:
             self._files.pop(str(key), None)
             self._remember(key, status)
             return True
+
+    def apply_file_matches(self, matches: list[tuple[str, str | None, bool, bool]]) -> None:
+        """Commit one scanner batch, then publish its status/provenance mirrors."""
+        with self._lock:
+            self._load()
+            updates = []
+            for key, path, confident, stale in matches:
+                if path and confident:
+                    updates.append((key, GOT, path))
+                elif stale and (key in self._files or self.get(key) == GOT):
+                    status = NEW if self.get(key) == GOT else self.get(key)
+                    updates.append((key, status, None))
+            self.db.set_track_states(updates)
+            for key, status, path in updates:
+                self._remember(key, status)
+                if path is None:
+                    self._files.pop(key, None)
+                else:
+                    self._files[key] = path

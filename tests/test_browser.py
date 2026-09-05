@@ -4,7 +4,7 @@ import subprocess
 
 import pytest
 
-from dj_digger import browser
+from dj_digger import browser, http
 
 
 class RecordingController:
@@ -44,12 +44,12 @@ NOT_WEB_LINKS = [
 
 @pytest.mark.parametrize("url", WEB_LINKS)
 def test_web_links_are_openable(url):
-    assert browser.is_openable(url) is True
+    assert http.is_openable(url) is True
 
 
 @pytest.mark.parametrize("url", NOT_WEB_LINKS)
 def test_anything_that_is_not_a_web_link_is_refused(url):
-    assert browser.is_openable(url) is False
+    assert http.is_openable(url) is False
 
 
 # Addresses inside the machine or inside its network. A dig reaches these by
@@ -70,19 +70,19 @@ INSIDE_THE_NETWORK = [
 
 @pytest.mark.parametrize("url", INSIDE_THE_NETWORK)
 def test_addresses_on_our_own_network_are_not_fetched(url):
-    assert browser.is_fetchable(url) is False
+    assert http.is_fetchable(url) is False
     # Still openable: pressing `o` on one is the user's business, and refusing
     # there would break anyone digging a playlist about their own homelab.
-    assert browser.is_openable(url) is True
+    assert http.is_openable(url) is True
 
 
 def test_embedded_credentials_are_not_fetched():
-    assert browser.is_fetchable("https://user:secret@hypeddit.com/track/x") is False
+    assert http.is_fetchable("https://user:secret@hypeddit.com/track/x") is False
 
 
 @pytest.mark.parametrize("url", ["https://bandcamp.com/a", "https://8.8.8.8/x"])
 def test_the_open_internet_is_still_fetchable(url):
-    assert browser.is_fetchable(url) is True
+    assert http.is_fetchable(url) is True
 
 
 def test_open_url_refuses_without_even_resolving_a_browser(monkeypatch):
@@ -226,7 +226,7 @@ def test_powershell_never_receives_the_url_as_part_of_its_script(monkeypatch):
     assert seen["env"][browser.URL_ENV_VAR] == hostile
     # And the link is still a legitimate one to open - the defence belongs here,
     # not in is_openable, which is right to accept it.
-    assert browser.is_openable(hostile)
+    assert http.is_openable(hostile)
 
 
 def test_a_windows_choice_still_refuses_a_link_that_is_not_a_web_address(monkeypatch):

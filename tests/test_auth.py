@@ -6,7 +6,7 @@ from threading import Event
 import pytest
 from conftest import FakeResponse
 
-from dj_digger import auth, browser_session, private_json
+from dj_digger import auth, automation_errors, browser_session, private_json
 
 
 def _browser(monkeypatch, context):
@@ -256,7 +256,7 @@ def test_browser_login_installs_missing_playwright_chromium_once(monkeypatch):
     def browser_context(_profile):
         attempts.append(True)
         if len(attempts) == 1:
-            raise browser_session.ChromiumMissing("missing")
+            raise automation_errors.ChromiumMissing("missing")
         yield Context()
 
     monkeypatch.setattr(browser_session, "sync_browser_context", browser_context)

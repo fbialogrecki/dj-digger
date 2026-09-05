@@ -69,6 +69,10 @@ class TrackTable(DataTable):
     def on_resize(self, event: events.Resize) -> None:
         self.fit_flexible_column()
 
+    def watch_show_vertical_scrollbar(self, visible: bool) -> None:
+        if self.is_mounted:
+            self.call_after_refresh(self.fit_flexible_column)
+
     def fit_flexible_column(self) -> None:
         if self.flexible_column is None or self.flexible_column not in self.columns:
             return
@@ -84,8 +88,13 @@ class TrackTable(DataTable):
         # terminal with the last digit of Time behind the edge.
         available = self.scrollable_content_region.width or self.size.width
         width = available - spent - 2 * self.cell_padding
-        column.width = max(MIN_TITLE_WIDTH, width)
-        self.refresh(layout=True)
+        width = max(MIN_TITLE_WIDTH, width)
+        if column.width != width:
+            column.width = width
+            # Textual caches virtual_size separately from explicit column widths.
+            # Recompute only dimensions; existing rows and cursor stay intact.
+            self._update_dimensions(())
+            self.refresh(layout=True)
 
     class ContextMenuRequested(Message):
         pass
@@ -145,7 +154,7 @@ class LegendText(Static):
     def on_click(self, event: events.Click) -> None:
         app = self.app
         x = event.x
-        for start_x, end_x, store_idx in app._badge_click_regions:
+        for start_x, end_x, store_idx in app.playlist_state._badge_click_regions:
             if start_x <= x < end_x:
                 app.action_filter_index(store_idx)
                 break
@@ -187,7 +196,7 @@ class StatusBar(ScrollableContainer, can_focus=False, can_focus_children=False):
         yield Static(id="status-job")
 
     def on_resize(self, event: events.Resize) -> None:
-        self.app.update_status()
+        self.app.table_controller.update_status()
 
     # Textual scrolls a container sideways only with shift or ctrl held; a
     # plain wheel scrolls vertically, and a one-line bar has no vertical to

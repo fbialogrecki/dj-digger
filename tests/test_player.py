@@ -5,6 +5,7 @@ import pytest
 
 from dj_digger import player
 from dj_digger.models import Track
+from dj_digger.services import playback
 from dj_digger.soundcloud import SoundCloudError
 from dj_digger.tui import audio
 
@@ -53,20 +54,20 @@ def playable_payload(**overrides):
 
 
 def test_a_playable_track_has_no_complaint():
-    assert player.unplayable_reason(playable_payload()) is None
+    assert playback.unplayable_reason(playable_payload()) is None
 
 
 def test_a_snipped_track_is_reported():
-    assert "snippet" in player.unplayable_reason(playable_payload(policy="SNIP"))
+    assert "snippet" in playback.unplayable_reason(playable_payload(policy="SNIP"))
 
 
 def test_an_unstreamable_track_is_reported():
-    assert "not streamable" in player.unplayable_reason(playable_payload(streamable=False))
+    assert "not streamable" in playback.unplayable_reason(playable_payload(streamable=False))
 
 
 def test_hls_only_is_reported():
     payload = playable_payload(media={"transcodings": [HLS]})
-    assert "plain MP3" in player.unplayable_reason(payload)
+    assert "plain MP3" in playback.unplayable_reason(payload)
 
 
 # Resolving the stream
@@ -74,7 +75,7 @@ def test_hls_only_is_reported():
 
 def test_resolve_picks_progressive_and_passes_the_authorisation():
     client = FakeClient()
-    stream = player.resolve_stream(client, 1)
+    stream = playback.resolve_stream(client, 1)
 
     assert stream.url == "https://cdn/a.mp3"
     assert stream.waveform_url == "https://wave.sndcdn.com/x.json"
@@ -87,22 +88,22 @@ def test_resolve_reads_the_duration_off_the_payload():
     """Nothing is written to disk, so duration cannot be measured from a file."""
 
     client = FakeClient(playable_payload(full_duration=273000, duration=270000))
-    assert player.resolve_stream(client, 1).duration == pytest.approx(273.0)
+    assert playback.resolve_stream(client, 1).duration == pytest.approx(273.0)
 
 
 def test_duration_falls_back_when_there_is_no_full_duration():
     client = FakeClient(playable_payload(duration=200500))
-    assert player.resolve_stream(client, 1).duration == pytest.approx(200.5)
+    assert playback.resolve_stream(client, 1).duration == pytest.approx(200.5)
 
 
 def test_resolve_refuses_a_snipped_track():
     with pytest.raises(SoundCloudError, match="snippet"):
-        player.resolve_stream(FakeClient(playable_payload(policy="SNIP")), 1)
+        playback.resolve_stream(FakeClient(playable_payload(policy="SNIP")), 1)
 
 
 def test_resolve_complains_when_no_url_comes_back():
     with pytest.raises(SoundCloudError, match="stream URL"):
-        player.resolve_stream(FakeClient(authorized={}), 1)
+        playback.resolve_stream(FakeClient(authorized={}), 1)
 
 
 # Waveform
@@ -312,7 +313,7 @@ def test_column_levels_of_nothing():
 
 
 def test_fetch_waveform_of_nothing_is_empty():
-    assert player.fetch_waveform(FakeClient(), "") == []
+    assert playback.fetch_waveform(FakeClient(), "") == []
 
 
 # Clock
@@ -375,7 +376,7 @@ def test_a_missing_miniaudio_is_reported_not_raised_raw(monkeypatch):
     monkeypatch.setattr(player, "_import_miniaudio", no_miniaudio)
     with pytest.raises(player.PlaybackUnavailable, match="miniaudio"):
         player.Player().load(
-            Track(title="t", permalink_url="u"), player.Stream(url="https://cdn/x.mp3"), None
+            Track(title="t", permalink_url="u"), playback.Stream(url="https://cdn/x.mp3"), None
         )
 
 
@@ -442,7 +443,7 @@ def loaded_player(monkeypatch, chunks=None):
     monkeypatch.setattr(subject, "_open_stream", lambda seek_frame: fake_inner())
     subject._loaded = player.Loaded(
         track=Track(title="t", permalink_url="u"),
-        stream=player.Stream(url="https://cdn/x.mp3", duration=300.0),
+        stream=playback.Stream(url="https://cdn/x.mp3", duration=300.0),
     )
     subject._miniaudio = object()
     return subject, device
