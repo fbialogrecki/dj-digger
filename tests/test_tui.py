@@ -3078,12 +3078,11 @@ def test_gate_profile_wizard_retries_a_single_download_at_most_once(
                 app.screen.query_one("#gate-profile-name", Input).value = "Filip"
                 app.screen.query_one("#gate-profile-email", Input).value = "filip@example.com"
                 await pilot.click("#gate-profile-save")
-                for _ in range(20):
-                    await pilot.pause()
-                    if state.get(row.track.key) == GOT:
-                        break
+                await asyncio.wait_for(worker.wait(), timeout=30)
+                await pilot.pause()
             else:
                 await pilot.click("#gate-profile-cancel")
+                await asyncio.wait_for(worker.wait(), timeout=30)
                 await pilot.pause()
 
     run(scenario)
@@ -3841,6 +3840,7 @@ def test_download_results_do_not_move_the_viewport(state, monkeypatch, tmp_path,
 
     async def scenario():
         async with app.run_test(size=(100, 24)) as pilot:
+            await settle(app, pilot)  # exclude the initial scan/layout from completion assertions
             table = app.query_one("#tracks", TrackTable)
             table.move_cursor(row=30)
             await scroll_table(pilot, table, 20)
