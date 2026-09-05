@@ -472,7 +472,7 @@ def test_the_bottom_bar_is_the_legend_with_the_view_state_on_the_right(records, 
 
     async def scenario():
         async with app.run_test(size=(160, 24)) as pilot:
-            await pilot.pause()
+            await settle(app, pilot)
             legend = str(app.query_one("#status-legend", Static).content)
             job = str(app.query_one("#status-job", Static).content)
             assert "0 all" in legend and all(store in legend for store in app.playlist_state.present)
@@ -3197,10 +3197,9 @@ def test_batch_finishes_independent_tracks_before_prompting_and_retries_only_pen
         async with app.run_test() as pilot:
             items = [(row, app.opening_controller._find_gate_url(row)) for row in app.playlist_state.visible_rows]
             worker = app.download_controller.batch_download_in_background(items)
-            for _ in range(50):
-                await pilot.pause()
-                if isinstance(app.screen, GateProfileScreen):
-                    break
+            async with asyncio.timeout(5):
+                while not isinstance(app.screen, GateProfileScreen) or not app.screen.is_mounted:
+                    await pilot.pause(.01)
             assert app.job is not None, "The operation owns its dialog"
             assert not worker.is_finished
             await pilot.pause()
@@ -3210,11 +3209,10 @@ def test_batch_finishes_independent_tracks_before_prompting_and_retries_only_pen
 
             app.screen.query_one("#gate-profile-name", Input).value = "Filip"
             app.screen.query_one("#gate-profile-email", Input).value = "filip@example.com"
-            await pilot.click("#gate-profile-save")
-            for _ in range(20):
-                await pilot.pause()
-                if state.get(records[0].track.key) == GOT:
-                    break
+            app.screen.query_one("#gate-profile-save", Button).press()
+            async with asyncio.timeout(5):
+                await worker.wait()
+            assert state.get(records[0].track.key) == GOT
 
     run(scenario)
     assert client.calls == {91: 2, 92: 1}
@@ -4149,7 +4147,8 @@ def test_the_transport_row_comes_and_goes_with_the_bar_and_closes_it(state, monk
             assert controls.display
             assert str(app.query_one("#player-play", Button).label) == PAUSE_GLYPH
 
-            await pilot.click("#player-close")
+            await pilot.wait_for_scheduled_animations()
+            assert await pilot.click("#player-close")
             await pilot.pause()
             assert app.player.loaded is None
             assert not app.player.playing
