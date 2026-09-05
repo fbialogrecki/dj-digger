@@ -1895,6 +1895,7 @@ def test_selecting_a_crate_switches_to_it(state):
             listing.index = 1
             listing.action_select_cursor()
             await pilot.pause()
+            await settle(app, pilot)
 
             assert app.playlist_state.crate.title == "Two"
             assert app.query_one("#tracks", DataTable).row_count == 4
