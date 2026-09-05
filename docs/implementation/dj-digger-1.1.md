@@ -14,7 +14,7 @@ Old PyPI package gets an informational 1.0.1 release, NOT a metapackage.
 - [x] Baseline: 838 offline tests passed; public API profile/pagination checked live
 - [ ] Private owner API completeness and PyPI publisher access (no authenticated session)
 - [x] Identity, v2 migration, single-instance guard, media repository
-- [x] Local explorer/playlists/playback (integration tests underway)
+- [x] Local explorer/playlists/playback (integration and duplicate-occurrence tests pass)
 - [x] Media inspection, deck rules, verified copy/replacement/recovery (failure-boundary tests pass)
 - [x] Bounded analysis and manual overrides (invariant tests; corpus evaluation still needed)
 - [x] Profile playlist import (fixture tests cover identity/session/partial responses)
@@ -32,9 +32,9 @@ analysis accuracy requires a licensed, human-labelled evaluation corpus.
 ## Validation recorded during implementation
 
 - Original main baseline: 838 offline tests passed.
-- Feature suite before final UI/report refinements: 866 passed, 81 live tests deselected.
-- Legacy informational branch baseline: 787 passed, 81 live tests deselected;
-  subsequent read-only downgrade refusal has an additional regression test.
+- Feature suite before the final playback/UI refinements: 868 passed, 81 live tests deselected.
+- Legacy informational branch: 788 passed, 81 live tests deselected, including
+  read-only downgrade refusal.
 - Real FFmpeg: mixed MP3/WAV/FLAC, canonical 24-bit RIFF, copy hashes,
   every replacement commit boundary, changed sources, links, exclusive rename,
   same-filesystem rename identity, partial copy resume and metadata overrides.
@@ -43,5 +43,7 @@ analysis accuracy requires a licensed, human-labelled evaluation corpus.
 - Actual pip, pipx and uv-tool old-uninstall/new-install smoke checks passed on Linux,
   with temporary data sentinels preserved. No user's installed app or library was modified.
 - Public SoundCloud owner resolution and a paginated playlist response were checked live.
+- Windows CI exposed writable-handle fsync and explicit mmap cleanup requirements;
+  both fixed. A UI test now dispatches its button event before waiting for workers.
 - No private-session or physical-deck test has been performed. Human-labelled
   corpus requested; `scripts/evaluate_analysis.py` is ready to evaluate it.

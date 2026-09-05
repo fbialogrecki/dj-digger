@@ -257,6 +257,8 @@ class LocalController:
         await self.refresh_metadata()
 
     async def refresh_metadata(self):
+        # A folder probe begun before a manual correction must not repaint it.
+        self.generation += 1
         view = self.playlist_state._view_generation
         for row in list(self.playlist_state.rows):
             if row.track.local_id:

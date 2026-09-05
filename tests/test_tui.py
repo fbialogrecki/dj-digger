@@ -5150,6 +5150,7 @@ def test_local_explorer_and_export_dialog_defaults(state, tmp_path, monkeypatch)
             await pilot.pause()
             app.screen.query_one('#bpm', Input).value = '128'
             app.screen.query_one('#save', Button).press()
+            await pilot.pause()  # dispatch Button.Pressed before waiting for its worker
             await app.workers.wait_for_complete()
             await pilot.pause()
             assert app.playlist_state.rows[0].track.bpm == 128

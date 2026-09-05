@@ -5,8 +5,8 @@
 - Product version verified: 1.1.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-09-05
-- Document lines: <!-- SPEC TOTAL LINES -->1280<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1280<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1283<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1283<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -101,13 +101,13 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 13 | Failure behavior and current limitations | 1125–1185 |
 | 13.1 | ↳ Error isolation and reporting | 1127–1146 |
 | 13.2 | ↳ Confirmed limitations | 1147–1185 |
-| 14 | Verification, CI, and release | 1186–1251 |
+| 14 | Verification, CI, and release | 1186–1254 |
 | 14.1 | ↳ Offline and live test suites | 1188–1219 |
-| 14.2 | ↳ Continuous integration and publishing | 1220–1236 |
-| 14.3 | ↳ Specification-map verification | 1237–1251 |
-| 15 | Evidence and operational references | 1252–1280 |
-| 15.1 | ↳ Primary implementation evidence | 1254–1270 |
-| 15.2 | ↳ User and historical documentation | 1271–1280 |
+| 14.2 | ↳ Continuous integration and publishing | 1220–1239 |
+| 14.3 | ↳ Specification-map verification | 1240–1254 |
+| 15 | Evidence and operational references | 1255–1283 |
+| 15.1 | ↳ Primary implementation evidence | 1257–1273 |
+| 15.2 | ↳ User and historical documentation | 1274–1283 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -1222,7 +1222,10 @@ one name-your-price track in a throwaway profile and never approaches checkout.
 `.github/workflows/ci.yml` runs on push, pull request, and manual dispatch. It
 checks the generated specification map, runs Ruff, and runs the default offline
 pytest suite across Ubuntu, macOS, and Windows with Python 3.12, 3.13, and 3.14,
-using `uv run --frozen --extra dev` with the committed lockfile.
+using `uv run --frozen --extra dev --extra analyze` with the committed lockfile.
+Each job builds and checks an isolated bare-wheel installation. Python 3.14 jobs
+on each OS additionally build the pinned legacy informational package and verify
+pip, pipx and uv uninstall/reinstall migration with temporary data sentinels.
 
 `.github/workflows/live.yml` runs the `live` marker weekly on Monday at 06:00 UTC
 and by manual dispatch. It is an external-contract monitor rather than a release
