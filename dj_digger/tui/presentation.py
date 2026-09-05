@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from textual.timer import Timer
 from textual.widgets.data_table import ColumnKey
 
-from ..library import CrateHeader, CrateRecord
+from ..crate_models import CrateHeader, CrateRecord
 from ..services.operations import OperationHandle
 from ..services.playback import Prepared
 from .rows import Row
@@ -75,6 +75,7 @@ class CartState:
 
 @dataclass
 class SidebarState:
+    _load_generation: int = 0
     crates: list[CrateHeader] = field(default_factory=list)
 
 

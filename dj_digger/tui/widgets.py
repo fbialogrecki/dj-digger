@@ -11,7 +11,7 @@ from textual.widgets import Button, DataTable, Footer, Input, Label, ListItem, S
 from textual.widgets._footer import FooterKey
 from textual.widgets.data_table import ColumnKey
 
-from ..library import CrateHeader
+from ..crate_models import CrateHeader
 from .keymap import FOOTER_OPTIONAL, MIN_TITLE_WIDTH
 
 

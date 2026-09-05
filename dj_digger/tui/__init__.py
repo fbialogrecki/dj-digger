@@ -21,7 +21,7 @@ import time
 from collections.abc import Sequence
 from pathlib import Path
 
-from ..library import CrateRecord
+from ..crate_models import CrateRecord
 from ..models import LinkRecord
 from ..services import collection as dig_module
 from ..services.runtime import ApplicationServices

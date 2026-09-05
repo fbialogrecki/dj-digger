@@ -1,3 +1,4 @@
+
 import asyncio
 import io
 import json
@@ -19,6 +20,7 @@ from dj_digger import (
     automation_errors,
     beatport_playlist,
     cart_models,
+    crate_models,
     gate_models,
     library,
     links,
@@ -1101,7 +1103,7 @@ def test_exact_beatport_result_replaces_the_saved_release_link():
         permalink_url="https://soundcloud.com/x/signal",
         purchase_url="https://www.beatport.com/release/signal/12",
     )
-    record = library.CrateRecord("source", "Playlist", [track])
+    record = crate_models.CrateRecord("source", "Playlist", [track])
     exact = "https://www.beatport.com/track/signal/34"
     outcome = cart_models.CartBatchOutcome(
         (
@@ -1124,7 +1126,7 @@ def test_exact_beatport_result_replaces_the_saved_release_link():
         permalink_url="https://soundcloud.com/x/keep",
         purchase_url="https://pro.beatport.com/release/keep-on-trying-part-2/1491414",
     )
-    legacy_record = library.CrateRecord("source", "Playlist", [legacy])
+    legacy_record = crate_models.CrateRecord("source", "Playlist", [legacy])
     assert store_match._remember_exact_beatport_links(
         legacy_record, cart_models.CartBatchOutcome(())
     )
@@ -1828,7 +1830,7 @@ def test_a_crate_with_no_tracks_is_treated_as_a_failure(state, monkeypatch):
 
 
 def saved_crate(count=3, *, source="https://soundcloud.com/a/sets/saved", title="Saved crate"):
-    record = library.CrateRecord.from_crate(
+    record = crate_models.CrateRecord.from_crate(
         Crate(
             source=source,
             title=title,
@@ -1903,8 +1905,8 @@ def test_selecting_a_crate_loads_it_on_demand(state, monkeypatch):
     loads: list[str] = []
     real_load = library.load
     monkeypatch.setattr(
-        "dj_digger.tui.crates.library_module.load",
-        lambda source: (loads.append(source), real_load(source))[1],
+        "dj_digger.services.library.LibraryService.load",
+        lambda self, source: (loads.append(source), real_load(source))[1],
     )
     app = make_app([], state)
 
@@ -3294,7 +3296,7 @@ def test_batch_starts_downloads_before_every_hypeddit_preflight_finishes(
             )
         )
     app = make_app(records, state)
-    app.playlist_state.crate = library.CrateRecord(
+    app.playlist_state.crate = crate_models.CrateRecord(
         source="https://soundcloud.com/a/sets/batch",
         title="Batch",
         tracks=[record.track for record in records],
@@ -3630,7 +3632,7 @@ def test_saved_hypeddit_hub_is_normalised_before_batch_and_never_opens_chromium(
         description=f"Download: {wrapper}",
     )
     app = make_app(links.categorise(track), state)
-    app.playlist_state.crate = library.CrateRecord(source="saved", title="Saved", tracks=[track])
+    app.playlist_state.crate = crate_models.CrateRecord(source="saved", title="Saved", tracks=[track])
 
     class Client:
         def download_track(self, *_args, **_kwargs):
@@ -4955,5 +4957,150 @@ def test_loaded_a_keyboard_intent_invalidates_pending_b(state, monkeypatch):
             controller._audio_ready(b, a_stream(), [], source, asked[-1][1])
             assert source.closed
             assert app.player.loaded.track.key == a.key
+
+    run(scenario)
+
+
+@pytest.mark.parametrize('count', [1, 3])
+def test_rapid_mark_keys_keep_toggle_and_advance_order_while_database_waits(state, monkeypatch, count):
+    app = make_app(synthetic_records(count), state)
+    entered, release = Event(), Event()
+    original = state.db.set_track_state
+
+    def blocked(*args):
+        entered.set()
+        assert release.wait(3)
+        return original(*args)
+
+    monkeypatch.setattr(state.db, 'set_track_state', blocked)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press('g')
+            assert await asyncio.to_thread(entered.wait, 2)
+            try:
+                await pilot.press('g')
+            finally:
+                release.set()
+            await app.workers.wait_for_complete()
+            keys = [row.track.key for row in app.playlist_state.rows]
+            if count == 1:
+                assert state.get(keys[0]) == 'new'
+            else:
+                assert [state.get(key) for key in keys] == [GOT, GOT, 'new']
+                assert app.query_one('#tracks', TrackTable).cursor_row == 2
+
+    run(scenario)
+
+
+def test_cancelling_profile_write_holds_download_slot_and_does_not_open_late_auth(state, monkeypatch):
+    records = synthetic_records(2)
+    for record in records:
+        record.track.downloadable = record.track.has_downloads_left = True
+    app = make_app(records, state)
+    entered, release = Event(), Event()
+    calls = []
+
+    class Client:
+        def download_track(self, track, *args, **kwargs):
+            calls.append(track.key)
+            if track.key == records[0].track.key:
+                raise gate_models.GateProfileRequired('profile')
+            raise soundcloud.SoundCloudLoginRequired('login')
+
+        def close(self):
+            pass
+
+    def save(answer):
+        entered.set()
+        assert release.wait(3)
+
+    app._client = Client()
+    monkeypatch.setattr(app.services.accounts, 'save_profile', save)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            worker = app.download_controller.batch_download_in_background([(row, None) for row in app.playlist_state.rows])
+            try:
+                for _ in range(50):
+                    await pilot.pause()
+                    if isinstance(app.screen, GateProfileScreen):
+                        break
+                app.screen.query_one('#gate-profile-name', Input).value = 'Test'
+                app.screen.query_one('#gate-profile-email', Input).value = 'test@example.com'
+                await pilot.click('#gate-profile-save')
+                assert await asyncio.to_thread(entered.wait, 2)
+                handle = app.services.operations.active()
+                await pilot.press('ctrl+x')
+                await asyncio.sleep(.1)
+                assert handle.state == 'cancelling'
+                assert app.services.operations.active() is handle
+                assert not worker.is_finished
+            finally:
+                release.set()
+            await worker.wait()
+            await pilot.pause()
+            assert app.services.operations.active() is None
+            assert not isinstance(app.screen, SoundCloudAuthScreen)
+            assert len(calls) == 2
+
+    run(scenario)
+
+
+def test_late_sidebar_read_cannot_replace_a_more_recent_selection(state, monkeypatch):
+    first = saved_crate(1, source='https://soundcloud.com/a/sets/one', title='One')
+    second = saved_crate(1, source='https://soundcloud.com/a/sets/two', title='Two')
+    app = make_app(synthetic_records(1), state)
+    entered, release = Event(), Event()
+    original = app.services.library.load
+
+    def load(source):
+        record = original(source)
+        if source == first.source:
+            entered.set()
+            assert release.wait(3)
+        return record
+
+    monkeypatch.setattr(app.services.library, 'load', load)
+
+    async def scenario():
+        async with app.run_test():
+            slow = app.run_worker(app.crate_controller.open_crate(crate_models.CrateHeader(first.source, first.title, '')))
+            try:
+                assert await asyncio.to_thread(entered.wait, 2)
+                await app.crate_controller.open_crate(crate_models.CrateHeader(second.source, second.title, ''))
+                assert app.playlist_state.crate.source == second.source
+            finally:
+                release.set()
+            await slow.wait()
+            assert app.playlist_state.crate.source == second.source
+
+    run(scenario)
+
+
+def test_queued_mark_is_discarded_when_the_playlist_changes(state, monkeypatch):
+    app = make_app(synthetic_records(1), state)
+    entered, release = Event(), Event()
+    original = state.db.set_track_state
+
+    def blocked(*args):
+        entered.set()
+        assert release.wait(3)
+        return original(*args)
+
+    monkeypatch.setattr(state.db, 'set_track_state', blocked)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.press('g')
+            assert await asyncio.to_thread(entered.wait, 2)
+            try:
+                await pilot.press('g')
+                new_track = Track(id=500, title='Another playlist', permalink_url='https://soundcloud.com/a/500')
+                app.crate_controller.load_records(links.categorise(new_track))
+            finally:
+                release.set()
+            await app.workers.wait_for_complete()
+            assert state.get('500') == 'new'
 
     run(scenario)

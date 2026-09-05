@@ -46,7 +46,8 @@ explicit callbacks; none receives the app or a universal app facade.
   writes run in `AccountService`; worker descriptions exclude token arguments.
 
 The pinned Textual 8.x integration uses private hooks for incremental table size
-updates and safe fatal-error presentation. Existing viewport, keymap and crash
+updates and safe fatal-error presentation. Status actions serialize their
+semantics in async workers, keeping keyboard handling free while SQLite waits. Existing viewport, keymap and crash
 regressions cover these dependencies.
 
 ## Persistent effects and identity
@@ -56,6 +57,10 @@ settings. Current consent and credentials are read at their request/action
 boundary. A view generation rejects late presentation updates. A separate
 session generation changes when a playlist is deleted, so a completed old task
 cannot write into a new playlist with the same source.
+
+`crate_models.py` keeps crate values and serialization independent of SQLite.
+`LibraryService` owns listing, loading, reset/deletion and reconciliation. Sidebar
+reads use request/view generations so an old load cannot replace a newer choice.
 
 SQLite has one owning thread and explicit short transactions. Repositories read
 current records when applying metadata, removal and refresh changes; no network,
@@ -82,8 +87,11 @@ and approved prerequisite retries. It receives copied tracks, a `DownloadRequest
 a handle, current client/configuration access and narrow event/answer callbacks.
 The pool belongs to the workflow and closes only when all submitted work settles.
 `DownloadEvent` uses an operation ID and track key; the controller coalesces byte
-progress and renders terminal outcomes individually. An account/profile wizard
-can resume only the pending items it approved.
+progress and renders terminal outcomes individually. Downloaded, unrecorded,
+failed, cancelled and waiting outcomes remain distinct; unrecorded results carry
+the published path. An account/profile wizard
+can resume only the pending items it approved. Cancellation also waits for an
+in-flight profile save; old dialogs retain their originating cancellation event.
 
 ## Integration boundaries
 

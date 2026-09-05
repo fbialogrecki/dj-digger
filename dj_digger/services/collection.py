@@ -17,7 +17,7 @@ from pathlib import Path
 from dj_digger.gates import hubs as gate_hubs
 
 from .. import html_fallback, links, soundcloud
-from ..library import CrateRecord
+from ..crate_models import CrateRecord
 from ..models import Cancelled, Crate, Track, check_cancelled
 
 # stage, done, total (total is None while it is still unknown)

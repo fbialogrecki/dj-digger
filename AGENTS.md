@@ -26,7 +26,7 @@ terminal crate-digging CLI/TUI.
 
 ## Repository map
 
-- `dj_digger/cli.py`, `services/`, `models.py`, `links.py`: entry, collection
+- `dj_digger/cli.py`, `services/`, `models.py`, `crate_models.py`, `links.py`: entry, collection
   orchestration, shared objects, classification, and exports.
 - `dj_digger/soundcloud.py`, `html_fallback.py`: SoundCloud API v2 and saved-page
   inputs.

@@ -7,10 +7,9 @@ from collections.abc import Sequence
 
 from textual.widgets import Button, DataTable, Input, ListView
 
-from .. import library as library_module
 from .. import links as links_module
-from ..library import CrateHeader, CrateRecord
-from ..models import NEW, LinkRecord
+from ..crate_models import CrateHeader, CrateRecord
+from ..models import LinkRecord
 from .rows import Row
 from .screens import ConfirmScreen
 from .widgets import CrateButton, CrateItem
@@ -36,9 +35,11 @@ class CrateController:
         state,
         library_service,
         io,
+        run_worker,
         set_subtitle,
     ):
         self.io = io
+        self.run_worker = run_worker
         self.set_subtitle = set_subtitle
         self._start_dig = _start_dig
         self.action_dig_link = action_dig_link
@@ -74,7 +75,7 @@ class CrateController:
     async def reload_sidebar(self) -> None:
         # clear() only queues the removal, so appending without awaiting it
         # leaves the old items in place and duplicates the list.
-        self.sidebar_state.crates = await self.io(library_module.list_crate_headers)
+        self.sidebar_state.crates = await self.io(self.library_service.headers)
         listing = self.query_one("#crates", ListView)
         await listing.clear()
         for header in self.sidebar_state.crates:
@@ -100,7 +101,15 @@ class CrateController:
     async def open_crate(self, header: CrateHeader) -> None:
         """Load the full record behind a sidebar entry and show it."""
 
-        record = await self.io(library_module.load, header.source)
+        self.sidebar_state._load_generation += 1
+        request = self.sidebar_state._load_generation
+        view = self.playlist_state._view_generation
+        generation = self.state.db.crate_generation(header.source)
+        record = await self.io(self.library_service.load, header.source)
+        if (request != self.sidebar_state._load_generation
+                or view != self.playlist_state._view_generation
+                or generation != self.state.db.crate_generation(header.source)):
+            return
         if record is None:
             self.notify(f"'{header.title}' is gone from the library", severity="warning")
             self.call_next(self.reload_sidebar)
@@ -142,7 +151,7 @@ class CrateController:
             return
         self.push_screen(
             ConfirmScreen(f"Delete the playlist '{header.title}'? This cannot be undone."),
-            lambda confirmed: self._crate_delete_answered(header, bool(confirmed)),
+            lambda confirmed: self.run_worker(self._crate_delete_answered(header, bool(confirmed))),
         )
 
     def action_refresh_crate(self) -> None:
@@ -162,31 +171,24 @@ class CrateController:
                 f"Reset the marks on {len(self.playlist_state.rows)} tracks in '{title}' to new? "
                 "This cannot be undone."
             ),
-            lambda confirmed: self._reset_statuses() if confirmed else None,
+            lambda confirmed: self.run_worker(self._reset_statuses()) if confirmed else None,
         )
 
     async def _reset_statuses(self) -> None:
-        for row in self.playlist_state.rows:
-            await self.io(self.state.set, row.track.key, NEW)
+        keys = [row.track.key for row in self.playlist_state.rows]
+        await self.io(self.library_service.reset, keys)
         self.refresh_rows()
         self.notify("Reset all track statuses to 'new' for this playlist", timeout=3)
 
     async def _crate_delete_answered(self, header: CrateHeader, confirmed: bool) -> None:
         if not confirmed:
             return
-        # Reset track statuses for tracks in this crate so re-adding the crate
-        # starts fresh. The sidebar only holds headers, so the tracks come from
-        # the record itself.
-        record = await self.io(library_module.load, header.source)
-        for track in record.tracks if record is not None else []:
-            await self.io(self.state.set, track.key, NEW)
-
-        await self.io(library_module.delete, header.source)
+        await self.io(self.library_service.delete, header.source)
         if self.playlist_state.crate is not None and self.playlist_state.crate.source == header.source:
             self.playlist_state.crate = None
             self.playlist_state.crate_title = ""
             self.load_records([])
-        self.sidebar_state.crates = await self.io(library_module.list_crate_headers)
+        self.sidebar_state.crates = await self.io(self.library_service.headers)
         self.notify(f"Deleted '{header.title}'", timeout=3)
         remaining = self.latest_crate()
         if not self.playlist_state.rows and remaining is not None:
@@ -196,12 +198,11 @@ class CrateController:
     def action_toggle_sidebar(self) -> None:
         self.query_one("#sidebar").toggle_class("collapsed")
 
-    async def on_list_view_selected(self, event: ListView.Selected) -> None:
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
         event.stop()
         header = self.highlighted_crate()
         if header is not None:
-            await self.open_crate(header)
-        self.query_one("#tracks", DataTable).focus()
+            self.run_worker(self.open_crate(header))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         event.stop()

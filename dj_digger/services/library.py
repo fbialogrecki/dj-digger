@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from ..library import CrateRecord
-from ..models import GOT
+from ..crate_models import CrateHeader, CrateRecord
+from ..models import GOT, NEW
 from ..scanner import SCAN_BATCH, LocalScanner
 from ..state import FileMatch
 
@@ -11,6 +11,23 @@ from ..state import FileMatch
 class LibraryService:
     def __init__(self, state):
         self.state = state
+
+    def headers(self):
+        headers = [CrateHeader(**row) for row in self.state.db.list_crate_headers() if row.get("source")]
+        return sorted(headers, key=lambda header: header.title.lower())
+
+    def load(self, source):
+        raw = self.state.db.load_crate(source.strip())
+        return CrateRecord.from_json(raw) if raw is not None else None
+
+    def reset(self, keys):
+        for key in keys:
+            self.state.set(key, NEW)
+
+    def delete(self, source):
+        record = self.load(source)
+        self.reset([track.key for track in record.tracks] if record else [])
+        self.state.db.delete_crate(source.strip())
 
     def remember_beatport(self, source, generation, outcome):
         raw = self.state.db.remember_beatport(source, generation, outcome)

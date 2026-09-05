@@ -109,3 +109,61 @@ def test_cancelled_pool_keeps_its_slot_and_resources_until_every_file_settles(tm
     finally:
         release.set()
         services.stop()
+
+
+def test_cancelled_http_and_browser_items_are_terminal_cancellations(tmp_path, monkeypatch):
+    from dj_digger.gate_models import GateManualActionRequired
+    from dj_digger.models import Cancelled
+    from dj_digger.services.downloads import FileBatchResult
+
+    for browser in (False, True):
+        events = []
+        with ApplicationServices(state=TrackState(tmp_path / 'library.db')) as services:
+            class Client:
+                def download_track(self, track, *args, **kwargs):
+                    if browser:
+                        raise GateManualActionRequired('manual')
+                    raise Cancelled()
+
+            monkeypatch.setattr(services.downloads, 'finish_gates', lambda *a, **k: FileBatchResult(cancelled=True))
+            handle = services.operations.start('Downloading')
+            workflow = DownloadWorkflow(
+                services.downloads, DownloadRequest('', 'initial', tmp_path, 20), handle,
+                client=Client, config=services.config, emit=events.append,
+                prerequisites=lambda *args: [],
+            )
+            workflow.run_batch([(track, 'https://hypeddit.com/test/track' if browser else None) for track in tracks()])
+            assert {event.key for event in events if event.kind == 'cancelled'} == {'1', '2'}
+            summary = [event.summary for event in events if event.kind == 'summary'][-1]
+            assert summary.cancelled == 2
+            assert summary.pending == summary.failed == summary.completed == 0
+            services.operations.finish(handle)
+
+
+def test_workflow_reports_published_but_unrecorded_path_without_retransfer(tmp_path, monkeypatch):
+    from dj_digger.services.downloads import DownloadService
+
+    events, calls = [], []
+    with ApplicationServices(state=TrackState(tmp_path / 'library.db')) as services:
+        def reject(*args):
+            raise OSError('database busy')
+        monkeypatch.setattr(services.state, 'set_local_file', reject)
+
+        class Client:
+            def download_track(self, track, directory, **kwargs):
+                calls.append(track.key)
+                path = directory / 'finished.wav'
+                path.write_bytes(b'audio')
+                return path
+
+        handle = services.operations.start('Downloading')
+        workflow = DownloadWorkflow(
+            DownloadService(services.state), DownloadRequest('', 'initial', tmp_path, 20), handle,
+            client=Client, config=services.config, emit=events.append,
+            prerequisites=lambda *args: [],
+        )
+        workflow.run_one(tracks()[0], None)
+        result = next(event for event in events if event.kind == 'unrecorded')
+        assert result.path.read_bytes() == b'audio'
+        assert calls == ['1']
+        services.operations.finish(handle)

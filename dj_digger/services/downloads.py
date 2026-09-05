@@ -170,6 +170,7 @@ class _BatchProgress:
     total: int = 0
     completed: int = 0
     failed: int = 0
+    cancelled: int = 0
     hubs_changed: bool = False
     profile_items: list[tuple[Track, str | None]] = field(default_factory=list)
     auth_items: list[tuple[Track, str | None]] = field(default_factory=list)
@@ -201,7 +202,8 @@ class _BatchProgress:
         if outcome == "hub":
             self.total -= 1
         elif outcome == "cancelled":
-            pass  # Stopped by the user: not a failure, nothing to report.
+            self.cancelled += 1
+            return "cancelled"
         elif outcome == "downloaded":
             self.completed += 1
             return "downloaded"
@@ -238,6 +240,7 @@ class DownloadSummary:
     total: int
     pending: int
     failure_groups: dict[str, int]
+    cancelled: int = 0
 
 
 @dataclass(frozen=True)
@@ -247,6 +250,8 @@ class DownloadEvent:
         "progress",
         "downloaded",
         "failed",
+        "unrecorded",
+        "cancelled",
         "waiting",
         "metadata",
         "hubs",
@@ -287,6 +292,13 @@ class DownloadWorkflow:
         if "message" in values:
             values["message"] = log_safe_text(values["message"])
         self.emit(DownloadEvent(self.handle.id, kind, **values))
+
+    def failed(self, track, error, *, label="", message=None):
+        values = dict(key=track.key, label=label, message=message or str(error))
+        if isinstance(error, PublishedFileUnrecorded):
+            self.send("unrecorded", path=error.result.path, **values)
+        else:
+            self.send("failed", **values)
 
     def normalise(self, track, url):
         if not self.request.source or not _is_hypeddit(url):
@@ -377,20 +389,24 @@ class DownloadWorkflow:
         if outcome == "downloaded":
             self.send("downloaded", key=track.key, path=Path(result))
         elif outcome == "cancelled":
-            self.send("waiting", key=track.key)
+            self.send("cancelled", key=track.key)
         elif allow_retry and isinstance(
             result, (gate_models.GateProfileRequired, soundcloud.SoundCloudLoginRequired)
         ):
             self.send("waiting", key=track.key)
             item = (track, url)
-            ready = self.prerequisites(
-                [item] if isinstance(result, gate_models.GateProfileRequired) else [],
-                [item] if isinstance(result, soundcloud.SoundCloudLoginRequired) else [],
-            )
+            try:
+                ready = self.prerequisites(
+                    [item] if isinstance(result, gate_models.GateProfileRequired) else [],
+                    [item] if isinstance(result, soundcloud.SoundCloudLoginRequired) else [],
+                )
+            except Cancelled:
+                self.send("cancelled", key=track.key)
+                return
             if ready:
                 self.run_one(*ready[0], allow_retry=False)
         else:
-            self.send("failed", key=track.key, message=str(result))
+            self.failed(track, result)
 
     def run_batch(self, items, allow_retry=True):
         items = [item for item in items if downloadable(*item)]
@@ -406,9 +422,9 @@ class DownloadWorkflow:
                 if verdict == "downloaded":
                     self.send("downloaded", key=track.key, path=Path(result))
                 elif verdict == "failed":
-                    self.send("failed", key=track.key, message=str(result), label=track.label)
+                    self.failed(track, result, label=track.label)
                 else:
-                    self.send("waiting", key=track.key)
+                    self.send(verdict, key=track.key)
         if progress.hubs_changed:
             self.send("hubs")
         if progress.browser_items:
@@ -424,10 +440,27 @@ class DownloadWorkflow:
                 progress.total,
                 pending,
                 dict(progress.failure_groups),
+                progress.cancelled,
             ),
         )
         if pending:
-            ready = self.prerequisites(progress.profile_items, progress.auth_items)
+            try:
+                ready = self.prerequisites(progress.profile_items, progress.auth_items)
+            except Cancelled:
+                for track, _url in progress.profile_items + progress.auth_items:
+                    self.send("cancelled", key=track.key)
+                self.send(
+                    "summary",
+                    summary=DownloadSummary(
+                        progress.completed,
+                        progress.failed,
+                        progress.total,
+                        0,
+                        dict(progress.failure_groups),
+                        progress.cancelled + pending,
+                    ),
+                )
+                return
             if ready:
                 self.run_batch(ready, False)
 
@@ -435,6 +468,7 @@ class DownloadWorkflow:
         tracks = {track.key: track for track, _url in progress.browser_items}
         self.send("browser_started", count=len(tracks))
         try:
+            check_cancelled(self.handle.cancel)
             result = self.service.finish_gates(
                 progress.browser_items,
                 self.request.directory,
@@ -442,6 +476,8 @@ class DownloadWorkflow:
                 config=self.config,
                 status=lambda message: self.send("status", message=message),
             )
+        except Cancelled:
+            result = FileBatchResult(cancelled=True)
         except Exception as exc:
             result = FileBatchResult(
                 failures=tuple((key, gate_models.GateUnavailable(str(exc))) for key in tracks)
@@ -456,4 +492,11 @@ class DownloadWorkflow:
             progress.failure_groups[_gate_failure_group(exc)] += 1
             reason = progress.browser_reasons.get(key)
             message = f"{exc} (after: {reason})" if reason else str(exc)
-            self.send("failed", key=key, message=message, label=tracks[key].label)
+            self.failed(tracks[key], exc, message=message, label=tracks[key].label)
+        if result.cancelled:
+            settled = {item.key for item in result.completed} | {
+                key for key, _exc in result.failures
+            }
+            for key in tracks.keys() - settled:
+                progress.cancelled += 1
+                self.send("cancelled", key=key)

@@ -17,8 +17,8 @@ from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, DataTable, ListView, Static
 
 from .. import links as links_module
+from ..crate_models import CrateRecord
 from ..diagnostics import log_safe_text
-from ..library import CrateRecord
 from ..models import LinkRecord
 from ..services import collection as dig_module
 from ..services.runtime import ApplicationServices
@@ -223,6 +223,7 @@ class DiggerApp(App):
         # whenever the theme changes (see tui/theme.py).
         self.palette: Palette = FALLBACK_PALETTE
         self.crate_controller = CrateController(
+            run_worker=self.run_worker,
             _start_dig=lambda *a, **k: self._start_dig(*a, **k),
             action_dig_link=lambda *a, **k: self.action_dig_link(*a, **k),
             call_next=lambda *a, **k: self.call_next(*a, **k),
@@ -592,7 +593,7 @@ class DiggerApp(App):
         self.playback_controller._discard_prepared()
         # This runs before Textual gives the terminal back, so a Playwright
         # that will not answer would hang the exit with no key able to reach
-        # us. Five seconds, then the process-exit guard in run_tui takes over.
+        # us. The independent process guard also covers this bounded close.
         try:
             if self.services._cart is not None:
                 await asyncio.wait_for(self._cart_session.close(), timeout=5)

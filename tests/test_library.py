@@ -1,11 +1,12 @@
+
 from helpers import a_crate
 
-from dj_digger import library
+from dj_digger import crate_models, library
 from dj_digger.db import database
 
 
 def test_a_crate_survives_a_round_trip():
-    record = library.CrateRecord.from_crate(a_crate(genre="Techno"))
+    record = crate_models.CrateRecord.from_crate(a_crate(genre="Techno"))
     library.save(record)
 
     reloaded = library.load(record.source)
@@ -16,8 +17,8 @@ def test_a_crate_survives_a_round_trip():
 
 
 def test_the_same_source_overwrites_instead_of_duplicating():
-    library.save(library.CrateRecord.from_crate(a_crate(2)))
-    library.save(library.CrateRecord.from_crate(a_crate(5)))
+    library.save(crate_models.CrateRecord.from_crate(a_crate(2)))
+    library.save(crate_models.CrateRecord.from_crate(a_crate(5)))
 
     crates = library.list_crates()
     assert len(crates) == 1
@@ -25,14 +26,14 @@ def test_the_same_source_overwrites_instead_of_duplicating():
 
 
 def test_crates_are_listed_by_title():
-    library.save(library.CrateRecord.from_crate(a_crate(1, source="s://z", title="Zulu")))
-    library.save(library.CrateRecord.from_crate(a_crate(1, source="s://a", title="alpha")))
+    library.save(crate_models.CrateRecord.from_crate(a_crate(1, source="s://z", title="Zulu")))
+    library.save(crate_models.CrateRecord.from_crate(a_crate(1, source="s://a", title="alpha")))
     assert [record.title for record in library.list_crates()] == ["alpha", "Zulu"]
 
 
 def test_headers_are_listed_by_title():
-    library.save(library.CrateRecord.from_crate(a_crate(1, source="s://z", title="Zulu"), partial=True))
-    library.save(library.CrateRecord.from_crate(a_crate(1, source="s://a", title="alpha")))
+    library.save(crate_models.CrateRecord.from_crate(a_crate(1, source="s://z", title="Zulu"), partial=True))
+    library.save(crate_models.CrateRecord.from_crate(a_crate(1, source="s://a", title="alpha")))
 
     headers = library.list_crate_headers()
 
@@ -43,7 +44,7 @@ def test_headers_are_listed_by_title():
 
 
 def test_removed_tracks_disappear_from_active_tracks():
-    record = library.CrateRecord.from_crate(a_crate(3))
+    record = crate_models.CrateRecord.from_crate(a_crate(3))
     record.remove("101")
 
     assert [track.id for track in record.active_tracks] == [100, 102]
@@ -52,14 +53,14 @@ def test_removed_tracks_disappear_from_active_tracks():
 
 
 def test_restoring_brings_a_track_back():
-    record = library.CrateRecord.from_crate(a_crate(2))
+    record = crate_models.CrateRecord.from_crate(a_crate(2))
     record.remove("100")
     record.restore("100")
     assert [track.id for track in record.active_tracks] == [100, 101]
 
 
 def test_removing_the_same_track_twice_is_harmless():
-    record = library.CrateRecord.from_crate(a_crate(2))
+    record = crate_models.CrateRecord.from_crate(a_crate(2))
     record.remove("100")
     record.remove("100")
     assert record.removed_track_keys == ["100"]
@@ -68,7 +69,7 @@ def test_removing_the_same_track_twice_is_harmless():
 def test_refresh_replaces_tracks_but_keeps_local_deletions():
     """A refresh must not resurrect what you deleted."""
 
-    record = library.CrateRecord.from_crate(a_crate(3))
+    record = crate_models.CrateRecord.from_crate(a_crate(3))
     record.remove("101")
 
     library.refresh(record, a_crate(5, title="A crate, now longer"))
@@ -82,7 +83,7 @@ def test_refresh_replaces_tracks_but_keeps_local_deletions():
 
 
 def test_refresh_marks_what_it_brought_in_and_puts_it_first():
-    record = library.CrateRecord.from_crate(a_crate(2))
+    record = crate_models.CrateRecord.from_crate(a_crate(2))
     assert record.new_track_keys == [], "a first import has nothing to compare against"
 
     library.refresh(record, a_crate(4))
@@ -94,7 +95,7 @@ def test_refresh_marks_what_it_brought_in_and_puts_it_first():
 def test_a_refresh_that_brought_nothing_keeps_the_previous_marks():
     """Pressing r twice must not lose what the first press turned up."""
 
-    record = library.CrateRecord.from_crate(a_crate(2))
+    record = crate_models.CrateRecord.from_crate(a_crate(2))
     library.refresh(record, a_crate(3))
     library.refresh(record, a_crate(3))
 
@@ -102,7 +103,7 @@ def test_a_refresh_that_brought_nothing_keeps_the_previous_marks():
 
 
 def test_the_new_marks_survive_a_round_trip():
-    record = library.CrateRecord.from_crate(a_crate(2))
+    record = crate_models.CrateRecord.from_crate(a_crate(2))
     library.refresh(record, a_crate(3))
     library.save(record)
 
@@ -110,14 +111,14 @@ def test_the_new_marks_survive_a_round_trip():
 
 
 def test_refresh_clears_the_partial_flag():
-    record = library.CrateRecord.from_crate(a_crate(1), partial=True)
+    record = crate_models.CrateRecord.from_crate(a_crate(1), partial=True)
     assert record.partial is True
     library.refresh(record, a_crate(2))
     assert record.partial is False
 
 
 def test_delete_removes_the_crate():
-    record = library.CrateRecord.from_crate(a_crate())
+    record = crate_models.CrateRecord.from_crate(a_crate())
     library.save(record)
     library.delete(record.source)
     assert library.list_crates() == []
@@ -135,7 +136,7 @@ def test_delete_finds_the_crate_by_its_source_with_no_file_involved():
     0.9 there is no file - the source is the primary key of the stored records.
     """
 
-    record = library.CrateRecord.from_crate(a_crate())
+    record = crate_models.CrateRecord.from_crate(a_crate())
     library.save(record)
     assert [rec.source for rec in library.list_crates()] == [record.source]
 
@@ -150,7 +151,7 @@ def test_new_track_fields_survive_a_round_trip():
     crate.tracks[0].key_signature = "F#m"
     crate.tracks[0].release_year = 2024
     crate.tracks[0].label_name = "Fixture Records"
-    record = library.CrateRecord.from_crate(crate)
+    record = crate_models.CrateRecord.from_crate(crate)
     library.save(record)
 
     track = library.load(record.source).tracks[0]
@@ -160,7 +161,7 @@ def test_new_track_fields_survive_a_round_trip():
 
 
 def test_an_old_crate_without_bpm_loads():
-    record = library.CrateRecord.from_crate(a_crate(1))
+    record = crate_models.CrateRecord.from_crate(a_crate(1))
     raw = record.to_json()
     for name in ("bpm", "key_signature", "release_year", "label_name"):
         raw["tracks"][0].pop(name)
@@ -174,7 +175,7 @@ def test_an_old_crate_without_bpm_loads():
 def test_unknown_fields_in_a_stored_track_are_ignored():
     """A crate written by a newer version must still load."""
 
-    record = library.CrateRecord.from_crate(a_crate(1))
+    record = crate_models.CrateRecord.from_crate(a_crate(1))
     raw = record.to_json()
     raw["tracks"][0]["something_from_the_future"] = 42
     database().save_crate(raw)
@@ -185,7 +186,7 @@ def test_unknown_fields_in_a_stored_track_are_ignored():
 def test_scraped_extra_links_come_back_as_tuples():
     crate = a_crate(1)
     crate.tracks[0].extra_links = [("https://x.bandcamp.com/track/y", "Buy")]
-    record = library.CrateRecord.from_crate(crate)
+    record = crate_models.CrateRecord.from_crate(crate)
     library.save(record)
 
     assert library.load(record.source).tracks[0].extra_links == [

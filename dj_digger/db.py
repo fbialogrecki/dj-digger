@@ -210,7 +210,7 @@ class Database:
 
     @owned
     def remember_beatport(self, source, generation, outcome):
-        from .library import CrateRecord
+        from .crate_models import CrateRecord
         from .store_match import _remember_exact_beatport_links
         with self.connection(write=True):
             if self.crate_generation(source) != generation:

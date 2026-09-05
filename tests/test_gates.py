@@ -1512,3 +1512,55 @@ def test_cancellation_after_telemetry_prevents_unlock(monkeypatch):
     with pytest.raises(Cancelled):
         resolve_hypeddit_download_url(_GATE, session, config=StubConfig("dj@example.com"), cancel=cancel)
     assert not _posted_to(session, "/gate/download/ul")
+
+
+def test_browser_cancellation_keeps_completed_files_and_real_errors_only(tmp_path, monkeypatch):
+    from threading import Event
+    from types import SimpleNamespace
+
+    from dj_digger.gates import browser as adapter
+    from dj_digger.models import Cancelled, Track
+
+    items = [(Track(id=i, title=str(i), permalink_url=f'https://soundcloud.com/a/{i}'),
+              'https://hypeddit.com/a/b') for i in (1, 2, 3)]
+    cancel = Event()
+    cancel.set()
+    result = adapter.download_hypeddit_batch_in_browser(items, tmp_path, cancel)
+    assert result.cancelled and not result.failures and not result.completed
+    with pytest.raises(Cancelled):
+        adapter.download_hypeddit_in_browser(*items[0], tmp_path, cancel)
+
+    watch = adapter._TabWatch({track.key: (track, url) for track, url in items}, tmp_path, cancel, {})
+    finished = tmp_path / 'complete.wav'
+    finished.write_bytes(b'audio')
+    watch.completed['1'] = finished
+    watch.failures['2'] = adapter.GateDownloadError('real failure')
+    stopped = adapter._await_downloads(SimpleNamespace(pages=[]), [], watch, None,
+                                      social=False, email=None, name=None,
+                                      attended=False, time_limit=1)
+    result = watch.result(stopped)
+    assert result.cancelled
+    assert result.completed == (('1', finished),)
+    assert [key for key, _error in result.failures] == ['2']
+
+    # The workflow sees the actual adapter result, including mixed outcomes.
+    from dj_digger.config import AppConfig
+    from dj_digger.services.downloads import DownloadRequest, DownloadService, DownloadWorkflow
+    from dj_digger.services.operations import OperationCoordinator
+
+    monkeypatch.setattr(adapter, 'download_hypeddit_batch_in_browser', lambda *a, **k: result)
+    class State:
+        def set_local_file(self, key, path):
+            pass
+    operations = OperationCoordinator()
+    handle = operations.start('Downloading')
+    events = []
+    workflow = DownloadWorkflow(DownloadService(State()), DownloadRequest('', 'initial', tmp_path, 20),
+                                handle, client=lambda: None, config=AppConfig(),
+                                emit=events.append, prerequisites=lambda *args: [])
+    from dj_digger.services.downloads import _BatchProgress
+    progress = _BatchProgress(total=3, browser_items=items)
+    workflow.browser_pass(progress)
+    assert progress.completed == progress.failed == progress.cancelled == 1
+    assert [event.key for event in events if event.kind == 'cancelled'] == ['3']
+    operations.finish(handle)

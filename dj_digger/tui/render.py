@@ -4,6 +4,8 @@ Composed by ``DiggerApp`` with explicit state and presentation callbacks.
 """
 
 
+import asyncio
+
 from rich.text import Text
 from textual.coordinate import Coordinate
 from textual.widgets import DataTable, Static
@@ -66,6 +68,7 @@ class RenderController:
         io,
     ):
         self.io = io
+        self._status_actions = asyncio.Lock()
         self._drop_stale_preparation = _drop_stale_preparation
         self._playing_index = _playing_index
         self.action_play_step = action_play_step
@@ -465,15 +468,26 @@ class RenderController:
             table.move_cursor(row=table.cursor_row + 1)
 
     async def action_mark_got(self) -> None:
-        await self._toggle_status(GOT, "Got it")
+        view = self.playlist_state._view_generation
+        async with self._status_actions:
+            if view != self.playlist_state._view_generation:
+                return
+            await self._toggle_status(GOT, "Got it")
 
     async def action_mark_skip(self) -> None:
-        await self._toggle_status(SKIP, "Skipped")
+        view = self.playlist_state._view_generation
+        async with self._status_actions:
+            if view != self.playlist_state._view_generation:
+                return
+            await self._toggle_status(SKIP, "Skipped")
 
     async def action_mark_new(self) -> None:
-        if await self._mark_selected(NEW, "Unmarked"):
-            return
-        row = self.current_row()
-        if row is None:
-            return
-        await self._mark(row, NEW, "Unmarked")
+        view = self.playlist_state._view_generation
+        async with self._status_actions:
+            if view != self.playlist_state._view_generation:
+                return
+            if await self._mark_selected(NEW, "Unmarked"):
+                return
+            row = self.current_row()
+            if row is not None:
+                await self._mark(row, NEW, "Unmarked")

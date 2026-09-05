@@ -4,9 +4,9 @@
 - Document version: 1.0
 - Product version verified: 1.0.0
 - Owner: Filip Białogrecki
-- Updated: 2026-09-04
-- Document lines: <!-- SPEC TOTAL LINES -->1164<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1164<!-- END SPEC MAP LIMIT -->
+- Updated: 2026-09-05
+- Document lines: <!-- SPEC TOTAL LINES -->1170<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1170<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -61,52 +61,52 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 4 | System context and data flow | 431–469 |
 | 4.1 | ↳ Context diagram | 433–454 |
 | 4.2 | ↳ Collection-to-library flow | 455–469 |
-| 5 | Repository layout and component ownership | 470–531 |
+| 5 | Repository layout and component ownership | 470–535 |
 | 5.1 | ↳ Entry, orchestration, and models | 472–483 |
 | 5.2 | ↳ Network and external-system adapters | 484–502 |
-| 5.3 | ↳ Persistence, local media, and UI | 503–531 |
-| 6 | Runtime architecture and environments | 532–623 |
-| 6.1 | ↳ Runtime and dependencies | 534–547 |
-| 6.2 | ↳ Concurrency and lifecycle | 548–608 |
-| 6.3 | ↳ Local paths and environment variables | 609–623 |
-| 7 | Data model and persistence | 624–705 |
-| 7.1 | ↳ Domain objects and identity | 626–640 |
-| 7.2 | ↳ SQLite schema and invariants | 641–673 |
-| 7.3 | ↳ Crate persistence and deletion | 674–689 |
-| 7.4 | ↳ Configuration and credential stores | 690–705 |
-| 8 | Public interfaces and contracts | 706–751 |
-| 8.1 | ↳ CLI arguments and exit behavior | 708–727 |
-| 8.2 | ↳ JSON and CSV summary input | 728–742 |
-| 8.3 | ↳ URL-opening contract | 743–751 |
-| 9 | Authentication and authorization | 752–795 |
-| 9.1 | ↳ SoundCloud authentication | 754–774 |
-| 9.2 | ↳ Gate action consent | 775–795 |
-| 10 | External integrations | 796–928 |
-| 10.1 | ↳ SoundCloud API and media | 798–809 |
-| 10.2 | ↳ Link hubs and download gates | 810–869 |
-| 10.2 · block | ↳ ↳ Hypeddit | 818–855 |
-| 10.2 · block | ↳ ↳ Other resolvers | 857–862 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 864–869 |
-| 10.3 | ↳ Browsers and clipboard | 870–881 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 882–928 |
-| 11 | Security requirements and threat model | 929–983 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 931–949 |
-| 11.2 | ↳ Secret and personal-data handling | 950–965 |
-| 11.3 | ↳ File and mutation safety | 966–983 |
-| 12 | Privacy, lifecycle, and retention | 984–1022 |
-| 12.1 | ↳ Data stored locally | 986–1001 |
-| 12.2 | ↳ Data sent to third parties | 1002–1013 |
-| 12.3 | ↳ User-controlled deletion | 1014–1022 |
-| 13 | Failure behavior and current limitations | 1023–1077 |
-| 13.1 | ↳ Error isolation and reporting | 1025–1044 |
-| 13.2 | ↳ Confirmed limitations | 1045–1077 |
-| 14 | Verification, CI, and release | 1078–1142 |
-| 14.1 | ↳ Offline and live test suites | 1080–1111 |
-| 14.2 | ↳ Continuous integration and publishing | 1112–1127 |
-| 14.3 | ↳ Specification-map verification | 1128–1142 |
-| 15 | Evidence and operational references | 1143–1164 |
-| 15.1 | ↳ Primary implementation evidence | 1145–1157 |
-| 15.2 | ↳ User and historical documentation | 1158–1164 |
+| 5.3 | ↳ Persistence, local media, and UI | 503–535 |
+| 6 | Runtime architecture and environments | 536–629 |
+| 6.1 | ↳ Runtime and dependencies | 538–551 |
+| 6.2 | ↳ Concurrency and lifecycle | 552–614 |
+| 6.3 | ↳ Local paths and environment variables | 615–629 |
+| 7 | Data model and persistence | 630–711 |
+| 7.1 | ↳ Domain objects and identity | 632–646 |
+| 7.2 | ↳ SQLite schema and invariants | 647–679 |
+| 7.3 | ↳ Crate persistence and deletion | 680–695 |
+| 7.4 | ↳ Configuration and credential stores | 696–711 |
+| 8 | Public interfaces and contracts | 712–757 |
+| 8.1 | ↳ CLI arguments and exit behavior | 714–733 |
+| 8.2 | ↳ JSON and CSV summary input | 734–748 |
+| 8.3 | ↳ URL-opening contract | 749–757 |
+| 9 | Authentication and authorization | 758–801 |
+| 9.1 | ↳ SoundCloud authentication | 760–780 |
+| 9.2 | ↳ Gate action consent | 781–801 |
+| 10 | External integrations | 802–934 |
+| 10.1 | ↳ SoundCloud API and media | 804–815 |
+| 10.2 | ↳ Link hubs and download gates | 816–875 |
+| 10.2 · block | ↳ ↳ Hypeddit | 824–861 |
+| 10.2 · block | ↳ ↳ Other resolvers | 863–868 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 870–875 |
+| 10.3 | ↳ Browsers and clipboard | 876–887 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 888–934 |
+| 11 | Security requirements and threat model | 935–989 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 937–955 |
+| 11.2 | ↳ Secret and personal-data handling | 956–971 |
+| 11.3 | ↳ File and mutation safety | 972–989 |
+| 12 | Privacy, lifecycle, and retention | 990–1028 |
+| 12.1 | ↳ Data stored locally | 992–1007 |
+| 12.2 | ↳ Data sent to third parties | 1008–1019 |
+| 12.3 | ↳ User-controlled deletion | 1020–1028 |
+| 13 | Failure behavior and current limitations | 1029–1083 |
+| 13.1 | ↳ Error isolation and reporting | 1031–1050 |
+| 13.2 | ↳ Confirmed limitations | 1051–1083 |
+| 14 | Verification, CI, and release | 1084–1148 |
+| 14.1 | ↳ Offline and live test suites | 1086–1117 |
+| 14.2 | ↳ Continuous integration and publishing | 1118–1133 |
+| 14.3 | ↳ Specification-map verification | 1134–1148 |
+| 15 | Evidence and operational references | 1149–1170 |
+| 15.1 | ↳ Primary implementation evidence | 1151–1163 |
+| 15.2 | ↳ User and historical documentation | 1164–1170 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -504,8 +504,9 @@ crate record.
 
 - `db.py` owns the single-thread SQLite connection and short transactions;
   `schema.py` recognizes and registers the 1.0 schema. `state.py` owns atomic
-  status/provenance and committed caches. `library.py` owns crate records and
-  persistence; `scanner.py` owns local media indexing and matching.
+  status/provenance and committed caches. `crate_models.py` owns pure crate
+  values/serialization; `library.py` retains persistence helpers and
+  `services/library.py` owns interactive listing/loading/reset/deletion; `scanner.py` owns local media indexing and matching.
 - `services/runtime.py` is the lazy application composition root.
   Collection, downloads, library reconciliation, accounts, browser opening and
   purchases are services; none imports Textual. Operation admission and
@@ -513,7 +514,10 @@ crate record.
   `DownloadWorkflow` owns the common single/batch attempt, eight-thread HTTP
   pool, browser completion and approved prerequisite retry. Its request holds
   source/generation, destination and timeout; keyed events carry the operation
-  ID. The TUI coalesces byte events and presents outcomes after persistence.
+  ID. Terminal outcomes distinguish downloaded, published-but-unrecorded (with
+  its path), failed, cancelled, and waiting for user input. Batch summaries count
+  cancellation separately. The TUI coalesces byte events and presents outcomes
+  after persistence.
 - `paths.py` owns XDG directories. `config.py` owns preferences;
   `private_json.py` owns private atomic JSON writes; `clipboard.py` owns clipboard
   subprocesses. `diagnostics.py` redacts credential fields and URL queries.
@@ -557,7 +561,8 @@ only after commit. Painting rows reads the mirrors, without per-row SQLite reads
 Missing-file observations carry a per-track revision: a stale scan cannot clear
 a newer completed download or manual status decision. Certain positive matches
 retain the 1.0 rule allowing `got` after `skip`. Status actions run as workers so
-keyboard navigation remains available while a write waits.
+keyboard navigation remains available while a write waits. Mark actions retain
+their original sequence, including repeated-key undo and cursor advance.
 Another process writing the same database is not reconciled.
 
 `OperationCoordinator` admits one main operation (dig/refresh, download, local
@@ -565,7 +570,8 @@ copy, cart or bulk opening) and one independent scan, with no task queue or
 scheduler. Existing Textual workers, thread pools and asynchronous Playwright
 execute the work. Each `OperationHandle` identifies progress, cancellation and
 settlement; cancellation leaves its slot occupied until workers and suboperations
-finish. The main operation owns the status bar; otherwise the scan is shown.
+finish, including profile saves already in progress when cancellation arrives.
+Dialog callbacks retain the originating cancellation event. The main operation owns the status bar; otherwise the scan is shown.
 `ctrl+x` cancels the visible operation. Single-link opening, export, playback
 and prefetch run independently of the main slot.
 

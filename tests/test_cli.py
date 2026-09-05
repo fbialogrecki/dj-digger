@@ -1,3 +1,4 @@
+
 import argparse
 import contextlib
 import io
@@ -6,7 +7,7 @@ import logging
 
 import pytest
 
-from dj_digger import cli, library, links
+from dj_digger import cli, crate_models, library, links
 from dj_digger.models import Crate, LinkRecord, Track
 from dj_digger.services.collection import TargetNotFound
 
@@ -271,7 +272,7 @@ def test_a_cli_dig_respects_earlier_local_deletions(tmp_path, monkeypatch):
     ]
     crate = Crate(source="https://soundcloud.com/a/sets/b", title="Crate", tracks=tracks)
 
-    record = library.CrateRecord.from_crate(crate)
+    record = crate_models.CrateRecord.from_crate(crate)
     record.remove("2")
     library.save(record)
 

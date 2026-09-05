@@ -86,6 +86,8 @@ class DownloadController:
         io,
     ):
         self.io = io
+        self._prerequisites_settled = Event()
+        self._prerequisites_settled.set()
         self._find_gate_url = _find_gate_url
         self._main_available = _main_available
         self._mark_existing_local_file = _mark_existing_local_file
@@ -207,6 +209,7 @@ class DownloadController:
         try:
             yield
         finally:
+            self._prerequisites_settled.wait()
             self.accounts.wait_authentication()
             self.operations.finish(handle)
             try:
@@ -246,9 +249,14 @@ class DownloadController:
             self._update_track_progress(event.key, event.progress, event.operation_id)
         elif event.kind == 'downloaded':
             self._download_finished(event.key, event.path, toast=not batch)
+        elif event.kind == 'unrecorded':
+            for row in self.playlist_state.rows:
+                if row.track.key == event.key:
+                    row.track.local_path = str(event.path)
+            self._download_failed(event.key, event.message, banner_label=event.label if batch else None)
         elif event.kind == 'failed':
             self._download_failed(event.key, event.message, banner_label=event.label if batch else None)
-        elif event.kind == 'waiting':
+        elif event.kind in ('waiting', 'cancelled'):
             self._settle_download_row(event.key)
         elif event.kind == 'metadata' and current_view:
             self._hub_metadata_ready(event.key, event.fields, context.view_generation)
@@ -269,32 +277,40 @@ class DownloadController:
         elif event.kind == 'summary':
             summary = event.summary
             self._on_batch_download_complete(summary.completed, summary.failed, summary.total,
-                                             summary.pending, summary.failure_groups)
+                                             summary.pending, summary.failure_groups, summary.cancelled)
 
     def _adopt_login(self, oauth_token: str) -> bool:
         return self.adopt_login(oauth_token)
 
     def _wait_download_prerequisites(self, profiles, auth_items):
         completed = Event()
+        cancel = self.download_state._gate_cancel
         ready = []
-        self.call_from_thread(
+        cancel_dialogs = self.call_from_thread(
             self._resolve_download_prerequisites, profiles, auth_items,
             ready.extend, completed.set,
         )
         while not completed.wait(0.05):
-            check_cancelled(self.download_state._gate_cancel)
-        check_cancelled(self.download_state._gate_cancel)
+            if cancel.is_set():
+                try:
+                    self.call_from_thread(cancel_dialogs)
+                except RuntimeError:
+                    pass
+                raise Cancelled()
+        check_cancelled(cancel)
         return ready
 
     def _resolve_download_prerequisites(
         self, profile_items: list, auth_items: list, retry, on_done=None
-    ) -> None:
+    ):
         """Run each required wizard once, then retry only approved items."""
 
-        ready = []
+        ready, screens = [], []
+        cancel = self.download_state._gate_cancel
+        settled = self._prerequisites_settled
 
         def finish() -> None:
-            if ready and not self.download_state._gate_cancel.is_set():
+            if ready and not cancel.is_set():
                 if on_done is None:
                     self.call_later(retry, ready)
                 else:
@@ -303,38 +319,51 @@ class DownloadController:
                 on_done()
 
         def ask_for_soundcloud() -> None:
-            if not auth_items or self.download_state._gate_cancel.is_set():
+            if not auth_items or cancel.is_set():
                 finish()
                 return
 
             def after_auth(oauth_token: str | None) -> None:
                 if not oauth_token:
                     self.notify("SoundCloud login cancelled; download was not retried.", timeout=4)
-                elif self._adopt_login(oauth_token):
+                elif not cancel.is_set() and self._adopt_login(oauth_token):
                     ready.extend(auth_items)
                 finish()
 
-            self.push_screen(
-                SoundCloudAuthScreen(self.accounts), after_auth
-            )
+            screen = SoundCloudAuthScreen(self.accounts)
+            screens.append(screen)
+            self.push_screen(screen, after_auth)
 
-        if profile_items:
-            async def after_profile(saved) -> None:
-                if saved and not self.download_state._gate_cancel.is_set():
-                    try:
-                        await self.io(self.accounts.save_profile, saved)
-                    except Exception:
-                        self.notify("Could not save the gate profile", severity="error")
-                        finish()
-                        return
-                    ready.extend(profile_items)
-                else:
-                    self.notify("Gate profile cancelled; download was not retried.", timeout=4)
+        async def save_profile(saved):
+            if saved and not cancel.is_set():
+                settled.clear()
+                try:
+                    await self.io(self.accounts.save_profile, saved)
+                    if not cancel.is_set():
+                        ready.extend(profile_items)
+                    ask_for_soundcloud()
+                except Exception:
+                    self.notify("Could not save the gate profile", severity="error")
+                    finish()
+                finally:
+                    settled.set()
+            else:
+                self.notify("Gate profile cancelled; download was not retried.", timeout=4)
                 ask_for_soundcloud()
 
-            self.push_screen(GateProfileScreen(self.config), after_profile)
+        if profile_items:
+            screen = GateProfileScreen(self.config)
+            screens.append(screen)
+            self.push_screen(screen, lambda saved: self.run_worker(save_profile(saved)))
         else:
             ask_for_soundcloud()
+
+        def cancel_dialogs():
+            for screen in screens:
+                if screen.is_current:
+                    screen.dismiss(None)
+
+        return cancel_dialogs
 
     def _update_track_progress(self, key: str, pct: float, operation_id: str | None = None) -> None:
         handle = self.download_state._download_handle
@@ -486,6 +515,7 @@ class DownloadController:
         total: int,
         pending: int = 0,
         failure_groups: dict[str, int] | None = None,
+        cancelled: int = 0,
     ) -> None:
         stale_keys = tuple(self.download_state.download_progress)
         self.download_state.download_progress.clear()
@@ -506,18 +536,37 @@ class DownloadController:
         ]
         if grouped:
             msg += f" [{', '.join(grouped)}]"
+        if cancelled:
+            msg += f" ({cancelled} cancelled)"
         if pending:
             msg += f" ({pending} waiting for configuration)"
         self.notify(msg, timeout=6, markup=False)
 
-    def download_track_in_background(self, *args, **kwargs):
+    def _admit_background(self, handle, total):
+        if handle is not None:
+            return handle
+        if not self._main_available():
+            return None
+        self.download_state._gate_cancel = Event()
+        self._capture_download_context()
+        return self.start_job("Downloading", total, cancel=self.download_state._gate_cancel)
+
+    def download_track_in_background(self, track, gate_url=None, allow_prerequisite_retry=True, *, handle=None):
+        handle = self._admit_background(handle, 1)
+        if handle is None:
+            return None
         return self.run_worker(
-            partial(self.download_track_in_background_work, *args, **kwargs), thread=True, exclusive=True, group='download',
-            description="download_track_in_background",
+            partial(self.download_track_in_background_work, deepcopy(track), gate_url,
+                    allow_prerequisite_retry, handle),
+            thread=True, group='download', description="download_track_in_background",
         )
 
-    def batch_download_in_background(self, *args, **kwargs):
+    def batch_download_in_background(self, items, allow_prerequisite_retry=True, *, handle=None):
+        handle = self._admit_background(handle, len(items))
+        if handle is None:
+            return None
         return self.run_worker(
-            partial(self.batch_download_in_background_work, *args, **kwargs), thread=True, exclusive=True, group='batch_download',
-            description="batch_download_in_background",
+            partial(self.batch_download_in_background_work, deepcopy(items),
+                    allow_prerequisite_retry, handle),
+            thread=True, group='batch_download', description="batch_download_in_background",
         )

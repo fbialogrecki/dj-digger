@@ -27,6 +27,7 @@ from dj_digger.gate_models import (
 from ..config import DEFAULT_NAME
 from ..http import is_fetchable
 from ..links import host_of, is_hypeddit_url
+from ..models import Cancelled
 from .providers import (
     CLICK_THROUGH_STEPS,
     DIRECT_STEP,
@@ -399,6 +400,8 @@ def download_hypeddit_in_browser(
         return path
     for _key, error in result.failures:
         raise error
+    if result.cancelled:
+        raise Cancelled()
     raise GateUnavailable("The browser produced neither a file nor a reason")
 
 
@@ -410,11 +413,7 @@ def _screen_batch(
 
     keyed = {track.key: (track, url) for track, url in items}
     if _cancelled(cancel):
-        return (
-            {},
-            {key: GateManualActionRequired("browser batch cancelled") for key in keyed},
-            True,
-        )
+        return {}, {}, True
     failures = {
         key: GateProtocolChanged("Refusing an unsafe Hypeddit browser URL")
         for key, (_track, url) in keyed.items()
@@ -477,6 +476,8 @@ class _TabWatch:
             self.completed[key] = files.save_browser_download(
                 download, track, self.directory, self.cancel
             )
+        except Cancelled:
+            return
         except Exception as exc:
             self.failures[key] = GateDownloadError(str(exc))
 
@@ -656,7 +657,7 @@ def _await_downloads(
             break
 
     if cancelled:
-        reason = "browser batch cancelled"
+        return True
     elif timed_out:
         reason = "the browser download did not finish in time"
     else:
@@ -770,7 +771,10 @@ def download_hypeddit_batch_in_browser(
                 name=name,
                 time_limit=time_limit,
             )
-        watch.fail_deferred("browser batch cancelled")
+        if cancelled:
+            watch.deferred.clear()
+        else:
+            watch.fail_deferred("browser tab closed before the download finished")
     finally:
         auth.BROWSER_PROFILE_LOCK.release()
 
