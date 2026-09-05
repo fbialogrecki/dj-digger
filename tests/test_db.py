@@ -129,3 +129,18 @@ def test_crate_headers_come_without_the_tracks(tmp_path: Path) -> None:
             "partial": True,
         }
     ]
+
+
+def test_information_release_refuses_newer_library_without_changes(tmp_path):
+    import sqlite3
+
+    import pytest
+    path = tmp_path / 'future.db'
+    with sqlite3.connect(path) as conn:
+        conn.execute('PRAGMA user_version=2')
+        conn.execute('CREATE TABLE preserve (value TEXT)')
+        conn.execute("INSERT INTO preserve VALUES ('user data')")
+    before = path.read_bytes()
+    with pytest.raises(RuntimeError, match='left unchanged'):
+        Database(path)
+    assert path.read_bytes() == before

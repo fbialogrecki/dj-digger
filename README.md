@@ -1,3 +1,28 @@
+# Final release under the old package name
+
+Version 1.0.1 retains the 1.0 application, adds this migration notice and refuses
+to write to a database already upgraded by the new application.
+The new distribution and repository are **dj-digger**:
+https://github.com/fbialogrecki/dj-digger
+
+Close all instances, then uninstall the old package using the manager that
+installed it and install the new package, for example:
+
+```sh
+python -m pip uninstall dj-soundcloud-digger
+python -m pip install 'dj-digger[play,analyze]'
+# or: pipx uninstall dj-soundcloud-digger; pipx install 'dj-digger[play,analyze]'
+# or: uv tool uninstall dj-soundcloud-digger; uv tool install 'dj-digger[play,analyze]'
+```
+
+Do not install both distributions together: they own the same `dj_digger` module
+and `dj-digger` command. This package deliberately does not depend on the new one.
+The data/config directories retain their names. Back up through the application
+migration before downgrading; schema 2 requires an explicit backup restore to use
+an older app again. Do not delete your music, library or configuration to upgrade.
+
+---
+
 # 🎧 dj-soundcloud-digger
 
 [![Python Version](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)

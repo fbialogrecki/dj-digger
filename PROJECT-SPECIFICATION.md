@@ -2,11 +2,11 @@
 
 - Status: current implemented system
 - Document version: 1.0
-- Product version verified: 1.0.0
+- Product version verified: 1.0.1
 - Owner: Filip Białogrecki
 - Updated: 2026-09-04
-- Document lines: <!-- SPEC TOTAL LINES -->1100<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1100<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1107<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1107<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -74,39 +74,39 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 7.2 | ↳ SQLite schema and invariants | 605–629 |
 | 7.3 | ↳ Crate persistence and deletion | 630–641 |
 | 7.4 | ↳ Configuration and credential stores | 642–657 |
-| 8 | Public interfaces and contracts | 658–703 |
-| 8.1 | ↳ CLI arguments and exit behavior | 660–679 |
-| 8.2 | ↳ JSON and CSV summary input | 680–694 |
-| 8.3 | ↳ URL-opening contract | 695–703 |
-| 9 | Authentication and authorization | 704–740 |
-| 9.1 | ↳ SoundCloud authentication | 706–723 |
-| 9.2 | ↳ Gate action consent | 724–740 |
-| 10 | External integrations | 741–873 |
-| 10.1 | ↳ SoundCloud API and media | 743–754 |
-| 10.2 | ↳ Link hubs and download gates | 755–814 |
-| 10.2 · block | ↳ ↳ Hypeddit | 763–800 |
-| 10.2 · block | ↳ ↳ Other resolvers | 802–807 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 809–814 |
-| 10.3 | ↳ Browsers and clipboard | 815–826 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 827–873 |
-| 11 | Security requirements and threat model | 874–920 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 876–894 |
-| 11.2 | ↳ Secret and personal-data handling | 895–907 |
-| 11.3 | ↳ File and mutation safety | 908–920 |
-| 12 | Privacy, lifecycle, and retention | 921–959 |
-| 12.1 | ↳ Data stored locally | 923–938 |
-| 12.2 | ↳ Data sent to third parties | 939–950 |
-| 12.3 | ↳ User-controlled deletion | 951–959 |
-| 13 | Failure behavior and current limitations | 960–1014 |
-| 13.1 | ↳ Error isolation and reporting | 962–981 |
-| 13.2 | ↳ Confirmed limitations | 982–1014 |
-| 14 | Verification, CI, and release | 1015–1078 |
-| 14.1 | ↳ Offline and live test suites | 1017–1047 |
-| 14.2 | ↳ Continuous integration and publishing | 1048–1063 |
-| 14.3 | ↳ Specification-map verification | 1064–1078 |
-| 15 | Evidence and operational references | 1079–1100 |
-| 15.1 | ↳ Primary implementation evidence | 1081–1093 |
-| 15.2 | ↳ User and historical documentation | 1094–1100 |
+| 8 | Public interfaces and contracts | 658–710 |
+| 8.1 | ↳ CLI arguments and exit behavior | 660–686 |
+| 8.2 | ↳ JSON and CSV summary input | 687–701 |
+| 8.3 | ↳ URL-opening contract | 702–710 |
+| 9 | Authentication and authorization | 711–747 |
+| 9.1 | ↳ SoundCloud authentication | 713–730 |
+| 9.2 | ↳ Gate action consent | 731–747 |
+| 10 | External integrations | 748–880 |
+| 10.1 | ↳ SoundCloud API and media | 750–761 |
+| 10.2 | ↳ Link hubs and download gates | 762–821 |
+| 10.2 · block | ↳ ↳ Hypeddit | 770–807 |
+| 10.2 · block | ↳ ↳ Other resolvers | 809–814 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 816–821 |
+| 10.3 | ↳ Browsers and clipboard | 822–833 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 834–880 |
+| 11 | Security requirements and threat model | 881–927 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 883–901 |
+| 11.2 | ↳ Secret and personal-data handling | 902–914 |
+| 11.3 | ↳ File and mutation safety | 915–927 |
+| 12 | Privacy, lifecycle, and retention | 928–966 |
+| 12.1 | ↳ Data stored locally | 930–945 |
+| 12.2 | ↳ Data sent to third parties | 946–957 |
+| 12.3 | ↳ User-controlled deletion | 958–966 |
+| 13 | Failure behavior and current limitations | 967–1021 |
+| 13.1 | ↳ Error isolation and reporting | 969–988 |
+| 13.2 | ↳ Confirmed limitations | 989–1021 |
+| 14 | Verification, CI, and release | 1022–1085 |
+| 14.1 | ↳ Offline and live test suites | 1024–1054 |
+| 14.2 | ↳ Continuous integration and publishing | 1055–1070 |
+| 14.3 | ↳ Specification-map verification | 1071–1085 |
+| 15 | Evidence and operational references | 1086–1107 |
+| 15.1 | ↳ Primary implementation evidence | 1088–1100 |
+| 15.2 | ↳ User and historical documentation | 1101–1107 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -658,6 +658,13 @@ restricted to 0700 on non-Windows systems.
 ## 8. Public interfaces and contracts
 
 ### 8.1 CLI arguments and exit behavior
+
+Version 1.0.1 also refuses databases with schema version above 1 via a read-only
+probe, so an accidental downgrade cannot write to an upgraded library.
+
+Version 1.0.1 prints an informational old-package-name migration warning before
+executing commands. It retains the 1.0 implementation and has no dependency on
+the replacement distribution. Data/config paths and CLI remain unchanged.
 
 Shared flags are `--version`, `--log-level`, `--log-file`, and `--no-tui`.
 `--log-file` writes timestamped records to the given path, creating parent

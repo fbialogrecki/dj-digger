@@ -8,7 +8,7 @@ import json
 import sqlite3
 import threading
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -43,6 +43,14 @@ class Database:
 
     def __init__(self, db_path: Path) -> None:
         self.path = Path(db_path)
+        if self.path.exists():
+            with closing(sqlite3.connect(self.path.resolve().as_uri() + '?mode=ro', uri=True)) as reader:
+                if reader.execute('PRAGMA user_version').fetchone()[0] > 1:
+                    raise RuntimeError(
+                        'This library was upgraded to dj-digger 1.1 or newer. '
+                        'Use dj-digger, or explicitly restore its pre-migration backup '
+                        'with every app instance closed. The library was left unchanged.'
+                    )
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._local = threading.local()
         self._init_db()

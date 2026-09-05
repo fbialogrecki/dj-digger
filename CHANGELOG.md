@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 1.0.1
+
+Final informational release under dj-soundcloud-digger: migration notice for
+explicit uninstall/reinstall to dj-digger, without shared-module dependencies.
+
 ## 1.0.0
 
 ### Added

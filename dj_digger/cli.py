@@ -567,6 +567,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parse_cli_args(argv)
 
     _configure_logging(args.log_level, args.log_file)
+    LOGGER.warning(
+        "dj-soundcloud-digger is now dj-digger. This is the final informational release. "
+        "Close the app, uninstall dj-soundcloud-digger with your original package manager, "
+        "then install dj-digger with the desired extras. Your data directories stay unchanged. "
+        "Do not install both distributions together."
+    )
 
     try:
         if args.command == "dig":
