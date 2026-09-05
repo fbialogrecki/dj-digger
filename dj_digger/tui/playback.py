@@ -68,6 +68,8 @@ class PlaybackController:
         self.run_worker = run_worker
         self.update_status = update_status
         self.worker_scope = worker_scope
+        self._playing_row = None
+        self._requested_row = None
 
     @property
     def animation_level(self):
@@ -223,6 +225,11 @@ class PlaybackController:
         if loaded is None:
             return None
         for index, row in enumerate(self.playlist_state.visible_rows):
+            if row is self._playing_row and row.track.key == loaded.track.key:
+                return index
+        if self._playing_row is not None:
+            return None
+        for index, row in enumerate(self.playlist_state.visible_rows):
             if row.track.key == loaded.track.key:
                 return index
         return None
@@ -251,7 +258,8 @@ class PlaybackController:
         if row is None:
             return
         loaded = self.player.loaded
-        if loaded is not None and loaded.track.key == row.track.key:
+        if (loaded is not None and loaded.track.key == row.track.key
+                and (self._playing_row is None or self._playing_row is row)):
             self.audio_state._playback_generation += 1
             self._player_bar().message = ""
             self._player_op(self.player.toggle)
@@ -291,6 +299,7 @@ class PlaybackController:
             self._paint_key(was_playing)
 
     def _start_playback(self, track: Track) -> None:
+        self._requested_row = next((row for row in self.playlist_state.visible_rows if row.track is track), None)
         self.audio_state._playback_generation += 1
         if not track.id and not track.local_id:
             self.notify("No track id, so there is nothing to stream", timeout=4)
@@ -371,6 +380,7 @@ class PlaybackController:
         except Exception as exc:  # a bad stream must not take the app down
             self._playback_failed(f"Could not start the stream ({exc})")
             return
+        self._playing_row = self._requested_row
         # Resolving the stream takes about half a second, and a frame landing in
         # the middle of it finds nothing playing and puts the timer back to
         # sleep - so this is where it has to be woken, not where it was asked for.

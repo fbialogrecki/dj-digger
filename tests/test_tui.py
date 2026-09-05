@@ -5155,3 +5155,25 @@ def test_local_explorer_and_export_dialog_defaults(state, tmp_path, monkeypatch)
             assert app.playlist_state.rows[0].track.bpm == 128
 
     run(scenario)
+
+
+def test_playback_advances_past_duplicate_playlist_occurrences(state, monkeypatch):
+    from copy import deepcopy
+    app = player_app(synthetic_records(2), state)
+    asked = []
+    monkeypatch.setattr(app.playback_controller, 'fetch_audio', lambda track, generation: asked.append((track, generation)))
+
+    async def scenario():
+        async with app.run_test():
+            controller = app.playback_controller
+            first, second = [row.track for row in app.playlist_state.rows]
+            app.crate_controller.set_tracks([first, second, deepcopy(first)])
+            last = app.playlist_state.visible_rows[2]
+            controller._start_playback(last.track)
+            track, generation = asked[-1]
+            controller._audio_ready(track, a_stream(), [], None, generation)
+            assert controller._playing_index() == 2
+            assert controller._step_from_playing(1) is None
+            assert controller._step_from_playing(-1) == 1
+
+    run(scenario)

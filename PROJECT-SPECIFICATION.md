@@ -5,8 +5,8 @@
 - Product version verified: 1.1.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-09-05
-- Document lines: <!-- SPEC TOTAL LINES -->1278<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1278<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1280<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1280<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,63 +51,63 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 142–176 |
 | 2.1 | ↳ Problem and product boundary | 144–157 |
 | 2.2 | ↳ Execution modes | 158–176 |
-| 3 | User-visible capabilities | 177–505 |
+| 3 | User-visible capabilities | 177–507 |
 | 3.1 | ↳ Track collection and saved HTML | 179–198 |
 | 3.2 | ↳ Link classification and exports | 199–217 |
 | 3.3 | ↳ TUI playlist library and interaction | 218–288 |
-| 3.4 | ↳ Audio preview | 289–335 |
-| 3.5 | ↳ Downloads and local-file matching | 336–365 |
-| 3.6 | ↳ Store purchase assistance | 366–445 |
-| 3.7 | ↳ Local library, analysis and audio export | 446–505 |
-| 4 | System context and data flow | 506–546 |
-| 4.1 | ↳ Context diagram | 508–530 |
-| 4.2 | ↳ Collection-to-library flow | 531–546 |
-| 5 | Repository layout and component ownership | 547–612 |
-| 5.1 | ↳ Entry, orchestration, and models | 549–560 |
-| 5.2 | ↳ Network and external-system adapters | 561–579 |
-| 5.3 | ↳ Persistence, local media, and UI | 580–612 |
-| 6 | Runtime architecture and environments | 613–714 |
-| 6.1 | ↳ Runtime and dependencies | 615–630 |
-| 6.2 | ↳ Concurrency and lifecycle | 631–699 |
-| 6.3 | ↳ Local paths and environment variables | 700–714 |
-| 7 | Data model and persistence | 715–802 |
-| 7.1 | ↳ Domain objects and identity | 717–731 |
-| 7.2 | ↳ SQLite schema and invariants | 732–769 |
-| 7.3 | ↳ Crate persistence and deletion | 770–785 |
-| 7.4 | ↳ Configuration and credential stores | 786–802 |
-| 8 | Public interfaces and contracts | 803–848 |
-| 8.1 | ↳ CLI arguments and exit behavior | 805–824 |
-| 8.2 | ↳ JSON and CSV summary input | 825–839 |
-| 8.3 | ↳ URL-opening contract | 840–848 |
-| 9 | Authentication and authorization | 849–892 |
-| 9.1 | ↳ SoundCloud authentication | 851–871 |
-| 9.2 | ↳ Gate action consent | 872–892 |
-| 10 | External integrations | 893–1028 |
-| 10.1 | ↳ SoundCloud API and media | 895–906 |
-| 10.2 | ↳ Link hubs and download gates | 907–969 |
-| 10.2 · block | ↳ ↳ Hypeddit | 915–955 |
-| 10.2 · block | ↳ ↳ Other resolvers | 957–962 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 964–969 |
-| 10.3 | ↳ Browsers and clipboard | 970–981 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 982–1028 |
-| 11 | Security requirements and threat model | 1029–1083 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1031–1049 |
-| 11.2 | ↳ Secret and personal-data handling | 1050–1065 |
-| 11.3 | ↳ File and mutation safety | 1066–1083 |
-| 12 | Privacy, lifecycle, and retention | 1084–1122 |
-| 12.1 | ↳ Data stored locally | 1086–1101 |
-| 12.2 | ↳ Data sent to third parties | 1102–1113 |
-| 12.3 | ↳ User-controlled deletion | 1114–1122 |
-| 13 | Failure behavior and current limitations | 1123–1183 |
-| 13.1 | ↳ Error isolation and reporting | 1125–1144 |
-| 13.2 | ↳ Confirmed limitations | 1145–1183 |
-| 14 | Verification, CI, and release | 1184–1249 |
-| 14.1 | ↳ Offline and live test suites | 1186–1217 |
-| 14.2 | ↳ Continuous integration and publishing | 1218–1234 |
-| 14.3 | ↳ Specification-map verification | 1235–1249 |
-| 15 | Evidence and operational references | 1250–1278 |
-| 15.1 | ↳ Primary implementation evidence | 1252–1268 |
-| 15.2 | ↳ User and historical documentation | 1269–1278 |
+| 3.4 | ↳ Audio preview | 289–337 |
+| 3.5 | ↳ Downloads and local-file matching | 338–367 |
+| 3.6 | ↳ Store purchase assistance | 368–447 |
+| 3.7 | ↳ Local library, analysis and audio export | 448–507 |
+| 4 | System context and data flow | 508–548 |
+| 4.1 | ↳ Context diagram | 510–532 |
+| 4.2 | ↳ Collection-to-library flow | 533–548 |
+| 5 | Repository layout and component ownership | 549–614 |
+| 5.1 | ↳ Entry, orchestration, and models | 551–562 |
+| 5.2 | ↳ Network and external-system adapters | 563–581 |
+| 5.3 | ↳ Persistence, local media, and UI | 582–614 |
+| 6 | Runtime architecture and environments | 615–716 |
+| 6.1 | ↳ Runtime and dependencies | 617–632 |
+| 6.2 | ↳ Concurrency and lifecycle | 633–701 |
+| 6.3 | ↳ Local paths and environment variables | 702–716 |
+| 7 | Data model and persistence | 717–804 |
+| 7.1 | ↳ Domain objects and identity | 719–733 |
+| 7.2 | ↳ SQLite schema and invariants | 734–771 |
+| 7.3 | ↳ Crate persistence and deletion | 772–787 |
+| 7.4 | ↳ Configuration and credential stores | 788–804 |
+| 8 | Public interfaces and contracts | 805–850 |
+| 8.1 | ↳ CLI arguments and exit behavior | 807–826 |
+| 8.2 | ↳ JSON and CSV summary input | 827–841 |
+| 8.3 | ↳ URL-opening contract | 842–850 |
+| 9 | Authentication and authorization | 851–894 |
+| 9.1 | ↳ SoundCloud authentication | 853–873 |
+| 9.2 | ↳ Gate action consent | 874–894 |
+| 10 | External integrations | 895–1030 |
+| 10.1 | ↳ SoundCloud API and media | 897–908 |
+| 10.2 | ↳ Link hubs and download gates | 909–971 |
+| 10.2 · block | ↳ ↳ Hypeddit | 917–957 |
+| 10.2 · block | ↳ ↳ Other resolvers | 959–964 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 966–971 |
+| 10.3 | ↳ Browsers and clipboard | 972–983 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 984–1030 |
+| 11 | Security requirements and threat model | 1031–1085 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1033–1051 |
+| 11.2 | ↳ Secret and personal-data handling | 1052–1067 |
+| 11.3 | ↳ File and mutation safety | 1068–1085 |
+| 12 | Privacy, lifecycle, and retention | 1086–1124 |
+| 12.1 | ↳ Data stored locally | 1088–1103 |
+| 12.2 | ↳ Data sent to third parties | 1104–1115 |
+| 12.3 | ↳ User-controlled deletion | 1116–1124 |
+| 13 | Failure behavior and current limitations | 1125–1185 |
+| 13.1 | ↳ Error isolation and reporting | 1127–1146 |
+| 13.2 | ↳ Confirmed limitations | 1147–1185 |
+| 14 | Verification, CI, and release | 1186–1251 |
+| 14.1 | ↳ Offline and live test suites | 1188–1219 |
+| 14.2 | ↳ Continuous integration and publishing | 1220–1236 |
+| 14.3 | ↳ Specification-map verification | 1237–1251 |
+| 15 | Evidence and operational references | 1252–1280 |
+| 15.1 | ↳ Primary implementation evidence | 1254–1270 |
+| 15.2 | ↳ User and historical documentation | 1271–1280 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -323,7 +323,9 @@ prepared audio, and folds the player away; `ctrl+w` does the same.
 
 The next visible track is prepared during the last 20 seconds of playback. A
 filter change discards preparation that no longer matches the next row. Tracks
-advance automatically at end of stream. Missing `miniaudio`, an unavailable
+advance automatically at end of stream. Playback follows the selected playlist
+occurrence, so repeated track IDs advance past their own row instead of looping
+back to the first occurrence. Missing `miniaudio`, an unavailable
 audio device, a backend that refuses to start or stop an open device, bad media,
 or a missing track ID produces a user-visible degraded state rather than
 terminating the TUI. A device that fails after having worked is closed and
