@@ -322,8 +322,8 @@ dj-digger auth logout
 ```
 
 The TUI opens the same choice automatically when a download needs SoundCloud.
-Cancelling leaves the track untouched. A successful login recreates the API
-client after active downloads finish and retries the waiting track once.
+Cancelling leaves the track untouched. A successful login updates credentials for subsequent API requests and retries
+the waiting track once. Existing transfers keep their resources until they finish.
 
 SoundCloud's private browser profile lives in
 `~/.local/share/dj-digger/soundcloud-browser`; its verified API credential lives
@@ -394,28 +394,19 @@ dj-digger open likes.json --category bandcamp
 
 ## 🏗️ Project Architecture
 
+```text
+CLI / Textual controllers
+    └── ApplicationServices (lazy composition)
+        ├── Collection, download, purchase and account services
+        │   └── SoundCloud, gate and store adapters
+        ├── Library service → repositories → SQLite owner thread
+        └── Playback service → in-memory audio engine
 ```
-                       ┌─────────────────────────┐
-                       │  SoundCloud URL / HTML  │
-                       └────────────┬────────────┘
-                                    │
-                         ┌──────────▼──────────┐
-                         │ SoundCloudClient v2 │
-                         │ (Resolve & Hydrate) │
-                         └──────────┬──────────┘
-                                    │
-                         ┌──────────▼──────────┐
-                         │ Link Categorizer    │
-                         │ (Store & Gate Engine│
-                         └──────────┬──────────┘
-                                    │
-           ┌────────────────────────┼────────────────────────┐
-           │                        │                        │
-┌──────────▼──────────┐  ┌──────────▼──────────┐  ┌──────────▼──────────┐
-│   Textual TUI App   │  │  Playlist Library  │  │ In-Memory Player   │
-│ (Interactive Grid)  │  │ (~/.../crates/)    │  │ (Miniaudio & VU)   │
-└─────────────────────┘  └────────────────────┘  └────────────────────┘
-```
+
+Controllers own presentation; services own completed effects and resource
+lifecycles. The operation coordinator admits work and tracks cancellation until
+workers finish. See [the architecture guide](docs/architecture.md) for ownership
+and [the specification](PROJECT-SPECIFICATION.md) for behavioral contracts.
 
 ---
 
@@ -424,8 +415,8 @@ dj-digger open likes.json --category bandcamp
 The codebase includes an extensive offline test suite covering unit tests, API serialization, player buffering, link parsing, cart safety, and TUI reactive widgets.
 
 ```bash
-# Run offline test suite (550+ tests, no network required)
-uv run pytest
+# Run the offline test suite (no network required)
+uv run --frozen --extra dev pytest
 
 # Run live integration tests (verifies SoundCloud API v2 contract stability)
 uv run pytest -m live

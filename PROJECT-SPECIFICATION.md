@@ -5,8 +5,8 @@
 - Product version verified: 1.0.0
 - Owner: Filip Białogrecki
 - Updated: 2026-09-05
-- Document lines: <!-- SPEC TOTAL LINES -->1170<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1170<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1187<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1187<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -58,55 +58,55 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 3.4 | ↳ Audio preview | 286–322 |
 | 3.5 | ↳ Downloads and local-file matching | 323–350 |
 | 3.6 | ↳ Store purchase assistance | 351–430 |
-| 4 | System context and data flow | 431–469 |
-| 4.1 | ↳ Context diagram | 433–454 |
-| 4.2 | ↳ Collection-to-library flow | 455–469 |
-| 5 | Repository layout and component ownership | 470–535 |
-| 5.1 | ↳ Entry, orchestration, and models | 472–483 |
-| 5.2 | ↳ Network and external-system adapters | 484–502 |
-| 5.3 | ↳ Persistence, local media, and UI | 503–535 |
-| 6 | Runtime architecture and environments | 536–629 |
-| 6.1 | ↳ Runtime and dependencies | 538–551 |
-| 6.2 | ↳ Concurrency and lifecycle | 552–614 |
-| 6.3 | ↳ Local paths and environment variables | 615–629 |
-| 7 | Data model and persistence | 630–711 |
-| 7.1 | ↳ Domain objects and identity | 632–646 |
-| 7.2 | ↳ SQLite schema and invariants | 647–679 |
-| 7.3 | ↳ Crate persistence and deletion | 680–695 |
-| 7.4 | ↳ Configuration and credential stores | 696–711 |
-| 8 | Public interfaces and contracts | 712–757 |
-| 8.1 | ↳ CLI arguments and exit behavior | 714–733 |
-| 8.2 | ↳ JSON and CSV summary input | 734–748 |
-| 8.3 | ↳ URL-opening contract | 749–757 |
-| 9 | Authentication and authorization | 758–801 |
-| 9.1 | ↳ SoundCloud authentication | 760–780 |
-| 9.2 | ↳ Gate action consent | 781–801 |
-| 10 | External integrations | 802–934 |
-| 10.1 | ↳ SoundCloud API and media | 804–815 |
-| 10.2 | ↳ Link hubs and download gates | 816–875 |
-| 10.2 · block | ↳ ↳ Hypeddit | 824–861 |
-| 10.2 · block | ↳ ↳ Other resolvers | 863–868 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 870–875 |
-| 10.3 | ↳ Browsers and clipboard | 876–887 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 888–934 |
-| 11 | Security requirements and threat model | 935–989 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 937–955 |
-| 11.2 | ↳ Secret and personal-data handling | 956–971 |
-| 11.3 | ↳ File and mutation safety | 972–989 |
-| 12 | Privacy, lifecycle, and retention | 990–1028 |
-| 12.1 | ↳ Data stored locally | 992–1007 |
-| 12.2 | ↳ Data sent to third parties | 1008–1019 |
-| 12.3 | ↳ User-controlled deletion | 1020–1028 |
-| 13 | Failure behavior and current limitations | 1029–1083 |
-| 13.1 | ↳ Error isolation and reporting | 1031–1050 |
-| 13.2 | ↳ Confirmed limitations | 1051–1083 |
-| 14 | Verification, CI, and release | 1084–1148 |
-| 14.1 | ↳ Offline and live test suites | 1086–1117 |
-| 14.2 | ↳ Continuous integration and publishing | 1118–1133 |
-| 14.3 | ↳ Specification-map verification | 1134–1148 |
-| 15 | Evidence and operational references | 1149–1170 |
-| 15.1 | ↳ Primary implementation evidence | 1151–1163 |
-| 15.2 | ↳ User and historical documentation | 1164–1170 |
+| 4 | System context and data flow | 431–471 |
+| 4.1 | ↳ Context diagram | 433–455 |
+| 4.2 | ↳ Collection-to-library flow | 456–471 |
+| 5 | Repository layout and component ownership | 472–537 |
+| 5.1 | ↳ Entry, orchestration, and models | 474–485 |
+| 5.2 | ↳ Network and external-system adapters | 486–504 |
+| 5.3 | ↳ Persistence, local media, and UI | 505–537 |
+| 6 | Runtime architecture and environments | 538–635 |
+| 6.1 | ↳ Runtime and dependencies | 540–553 |
+| 6.2 | ↳ Concurrency and lifecycle | 554–620 |
+| 6.3 | ↳ Local paths and environment variables | 621–635 |
+| 7 | Data model and persistence | 636–717 |
+| 7.1 | ↳ Domain objects and identity | 638–652 |
+| 7.2 | ↳ SQLite schema and invariants | 653–685 |
+| 7.3 | ↳ Crate persistence and deletion | 686–701 |
+| 7.4 | ↳ Configuration and credential stores | 702–717 |
+| 8 | Public interfaces and contracts | 718–763 |
+| 8.1 | ↳ CLI arguments and exit behavior | 720–739 |
+| 8.2 | ↳ JSON and CSV summary input | 740–754 |
+| 8.3 | ↳ URL-opening contract | 755–763 |
+| 9 | Authentication and authorization | 764–807 |
+| 9.1 | ↳ SoundCloud authentication | 766–786 |
+| 9.2 | ↳ Gate action consent | 787–807 |
+| 10 | External integrations | 808–943 |
+| 10.1 | ↳ SoundCloud API and media | 810–821 |
+| 10.2 | ↳ Link hubs and download gates | 822–884 |
+| 10.2 · block | ↳ ↳ Hypeddit | 830–870 |
+| 10.2 · block | ↳ ↳ Other resolvers | 872–877 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 879–884 |
+| 10.3 | ↳ Browsers and clipboard | 885–896 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 897–943 |
+| 11 | Security requirements and threat model | 944–998 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 946–964 |
+| 11.2 | ↳ Secret and personal-data handling | 965–980 |
+| 11.3 | ↳ File and mutation safety | 981–998 |
+| 12 | Privacy, lifecycle, and retention | 999–1037 |
+| 12.1 | ↳ Data stored locally | 1001–1016 |
+| 12.2 | ↳ Data sent to third parties | 1017–1028 |
+| 12.3 | ↳ User-controlled deletion | 1029–1037 |
+| 13 | Failure behavior and current limitations | 1038–1092 |
+| 13.1 | ↳ Error isolation and reporting | 1040–1059 |
+| 13.2 | ↳ Confirmed limitations | 1060–1092 |
+| 14 | Verification, CI, and release | 1093–1158 |
+| 14.1 | ↳ Offline and live test suites | 1095–1126 |
+| 14.2 | ↳ Continuous integration and publishing | 1127–1143 |
+| 14.3 | ↳ Specification-map verification | 1144–1158 |
+| 15 | Evidence and operational references | 1159–1187 |
+| 15.1 | ↳ Primary implementation evidence | 1161–1177 |
+| 15.2 | ↳ User and historical documentation | 1178–1187 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -434,18 +434,19 @@ and checkout remain manual.
 
 ```mermaid
 flowchart LR
-    U[Local user] --> CLI[CLI / Textual TUI]
-    CLI --> DIG[dig orchestration]
-    DIG --> SC[SoundCloud API v2 and pages]
-    DIG --> HUB[Public link hubs and gate pages]
-    DIG --> LINK[Link classification]
-    LINK --> DB[(Local SQLite library)]
-    CLI <--> DB
-    CLI --> BROWSER[System or dedicated Chromium]
-    CLI --> PLAYER[In-memory audio player]
-    PLAYER --> SC
-    CLI --> FILES[Configured music and download folders]
-    CLI --> STORES[Bandcamp cart / Beatport playlist lookup]
+    U[Local user] --> CLI[CLI / Textual controllers]
+    ROOT[ApplicationServices: lazy composition] --> SERVICES[Collection / download / library / account / purchase services]
+    CLI --> SERVICES
+    CLI --> OPS[OperationCoordinator: admission and cancellation]
+    SERVICES --> ADAPTERS[SoundCloud / gates / Bandcamp / Soundiiz adapters]
+    ADAPTERS --> EXTERNAL[Third-party APIs and pages]
+    SERVICES --> STATE[TrackState and crate repositories]
+    STATE --> DB[(SQLite: one owning thread)]
+    SERVICES --> FILES[Validated HTTP / Chromium / local file publication]
+    FILES --> MUSIC[Configured music and download folders]
+    SERVICES --> BROWSER[System browser / managed Chromium]
+    CLI --> AUDIO[Playback service and audio engine]
+    AUDIO --> ADAPTERS
 ```
 
 All durable application state is local. SoundCloud, gate providers,
@@ -463,9 +464,10 @@ tracks are categorized only after loading, allowing improved classification code
 to affect crates stored by earlier versions.
 
 In the TUI, rows group all records with the same `Track.key`. Rendering and
-filters consume rows; state and local-file provenance are queried independently
-from SQLite. Stream URLs are fetched at playback time and are not stored in the
-crate record.
+filters consume rows; rendering reads committed status/provenance mirrors,
+without per-row SQLite queries. Services commit completed effects before the
+controllers apply keyed updates to the current view. Stream URLs are fetched at
+playback time and are not stored in the crate record.
 
 ## 5. Repository layout and component ownership
 
@@ -562,7 +564,10 @@ Missing-file observations carry a per-track revision: a stale scan cannot clear
 a newer completed download or manual status decision. Certain positive matches
 retain the 1.0 rule allowing `got` after `skip`. Status actions run as workers so
 keyboard navigation remains available while a write waits. Mark actions retain
-their original sequence, including repeated-key undo and cursor advance.
+their original sequence, including repeated-key undo and cursor advance. A
+queued mark captures the playlist view generation before waiting and is dropped
+if that view changes. Sidebar loads have a separate request generation so a
+slower previous selection cannot replace the latest selected playlist.
 Another process writing the same database is not reconciled.
 
 `OperationCoordinator` admits one main operation (dig/refresh, download, local
@@ -571,7 +576,8 @@ scheduler. Existing Textual workers, thread pools and asynchronous Playwright
 execute the work. Each `OperationHandle` identifies progress, cancellation and
 settlement; cancellation leaves its slot occupied until workers and suboperations
 finish, including profile saves already in progress when cancellation arrives.
-Dialog callbacks retain the originating cancellation event. The main operation owns the status bar; otherwise the scan is shown.
+Dialog callbacks retain the originating cancellation event. The main operation
+owns the status bar; otherwise the scan is shown.
 `ctrl+x` cancels the visible operation. Single-link opening, export, playback
 and prefetch run independently of the main slot.
 
@@ -857,7 +863,10 @@ minutes after its driving; a single gate's window has the same limit, a
 batch's window lasts as long as a tab stays open. Downloads are watched only
 in the tabs and popups the batch's own pages opened, the batch ends when
 every pending row has settled, and files pass the same size/type/atomic
-validation as HTTP downloads.
+validation as HTTP downloads. Browser cancellation preserves completed files
+and genuine failures; unfinished items remain cancelled instead of receiving a
+synthetic manual-action error. The single-item adapter raises `Cancelled` when
+no file or genuine failure was produced.
 
 <!-- spec-map-block: Other resolvers -->
 Host routing also implements ToneDen page/API extraction, Droploud track API,
@@ -1109,17 +1118,18 @@ The live SoundCloud suite checks client-ID discovery, long collection,
 public Bandcamp/Beatport pages without logging in or changing a cart.
 Hypeddit-live tests issue GET-only inspection and do not submit a profile,
 perform OAuth, resolve a download, or request a file. `bandcamp_dom` drives
-owner-recorded Bandcamp pages (`tests/fixtures/bandcamp/`, shipped empty with
-a recording procedure) in a real headless Chromium with every request answered
-from disk, checking the selectors the cart relies on; it skips without the
-recordings. `shop_mutate` adds, verifies, and removes one name-your-price track
-in a throwaway profile and never approaches checkout.
+owner-recorded Bandcamp pages committed under `tests/fixtures/bandcamp/`
+in a real headless Chromium. Requests are fulfilled from recordings or aborted;
+the suite checks the selectors the cart relies on and skips if recordings or
+Playwright Chromium are unavailable. `shop_mutate` adds, verifies, and removes
+one name-your-price track in a throwaway profile and never approaches checkout.
 
 ### 14.2 Continuous integration and publishing
 
 `.github/workflows/ci.yml` runs on push, pull request, and manual dispatch. It
 checks the generated specification map, runs Ruff, and runs the default offline
-pytest suite across Ubuntu, macOS, and Windows with Python 3.12, 3.13, and 3.14.
+pytest suite across Ubuntu, macOS, and Windows with Python 3.12, 3.13, and 3.14,
+using `uv run --frozen --extra dev` with the committed lockfile.
 
 `.github/workflows/live.yml` runs the `live` marker weekly on Monday at 06:00 UTC
 and by manual dispatch. It is an external-contract monitor rather than a release
@@ -1155,16 +1165,23 @@ markers, unowned named blocks, or absent numbered headings are explicit errors.
 - Collection and link behavior: `dj_digger/soundcloud.py`,
   `dj_digger/html_fallback.py`, `dj_digger/services/collection.py`, `dj_digger/links.py`.
 - Local state: `dj_digger/models.py`, `dj_digger/db.py`, `dj_digger/state.py`,
-  `dj_digger/library.py`, `dj_digger/config.py`, `dj_digger/scanner.py`.
+  `dj_digger/crate_models.py`, `dj_digger/library.py`, `dj_digger/schema.py`,
+  `dj_digger/config.py`, `dj_digger/scanner.py`, `dj_digger/services/library.py`.
 - Authentication and integrations: `dj_digger/auth.py`,
   `dj_digger/gates/`, `dj_digger/browser.py`, `dj_digger/services/purchases.py`.
-- UI and playback: `dj_digger/player.py`, `dj_digger/tui/`.
+- Composition and operation settlement: `dj_digger/services/runtime.py`,
+  `dj_digger/services/operations.py`, `dj_digger/services/downloads.py`.
+- UI and playback: `dj_digger/player.py`, `dj_digger/services/playback.py`,
+  `dj_digger/tui/`.
 - Verification and release: `tests/`, `pyproject.toml`, `.github/workflows/`.
 
 ### 15.2 User and historical documentation
 
 `README.md` is the user-facing installation and operation guide. `CHANGELOG.md`
-records released changes. `docs/graph-notes.md` documents limitations and useful
+records released changes. `docs/architecture.md` explains component ownership;
+`docs/refactor/verification.md` and `docs/refactor/review.md` record executed
+checks and review findings, including unverified CI environments.
+`docs/graph-notes.md` documents limitations and useful
 paths in the generated knowledge graph. Dated files under `docs/superpowers/`
 record design or implementation history; use the current code and this
 specification to determine shipped behavior.

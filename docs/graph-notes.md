@@ -1,131 +1,97 @@
 # Knowledge-graph notes
 
-Answers to the questions `/graphify` raised for this repo, kept here because
-`graphify-out/` is regenerated on every run and these findings are not.
+Rebuilt on 2026-09-05 from the post-1.0 refactor at `007882e` plus the
+specification/README updates in the working tree. This replaces the historical
+0.5/0.6 analysis: its module names, counts and centrality measurements no longer
+describe the current application.
 
-> **Rebuilt after 0.6.0.** The current graph is 1406 nodes, 3233 edges and 67
-> communities, from 51 code files and 13 documents - `dj_digger/ui/` is gone and
-> `tui.py` is now a package of thirteen modules. The reasoning below still holds,
-> especially the caveat about heuristic `uses` edges, but the figures quoted in
-> the sections that follow are the v0.5.1 ones they were written against.
+## Corpus and outputs
 
-Graph originally built at commit `c2e8c1e` (v0.5.1): 1289 nodes, 3142 edges, 85
-communities, from 43 code files and 11 documents. Betweenness figures were recomputed
-directly from `graphify-out/graph.json` with NetworkX, so they differ in the
-third decimal from the ones printed in `GRAPH_REPORT.md`.
+The graph covers 100 code/configuration files and 10 current documents, including
+application code, tests, scripts, the specification, architecture notes and CI
+workflows. Local AST extraction contributes 3,034 nodes; document extraction
+contributes 61 nodes and 193 relations, including references to existing code
+symbols. The resulting undirected navigation graph has **3,095 nodes, 8,181 edges
+and 126 named communities**.
 
-## First, a caveat that changes how you read the whole graph
+`.graphifyignore` excludes agent tooling, historical design plans, recorded
+third-party payloads and this generated commentary. Test code using those
+recordings remains indexed. The detector also appends graphify memory files;
+these were explicitly removed from the extraction corpus to prevent historical
+answers from feeding back into the new architecture graph. Specification reading
+followed the generated section map rather than reading the document end to end.
 
-242 of the 3142 edges (7.7%) are `uses` edges with `confidence_score = 0.5`,
-emitted by the AST pass. They are **module co-location heuristics, not real
-usage**: every class defined in a module that imports `Track` gets a
-`Track --uses--> ThatClass` edge. That is how the graph ends up claiming
-`Track uses AskLinkScreen`, `Track uses FakeDevice` and
-`SoundCloudClient uses SettingsScreen`, none of which exist in the code.
+Local generated outputs remain ignored by Git:
 
-Rule of thumb when reading this graph: **filter out `relation == "uses" and
-confidence_score == 0.5` before drawing any conclusion.** Everything below
-reports the number before and after that filter.
+- [Interactive graph](../graphify-out/graph.html), open directly in a browser.
+- [Graph report](../graphify-out/GRAPH_REPORT.md), with community cohesion scores.
+- [Navigation data](../graphify-out/graph.json) and
+  [raw extraction](../graphify-out/extraction.json).
+- [Extraction diagnostics](../graphify-out/GRAPH_HEALTH.md) and their
+  [machine-readable form](../graphify-out/diagnostics.json).
 
-## Why does `Track` bridge so many communities?
+The manifest records all 110 input files; semantic results are cached for all
+10 documents. Rebuild after code or contract changes with the graphify skill,
+retaining the corpus exclusions above. Graphify is installed separately from
+the application's locked environment; it is not a runtime dependency.
 
-Because it was designed to. `dj_digger/models.py` says so in its own docstring:
+## How to read the graph
 
-> Lives in its own module so `soundcloud`, `html_fallback`, `links` and `tui`
-> can all speak the same vocabulary without importing each other.
+This is a navigation aid, not proof of dependency direction or correctness.
+The default graph is undirected. Multiple relations between the same pair of
+nodes collapse into one edge, and imports of external modules can lack a target
+node. Raw extraction preserves the original evidence for inspection.
 
-The graph confirms the design held. `Track` has **19 `imports` edges** — nine
-production modules (`html_fallback`, `library`, `links`, `player`, `scanner`,
-`soundcloud`, `tui`, `ui/app`, `ui/table`) and ten test modules — plus 25
-`references` and 42 `calls`.
+The extraction diagnostic reports **519 dangling-endpoint edges** (all imports
+or dependency declarations), **320 same-endpoint edges merged in the undirected
+view**, no missing endpoint fields and no self-loops. These are limitations of
+the extractor/export, not newly discovered application defects. No external
+nodes or call relationships were invented to make the diagnostic pass.
 
-| metric | all edges | heuristics filtered |
-| --- | --- | --- |
-| degree | 135 | 98 |
-| communities touched | 53 | 37 |
-| betweenness | 0.336 | 0.266 |
+The AST emits 459 inferred `uses` relations with weight 0.8. These still need
+source verification; the old graph's confidence-0.5 filter is not a sufficient
+check for this extractor version. A reference or shared module does not
+establish a runtime call. Semantic contract-to-symbol references
+identify implementation evidence; they do not prove that every path satisfies
+the contract. Use the executable boundary tests and current specification for
+that assessment.
 
-Filtering the heuristics costs `Track` only 21% of its betweenness, so the
-bridging is **real, and it is the intended architecture** — a shared dataclass
-that lets the fetch layer, the categoriser, the player and the UI avoid
-importing each other. This is not a finding to act on.
+`Track` is the largest hub (degree 283), followed by TUI test helpers `run()`
+(185) and `make_app()` (150). These reflect shared data and extensive integration
+tests. A high degree alone does not justify splitting a class. In particular,
+the historical description of `DiggerApp` as owning all business operations is
+obsolete: it now composes controllers and routes lifecycle and UI actions.
 
-Two of the nine production importers are `dj_digger/ui/app.py` and
-`dj_digger/ui/table.py`, which nothing imports in turn — see the last section.
+## Useful architecture paths
 
-## Why does `DiggerApp` bridge 31 communities?
+Start with these contracts and their code references in the graph:
 
-It mostly does not. `DiggerApp` has 137 edges, but **112 of them are `method`
-edges** — its own methods — and 117 of its 125 real edges originate in
-`dj_digger/tui.py` alone. Its betweenness barely moves when the heuristics are
-filtered (0.184 → 0.179) because its mass is internal, not connective.
+- **Runtime and cancellation:** `ApplicationServices`, `OperationCoordinator`
+  and `OperationHandle` connect lazy resource ownership to operation settlement.
+- **Download effects:** the shared single/batch workflow connects
+  `DownloadWorkflow`, file publication and `PublishedFileUnrecorded`, including
+  the case where the file exists but library persistence fails.
+- **Presentation and persistence:** typed account/profile answers connect to
+  `AccountService`; committed status mirrors connect to `TrackState` and render
+  updates without per-row database queries.
+- **Database lifecycle:** single-thread ownership and schema registration link
+  to `Database` and the schema/backup helpers.
+- **Diagnostics:** literal, redacted external text links to `log_safe_text()`.
 
-So the honest reading is not "important bridge" but **God Class**: one class
-carrying 112 methods across 1400 lines of `tui.py`, holding playback, digging,
-downloads, filtering, crate management, rendering and settings at once. That is
-a real structural finding, and it is a bigger one than anything in the ponytail
-audit — but splitting it is a refactor, not a deletion, so it sits outside the
-audit's "what to cut" scope.
+Useful follow-up questions are how a completed file is recorded after the user
+switches playlists, and why cancellation retains an operation slot until its
+workers settle. Consult source evidence along those paths; graph reachability
+alone cannot answer the concurrency semantics.
 
-## Why does `Player` bridge 23 communities?
+## Verification and measurement limits
 
-Same shape, smaller: 62 edges of which 27 are its own methods, 30 of 46 real
-edges from `player.py` itself. Its betweenness actually *rises* when heuristics
-are filtered (0.074 → 0.085), meaning the noise edges were routing paths
-*around* it. `Player` is a cohesive module boundary, not a tangle. Nothing to do.
+The exported graph has unique node IDs, valid exported edge endpoints and
+community assignments for every node. Semantic references resolve against the
+AST/document node set. The raw diagnostic limitations above remain visible.
 
-## Are the 40 INFERRED edges on `Track` correct?
-
-**No — 38 of 40 are wrong.** Breakdown:
-
-| edge | score | verdict |
-| --- | --- | --- |
-| `Track --shares_data_with--> categorise_link()` (AGENTS.md) | 0.95 | correct |
-| `Track --uses--> SoundCloudClient` (soundcloud.py) | 0.95 | correct as an undirected association; the real direction is the reverse |
-| `Track --conceptually_related_to--> Rejected BPM Column` (spec) | 0.85 | correct and genuinely useful — the spec records *why* there is no `bpm` field |
-| 37 × `Track --uses--> <class>` | 0.50 | **artifacts**, the module co-location heuristic above |
-
-## Are the 28 INFERRED edges on `SoundCloudClient` correct?
-
-**No — 26 of 28 are wrong**, same cause. The two that hold up are worth keeping:
-
-- `SoundCloudClient --implements--> API v2 Batch Hydration Digging` (0.95, README) — correct.
-- `SoundCloudClient --semantically_similar_to--> extract_from_hydration()` (0.85) — correct and non-obvious: the api-v2 client and the saved-HTML parser are two independent solutions to the same "get every track id out of a playlist" problem, which is exactly why `dig.py` can swap between them.
-
-The remaining 26 are `uses` @ 0.50 pointing at every class in `tui.py`,
-`player.py` and `tests/test_soundcloud.py`.
-
-## What are the weakly-connected nodes?
-
-`GRAPH_REPORT.md` names 8; the fuller picture is **351 nodes at degree ≤ 1**, and
-exactly one at degree 0.
-
-- **`dj-soundcloud-digger` (degree 0, from `pyproject.toml`)** — the project node
-  itself. Nothing links to it because no extractor emits "package contains
-  module" edges. Expected, harmless.
-- **`Code-First Output Pattern`, `net: -N lines possible Metric`,
-  `Repo-Wide Bloat Hunt`, `no-trigger Rot Risk Tag`,
-  `Benchmark Median Scoreboard`** — all from `.agents/skills/ponytail-*/SKILL.md`.
-  These are copies of the ponytail tooling, describing *process*, not this
-  application. Their isolation is correct: they should not connect to
-  `dj_digger/`. If you want a cleaner graph, exclude `.agents/` from the scan.
-- **`PyPI Trusted Publisher (OIDC id-token)`** — from `.github/workflows/publish.yml`,
-  CI infrastructure with no code counterpart. Also correct isolation.
-- The remaining ~340 are one-line `rationale` nodes (docstrings) and bare type
-  names (`Path`, `App`, `Click`, `Connection`) with a single anchoring edge.
-  Normal extractor output, not documentation gaps.
-
-**Nothing here is a genuine gap.** The "weakly-connected nodes" signal is firing
-on tooling and stdlib type names, not on under-documented application code.
-
-## Where the graph and the ponytail audit agree
-
-`dj_digger/ui/app.py` scores **betweenness 0.148 — fifth highest in the whole
-graph** — for a file that nothing imports. In an undirected graph a module that
-imports from ten places looks like a hub even when nobody imports it back. The
-graph is measuring an orphan as a load-bearing connector, which is precisely the
-audit's largest finding: the entire `dj_digger/ui/` package (633 lines) is a
-second, never-executed TUI. It entered in one commit (`9610fba`, v0.5.0) and has
-not been touched since, and `ui/app.py:184` calls
-`SoundCloudClient.resolve_crate(target, max_tracks=…)` — a method and an option
-that have never existed.
+Host semantic-agent token counters were unavailable. `cost.json` marks this run's
+usage as unknown, and the report does not present placeholder zeroes as measured
+cost. The local graphify benchmark estimated 4.0× token reduction, but its naive
+154,750-word corpus differs from this build's filtered corpus. That estimate is
+not measured model usage or an application responsiveness benchmark. Executed
+application checks remain documented in [refactor verification](refactor/verification.md).

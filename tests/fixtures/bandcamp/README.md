@@ -4,7 +4,9 @@
 real headless Chromium with every network request answered from disk, so the
 selectors the cart relies on are checked against the page as Bandcamp actually
 renders it, without touching the store. The test skips when the files are
-absent, and this folder ships empty: the pages are recorded by the owner.
+absent or Playwright Chromium is unavailable. This folder includes the three
+owner-recorded page states and their source URL; the procedure below describes
+how to replace the recordings.
 
 ## Recording
 
