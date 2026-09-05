@@ -91,6 +91,14 @@ def target_rate(rate: int, cap: int) -> int:
     return max(choices)
 
 
+def common_root(paths):
+    """Separate Windows drives have no shared ancestor; retain drive labels."""
+    try:
+        return type(paths[0])(os.path.commonpath([str(path.parent) for path in paths]))
+    except ValueError:
+        return None
+
+
 def plan_export(paths, folder: Path, profile=Profile(), *, mode='copy', cancel=None) -> ExportPlan:
     if mode not in ('copy', 'replace'):
         raise ValueError('Unknown export mode')
@@ -98,8 +106,8 @@ def plan_export(paths, folder: Path, profile=Profile(), *, mode='copy', cancel=N
     source_paths = tuple(dict.fromkeys(Path(path).expanduser().absolute().parent.resolve(strict=True) / Path(path).name for path in paths))
     if not source_paths:
         raise MediaError('No audio files selected')
-    root = Path(os.path.commonpath([str(path.parent) for path in source_paths]))
-    destination_root = folder.absolute() / f'dj-digger-{operation[:12]}' if mode == 'copy' else root
+    root = common_root(source_paths)
+    destination_root = folder.absolute() / f'dj-digger-{operation[:12]}' if mode == 'copy' else (root or folder.absolute())
     items, used, directory_owners = [], set(), {}
     for path in source_paths:
         check_cancelled(cancel)
@@ -126,7 +134,8 @@ def plan_export(paths, folder: Path, profile=Profile(), *, mode='copy', cancel=N
                 accepted_codecs = {'pcm_s16le', 'pcm_s24le', 'pcm_s16be', 'pcm_s24be'}
                 if profile.format == 'flac':
                     accepted_codecs |= {'flac', 'alac'}
-                if meta['codec'] not in accepted_codecs or rate != meta['rate'] or bits != meta['bits']:
+                if (meta['codec'] not in accepted_codecs or rate != meta['rate'] or bits != meta['bits']
+                        or not any(value == 'compatible' for value in compatibility([meta]).values())):
                     action = 'convert'
                 if path.suffix.lower() == '.wav' and action == 'copy':
                     try:
@@ -149,7 +158,7 @@ def plan_export(paths, folder: Path, profile=Profile(), *, mode='copy', cancel=N
                         raise MediaError('Resampling would clip; automatic normalization is disabled')
         except MediaError as exc:
             action, reason = 'exception', str(exc)
-        relative = path.relative_to(root)
+        relative = path.relative_to(root) if root is not None else Path(portable(path.anchor), *path.parts[1:])
         parts = []
         for index, part in enumerate(relative.parts):
             candidate = portable(part)

@@ -210,3 +210,28 @@ def test_backup_failure_leaves_schema_untouched(tmp_path, monkeypatch, version):
     with sqlite3.connect(path) as connection:
         assert connection.execute('PRAGMA user_version').fetchone()[0] == version
         assert schema.signature(connection) == schema.expected_signature()
+
+
+def test_analysis_abstention_keeps_tag_fallback(tmp_path, db):
+    path = audio(tmp_path)
+    track = LocalLibrary(db).register(path)
+    db.update_media_metadata(track.local_id, signature(path), {'tags': {'bpm': '126', 'initialkey': 'Am'}})
+    db.save_analysis(track.local_id, signature(path), 'test', {'bpm': None, 'key': ''})
+    loaded = media_track(db, db.media(track.local_id))
+    assert (loaded.bpm, loaded.key_signature) == (126, 'Am')
+    db.set_media_manual(track.local_id, {'bpm': 130, 'key': 'C'})
+    loaded = media_track(db, db.media(track.local_id))
+    assert (loaded.bpm, loaded.key_signature) == (130, 'C')
+
+
+def test_rename_does_not_reuse_identity_from_changed_mount(tmp_path, db):
+    path = audio(tmp_path)
+    library = LocalLibrary(db)
+    before = library.register(path)
+    root_stat = tmp_path.stat()
+    db.observe_root(str(tmp_path), root_stat.st_dev, root_stat.st_ino + 1)
+    renamed = tmp_path / 'renamed.wav'
+    path.rename(renamed)
+    after = library.register(renamed)
+    assert after.local_id != before.local_id
+    assert db.media(before.local_id)['path'] == str(path)

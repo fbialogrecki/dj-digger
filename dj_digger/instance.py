@@ -11,7 +11,7 @@ class InstanceLock:
         try:
             if os.name == 'nt':
                 import msvcrt
-                self.file.seek(0)
+                self.file.seek(0, os.SEEK_END)
                 if self.file.tell() == 0:
                     self.file.write(b'0')
                 self.file.flush()

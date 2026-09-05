@@ -25,8 +25,8 @@ def media_track(db, record: dict) -> Track:
     return Track(title=tags.get('title') or Path(record['path']).stem,
                  permalink_url='', artist=tags.get('artist', ''), local_id=record['id'],
                  local_path=record['path'], duration=int(metadata.get('duration', 0) * 1000),
-                 bpm=manual.get('bpm', analysis.get('bpm', bpm)),
-                 key_signature=manual.get('key', analysis.get('key', tags.get('initialkey', ''))) or '')
+                 bpm=manual.get('bpm') or analysis.get('bpm') or bpm,
+                 key_signature=manual.get('key') or analysis.get('key') or tags.get('initialkey', ''))
 
 
 class LocalLibrary:
@@ -42,7 +42,7 @@ class LocalLibrary:
         for existing in self.db.media_at_identity(current_signature):
             if (existing['path'] != str(path) and json.loads(existing['signature'])[:4] == json.loads(current_signature)[:4]):
                 from ..scanner import confirmed_missing
-                if confirmed_missing(Path(existing['path'])):
+                if confirmed_missing(Path(existing['path']), self.db):
                     self.db.relocate_media(existing['id'], existing['path'], str(path), existing['signature'], current_signature)
         record = self.db.register_media(str(path), current_signature)
         if inspect and record['metadata_json'] == '{}':
