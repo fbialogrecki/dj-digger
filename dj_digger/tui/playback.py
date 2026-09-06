@@ -153,24 +153,26 @@ class PlaybackController:
         self.audio_state._preparing = track.key
         self.prepare_track(deepcopy(track), self.audio_state._preparation_generation)
 
+    def _prepare_audio(self, track: Track) -> Prepared:
+        """Use the same source preparation for playback and prefetch workers."""
+        if track.local_id and track.local_path:
+            from ..local_audio import prepare_local
+            return prepare_local(track)
+        stream = resolve_stream(self.client, track.id)
+        samples = fetch_waveform(self.client, stream.waveform_url)
+        source = open_source(self.client.session, stream.url)
+        return Prepared(track=track, stream=stream, waveform=samples, source=source)
+
     def prepare_track_work(self, track: Track, generation: int | None = None) -> None:
         with self.worker_scope():
             try:
-                if track.local_id and track.local_path:
-                    from ..local_audio import prepare_local
-                    prepared = prepare_local(track)
-                    stream, samples, source = prepared.stream, prepared.waveform, prepared.source
-                else:
-                    stream = resolve_stream(self.client, track.id)
-                    samples = fetch_waveform(self.client, stream.waveform_url)
-                    source = open_source(self.client.session, stream.url)
+                prepared = self._prepare_audio(track)
             except Exception as exc:
                 # Nothing is owed here: if this fails the track loads the ordinary
                 # way in its own time, and says so then.
                 LOGGER.debug("Could not prepare %s: %s", track.label, exc)
                 self.call_from_thread(self._preparation_done, track.key, None, generation)
                 return
-            prepared = Prepared(track=track, stream=stream, waveform=samples, source=source)
             try:
                 self.call_from_thread(self._preparation_done, track.key, prepared, generation)
             except RuntimeError:
@@ -326,23 +328,16 @@ class PlaybackController:
             """
 
             try:
-                if track.local_id and track.local_path:
-                    from ..local_audio import prepare_local
-                    prepared = prepare_local(track)
-                    stream, samples, source = prepared.stream, prepared.waveform, prepared.source
-                else:
-                    stream = resolve_stream(self.client, track.id)
-                    samples = fetch_waveform(self.client, stream.waveform_url)
-                    source = open_source(self.client.session, stream.url)
+                prepared = self._prepare_audio(track)
             except (SoundCloudError, PlaybackUnavailable, OSError, RuntimeError) as exc:
                 self.call_from_thread(self._playback_failed, str(exc), generation)
                 return
             try:
-                self.call_from_thread(self._audio_ready, track, stream, samples, source, generation)
+                self.call_from_thread(self._audio_ready, track, prepared.stream, prepared.waveform, prepared.source, generation)
             except RuntimeError:
-                if source is not None:
-                    source.close()
+                prepared.close()
                 return
+
     def _local_waveform_work(self, loaded, source):
         from ..local_audio import waveform
         class Closed:

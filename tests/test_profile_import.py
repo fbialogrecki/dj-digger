@@ -91,3 +91,25 @@ def test_deleting_during_hydration_is_not_undone(db):
     client.hook = lambda: db.delete_crate(client.url)
     assert import_profile(client, db, 'https://soundcloud.com/owner')[0]['status'] == 'locally_changed'
     assert db.load_crate(client.url) is None
+
+
+def test_multiple_pages_reuse_hydration_and_preserve_each_playlist_order(db):
+    class TwoPages(Client):
+        def _request(self, url, params):
+            self.pages += 1
+            return {'collection': [{'id': 9 + self.pages, 'user_id': 5}],
+                    'next_href': f'{API_ROOT}/users/5/playlists?cursor=2' if self.pages == 1 else None}
+
+        def _get(self, url, **params):
+            value = super()._get(url, **params)
+            if url.startswith('/playlists/'):
+                value['permalink_url'] += url.rsplit('/', 1)[-1]
+            return value
+
+    client = TwoPages()
+    report = import_profile(client, db, 'https://soundcloud.com/owner')
+    assert [item['status'] for item in report] == ['imported', 'imported']
+    assert client.pages == 2
+    assert client.hydrations == 1
+    for header in db.list_crate_headers():
+        assert [track['id'] for track in db.load_crate(header['source'])['tracks']] == [1, 2, 1]

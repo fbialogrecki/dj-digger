@@ -6,13 +6,14 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, ScrollableContainer, VerticalScroll
 from textual.message import Message
+from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import Button, DataTable, Footer, Input, Label, ListItem, Static
 from textual.widgets._footer import FooterKey
 from textual.widgets.data_table import ColumnKey
 
 from ..crate_models import CrateHeader
-from .keymap import FOOTER_OPTIONAL, MIN_TITLE_WIDTH
+from .keymap import FOOTER_OPTIONAL, LOCAL_FOOTER_ACTIONS, LOCAL_FOOTER_OPTIONAL, MIN_TITLE_WIDTH
 
 
 class FittedFooter(Footer):
@@ -25,18 +26,23 @@ class FittedFooter(Footer):
     would undo that on the next keystroke.
     """
 
-    def _dropped_actions(self) -> set[str]:
+    local_view = reactive(False, recompose=True)
+    busy = reactive(False, recompose=True)
+
+    def _dropped_actions(self, bindings=None, optional=FOOTER_OPTIONAL) -> set[str]:
         """Which bindings will not fit, decided before any widget is built."""
 
         budget = self.size.width or self.screen.size.width
         cost: dict[str, int] = {}
-        for _node, binding, _enabled, _tooltip in self.screen.active_bindings.values():
-            if binding.show and binding.action not in cost:
+        if bindings is None:
+            bindings = [binding for _, binding, _, _ in self.screen.active_bindings.values() if binding.show]
+        for binding in bindings:
+            if binding.action not in cost:
                 key_display = self.app.get_key_display(binding)
                 cost[binding.action] = len(key_display) + len(binding.description) + 3
         total = sum(cost.values())
         dropped: set[str] = set()
-        for action in FOOTER_OPTIONAL:
+        for action in optional:
             if total <= budget:
                 break
             if action in cost:
@@ -45,6 +51,19 @@ class FittedFooter(Footer):
         return dropped
 
     def compose(self) -> ComposeResult:
+        if self.local_view:
+            if not self._bindings_ready:
+                return
+            actions = {binding.action: (binding, enabled, tooltip)
+                       for _, binding, enabled, tooltip in self.screen.active_bindings.values()}
+            items = [actions[action] for action in LOCAL_FOOTER_ACTIONS
+                     if action in actions and (action != 'cancel_job' or self.busy)]
+            dropped = self._dropped_actions([binding for binding, _, _ in items], LOCAL_FOOTER_OPTIONAL)
+            for binding, enabled, tooltip in items:
+                if binding.action not in dropped:
+                    yield FooterKey(binding.key, self.app.get_key_display(binding), binding.description,
+                                    binding.action, disabled=not enabled, tooltip=tooltip).data_bind(compact=Footer.compact)
+            return
         dropped = self._dropped_actions()
         for key in super().compose():
             if isinstance(key, FooterKey) and key.action in dropped:

@@ -123,13 +123,17 @@ class CrateController:
         if record.preserve_order or any(track.local_id for track in record.active_tracks):
             self.set_tracks(record.active_tracks)
 
-    def set_tracks(self, tracks) -> None:
+    def set_tracks(self, tracks, *, local=None) -> None:
+        if local is None:
+            local = bool(tracks) and all(track.local_id for track in tracks)
+        self.playlist_state.local_view = local
         self.playlist_state.rows = [Row(index + 1, track, [] if track.local_id else links_module.categorise_all([track])) for index, track in enumerate(tracks)]
         self.playlist_state.present = links_module.present_categories(self.all_records())
         self.playlist_state.store_filters.clear()
         self.refresh_rows(keep_cursor=False)
 
     def load_records(self, records: Sequence[LinkRecord], *, title: str = "") -> None:
+        self.playlist_state.local_view = False
         self.playlist_state._view_generation += 1
         self._set_records(records)
         self.playlist_state.selected.clear()

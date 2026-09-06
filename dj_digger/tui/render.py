@@ -32,7 +32,7 @@ from .keymap import (
     TIME_WIDTH,
 )
 from .rows import Row
-from .widgets import TrackTable
+from .widgets import FittedFooter, TrackTable
 
 
 class RenderController:
@@ -287,6 +287,8 @@ class RenderController:
         self.set_timer(FLASH, lambda: self._paint_row(index))
 
     def refresh_rows(self, *, keep_cursor: bool = True) -> None:
+        for footer in self.query(FittedFooter):
+            footer.local_view = self.playlist_state.local_view
         if not self.query("#tracks"):
             return
         table = self.query_one("#tracks", TrackTable)
@@ -338,10 +340,14 @@ class RenderController:
         selection, hidden rows.
         """
 
+        for footer in self.query(FittedFooter):
+            footer.busy = self.job is not None
         # A worker's last word can land after the widgets are gone.
         if not self.query("#status-legend"):
             return
-        self.query_one("#status-legend", Static).update(self._store_line())
+        legend = self.query_one("#status-legend", Static)
+        legend.display = not self.playlist_state.local_view
+        legend.update(self._store_line())
         self.query_one("#status-job", Static).update(self._progress_line())
 
     def _progress_line(self) -> Text:

@@ -11,6 +11,13 @@ from ..models import Track, check_cancelled
 PAGE_SIZE = 250
 
 
+def _is_audio_entry(entry):
+    """Shared by the visible page and complete export selection."""
+    return (entry.name.lower().endswith(tuple(FORMATS))
+            and not re.search(r'\.[0-9a-f]{32}\.partial\.', entry.name)
+            and entry.is_file())
+
+
 def media_track(db, record: dict) -> Track:
     metadata = json.loads(record['metadata_json'])
     values = db.media_values(record['id'])
@@ -66,7 +73,7 @@ class LocalLibrary:
                 check_cancelled(cancel)
                 if entry.is_dir(follow_symlinks=False):
                     directories.append(entry.name)
-                elif entry.name.lower().endswith(tuple(FORMATS)) and not re.search(r'\.[0-9a-f]{32}\.partial\.', entry.name) and entry.is_file():
+                elif _is_audio_entry(entry):
                     names.append(entry.name)
         check_cancelled(cancel)
         folder = folder.resolve(strict=True)
@@ -95,7 +102,7 @@ class LocalLibrary:
                     check_cancelled(cancel)
                     if recursive and entry.is_dir(follow_symlinks=False) and not entry.name.startswith('.dj-digger-'):
                         pending.append(Path(entry.path))
-                    elif entry.name.lower().endswith(tuple(FORMATS)) and not re.search(r'\.[0-9a-f]{32}\.partial\.', entry.name) and entry.is_file():
+                    elif _is_audio_entry(entry):
                         path = Path(entry.path).resolve(strict=True)
                         stat = path.stat()
                         identity = (stat.st_dev, stat.st_ino)

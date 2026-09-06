@@ -75,7 +75,11 @@ class Profile:
         if self.format not in ('wav', 'aiff', 'flac') or self.bits not in (16, 24) or self.rate not in (44100, 48000, 88200, 96000):
             raise ValueError('Unsupported export profile')
 
-    def media(self):
-        return dict(container=self.format, codec=('flac' if self.format == 'flac' else f'pcm_s{self.bits}' +
-                           ('be' if self.format == 'aiff' else 'le')),
-                    bits=self.bits, rate=self.rate, channels=2)
+    def codec(self, bits=None):
+        bits = self.bits if bits is None else bits
+        return 'flac' if self.format == 'flac' else f'pcm_s{bits}' + ('be' if self.format == 'aiff' else 'le')
+
+    def media(self, *, bits=None, rate=None):
+        return dict(container=self.format, codec=self.codec(bits),
+                    bits=self.bits if bits is None else bits,
+                    rate=self.rate if rate is None else rate, channels=2)

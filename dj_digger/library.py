@@ -13,13 +13,10 @@ lost the import date, the NEW marks and the partial flag. The sidebar reads
 whole library with every track attached, which only the tests need.
 """
 
-import logging
 
 from .crate_models import CrateHeader, CrateRecord, _now
 from .db import database
 from .models import Crate
-
-LOGGER = logging.getLogger(__name__)
 
 
 def save(record: CrateRecord) -> None:

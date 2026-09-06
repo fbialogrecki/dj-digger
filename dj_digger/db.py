@@ -356,13 +356,6 @@ class Database:
             )
 
     @owned
-    def find_local_match(self, normalized_stem: str) -> str | None:
-        with self.connection() as conn:
-            cur = conn.execute("SELECT path FROM local_files WHERE normalized_stem = ? LIMIT 1", (normalized_stem,))
-            row = cur.fetchone()
-            return row["path"] if row else None
-
-    @owned
     def find_unique_local_match(
         self, containing: str, also_containing: str = ""
     ) -> str | None:

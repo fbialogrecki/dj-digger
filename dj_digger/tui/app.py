@@ -428,10 +428,6 @@ class DiggerApp(App):
             self._dig_cancel = self.job.cancel
         return worker
 
-    def _dig_running(self):
-        handle = self.services.operations.active()
-        return handle is not None and handle.name == "Digging"
-
     def _display_collection(self, result, view_generation):
         record = result.record
         if record is None:
@@ -534,6 +530,7 @@ class DiggerApp(App):
         self.panic(Text(f"{type(error).__name__}: {log_safe_text(error)}"))
 
     def notify(self, message, *, markup=False, **kwargs):
+        del markup  # Accept Textual's keyword, but provider text always stays literal.
         super().notify(log_safe_text(message), markup=False, **kwargs)
 
     def show_error(self, message: str) -> None:

@@ -62,9 +62,7 @@ class ExportPlan:
             elif item.action == 'copy':
                 media.append(json.loads(item.metadata_json))
             else:
-                media.append({**self.profile.media(), 'rate': item.rate, 'bits': item.bits,
-                              'codec': ('flac' if self.profile.format == 'flac' else
-                                        f'pcm_s{item.bits}' + ('be' if self.profile.format == 'aiff' else 'le'))})
+                media.append(self.profile.media(rate=item.rate, bits=item.bits))
         return compatibility(media)
 
 
@@ -99,6 +97,68 @@ def common_root(paths):
         return None
 
 
+def _transformation(path, meta, profile, mode, cancel):
+    """Choose the minimal allowed audio change, retaining explicit exceptions."""
+    action, reason, bits, rate = 'copy', '', meta['bits'], meta['rate']
+    try:
+        if meta['channels'] not in (1, 2):
+            raise MediaError('Multichannel audio requires an explicit downmix decision')
+        if meta['codec'] in ('mp3', 'aac'):
+            if not any(value == 'compatible' for value in compatibility([meta]).values()):
+                raise MediaError('Lossy file parameters are incompatible or unverified; no automatic lossy transcode')
+        else:
+            rate = target_rate(meta['rate'], profile.rate)
+            bits = min(meta['bits'] or profile.bits, profile.bits)
+            if bits not in (16, 24):
+                bits = profile.bits
+            accepted_codecs = {'pcm_s16le', 'pcm_s24le', 'pcm_s16be', 'pcm_s24be'}
+            if profile.format == 'flac':
+                accepted_codecs |= {'flac', 'alac'}
+            if (meta['codec'] not in accepted_codecs or rate != meta['rate'] or bits != meta['bits']
+                    or not any(value == 'compatible' for value in compatibility([meta]).values())):
+                action = 'convert'
+            if path.suffix.lower() == '.wav' and action == 'copy':
+                try:
+                    if wav.inspect(path)['code'] != 1:
+                        action = 'convert'
+                except MediaError:
+                    action = 'convert'
+        expected_size = round(meta['duration'] * rate) * meta['channels'] * bits // 8 + 1048576
+        if (action == 'copy' and path.stat().st_size > 0xffffffff) or (action == 'convert' and profile.format in ('wav', 'aiff') and expected_size > 0xffffffff):
+            raise MediaError('Result exceeds the FAT32 / classic container size limit')
+        if mode == 'replace' and (path.is_symlink() or path.stat().st_nlink != 1):
+            raise MediaError('Replacement is disabled for symbolic and hard links')
+        if action == 'convert':
+            meta['source_pcm'] = pcm_summary(path, cancel=cancel)
+            if meta['source_pcm'][2] > 1:
+                raise MediaError('Source clips; explicit level adjustment is required')
+            if rate != meta['rate']:
+                meta['resampled_peak'] = pcm_summary(path, rate=rate, cancel=cancel)[2]
+                if meta['resampled_peak'] > 1:
+                    raise MediaError('Resampling would clip; automatic normalization is disabled')
+    except MediaError as exc:
+        action, reason = 'exception', str(exc)
+    return action, reason, bits, rate
+
+
+def _portable_parts(relative, directory_owners):
+    """Preserve structure while assigning deterministic portable directory names."""
+    parts = []
+    for index, part in enumerate(relative.parts):
+        candidate = portable(part)
+        if index < len(relative.parts) - 1:
+            key = '/'.join([*parts, candidate]).casefold()
+            owner = '/'.join(relative.parts[:index + 1])
+            if key in directory_owners and directory_owners[key] != owner:
+                candidate += '-' + hashlib.sha256(owner.encode()).hexdigest()[:10]
+                key = '/'.join([*parts, candidate]).casefold()
+            directory_owners[key] = owner
+        if index == len(relative.parts) - 1:
+            candidate = portable(Path(part).stem) + Path(part).suffix.lower()
+        parts.append(candidate)
+    return parts
+
+
 def plan_export(paths, folder: Path, profile=Profile(), *, mode='copy', cancel=None) -> ExportPlan:
     if mode not in ('copy', 'replace'):
         raise ValueError('Unknown export mode')
@@ -119,59 +179,9 @@ def plan_export(paths, folder: Path, profile=Profile(), *, mode='copy', cancel=N
         except MediaError as exc:
             items.append(Item(str(path), before, sha, str(destination_root / portable(path.name)), 'exception', 0, 0, '{}', str(exc)))
             continue
-        action, reason, bits, rate = 'copy', '', meta['bits'], meta['rate']
-        try:
-            if meta['channels'] not in (1, 2):
-                raise MediaError('Multichannel audio requires an explicit downmix decision')
-            if meta['codec'] in ('mp3', 'aac'):
-                if not any(value == 'compatible' for value in compatibility([meta]).values()):
-                    raise MediaError('Lossy file parameters are incompatible or unverified; no automatic lossy transcode')
-            else:
-                rate = target_rate(meta['rate'], profile.rate)
-                bits = min(meta['bits'] or profile.bits, profile.bits)
-                if bits not in (16, 24):
-                    bits = profile.bits
-                accepted_codecs = {'pcm_s16le', 'pcm_s24le', 'pcm_s16be', 'pcm_s24be'}
-                if profile.format == 'flac':
-                    accepted_codecs |= {'flac', 'alac'}
-                if (meta['codec'] not in accepted_codecs or rate != meta['rate'] or bits != meta['bits']
-                        or not any(value == 'compatible' for value in compatibility([meta]).values())):
-                    action = 'convert'
-                if path.suffix.lower() == '.wav' and action == 'copy':
-                    try:
-                        if wav.inspect(path)['code'] != 1:
-                            action = 'convert'
-                    except MediaError:
-                        action = 'convert'
-            expected_size = round(meta['duration'] * rate) * meta['channels'] * bits // 8 + 1048576
-            if (action == 'copy' and path.stat().st_size > 0xffffffff) or (action == 'convert' and profile.format in ('wav', 'aiff') and expected_size > 0xffffffff):
-                raise MediaError('Result exceeds the FAT32 / classic container size limit')
-            if mode == 'replace' and (path.is_symlink() or path.stat().st_nlink != 1):
-                raise MediaError('Replacement is disabled for symbolic and hard links')
-            if action == 'convert':
-                meta['source_pcm'] = pcm_summary(path, cancel=cancel)
-                if meta['source_pcm'][2] > 1:
-                    raise MediaError('Source clips; explicit level adjustment is required')
-                if rate != meta['rate']:
-                    meta['resampled_peak'] = pcm_summary(path, rate=rate, cancel=cancel)[2]
-                    if meta['resampled_peak'] > 1:
-                        raise MediaError('Resampling would clip; automatic normalization is disabled')
-        except MediaError as exc:
-            action, reason = 'exception', str(exc)
+        action, reason, bits, rate = _transformation(path, meta, profile, mode, cancel)
         relative = path.relative_to(root) if root is not None else Path(portable(path.anchor), *path.parts[1:])
-        parts = []
-        for index, part in enumerate(relative.parts):
-            candidate = portable(part)
-            if index < len(relative.parts) - 1:
-                key = '/'.join([*parts, candidate]).casefold()
-                owner = '/'.join(relative.parts[:index + 1])
-                if key in directory_owners and directory_owners[key] != owner:
-                    candidate += '-' + hashlib.sha256(owner.encode()).hexdigest()[:10]
-                    key = '/'.join([*parts, candidate]).casefold()
-                directory_owners[key] = owner
-            if index == len(relative.parts) - 1:
-                candidate = portable(Path(part).stem) + Path(part).suffix.lower()
-            parts.append(candidate)
+        parts = _portable_parts(relative, directory_owners)
         target = destination_root.joinpath(*parts) if mode == 'copy' else path
         if action == 'convert':
             target = target.with_suffix('.' + profile.format)
@@ -206,27 +216,31 @@ def pcm_summary(path: Path, *, rate=None, cancel=None):
     return hashed.hexdigest(), samples, peak
 
 
+def _prepare_copy(item, source, target, cancel):
+    # Exclusive creation; never overwrite an unrelated destination.
+    with source.open('rb') as original, target.open('xb') as output:
+        hashed = hashlib.sha256()
+        while block := original.read(1024 * 1024):
+            check_cancelled(cancel)
+            hashed.update(block)
+            output.write(block)
+        output.flush()
+        os.fsync(output.fileno())
+    if hashed.hexdigest() != item.sha256 or digest(target, cancel) != item.sha256:
+        raise MediaError('Copy verification failed')
+    pcm_summary(target, cancel=cancel)  # full decode, including copied files
+    if signature(source) != item.signature:
+        raise MediaError('Source changed during copy')
+    return {'skipped_metadata': [], 'resampler': None}
+
+
 def prepare(item: Item, profile: Profile, target: Path, *, cancel=None) -> dict:
     source = Path(item.source)
     metadata = json.loads(item.metadata_json)
     if signature(source) != item.signature or digest(source, cancel) != item.sha256:
         raise MediaError('Source changed since export was reviewed')
     if item.action == 'copy':
-        # Exclusive creation; never overwrite an unrelated destination.
-        with source.open('rb') as original, target.open('xb') as output:
-            hashed = hashlib.sha256()
-            while block := original.read(1024 * 1024):
-                check_cancelled(cancel)
-                hashed.update(block)
-                output.write(block)
-            output.flush()
-            os.fsync(output.fileno())
-        if hashed.hexdigest() != item.sha256 or digest(target, cancel) != item.sha256:
-            raise MediaError('Copy verification failed')
-        pcm_summary(target, cancel=cancel)  # full decode, including copied files
-        if signature(source) != item.signature:
-            raise MediaError('Source changed during copy')
-        return {'skipped_metadata': [], 'resampler': None}
+        return _prepare_copy(item, source, target, cancel)
     old_hash, old_samples, old_peak = metadata.get('source_pcm') or pcm_summary(source, cancel=cancel)
     if old_peak > 1:
         raise MediaError('Source clips; choose an explicit level adjustment before export')
@@ -239,7 +253,7 @@ def prepare(item: Item, profile: Profile, target: Path, *, cancel=None) -> dict:
             _, _, resampled_peak = pcm_summary(source, rate=item.rate, cancel=cancel)
         if resampled_peak > 1:
             raise MediaError('Resampling would clip; automatic normalization is disabled')
-    codec = 'flac' if profile.format == 'flac' else f'pcm_s{item.bits}' + ('be' if profile.format == 'aiff' else 'le')
+    codec = profile.codec(item.bits)
     encoded = target.with_name(target.name + '.encoded') if profile.format == 'wav' else target
     safe_tags = {'title', 'artist', 'album', 'date', 'genre', 'track', 'comment', 'copyright'}
     tag_args = [part for key, value in metadata.get('tags', {}).items() if key in safe_tags and len(str(value)) <= 65536 for part in ('-metadata', f'{key}={value}')]
@@ -364,6 +378,12 @@ def recover(db) -> list[str]:
     return messages
 
 
+def _checkpoint_copy(plan, db, report):
+    _save_report(Path(plan.folder) / 'dj-digger-report.json', report)
+    stage = 'done' if report['status'] == 'complete' else 'copy'
+    db.record_media_operation(plan.id, {**report, 'kind': 'copy', 'stage': stage})
+
+
 def execute(plan: ExportPlan, db, *, resume=False, cancel=None, protected=lambda: (), progress=lambda done, total: None):
     if plan.rules != RULE_VERSION:
         raise MediaError('Export rules changed; prepare a new plan')
@@ -435,14 +455,14 @@ def execute(plan: ExportPlan, db, *, resume=False, cancel=None, protected=lambda
                 shutil.rmtree(working_directory)
             progress(index + 1, len(plan.items))
             if plan.mode == 'copy':
-                _save_report(folder / 'dj-digger-report.json', report)
-                db.record_media_operation(plan.id, {**report, 'kind': 'copy', 'stage': 'copy'})
+                _checkpoint_copy(plan, db, report)
     if report['status'] != 'cancelled':
         report['status'] = 'partial' if any(item['status'] == 'failed' for item in report['results']) else 'complete'
-    report['missing'] = [item.source for item in plan.items if item.source not in {result['source'] for result in report['results'] if result['status'] in ('complete', 'unchanged')}]
+    completed_sources = {result['source'] for result in report['results']
+                         if result['status'] in ('complete', 'unchanged')}
+    report['missing'] = [item.source for item in plan.items if item.source not in completed_sources]
     if plan.mode == 'copy':
-        _save_report(folder / 'dj-digger-report.json', report)
-        db.record_media_operation(plan.id, {**report, 'kind': 'copy', 'stage': 'done' if report['status'] == 'complete' else 'copy'})
+        _checkpoint_copy(plan, db, report)
     return report
 
 

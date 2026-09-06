@@ -10,15 +10,12 @@ a library scan needed ``batched()`` to hold it back. The current database has no
 JSON import path; a state.json written by an older version is left alone.
 """
 
-import logging
 import threading
 from dataclasses import dataclass
 from pathlib import Path
 
 from .db import database
 from .models import GOT, NEW, OPENED, STATUSES
-
-LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)

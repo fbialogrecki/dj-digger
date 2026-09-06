@@ -1,6 +1,5 @@
 """Validated file publication shared by HTTP, Chromium and local copies."""
 
-import logging
 import os
 import re
 import shutil
@@ -15,8 +14,6 @@ from .gates import providers as gates
 from .models import Cancelled, Track, check_cancelled
 from .paths import unique_target
 from .soundcloud_errors import SoundCloudError
-
-LOGGER = logging.getLogger(__name__)
 
 # Windows refuses these as a filename whatever the extension - CON.mp3 is as
 # reserved as CON - and says so with an OSError at the moment of writing, which

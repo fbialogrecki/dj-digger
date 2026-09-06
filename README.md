@@ -440,6 +440,21 @@ Space or Enter previews a local file. FFmpeg/ffprobe must be installed and on
 PATH; playback also needs the `play` extra. WAV, AIFF/AIF, FLAC/FLA, MP3, AAC,
 and M4A/MP4 audio are supported, subject to successful decoder inspection.
 
+The bottom bar changes when you open local music. Its actions are clickable.
+
+To convert or prepare a club folder:
+
+1. Open a directory and optionally select tracks (`v`, or `ctrl+a` for the page).
+2. Click **Convert** in the bottom bar (or press `ctrl+e`). With no selection in a folder, export includes all matching files across every page.
+3. Choose the target format and maximum bit depth/sample rate, and enter the destination directory. A new folder with copies is the default.
+4. Click **Inspect files and review plan**, check each action and the actual deck compatibility, then click **Execute this plan**.
+
+To find BPM and key, click **Analyze BPM/key** (or `j`), check the file count,
+and click **Start analysis**. With no selection this analyzes the visible local
+tracks on the current page. The BPM and Key columns appear automatically; use
+**Edit BPM/key** for corrections. The **Stop** action is shown while work runs.
+For a checkout, start with `uv run --extra play --extra analyze dj-digger`.
+
 | Key | Local library action |
 | --- | --- |
 | `ctrl+f` | Open a directory by path |

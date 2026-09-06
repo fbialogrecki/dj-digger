@@ -13,6 +13,7 @@ from ..services.local_library import PAGE_SIZE, LocalLibrary, media_track
 from ..services.profile_import import import_profile
 from .local_screens import (
     AnalysisEdit,
+    AnalysisOptions,
     ExportOptions,
     ExportReview,
     ProfileImportOptions,
@@ -96,7 +97,7 @@ class LocalController:
             self.folder, self.offset, self.total = folder, offset, total
             self.playlist_state.crate = None
             self.crates.load_records([], title=str(folder))
-            self.crates.set_tracks(tracks)
+            self.crates.set_tracks(tracks, local=True)
             view = self.playlist_state._view_generation
             self.query_one('#folder-next', Button).display = total > PAGE_SIZE
             if node is not None and not node.children:
@@ -224,10 +225,20 @@ class LocalController:
         if not tracks:
             self.notify('Select local files to analyze')
             return
-        self.run_worker(self._analyze(tracks))
+        self.push_screen(AnalysisOptions(len(tracks)),
+                         lambda confirmed: self.run_worker(self._analyze(tracks)) if confirmed else None)
 
     async def _analyze(self, tracks):
+        self._show_analysis_columns()
+
         def work(cancel):
+            from importlib.util import find_spec
+
+            from ..media import MediaError, binary
+            if find_spec('librosa') is None:
+                raise MediaError("BPM/key analysis needs dj-digger[analyze]. For a local checkout, restart with: uv run --extra play --extra analyze dj-digger")
+            binary('ffmpeg')
+            binary('ffprobe')
             failures = []
             for index, track in enumerate(tracks):
                 self._progress(index, len(tracks))
@@ -266,9 +277,14 @@ class LocalController:
                 if view != self.playlist_state._view_generation:
                     return
                 row.track = await self.services.io(media_track, self.services.state.db, record)
-        self.config.columns = list(dict.fromkeys([*self.config.columns, 'bpm', 'key']))
-        self.build_columns()
+        self._show_analysis_columns()
         self.refresh_rows()
+
+    def _show_analysis_columns(self):
+        columns = list(dict.fromkeys([*self.config.columns, 'bpm', 'key']))
+        if columns != self.config.columns:
+            self.config.columns = columns
+            self.build_columns()
 
     def profile(self):
         self.push_screen(ProfileImportOptions(), lambda answer: self.run_worker(self._profile(*answer)) if answer else None)

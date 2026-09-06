@@ -16,30 +16,23 @@ from ..soundcloud import (
 from ..soundcloud_errors import SoundCloudError
 
 
-def _import_profile(client, db, url, *, private=False, cancel=None, current=lambda: True, progress=lambda done: None, _report=None):
-    if not is_soundcloud_url(url):
-        raise SoundCloudError('Paste a SoundCloud profile URL')
-    generations = db.snapshot_generations()
-    token = client.oauth_token
-
-    def check():
-        check_cancelled(cancel)
-        if not current() or client.oauth_token != token:
-            raise SoundCloudError('SoundCloud session changed; import stopped')
-
+def _resolve_owner(client, url, private, check):
     owner = client.resolve(url)
     check()
     if owner.get('kind') != 'user' or not owner.get('id'):
         raise SoundCloudError('This link is not a SoundCloud profile')
     if private:
-        if not token:
+        if not client.oauth_token:
             raise SoundCloudError('Sign into the profile owner account to import private playlists')
         me = client._get('/me')
         check()
         if me.get('id') != owner['id']:
             raise SoundCloudError('Private playlists require the signed-in profile owner')
-    # Resolve legacy URL-only entries once before importing their renamed IDs.
-    # No title-based merge: only a provider-confirmed playlist/owner is accepted.
+    return owner['id']
+
+
+def _link_legacy_playlists(client, db, url, owner_id, generations, check):
+    # Only a provider-confirmed playlist and owner can acquire an old URL alias.
     profile_path = urlparse(url).path.rstrip('/') + '/sets/'
     for source in db.unaliased_playlists():
         if is_soundcloud_url(source) and urlparse(source).path.startswith(profile_path):
@@ -49,11 +42,17 @@ def _import_profile(client, db, url, *, private=False, cancel=None, current=lamb
             except SoundCloudError:
                 continue
             check()
-            if legacy.get('kind') == 'playlist' and (legacy.get('user_id') or (legacy.get('user') or {}).get('id')) == owner['id']:
+            if legacy.get('kind') == 'playlist' and _owner_id(legacy) == owner_id:
                 db.link_playlist_alias(legacy['id'], source, generations)
-    endpoint = f"{API_ROOT}/users/{owner['id']}/playlists"
-    cursors, playlist_ids, cache = set(), set(), OrderedDict()
-    report = _report if _report is not None else []
+
+
+def _owner_id(payload):
+    return payload.get('user_id') or (payload.get('user') or {}).get('id')
+
+
+def _playlist_headers(client, owner_id, check):
+    endpoint = f"{API_ROOT}/users/{owner_id}/playlists"
+    cursors, playlist_ids = set(), set()
     while endpoint:
         check()
         if endpoint in cursors:
@@ -69,56 +68,83 @@ def _import_profile(client, db, url, *, private=False, cancel=None, current=lamb
             identifier = header.get('id')
             if identifier in playlist_ids:
                 continue
-            if not identifier or (header.get('user_id') or (header.get('user') or {}).get('id')) != owner['id']:
+            if not identifier or _owner_id(header) != owner_id:
                 raise SoundCloudError('Playlist owner or ID missing from response')
             playlist_ids.add(identifier)
-            if not private and header.get('sharing') == 'private':
-                continue
-            detail = client._get(f'/playlists/{identifier}')
-            check()
-            raw = detail.get('tracks')
-            count = detail.get('track_count')
-            if not isinstance(raw, list) or count is None or len(raw) != count:
-                report.append({'id': identifier, 'status': 'incomplete', 'message': 'Old playlist retained'})
-                continue
-            ids = [item.get('id') for item in raw]
-            if any(not isinstance(value, int) for value in ids):
-                report.append({'id': identifier, 'status': 'incomplete', 'message': 'Missing track IDs; old playlist retained'})
-                continue
-            missing = list(dict.fromkeys(value for value in ids if value not in cache))
-            resolved = {}
-            for chunk in batched(missing, HYDRATE_BATCH):
-                check()
-                tracks = client._get('/tracks', ids=','.join(map(str, chunk)))
-                check()
-                if not isinstance(tracks, list):
-                    raise SoundCloudError('Incomplete track hydration response')
-                for item in tracks:
-                    if isinstance(item, dict) and item.get('id') in chunk:
-                        resolved[item['id']] = Track.from_api(item)
-            unavailable = [value for value in ids if value not in resolved and value not in cache]
-            if unavailable:
-                # A missing stub cannot safely be distinguished from partial API
-                # failure. Report it, preserve the complete old snapshot.
-                report.append({'id': identifier, 'status': 'incomplete', 'missing_tracks': unavailable})
-                continue
-            tracks = [resolved[value] if value in resolved else cache[value] for value in ids]
-            cache.update(resolved)
-            while len(cache) > 1000:
-                cache.popitem(last=False)
-            source = detail.get('permalink_url')
-            if not is_soundcloud_url(source or ''):
-                raise SoundCloudError('Playlist permalink missing')
-            incoming = CrateRecord.from_crate(Crate(source, tracks, detail.get('title') or source)).to_json()
-            incoming['preserve_order'] = True
-            incoming['provider_id'] = identifier
-            check()
-            saved = db.remember_provider_playlist(identifier, incoming, generations)
-            report.append({'id': identifier, 'status': 'imported' if saved else 'locally_changed', 'tracks': len(tracks)})
-            progress(len(report))
+            yield header
         endpoint = payload.get('next_href')
         if endpoint and len(playlist_ids) == before_page:
             raise SoundCloudError('SoundCloud pagination made no progress; import stopped')
+
+
+def _hydrate_tracks(client, ids, cache, check):
+    missing = list(dict.fromkeys(value for value in ids if value not in cache))
+    resolved = {}
+    for chunk in batched(missing, HYDRATE_BATCH):
+        check()
+        tracks = client._get('/tracks', ids=','.join(map(str, chunk)))
+        check()
+        if not isinstance(tracks, list):
+            raise SoundCloudError('Incomplete track hydration response')
+        for item in tracks:
+            if isinstance(item, dict) and item.get('id') in chunk:
+                resolved[item['id']] = Track.from_api(item)
+    unavailable = [value for value in ids if value not in resolved and value not in cache]
+    if unavailable:
+        return [], unavailable
+    tracks = [resolved[value] if value in resolved else cache[value] for value in ids]
+    cache.update(resolved)
+    while len(cache) > 1000:
+        cache.popitem(last=False)
+    return tracks, []
+
+
+def _import_playlist(client, db, identifier, cache, generations, check):
+    detail = client._get(f'/playlists/{identifier}')
+    check()
+    raw, count = detail.get('tracks'), detail.get('track_count')
+    if not isinstance(raw, list) or count is None or len(raw) != count:
+        return {'id': identifier, 'status': 'incomplete', 'message': 'Old playlist retained'}
+    ids = [item.get('id') for item in raw]
+    if any(not isinstance(value, int) for value in ids):
+        return {'id': identifier, 'status': 'incomplete', 'message': 'Missing track IDs; old playlist retained'}
+    tracks, unavailable = _hydrate_tracks(client, ids, cache, check)
+    if unavailable:
+        # Missing stubs may indicate a partial API response; retain the snapshot.
+        return {'id': identifier, 'status': 'incomplete', 'missing_tracks': unavailable}
+    source = detail.get('permalink_url')
+    if not is_soundcloud_url(source or ''):
+        raise SoundCloudError('Playlist permalink missing')
+    incoming = CrateRecord.from_crate(Crate(source, tracks, detail.get('title') or source)).to_json()
+    incoming['preserve_order'] = True
+    incoming['provider_id'] = identifier
+    check()
+    saved = db.remember_provider_playlist(identifier, incoming, generations)
+    return {'id': identifier, 'status': 'imported' if saved else 'locally_changed', 'tracks': len(tracks)}
+
+
+def _import_profile(client, db, url, *, private=False, cancel=None, current=lambda: True, progress=lambda done: None, _report=None):
+    if not is_soundcloud_url(url):
+        raise SoundCloudError('Paste a SoundCloud profile URL')
+    generations = db.snapshot_generations()
+    token = client.oauth_token
+
+    def check():
+        check_cancelled(cancel)
+        if not current() or client.oauth_token != token:
+            raise SoundCloudError('SoundCloud session changed; import stopped')
+
+    owner_id = _resolve_owner(client, url, private, check)
+    _link_legacy_playlists(client, db, url, owner_id, generations, check)
+    cache = OrderedDict()
+    report = _report if _report is not None else []
+    for header in _playlist_headers(client, owner_id, check):
+        if not private and header.get('sharing') == 'private':
+            continue
+        result = _import_playlist(client, db, header['id'], cache, generations, check)
+        report.append(result)
+        if result['status'] in ('imported', 'locally_changed'):
+            progress(len(report))
     return report
 
 

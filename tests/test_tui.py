@@ -5229,3 +5229,76 @@ def test_local_waveform_arrives_after_pause_and_rejects_replaced_audio(state, tm
             assert replacement.waveform == []
 
     run(scenario)
+
+
+def test_local_footer_exposes_conversion_analysis_and_restores_online_actions(state, tmp_path, monkeypatch):
+    from textual.widgets._footer import FooterKey
+
+    from dj_digger.services.local_library import LocalLibrary
+    from dj_digger.tui.local_screens import AnalysisOptions, ExportOptions
+    from dj_digger.tui.widgets import FittedFooter
+
+    path = tmp_path / 'local.wav'
+    path.write_bytes(b'No audio decoder needed for the UI flow')
+    track = LocalLibrary(state.db).register(path)
+    app = make_app(synthetic_records(1), state)
+    analyzed = []
+
+    def fake_analyze(db, value, cancel):
+        analyzed.append(value.key)
+        from dj_digger.media import signature
+        db.save_analysis(value.local_id, signature(path), 'fixture', {'bpm': 126, 'key': 'Am'})
+
+    monkeypatch.setattr('dj_digger.tui.local.analyze_track', fake_analyze)
+    monkeypatch.setattr('dj_digger.media.binary', lambda name: name)
+    import importlib.util
+    original_find_spec = importlib.util.find_spec
+    monkeypatch.setattr(importlib.util, 'find_spec', lambda name, *a: object() if name == 'librosa' else original_find_spec(name, *a))
+
+    def actions():
+        return {key.action: key for key in app.query_one(FittedFooter).query(FooterKey)}
+
+    async def scenario():
+        async with app.run_test(size=(140, 40)) as pilot:
+            await settle(app, pilot)
+            assert 'open_link' in actions()
+            assert 'local_export' not in actions()
+            app.crate_controller.load_records([])
+            app.crate_controller.set_tracks([track])
+            await pilot.pause()
+            assert {'local_export', 'local_analyze', 'local_edit'} <= actions().keys()
+            assert 'cart_track' not in actions()
+            assert 'download_track' not in actions()
+            assert not app.query_one('#status-legend').display
+            assert await pilot.click(actions()['local_export'])
+            assert isinstance(app.screen, ExportOptions)
+            await pilot.press('escape')
+            await pilot.pause()
+            assert await pilot.click(actions()['local_analyze'])
+            assert isinstance(app.screen, AnalysisOptions)
+            assert app.screen.count == 1
+            assert analyzed == []
+            assert await pilot.click('#analyze-start')
+            await pilot.pause()
+            await settle(app, pilot)
+            assert analyzed == [track.key]
+            assert app.playlist_state.rows[0].track.bpm == 126
+            assert {'BPM', 'Key'} <= app.playlist_state._column_keys.keys()
+            await pilot.resize_terminal(80, 24)
+            await pilot.pause()
+            assert {'local_export', 'local_analyze', 'play_pause'} <= actions().keys()
+            messages = []
+            monkeypatch.setattr(app.local_controller, 'notify', lambda message, **kwargs: messages.append(message))
+            monkeypatch.setattr(importlib.util, 'find_spec', lambda name, *a: None if name == 'librosa' else original_find_spec(name, *a))
+            await app.local_controller._analyze([track])
+            assert analyzed == [track.key]
+            assert len(messages) == 1
+            assert 'uv run --extra play --extra analyze dj-digger' in messages[0]
+            await pilot.resize_terminal(140, 40)
+            app.crate_controller.load_records(synthetic_records(1))
+            await pilot.pause()
+            assert 'open_link' in actions()
+            assert 'local_analyze' not in actions()
+            assert app.query_one('#status-legend').display
+
+    run(scenario)

@@ -49,17 +49,19 @@ class ExportOptions(_Modal):
 
     def compose(self):
         with VerticalScroll(classes='modal-box'):
-            yield Label('Prepare music folder — no rekordbox library or USB formatting')
+            yield Label('Convert / prepare music folder')
+            yield Label('Selected files are used. With no selection in a folder, all matching files are included across every page.')
             yield Label('Format for files requiring conversion (compatible formats are kept)')
             yield Select([('WAV', 'wav'), ('AIFF', 'aiff'), ('FLAC', 'flac')], value='wav', allow_blank=False, id='format')
             with Horizontal():
                 yield Select([('16-bit maximum', 16), ('24-bit maximum', 24)], value=24, allow_blank=False, id='bits')
                 yield Select([(f'{rate / 1000:g} kHz maximum', rate) for rate in (44100, 48000, 88200, 96000)], value=48000, allow_blank=False, id='rate')
             yield Static('', id='compatibility', markup=False)
+            yield Label('Destination folder (or mounted USB)')
             yield Input(value=self.folder, placeholder='Destination parent folder / mounted USB', id='folder')
             yield Checkbox('Replace originals (no permanent backup)', id='replace')
             yield Checkbox('Include subfolders of the open directory', id='recursive')
-            yield Label('Default: a new folder with COPIES of every selected audio file, including unchanged files.')
+            yield Label('Default: a new folder with COPIES of every selected audio file, including unchanged files. Existing compatible formats keep their quality.')
             yield Button('Inspect files and review plan', id='plan', variant='primary')
         yield Footer()
 
@@ -109,6 +111,28 @@ class ExportReview(_Modal):
     def on_button_pressed(self, event):
         event.stop()
         self.dismiss(True)
+
+
+class AnalysisOptions(_Modal):
+    BINDINGS = [Binding('escape', 'cancel', 'Cancel')]
+    DEFAULT_CSS = 'AnalysisOptions .modal-box { width: 72; } AnalysisOptions Label { width: 1fr; height: auto; }'
+
+    def __init__(self, count):
+        super().__init__()
+        self.count = count
+
+    def compose(self):
+        with Vertical(classes='modal-box'):
+            yield Label(f'Analyze BPM and key — {self.count} local files')
+            yield Label('Selected tracks will be analyzed. With no selection, this uses the visible local tracks on the current page.')
+            yield Label('Results appear in the BPM and Key columns. Estimates can be corrected with Edit BPM/key. Manual values are kept; audio files are not changed.')
+            yield Button('Start analysis', id='analyze-start', variant='primary')
+            yield Button('Cancel', id='analyze-cancel')
+        yield Footer()
+
+    def on_button_pressed(self, event):
+        event.stop()
+        self.dismiss(event.button.id == 'analyze-start')
 
 
 class AnalysisEdit(_Modal):
