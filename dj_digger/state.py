@@ -10,15 +10,12 @@ a library scan needed ``batched()`` to hold it back. The current database has no
 JSON import path; a state.json written by an older version is left alone.
 """
 
-import logging
 import threading
 from dataclasses import dataclass
 from pathlib import Path
 
 from .db import database
 from .models import GOT, NEW, OPENED, STATUSES
-
-LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -153,3 +150,12 @@ class TrackState:
                     self._files.pop(key, None)
                 else:
                     self._files[key] = path
+
+    def reload_file_paths(self):
+        """Refresh the mirror after a journaled replacement, invalidating old scans."""
+        with self._lock:
+            paths = self.db.all_track_local_files()
+            for key in set(paths) | set(self._files or {}):
+                if paths.get(key) != (self._files or {}).get(key):
+                    self._revisions[key] = self._revisions.get(key, 0) + 1
+            self._files = paths

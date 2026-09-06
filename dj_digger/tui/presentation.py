@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 
 @dataclass
 class PlaylistState:
+    local_view: bool = False
     rows: list[Row] = field(default_factory=list)
     crate: CrateRecord | None = None
     crate_title: str = ""
@@ -45,7 +46,6 @@ class AudioState:
     _prepared: Prepared | None = None
     _preparing: str = ""
     _frame: int = 0
-    _ticker: Timer | None = None
     _playback_generation: int = 0
     _preparation_generation: int = 0
 

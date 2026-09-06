@@ -68,7 +68,7 @@ def test_exact_matches_use_the_scan_index(tmp_path: Path, monkeypatch) -> None:
 
     monkeypatch.setattr(
         local.db,
-        "find_local_match",
+        "connection",
         unexpected_lookup,
     )
 
