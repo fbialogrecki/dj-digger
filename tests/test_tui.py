@@ -916,7 +916,7 @@ def test_beatport_result_creates_playlist_and_opens_supported_transfer(
             await pilot.press("c")
             for _ in range(20):
                 await pilot.pause()
-                if isinstance(app.screen, CartResultScreen):
+                if isinstance(app.screen, CartResultScreen) and app.screen.is_mounted:
                     break
             assert isinstance(app.screen, CartResultScreen)
             assert app.screen.query_one("#cart-result-playlist", Button)
@@ -1206,10 +1206,14 @@ def test_c_installs_missing_chromium_then_retries_preflight(records, state, monk
             assert isinstance(app.screen, ConfirmScreen)
             assert "Chromium" in str(app.screen.query_one(Label).render())
             await pilot.press("y")
-            for _ in range(30):
-                await pilot.pause()
-                if executed:
+            # The fake operation finishes before its result modal mounts.
+            # Teardown during on_mount removes the table underneath that handler.
+            for _ in range(60):
+                await pilot.pause(0.05)
+                if isinstance(app.screen, CartResultScreen) and app.screen.is_mounted:
                     break
+            assert isinstance(app.screen, CartResultScreen) and app.screen.is_mounted
+            assert app.screen.query_one('#cart-result-table', DataTable).row_count == 1
 
     run(scenario)
     assert installed == [True]
