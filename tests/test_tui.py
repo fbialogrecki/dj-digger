@@ -5556,6 +5556,12 @@ def test_explorer_scrollbar_is_thin_and_still_scrolls(state):
             await pilot.pause()
             assert tree.show_horizontal_scrollbar
             bar = tree.horizontal_scrollbar
+            # Visibility is published before the next compositor layout has
+            # assigned the lazy scrollbar a region (especially on Windows).
+            for _ in range(60):
+                if bar.region.height == 1 and bar.region.width > 20:
+                    break
+                await pilot.pause(0.05)
             assert bar.renderer is ThinHorizontalScrollBar
             assert bar.region.height == 1
             rendered = bar.renderer.render_bar(
