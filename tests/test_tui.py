@@ -66,6 +66,16 @@ def run(scenario):
     asyncio.run(scenario())
 
 
+async def wait_for_cart_result(app, pilot):
+    # Operation completion precedes modal mounting. Teardown or dismissal before
+    # on_mount finishes can remove the result table while it is being populated.
+    for _ in range(60):
+        await pilot.pause(0.05)
+        if isinstance(app.screen, CartResultScreen) and app.screen.is_mounted:
+            return
+    raise AssertionError('Cart result did not finish mounting')
+
+
 @pytest.mark.parametrize(
     ("error", "group"),
     [
@@ -850,10 +860,7 @@ def test_c_preflights_and_adds_the_selected_track(records, state, monkeypatch):
     async def scenario():
         async with app.run_test() as pilot:
             await pilot.press("c")
-            for _ in range(10):
-                await pilot.pause()
-                if executed:
-                    break
+            await wait_for_cart_result(app, pilot)
 
     run(scenario)
     assert prepared[0].links == (("bandcamp", bandcamp_record.link_url),)
@@ -914,10 +921,7 @@ def test_beatport_result_creates_playlist_and_opens_supported_transfer(
     async def scenario():
         async with app.run_test() as pilot:
             await pilot.press("c")
-            for _ in range(20):
-                await pilot.pause()
-                if isinstance(app.screen, CartResultScreen) and app.screen.is_mounted:
-                    break
+            await wait_for_cart_result(app, pilot)
             assert isinstance(app.screen, CartResultScreen)
             assert app.screen.query_one("#cart-result-playlist", Button)
             app.screen.dismiss("playlist")
@@ -1206,13 +1210,7 @@ def test_c_installs_missing_chromium_then_retries_preflight(records, state, monk
             assert isinstance(app.screen, ConfirmScreen)
             assert "Chromium" in str(app.screen.query_one(Label).render())
             await pilot.press("y")
-            # The fake operation finishes before its result modal mounts.
-            # Teardown during on_mount removes the table underneath that handler.
-            for _ in range(60):
-                await pilot.pause(0.05)
-                if isinstance(app.screen, CartResultScreen) and app.screen.is_mounted:
-                    break
-            assert isinstance(app.screen, CartResultScreen) and app.screen.is_mounted
+            await wait_for_cart_result(app, pilot)
             assert app.screen.query_one('#cart-result-table', DataTable).row_count == 1
 
     run(scenario)
@@ -1251,10 +1249,7 @@ def test_shift_c_confirms_the_visible_preflight_before_mutating(state, monkeypat
             row = app.screen.query_one("#cart-plan-table", DataTable).get_row_at(0)
             assert "GBP 1.25" in str(row)
             await pilot.press("y")
-            for _ in range(10):
-                await pilot.pause()
-                if executed:
-                    break
+            await wait_for_cart_result(app, pilot)
 
     run(scenario)
     assert executed == [plan]
