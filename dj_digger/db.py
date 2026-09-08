@@ -515,6 +515,13 @@ class Database:
             return [dict(row) for row in conn.execute('SELECT * FROM media_roots')]
 
     @owned
+    def mark_media_deleted(self, media_id, path):
+        with self.connection(write=True) as conn:
+            conn.execute('UPDATE media_files SET available=0 WHERE id=? AND path=?', (media_id, path))
+            conn.execute('DELETE FROM local_files WHERE path=?', (path,))
+            conn.execute('DELETE FROM track_local_files WHERE path=?', (path,))
+
+    @owned
     def mark_directory_missing(self, folder, seen, device):
         prefix = folder.rstrip('/\\') + str(Path('/').anchor or '/')
         # Paths are canonical absolute paths, supplied by the completed scan.

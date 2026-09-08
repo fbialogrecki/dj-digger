@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 import pytest
 import requests
 
-from dj_digger import browser
+from dj_digger import http
 from dj_digger.gates import providers as gates
 
 HYPEDDIT_URLS = (
@@ -84,7 +84,7 @@ pytestmark = pytest.mark.hypeddit_live
 @pytest.fixture(scope="module")
 def hypeddit_session():
     session = requests.Session()
-    session.headers.update(browser.REQUEST_HEADERS)
+    session.headers.update(http.REQUEST_HEADERS)
     yield session
     session.close()
 
@@ -93,7 +93,7 @@ def hypeddit_session():
 def test_public_hypeddit_contract_is_still_parseable(url, hypeddit_session):
     response = hypeddit_session.get(url, timeout=(10, 20))
     if response.status_code in {404, 410, 451}:
-        return  # An explicitly unavailable page is a supported classification.
+        pytest.skip(f"Public fixture unavailable: HTTP {response.status_code}")
 
     assert response.status_code == 200
     assert (urlparse(response.url).hostname or "").lower() in {

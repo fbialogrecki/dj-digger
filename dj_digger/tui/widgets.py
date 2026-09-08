@@ -1,5 +1,8 @@
 """The widgets the crate browser is built out of, screens excepted."""
 
+from rich.cells import cell_len
+from rich.segment import Segment, Segments
+from rich.style import Style
 from rich.text import Text
 from textual import events
 from textual.app import ComposeResult
@@ -7,13 +10,37 @@ from textual.binding import Binding
 from textual.containers import Horizontal, ScrollableContainer, VerticalScroll
 from textual.message import Message
 from textual.reactive import reactive
+from textual.scrollbar import ScrollBarRender
 from textual.widget import Widget
-from textual.widgets import Button, DataTable, Footer, Input, Label, ListItem, Static
+from textual.widgets import Button, DataTable, Footer, Input, Label, ListItem, Static, Tree
 from textual.widgets._footer import FooterKey
 from textual.widgets.data_table import ColumnKey
 
 from ..crate_models import CrateHeader
 from .keymap import FOOTER_OPTIONAL, LOCAL_FOOTER_ACTIONS, LOCAL_FOOTER_OPTIONAL, MIN_TITLE_WIDTH
+
+
+class ThinHorizontalScrollBar(ScrollBarRender):
+    """Keep Textual's thumb geometry and mouse targets, draw a thin underline."""
+
+    @classmethod
+    def render_bar(cls, **kwargs):
+        rendered = super().render_bar(**kwargs)
+        return Segments([
+            Segment(
+                "▁" * len(segment.text),
+                Style(
+                    color=kwargs["bar_color"] if segment.style.meta.get("@mouse.down") == "grab" else kwargs["back_color"],
+                    meta=segment.style.meta,
+                ),
+            ) if segment.text != "\n" else segment
+            for segment in rendered.segments
+        ])
+
+
+class ExplorerTree(Tree):
+    def on_mount(self) -> None:
+        self.horizontal_scrollbar.renderer = ThinHorizontalScrollBar
 
 
 class FittedFooter(Footer):
@@ -29,6 +56,11 @@ class FittedFooter(Footer):
     local_view = reactive(False, recompose=True)
     busy = reactive(False, recompose=True)
 
+    def on_resize(self, event: events.Resize) -> None:
+        if event.size.width != getattr(self, "_fitted_width", None):
+            self._fitted_width = event.size.width
+            self.call_after_refresh(self.recompose)
+
     def _dropped_actions(self, bindings=None, optional=FOOTER_OPTIONAL) -> set[str]:
         """Which bindings will not fit, decided before any widget is built."""
 
@@ -39,7 +71,7 @@ class FittedFooter(Footer):
         for binding in bindings:
             if binding.action not in cost:
                 key_display = self.app.get_key_display(binding)
-                cost[binding.action] = len(key_display) + len(binding.description) + 3
+                cost[binding.action] = cell_len(key_display) + cell_len(binding.description) + 3
         total = sum(cost.values())
         dropped: set[str] = set()
         for action in optional:
@@ -85,8 +117,11 @@ class TrackTable(DataTable):
         self._right_click_pending = False
         self._left_click_pending = False
 
+    class LayoutChanged(Message):
+        pass
+
     def on_resize(self, event: events.Resize) -> None:
-        self.fit_flexible_column()
+        self.call_after_refresh(self.post_message, self.LayoutChanged())
 
     def watch_show_vertical_scrollbar(self, visible: bool) -> None:
         if self.is_mounted:

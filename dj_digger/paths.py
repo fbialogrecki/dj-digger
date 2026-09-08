@@ -6,6 +6,7 @@ Not memoized - tests point XDG_* somewhere private after import.
 """
 
 import os
+import sys
 from pathlib import Path
 
 
@@ -15,6 +16,14 @@ def data_dir() -> Path:
 
 def config_dir() -> Path:
     return Path(os.environ.get("XDG_CONFIG_HOME") or (Path.home() / ".config")) / "dj-digger"
+
+
+def log_dir() -> Path:
+    if sys.platform == 'win32':
+        return Path(os.environ.get('LOCALAPPDATA') or Path.home() / 'AppData' / 'Local') / 'dj-digger' / 'Logs'
+    if sys.platform == 'darwin':
+        return Path.home() / 'Library' / 'Logs' / 'dj-digger'
+    return Path(os.environ.get('XDG_STATE_HOME') or Path.home() / '.local' / 'state') / 'dj-digger'
 
 
 def unique_target(directory: Path, stem: str, suffix: str) -> Path:

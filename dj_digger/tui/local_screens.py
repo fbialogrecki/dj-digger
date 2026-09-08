@@ -3,7 +3,7 @@ from pathlib import Path
 
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
-from textual.widgets import Button, Checkbox, Footer, Input, Label, Select, Static
+from textual.widgets import Button, Checkbox, Collapsible, Footer, Input, Label, Select, Static
 
 from ..analysis import NOTES, camelot
 from ..decks import Profile, compatibility
@@ -41,29 +41,39 @@ class TextPrompt(_Modal):
 
 class ExportOptions(_Modal):
     BINDINGS = [Binding('escape', 'cancel', 'Cancel')]
-    DEFAULT_CSS = 'ExportOptions .modal-box { width: 90; max-height: 95%; } ExportOptions Horizontal { height: 3; } ExportOptions Label { width: 1fr; height: auto; }'
+    DEFAULT_CSS = 'ExportOptions .modal-box { width: 90; max-width: 100%; height: 90%; } ExportOptions VerticalScroll { height: 1fr; } ExportOptions Horizontal { height: 3; } ExportOptions Label { width: 1fr; height: auto; }'
 
     def __init__(self, folder):
         super().__init__()
         self.folder = str(folder)
 
     def compose(self):
-        with VerticalScroll(classes='modal-box'):
+        with Vertical(classes='modal-box'):
             yield Label('Convert / prepare music folder')
-            yield Label('Selected files are used. With no selection in a folder, all matching files are included across every page.')
-            yield Label('Format for files requiring conversion (compatible formats are kept)')
-            yield Select([('WAV', 'wav'), ('AIFF', 'aiff'), ('FLAC', 'flac')], value='wav', allow_blank=False, id='format')
+            with VerticalScroll():
+                yield Label('Selected files are used. Without selection in a folder, matching files across all pages are included.')
+                yield Label('Format for files requiring conversion (compatible formats are kept)')
+                yield Select([('WAV', 'wav'), ('AIFF', 'aiff'), ('FLAC', 'flac')], value='wav', allow_blank=False, id='format')
+                with Horizontal():
+                    yield Select([('16-bit maximum', 16), ('24-bit maximum', 24)], value=24, allow_blank=False, id='bits')
+                    yield Select([(f'{rate / 1000:g} kHz maximum', rate) for rate in (44100, 48000, 88200, 96000)], value=48000, allow_blank=False, id='rate')
+                yield Label('Destination folder (or mounted USB)')
+                yield Input(value=self.folder, placeholder='Destination parent folder / mounted USB', id='folder')
+                yield Checkbox('Replace originals (no permanent backup)', id='replace')
+                yield Checkbox('Include subfolders of the open directory', id='recursive')
+                yield Label('Default: a new folder with COPIES of every selected audio file, including unchanged files. Existing compatible formats keep their quality.')
+                with Collapsible(title='Target profile compatibility', collapsed=True):
+                    yield Static('', id='compatibility', markup=False)
+            yield Label('', id='replace-warning')
             with Horizontal():
-                yield Select([('16-bit maximum', 16), ('24-bit maximum', 24)], value=24, allow_blank=False, id='bits')
-                yield Select([(f'{rate / 1000:g} kHz maximum', rate) for rate in (44100, 48000, 88200, 96000)], value=48000, allow_blank=False, id='rate')
-            yield Static('', id='compatibility', markup=False)
-            yield Label('Destination folder (or mounted USB)')
-            yield Input(value=self.folder, placeholder='Destination parent folder / mounted USB', id='folder')
-            yield Checkbox('Replace originals (no permanent backup)', id='replace')
-            yield Checkbox('Include subfolders of the open directory', id='recursive')
-            yield Label('Default: a new folder with COPIES of every selected audio file, including unchanged files. Existing compatible formats keep their quality.')
-            yield Button('Inspect files and review plan', id='plan', variant='primary')
+                yield Button('Review plan', id='plan', variant='primary')
+                yield Button('Cancel', id='cancel')
         yield Footer()
+
+    def on_checkbox_changed(self, event):
+        if event.checkbox.id == 'replace':
+            self.query_one('#replace-warning', Label).update(
+                'Replacement permanently removes originals after verification.' if event.value else '')
 
     def on_mount(self):
         self.update_compatibility()
@@ -82,6 +92,11 @@ class ExportOptions(_Modal):
 
     def on_button_pressed(self, event):
         event.stop()
+        if event.button.id == 'cancel':
+            self.dismiss(None)
+            return
+        if event.button.id != 'plan':
+            return
         self.dismiss(dict(profile=self.profile(), folder=Path(self.query_one('#folder', Input).value).expanduser(),
                           mode='replace' if self.query_one('#replace', Checkbox).value else 'copy',
                           recursive=self.query_one('#recursive', Checkbox).value))
@@ -89,63 +104,50 @@ class ExportOptions(_Modal):
 
 class ExportReview(_Modal):
     BINDINGS = [Binding('escape', 'cancel', 'Cancel')]
-    DEFAULT_CSS = 'ExportReview .modal-box { width: 95; max-height: 95%; }'
+    DEFAULT_CSS = 'ExportReview .modal-box { width: 95; max-width: 100%; height: 90%; } ExportReview VerticalScroll { height: 1fr; } ExportReview Horizontal { height: 3; } ExportReview Label { height: auto; }'
 
     def __init__(self, plan):
         super().__init__()
         self.plan = plan
 
     def compose(self):
-        with VerticalScroll(classes='modal-box'):
-            yield Label(f'{len(self.plan.items)} audio files · {self.plan.mode}')
-            yield Static('Actual planned set, according to documentation:\n' + '\n'.join(f'{deck}: {state}' for deck, state in self.plan.compatibility().items()), markup=False)
-            yield Static('\n'.join(f'{item.action}: {Path(item.source).name} → {Path(item.destination).name}' + (f' — {item.reason}' if item.reason else '') for item in self.plan.items[:200]), markup=False)
-            if len(self.plan.items) > 200:
-                yield Label('First 200 shown; the saved report includes the complete plan.')
-            yield Label('Exceptions remain unexported and are listed in the report.')
-            if self.plan.mode == 'replace':
-                yield Label('Successful replacement removes the original permanently. Close playback first.')
-            yield Button('Execute this plan', id='execute', variant='warning' if self.plan.mode == 'replace' else 'primary')
-        yield Footer()
-
-    def on_button_pressed(self, event):
-        event.stop()
-        self.dismiss(True)
-
-
-class AnalysisOptions(_Modal):
-    BINDINGS = [Binding('escape', 'cancel', 'Cancel')]
-    DEFAULT_CSS = 'AnalysisOptions .modal-box { width: 72; } AnalysisOptions Label { width: 1fr; height: auto; }'
-
-    def __init__(self, count):
-        super().__init__()
-        self.count = count
-
-    def compose(self):
         with Vertical(classes='modal-box'):
-            yield Label(f'Analyze BPM and key — {self.count} local files')
-            yield Label('Selected tracks will be analyzed. With no selection, this uses the visible local tracks on the current page.')
-            yield Label('Results appear in the BPM and Key columns. Estimates can be corrected with Edit BPM/key. Manual values are kept; audio files are not changed.')
-            yield Button('Start analysis', id='analyze-start', variant='primary')
-            yield Button('Cancel', id='analyze-cancel')
+            yield Label(f'{len(self.plan.items)} audio files · {self.plan.mode}')
+            with VerticalScroll():
+                yield Static('Actual planned set, according to documentation:\n' + '\n'.join(f'{deck}: {state}' for deck, state in self.plan.compatibility().items()), markup=False)
+                yield Static('\n'.join(f'{item.action}: {Path(item.source).name} → {Path(item.destination).name}' + (f' — {item.reason}' if item.reason else '') for item in self.plan.items[:200]), markup=False)
+                if len(self.plan.items) > 200:
+                    yield Label('First 200 shown; the saved report includes the complete plan.')
+                yield Label('Exceptions remain unexported and are listed in the report.')
+            if self.plan.mode == 'replace':
+                yield Label('Replacement permanently removes originals. Close playback first.')
+            with Horizontal():
+                yield Button('Execute this plan', id='execute', variant='warning' if self.plan.mode == 'replace' else 'primary')
+                yield Button('Cancel', id='cancel')
         yield Footer()
 
     def on_button_pressed(self, event):
         event.stop()
-        self.dismiss(event.button.id == 'analyze-start')
+        if event.button.id == 'execute':
+            self.dismiss(True)
+        elif event.button.id == 'cancel':
+            self.dismiss(None)
 
 
 class AnalysisEdit(_Modal):
     DEFAULT_CSS = "AnalysisEdit .modal-box { width: 75; max-height: 95%; overflow-y: auto; } AnalysisEdit Horizontal { height: 3; }"
     BINDINGS = [Binding('escape', 'cancel', 'Cancel')]
 
-    def __init__(self, track):
+    def __init__(self, track, resolved=None):
         super().__init__()
         self.track = track
+        self.resolved = resolved or {}
 
     def compose(self):
         with Vertical(classes='modal-box'):
             yield Label('Manual BPM / key — automatic values are estimates')
+            yield Label('BPM source: ' + self.resolved.get('bpm', (None, 'Not available'))[1], id='bpm-source')
+            yield Label('Key source: ' + self.resolved.get('key', (None, 'Not available'))[1], id='key-source')
             yield Input(value=self.track.bpm_label, placeholder='BPM (empty = use analysis/tags)', id='bpm')
             with Horizontal():
                 yield Button('÷2', id='half')

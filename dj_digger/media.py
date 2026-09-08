@@ -9,7 +9,7 @@ import threading
 import time
 from pathlib import Path
 
-from .media_processes import register, unregister
+from .media_processes import kill_tree, register, unregister
 from .models import check_cancelled
 
 FORMATS = {'.wav': 'wav', '.aif': 'aiff', '.aiff': 'aiff', '.mp3': 'mp3',
@@ -52,10 +52,10 @@ def input_args(path: Path) -> list[str]:
     return ['-protocol_whitelist', 'file,pipe', '-f', fmt, '-i', str(path.absolute())]
 
 
-def run(args: list[str], *, cancel=None, timeout=300, output_limit=2 * 1024 * 1024) -> bytes:
+def run(args: list[str], *, cancel=None, timeout=300, output_limit=2 * 1024 * 1024, process_tree=False) -> bytes:
     """Bounded output, cooperative cancellation and unconditional process reaping."""
     process = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE, start_new_session=os.name != "nt" and os.environ.get("DJ_DIGGER_ANALYSIS_CHILD") != "1")
+                               stderr=subprocess.PIPE, start_new_session=os.name != "nt" and (process_tree or os.environ.get("DJ_DIGGER_ANALYSIS_CHILD") != "1"))
     register(process)
     output, errors = bytearray(), bytearray()
     overflow = threading.Event()
@@ -88,7 +88,10 @@ def run(args: list[str], *, cancel=None, timeout=300, output_limit=2 * 1024 * 10
         return bytes(output)
     finally:
         if process.poll() is None:
-            process.kill()
+            if process_tree:
+                kill_tree(process)
+            else:
+                process.kill()
         process.wait()
         unregister(process)
         for reader in readers:

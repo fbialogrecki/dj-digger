@@ -1,97 +1,75 @@
 # Knowledge-graph notes
 
-Rebuilt on 2026-09-05 from the post-1.0 refactor at `007882e` plus the
-specification/README updates in the working tree. This replaces the historical
-0.5/0.6 analysis: its module names, counts and centrality measurements no longer
-describe the current application.
+Updated on 2026-09-09 from the `feat/local-library-club-export` working tree,
+for the 1.1.0 release, including the SoundCloud playback access-policy fixes.
 
 ## Corpus and outputs
 
-The graph covers 100 code/configuration files and 10 current documents, including
-application code, tests, scripts, the specification, architecture notes and CI
-workflows. Local AST extraction contributes 3,034 nodes; document extraction
-contributes 61 nodes and 193 relations, including references to existing code
-symbols. The resulting undirected navigation graph has **3,095 nodes, 8,181 edges
-and 126 named communities**.
+The filtered corpus contains **140 files**. Code was refreshed after the playback fixes; the final release refresh updates
+the structure of two documents.
+The undirected navigation graph contains **3,605 nodes, 8,513 edges and 182
+communities**.
 
-`.graphifyignore` excludes agent tooling, historical design plans, recorded
-third-party payloads and this generated commentary. Test code using those
-recordings remains indexed. The detector also appends graphify memory files;
-these were explicitly removed from the extraction corpus to prevent historical
-answers from feeding back into the new architecture graph. Specification reading
-followed the generated section map rather than reading the document end to end.
+`.graphifyignore` excludes agent tooling, old design plans, third-party fixture
+payloads and this generated commentary. Query-memory files added independently
+by the detector were removed from this scan so prior answers do not become
+architecture evidence.
 
-Local generated outputs remain ignored by Git:
+Local generated artifacts remain ignored by Git:
 
-- [Interactive graph](../graphify-out/graph.html), open directly in a browser.
-- [Graph report](../graphify-out/GRAPH_REPORT.md), with community cohesion scores.
-- [Navigation data](../graphify-out/graph.json) and
+- [Interactive graph](../graphify-out/graph.html).
+- [Graph report](../graphify-out/GRAPH_REPORT.md), including cohesion scores.
+- [Navigation JSON](../graphify-out/graph.json) and
   [raw extraction](../graphify-out/extraction.json).
-- [Extraction diagnostics](../graphify-out/GRAPH_HEALTH.md) and their
-  [machine-readable form](../graphify-out/diagnostics.json).
+- [Extraction health](../graphify-out/GRAPH_HEALTH.md) and
+  [diagnostic JSON](../graphify-out/diagnostics.json).
 
-The manifest records all 110 input files; semantic results are cached for all
-10 documents. Rebuild after code or contract changes with the graphify skill,
-retaining the corpus exclusions above. Graphify is installed separately from
-the application's locked environment; it is not a runtime dependency.
+Changed-document semantic nodes were replaced by current structural extraction
+and six narrowly anchored contract links labelled INFERRED. This is less rich
+than a full semantic re-extraction. Two old cross-document hyperedges had no
+surviving members and were omitted. Unchanged document nodes retain their earlier
+extraction; historical release/implementation documents are not current contracts.
+The manifest records the current code hashes and filtered corpus. Changed Markdown
+remains eligible for semantic extraction: structural parsing is not a semantic
+cache hit.
 
-## How to read the graph
+## Current navigation paths
 
-This is a navigation aid, not proof of dependency direction or correctness.
-The default graph is undirected. Multiple relations between the same pair of
-nodes collapse into one edge, and imports of external modules can lack a target
-node. Raw extraction preserves the original evidence for inspection.
+- Playback resolution distinguishes provider BLOCK policy, missing streams and
+  unsupported formats. BLOCK takes precedence over streamable/transcoding fields.
+- Playback resolution prefers progressive MP3, with bounded MP3 HLS buffering
+  in `hls_audio.py` when progressive is absent. Waveform colors follow position
+  only; the explorer keeps native scrollbar interaction with a thin renderer.
 
-The extraction diagnostic reports **519 dangling-endpoint edges** (all imports
-or dependency declarations), **320 same-endpoint edges merged in the undirected
-view**, no missing endpoint fields and no self-loops. These are limitations of
-the extractor/export, not newly discovered application defects. No external
-nodes or call relationships were invented to make the diagnostic pass.
+- Repost collection uses the stream endpoint and rejects repeated pagination pages.
+- Table layout is separate from configured sorting and row identity. Local views
+  retain stored BPM/Key without automatic analysis or changing online preferences.
+- F4 reads current view counts without scanning; settings retain mounted fields
+  while switching tabs or opening account controls.
+- Export button identity determines whether a plan is approved or cancelled.
+  File export still uses device rules, PCM/container verification, playback leases
+  and journaled replacement recovery.
+- Local metadata resolution exposes a separate source for each field without
+  extending serialized Track values. Analysis stays in a bounded subprocess;
+  private logs/JSONL remain separate from the removed analysis results panel.
+- The standalone benchmark measures raw estimates and verified-reference coverage.
+- Profile import retains provider IDs, pagination/session checks and stable
+  playlist persistence. Private import remains distinct from public profile digging.
 
-The AST emits 459 inferred `uses` relations with weight 0.8. These still need
-source verification; the old graph's confidence-0.5 filter is not a sufficient
-check for this extractor version. A reference or shared module does not
-establish a runtime call. Semantic contract-to-symbol references
-identify implementation evidence; they do not prove that every path satisfies
-the contract. Use the executable boundary tests and current specification for
-that assessment.
+## Integrity and measurement limits
 
-`Track` is the largest hub (degree 283), followed by TUI test helpers `run()`
-(185) and `make_app()` (150). These reflect shared data and extensive integration
-tests. A high degree alone does not justify splitting a class. In particular,
-the historical description of `DiggerApp` as owning all business operations is
-obsolete: it now composes controllers and routes lifecycle and UI actions.
+The exported graph has unique node IDs and valid edge endpoints. Raw extraction
+still has **676 dangling import/dependency edges** and **346 same-endpoint relations
+collapsed in the undirected representation**, with no missing endpoint fields or
+self-loops. Raw extraction preserves the evidence; the navigation graph is not a
+complete directed call graph or proof of runtime behavior.
 
-## Useful architecture paths
+This refresh used local AST/Markdown extraction and no remote LLM calls
+(**0 external LLM tokens**). Previous semantic extraction usage remains unknown
+in the historical cost ledger. Community labels reuse surviving-member labels
+with local fallbacks; they are navigational hints, not reviewed architecture.
 
-Start with these contracts and their code references in the graph:
-
-- **Runtime and cancellation:** `ApplicationServices`, `OperationCoordinator`
-  and `OperationHandle` connect lazy resource ownership to operation settlement.
-- **Download effects:** the shared single/batch workflow connects
-  `DownloadWorkflow`, file publication and `PublishedFileUnrecorded`, including
-  the case where the file exists but library persistence fails.
-- **Presentation and persistence:** typed account/profile answers connect to
-  `AccountService`; committed status mirrors connect to `TrackState` and render
-  updates without per-row database queries.
-- **Database lifecycle:** single-thread ownership and schema registration link
-  to `Database` and the schema/backup helpers.
-- **Diagnostics:** literal, redacted external text links to `log_safe_text()`.
-
-Useful follow-up questions are how a completed file is recorded after the user
-switches playlists, and why cancellation retains an operation slot until its
-workers settle. Consult source evidence along those paths; graph reachability
-alone cannot answer the concurrency semantics.
-
-## Verification and measurement limits
-
-The exported graph has unique node IDs, valid exported edge endpoints and
-community assignments for every node. Semantic references resolve against the
-AST/document node set. The raw diagnostic limitations above remain visible.
-
-Host semantic-agent token counters were unavailable. `cost.json` marks this run's
-usage as unknown, and the report does not present placeholder zeroes as measured
-cost. The local graphify benchmark estimated 4.0× token reduction, but its naive
-154,750-word corpus differs from this build's filtered corpus. That estimate is
-not measured model usage or an application responsiveness benchmark. Executed
-application checks remain documented in [refactor verification](refactor/verification.md).
+Application validation: **899 offline tests passed, 82 deselected**. Seven focused
+UI tests passed after the last settings layout/copy adjustment. Ruff, the generated
+specification map and `git diff --check` passed. These checks do not establish
+physical CDJ support or fresh macOS/Windows execution results.

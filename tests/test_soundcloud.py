@@ -657,3 +657,30 @@ def test_each_gate_transfer_gets_its_own_session_without_api_credentials(tmp_pat
     assert len(created) == 2
     assert api.calls == []
     assert all(session.calls[0][1] == {} for session in created)
+
+
+def test_reposts_use_stream_and_preserve_wrapped_track_order(monkeypatch):
+    client = make_client()
+    monkeypatch.setattr(client, 'resolve', lambda url: {'kind': 'user', 'id': 7, 'username': 'Artist'})
+    requested = []
+    def first(path, **params):
+        requested.append(path)
+        return {'collection': [{'type': 'track-repost', 'track': track_payload(2)},
+                               {'type': 'playlist-repost', 'playlist': {}}],
+                'next_href': 'https://api-v2.soundcloud.com/stream/users/7/reposts?cursor=a'}
+    monkeypatch.setattr(client, '_get', first)
+    monkeypatch.setattr(client, '_request', lambda url: {'collection': [{'track': track_payload(1)}]})
+    crate = client.collect('https://soundcloud.com/artist/reposts')
+    assert requested == ['/stream/users/7/reposts']
+    assert [track.id for track in crate.tracks] == [2, 1]
+
+
+def test_repeated_collection_page_fails_instead_of_returning_a_complete_crate(monkeypatch):
+    client = make_client()
+    page = {'collection': [{'track': track_payload(1)}],
+            'next_href': 'https://api-v2.soundcloud.com/users/7/likes?cursor=a'}
+    monkeypatch.setattr(client, '_get', lambda *a, **k: page)
+    monkeypatch.setattr(client, '_request', lambda *a, **k: page)
+    with pytest.raises(SoundCloudError, match='pagination repeated'):
+        client._paginate('/users/7/likes')
+    assert len(client._paginate('/users/7/likes', limit=1)) == 1

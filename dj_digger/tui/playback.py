@@ -160,7 +160,7 @@ class PlaybackController:
             return prepare_local(track)
         stream = resolve_stream(self.client, track.id)
         samples = fetch_waveform(self.client, stream.waveform_url)
-        source = open_source(self.client.session, stream.url)
+        source = open_source(self.client.session, stream.url, stream.protocol)
         return Prepared(track=track, stream=stream, waveform=samples, source=source)
 
     def prepare_track_work(self, track: Track, generation: int | None = None) -> None:

@@ -18,25 +18,28 @@ def unregister(process):
         _PROCESSES.discard(process)
 
 
+def kill_tree(process):
+    """Terminate an owned process group, including its decoder children."""
+    if os.name == 'nt':
+        subprocess.run(['taskkill', '/PID', str(process.pid), '/T', '/F'],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3, check=False)
+    else:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    if process.poll() is None:
+        process.kill()
+
+
 def terminate_owned():
     with _LOCK:
         processes = tuple(_PROCESSES)
     for process in processes:
         try:
-            alive = process.poll() is None if isinstance(process, subprocess.Popen) else process.is_alive()
-            if not alive:
+            if process.poll() is not None:
                 continue
-            if os.name == 'nt':
-                subprocess.run(['taskkill', '/PID', str(process.pid), '/T', '/F'],
-                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3, check=False)
-            else:
-                try:
-                    os.killpg(process.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    process.kill()
-            if isinstance(process, subprocess.Popen):
-                process.wait(timeout=3)
-            else:
-                process.join(timeout=3)
+            kill_tree(process)
+            process.wait(timeout=3)
         except (OSError, ValueError, subprocess.TimeoutExpired):
             pass

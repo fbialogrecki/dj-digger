@@ -50,6 +50,42 @@ def test_identity_and_central_manual_values(tmp_path, db):
     assert not db.save_analysis(a.local_id, 'stale', 'test', {'bpm': 180})
 
 
+def test_delete_preserves_playlist_identity_and_manual_values(tmp_path, db):
+    path = tmp_path / 'delete.wav'
+    path.write_bytes(b'fixture')
+    library = LocalLibrary(db)
+    track = library.register(path)
+    db.save_local_playlist('local-playlist:test', 'Test', [track.local_id])
+    db.set_media_manual(track.local_id, {'bpm': 128})
+    library.delete(track.local_id, path, signature(path))
+    assert not path.exists()
+    assert not db.media(track.local_id)['available']
+    assert '128' in db.media_values(track.local_id)['manual_json']
+    assert len(db.local_playlist_media('local-playlist:test')) == 1
+
+
+def test_delete_rejects_changed_and_leased_files(tmp_path, db):
+    from dj_digger.local_audio import LEASE_LOCK, LEASES
+    from dj_digger.media import MediaError
+    path = tmp_path / 'protected.wav'
+    path.write_bytes(b'fixture')
+    library = LocalLibrary(db)
+    track = library.register(path)
+    expected = signature(path)
+    path.write_bytes(b'new content')
+    with pytest.raises(MediaError, match='changed'):
+        library.delete(track.local_id, path, expected)
+    with LEASE_LOCK:
+        LEASES[path] = 1
+    try:
+        with pytest.raises(MediaError, match='Close the player'):
+            library.delete(track.local_id, path, signature(path))
+    finally:
+        with LEASE_LOCK:
+            LEASES.pop(path)
+    assert path.read_bytes() == b'new content'
+
+
 @pytest.mark.parametrize('version', [0, 1])
 def test_v2_migration_backs_up_committed_wal(tmp_path, version):
     path = tmp_path / 'library.db'
@@ -235,3 +271,21 @@ def test_rename_does_not_reuse_identity_from_changed_mount(tmp_path, db):
     after = library.register(renamed)
     assert after.local_id != before.local_id
     assert db.media(before.local_id)['path'] == str(path)
+
+
+def test_analysis_sources_are_per_field_and_do_not_extend_track_serialization(tmp_path, db):
+    from dataclasses import asdict
+
+    from dj_digger.services.local_library import media_analysis_values
+    path = audio(tmp_path)
+    track = LocalLibrary(db).register(path, inspect=True)
+    record = db.media(track.local_id)
+    db.save_analysis(track.local_id, record['signature'], 'test', {'bpm': 64, 'key': 'Am'})
+    db.set_media_manual(track.local_id, {'bpm': 128})
+    resolved = media_analysis_values(db, record)
+    assert resolved == {'bpm': (128, 'Manual'), 'key': ('Am', 'Analysis (estimate)')}
+    stale = {**record, 'signature': 'changed'}
+    assert media_analysis_values(db, stale)['key'] == ('', 'Not available')
+    assert 'bpm_source' not in asdict(media_track(db, record))
+    db.set_media_manual(track.local_id, {})
+    assert media_analysis_values(db, record)['bpm'] == (64, 'Analysis (estimate)')

@@ -21,7 +21,47 @@ def test_silence_abstains_and_spawn_returns(tmp_path):
     path = make_audio(tmp_path / 'silence.wav', 'anullsrc=r=22050:cl=stereo')
     result = analyze_spawned(path)
     assert result['bpm'] is None and result['key'] == ''
+    assert result['key_reason'] == 'no_tonal_evidence'
+    assert result['bpm_reason'] == 'no_reliable_pulse'
     assert result['estimated']
+
+
+def test_repeated_spawn_from_worker_thread(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    path = make_audio(tmp_path / 'batch.wav', 'anullsrc=r=22050:cl=stereo')
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        for _ in range(3):
+            assert executor.submit(analyze_spawned, path).result(timeout=60)['estimated']
+
+
+def test_cancelling_analyzer_reaps_process_and_cleans_workspace(tmp_path, monkeypatch):
+    import threading
+
+    from dj_digger import media
+    from dj_digger.models import Cancelled
+
+    path = make_audio(tmp_path / 'cancel.wav', 'anullsrc=r=22050:cl=stereo')
+    processes = []
+    original_register = media.register
+
+    def record(process):
+        processes.append(process)
+        original_register(process)
+
+    monkeypatch.setattr(media, 'register', record)
+    cancel = threading.Event()
+    timer = threading.Timer(.2, cancel.set)
+    timer.start()
+    try:
+        with pytest.raises(Cancelled):
+            analyze_spawned(path, cancel)
+    finally:
+        timer.cancel()
+        timer.join()
+    assert len(processes) == 1
+    assert processes[0].poll() is not None
+    from pathlib import Path
+    assert not Path(processes[0].args[-1]).exists()
 
 
 def test_antiphase_stereo_and_arbitrary_block_boundaries(tmp_path, monkeypatch):

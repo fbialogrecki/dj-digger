@@ -1,17 +1,16 @@
 """Optional bounded audio analysis. This module does not import librosa at startup."""
 
 import json
-import multiprocessing
 import os
-import queue
+import sys
 import tempfile
+import traceback
 from pathlib import Path
 
-from .media import MediaError, digest, pcm_blocks, probe, signature
-from .media_processes import register, unregister
+from .media import MediaError, digest, pcm_blocks, probe, run, signature
 from .models import check_cancelled
 
-ALGORITHM = 'onset-chroma-1'
+ALGORITHM = 'onset-chroma-2'
 RATE, FFT, HOP = 22050, 2048, 512
 PARAMETERS = {'rate': RATE, 'fft': FFT, 'hop': HOP, 'center': False}
 NOTES = ('C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B')
@@ -28,7 +27,7 @@ def camelot(key: str) -> str:
     return key
 
 
-def analyze_file(path: str, cancel=None) -> dict:
+def analyze_file(path: str, cancel=None, *, temporary_root=None) -> dict:
     try:
         import librosa
         import numpy as np
@@ -46,7 +45,7 @@ def analyze_file(path: str, cancel=None) -> dict:
     section_sum, sections = np.zeros(12), []
     previous = None
     frame_count = 0
-    with tempfile.TemporaryDirectory(prefix='dj-digger-analysis-') as temporary:
+    with tempfile.TemporaryDirectory(prefix='dj-digger-analysis-', dir=temporary_root) as temporary:
         envelope_path = Path(temporary) / 'onset.f32'
         with envelope_path.open('wb') as output:
             for block in pcm_blocks(source, rate=RATE, cancel=cancel):
@@ -77,13 +76,16 @@ def analyze_file(path: str, cancel=None) -> dict:
                 pending = pending[consumed:]
         check_cancelled(cancel)
         bpm = None
+        bpm_reason = 'insufficient_audio'
         if frame_count > 8:
+            bpm_reason = 'no_reliable_pulse'
             envelope = np.memmap(envelope_path, dtype='float32', mode='r')
             try:
                 if np.max(envelope) > 1e-5 and np.std(envelope) > 1e-5:
                     tempo, beats = librosa.beat.beat_track(onset_envelope=envelope, sr=RATE, hop_length=HOP)
                     if len(beats) >= 4:
                         bpm = round(float(np.asarray(tempo).reshape(-1)[0]), 2)
+                        bpm_reason = None
             finally:
                 # NumPy/Numba may retain views; Windows requires an explicit
                 # release before the temporary directory can be removed.
@@ -94,67 +96,55 @@ def analyze_file(path: str, cancel=None) -> dict:
 
     def estimate(chroma):
         if np.std(chroma) < 1e-6:
-            return ''
+            return '', 'no_tonal_evidence'
         scores = sorted((float(np.corrcoef(chroma, np.roll(profile, shift))[0, 1]), NOTES[shift] + suffix)
                         for profile, suffix in ((major, ''), (minor, 'm')) for shift in range(12))
         # Conservative abstention heuristics, explicitly not a probability.
-        return scores[-1][1] if scores[-1][0] > .5 and scores[-1][0] - scores[-2][0] > .04 else ''
+        if scores[-1][0] <= .5:
+            return '', 'weak_key_match'
+        if scores[-1][0] - scores[-2][0] <= .04:
+            return '', 'ambiguous_key'
+        return scores[-1][1], None
 
-    key = estimate(chroma_sum)
+    key, key_reason = estimate(chroma_sum)
     if section_sum.sum():
         sections.append(section_sum.tolist())
-    section_keys = [estimate(np.array(section)) for section in sections]
+    section_keys = [estimate(np.array(section))[0] for section in sections]
     if key and sum(candidate not in ('', key) for candidate in section_keys) > len(section_keys) / 2:
         key = ''
+        key_reason = 'conflicting_sections'
     check_cancelled(cancel)
     if signature(source) != metadata['signature']:
         raise MediaError('Audio changed during analysis')
-    return {'bpm': bpm, 'key': key, 'section_keys': section_keys,
+    return {'bpm': bpm, 'key': key, 'bpm_reason': bpm_reason, 'key_reason': key_reason, 'section_keys': section_keys,
             'parameters': PARAMETERS, 'estimated': True, 'signature': metadata['signature'], 'sha256': digest(source, cancel)}
 
 
-def _child(path, cancel, results):
-    if os.name != "nt":
-        os.setsid()
+def _child(path, temporary_root):
     os.environ["DJ_DIGGER_ANALYSIS_CHILD"] = "1"
     for variable in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "NUMBA_NUM_THREADS"):
         os.environ[variable] = "1"
     try:
-        results.put(('ok', analyze_file(path, cancel)))
+        result = ('ok', analyze_file(path, temporary_root=temporary_root))
     except Exception as exc:
-        results.put(('error', str(exc)))
+        result = ('error', {'message': str(exc), 'traceback': traceback.format_exc()})
+    print(json.dumps(result))
 
 
 def analyze_spawned(path: Path, cancel=None) -> dict:
-    context = multiprocessing.get_context('spawn')
-    stopped, results = context.Event(), context.Queue(maxsize=1)
-    process = context.Process(target=_child, args=(str(path), stopped, results), name='dj-digger-analysis')
-    process.start()
-    register(process)
-    try:
-        while True:
-            if cancel is not None and cancel.is_set():
-                stopped.set()
-            try:
-                status, result = results.get(timeout=.1)
-                break
-            except queue.Empty:
-                if not process.is_alive():
-                    raise MediaError('Analysis process ended without a result')
-        process.join()
-        check_cancelled(cancel)
-        if status != 'ok':
-            raise MediaError(result)
-        return result
-    finally:
-        stopped.set()
-        # Cooperatively close the decoder before process completion. Termination
-        # is not mistaken for cancellation having already finished.
-        process.join()
-        unregister(process)
-        process.close()
-        results.close()
-        results.join_thread()
+    # Textual's stderr capture returns fileno() == -1. multiprocessing's
+    # resource tracker passes it to spawnv_passfds, breaking process startup.
+    # A fresh interpreter with explicit pipes needs no inherited tracker FDs.
+    check_cancelled(cancel)
+    with tempfile.TemporaryDirectory(prefix='dj-digger-analysis-job-') as temporary:
+        payload = run([sys.executable, '-m', 'dj_digger.analysis', str(path.absolute()), temporary],
+                      cancel=cancel, timeout=24 * 3600, process_tree=True)
+    status, result = json.loads(payload)
+    if status != 'ok':
+        import logging
+        logging.getLogger(__name__).error('Analyzer process failed:\n%s', result['traceback'])
+        raise MediaError(result['message'])
+    return result
 
 
 def analyze_track(db, track, cancel=None):
@@ -170,3 +160,7 @@ def analyze_track(db, track, cancel=None):
     if not db.save_analysis(track.local_id, result['signature'], ALGORITHM, result):
         raise MediaError('File changed; stale analysis discarded')
     return result
+
+
+if __name__ == '__main__':
+    _child(sys.argv[1], sys.argv[2])

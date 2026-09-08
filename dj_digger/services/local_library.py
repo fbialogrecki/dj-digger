@@ -18,7 +18,8 @@ def _is_audio_entry(entry):
             and entry.is_file())
 
 
-def media_track(db, record: dict) -> Track:
+def media_analysis_values(db, record: dict) -> dict:
+    """Resolve each displayed value with its source; presentation only, never serialized."""
     metadata = json.loads(record['metadata_json'])
     values = db.media_values(record['id'])
     manual = json.loads(values.get('manual_json', '{}'))
@@ -29,16 +30,49 @@ def media_track(db, record: dict) -> Track:
         bpm = float(tags.get('bpm') or tags.get('tbpm') or 0) or None
     except (TypeError, ValueError):
         bpm = None
+    embedded = {'bpm': bpm, 'key': tags.get('initialkey', '')}
+    resolved = {}
+    for field in ('bpm', 'key'):
+        resolved[field] = (None if field == 'bpm' else '', 'Not available')
+        for source, candidates in (('Manual', manual), ('Analysis (estimate)', analysis), ('File tag', embedded)):
+            if candidates.get(field):
+                resolved[field] = (candidates[field], source)
+                break
+    return resolved
+
+
+def media_track(db, record: dict) -> Track:
+    metadata = json.loads(record['metadata_json'])
+    tags = metadata.get('tags', {})
+    resolved = media_analysis_values(db, record)
     return Track(title=tags.get('title') or Path(record['path']).stem,
                  permalink_url='', artist=tags.get('artist', ''), local_id=record['id'],
                  local_path=record['path'], duration=int(metadata.get('duration', 0) * 1000),
-                 bpm=manual.get('bpm') or analysis.get('bpm') or bpm,
-                 key_signature=manual.get('key') or analysis.get('key') or tags.get('initialkey', ''))
+                 bpm=resolved['bpm'][0], key_signature=resolved['key'][0])
 
 
 class LocalLibrary:
     def __init__(self, db):
         self.db = db
+
+    def delete(self, media_id, path: Path, expected: str):
+        """Delete only the confirmed file; protect loaded and prefetched audio."""
+        from ..local_audio import LEASE_LOCK, LEASES
+        with LEASE_LOCK:
+            if path.is_symlink():
+                raise MediaError('Select the original file rather than a symbolic link')
+            resolved = path.resolve(strict=True)
+            record = self.db.media(media_id)
+            if (record is None or record['path'] != str(resolved)
+                    or signature(resolved) != expected):
+                raise MediaError('File changed since selection; select it again')
+            if resolved in LEASES:
+                raise MediaError('Close the player before deleting a loaded or prefetched file')
+            resolved.unlink()
+            try:
+                self.db.mark_media_deleted(media_id, str(resolved))
+            except Exception as exc:
+                raise MediaError('File deleted, but the library could not be updated; reopen its folder') from exc
 
     def register(self, path: Path, *, inspect=False, cancel=None) -> Track:
         selected_path = path.absolute()

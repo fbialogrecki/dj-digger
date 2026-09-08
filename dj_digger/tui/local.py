@@ -1,5 +1,6 @@
 """Explorer, local playlists, analysis and export presentation coordinator."""
 import asyncio
+import logging
 import os
 import uuid
 from pathlib import Path
@@ -7,29 +8,31 @@ from pathlib import Path
 from textual.widgets import Button, Tree
 
 from ..analysis import analyze_track
+from ..analysis_report import AnalysisReport
 from ..export import execute, plan_export, recover, resume_plan
 from ..models import Cancelled
-from ..services.local_library import PAGE_SIZE, LocalLibrary, media_track
+from ..services.local_library import PAGE_SIZE, LocalLibrary, media_analysis_values, media_track
 from ..services.profile_import import import_profile
 from .local_screens import (
     AnalysisEdit,
-    AnalysisOptions,
     ExportOptions,
     ExportReview,
     ProfileImportOptions,
     TextPrompt,
 )
+from .screens import ConfirmScreen
+
+LOGGER = logging.getLogger(__name__)
 
 
 class LocalController:
     def __init__(self, *, services, playlist_state, crate_controller, audio_state, config,
                  jobs, notify, push_screen, run_worker, query_one, refresh_rows, selected_rows,
-                 current_row, build_columns):
+                 current_row):
         self.services, self.playlist_state, self.crates = services, playlist_state, crate_controller
         self.audio_state, self.config, self.jobs = audio_state, config, jobs
         self.notify, self.push_screen, self.run_worker, self.query_one = notify, push_screen, run_worker, query_one
         self.refresh_rows, self.selected_rows, self.current_row = refresh_rows, selected_rows, current_row
-        self.build_columns = build_columns
         self.library = LocalLibrary(services.state.db)
         self.folder = None
         self.offset, self.total, self.generation = 0, 0, 0
@@ -164,13 +167,17 @@ class LocalController:
         try:
             handle = self.jobs.start(name)
             self._heavy_handle = handle
+            LOGGER.info('%s started', name)
             return await self.services.io(operation, handle.cancel)
         except Cancelled:
+            LOGGER.info('%s cancelled', name)
             self.notify('Cancelled; completed results have been kept')
         except Exception as exc:
+            LOGGER.exception('%s failed', name)
             self.notify(str(exc), severity='error', timeout=10)
         finally:
             if handle is not None:
+                LOGGER.info('%s settled', name)
                 self.jobs.finish(handle)
                 if self._heavy_handle is handle:
                     self._heavy_handle = None
@@ -221,15 +228,22 @@ class LocalController:
                 self.open(self.folder, self.offset)
 
     def analyze(self):
-        tracks = self.tracks()
+        rows = self.selected_rows() or [self.current_row()]
+        tracks = [row.track for row in rows if row and row.track.local_id]
         if not tracks:
             self.notify('Select local files to analyze')
             return
-        self.push_screen(AnalysisOptions(len(tracks)),
-                         lambda confirmed: self.run_worker(self._analyze(tracks)) if confirmed else None)
+        self.run_worker(self._analyze(tracks))
 
-    async def _analyze(self, tracks):
-        self._show_analysis_columns()
+    def analyze_folder(self):
+        if self.folder is None or self.playlist_state.crate is not None:
+            self.notify('Open a local folder first')
+            return
+        self.run_worker(self._analyze([], folder=self.folder))
+
+    async def _analyze(self, tracks, *, folder=None):
+        report = AnalysisReport()
+        published = False
 
         def work(cancel):
             from importlib.util import find_spec
@@ -239,29 +253,89 @@ class LocalController:
                 raise MediaError("BPM/key analysis needs dj-digger[analyze]. For a local checkout, restart with: uv run --extra play --extra analyze dj-digger")
             binary('ffmpeg')
             binary('ffprobe')
-            failures = []
-            for index, track in enumerate(tracks):
-                self._progress(index, len(tracks))
-                try:
-                    self.library.register(Path(track.local_path))
-                    analyze_track(self.services.state.db, track, cancel)
-                except Cancelled:
-                    raise
-                except Exception as exc:
-                    failures.append(f'{track.title}: {exc}')
-            return failures
+            sources = (self.library.selection(folder, cancel=cancel) if folder is not None
+                       else tuple(Path(track.local_path) for track in tracks))
+            nonlocal published
+            try:
+                with report:
+                    for index, path in enumerate(sources):
+                        self._progress(index, len(sources))
+                        try:
+                            track = self.library.register(path, cancel=cancel)
+                            result = analyze_track(self.services.state.db, track, cancel)
+                        except Cancelled:
+                            raise
+                        except Exception as exc:
+                            LOGGER.exception('Analysis failed for %s', path)
+                            report.record(path, error=exc)
+                        else:
+                            report.record(path, result)
+                            log = LOGGER.info if not result.get('key') or not result.get('bpm') else LOGGER.debug
+                            log('Analysis %s: BPM=%s key=%s bpm_reason=%s key_reason=%s', path,
+                                result.get('bpm'), result.get('key'), result.get('bpm_reason'), result.get('key_reason'))
+                    self._progress(len(sources), len(sources))
+            finally:
+                published = report.published
+                LOGGER.info('Analysis summary: %s', dict(report.counts))
 
-        failures = await self.job('Analyzing audio', work)
-        if failures is not None:
-            self.notify(f'Analysis finished: {len(failures)} failures', timeout=8)
-            if failures:
-                self.notify(failures[0], severity='warning', timeout=12)
+        await self.job('Analyzing audio', work)
+        if published:
+            counts = report.counts
+            self.notify(f"Analysis: {counts['keys']} keys found, {counts['no_key']} without a clear key, {counts['errors']} errors",
+                        severity='warning' if counts['errors'] else 'information', timeout=8)
             await self.refresh_metadata()
+
+    def delete_files(self):
+        rows = self.selected_rows() or [self.current_row()]
+        tracks = [row.track for row in rows if row and row.track.local_id]
+        if not tracks:
+            return
+        files = [(track.local_id, Path(track.local_path), self.services.state.db.media(track.local_id)['signature'])
+                 for track in tracks]
+        question = ('Permanently delete these files from disk? This cannot be undone.\n\n'
+                    + '\n'.join(str(path) for _, path, _ in files))
+        self.push_screen(ConfirmScreen(question),
+                         lambda answer: self.run_worker(self._delete_files(files)) if answer else None)
+
+    async def _delete_files(self, files):
+        def work(cancel):
+            from ..models import check_cancelled
+            failures = []
+            for media_id, path, expected in files:
+                check_cancelled(cancel)
+                try:
+                    self.library.delete(media_id, path, expected)
+                except Exception as exc:
+                    failures.append(f'{path.name}: {exc}')
+            return failures
+        failures = await self.job('Deleting files', work)
+        await self.services.io(self.services.state.reload_file_paths)
+        if failures is not None:
+            self.notify(f'Deleted {len(files) - len(failures)} files; {len(failures)} failed',
+                        severity='warning' if failures else 'information')
+            if failures:
+                self.notify(failures[0], severity='error', timeout=10)
+        if self.folder and self.playlist_state.crate is None:
+            self.open(self.folder, self.offset)
 
     def edit(self):
         row = self.current_row()
         if row and row.track.local_id:
-            self.push_screen(AnalysisEdit(row.track), lambda values: self.run_worker(self._edit(row.track.local_id, values)) if values is not None else None)
+            self.run_worker(self._show_edit(row.track.local_id))
+
+    async def _show_edit(self, media_id):
+        view = self.playlist_state._view_generation
+        def load():
+            record = self.services.state.db.media(media_id)
+            if record is None:
+                return None
+            return media_track(self.services.state.db, record), media_analysis_values(self.services.state.db, record)
+        loaded = await self.services.io(load)
+        current = self.current_row()
+        if (loaded is not None and view == self.playlist_state._view_generation
+                and current and current.track.local_id == media_id):
+            track, resolved = loaded
+            self.push_screen(AnalysisEdit(track, resolved), lambda values: self.run_worker(self._edit(media_id, values)) if values is not None else None)
 
     async def _edit(self, media_id, values):
         await self.services.io(self.services.state.db.set_media_manual, media_id, values)
@@ -277,14 +351,7 @@ class LocalController:
                 if view != self.playlist_state._view_generation:
                     return
                 row.track = await self.services.io(media_track, self.services.state.db, record)
-        self._show_analysis_columns()
         self.refresh_rows()
-
-    def _show_analysis_columns(self):
-        columns = list(dict.fromkeys([*self.config.columns, 'bpm', 'key']))
-        if columns != self.config.columns:
-            self.config.columns = columns
-            self.build_columns()
 
     def profile(self):
         self.push_screen(ProfileImportOptions(), lambda answer: self.run_worker(self._profile(*answer)) if answer else None)

@@ -53,7 +53,8 @@ dj-digger https://soundcloud.com/someone/sets/that-playlist
   **Traxsource**, **JunoDownload**, **record shops**, **download gates**, **smart
   links**, and **direct SoundCloud downloads**.
 - **In-memory audio preview**: Stream, seek, prefetch upcoming tracks, and render
-  block waveforms with a reactive audio meter, powered by `miniaudio`.
+  block waveforms with stable progress coloring, powered by `miniaudio`.
+  SoundCloud preview supports progressive MP3 and MP3 HLS (up to 50 MiB in memory).
 - **Multi-playlist local library**: Save, switch, refresh, and search playlists stored in
   `~/.local/share/dj-digger/digger.db`.
 - **Cross-playlist track memory**: A decision made for a SoundCloud track applies
@@ -97,9 +98,17 @@ Run the working tree without installing or releasing anything:
 uv run --extra play dj-digger
 ```
 
+Logs are saved automatically at INFO level. Press `F5`, or click **Open logs**
+in Help/Settings, to view recent entries and open their folder. The application
+keeps up to five log files of 2 MiB each, redacts credentials, and never uploads
+diagnostics automatically. Locations:
+
+- Linux: `$XDG_STATE_HOME/dj-digger` or `~/.local/state/dj-digger`.
+- Windows: `%LOCALAPPDATA%\dj-digger\Logs`.
+- macOS: `~/Library/Logs/dj-digger`.
+
 The browser is drawn on standard error, so `2>file` would redirect the interface
-itself and leave you looking at a blank terminal. To keep a log while it is up,
-use `--log-file`:
+itself. For more detail or a different log destination, use:
 
 ```bash
 uv run --extra play dj-digger --log-level DEBUG --log-file /tmp/dj-digger.log
@@ -139,7 +148,7 @@ XDG_DATA_HOME=/tmp/dj-dev XDG_CONFIG_HOME=/tmp/dj-dev XDG_CACHE_HOME=/tmp/dj-dev
 Launching `dj-digger` opens an interactive Textual browser divided into three key areas:
 1. **Playlist Sidebar (`Ctrl+B`)**: Switch between saved playlists, add new links (`a`), or refresh existing playlists (`r`).
 2. **Track Table**: Displays tracks with status badges (`·` untouched, `○` opened, `✓` got, `✗` skipped), position, artist/title, available store badges, genre, and duration.
-3. **Player & Waveform Bar**: A four-row, 32-level waveform with a real-time VU level meter, over a one-row control strip: previous / play-pause / next buttons, track title, clock, a drag-to-set volume slider, and a close button.
+3. **Player & Waveform Bar**: A four-row, 32-level waveform with stable played/unplayed colors, over a one-row control strip: previous / play-pause / next buttons, track title, clock, a drag-to-set volume slider, and a close button.
 
 ```
 ▸ 0 all  1 soundcloud·18  2 bandcamp·12  3 gate·53      83/83 tracks · got 0 · skipped 4
@@ -179,6 +188,7 @@ Press `?` inside the TUI at any time to view the full grouped keybinding modal.
 | --- | --- |
 | `/` | Live search/filter by artist, title, genre, tag or label (every word must match, any order) |
 | `t` / `Shift+t` | Sort by title, time, genre, status or store (`t` cycles, `Shift+t` reverses); the header shows the arrow |
+| `F4` | Show counts for the current loaded view; no scan or network request |
 | `v` / `Shift+v` / `Ctrl+A` | Select a row / extend the selection to here / select everything shown; batch keys then act on the selection |
 | `1` – `9` | Jump directly to store category filter |
 | `0` | Reset store filter (show all tracks) |
@@ -196,7 +206,7 @@ Press `?` inside the TUI at any time to view the full grouped keybinding modal.
 | `Ctrl+B` | Toggle Playlist Sidebar |
 | `s` | Settings: profile, folders, browser, store session |
 | `?` | Full keybinding help |
-| `q` / `Ctrl+C` | Quit |
+| `q` / `Ctrl+C` / `Ctrl+Q` | Quit (`Ctrl+Shift+C` remains separate for copying when the terminal distinguishes it) |
 
 ---
 
@@ -449,10 +459,20 @@ To convert or prepare a club folder:
 3. Choose the target format and maximum bit depth/sample rate, and enter the destination directory. A new folder with copies is the default.
 4. Click **Inspect files and review plan**, check each action and the actual deck compatibility, then click **Execute this plan**.
 
-To find BPM and key, click **Analyze BPM/key** (or `j`), check the file count,
-and click **Start analysis**. With no selection this analyzes the visible local
-tracks on the current page. The BPM and Key columns appear automatically; use
-**Edit BPM/key** for corrections. The **Stop** action is shown while work runs.
+To find BPM and key, click **Analyze BPM/key** (or `j`) to start immediately.
+With no selection this analyzes the highlighted track. **Analyze folder**
+(`Shift+J`) analyzes all audio files directly in the open folder, across every
+page and regardless of selection or filters. Subfolders are not included.
+The BPM and Key columns are always visible in local folder and local-playlist
+views, including previously saved results without rerunning analysis. Use
+**Edit BPM/key** (`ctrl+k`) to correct them manually.
+After analysis, a short notification counts detected keys, unclear keys and
+processing errors; no summary panel opens. Missing-result reasons and technical
+errors are recorded in the logs (**F5** / **Open logs**). Per-file details are also
+stored privately as `last-analysis.jsonl` in the default log directory, replaced
+by the next run. Unclear keys are estimates without a decisive match, not decoder
+failures. The analysis cache version recalculates older results once when analysis
+is requested to record missing-result reasons.
 For a checkout, start with `uv run --extra play --extra analyze dj-digger`.
 
 | Key | Local library action |
@@ -463,7 +483,9 @@ For a checkout, start with `uv run --extra play --extra analyze dj-digger`.
 | `ctrl+t` | Sidebar split: 50/50, 70/30, 30/70 |
 | `ctrl+r` | Show playlists, explorer, or both; small terminals show one section |
 | `ctrl+l` | Add selected local files to a named local playlist; same name appends |
-| `j` | Estimate BPM and key for selected local files, or the visible page |
+| `j` | Immediately estimate BPM and key for selected local files, or the highlighted track |
+| `Shift+J` | Immediately analyze every audio file in the open folder, across all pages |
+| `x` | In the explorer, confirm permanent deletion of selected/highlighted files from disk; in playlists, remove playlist entries only |
 | `ctrl+k` | Edit manual BPM/key, double/halve tempo, or clear overrides |
 | `ctrl+e` | Inspect and export local audio for club players |
 | `ctrl+u` | Review/resume the most recent unfinished folder export |
@@ -531,3 +553,31 @@ verified SQLite backup including committed WAL data before migration to schema
 restoring that backup while the app is closed; there is no automatic downgrade.
 See [release procedure](docs/implementation/release-1.1.md) and
 [deck rule sources](docs/implementation/deck-sources.md).
+
+
+### Responsive views and analysis validation
+
+The normal 80×24 view keeps local BPM, Key and Time visible. Secondary columns
+fold away without changing your column preferences or sort. Press **F4** for a
+summary of the loaded view; folder counts explicitly describe the loaded page.
+Settings group Appearance, Files, Accounts and Gates into tabs, with Save/Cancel
+always available. Account actions take effect immediately; cancelling preferences
+does not undo a login or profile reset.
+
+Export dialogs keep their main actions visible. Target-profile compatibility is
+expandable, while the review describes the actual planned file set. Replacement
+warnings stay next to the execution controls. **Ctrl+K** shows whether each local
+BPM/key value comes from a manual override, an estimate or a file tag.
+
+For a repeatable raw-analysis benchmark, use a fresh output directory:
+
+```bash
+uv run --extra analyze python scripts/benchmark_analysis.py --output /tmp/digger-benchmark
+```
+
+Add `--corpus /path/to/music` to read immediate audio files without editing audio
+or tags. Optional `--references references.json` maps filenames to entries such as
+`{"bpm": 120, "key": "Am", "verified": true}`. Only verified references count
+toward accuracy; embedded tags are not assumed to be ground truth. The report
+separates incorrect estimates, missing answers and half/double tempo. Controlled
+cadences test intended tonal patterns; they do not validate real-music accuracy.

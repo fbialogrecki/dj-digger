@@ -236,3 +236,11 @@ def test_a_windows_choice_still_refuses_a_link_that_is_not_a_web_address(monkeyp
     )
 
     assert browser.open_url("file:///etc/passwd", browser.WINDOWS) is False
+
+
+def test_browser_refusal_is_not_reported_as_success(monkeypatch):
+    controller = RecordingController()
+    controller.open_new_tab = lambda url: False
+    monkeypatch.setattr(browser, 'resolve_controller', lambda choice: controller)
+    assert browser.open_url('https://example.com/') is False
+    assert browser.open_urls(['https://example.com/'], controller=controller, pause=0) == 0

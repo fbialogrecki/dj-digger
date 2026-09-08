@@ -65,7 +65,7 @@ def _finish_or_exit(grace: float, code: int) -> None:
 
 def _interrupt_again(_signum, _frame) -> None:
     # Only reachable once Textual has restored the terminal: while it owns the
-    # screen ctrl+c is a key, not a signal. So this is the second ctrl+c, from
+    # screen ctrl+c is a quit key, not a signal. Here it is an interrupt from
     # someone watching a shutdown that is taking too long.
     LOGGER.warning("Interrupted again during shutdown, exiting now")
     logging.shutdown()

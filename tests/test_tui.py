@@ -254,7 +254,7 @@ def test_optional_columns_follow_the_settings(records, state):
     records[0].track.release_year = 2024
 
     async def scenario():
-        async with app.run_test() as pilot:
+        async with app.run_test(size=(180, 42)) as pilot:
             await pilot.pause()
             table = app.query_one("#tracks", DataTable)
             assert len(table.columns) == 7
@@ -670,22 +670,24 @@ def test_opening_a_link_repaints_only_that_row(records, state, monkeypatch):
     assert clears == [], "opening a link must not rebuild the table"
 
 
-def test_ctrl_c_quits_like_q(records, state, monkeypatch):
+def test_ctrl_c_quits_but_shift_copy_encodings_do_not(records, state, monkeypatch):
     app = make_app(records, state)
     exits = []
     monkeypatch.setattr(app, "exit", lambda *a, **k: exits.append(1))
 
     async def scenario():
         async with app.run_test() as pilot:
-            await pilot.press("ctrl+c")
+            await pilot.press("ctrl+shift+c", "ctrl+C", "ctrl+shift+C")
             await pilot.pause()
+            assert exits == []
+            await pilot.press("ctrl+c")
 
     run(scenario)
     assert exits == [1]
 
 
 def test_ctrl_c_quits_from_the_search_box(records, state, monkeypatch):
-    """Input binds ctrl+c to copy; quitting must win there too."""
+    """Ctrl+C remains an interrupt even when an input has focus."""
 
     app = make_app(records, state)
     exits = []
@@ -2218,7 +2220,7 @@ def test_the_genre_column_shows_genre_then_tag_then_nothing(state):
     app = make_app(links.categorise_all(tracks), state)
 
     async def scenario():
-        async with app.run_test():
+        async with app.run_test(size=(180, 42)):
             table = app.query_one("#tracks", DataTable)
             genres = [str(table.get_row_at(index)[GENRE_CELL]) for index in range(3)]
             assert genres == ["Techno", "Acid", "-"]
@@ -2236,7 +2238,7 @@ def test_the_time_column_reads_as_minutes_and_seconds(state):
     async def scenario():
         async with app.run_test():
             table = app.query_one("#tracks", DataTable)
-            assert [str(table.get_row_at(index)[TIME_CELL]) for index in range(2)] == ["4:14", "-"]
+            assert [str(table.get_row_at(index)[list(app.playlist_state._column_keys).index("Time")]) for index in range(2)] == ["4:14", "-"]
 
     run(scenario)
 
@@ -2252,7 +2254,7 @@ def test_the_store_column_badges_every_store_and_picks_out_the_one_o_opens(state
     app = make_app(links.categorise_all([track]), state)
 
     async def scenario():
-        async with app.run_test() as pilot:
+        async with app.run_test(size=(180, 42)) as pilot:
             table = app.query_one("#tracks", DataTable)
             # One character over the column, so it arrives elided rather than
             # clipped by the table into "gate(hypedd".
@@ -2281,7 +2283,7 @@ def test_a_free_soundcloud_download_is_badged_and_opened_first(state):
     app = make_app(links.categorise_all([track]), state)
 
     async def scenario():
-        async with app.run_test():
+        async with app.run_test(size=(150, 42)):
             table = app.query_one("#tracks", DataTable)
             assert str(table.get_row_at(0)[STORES_CELL]) == "\u2193soundcloud bandcamp"
             chosen = app.filter_controller.record_to_open(app.playlist_state.rows[0])
@@ -3400,7 +3402,7 @@ def test_a_dig_keeps_the_rows_on_screen(records, state, monkeypatch):
     run(scenario)
 
 
-def test_an_unreadable_scan_folder_is_reported_in_the_banner(records, state, monkeypatch):
+def test_automatic_scan_skips_unreadable_folders_quietly(records, state, monkeypatch):
     class NoisyScanner:
         errors = ["/music/locked: Permission denied"]
 
@@ -3430,7 +3432,7 @@ def test_an_unreadable_scan_folder_is_reported_in_the_banner(records, state, mon
             assert app.job is None, "the scan job is finished"
 
     run(scenario)
-    assert any("locked" in error and "unreadable" in error for error in errors)
+    assert errors == []
 
 
 def test_ctrl_x_stops_a_dig(records, state, monkeypatch):
@@ -4114,7 +4116,8 @@ def test_the_audio_worker_opens_the_stream_off_the_ui_thread(state, monkeypatch)
     app = player_app(synthetic_records(1), state)
     threads = []
 
-    def fake_open(session, url):
+    def fake_open(session, url, protocol):
+        assert protocol == "progressive"
         threads.append(threading.current_thread() is threading.main_thread())
         return SimpleNamespace(close=lambda: None)
 
@@ -5235,7 +5238,7 @@ def test_local_footer_exposes_conversion_analysis_and_restores_online_actions(st
     from textual.widgets._footer import FooterKey
 
     from dj_digger.services.local_library import LocalLibrary
-    from dj_digger.tui.local_screens import AnalysisOptions, ExportOptions
+    from dj_digger.tui.local_screens import ExportOptions
     from dj_digger.tui.widgets import FittedFooter
 
     path = tmp_path / 'local.wav'
@@ -5248,6 +5251,7 @@ def test_local_footer_exposes_conversion_analysis_and_restores_online_actions(st
         analyzed.append(value.key)
         from dj_digger.media import signature
         db.save_analysis(value.local_id, signature(path), 'fixture', {'bpm': 126, 'key': 'Am'})
+        return {'bpm': 126, 'key': 'Am'}
 
     monkeypatch.setattr('dj_digger.tui.local.analyze_track', fake_analyze)
     monkeypatch.setattr('dj_digger.media.binary', lambda name: name)
@@ -5275,15 +5279,12 @@ def test_local_footer_exposes_conversion_analysis_and_restores_online_actions(st
             await pilot.press('escape')
             await pilot.pause()
             assert await pilot.click(actions()['local_analyze'])
-            assert isinstance(app.screen, AnalysisOptions)
-            assert app.screen.count == 1
-            assert analyzed == []
-            assert await pilot.click('#analyze-start')
             await pilot.pause()
             await settle(app, pilot)
             assert analyzed == [track.key]
             assert app.playlist_state.rows[0].track.bpm == 126
             assert {'BPM', 'Key'} <= app.playlist_state._column_keys.keys()
+            assert len(app.screen_stack) == 1
             await pilot.resize_terminal(80, 24)
             await pilot.pause()
             assert {'local_export', 'local_analyze', 'play_pause'} <= actions().keys()
@@ -5300,5 +5301,295 @@ def test_local_footer_exposes_conversion_analysis_and_restores_online_actions(st
             assert 'open_link' in actions()
             assert 'local_analyze' not in actions()
             assert app.query_one('#status-legend').display
+
+    run(scenario)
+
+
+def test_real_analysis_batch_inside_tui(state, tmp_path):
+    import importlib.util
+    import shutil
+    import subprocess
+
+    import pytest
+
+    from dj_digger.services.local_library import LocalLibrary
+    if not shutil.which('ffmpeg') or importlib.util.find_spec('librosa') is None:
+        pytest.skip('FFmpeg and analyze extra required')
+    library = LocalLibrary(state.db)
+    tracks = []
+    for index in range(3):
+        path = tmp_path / f'{index}.wav'
+        subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i',
+                        'anullsrc=r=22050:cl=stereo', '-t', '1', str(path)], check=True)
+        tracks.append(library.register(path))
+    app = make_app(synthetic_records(1), state)
+    messages = []
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await settle(app, pilot)
+            app.local_controller.notify = lambda message, **kwargs: messages.append(message)
+            # Only the first row is loaded; Shift+J must still analyze all files.
+            app.local_controller.folder = tmp_path
+            app.crate_controller.load_records([])
+            app.crate_controller.set_tracks(tracks[:1])
+            await pilot.press('J')
+            await settle(app, pilot)
+            assert all(state.db.media_values(track.local_id).get('result_json') for track in tracks), messages
+
+    run(scenario)
+
+
+def test_explorer_delete_requires_confirmation_and_removes_disk_file(state, tmp_path):
+    from dj_digger.services.local_library import LocalLibrary
+    from dj_digger.tui.screens import ConfirmScreen
+    path = tmp_path / 'delete.wav'
+    path.write_bytes(b'fixture')
+    track = LocalLibrary(state.db).register(path)
+    app = make_app(synthetic_records(1), state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await settle(app, pilot)
+            app.local_controller.folder = tmp_path
+            app.crate_controller.load_records([])
+            app.crate_controller.set_tracks([track])
+            await pilot.press('x')
+            assert isinstance(app.screen, ConfirmScreen)
+            assert str(path) in app.screen.question
+            assert path.exists()
+            await pilot.press('n')
+            assert path.exists()
+            await pilot.press('x', 'y')
+            await settle(app, pilot)
+            assert not path.exists()
+            assert not state.db.media(track.local_id)['available']
+            assert app.playlist_state.rows == []
+
+    run(scenario)
+
+
+def test_explorer_permission_error_only_after_explicit_open(state, tmp_path, monkeypatch):
+    from dj_digger.services.local_library import LocalLibrary
+    attempted, messages = [], []
+
+    def denied(self, folder, *args):
+        attempted.append(folder)
+        raise PermissionError(f'{folder}: Permission denied')
+
+    monkeypatch.setattr(LocalLibrary, 'page', denied)
+    app = make_app([], state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await settle(app, pilot)
+            assert attempted == []
+            app.local_controller.notify = lambda message, **kwargs: messages.append(message)
+            app.local_controller.open(tmp_path)
+            await settle(app, pilot)
+            assert attempted == [tmp_path]
+            assert len(messages) == 1 and 'Permission denied' in messages[0]
+
+    run(scenario)
+
+
+def test_open_logs_from_keyboard(state, monkeypatch):
+    from dj_digger.logging_setup import configure_logging
+    from dj_digger.tui.diagnostic_screens import LogsScreen
+    path = configure_logging('INFO')
+    opened = []
+    monkeypatch.setattr('dj_digger.tui.diagnostic_screens.open_log_folder', opened.append)
+    app = make_app(synthetic_records(1), state)
+
+    async def scenario():
+        async with app.run_test(size=(140, 42)) as pilot:
+            await settle(app, pilot)
+            await pilot.press('f5')
+            await pilot.pause()
+            assert isinstance(app.screen, LogsScreen)
+            assert app.screen.path == path
+            assert 'Starting dj-digger' in str(app.screen.query_one('#log-text').render())
+            assert await pilot.click('#logs-folder')
+            await pilot.pause()
+            assert opened == [path]
+            await pilot.press('escape')
+            assert len(app.screen_stack) == 1
+
+    run(scenario)
+
+
+def test_stored_analysis_visible_when_opening_folder_without_reanalysis(state, tmp_path, monkeypatch):
+    from dj_digger.media import signature
+    from dj_digger.services.local_library import LocalLibrary
+
+    path = tmp_path / 'cached.wav'
+    path.write_bytes(b'fixture')
+    track = LocalLibrary(state.db).register(path)
+    state.db.save_analysis(track.local_id, signature(path), 'fixture', {'bpm': 126, 'key': 'Am'})
+    monkeypatch.setattr('dj_digger.services.local_library.probe', lambda *a: {'duration': 10})
+    def unexpected_analysis(*args, **kwargs):
+        raise AssertionError('Opening a folder must not analyze audio')
+    monkeypatch.setattr('dj_digger.tui.local.analyze_track', unexpected_analysis)
+    app = make_app(synthetic_records(1), state)
+    app.config.columns = []
+
+    async def scenario():
+        async with app.run_test(size=(140, 40)) as pilot:
+            await settle(app, pilot)
+            assert 'BPM' not in app.playlist_state._column_keys
+            app.local_controller.open(tmp_path)
+            await settle(app, pilot)
+            await pilot.pause()
+            keys = app.playlist_state._column_keys
+            assert {'BPM', 'Key'} <= keys.keys()
+            table = app.query_one('#tracks', DataTable)
+            cells = dict(zip(keys, table.get_row_at(0)))
+            assert '126' in str(cells['BPM'])
+            assert 'Am' in str(cells['Key'])
+            assert app.config.columns == []
+            app.crate_controller.load_records(synthetic_records(1))
+            await pilot.pause()
+            assert 'BPM' not in app.playlist_state._column_keys
+            assert 'Key' not in app.playlist_state._column_keys
+
+    run(scenario)
+
+
+def test_resize_keeps_sort_selection_and_local_metadata_columns(records, state):
+    from dj_digger.tui.widgets import FittedFooter
+    app = make_app(records, state)
+    async def scenario():
+        async with app.run_test(size=(150, 42)) as pilot:
+            await settle(app, pilot)
+            app.config.columns = ['bpm', 'key', 'year', 'label']
+            app.playlist_state.sort_key = 'bpm'
+            app.playlist_state.selected = {app.playlist_state.visible_rows[0].track.key}
+            selected = set(app.playlist_state.selected)
+            app.table_controller.rebuild_columns()
+            for size in [(80, 24), (150, 42), (80, 24)]:
+                await pilot.resize_terminal(*size)
+                await pilot.pause()
+                table = app.query_one('#tracks', DataTable)
+                assert app.playlist_state.sort_key == 'bpm'
+                assert app.playlist_state.selected == selected
+                assert not table.show_horizontal_scrollbar
+                assert len(table.get_row_at(0)) == len(table.columns)
+                footer = app.query_one(FittedFooter)
+                assert all(child.region.right <= footer.region.right for child in footer.children)
+            app.playlist_state.local_view = True
+            app.table_controller.refresh_rows()
+            await pilot.pause()
+            assert 'Stores' not in app.playlist_state._column_keys
+            assert {'BPM', 'Key', 'Time'} <= app.playlist_state._column_keys.keys()
+            app.action_mark_got()
+            await settle(app, pilot)
+            assert len(table.get_row_at(0)) == len(table.columns)
+            await pilot.press('f4')
+            assert 'Visible positions:' in str(app.screen.query_one('#view-summary', Static).content)
+            await pilot.press('escape')
+            assert app.screen is app.screen_stack[0]
+    run(scenario)
+
+
+def test_export_cancel_buttons_never_accept_a_plan(records, state):
+    from dj_digger.tui.local_screens import ExportOptions, ExportReview
+    app = make_app(records, state)
+    answers = []
+    plan = SimpleNamespace(items=[], mode='replace', compatibility=lambda: {})
+    async def scenario():
+        async with app.run_test(size=(80, 24)) as pilot:
+            for screen in (ExportOptions('/tmp'), ExportReview(plan)):
+                app.push_screen(screen, answers.append)
+                await pilot.pause()
+                cancel = screen.query_one('#cancel', Button)
+                assert cancel.region.bottom <= 24
+                await pilot.click('#cancel')
+                await pilot.pause()
+                assert answers[-1] is None
+            app.push_screen(ExportReview(plan), answers.append)
+            await pilot.pause()
+            await pilot.press('escape')
+            assert answers == [None, None, None]
+    run(scenario)
+
+
+def test_settings_tabs_keep_unsaved_fields_and_cancel_does_not_save(records, state):
+    from textual.widgets import TabbedContent
+    app = make_app(records, state)
+    before = app.config.user_name
+    async def scenario():
+        async with app.run_test(size=(80, 24)) as pilot:
+            app.action_open_settings()
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            screen = app.screen
+            tabs = screen.query_one(TabbedContent)
+            tabs.active = 'settings-gates'
+            await pilot.pause()
+            assert screen.query_one('#input-gate-social').region.bottom <= screen.query_one('#btn-save-settings', Button).region.y
+            screen.query_one('#input-name', Input).value = 'Unsaved name'
+            tabs.active = 'settings-files'
+            await pilot.pause()
+            tabs.active = 'settings-gates'
+            assert screen.query_one('#input-name', Input).value == 'Unsaved name'
+            assert screen.query_one('#btn-save-settings', Button).region.bottom <= 24
+            await pilot.click('#btn-cancel-settings')
+            await pilot.pause()
+            assert app.config.user_name == before
+    run(scenario)
+
+
+def test_explorer_scrollbar_is_thin_and_still_scrolls(state):
+    from rich.color import Color
+    from textual.widgets import Tree
+
+    from dj_digger.tui.widgets import ThinHorizontalScrollBar
+
+    app = make_app(synthetic_records(1), state)
+
+    async def scenario():
+        async with app.run_test(size=(140, 40)) as pilot:
+            tree = app.query_one('#explorer', Tree)
+            tree.root.remove_children()
+            tree.root.add_leaf('A long folder name ' * 15)
+            tree.root.expand()
+            await pilot.pause()
+            assert tree.show_horizontal_scrollbar
+            bar = tree.horizontal_scrollbar
+            assert bar.renderer is ThinHorizontalScrollBar
+            assert bar.region.height == 1
+            rendered = bar.renderer.render_bar(
+                size=27, virtual_size=300, window_size=27, position=0,
+                vertical=False, bar_color=Color.parse('cyan'), back_color=Color.parse('black'),
+            )
+            assert all(segment.text in {'▁', '\n'} for segment in rendered.segments)
+            assert any(segment.style and segment.style.meta.get('@mouse.down') == 'grab' for segment in rendered.segments)
+            assert await pilot.click(bar, offset=(20, 0))
+            await pilot.pause()
+            assert tree.scroll_x > 0
+            tree.scroll_to(x=0, animate=False)
+            await pilot.pause()
+            await pilot.mouse_down(bar, offset=(1, 0))
+            await pilot.hover(bar, offset=(10, 0))
+            await pilot.mouse_up(bar, offset=(10, 0))
+            await pilot.pause()
+            assert tree.scroll_x > 0
+
+    run(scenario)
+
+
+def test_waveform_colour_does_not_change_with_music_level(state):
+    app = player_app(synthetic_records(1), state)
+
+    async def scenario():
+        async with app.run_test():
+            app.player.load(app.playlist_state.visible_rows[0].track, a_stream(), None, [100] * 60)
+            app.player.fraction = 0.5
+            bar = app.query_one('#player', PlayerBar)
+            quiet = bar._content()
+            app.player.level = 1.0
+            loud = bar._content()
+            assert quiet.plain == loud.plain
+            assert quiet.spans == loud.spans
 
     run(scenario)

@@ -9,8 +9,8 @@ from dj_digger.services import playback
 from dj_digger.soundcloud import SoundCloudError
 from dj_digger.tui import audio
 
-PROGRESSIVE = {"format": {"protocol": "progressive"}, "url": "https://api/media/prog"}
-HLS = {"format": {"protocol": "hls"}, "url": "https://api/media/hls"}
+PROGRESSIVE = {"format": {"protocol": "progressive", "mime_type": "audio/mpeg"}, "url": "https://api/media/prog"}
+HLS = {"format": {"protocol": "hls", "mime_type": "audio/mpeg"}, "url": "https://api/media/hls"}
 
 
 class FakeClient:
@@ -30,11 +30,11 @@ class FakeClient:
 
 
 
-def render_waveform(samples, width, played_fraction=0.0, rows=audio.WAVEFORM_ROWS, level=0.0):
+def render_waveform(samples, width, played_fraction=0.0, rows=audio.WAVEFORM_ROWS):
     """Compose the two real drawing stages the way the app does."""
 
     return audio.paint_waveform(
-        audio.waveform_rows(samples, width, rows), played_fraction, level
+        audio.waveform_rows(samples, width, rows), played_fraction
     )
 
 def playable_payload(**overrides):
@@ -65,9 +65,47 @@ def test_an_unstreamable_track_is_reported():
     assert "not streamable" in playback.unplayable_reason(playable_payload(streamable=False))
 
 
-def test_hls_only_is_reported():
+@pytest.mark.parametrize("track_id", [408281022, 88124909])
+def test_blocked_tracks_from_user_logs_report_access_restriction(track_id, caplog):
+    # Both returned BLOCK + streamable=True + no transcodings on 2026-09-08.
+    client = FakeClient(playable_payload(id=track_id, policy="BLOCK", media={"transcodings": []}))
+    with pytest.raises(SoundCloudError, match="account or region") as exc:
+        playback.resolve_stream(client, track_id)
+    assert "MP3" not in str(exc.value)
+    assert client.authorize_calls == []
+    assert f"track {track_id} (policy=BLOCK, streams=0)" in caplog.text
+    assert "token-123" not in caplog.text
+
+
+def test_block_policy_takes_precedence_over_stale_transcodings():
+    client = FakeClient(playable_payload(policy="BLOCK"))
+    with pytest.raises(SoundCloudError, match="blocks playback"):
+        playback.resolve_stream(client, 1)
+    assert client.authorize_calls == []
+
+
+def test_missing_streams_are_distinct_from_unsupported_formats():
+    assert "did not provide any audio streams" in playback.unplayable_reason(
+        playable_payload(media={"transcodings": []})
+    )
+
+
+def test_hls_mp3_is_supported_and_resolved():
     payload = playable_payload(media={"transcodings": [HLS]})
-    assert "plain MP3" in playback.unplayable_reason(payload)
+    assert playback.unplayable_reason(payload) is None
+    client = FakeClient(payload)
+    assert playback.resolve_stream(client, 1).protocol == "hls"
+    assert client.authorize_calls[0][0] == HLS["url"]
+
+
+def test_unsupported_codec_is_reported_with_track_id_without_authorization(caplog):
+    payload = playable_payload(media={"transcodings": [
+        {"format": {"protocol": "hls", "mime_type": "audio/ogg"}}
+    ]})
+    with pytest.raises(SoundCloudError, match="supported MP3"):
+        playback.resolve_stream(FakeClient(payload), 123)
+    assert "track 123" in caplog.text
+    assert "token-123" not in caplog.text
 
 
 # Resolving the stream
@@ -163,97 +201,14 @@ def test_the_progress_boundary_follows_the_fraction(fraction, expected_played):
 def test_a_frame_costs_a_handful_of_spans_not_one_per_column():
     """Thirty frames a second is only affordable because of this."""
 
-    rendered = render_waveform([100] * 400, 400, played_fraction=0.5, level=1.0)
+    rendered = render_waveform([100] * 400, 400, played_fraction=0.5)
     assert len(rendered.spans) <= 3 * audio.WAVEFORM_ROWS
 
 
-def test_the_leading_edge_brightens_with_the_level():
-    quiet = render_waveform([100] * 60, 60, played_fraction=0.5, rows=1, level=0.0)
-    loud = render_waveform([100] * 60, 60, played_fraction=0.5, rows=1, level=1.0)
-
-    assert styled_width(quiet, audio.GLOW_STYLES[-1]) == 0
-    assert styled_width(loud, audio.GLOW_STYLES[-1]) == audio.GLOW_COLUMNS
-
-
-def test_the_played_history_does_not_flicker_with_it():
-    """Only the columns behind the playhead move; the rest is a record."""
-
-    loud = render_waveform([100] * 60, 60, played_fraction=0.5, rows=1, level=1.0)
-    assert styled_width(loud, audio.PLAYED_STYLE) == 30 - audio.GLOW_COLUMNS
-
-
-def test_the_shape_of_a_track_is_the_same_however_it_is_coloured():
-    rows = audio.waveform_rows([100, 20, 140, 60], 4, rows=1)
-    for level in (0.0, 0.5, 1.0):
-        painted = audio.paint_waveform(rows, 0.5, level)
-        assert str(painted) == rows[0]
-
-
-# Reading the level as a pulse
-
-
-def settled(meter, level=0.3, frames=30):
-    """Let the meter learn the room before anything is asked of it."""
-
-    for _ in range(frames):
-        meter.feed(level)
-    return meter
-
-
-def test_a_steady_sound_does_not_flicker():
-    """Left to decay below what is arriving, the release halves it every frame."""
-
-    shown = [audio.LevelMeter().feed(0.435) for _ in range(8)]
-    assert len(set(shown)) == 1
-
-
-def test_a_hit_shows_at_once_and_falls_away_afterwards():
-    meter = settled(audio.LevelMeter())
-    struck = meter.feed(1.0)
-    after = [meter.feed(0.3) for _ in range(4)]
-
-    assert struck == pytest.approx(1.0)
-    assert after == sorted(after, reverse=True)
-    assert after[-1] < struck / 2
-
-
-def test_a_brickwalled_master_still_moves():
-    """Measured on a real one: it lives between 0.92 and 1.00 the whole way."""
-
-    meter = audio.LevelMeter()
-    shown = []
-    for _ in range(40):
-        shown.append(meter.feed(1.0))  # the kick
-        shown += [meter.feed(0.93) for _ in range(6)]  # between kicks
-
-    beat = shown[-14:]
-    assert max(beat) - min(beat) > 0.5
-
-
-def test_one_stray_transient_does_not_black_out_the_next_second():
-    meter = settled(audio.LevelMeter())
-    meter.feed(1.0)
-    recovered = [meter.feed(0.3 if index % 7 else 0.6) for index in range(60)]
-
-    assert max(recovered[-20:]) > 0.5
-
-
-def test_silence_reads_as_silence_rather_than_amplified_hiss():
-    meter = audio.LevelMeter()
-    assert meter.feed(0.0) == 0.0
-    assert max(meter.feed(0.001) for _ in range(20)) == 0.0
-
-
-def test_a_new_track_starts_the_meter_again():
-    meter = settled(audio.LevelMeter())
-    meter.feed(1.0)
-    meter.reset()
-    assert meter.feed(0.0) == 0.0
-
-
-@pytest.mark.parametrize("level", [-1.0, 0.0, 0.4, 1.0, 5.0])
-def test_the_glow_never_falls_off_the_end_of_the_palette(level):
-    assert audio.glow_style(level) in audio.GLOW_STYLES
+def test_the_entire_played_waveform_has_one_stable_colour():
+    rendered = render_waveform([100] * 60, 60, played_fraction=0.5, rows=1)
+    assert styled_width(rendered, audio.PLAYED_STYLE) == 30
+    assert {span.style for span in rendered.spans} == {audio.PLAYED_STYLE, audio.UNPLAYED_STYLE}
 
 
 def test_a_fraction_outside_the_range_is_clamped():
@@ -597,63 +552,6 @@ def test_seeking_keeps_the_source_and_the_track_it_is_holding(monkeypatch):
 
     subject.seek(120.0)
     assert subject._source is source
-
-
-def test_the_level_follows_the_loudest_sample_going_out(monkeypatch):
-    subject, device = loaded_player(monkeypatch)
-    assert subject.take_level() == 0.0
-
-    subject.play()
-    device.started_with.send(1024)
-    assert subject.take_level() == pytest.approx(100 / player.FULL_SCALE)
-
-
-def test_the_level_ignores_the_volume_knob(monkeypatch):
-    """It is the music that should pulse, not the fader."""
-
-    subject, device = loaded_player(monkeypatch)
-    subject.set_volume(0.1)
-    subject.play()
-    device.started_with.send(1024)
-
-    assert subject.take_level() == pytest.approx(100 / player.FULL_SCALE)
-
-
-def test_a_chunk_is_measured_once_per_frame_not_once_per_callback(monkeypatch):
-    """A callback covers a tenth of a second, which in techno always holds a kick."""
-
-    subject, device = loaded_player(monkeypatch)
-    subject.play()
-    chunk = device.started_with.send(1024)  # the fake decoder yields 2048 samples
-
-    assert len(subject._levels) == -(-len(chunk) // player.LEVEL_WINDOW)
-
-
-def test_readings_come_back_oldest_first(monkeypatch):
-    subject, _device = loaded_player(monkeypatch)
-    subject._levels.extend([0.2, 0.9])
-    assert [subject.take_level() for _ in range(2)] == [0.2, 0.9]
-
-
-def test_the_last_reading_stands_until_another_arrives(monkeypatch):
-    """Dropping to silence between callbacks would be a flicker, not a pulse."""
-
-    subject, _device = loaded_player(monkeypatch)
-    subject._playing = True
-    subject._levels.append(0.7)
-
-    assert subject.take_level() == 0.7
-    assert subject.take_level() == 0.7
-
-
-def test_pausing_flattens_the_level(monkeypatch):
-    subject, device = loaded_player(monkeypatch)
-    subject.play()
-    device.started_with.send(1024)
-
-    subject.pause()
-    assert subject.take_level() == 0.0
-    assert not subject._levels
 
 
 def test_seeking_is_clamped_inside_the_track(monkeypatch):

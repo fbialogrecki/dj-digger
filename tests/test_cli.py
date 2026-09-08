@@ -383,7 +383,7 @@ def test_batch_open_uses_the_browser_from_settings(monkeypatch, tmp_path):
     assert used == ["firefox"]
 
 
-def test_only_our_own_log_reaches_the_terminal():
+def test_default_log_is_a_file_and_excludes_dependency_noise():
     """basicConfig configured the root logger, so urllib3 came out with us.
 
     A dig across 484 tracks printed dozens of "Retrying (Retry(total=1..." lines,
@@ -393,13 +393,14 @@ def test_only_our_own_log_reaches_the_terminal():
     stderr = io.StringIO()
     with contextlib.redirect_stderr(stderr):
         # Inside the redirect: StreamHandler binds sys.stderr when it is built.
-        cli._configure_logging("INFO")
+        path = cli.configure_logging("INFO")
         logging.getLogger("urllib3.connectionpool").warning("Retrying (Retry(total=1...))")
         logging.getLogger("dj_digger.dig").info("Collected 484 tracks.")
-    written = stderr.getvalue()
+    written = path.read_text(encoding='utf-8')
 
     assert "Retrying" not in written
-    assert "INFO: Collected 484 tracks." in written
+    assert "Collected 484 tracks." in written
+    assert stderr.getvalue() == ''
 
 
 def test_debug_still_shows_everything():
@@ -407,10 +408,11 @@ def test_debug_still_shows_everything():
 
     stderr = io.StringIO()
     with contextlib.redirect_stderr(stderr):
-        cli._configure_logging("DEBUG")
+        path = cli.configure_logging("DEBUG")
         logging.getLogger("urllib3.connectionpool").warning("Retrying (Retry(total=1...))")
 
-    assert "Retrying" in stderr.getvalue()
+    assert "Retrying" in path.read_text(encoding='utf-8')
+    assert stderr.getvalue() == ''
 
 
 def test_a_log_file_takes_the_log_off_the_screen(tmp_path):
@@ -421,7 +423,7 @@ def test_a_log_file_takes_the_log_off_the_screen(tmp_path):
     logger = logging.getLogger("dj_digger")
     try:
         with contextlib.redirect_stderr(stderr):
-            cli._configure_logging("INFO", str(path))
+            cli.configure_logging("INFO", str(path))
             logging.getLogger("dj_digger.dig").info("Collected 484 tracks.")
     finally:
         for handler in list(logger.handlers):
