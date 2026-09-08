@@ -52,4 +52,3 @@ class LogsScreen(_Modal):
                 await self.app.services.io(open_log_folder, self.path)
             except Exception as exc:
                 self.app.notify(f'Could not open the logs folder: {log_safe_text(exc)}', severity='error')
-

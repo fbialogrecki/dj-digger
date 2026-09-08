@@ -70,4 +70,3 @@ class AnalysisReport:
             self.file.close()
             from pathlib import Path
             Path(self.file.name).unlink(missing_ok=True)
-
