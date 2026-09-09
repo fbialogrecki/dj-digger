@@ -24,17 +24,6 @@ PLAYED_STYLE = "cyan"
 UNPLAYED_STYLE = "bright_black"
 
 
-# How far back from the playhead the sound of this instant is allowed to show.
-# Two columns: twelve was a band wide enough that its 30fps pulsing read as the
-# whole tail of the played waveform flickering.
-GLOW_COLUMNS = 2
-# Steps within one hue, no white: a colour that changes on every frame reads as
-# flicker rather than as a pulse, and white against cyan was the harshest jump
-# of all. The first is the ordinary played colour, so a silent or paused track
-# looks exactly as it did before any of this.
-GLOW_STYLES = (PLAYED_STYLE, "bold cyan", "bold bright_cyan", "bold bright_cyan")
-
-
 def column_levels(samples: list[int], width: int) -> list[float]:
     """One 0..1 level per column, with the loud end of the range expanded.
 
@@ -62,69 +51,6 @@ def column_levels(samples: list[int], width: int) -> list[float]:
         window = samples[start:end]
         levels.append((sum(window) / len(window) / peak) ** WAVEFORM_GAMMA)
     return levels
-
-
-def glow_style(level: float, steps: tuple[str, ...] = GLOW_STYLES) -> str:
-    step = int(max(0.0, min(1.0, level)) * len(steps))
-    return steps[min(step, len(steps) - 1)]
-
-
-# How the meter follows the signal: the fall per frame, how fast its window
-# tracks the loudest and quietest of what it has heard, the curve that spreads a
-# brickwalled master over the bar, and the span below which nothing is playing.
-METER_RELEASE = 0.72
-METER_ADAPT = 0.03
-METER_GAMMA = 1.6
-METER_QUIETEST_SPAN = 0.02
-
-
-class LevelMeter:
-    """Turns raw peaks into something that reads as a pulse.
-
-    Three things stop a peak from reading as movement, and each gets a fix.
-
-    It jumps between readings, so a hit shows at once and is then made to fall
-    away slowly - fast up, slow down, which is what makes a kick look like a
-    kick. The decay is floored by whatever is arriving now, or a steady sound
-    would chop itself into a two frame flicker.
-
-    It is measured against a window that follows the loudest and the quietest of
-    the last second or two rather than against full scale. Measured on real
-    tracks, a brickwalled hard techno master lives between 0.92 and 1.00 from
-    beginning to end: against full scale it would sit at maximum and never move,
-    and against its own recent range it moves plenty.
-
-    And when that window closes to nothing, nothing is happening - so it reads
-    as dark, rather than as its own hiss stretched to full height.
-    """
-
-    def __init__(self) -> None:
-        self.release = METER_RELEASE
-        self.adapt = METER_ADAPT
-        self.gamma = METER_GAMMA
-        self.quietest_span = METER_QUIETEST_SPAN
-        self.reset()
-
-    def reset(self) -> None:
-        self._value = 0.0
-        self._floor = 1.0
-        self._ceiling = 0.0
-
-    def feed(self, peak: float) -> float:
-        peak = max(0.0, min(1.0, peak))
-        self._value = max(peak, self._value * self.release)
-
-        # Both ends open instantly for anything outside the window and close in
-        # on it slowly, so one stray transient does not black out the next
-        # second and a breakdown is not still being measured against the drop.
-        span = max(0.0, self._ceiling - self._floor)
-        self._ceiling = max(peak, self._ceiling - span * self.adapt)
-        self._floor = min(peak, self._floor + span * self.adapt)
-
-        span = self._ceiling - self._floor
-        if span < self.quietest_span:
-            return 0.0
-        return min(1.0, max(0.0, (self._value - self._floor) / span)) ** self.gamma
 
 
 def waveform_rows(
@@ -159,12 +85,10 @@ def waveform_rows(
 def paint_waveform(
     rows: list[str],
     played_fraction: float,
-    level: float = 0.0,
     unplayed: str = UNPLAYED_STYLE,
     played: str = PLAYED_STYLE,
-    glow: tuple[str, ...] = GLOW_STYLES,
 ) -> Text:
-    """Colour prebuilt rows: what has played, what has not, and the leading edge.
+    """Colour prebuilt rows by playback position, independent of audio amplitude.
 
     A frame costs a handful of style ranges rather than an append per character,
     which is what makes thirty of them a second cheaper than the four this
@@ -177,16 +101,10 @@ def paint_waveform(
 
     width = len(rows[0])
     played_columns = int(width * max(0.0, min(1.0, played_fraction)))
-    # The played region is history and flicker there only tires the eye, so the
-    # pulse is confined to the columns just behind the playhead.
-    glow_from = max(0, played_columns - GLOW_COLUMNS)
-    head = glow_style(level, glow)
     for index in range(len(rows)):
         start = index * (width + 1)
-        if glow_from:
-            text.stylize(played, start, start + glow_from)
-        if played_columns > glow_from:
-            text.stylize(head, start + glow_from, start + played_columns)
+        if played_columns:
+            text.stylize(played, start, start + played_columns)
         text.stylize(unplayed, start + played_columns, start + width)
     return text
 
@@ -224,12 +142,12 @@ class PlayerBar(Static):
         super().__init__(**kwargs)
         self.player = player
         self.message = ""
-        self.meter = LevelMeter()
         self.wanted_height = 0
-        # The glyphs for the loaded track at the current width, which only need
-        # rebuilding when one of those two changes.
+        # Cache glyphs by track, width and peak data. Local peaks arrive after
+        # playback starts, so an initially empty shape must be invalidated.
         self._shape: list[str] = []
         self._shape_for = (None, 0)
+        self._shape_samples = None
 
     def refresh_bar(self) -> None:
         self.update(self._content())
@@ -255,25 +173,22 @@ class PlayerBar(Static):
     def _content(self) -> Text:
         loaded = self.player.loaded
         if loaded is None:
-            self.meter.reset()
             return Text(self.message, style=self.app.muted)
-        level = self.meter.feed(self.player.take_level())
         palette = self.app.palette
         return paint_waveform(
             self._rows(loaded),
             self.player.fraction,
-            level,
             unplayed=palette.muted,
             played=palette.accent,
-            glow=palette.glow,
         )
 
     def _rows(self, loaded: Loaded) -> list[str]:
         width = self._bar_width()
         wanted = (loaded.track.key, width)
-        if self._shape_for != wanted:
+        if self._shape_for != wanted or self._shape_samples is not loaded.waveform:
             self._shape = waveform_rows(loaded.waveform, width)
             self._shape_for = wanted
+            self._shape_samples = loaded.waveform
         return self._shape
 
     def _bar_width(self) -> int:

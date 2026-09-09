@@ -161,8 +161,7 @@ def open_url(url: str, browser: str = SYSTEM_DEFAULT) -> bool:
     if resolve_choice(browser) == WINDOWS:
         return _open_on_windows(url)
     try:
-        resolve_controller(browser).open_new_tab(url)
-        return True
+        return resolve_controller(browser).open_new_tab(url) is not False
     except Exception as exc:  # webbrowser raises a grab bag of platform errors
         LOGGER.error("Failed to open %s: %s", url, exc)
         return False

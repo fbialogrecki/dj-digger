@@ -3,7 +3,6 @@
 Composed by ``DiggerApp`` with explicit state and presentation callbacks.
 """
 
-import logging
 import re
 import time
 from contextlib import contextmanager
@@ -25,8 +24,6 @@ from ..services.downloads import (
 )
 from .rows import Row
 from .screens import GateProfileScreen, SoundCloudAuthScreen
-
-LOGGER = logging.getLogger(__name__)
 
 _INVALID_FOLDER_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 

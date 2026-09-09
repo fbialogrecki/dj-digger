@@ -1,6 +1,38 @@
 # Changelog
 
-## Unreleased
+## 1.1.0 — 2026-09-09
+
+### Added
+
+- Local file explorer, paginated folder views, pinned directories and local playlists.
+- Local FFmpeg playback, independent waveform caching and BPM/key analysis with manual overrides.
+- Manufacturer-based deck profiles, verified complete-folder audio export and journaled replacement/recovery.
+- Public/owner-private SoundCloud profile playlist import with stable provider identity and partial-response protection.
+- Schema 2 migration with consistent SQLite backups and a CLI instance lock.
+- Distribution renamed to `dj-sc-digger`; GitHub repository renamed to `dj-digger`; module, CLI and data directories remain unchanged.
+- Private rotating diagnostic logs, an in-app log viewer and per-file analysis reports.
+- F4 view summaries and an isolated analysis benchmark with explicit reference coverage.
+
+### Improved
+
+- Responsive track columns and footer, tabbed settings, readable cart results, and export dialogs with always-visible confirmation/cancel actions.
+- Local BPM/key fields show their saved value and source without triggering reanalysis.
+- Explorer horizontal scrolling uses a thin thumb; waveform colors follow playback position without pulsing with amplitude.
+- Analysis subprocesses and owned FFmpeg processes are cleaned up on cancellation and failures.
+
+### Fixed
+
+- Late table-layout events no longer access removed widgets during application shutdown.
+
+- SoundCloud repost collection uses the current stream endpoint and rejects repeated pagination pages.
+- SoundCloud preview falls back to MP3 HLS when progressive MP3 is absent; account/region blocks, absent streams and unsupported formats have distinct diagnostics.
+- Browser launch failures are reported accurately, and automatic local scans no longer show access errors for folders the user did not explicitly open.
+
+### Limitations
+
+- BPM/key values are estimates; accuracy has not been established against a human-labelled DJ corpus. Deck compatibility is manufacturer-documented rather than hardware-tested.
+- Private SoundCloud playlist import has offline fixture coverage; live owner-private completeness has not been established.
+- MP3 HLS preview is limited to 50 MiB in memory. AAC/Opus HLS and encrypted streams are unsupported; SoundCloud availability restrictions still apply.
 
 ## 1.0.0
 

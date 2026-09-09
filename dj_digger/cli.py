@@ -8,7 +8,6 @@ no arguments at all opens the browser and asks for a link.
 """
 
 import argparse
-import faulthandler
 import getpass
 import logging
 import os
@@ -30,7 +29,8 @@ from . import __version__, links, soundcloud
 from . import auth as auth_module
 from . import browser as browser_module
 from .config import AppConfig
-from .diagnostics import RedactingFormatter
+from .diagnostics import log_safe_text
+from .logging_setup import configure_logging
 from .models import Crate, LinkRecord
 from .services import collection as dig_module
 from .services.runtime import ApplicationServices
@@ -59,8 +59,7 @@ def _add_shared_arguments(parser: argparse.ArgumentParser) -> None:
         "--log-file",
         metavar="PATH",
         help=(
-            "Write the log here instead of to the terminal. Textual draws the "
-            "browser on stderr, so this is the only way to keep a log while it is up"
+            "Override the default local rotating log file (five files, up to 2 MiB each)"
         ),
     )
     parser.add_argument(
@@ -514,73 +513,15 @@ def _auth_status(console: Console) -> int:
     return 0
 
 
-def _configure_logging(level_name: str, log_path: str | None = None) -> None:
-    """Put our own log on screen - or in a file - and nobody else's.
-
-    ``logging.basicConfig`` configures the root logger, so urllib3's retry
-    warnings came out with ours: a dig across 484 tracks printed dozens of
-    ``Retrying (Retry(total=1, connect=5...))`` lines - one per dead link in the
-    playlist - before it printed a single result. Those are a library talking to
-    itself about a host it is about to give up on, which we already report.
-
-    ``--log-level DEBUG`` is the one case where somebody does want to see them,
-    so that level lets them back through.
-
-    ``--log-file`` sends the whole thing to a file instead. The crate browser
-    draws itself on stderr, which is where a stream handler writes too, so a log
-    line under the browser lands in the middle of the track list - and
-    redirecting the shell's stderr to catch it takes the interface with it.
-    Timestamps come with the file: the question a log answers after a freeze is
-    where it stopped, and that needs a clock.
-    """
-
-    level = getattr(logging, level_name.upper(), logging.INFO)
-    if log_path:
-        destination = Path(log_path).expanduser()
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        handler = logging.FileHandler(destination, encoding="utf-8")
-        handler.setFormatter(
-            RedactingFormatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
-        )
-        # A native crash - miniaudio is C - kills the process without a Python
-        # traceback, which from the outside is an app that vanished without a
-        # word. This writes the interpreter's stacks to the same file on the
-        # way down, so the log names the call that did it.
-        faulthandler.enable(handler.stream)
-    else:
-        handler = logging.StreamHandler()
-        handler.setFormatter(RedactingFormatter("%(levelname)s: %(message)s"))
-
-    root = logging.getLogger()
-    ours = logging.getLogger("dj_digger")
-    ours.handlers.clear()
-
-    if level <= logging.DEBUG:
-        # Debugging is the one time somebody does want the whole picture. Wired
-        # by hand rather than through basicConfig, which does nothing at all when
-        # the root logger already has a handler - and by then so would we.
-        ours.propagate = True
-        ours.setLevel(logging.NOTSET)
-        root.addHandler(handler)
-        root.setLevel(level)
-        return
-
-    ours.addHandler(handler)
-    ours.setLevel(level)
-    ours.propagate = False
-    # Without a handler on the root logger Python falls back to logging.lastResort,
-    # which prints WARNING and above to stderr - so leaving root bare would not
-    # have silenced urllib3, it would only have taken the formatting away.
-    if not root.handlers:
-        root.addHandler(logging.NullHandler())
-
-
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_cli_args(argv)
 
-    _configure_logging(args.log_level, args.log_file)
-
+    lock = None
     try:
+        from .instance import InstanceLock
+        from .paths import data_dir
+        lock = InstanceLock(data_dir() / "instance.lock")
+        args.log_file = configure_logging(args.log_level, args.log_file)
         if args.command == "dig":
             return handle_dig(args)
         if args.command == "open":
@@ -590,10 +531,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     except dig_module.TargetNotFound as exc:
         raise SystemExit(str(exc)) from exc
     except (FileNotFoundError, ValueError, RuntimeError) as exc:
-        LOGGER.error("%s", exc)
+        LOGGER.exception("Command failed")
+        Console(stderr=True).print(log_safe_text(exc), markup=False)
         return 2
     except KeyboardInterrupt:
         LOGGER.info("Interrupted.")
         return 130
+    finally:
+        if lock is not None:
+            lock.close()
 
     return 0

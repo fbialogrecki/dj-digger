@@ -23,21 +23,6 @@ class Palette:
     background: str = "black"
 
     @property
-    def glow(self) -> tuple[str, ...]:
-        """The played waveform just behind the playhead, from quiet to loud."""
-
-        try:
-            base = Color.parse(self.accent)
-        except Exception:
-            return (self.accent, f"bold {self.accent}", f"bold {self.accent}", f"bold {self.accent}")
-        return (
-            self.accent,
-            f"bold {base.lighten(0.08).hex}",
-            f"bold {base.lighten(0.18).hex}",
-            f"bold {base.lighten(0.18).hex}",
-        )
-
-    @property
     def download(self) -> str:
         return f"bold {self.background} on {self.warning}"
 

@@ -1,12 +1,12 @@
-# PROJECT SPECIFICATION — dj-soundcloud-digger
+# PROJECT SPECIFICATION — dj-digger
 
 - Status: current implemented system
-- Document version: 1.0
-- Product version verified: 1.0.0
+- Document version: 1.1
+- Product version verified: 1.1.0 (working tree)
 - Owner: Filip Białogrecki
-- Updated: 2026-09-05
-- Document lines: <!-- SPEC TOTAL LINES -->1187<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1187<!-- END SPEC MAP LIMIT -->
+- Updated: 2026-09-09
+- Document lines: <!-- SPEC TOTAL LINES -->1439<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1439<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -45,68 +45,69 @@ subsection; ordinary emphasized text is never promoted into the map.
 <!-- BEGIN GENERATED SECTION MAP -->
 | § | Section | Lines |
 | --- | --- | --- |
-| 1 | Specification governance | 112–140 |
-| 1.1 | ↳ Authority and scope | 114–126 |
-| 1.2 | ↳ Update contract | 127–140 |
-| 2 | Product purpose and execution modes | 141–173 |
-| 2.1 | ↳ Problem and product boundary | 143–154 |
-| 2.2 | ↳ Execution modes | 155–173 |
-| 3 | User-visible capabilities | 174–430 |
-| 3.1 | ↳ Track collection and saved HTML | 176–195 |
-| 3.2 | ↳ Link classification and exports | 196–214 |
-| 3.3 | ↳ TUI playlist library and interaction | 215–285 |
-| 3.4 | ↳ Audio preview | 286–322 |
-| 3.5 | ↳ Downloads and local-file matching | 323–350 |
-| 3.6 | ↳ Store purchase assistance | 351–430 |
-| 4 | System context and data flow | 431–471 |
-| 4.1 | ↳ Context diagram | 433–455 |
-| 4.2 | ↳ Collection-to-library flow | 456–471 |
-| 5 | Repository layout and component ownership | 472–537 |
-| 5.1 | ↳ Entry, orchestration, and models | 474–485 |
-| 5.2 | ↳ Network and external-system adapters | 486–504 |
-| 5.3 | ↳ Persistence, local media, and UI | 505–537 |
-| 6 | Runtime architecture and environments | 538–635 |
-| 6.1 | ↳ Runtime and dependencies | 540–553 |
-| 6.2 | ↳ Concurrency and lifecycle | 554–620 |
-| 6.3 | ↳ Local paths and environment variables | 621–635 |
-| 7 | Data model and persistence | 636–717 |
-| 7.1 | ↳ Domain objects and identity | 638–652 |
-| 7.2 | ↳ SQLite schema and invariants | 653–685 |
-| 7.3 | ↳ Crate persistence and deletion | 686–701 |
-| 7.4 | ↳ Configuration and credential stores | 702–717 |
-| 8 | Public interfaces and contracts | 718–763 |
-| 8.1 | ↳ CLI arguments and exit behavior | 720–739 |
-| 8.2 | ↳ JSON and CSV summary input | 740–754 |
-| 8.3 | ↳ URL-opening contract | 755–763 |
-| 9 | Authentication and authorization | 764–807 |
-| 9.1 | ↳ SoundCloud authentication | 766–786 |
-| 9.2 | ↳ Gate action consent | 787–807 |
-| 10 | External integrations | 808–943 |
-| 10.1 | ↳ SoundCloud API and media | 810–821 |
-| 10.2 | ↳ Link hubs and download gates | 822–884 |
-| 10.2 · block | ↳ ↳ Hypeddit | 830–870 |
-| 10.2 · block | ↳ ↳ Other resolvers | 872–877 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 879–884 |
-| 10.3 | ↳ Browsers and clipboard | 885–896 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 897–943 |
-| 11 | Security requirements and threat model | 944–998 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 946–964 |
-| 11.2 | ↳ Secret and personal-data handling | 965–980 |
-| 11.3 | ↳ File and mutation safety | 981–998 |
-| 12 | Privacy, lifecycle, and retention | 999–1037 |
-| 12.1 | ↳ Data stored locally | 1001–1016 |
-| 12.2 | ↳ Data sent to third parties | 1017–1028 |
-| 12.3 | ↳ User-controlled deletion | 1029–1037 |
-| 13 | Failure behavior and current limitations | 1038–1092 |
-| 13.1 | ↳ Error isolation and reporting | 1040–1059 |
-| 13.2 | ↳ Confirmed limitations | 1060–1092 |
-| 14 | Verification, CI, and release | 1093–1158 |
-| 14.1 | ↳ Offline and live test suites | 1095–1126 |
-| 14.2 | ↳ Continuous integration and publishing | 1127–1143 |
-| 14.3 | ↳ Specification-map verification | 1144–1158 |
-| 15 | Evidence and operational references | 1159–1187 |
-| 15.1 | ↳ Primary implementation evidence | 1161–1177 |
-| 15.2 | ↳ User and historical documentation | 1178–1187 |
+| 1 | Specification governance | 113–141 |
+| 1.1 | ↳ Authority and scope | 115–127 |
+| 1.2 | ↳ Update contract | 128–141 |
+| 2 | Product purpose and execution modes | 142–176 |
+| 2.1 | ↳ Problem and product boundary | 144–157 |
+| 2.2 | ↳ Execution modes | 158–176 |
+| 3 | User-visible capabilities | 177–613 |
+| 3.1 | ↳ Track collection and saved HTML | 179–205 |
+| 3.2 | ↳ Link classification and exports | 206–224 |
+| 3.3 | ↳ TUI playlist library and interaction | 225–316 |
+| 3.4 | ↳ Audio preview | 317–382 |
+| 3.5 | ↳ Downloads and local-file matching | 383–412 |
+| 3.6 | ↳ Store purchase assistance | 413–497 |
+| 3.7 | ↳ Local library, analysis and audio export | 498–613 |
+| 4 | System context and data flow | 614–654 |
+| 4.1 | ↳ Context diagram | 616–638 |
+| 4.2 | ↳ Collection-to-library flow | 639–654 |
+| 5 | Repository layout and component ownership | 655–724 |
+| 5.1 | ↳ Entry, orchestration, and models | 657–668 |
+| 5.2 | ↳ Network and external-system adapters | 669–687 |
+| 5.3 | ↳ Persistence, local media, and UI | 688–724 |
+| 6 | Runtime architecture and environments | 725–841 |
+| 6.1 | ↳ Runtime and dependencies | 727–748 |
+| 6.2 | ↳ Concurrency and lifecycle | 749–820 |
+| 6.3 | ↳ Local paths and environment variables | 821–841 |
+| 7 | Data model and persistence | 842–929 |
+| 7.1 | ↳ Domain objects and identity | 844–858 |
+| 7.2 | ↳ SQLite schema and invariants | 859–896 |
+| 7.3 | ↳ Crate persistence and deletion | 897–912 |
+| 7.4 | ↳ Configuration and credential stores | 913–929 |
+| 8 | Public interfaces and contracts | 930–986 |
+| 8.1 | ↳ CLI arguments and exit behavior | 932–960 |
+| 8.2 | ↳ JSON and CSV summary input | 961–975 |
+| 8.3 | ↳ URL-opening contract | 976–986 |
+| 9 | Authentication and authorization | 987–1030 |
+| 9.1 | ↳ SoundCloud authentication | 989–1009 |
+| 9.2 | ↳ Gate action consent | 1010–1030 |
+| 10 | External integrations | 1031–1166 |
+| 10.1 | ↳ SoundCloud API and media | 1033–1044 |
+| 10.2 | ↳ Link hubs and download gates | 1045–1107 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1053–1093 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1095–1100 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1102–1107 |
+| 10.3 | ↳ Browsers and clipboard | 1108–1119 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1120–1166 |
+| 11 | Security requirements and threat model | 1167–1221 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1169–1187 |
+| 11.2 | ↳ Secret and personal-data handling | 1188–1203 |
+| 11.3 | ↳ File and mutation safety | 1204–1221 |
+| 12 | Privacy, lifecycle, and retention | 1222–1265 |
+| 12.1 | ↳ Data stored locally | 1224–1243 |
+| 12.2 | ↳ Data sent to third parties | 1244–1255 |
+| 12.3 | ↳ User-controlled deletion | 1256–1265 |
+| 13 | Failure behavior and current limitations | 1266–1326 |
+| 13.1 | ↳ Error isolation and reporting | 1268–1287 |
+| 13.2 | ↳ Confirmed limitations | 1288–1326 |
+| 14 | Verification, CI, and release | 1327–1410 |
+| 14.1 | ↳ Offline and live test suites | 1329–1375 |
+| 14.2 | ↳ Continuous integration and publishing | 1376–1395 |
+| 14.3 | ↳ Specification-map verification | 1396–1410 |
+| 15 | Evidence and operational references | 1411–1439 |
+| 15.1 | ↳ Primary implementation evidence | 1413–1429 |
+| 15.2 | ↳ User and historical documentation | 1430–1439 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -142,14 +143,16 @@ values. Hand-written content outside those regions is preserved.
 
 ### 2.1 Problem and product boundary
 
-`dj-soundcloud-digger` collects tracks behind SoundCloud playlist, user,
+`dj-digger` collects tracks behind SoundCloud playlist, user,
 collection, and track links, extracts purchase and download destinations, and
 presents them as a local playlist. It avoids relying on the finite set of tracks
 rendered in a SoundCloud page by using SoundCloud API v2, while retaining a
 saved-HTML path for private, unlisted, or otherwise inaccessible pages.
 
 The application helps the user inspect, open, download, classify, audition, and
-remember tracks. It does not purchase products or complete checkout. Gate and
+remember tracks. Local music can be browsed, analyzed, collected into local
+playlists and exported to a folder using documented deck audio profiles. It does
+not format USB drives or generate rekordbox libraries. It does not purchase products or complete checkout. Gate and
 store behavior is limited to the provider flows described in §§10.2 and 10.4.
 
 ### 2.2 Execution modes
@@ -193,6 +196,13 @@ hydrated through API v2. If no IDs exist but track URLs do, pages are fetched
 sequentially with the configured delay and anchor text is inspected for purchase
 or download keywords. UTF-8 is tried first and Latin-1 is the decoding fallback.
 
+User repost collections use `/stream/users/{id}/reposts`; tracks and likes retain
+`/users/{id}/{collection}`. The shared paginator unwraps track entries, preserves
+order and duplicates, and rejects repeated next-page URLs rather than reporting
+a truncated import as complete. Pagination retains API-host validation and
+cancellation checks. HTTP errors identify the failed request without inferring
+that every 404 means a private collection.
+
 ### 3.2 Link classification and exports
 
 Each track is converted to one or more `LinkRecord` values. Candidate priority is
@@ -227,8 +237,11 @@ definitions are supplied by Textual.
 Changes to a single
 row (a mark, an opened link, the playing marker, download progress) repaint
 that row in place; the table is rebuilt only when the visible set changes.
-`q` and Ctrl+C both quit; Ctrl+C is bound with priority so it also quits from
-the search box. The status bar is built like Textual's footer: a horizontal scrollable
+`q`, Ctrl+C and Ctrl+Q quit. Ctrl+C has priority, including in text inputs.
+Ctrl+Shift+C is separately bound to copying; both explicit Shift and uppercase
+Ctrl+C key encodings are supported. If a terminal sends only the legacy Ctrl+C
+byte for both combinations, the application cannot distinguish them and retains
+Ctrl+C exit behavior. The status bar is built like Textual's footer: a horizontal scrollable
 container with its scrollbar hidden, so the store legend always lists every
 store and scrolls sideways (mouse wheel or drag) when wider than the terminal.
 Its right side, docked so it never scrolls away, shows only the running job
@@ -283,12 +296,48 @@ Clicking that line expands the scrollable message list and clicking it again
 collapses it; the close control discards every message and returns the banner to
 its collapsed state.
 
+The table separates configured columns from the currently visible layout.
+At narrow widths it hides Label, Year and Genre, followed by optional Key/BPM
+in online views, without changing settings or sorting. Local views omit Stores
+and retain BPM, Key and Time. Layout budgets terminal cells and reserves scrollbar
+space; the normal 80-column layout gives the title at least 28 cells. Smaller
+content areas may reduce the title to 16 cells and scroll horizontally. Store
+badges use 12 cells below a 100-cell table budget and 22 otherwise. Resizing
+rebuilds columns only when their membership changes; single-row painting uses
+the same layout. Footer fitting runs after its own width changes.
+
+`F4` opens a snapshot of loaded/visible position counts, unique selected visible
+tracks and visible status counts. Folder summaries include the loaded page and
+range; no scan or network request is started. Escape closes the summary.
+Settings use Appearance, Files, Accounts and Gates tabs; first run selects Gates.
+Save/Cancel stay outside the scrollable fields. Switching tabs or opening account
+controls preserves unsaved input. Account actions take effect immediately and
+Cancel only discards unsaved preferences. Existing empty-field semantics remain.
+
 ### 3.4 Audio preview
 
+Local playback uses FFmpeg to produce 44.1 kHz stereo signed-16 PCM in a bounded
+two-second ready buffer. A single decoder-control thread handles repeated seeks;
+old generations cannot fill the new buffer. The audio callback only consumes
+ready samples: underrun produces silence without advancing the media position,
+while EOF and decoder failures remain distinct. Playback sources hold leases
+until their decoder has actually stopped; prefetched files are also protected
+from replacement. Local waveforms are generated independently after playback is
+ready and cached in at most 128 files, each containing at most 1024 peaks.
+The rendered waveform updates when these peaks arrive; pause and seek do not
+discard them, while switching the loaded audio rejects obsolete results.
+This playback PCM is never reused for analysis or export.
+
 Playback is optional and requires the `play` extra containing `miniaudio`.
-`resolve_stream()` refetches track metadata, rejects non-streamable tracks and
-snippet-only policy, chooses a progressive MP3 transcoding, authorizes its signed
-URL, and returns duration and waveform location.
+`resolve_stream()` refetches track metadata. `policy=BLOCK` takes precedence
+over `streamable=true` and any transcodings: it reports a SoundCloud account/region
+restriction. No returned streams and unsupported stream formats are separate
+errors. Non-streamable tracks and snippet-only policy are also rejected.
+Resolution prefers a progressive MP3 transcoding and falls back to MP3
+HLS when progressive MP3 is absent. It authorizes the chosen transcoding and
+returns its protocol, signed URL, duration and waveform location. Playback
+refusals log the numeric track ID, known policy, stream count and reason without
+signed URLs or tokens.
 
 The audio worker resolves the stream, fetches the waveform, and opens the HTTP
 source before handing the track to the UI thread, so no connection is opened from
@@ -298,7 +347,16 @@ Audio is decoded from an HTTP source and is not persisted to disk. A declared
 source at or below 50 MiB is buffered progressively in memory; larger or
 undeclared sources stream directly. Range requests support seeking. Waveforms
 are cached in memory for the process, rendered as four block rows filling the
-player bar, and accompanied by an output-sample level meter.
+player bar. The entire played region has one stable accent color; waveform
+colors do not pulse with audio amplitude.
+
+MP3 HLS VOD manifests and each redirect/segment are restricted to HTTPS
+SoundCloud CDN subdomains, without credentials in URLs or nonstandard ports.
+Segments are fetched in order on a background thread into a seekable in-memory
+MP3 buffer, capped at 50 MiB; oversized streams fail explicitly. Manifests are
+capped at 1 MiB and 10,000 segments. Incomplete, encrypted, master, byte-range
+and non-MP3 container playlists are refused. Transfer failures remain errors,
+not successful EOF; closing releases the response and stops further requests.
 
 A three-row control strip sits under the waveform whenever a track is loaded:
 previous track, play/pause, next track, the track title, elapsed and total time,
@@ -310,7 +368,9 @@ prepared audio, and folds the player away; `ctrl+w` does the same.
 
 The next visible track is prepared during the last 20 seconds of playback. A
 filter change discards preparation that no longer matches the next row. Tracks
-advance automatically at end of stream. Missing `miniaudio`, an unavailable
+advance automatically at end of stream. Playback follows the selected playlist
+occurrence, so repeated track IDs advance past their own row instead of looping
+back to the first occurrence. Missing `miniaudio`, an unavailable
 audio device, a backend that refuses to start or stop an open device, bad media,
 or a missing track ID produces a user-visible degraded state rather than
 terminating the TUI. A device that fails after having worked is closed and
@@ -339,14 +399,16 @@ the track `got`.
 The local scanner recursively indexes configured directories for MP3, WAV, FLAC,
 AIFF, M4A, AAC, OGG, and ALAC files, following symbolic links, and caches path,
 modification time, size, and normalized filename data in SQLite in batches of
-200 rows per transaction. Folders it cannot enter are collected as errors
-rather than skipped silently and reported in the error banner after the scan, and a cancel event stops the walk between files
-while keeping what was already written. Artist-plus-title matches are confident and
+200 rows per transaction. Automatic scans log inaccessible folders at DEBUG level
+without an error banner; explicit explorer access reports errors. Cancellation
+stops the walk between files while keeping what was already written. Artist-plus-title matches are confident and
 may set `got`; title-only matches require at least six normalized characters and
 only attach a path. A unique filename may contain extra text around the matched
 artist/title, such as a mix label; ambiguous decorated matches are rejected.
-Missing files are removed from the cache and only undo a `got` status that
-depended on that file provenance.
+Missing files are removed only after a complete readable parent listing on the
+known volume; inaccessible or replaced roots retain their records. Directory
+inode/device tracking prevents symlink cycles. Only file-provenance `got` marks
+are eligible for clearing.
 
 ### 3.6 Store purchase assistance
 
@@ -427,6 +489,127 @@ known and replace that track's stored Beatport release link in the current
 playlist; release and label URLs are never persisted as exact matches. Other
 rows use the cleaned `artist - title`. Match review, transfer approval, payment,
 and checkout remain manual.
+
+Cart results translate internal statuses into readable labels while preserving
+machine-readable status/reason codes. Unknown statuses remain explicitly unknown.
+The result table is sized to the batch and available height, with actions in a
+two-column grid; track labels and reasons are rendered as literal text.
+
+### 3.7 Local library, analysis and audio export
+
+The sidebar has playlists above a lazy directory explorer, initially 50/50.
+Both section headings are centered and use the same muted text color.
+Saved splits are 30/70, 50/50 and 70/30; `ctrl+r` switches visible sections,
+including on short terminals. Pins, configured directories, downloads and mounted
+volumes form the roots. `ctrl+f` opens any explicit directory; `ctrl+n` cycles
+250-file pages. The explorer uses one-cell scrollbars, with the horizontal
+thumb drawn as a thin underline retaining native click/drag behavior, and a one-line
+“+ Open folder” button matching “+ Add playlist”. Shortcut hints and file counters
+are omitted; a compact “Next page” button appears only for multi-page folders.
+Names load before metadata; no audio analysis or content hashing
+runs just because a directory is opened. At most 1000 immediate subdirectories
+are shown per expanded tree node; additional paths can be entered directly.
+Local rows do not require a `LinkRecord`. `ctrl+l` creates/appends a local playlist.
+Automatic scans skip inaccessible folders without an error banner; explicitly
+opening an inaccessible folder reports the access error.
+The clickable footer switches to local actions for folder/local-playlist views:
+Convert, Analyze BPM/key, Analyze folder, Play, Remove, Select and Edit BPM/key, with secondary actions
+omitted when space is limited. The store legend and shop commands are hidden in
+this context; SoundCloud views restore them. Stop appears during an operation.
+
+Clicking Analyze BPM/key (or `j`) immediately analyzes the selected local files,
+or the highlighted file when none are selected. `Shift+J` / Analyze folder covers
+all immediate audio files in the open folder, ignoring selection, filters and
+pagination; it does not recurse into subfolders. No analysis confirmation is shown.
+The BPM/key edit dialog shows the independently resolved source for each field:
+Manual, Analysis (estimate), File tag or Not available. It shares value-resolution
+logic with local row hydration and ignores analysis from a different file
+signature. Sources remain presentation data, outside serialized Track values.
+The dialog loads through the application IO worker and ignores stale view results.
+
+Local folder and local-playlist views always show BPM and Key, including stored
+results on first opening without reanalysis. This does not change the optional
+column preferences used by SoundCloud views. Starting analysis checks for the optional
+analysis dependency and FFmpeg before starting. Missing dependencies produce an
+installation hint rather than repeated failures for each track.
+Analysis uses optional librosa in one fresh Python subprocess with explicit pipes
+and bounded JSON output. It does not inherit multiprocessing resource-tracker
+descriptors from Textual's captured stderr. Cancellation terminates and reaps the
+analysis process group, including FFmpeg, before deleting its temporary workspace.
+The algorithm uses continuous
+FFmpeg resampling and overlapping STFT frames (`center=False` semantics), one
+global onset envelope and aggregated chroma. Channel powers are combined before
+feature aggregation to avoid anti-phase cancellation. Feature envelopes use a
+temporary disk file rather than keeping decoded audio in RAM. Automatic results
+are estimates; no confidence percentage is claimed. `ctrl+k` edits BPM/key and
+supports tempo ×2/÷2 plus classical/Camelot choices. Manual values, current
+analysis, and source tags are stored separately with that priority. Cache checks
+include file signature, SHA-256, algorithm version and parameters. Audio tags and
+rekordbox data are never written by analysis.
+Results include separate missing-key and missing-tempo reason codes. Analysis
+version `onset-chroma-2` invalidates older cache entries when analysis is requested
+so these reasons can be recomputed. Per-file errors retain the analyzer traceback
+in the diagnostic log. Missing BPM/key results also log their per-file reason at
+INFO level. Completion shows a short notification with keys found, no clear key,
+and processing errors, without opening a summary panel. A private JSONL file is
+streamed during work, then atomically replaces `last-analysis.jsonl` in the default
+log directory; cancelled/failed runs retain completed rows and their termination
+status. Report publication failure retains the previous report and is reported
+explicitly. No-key results are not counted as processing errors. Manual corrections
+remain independent of automatic results recorded in the diagnostic file.
+
+In an explorer folder, `x` / Remove asks for confirmation with the selected file
+paths (or the highlighted file) and permanently deletes those files from disk.
+Changed files, symbolic links and loaded/prefetched audio are refused. Deletion
+marks central media records unavailable and clears cached file mappings, while
+preserving playlist references and manual metadata. A database failure after
+unlink is reported explicitly; filesystem and database updates are not atomic.
+In saved playlists, Remove retains its existing playlist-only, undoable behavior.
+
+Convert (`ctrl+e`) opens format, quality-limit and destination settings, then
+constructs a frozen export plan and shows a review before execution. Defaults are
+WAV, at most 24 bit/48 kHz, copying every selected audio file to a unique new
+folder, including unchanged files. An unselected folder view covers all matching
+pages; recursion is explicit. WAV/AIFF targets retain compatible WAV/AIFF/MP3/AAC;
+FLAC additionally retains compatible FLAC/ALAC. Only necessary conversions run.
+No automatic upsampling, downmix or normalization is performed. Nonstandard
+sample rates, ambiguous streams, clipping and unsupported parameters are reported
+as exceptions. Known text metadata is preserved where the output muxer supports
+it; supported FLAC artwork is copied, other omitted metadata is reported.
+
+Versioned rules cover CDJ-350, 850/850-K, 2000, 2000NXS, 2000NXS2, 3000 and 3000X.
+Both profile compatibility and actual-set compatibility distinguish documented
+compatible, incompatible and unverified files. These are audio rules, not proof
+of device testing or of USB filesystem support. WAV output is canonical RIFF PCM
+with checked chunk sizes, alignment and sample identity for lossless transforms.
+New files undergo full decoding and length/parameter verification; copies also
+undergo byte hashing. Classic RIFF and FAT32 file-size limits are enforced.
+
+Export options keep Review/Cancel outside scrolling content; target-profile
+compatibility is expandable. Review shows actual-set compatibility and keeps
+Execute/Cancel plus the replacement warning visible. Button handlers accept only
+the explicit primary action; Cancel/Escape never authorize execution. The first
+200 plan entries remain visible with the complete report available separately.
+
+Replacement is never a remembered default. A durable per-file journal records
+preparation, temporary-original preservation, installation, database commit and
+cleanup. Installation uses platform-exclusive rename rather than overwriting
+foreign files. Symbolic/hard links and playback leases prevent replacement.
+Cancellation is cooperative during preparation and between files; commit settles
+without interruption. Startup recovery compares content hashes, completes or
+restores unambiguous states and preserves ambiguous ones. Successful replacement
+leaves no lasting backup. Directory fsync is used where supported; this is not a
+cross-filesystem transaction or guarantee against storage power loss. New-folder
+exports keep partial results and a complete report; `ctrl+u` resumes the most
+recent unfinished operation from the application's trusted SQLite journal.
+
+`i` imports playlists created by a SoundCloud profile independently of
+profile-track digging. Private mode checks `/me` ownership and session identity.
+Pagination detects repeated cursors; track hydration is batched with a bounded
+cache and preserves duplicates/order. Missing tracks or incomplete replies retain
+the previous snapshot. Provider playlist IDs preserve identity across permalink
+changes; local deletion generations suppress stale results. Mass import performs
+no external gate/hub resolution.
 
 ## 4. System context and data flow
 
@@ -520,11 +703,15 @@ playback time and are not stored in the crate record.
   its path), failed, cancelled, and waiting for user input. Batch summaries count
   cancellation separately. The TUI coalesces byte events and presents outcomes
   after persistence.
-- `paths.py` owns XDG directories. `config.py` owns preferences;
+- `paths.py` owns data/config/cache directories and platform-specific log paths. `config.py` owns preferences;
   `private_json.py` owns private atomic JSON writes; `clipboard.py` owns clipboard
   subprocesses. `diagnostics.py` redacts credential fields and URL queries.
+  `logging_setup.py` owns private rotating logs and native-fault output rebinding;
+  `analysis_report.py` owns the streamed last-analysis diagnostic file.
+  `tui/diagnostic_screens.py` presents logs on explicit request.
 - `player.py` owns buffering, decoding and device lifecycle. Stream resolution
   and prepared media live in `services/playback.py`, independently of table rows.
+  Playback and prefetch share source preparation in the playback controller.
   `tui/audio.py` owns waveform, meter and transport rendering. The engine imports
   neither Rich nor Textual.
 - `tui/app.py` composes the screen and routes actions, messages and lifecycle to
@@ -539,10 +726,18 @@ playback time and are not stored in the crate record.
 
 ### 6.1 Runtime and dependencies
 
+The PyPI distribution is `dj-sc-digger`; its installed metadata provides
+`dj_digger.__version__`. The command remains `dj-digger`, the Python module
+remains `dj_digger`, and existing data/configuration directories keep their names.
+Users uninstall `dj-soundcloud-digger` before installing `dj-sc-digger`, because
+the two distributions own the same module and command.
+
 The package requires Python 3.12 or newer and is built with Hatchling. Runtime
 dependencies are `requests`, `beautifulsoup4`, `textual` (pinned to the 8.x
 line because the TUI relies on its binding semantics and a few private hooks),
-`rich`, and `playwright`. `miniaudio` is optional in the `play` extra. The `dev` extra adds
+`rich`, and `playwright`. `miniaudio` is optional in the `play` extra. `librosa` is optional in the
+`analyze` extra and imports only in analysis workers. FFmpeg/ffprobe are external
+executables required only by local media inspection/playback/conversion/analysis. The `dev` extra adds
 `pytest`, `miniaudio`, and `ruff`. There is no runtime JavaScript build, database
 server, container image, or infrastructure-as-code layer in the repository.
 
@@ -552,6 +747,9 @@ Chromium flows require a desktop display; WSL requires a working graphical
 integration.
 
 ### 6.2 Concurrency and lifecycle
+
+The TUI ignores queued table-layout events once Textual starts shutting down,
+so they cannot access widgets removed during teardown.
 
 SQLite exposes one `Database` instance per path and one dedicated owning thread.
 The connection is created, used and closed there, with WAL, foreign keys and a
@@ -598,7 +796,9 @@ SoundCloud API and public transfer sessions are separate, and each gate flow has
 its own cookie jar. Retired clients remain open until their active workers settle.
 
 Shutdown first refuses new operations and signals cancellation/dialogs. Worker
-scopes count actual thread execution, including account verification. Asynchronous
+scopes count actual thread execution, including account verification. Media
+processes are registered; emergency exit kills and reaps only owned media process
+groups before exiting, including a spawned analyzer and its FFmpeg child. Asynchronous
 I/O waits for its thread to settle on cancellation. Prepared media is discarded;
 worker-owned clients/audio resources close after active workers, with SQLite
 last. Asynchronous Playwright close retains its five-second local timeout. The
@@ -626,6 +826,12 @@ Defaults follow XDG paths:
 - config: `$XDG_CONFIG_HOME/dj-digger` or `~/.config/dj-digger`;
 - cache: `$XDG_CACHE_HOME/dj-digger` or `~/.cache/dj-digger`.
 
+Logs and the last analysis report use `$XDG_STATE_HOME/dj-digger` (default
+`~/.local/state/dj-digger`) on Linux, `%LOCALAPPDATA%/dj-digger/Logs` on Windows
+(fallback `~/AppData/Local/dj-digger/Logs`), and `~/Library/Logs/dj-digger` on macOS.
+Existing data/config/cache paths are unchanged. `--log-file` overrides only the
+diagnostic log destination, not report storage.
+
 `SOUNDCLOUD_OAUTH_TOKEN` overrides stored SoundCloud credentials.
 `TEXTUAL_ANIMATIONS=none` selects the calmer UI tick via Textual animation
 level. `WSL_DISTRO_NAME` participates in WSL detection. `DJ_DIGGER_URL` is an
@@ -640,8 +846,8 @@ internal environment handoff used to keep a URL out of PowerShell source text.
 `Track` stores SoundCloud identity and metadata, purchase/download attributes,
 description-derived links, an optional local path, and the optional DJ fields
 `bpm`, `key_signature`, `release_year` (from the release date, else the upload
-date), and `label_name`, each empty when SoundCloud has none. Its stable key is the
-string SoundCloud ID when available, otherwise the permalink URL. A free
+date), and `label_name`, each empty when SoundCloud has none. A shared `track_key` helper preserves existing SoundCloud ID/permalink keys.
+A registered local file uses `local:<uuid>`, independent of its path or title. A free
 download requires both `downloadable` and `has_downloads_left`; a direct download
 additionally requires `download_url`.
 
@@ -670,18 +876,23 @@ The default database is `digger.db`. `schema.open_database()` recognizes or crea
 file provenance. `set_local_file()` atomically records `got` and the path;
 clearing provenance resets `got` only when that mark depended on the file.
 
-The shipped table shape is registered as `PRAGMA user_version=1`. An existing
-unversioned database is recognized read-only before any schema write. Older,
-newer and unknown shapes raise `UnsupportedSchema`; no table is dropped and
-library listing does not turn this error into an empty library. Before registering
-an existing version-zero schema, the SQLite backup API writes a unique backup
-under the database directory's private `backups/` directory, including committed
-WAL data. Its temporary file is created with mode 0600 on POSIX, checked for
-integrity and renamed. Backup waiting is bounded to five seconds; failure blocks
-registration. The schema and version are checked again inside `BEGIN IMMEDIATE`.
-Opening version 1 creates no further backup. Successful copies are retained;
-restoration requires a user decision. POSIX modes do not promise Windows ACLs.
-There are no historical converters or speculative migration framework.
+Schema 2 additionally contains `media_files`, `media_analysis`, ordered
+`local_playlist_items`, `playlist_aliases`, `media_operations`, and `media_roots`.
+Local playlist JSON keeps user edits while memberships refer to centrally stored
+file records; `LibraryService.load` hydrates metadata and analysis on demand.
+Export copies have separate file IDs and a parent-file reference. Replacement
+preserves file identity and manual values. Confirmed same-inode renames on the
+same filesystem can relocate the record; similar titles never merge versions.
+
+`PRAGMA user_version=2` is created for new libraries. Existing recognized v0/v1
+shapes are checked read-only first, then under `BEGIN IMMEDIATE`. A separate
+committed reader performs `Connection.backup()` while the writer is reserved.
+Every migration gets an integrity-checked backup including committed WAL data,
+with a 30-second backup deadline. Failure aborts migration. No media scan or
+decode is part of migration. Unknown/older/newer shapes are left untouched and
+raise `UnsupportedSchema`. A CLI instance lock protects the data directory;
+users must close older applications before upgrading. Downgrade requires an
+explicit backup restore. POSIX private file modes do not promise Windows ACLs.
 
 ### 7.3 Crate persistence and deletion
 
@@ -705,7 +916,8 @@ track states, credentials, downloads, or source media.
 directories, browser choice, download directory, `gate_social_actions`,
 `columns`, the optional track-table columns (`bpm`, `key`, `year`, `label`)
 kept in canonical order with unknown names dropped, and `theme`, the Textual
-theme name applied at startup and saved whenever it changes.
+theme name applied at startup and saved whenever it changes. Local preferences
+also include `pinned_directories`, `sidebar_split` and `sidebar_mode`.
 The default email uses the reserved `.invalid` domain. A first missing config is
 created and marks the launch as first-run.
 
@@ -720,12 +932,21 @@ restricted to 0700 on non-Windows systems.
 ### 8.1 CLI arguments and exit behavior
 
 Shared flags are `--version`, `--log-level`, `--log-file`, and `--no-tui`.
-`--log-file` writes timestamped records to the given path, creating parent
-directories, instead of writing to the terminal, and enables `faulthandler` on
-the same file so native crashes leave a trace. Unhandled TUI exceptions are
-logged with their traceback before Textual's crash handling runs. The TUI silences the `dj_digger`
-and root loggers for as long as it owns the screen unless `--log-file` was given,
-because Textual draws the interface on standard error. Dig adds
+Timestamped file logging is enabled by default after the data-directory instance
+lock is acquired. INFO records startup version/platform and operation summaries;
+DEBUG additionally includes dependency diagnostics. `--log-file` overrides the
+default path. Logs use UTF-8 and rotate at 2 MiB, retaining four backups plus the
+active file. Records are capped at 16000 characters; POSIX file permissions are
+0600 and symlink log destinations are refused where O_NOFOLLOW is available.
+Credential redaction covers URLs, quoted secret fields and authentication/cookie
+headers. Native-fault output is rebound after rotation; direct native fault dumps
+bypass formatter/rotation and can exceed the ordinary record/file limit.
+Unhandled TUI exceptions and local operation errors include tracebacks; warning
+and error notifications are also logged. Logging setup failure reports a warning
+without preventing application startup; later write failures are exposed in the
+logs screen. F5 / Open logs in Help or Settings shows the last 64 KiB and offers
+a worker-based desktop folder handoff. The TUI preserves logging when an active
+file handler exists and mutes terminal logging otherwise. Dig adds
 `--format {json,csv,none}`, `--output`, `--limit`, `--timeout` (20 seconds by
 default), and HTML fallback `--delay` (0.5 seconds by default). Open adds
 `--category`, `--skip`, `--limit`, `--no-open`, and a summary path.
@@ -759,7 +980,9 @@ system. Browser configuration is accepted only when it matches a browser value
 discovered on the current machine; otherwise the system default is used. WSL may
 delegate to `wslview`, `explorer.exe`, or a PowerShell `Start-Process` fallback.
 For PowerShell, the untrusted URL travels in an environment variable rather than
-being interpolated into command source.
+being interpolated into command source. A controller returning False is a
+failed handoff for both single and batch opens; it does not promote a track to
+opened. Successful handoff does not prove that the remote page loaded.
 
 ## 9. Authentication and authorization
 
@@ -987,7 +1210,7 @@ partial files are removed on failure or cancellation. HTTP, Chromium and local
 copies share the name lock and check cancellation at final publication. Finished
 files are retained even when the subsequent library write fails;
 `PublishedFileUnrecorded` carries the published path and is never a transfer retry.
-There is no filesystem/SQLite distributed transaction or crash recovery journal.
+Downloads have no filesystem/SQLite transaction or recovery journal; local replacement uses the journal in §3.7.
 Declared and observed sizes are limited to
 2 GiB, and HTML bodies are rejected.
 
@@ -1008,6 +1231,10 @@ configured crate download folder. Cart diagnostics (a screenshot, a redacted
 page copy, and a small JSON note per unverified click or structural failure,
 last ten kept) live under the data directory. Audio preview bytes and waveform
 cache are process memory only.
+Diagnostics are local only: five rotating log files and one latest analysis
+report. Report writing is streamed one file at a time. No automatic upload occurs. Log/report paths and filenames may identify
+local media, but credential-like values are redacted. Users can open the log
+directory from the application to inspect or remove diagnostic files.
 
 There is no implemented expiry or automatic retention period for the database,
 configuration, credentials, browser profiles, downloads, or cache. Crate deletion
@@ -1033,7 +1260,8 @@ crate row. A `spotify.json` left by a release before 1.0 is not read or deleted
 by the application. The repository provides
 no command that deletes all database state, configuration, client-ID cache,
 managed browser profiles, downloads, generated Beatport playlists, or indexed
-source media. Removing those artifacts is outside current application commands.
+source media in bulk. Explicit selected-file deletion is available in the local
+explorer, with confirmation; it does not provide a recycle-bin or undo operation.
 
 ## 13. Failure behavior and current limitations
 
@@ -1064,8 +1292,8 @@ as player events instead of escaping through Python-CFFI.
 - Saved HTML without hydrated IDs uses slower, sequential track-page scraping.
 - Browser-cookie auto-detection reads Firefox stores only.
 - DNS names are not resolved and pinned by the automatic-fetch safety check.
-- Playback requires a progressive MP3 and does not play HLS-only or snippet-only
-  tracks as full previews.
+- SoundCloud playback supports progressive MP3 and MP3 HLS (up to 50 MiB).
+  AAC/Opus HLS, encrypted streams and snippet-only tracks are not full previews.
 - Bandcamp cart automation and Beatport release lookup support linked products
   only and depend on current store interfaces. A graphical session is required
   to show the completed cart, to finish items by hand, and for the Bandcamp
@@ -1089,6 +1317,12 @@ as player events instead of escaping through Python-CFFI.
 - A cancelled dig or download batch lets requests already in flight finish
   their own timeout before the worker returns.
 - The application has no automatic full-data deletion or retention scheduler.
+- Private profile import has fixture coverage; a live owner session is required
+  to establish current private-playlist completeness. Public pagination was checked live.
+- Deck compatibility is documented rather than physically tested. Analysis has
+  streaming invariance tests but no measured accuracy on a human-labelled DJ corpus.
+- Filesystems without exclusive rename support refuse replacement rather than
+  risk overwriting a concurrent file.
 
 ## 14. Verification, CI, and release
 
@@ -1124,12 +1358,30 @@ the suite checks the selectors the cart relies on and skips if recordings or
 Playwright Chromium are unavailable. `shop_mutate` adds, verifies, and removes
 one name-your-price track in a throwaway profile and never approaches checkout.
 
+Store sync-browser fixtures are function-scoped so they cannot retain a running
+sync Playwright loop during async tests. Tests resolve the installed browser cache
+before XDG isolation and honor PLAYWRIGHT_BROWSERS_PATH; profiles and user data
+remain isolated. Unavailable Hypeddit fixtures are skipped, not passed. The current
+Lights On live fixture is album-only; moved-track recovery remains covered offline.
+
+`scripts/benchmark_analysis.py --output DIRECTORY` generates controlled silence,
+four pulse tempos and two tonal cadences, then runs raw subprocess analysis.
+Optional `--corpus DIRECTORY` reads immediate audio files without modifying them;
+`--references JSON` supplies per-filename BPM/key with an explicit verified flag.
+Reports record algorithm/parameters, dependency versions, timing and per-file raw
+results, including missing estimates. Accuracy uses only verified references,
+counts abstentions separately and reports half/double-tempo errors. Synthetic
+cadences do not establish accuracy on real music. Existing reports are not overwritten.
+
 ### 14.2 Continuous integration and publishing
 
 `.github/workflows/ci.yml` runs on push, pull request, and manual dispatch. It
 checks the generated specification map, runs Ruff, and runs the default offline
 pytest suite across Ubuntu, macOS, and Windows with Python 3.12, 3.13, and 3.14,
-using `uv run --frozen --extra dev` with the committed lockfile.
+using `uv run --frozen --extra dev --extra analyze` with the committed lockfile.
+Each job builds and checks an isolated bare-wheel installation. Python 3.14 jobs
+on each OS additionally build the pinned legacy informational package and verify
+pip, pipx and uv uninstall/reinstall migration with temporary data sentinels.
 
 `.github/workflows/live.yml` runs the `live` marker weekly on Monday at 06:00 UTC
 and by manual dispatch. It is an external-contract monitor rather than a release
@@ -1138,7 +1390,7 @@ gate.
 `.github/workflows/publish.yml` runs its own offline test matrix for a published
 release or manual dispatch, checks the specification map before building, builds
 with `uv build`, and publishes to PyPI through a pinned action using trusted
-publisher OIDC. The publish job has `id-token: write`; other workflow permissions
+publisher OIDC for `dj-sc-digger`. The publish job has `id-token: write`; other workflow permissions
 default to read-only contents.
 
 ### 14.3 Specification-map verification

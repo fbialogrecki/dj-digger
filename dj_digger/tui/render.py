@@ -21,7 +21,6 @@ from .keymap import (
     LEADING_WIDTH,
     LOCAL_FILE_GLYPH,
     MARK_WIDTH,
-    MIN_TITLE_WIDTH,
     OPTIONAL_COLUMN_SPECS,
     PLAYING_GLYPH,
     QUICK_FILTER_KEYS,
@@ -32,7 +31,7 @@ from .keymap import (
     TIME_WIDTH,
 )
 from .rows import Row
-from .widgets import TrackTable
+from .widgets import FittedFooter, TrackTable
 
 
 class RenderController:
@@ -114,7 +113,7 @@ class RenderController:
     def player(self):
         return self.get_player()
 
-    def _store_badges(self, row: Row) -> Text:
+    def _store_badges(self, row: Row, width: int = STORES_WIDTH) -> Text:
         """Every store this track turned up in, the one ``o`` opens picked out."""
 
         opening = self.record_to_open(row)
@@ -146,8 +145,7 @@ class RenderController:
         # DataTable clips the cell at STORES_WIDTH with nothing to show for it,
         # so "gate(hypeddit)" arrives as "gate(hypedd" and reads as a misspelt
         # store rather than a cut one. Cut it here, with the mark that says so.
-        if len(badges.plain) > STORES_WIDTH:
-            badges.truncate(STORES_WIDTH, overflow="ellipsis")
+        badges.truncate(width, overflow="ellipsis")
         return badges
 
     def _playing_key(self) -> str | None:
@@ -188,16 +186,16 @@ class RenderController:
             style=self.palette.accent,
         )
 
-        return [
-            leading,
-            Text(glyph, style=style),
-            Text(str(row.position), style="reverse" if selected else self.muted),
-            label_cell,
-            self._store_badges(row),
-            Text(row.track.genre_label or "-", style=self.muted),
-            *self._optional_cells(row),
-            Text(row.track.duration_label or "-", style=self.muted),
-        ]
+        cells = {
+            "leading": leading, "mark": Text(glyph, style=style),
+            "#": Text(str(row.position), style="reverse" if selected else self.muted),
+            "Track": label_cell, "Stores": self._store_badges(row, getattr(self, "_store_width", STORES_WIDTH)),
+            "Genre": Text(row.track.genre_label or "-", style=self.muted),
+            "Time": Text(row.track.duration_label or "-", style=self.muted),
+        }
+        cells.update({header: cell for (_, header, _), cell
+                      in zip(self.enabled_columns(), self._optional_cells(row))})
+        return [cells[name] for name in self.playlist_state._column_keys]
 
     def _paint_row(self, index: int, flash: str = "") -> None:
         """Rewrite one row in place, rather than rebuilding the whole table."""
@@ -213,26 +211,62 @@ class RenderController:
             table.update_cell_at(Coordinate(index, column), cell, update_width=False)
 
     def enabled_columns(self) -> list[tuple[str, str, int]]:
-        """The optional column specs switched on in Settings, in table order."""
+        """Settings columns plus BPM/key for local views, in table order."""
 
         wanted = set(self.config.columns)
+        if self.playlist_state.local_view:
+            wanted.update(("bpm", "key"))
         return [spec for spec in OPTIONAL_COLUMN_SPECS if spec[0] in wanted]
+
+    def column_layout(self, table: TrackTable) -> list[tuple[str, int]]:
+        # Reserve scrollbar space even before it appears: otherwise crossing a
+        # threshold can repeatedly add/remove a column and the scrollbar.
+        width = max(0, table.content_region.width - 2)
+        columns = [("leading", LEADING_WIDTH), ("mark", MARK_WIDTH), ("#", INDEX_WIDTH),
+                   ("Track", 28)]
+        if not self.playlist_state.local_view:
+            columns.append(("Stores", 12 if width < 100 else STORES_WIDTH))
+        columns += [("Genre", GENRE_WIDTH)]
+        columns += [(header, size) for _, header, size in self.enabled_columns()]
+        columns.append(("Time", TIME_WIDTH))
+        removable = ["Label", "Year", "Genre"]
+        if not self.playlist_state.local_view:
+            removable += ["Key", "BPM"]
+        for name in removable:
+            if sum(size + 2 * table.cell_padding for _, size in columns) <= width:
+                break
+            columns = [(header, size) for header, size in columns if header != name]
+        return columns
 
     def build_columns(self, table: TrackTable) -> None:
         keys = self.playlist_state._column_keys = {}
-        keys["leading"] = table.add_column(
-            Text(LOCAL_FILE_GLYPH + PLAYING_GLYPH, style=self.muted),
-            width=LEADING_WIDTH,
-        )
-        keys["mark"] = table.add_column("", width=MARK_WIDTH)
-        keys["#"] = table.add_column("#", width=INDEX_WIDTH)
-        table.flexible_column = keys["Track"] = table.add_column("Track", width=MIN_TITLE_WIDTH)
-        keys["Stores"] = table.add_column("Stores", width=STORES_WIDTH)
-        keys["Genre"] = table.add_column("Genre", width=GENRE_WIDTH)
-        for _name, header, width in self.enabled_columns():
-            keys[header] = table.add_column(header, width=width)
-        keys["Time"] = table.add_column("Time", width=TIME_WIDTH)
+        self._store_width = dict(self.column_layout(table)).get("Stores", STORES_WIDTH)
+        for name, width in self.column_layout(table):
+            label = (Text(LOCAL_FILE_GLYPH + PLAYING_GLYPH, style=self.muted)
+                     if name == "leading" else "" if name == "mark" else name)
+            keys[name] = table.add_column(label, width=width)
+        table.flexible_column = keys["Track"]
         self._paint_headers(table)
+
+    def relayout(self) -> None:
+        table = self.query_one("#tracks", TrackTable)
+        layout = self.column_layout(table)
+        self._store_width = dict(layout).get("Stores", STORES_WIDTH)
+        if [name for name, _ in layout] != list(self.playlist_state._column_keys):
+            self.refresh_rows()
+            return
+        changed = False
+        for name, width in layout:
+            if name != "Track":
+                column = table.columns[self.playlist_state._column_keys[name]]
+                if column.width != width:
+                    column.width = width
+                    changed = True
+        if changed:
+            table._update_dimensions(())
+            for index in range(table.row_count):
+                self._paint_row(index)
+        table.fit_flexible_column()
 
     def _paint_headers(self, table: TrackTable | None = None) -> None:
         """Put the sort arrow on the sorted column's header and nowhere else."""
@@ -287,6 +321,8 @@ class RenderController:
         self.set_timer(FLASH, lambda: self._paint_row(index))
 
     def refresh_rows(self, *, keep_cursor: bool = True) -> None:
+        for footer in self.query(FittedFooter):
+            footer.local_view = self.playlist_state.local_view
         if not self.query("#tracks"):
             return
         table = self.query_one("#tracks", TrackTable)
@@ -302,7 +338,11 @@ class RenderController:
         self.playlist_state.visible_rows = self.matching_rows()
         playing_key = self._playing_key()
 
-        table.clear()
+        desired = [name for name, _ in self.column_layout(table)]
+        changed = desired != list(self.playlist_state._column_keys)
+        table.clear(columns=changed)
+        if changed:
+            self.build_columns(table)
         for row in self.playlist_state.visible_rows:
             table.add_row(*self._cells(row, playing_key))
 
@@ -338,10 +378,14 @@ class RenderController:
         selection, hidden rows.
         """
 
+        for footer in self.query(FittedFooter):
+            footer.busy = self.job is not None
         # A worker's last word can land after the widgets are gone.
         if not self.query("#status-legend"):
             return
-        self.query_one("#status-legend", Static).update(self._store_line())
+        legend = self.query_one("#status-legend", Static)
+        legend.display = not self.playlist_state.local_view
+        legend.update(self._store_line())
         self.query_one("#status-job", Static).update(self._progress_line())
 
     def _progress_line(self) -> Text:

@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import traceback
+from collections import Counter
 from collections.abc import Sequence
 from copy import deepcopy
 from functools import partial
@@ -47,7 +48,7 @@ from .presentation import (
     SidebarState,
 )
 from .render import RenderController
-from .screens import AskLinkScreen, ContextMenuScreen, HelpScreen, SettingsScreen
+from .screens import AskLinkScreen, ContextMenuScreen, HelpScreen, SettingsScreen, ViewSummaryScreen
 from .theme import FALLBACK_PALETTE, Palette, palette_for
 from .widgets import ErrorBanner, FittedFooter, SearchInput, StatusBar, TrackTable
 
@@ -90,12 +91,12 @@ class DiggerApp(App):
     }
     /* Centred over the list it heads, with a blank row under it: the crate
        names started immediately below and read as one more crate. */
-    #sidebar-title {
+    #sidebar-title, #explorer-title {
         padding: 0 1;
-        margin-bottom: 1;
         text-align: center;
         color: $text-muted;
     }
+    #sidebar-title { margin-bottom: 1; }
     /* Auto height so the add button sits right under the last crate, not pinned
        to the bottom of the sidebar. */
     #crates {
@@ -131,7 +132,7 @@ class DiggerApp(App):
     .crate-icon:hover {
         background: $accent;
     }
-    #crate-add {
+    #crate-add, #folder-open, #folder-next {
         width: 1fr;
         height: 1;
         border: none;
@@ -140,7 +141,7 @@ class DiggerApp(App):
         content-align: left middle;
         padding: 0 1;
     }
-    #crate-add:hover {
+    #crate-add:hover, #folder-open:hover, #folder-next:hover {
         background: $accent;
         color: $text;
     }
@@ -164,6 +165,13 @@ class DiggerApp(App):
     }
     """
 
+    CSS = CSS + """
+    #playlist-pane, #explorer-pane { height: 50%; }
+    #explorer { height: 1fr; scrollbar-size: 1 1; }
+    #explorer-title { height: 1; }
+    #folder-next { display: none; }
+    """
+
     BINDINGS = [
         Binding(
             key,
@@ -175,11 +183,10 @@ class DiggerApp(App):
         )
         for key, action, label, _group, show, _detail in KEYMAP
     ] + [
-        # Textual 8 answers ctrl+c with a toast saying to press ctrl+q, which
-        # is not what anyone reaching for ctrl+c wants. A binding on the app
-        # replaces the base one for the same key; priority puts it ahead of
-        # the search box, where Input would otherwise take ctrl+c as "copy".
         Binding("ctrl+c", "quit", "Quit", show=False, priority=True),
+        # Extended terminal protocols may encode Shift as a modifier or an
+        # uppercase character. Keep both separate from the interrupt binding.
+        Binding("ctrl+shift+c,ctrl+C,ctrl+shift+C", "copy_selection", "Copy", show=False, priority=True),
     ] + [
         # 0 is declared in KEYMAP so it shows in the footer as the way back.
         Binding(str(index), f"filter_index({index})", f"Store {index}", show=False)
@@ -421,10 +428,6 @@ class DiggerApp(App):
             self._dig_cancel = self.job.cancel
         return worker
 
-    def _dig_running(self):
-        handle = self.services.operations.active()
-        return handle is not None and handle.name == "Digging"
-
     def _display_collection(self, result, view_generation):
         record = result.record
         if record is None:
@@ -470,9 +473,16 @@ class DiggerApp(App):
         yield PlayerControls(self.player, id="player-controls")
         with Horizontal(id="body"):
             with Vertical(id="sidebar"):
-                yield Static("Playlists", id="sidebar-title")
-                yield ListView(id="crates")
-                yield Button("+ Add playlist", id="crate-add", tooltip="Add a playlist (d)")
+                with Vertical(id="playlist-pane"):
+                    yield Static("Playlists", id="sidebar-title")
+                    yield ListView(id="crates")
+                    yield Button("+ Add playlist", id="crate-add", tooltip="Add a playlist (d)")
+                with Vertical(id="explorer-pane"):
+                    yield Static("Local files", id="explorer-title")
+                    from .widgets import ExplorerTree
+                    yield ExplorerTree("Directories", id="explorer")
+                    yield Button("Next page", id="folder-next")
+                    yield Button("+ Open folder", id="folder-open")
             with Vertical(id="main"):
                 yield SearchInput(placeholder="Filter by artist, title, genre, tag or label", id="search")
                 yield TrackTable(id="tracks", cursor_type="row", zebra_stripes=True)
@@ -491,12 +501,14 @@ class DiggerApp(App):
         if narrow != self._narrow:
             self._narrow = narrow
             self.query_one("#sidebar").set_class(narrow, "collapsed")
-        # The footer picks which bindings fit in its own compose, which resize
-        # does not otherwise trigger. Queued on the footer rather than on the
-        # app: composing a widget from the app's message pump breaks the data
-        # binding Textual's Footer sets up on its own keys.
-        footer = self.query_one(FittedFooter)
-        footer.call_next(footer.recompose)
+        if hasattr(self, "local_controller"):
+            self.local_controller.layout()
+
+    def on_track_table_layout_changed(self, event: TrackTable.LayoutChanged) -> None:
+        event.stop()
+        # Queued resize messages may arrive after shutdown removes the table.
+        if self.is_running:
+            self.table_controller.relayout()
 
     def _handle_exception(self, error: Exception) -> None:
         """Put the crash in the log before Textual tears the screen down.
@@ -518,16 +530,20 @@ class DiggerApp(App):
         self.panic(Text(f"{type(error).__name__}: {log_safe_text(error)}"))
 
     def notify(self, message, *, markup=False, **kwargs):
+        del markup  # Accept Textual's keyword, but provider text always stays literal.
+        if kwargs.get('severity') in ('warning', 'error'):
+            LOGGER.log(logging.ERROR if kwargs['severity'] == 'error' else logging.WARNING,
+                       'Notification: %s', log_safe_text(message))
         super().notify(log_safe_text(message), markup=False, **kwargs)
 
     def show_error(self, message: str) -> None:
         """Display an error/debug message in the top ErrorBanner."""
         message = log_safe_text(message)
+        LOGGER.error('UI error: %s', message)
         try:
             banner = self.query_one(ErrorBanner)
             banner.add_error(message)
         except Exception:
-            LOGGER.error("Error: %s", message)
             self.notify(f"Error: {message}", severity="error", timeout=8)
 
     async def on_mount(self) -> None:
@@ -537,6 +553,14 @@ class DiggerApp(App):
             self.theme = self.config.theme
         else:
             self.palette = palette_for(self.get_css_variables(), self.current_theme)
+        from .local import LocalController
+        self.local_controller = LocalController(
+            services=self.services, playlist_state=self.playlist_state, crate_controller=self.crate_controller,
+            audio_state=self.audio_state, config=self.config, jobs=self.jobs,
+            notify=self.notify, push_screen=self.push_screen, run_worker=self.run_worker, query_one=self.query_one,
+            refresh_rows=self.table_controller.refresh_rows, selected_rows=self.filter_controller.selected_rows,
+            current_row=self.filter_controller.current_row)
+        await self.local_controller.mount()
         await self.crate_controller.reload_sidebar()
         if not self.playlist_state.rows:
             # Someone with a library wants to see it, not be interrogated.
@@ -675,6 +699,23 @@ class DiggerApp(App):
     def action_help(self) -> None:
         self.push_screen(HelpScreen())
 
+    def action_view_summary(self) -> None:
+        state = self.playlist_state
+        visible = state.visible_rows
+        selected = {row.track.key for row in visible} & state.selected
+        counts = Counter(self.filter_controller.status_of(row) for row in visible)
+        lines = [f"Loaded positions: {len(state.rows)}", f"Visible positions: {len(visible)}",
+                 f"Selected visible tracks: {len(selected)}", "", "Visible statuses:"]
+        labels = {"new": "Not handled", "opened": "Link opened", "got": "Got it", "skip": "Skipped"}
+        lines += [f"{label}: {counts[code]}" for code, label in labels.items()]
+        local = self.local_controller
+        if state.local_view and state.crate is None and local.folder is not None:
+            from ..services.local_library import PAGE_SIZE
+            lines += ["", f"Folder page: {local.offset // PAGE_SIZE + 1}",
+                      f"Loaded range: {local.offset + 1 if state.rows else 0}–{local.offset + len(state.rows)} of {local.total}",
+                      "Counts describe this loaded page, not the entire folder."]
+        self.push_screen(ViewSummaryScreen("\n".join(lines)))
+
     async def _settings_screen(self):
         choices = await asyncio.to_thread(self.services.accounts.browser_choices)
         return SettingsScreen(self.config, self.services.accounts, choices)
@@ -749,10 +790,65 @@ class DiggerApp(App):
     def on_list_view_selected(self, *args, **kwargs):
         return self.crate_controller.on_list_view_selected(*args, **kwargs)
 
-    def on_button_pressed(self, *args, **kwargs):
-        return self.crate_controller.on_button_pressed(*args, **kwargs)
+    def on_button_pressed(self, event):
+        if event.button.id == 'folder-next':
+            event.stop()
+            self.local_controller.next_page()
+            return
+        if event.button.id == 'folder-open':
+            event.stop()
+            self.local_controller.choose_folder()
+            return
+        return self.crate_controller.on_button_pressed(event)
+
+    def on_tree_node_selected(self, event):
+        if event.control.id == 'explorer' and event.node.data is not None:
+            event.stop()
+            self.local_controller.open(event.node.data, node=event.node)
+
+    def action_local_folder(self):
+        self.local_controller.choose_folder()
+
+    def action_local_export(self):
+        self.local_controller.export_options()
+
+    def action_local_analyze(self):
+        self.local_controller.analyze()
+
+    def action_local_analyze_folder(self):
+        self.local_controller.analyze_folder()
+
+    def action_open_logs(self):
+        from .diagnostic_screens import LogsScreen
+        self.push_screen(LogsScreen())
+
+    def action_copy_selection(self):
+        text = self.screen.get_selected_text()
+        if text:
+            self.copy_to_clipboard(text)
+
+    def action_local_edit(self):
+        self.local_controller.edit()
+
+    def action_local_playlist(self):
+        self.local_controller.save_playlist()
+
+    def action_local_page(self):
+        self.local_controller.next_page()
+
+    def action_local_pin(self):
+        self.local_controller.pin()
+
+    def action_local_split(self):
+        self.local_controller.resize_split()
+
+    def action_profile_playlists(self):
+        self.local_controller.profile()
 
     def action_remove_track(self, *args, **kwargs):
+        if self.playlist_state.local_view and self.playlist_state.crate is None:
+            self.local_controller.delete_files()
+            return
         self.run_worker(self.crate_controller.action_remove_track(*args, **kwargs), description="remove_track")
 
     def action_undo_remove(self, *args, **kwargs):
@@ -831,6 +927,9 @@ class DiggerApp(App):
         self.run_worker(self.download_controller.action_batch_download(*args, **kwargs), description="batch_download")
 
     def action_open_link(self, *args, **kwargs):
+        row = self.filter_controller.current_row()
+        if row is not None and row.track.local_id:
+            return self.playback_controller.action_play_pause()
         return self.opening_controller.action_open_link(*args, **kwargs)
 
     def action_search(self, *args, **kwargs):
@@ -865,3 +964,9 @@ class DiggerApp(App):
 
     def update_status(self):
         self.table_controller.update_status()
+
+    def action_local_resume(self):
+        self.run_worker(self.local_controller.resume())
+
+    def action_local_section(self):
+        self.local_controller.toggle_section()

@@ -1,7 +1,7 @@
 """Previewing a track before you buy it.
 
-SoundCloud offers a ``progressive`` transcoding next to HLS, which is a plain
-MP3 behind a signed URL. Nothing is downloaded to disk: the MP3 is decoded
+SoundCloud MP3 previews use progressive URLs or ordered HLS segments.
+Nothing is downloaded to disk: the MP3 is decoded
 straight off the socket through miniaudio's ``stream_any``, so audio starts after
 about 0.5 s instead of waiting out a 6.6 MB download.
 
@@ -22,7 +22,6 @@ import array
 import logging
 import threading
 import time
-from collections import deque
 from dataclasses import dataclass, field
 from functools import lru_cache
 from queue import Empty, SimpleQueue
@@ -37,16 +36,6 @@ SEEK_STEP = 10.0
 VOLUME_STEP = 0.1
 SAMPLE_RATE = 44100
 CHANNELS = 2
-# int16, so this is the loudest a sample can be.
-FULL_SCALE = 32768.0
-# One reading per frame of the interface. A callback hands over about a tenth of
-# a second at a time, and the loudest sample in a tenth of a second of techno is
-# a kick every single time - so a reading per callback is a meter that sits still.
-LEVEL_WINDOW = SAMPLE_RATE * CHANNELS // 30
-# A quarter of a second of readings. Past that the meter would be showing the
-# past rather than falling behind gracefully, so the oldest go.
-LEVEL_QUEUE = 8
-
 DOWNLOAD_CHUNK = 64 * 1024
 # A two hour set is not a track, and a response that will not declare its size
 # could be anything. Both stream off the socket the way everything used to.
@@ -61,7 +50,7 @@ def _import_miniaudio():
         import miniaudio
     except ImportError as exc:  # pragma: no cover - depends on the install
         raise PlaybackUnavailable(
-            "Audio preview needs miniaudio: pip install 'dj-soundcloud-digger[play]'"
+            "Audio preview needs miniaudio: pip install 'dj-sc-digger[play]'"
         ) from exc
     return miniaudio
 
@@ -285,10 +274,14 @@ class HttpSourceMixin:
         return offset
 
 
-def open_source(session, url: str):
+def open_source(session, url: str, protocol: str = "progressive"):
     """Start pulling a track into memory before anything has asked to hear it."""
 
-    return http_source_type(_import_miniaudio())(session, url)
+    miniaudio = _import_miniaudio()
+    if protocol == "hls":
+        from .hls_audio import HlsSourceMixin
+        return type("HlsSource", (HlsSourceMixin, miniaudio.StreamableSource), {})(session, url)
+    return http_source_type(miniaudio)(session, url)
 
 
 @lru_cache(maxsize=None)
@@ -336,10 +329,6 @@ class Player:
         self._events: SimpleQueue[PlaybackEvent] = SimpleQueue()
         self._volume = 0.8
         self._muted = False
-        self._level = 0.0
-        # Written on the audio thread and read on the interface's, which a deque
-        # is safe for on its own - appends and pops are single bytecodes.
-        self._levels: deque[float] = deque(maxlen=LEVEL_QUEUE)
         self.unavailable_reason: str | None = None
 
     def _device_for(self, sample_rate: int, channels: int):
@@ -400,30 +389,6 @@ class Player:
     def volume(self) -> float:
         return 0.0 if self._muted else self._volume
 
-    def _silence(self) -> None:
-        """Nothing is going out, so nothing measured before it still applies."""
-
-        self._level = 0.0
-        self._levels.clear()
-
-    def take_level(self) -> float:
-        """The next reading of how loud the audio going out is, 0 to 1.
-
-        Read off the samples on their way to the device, which is the only place
-        the actual sound exists - the waveform picture is an average of the whole
-        track and says nothing about this instant.
-
-        Oldest first, one per call, because the readings are made faster than
-        anything asks for them. When they run out the last one stands, which is
-        better than dropping to silence between callbacks.
-        """
-
-        if self._levels:
-            self._level = self._levels.popleft()
-        elif not self._playing:
-            self._level = 0.0
-        return self._level
-
     # Controls
 
     def load(
@@ -451,7 +416,9 @@ class Player:
         # The source outlives a seek. Replacing it is what used to throw away
         # the buffered track and put a connection in front of every seek.
         if self._source is None:
-            self._source = open_source(self._session, self._loaded.stream.url)
+            self._source = open_source(self._session, self._loaded.stream.url, self._loaded.stream.protocol)
+        if hasattr(self._source, "stream"):
+            return self._source.stream(seek_frame)
         return miniaudio.stream_any(
             self._source,
             source_format=miniaudio.FileFormat.MP3,
@@ -471,19 +438,6 @@ class Player:
             self._source.close()
             self._source = None
 
-    def _measure(self, chunk) -> None:
-        """Note how loud each frame's worth of this chunk is.
-
-        Runs on the audio callback thread, so it is two calls into C per slice
-        and nothing else. Taken before the volume scaling, because it is the
-        music that should show and not the fader.
-        """
-
-        for start in range(0, len(chunk), LEVEL_WINDOW):
-            window = chunk[start : start + LEVEL_WINDOW]
-            if len(window):
-                self._levels.append(max(max(window), -min(window)) / FULL_SCALE)
-
     def _feed(self, stream, generation: int):
         # miniaudio sends a frame count into the callback generator, so the first
         # yield must happen before any decoding. It also makes an empty stream end
@@ -500,8 +454,7 @@ class Player:
                 first = False
                 if not len(chunk):
                     raise StopIteration
-                self._frames += len(chunk) // CHANNELS
-                self._measure(chunk)
+                self._frames += (self._source.last_frames if hasattr(self._source, "last_frames") else len(chunk) // CHANNELS)
                 volume = self.volume
                 out = (
                     chunk
@@ -515,14 +468,12 @@ class Player:
                     self._playing = False
                     self._ended = True
                     self._generator = None
-                    self._silence()
                     self._events.put(PlaybackEvent("finished", generation))
                 return
             except Exception as exc:
                 if generation == self._generation:
                     self._playing = False
                     self._generator = None
-                    self._silence()
                     self._events.put(PlaybackEvent("error", generation, str(exc)))
                 return
             required = yield out
@@ -553,7 +504,6 @@ class Player:
                 LOGGER.debug("Closing a failed audio device complained: %s", exc)
         self._device = None
         self._playing = False
-        self._silence()
 
     def play(self) -> None:
         if self._loaded is None:
@@ -566,6 +516,8 @@ class Player:
             self._offset = 0.0
             self._frames = 0
             self._ended = False
+            if hasattr(self._source, "restart"):
+                self._source.restart(0)
         if self._generator is None:
             # Reopening the socket costs about half a second, so a plain resume
             # keeps the existing generator and only a seek reopens it.
@@ -598,7 +550,6 @@ class Player:
         if self._playing:
             self._stop_device()
         self._playing = False
-        self._silence()
 
     def toggle(self) -> None:
         self.pause() if self._playing else self.play()
@@ -613,7 +564,6 @@ class Player:
         self._ended = False
         self._frames = 0
         self._offset = 0.0
-        self._silence()
 
     def seek(self, seconds: float) -> None:
         if self._loaded is None:
@@ -631,7 +581,6 @@ class Player:
         self._frames = 0
         self._playing = False
         self._ended = False
-        self._silence()
         if was_playing:
             self.play()
 
@@ -671,5 +620,4 @@ class Player:
                 self._session.close()
             except Exception as exc:
                 LOGGER.debug("Closing the playback session complained: %s", exc)
-
 

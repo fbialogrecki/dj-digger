@@ -11,7 +11,7 @@ from typing import TypeVar
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import (
     Button,
@@ -23,6 +23,8 @@ from textual.widgets import (
     OptionList,
     Select,
     Static,
+    TabbedContent,
+    TabPane,
 )
 from textual.widgets.option_list import Option
 
@@ -140,8 +142,14 @@ class HelpScreen(_Modal[None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="help", classes="modal-box"):
+            yield Button('Open logs', id='help-logs')
             yield Static(self._body())
         yield Footer()
+
+    def on_button_pressed(self, event):
+        event.stop()
+        if event.button.id == 'help-logs':
+            self.app.action_open_logs()
 
     def _body(self) -> Text:
         muted = self.app.muted
@@ -517,9 +525,10 @@ class CartResultScreen(_Modal[str | None]):
     """Compact batch result with safe retry and cart-focus actions."""
 
     CSS = """
-    #cart-result { width: 86; max-height: 90%; border: round $accent; }
-    #cart-result-table { height: 18; }
-    #cart-result-buttons { height: auto; margin-top: 1; }
+    #cart-result { width: 86; max-width: 100%; max-height: 90%; border: round $accent; }
+    #cart-result-table { max-height: 40%; min-height: 3; }
+    #cart-result-buttons { height: auto; margin-top: 1; layout: grid; grid-size: 2; grid-gutter: 0 1; grid-rows: 3; }
+    #cart-result-buttons Button { width: 1fr; min-width: 0; }
     """
     BINDINGS = [Binding("escape", "cancel", "Close")]
 
@@ -540,7 +549,7 @@ class CartResultScreen(_Modal[str | None]):
                     yield Button("Finish in browser", id="cart-result-manual")
                 if self.outcome.beatport_playlist_ready:
                     yield Button(
-                        "Prepare Beatport playlist (Soundiiz)",
+                        "Prepare playlist (Soundiiz)",
                         id="cart-result-playlist",
                     )
                 yield Button("Close", id="cart-result-close")
@@ -549,8 +558,16 @@ class CartResultScreen(_Modal[str | None]):
     def on_mount(self) -> None:
         table = self.query_one("#cart-result-table", DataTable)
         table.add_columns("Track", "Store", "Result", "Reason")
+        labels = {"added": "Added to cart", "already_in_cart": "Already in cart",
+                  "playlist_ready": "Ready for playlist", "failed": "Failed",
+                  "manual": "Needs your action", "skipped": "Skipped"}
+        table.styles.height = max(3, len(self.outcome.results) + 2)
         for result in self.outcome.results:
-            table.add_row(result.track_label, result.store, result.status, result.reason)
+            label = labels.get(result.status, "Unknown result")
+            reason = result.reason
+            if result.status not in labels:
+                reason = f"Status: {result.status}. {reason}"
+            table.add_row(Text(result.track_label), Text(result.store), Text(label), Text(reason))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         actions = {
@@ -561,6 +578,28 @@ class CartResultScreen(_Modal[str | None]):
             "cart-result-close": None,
         }
         self.dismiss(actions[event.button.id])
+
+
+class ViewSummaryScreen(_Modal):
+    BINDINGS = [Binding("escape", "cancel", "Close")]
+    DEFAULT_CSS = "ViewSummaryScreen .modal-box { width: 65; max-height: 90%; } ViewSummaryScreen VerticalScroll { height: auto; max-height: 14; }"
+
+    def __init__(self, text):
+        super().__init__()
+        self.text = text
+
+    def compose(self):
+        with Vertical(classes="modal-box"):
+            yield Label("Current view summary")
+            with VerticalScroll():
+                yield Static(self.text, markup=False, id="view-summary")
+            yield Button("Close", id="summary-close")
+        yield Footer()
+
+    def on_button_pressed(self, event):
+        if event.button.id == "summary-close":
+            event.stop()
+            self.dismiss()
 
 
 class ContextMenuScreen(_Modal[str | None]):
@@ -744,9 +783,16 @@ class SettingsScreen(_Modal[None]):
     #settings-dialog {
         width: 72;
         max-height: 90%;
-        overflow-y: auto;
+        height: 90%;
+        max-width: 100%;
         border: round $accent;
     }
+    #settings-dialog Label { width: 1fr; height: auto; }
+    #settings-dialog TabbedContent { height: 1fr; min-height: 5; }
+    #settings-dialog ContentSwitcher { height: 1fr; }
+    #settings-dialog TabPane { padding: 0; }
+    #settings-dialog VerticalScroll { height: 1fr; }
+    #settings-store-buttons { layout: vertical; }
     #settings-title {
         text-style: bold;
         margin-bottom: 1;
@@ -787,63 +833,79 @@ class SettingsScreen(_Modal[None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="settings-dialog", classes="modal-box"):
-            yield Label("Gate Automation & Profile Settings", id="settings-title")
-            yield Label("Your Name (for gate forms):", classes="settings-label")
-            yield Input(value=self.config.user_name, id="input-name")
-            yield Label("Your Email (for gate forms):", classes="settings-label")
-            yield Input(value=self.config.user_email, id="input-email")
-            yield Label("Random Hype Comments (separated by | or newlines):", classes="settings-label")
-            comments_str = " | ".join(self.config.custom_comments)
-            yield Input(value=comments_str, id="input-comments")
-            yield Label("Folders to scan for music you already own (separated by |):", classes="settings-label")
-            yield Input(value=" | ".join(self.config.scan_directories), id="input-scan-dirs")
-            yield Label("Save downloads to:", classes="settings-label")
-            yield Input(value=self.config.download_directory, id="input-download-dir")
-            # Named on this screen because this screen is what a first run opens
-            # on. Up to 0.8 the repost and the follow were hard-coded into the
-            # gate calls and appeared in no interface at all.
-            yield Checkbox(
-                "Let gates record a repost, a follow and a comment on my account",
-                value=self.config.gate_social_actions,
-                id="input-gate-social",
-            )
-            yield Label(
-                "Turning this off keeps your account out of it. Some gates hand "
-                "over nothing without it.",
-                classes="settings-hint",
-            )
-            yield Label("Extra track columns:", classes="settings-label")
-            with Horizontal(id="settings-columns"):
-                for name, header, _width in OPTIONAL_COLUMN_SPECS:
-                    yield Checkbox(header, value=name in self.config.columns, id=f"column-{name}")
-            yield Label("Theme:", classes="settings-label")
-            themes = sorted(self.app.available_themes)
-            yield Select(
-                [(name, name) for name in themes],
-                value=self.app.theme if self.app.theme in themes else Select.BLANK,
-                id="input-theme",
-            )
-            yield Label("Open links with:", classes="settings-label")
-            # Only what this machine reported. The saved value names a program
-            # that gets executed, so the list is the whitelist.
-            choices, browser_choice = self.browser_choices
-            yield Select(
-                [(label, value) for value, label in choices],
-                value=browser_choice,
-                allow_blank=False,
-                id="input-browser",
-            )
-            yield Label("Bandcamp browser session:", classes="settings-label")
-            with Horizontal(id="settings-store-buttons"):
-                yield Button("Open Bandcamp session", id="btn-store-logins")
-                yield Button("Check Bandcamp", id="btn-store-check")
-                yield Button("Reset store profile", variant="warning", id="btn-store-reset")
+            yield Label("Settings", id="settings-title")
+            initial = "settings-gates" if self.config.first_run else "settings-appearance"
+            with TabbedContent(initial=initial):
+                with TabPane("Appearance", id="settings-appearance"):
+                    with VerticalScroll():
+                        yield Label("Extra track columns:", classes="settings-label")
+                        with Horizontal(id="settings-columns"):
+                            for name, header, _width in OPTIONAL_COLUMN_SPECS:
+                                yield Checkbox(header, value=name in self.config.columns, id=f"column-{name}")
+                        yield Label("Theme:", classes="settings-label")
+                        themes = sorted(self.app.available_themes)
+                        yield Select(
+                            [(name, name) for name in themes],
+                            value=self.app.theme if self.app.theme in themes else Select.BLANK,
+                            id="input-theme",
+                        )
+                with TabPane("Files", id="settings-files"):
+                    with VerticalScroll():
+                        yield Label("Folders to scan for music you already own (separated by |):", classes="settings-label")
+                        yield Input(value=" | ".join(self.config.scan_directories), id="input-scan-dirs")
+                        yield Label("Save downloads to:", classes="settings-label")
+                        yield Input(value=self.config.download_directory, id="input-download-dir")
+                with TabPane("Accounts", id="settings-accounts"):
+                    with VerticalScroll():
+                        yield Label("Open links with:", classes="settings-label")
+                        # Only what this machine reported. The saved value names a program
+                        # that gets executed, so the list is the whitelist.
+                        choices, browser_choice = self.browser_choices
+                        yield Select(
+                            [(label, value) for value, label in choices],
+                            value=browser_choice,
+                            allow_blank=False,
+                            id="input-browser",
+                        )
+                        yield Label("Bandcamp session (actions apply immediately):", classes="settings-label")
+                        with Horizontal(id="settings-store-buttons"):
+                            yield Button("Open Bandcamp session", id="btn-store-logins")
+                            yield Button("Check Bandcamp", id="btn-store-check")
+                            yield Button("Reset store profile", variant="warning", id="btn-store-reset")
+                        yield Label("Account actions take effect immediately. Cancel only discards unsaved preferences.", classes="settings-hint")
+                with TabPane("Gates", id="settings-gates"):
+                    with VerticalScroll():
+                        # Named on this screen because this screen is what a first run opens
+                        # on. Up to 0.8 the repost and the follow were hard-coded into the
+                        # gate calls and appeared in no interface at all.
+                        yield Checkbox(
+                            "Allow automated social steps required by gates",
+                            value=self.config.gate_social_actions,
+                            id="input-gate-social",
+                        )
+                        yield Label(
+                            "Disabling this stops automated social steps. Some gates then need "
+                            "manual completion.",
+                            classes="settings-hint",
+                        )
+                        yield Label("Your Name (for gate forms):", classes="settings-label")
+                        yield Input(value=self.config.user_name, id="input-name")
+                        yield Label("Your Email (for gate forms):", classes="settings-label")
+                        yield Input(value=self.config.user_email, id="input-email")
+                        yield Label("Random Hype Comments (separated by | or newlines):", classes="settings-label")
+                        comments_str = " | ".join(self.config.custom_comments)
+                        yield Input(value=comments_str, id="input-comments")
             with Horizontal(id="settings-buttons"):
+                yield Button('Open logs', id='settings-logs')
                 yield Button("Save", variant="primary", id="btn-save-settings")
                 yield Button("Cancel", id="btn-cancel-settings")
         yield Footer()
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == 'settings-logs':
+            event.stop()
+            self.app.action_open_logs()
+            return
         if event.button.id in {
             "btn-store-logins",
             "btn-store-check",
@@ -854,7 +916,7 @@ class SettingsScreen(_Modal[None]):
                 "btn-store-check": self.app.action_check_store_logins,
                 "btn-store-reset": self.app.action_reset_store_profile,
             }[event.button.id]
-            self.dismiss()
+            event.stop()
             action()
             return
         if event.button.id == "btn-save-settings":

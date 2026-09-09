@@ -18,16 +18,23 @@ class SoundCloudPlayback(Protocol):
 def unplayable_reason(payload: dict) -> str | None:
     """Why this track cannot be previewed in full, if so."""
 
+    if payload.get("policy") == "BLOCK":
+        return "SoundCloud blocks playback of this track for your account or region"
     if payload.get("policy") == "SNIP":
         return "SoundCloud only offers a 30 second snippet of this one"
     if payload.get("streamable") is False:
         return "This track is not streamable"
     transcodings = (payload.get("media") or {}).get("transcodings") or []
-    if not any(
-        (item.get("format") or {}).get("protocol") == "progressive" for item in transcodings
-    ):
-        return "No plain MP3 stream offered for this track"
+    if not transcodings:
+        return "SoundCloud did not provide any audio streams for this track"
+    if not any(_supported(item) for item in transcodings):
+        return "SoundCloud did not offer a supported MP3 stream (progressive or HLS)"
     return None
+
+
+def _supported(item: dict) -> bool:
+    fmt = item.get("format") or {}
+    return fmt.get("protocol") in {"progressive", "hls"} and fmt.get("mime_type") == "audio/mpeg"
 
 
 @dataclass
@@ -35,10 +42,11 @@ class Stream:
     url: str
     waveform_url: str = ""
     duration: float = 0.0
+    protocol: str = "progressive"
 
 
 def resolve_stream(client: SoundCloudPlayback, track_id: int) -> Stream:
-    """Signed MP3 URL, waveform URL and duration, from one refetch.
+    """Signed MP3 URL and protocol, waveform URL and duration, from one refetch.
 
     The payload is fetched fresh every time because ``track_authorization`` and
     the signature on the returned URL both expire. Duration comes from here too,
@@ -48,15 +56,22 @@ def resolve_stream(client: SoundCloudPlayback, track_id: int) -> Stream:
     payload = client.fetch_track(track_id)
     reason = unplayable_reason(payload)
     if reason:
+        LOGGER.warning(
+            "Preview unavailable for SoundCloud track %d (policy=%s, streams=%d): %s",
+            track_id,
+            payload.get("policy") if payload.get("policy") in {"ALLOW", "BLOCK", "SNIP"} else "unknown",
+            len((payload.get("media") or {}).get("transcodings") or []),
+            reason,
+        )
         raise SoundCloudError(reason)
 
-    progressive = next(
-        item
-        for item in payload["media"]["transcodings"]
-        if (item.get("format") or {}).get("protocol") == "progressive"
+    candidates = sorted(
+        (item for item in payload["media"]["transcodings"] if _supported(item)),
+        key=lambda item: item["format"]["protocol"] != "progressive",
     )
+    chosen = candidates[0]
     authorized = client.authorize(
-        progressive["url"], track_authorization=payload.get("track_authorization")
+        chosen["url"], track_authorization=payload.get("track_authorization")
     )
     url = authorized.get("url")
     if not url:
@@ -66,6 +81,7 @@ def resolve_stream(client: SoundCloudPlayback, track_id: int) -> Stream:
         url=url,
         waveform_url=payload.get("waveform_url") or "",
         duration=float(milliseconds) / 1000.0,
+        protocol=chosen["format"]["protocol"],
     )
 
 
@@ -106,5 +122,3 @@ class Prepared:
         if self.source is not None:
             self.source.close()
             self.source = None
-
-

@@ -219,7 +219,7 @@ class SoundCloudClient:
                     )
                 if response.status_code >= 400:
                     raise SoundCloudError(
-                        f"SoundCloud returned HTTP {response.status_code} for {url}"
+                        f"SoundCloud returned HTTP {response.status_code} for {url}", status_code=response.status_code
                     )
 
                 try:
@@ -477,6 +477,7 @@ class SoundCloudClient:
         cancel: threading.Event | None = None,
     ) -> list[Track]:
         tracks: list[Track] = []
+        visited: set[str] = set()
         check_cancelled(cancel)
         payload = self._get(path, limit=PAGE_SIZE)
         while True:
@@ -497,6 +498,9 @@ class SoundCloudClient:
             if not next_href:
                 break
             check_cancelled(cancel)
+            if next_href in visited:
+                raise SoundCloudError("SoundCloud collection pagination repeated a page; import stopped")
+            visited.add(next_href)
             payload = self._request(next_href)
 
         return tracks[:limit] if limit is not None else tracks
@@ -523,7 +527,8 @@ class SoundCloudClient:
                 raise SoundCloudError(f"Resolved {base_url} to a user without an id")
             endpoint = collection or "tracks"
             tracks = self._paginate(
-                f"/users/{user_id}/{endpoint}",
+                (f"/stream/users/{user_id}/reposts" if endpoint == "reposts"
+                 else f"/users/{user_id}/{endpoint}"),
                 limit=limit,
                 on_progress=on_progress,
                 cancel=cancel,
@@ -559,6 +564,7 @@ class SoundCloudClient:
                 tracks=tracks,
                 title=payload.get("title") or url,
                 declared_count=declared,
+                provider_id=payload.get("id"),
             )
 
         raise SoundCloudError(

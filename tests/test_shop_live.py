@@ -15,7 +15,7 @@ from dj_digger.stores import bandcamp as bandcamp_adapter
 pytestmark = pytest.mark.shop_live
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def store_context(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Any]:
     sync_api = pytest.importorskip(
         "playwright.sync_api", reason="Playwright is required for store contract tests"
@@ -141,34 +141,15 @@ def test_bandcamp_async_adapter_prefers_current_track_price_over_download_action
     asyncio.run(check())
 
 
-def test_bandcamp_visible_autocomplete_recovers_a_moved_cross_label_track() -> None:
-    async_api = pytest.importorskip(
-        "playwright.async_api", reason="Playwright is required for store contract tests"
-    )
-
-    async def check() -> None:
-        async with async_api.async_playwright() as playwright:
-            browser = await playwright.chromium.launch(headless=True)
-            page = await browser.new_page(locale="en-US", accept_downloads=False)
-            try:
-                product = await bandcamp_adapter._resolve_bandcamp_product_async(
-                    page,
-                    Track(
-                        title="Revan & Ollie Norton - Lights On",
-                        artist="Flexout Audio",
-                        permalink_url="https://soundcloud.com/flexoutaudio/lights-on",
-                        id=3,
-                    ),
-                    "https://revanbristol.bandcamp.com/album/lights-on",
-                    asyncio.Event(),
-                )
-            finally:
-                await browser.close()
-        assert product.url == "https://flexoutaudio.bandcamp.com/track/lights-on"
-        assert product.title == "Lights On"
-        assert product.artist == "Revan & Ollie Norton"
-
-    asyncio.run(check())
+def test_bandcamp_moved_lights_on_is_now_album_only(store_context: Any) -> None:
+    # The old cross-label example no longer offers an individual purchase.
+    # Recovery matching remains covered by the controlled test_cart fixtures.
+    url = "https://flexoutaudio.bandcamp.com/track/lights-on"
+    products = store_parse.products_from_html(_public_html(store_context, url, "bandcamp"), url, "bandcamp")
+    product = next(product for product in products if product.url == url)
+    assert product.title == "Lights On"
+    assert product.artist == "Revan & Ollie Norton"
+    assert product.price is None
 
 
 def test_beatport_public_release_contract(store_context: Any) -> None:

@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +10,15 @@ from dj_digger import auth, config, db
 from dj_digger.models import Track
 
 FIXTURES = Path(__file__).parent / "fixtures"
+# Resolve the installed binary cache before per-test XDG isolation. Profiles,
+# downloads and application credentials still belong exclusively to tmp_path.
+if sys.platform == "darwin":
+    _browser_cache = Path.home() / "Library/Caches/ms-playwright"
+elif sys.platform == "win32":
+    _browser_cache = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData/Local")) / "ms-playwright"
+else:
+    _browser_cache = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "ms-playwright"
+os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", str(_browser_cache))
 
 
 class FakeResponse:
@@ -63,13 +73,22 @@ def isolate_user_data(tmp_path, monkeypatch):
     # Everything that goes through paths.data_dir() / config_dir() - the store
     # browser profile, cart diagnostics - lands under tmp_path as well; a test
     # run once left eight diagnostics folders in the developer's real data dir.
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "xdg-cache"))
+    from dj_digger.tui.local import LocalController
+    monkeypatch.setattr(LocalController, "mounts", staticmethod(lambda: []))
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "xdg-data"))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg-config"))
+    from dj_digger import paths
+    from dj_digger.logging_setup import close_logging
+    monkeypatch.setattr(paths, 'log_dir', lambda: tmp_path / 'logs')
+    # logging_setup imports the function directly; cover every platform here.
+    monkeypatch.setattr('dj_digger.logging_setup.log_dir', lambda: tmp_path / 'logs')
     monkeypatch.setattr(config, "default_config_path", lambda: config_path)
     monkeypatch.setattr(db, "default_db_path", lambda: tmp_path / "digger.db")
     monkeypatch.setattr(auth, "CONFIG_DIR", tmp_path / "auth")
     monkeypatch.setattr(auth, "AUTH_FILE", tmp_path / "auth" / "auth.json")
     yield
+    close_logging()
     for instance in list(db._DATABASES):
         instance.close()
     db._INSTANCES.clear()

@@ -10,13 +10,15 @@ LOG_URL = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
 
 LOG_SECRET = re.compile(
     r"\b([a-z0-9_-]*(?:token|password|authorization|cookie|session)[a-z0-9_-]*)"
-    r"\s*[:=]\s*(?:(?:OAuth|Bearer)\s+)?[^\s,;]+",
+    r"['\"]?\s*[:=]\s*(?:\"[^\"]*\"|'[^']*'|(?:(?:OAuth|Bearer)\s+)?[^\s,;]+)",
     re.IGNORECASE,
 )
+LOG_HEADERS = re.compile(r"\b(authorization|proxy-authorization|cookie|set-cookie)\s*[:=][^\r\n]*", re.IGNORECASE)
 
 
 def redact_text(text: str) -> str:
     text = LOG_URL.sub(lambda match: redact_url(match.group(0)), text)
+    text = LOG_HEADERS.sub(lambda match: f'{match.group(1)}=<redacted>', text)
     return LOG_SECRET.sub(lambda match: f"{match.group(1)}=<redacted>", text)
 
 

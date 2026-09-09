@@ -13,10 +13,9 @@ import os
 import pytest
 
 from dj_digger import links, player, soundcloud
+from dj_digger.services import playback
 
-LIVE_URL = os.environ.get(
-    "DJ_DIGGER_LIVE_URL", "https://soundcloud.com/antarcticae/sets/techno-vinyl"
-)
+LIVE_URL = os.environ.get("DJ_DIGGER_LIVE_URL") or "https://soundcloud.com/antarcticae/sets/techno-vinyl"
 
 pytestmark = pytest.mark.live
 
@@ -69,9 +68,9 @@ def test_a_track_still_offers_a_plain_mp3_and_a_waveform():
         assert payload.get("track_authorization")
         assert payload.get("waveform_url", "").startswith("https://")
 
-        stream = player.resolve_stream(client, track_id)
+        stream = playback.resolve_stream(client, track_id)
         assert stream.url.startswith("https://")
-        assert len(player.fetch_waveform(client, stream.waveform_url)) > 100
+        assert len(playback.fetch_waveform(client, stream.waveform_url)) > 100
     finally:
         client.close()
 
@@ -84,7 +83,7 @@ def test_audio_decodes_straight_off_the_socket():
     client = soundcloud.SoundCloudClient()
     try:
         track_id = client.resolve(LIVE_URL)["tracks"][0]["id"]
-        stream = player.resolve_stream(client, track_id)
+        stream = playback.resolve_stream(client, track_id)
         assert stream.duration > 30
 
         source = player.http_source_type(miniaudio)(client.session, stream.url)
@@ -109,6 +108,34 @@ def test_audio_decodes_straight_off_the_socket():
             source.close()
     finally:
         client.close()
+
+
+def test_mp3_hls_decodes_and_seeks_when_progressive_is_absent(monkeypatch):
+    with soundcloud.SoundCloudClient() as client:
+        track_id = client.resolve(LIVE_URL)["tracks"][0]["id"]
+        payload = client.fetch_track(track_id)
+        payload["media"]["transcodings"] = [
+            item for item in payload["media"]["transcodings"]
+            if item.get("format") == {"protocol": "hls", "mime_type": "audio/mpeg"}
+        ]
+        assert payload["media"]["transcodings"], "Reference track no longer offers MP3 HLS"
+        monkeypatch.setattr(client, "fetch_track", lambda _id: payload)
+        stream = playback.resolve_stream(client, track_id)
+        assert stream.protocol == "hls"
+        source = player.open_source(client.session, stream.url, stream.protocol)
+        try:
+            for seconds in (0, 30, 5):
+                decoder = source.stream(seconds * player.SAMPLE_RATE)
+                try:
+                    chunk = next(decoder)
+                    assert len(chunk) > 0
+                    assert max(map(abs, chunk)) > 0
+                finally:
+                    decoder.close()
+        finally:
+            source.close()
+            source._thread.join(35)
+        assert not source._thread.is_alive()
 
 
 def test_a_full_dig_produces_store_links():
@@ -142,3 +169,11 @@ def test_a_link_hub_still_gives_up_its_shops():
     categories = {record.category for record in links.categorise(track)}
     assert {"bandcamp", "beatport"} <= categories
     assert "gate" not in categories and "others" not in categories
+
+
+def test_public_reposts_import_uses_current_stream_contract():
+    url = os.environ.get("DJ_DIGGER_REPOSTS_URL") or "https://soundcloud.com/peregrin_bonheur/reposts"
+    with soundcloud.SoundCloudClient() as client:
+        crate = client.collect(url, limit=3)
+    assert len(crate.tracks) == 3
+    assert all(track.id and track.permalink_url for track in crate.tracks)

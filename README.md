@@ -1,16 +1,16 @@
-# 🎧 dj-soundcloud-digger
+# 🎧 dj-digger
 
 [![Python Version](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
 [![Built with Textual](https://img.shields.io/badge/TUI-Textual-ff69b4.svg)](https://textual.textualize.io/)
-[![Version](https://img.shields.io/badge/version-1.0.0-orange.svg)](pyproject.toml)
+[![Version](https://img.shields.io/badge/version-1.1.0-orange.svg)](pyproject.toml)
 
 > **A local-first playlist workflow for DJs.**
 > Turn SoundCloud playlists, likes, and artist profiles into an auditionable,
 > searchable library, then find the safest available path to download or buy
 > each track.
 
-`dj-soundcloud-digger` keeps the whole digging loop in one terminal application:
+`dj-digger` keeps the whole digging loop in one terminal application:
 collect a playlist, preview and filter it, mark decisions, match music already on
 disk, and follow verified store or download links. Your library and preferences
 stay on your machine, and checkout always stays in your hands.
@@ -53,7 +53,8 @@ dj-digger https://soundcloud.com/someone/sets/that-playlist
   **Traxsource**, **JunoDownload**, **record shops**, **download gates**, **smart
   links**, and **direct SoundCloud downloads**.
 - **In-memory audio preview**: Stream, seek, prefetch upcoming tracks, and render
-  block waveforms with a reactive audio meter, powered by `miniaudio`.
+  block waveforms with stable progress coloring, powered by `miniaudio`.
+  SoundCloud preview supports progressive MP3 and MP3 HLS (up to 50 MiB in memory).
 - **Multi-playlist local library**: Save, switch, refresh, and search playlists stored in
   `~/.local/share/dj-digger/digger.db`.
 - **Cross-playlist track memory**: A decision made for a SoundCloud track applies
@@ -69,24 +70,26 @@ dj-digger https://soundcloud.com/someone/sets/that-playlist
 
 ## 📦 Installation
 
+The PyPI distribution is `dj-sc-digger`; launch it with `dj-digger`.
+
 ### Recommended (via `uv` or `pipx`)
 
 ```bash
 # Install with audio preview; store-cart support is included
-uv tool install 'dj-soundcloud-digger[play]'
+uv tool install 'dj-sc-digger[play]'
 ```
 
 or with `pipx`:
 
 ```bash
-pipx install 'dj-soundcloud-digger[play]'
+pipx install 'dj-sc-digger[play]'
 ```
 
 ### From Source (Development)
 
 ```bash
-git clone https://github.com/fbialogrecki/dj-soundcloud-digger.git
-cd dj-soundcloud-digger
+git clone https://github.com/fbialogrecki/dj-digger.git
+cd dj-digger
 uv venv
 uv pip install -e '.[play,dev]'
 ```
@@ -97,9 +100,17 @@ Run the working tree without installing or releasing anything:
 uv run --extra play dj-digger
 ```
 
+Logs are saved automatically at INFO level. Press `F5`, or click **Open logs**
+in Help/Settings, to view recent entries and open their folder. The application
+keeps up to five log files of 2 MiB each, redacts credentials, and never uploads
+diagnostics automatically. Locations:
+
+- Linux: `$XDG_STATE_HOME/dj-digger` or `~/.local/state/dj-digger`.
+- Windows: `%LOCALAPPDATA%\dj-digger\Logs`.
+- macOS: `~/Library/Logs/dj-digger`.
+
 The browser is drawn on standard error, so `2>file` would redirect the interface
-itself and leave you looking at a blank terminal. To keep a log while it is up,
-use `--log-file`:
+itself. For more detail or a different log destination, use:
 
 ```bash
 uv run --extra play dj-digger --log-level DEBUG --log-file /tmp/dj-digger.log
@@ -139,7 +150,7 @@ XDG_DATA_HOME=/tmp/dj-dev XDG_CONFIG_HOME=/tmp/dj-dev XDG_CACHE_HOME=/tmp/dj-dev
 Launching `dj-digger` opens an interactive Textual browser divided into three key areas:
 1. **Playlist Sidebar (`Ctrl+B`)**: Switch between saved playlists, add new links (`a`), or refresh existing playlists (`r`).
 2. **Track Table**: Displays tracks with status badges (`·` untouched, `○` opened, `✓` got, `✗` skipped), position, artist/title, available store badges, genre, and duration.
-3. **Player & Waveform Bar**: A four-row, 32-level waveform with a real-time VU level meter, over a one-row control strip: previous / play-pause / next buttons, track title, clock, a drag-to-set volume slider, and a close button.
+3. **Player & Waveform Bar**: A four-row, 32-level waveform with stable played/unplayed colors, over a one-row control strip: previous / play-pause / next buttons, track title, clock, a drag-to-set volume slider, and a close button.
 
 ```
 ▸ 0 all  1 soundcloud·18  2 bandcamp·12  3 gate·53      83/83 tracks · got 0 · skipped 4
@@ -179,6 +190,7 @@ Press `?` inside the TUI at any time to view the full grouped keybinding modal.
 | --- | --- |
 | `/` | Live search/filter by artist, title, genre, tag or label (every word must match, any order) |
 | `t` / `Shift+t` | Sort by title, time, genre, status or store (`t` cycles, `Shift+t` reverses); the header shows the arrow |
+| `F4` | Show counts for the current loaded view; no scan or network request |
 | `v` / `Shift+v` / `Ctrl+A` | Select a row / extend the selection to here / select everything shown; batch keys then act on the selection |
 | `1` – `9` | Jump directly to store category filter |
 | `0` | Reset store filter (show all tracks) |
@@ -196,7 +208,7 @@ Press `?` inside the TUI at any time to view the full grouped keybinding modal.
 | `Ctrl+B` | Toggle Playlist Sidebar |
 | `s` | Settings: profile, folders, browser, store session |
 | `?` | Full keybinding help |
-| `q` / `Ctrl+C` | Quit |
+| `q` / `Ctrl+C` / `Ctrl+Q` | Quit (`Ctrl+Shift+C` remains separate for copying when the terminal distinguishes it) |
 
 ---
 
@@ -430,3 +442,144 @@ uv run pytest -m shop_live
 ## 📄 License
 
 Distributed under the **Apache License 2.0**. See [`LICENSE`](LICENSE) for details.
+
+## Local music and club folders (1.1)
+
+Open a folder with `ctrl+f`, or use the explorer below your playlists. Files are
+loaded in pages of 250; `ctrl+n` moves to the next page. Opening a folder lists
+names first, then reads audio tags in the background. It does not analyze audio.
+Space or Enter previews a local file. FFmpeg/ffprobe must be installed and on
+PATH; playback also needs the `play` extra. WAV, AIFF/AIF, FLAC/FLA, MP3, AAC,
+and M4A/MP4 audio are supported, subject to successful decoder inspection.
+
+The bottom bar changes when you open local music. Its actions are clickable.
+
+To convert or prepare a club folder:
+
+1. Open a directory and optionally select tracks (`v`, or `ctrl+a` for the page).
+2. Click **Convert** in the bottom bar (or press `ctrl+e`). With no selection in a folder, export includes all matching files across every page.
+3. Choose the target format and maximum bit depth/sample rate, and enter the destination directory. A new folder with copies is the default.
+4. Click **Inspect files and review plan**, check each action and the actual deck compatibility, then click **Execute this plan**.
+
+To find BPM and key, click **Analyze BPM/key** (or `j`) to start immediately.
+With no selection this analyzes the highlighted track. **Analyze folder**
+(`Shift+J`) analyzes all audio files directly in the open folder, across every
+page and regardless of selection or filters. Subfolders are not included.
+The BPM and Key columns are always visible in local folder and local-playlist
+views, including previously saved results without rerunning analysis. Use
+**Edit BPM/key** (`ctrl+k`) to correct them manually.
+After analysis, a short notification counts detected keys, unclear keys and
+processing errors; no summary panel opens. Missing-result reasons and technical
+errors are recorded in the logs (**F5** / **Open logs**). Per-file details are also
+stored privately as `last-analysis.jsonl` in the default log directory, replaced
+by the next run. Unclear keys are estimates without a decisive match, not decoder
+failures. The analysis cache version recalculates older results once when analysis
+is requested to record missing-result reasons.
+For a checkout, start with `uv run --extra play --extra analyze dj-digger`.
+
+| Key | Local library action |
+| --- | --- |
+| `ctrl+f` | Open a directory by path |
+| `ctrl+n` | Next directory page (wrap to first) |
+| `ctrl+p` | Pin the current directory |
+| `ctrl+t` | Sidebar split: 50/50, 70/30, 30/70 |
+| `ctrl+r` | Show playlists, explorer, or both; small terminals show one section |
+| `ctrl+l` | Add selected local files to a named local playlist; same name appends |
+| `j` | Immediately estimate BPM and key for selected local files, or the highlighted track |
+| `Shift+J` | Immediately analyze every audio file in the open folder, across all pages |
+| `x` | In the explorer, confirm permanent deletion of selected/highlighted files from disk; in playlists, remove playlist entries only |
+| `ctrl+k` | Edit manual BPM/key, double/halve tempo, or clear overrides |
+| `ctrl+e` | Inspect and export local audio for club players |
+| `ctrl+u` | Review/resume the most recent unfinished folder export |
+| `i` | Import playlists created by a SoundCloud profile |
+
+Install analysis with `pip install 'dj-sc-digger[play,analyze]'` (or the equivalent
+pipx/uv tool command). Analysis is optional and its libraries load in a separate
+process only when requested. Results are estimates; ambiguous rhythm/key and
+silence can return no value. Manual values take precedence, followed by current
+analysis, then tags. Analysis never writes audio tags or rekordbox data.
+
+Audio export defaults to **WAV, maximum 24-bit / 48 kHz, a NEW folder**. The
+format applies to files requiring conversion. Compatible MP3/AAC and compatible
+lossless files are kept rather than unnecessarily transcoded. All selected files
+are copied, including unchanged files; original directories are preserved. With
+no explicit selection, an open folder exports all matching files, including pages
+not currently displayed. Recursive inclusion is an explicit checkbox.
+
+The dialog shows manufacturer-documented profile compatibility and then the
+compatibility of the actual planned set, including retained MP3/AAC parameters.
+For example, 32 kHz MP3 can remain untouched but excludes CDJ-3000/3000X from the
+actual compatible list. Unverified parameters are never shown as compatible.
+This is **audio-file compatibility**, not hardware testing, a rekordbox export,
+or approval of any USB filesystem. You can choose a mounted USB directory as
+the destination; the app never formats a drive.
+
+Replacement is optional and must be selected afresh for every operation. It
+keeps a temporary original until the new file is verified and SQLite is updated,
+then removes that original. Recovery preserves ambiguous files. Successful
+replacement leaves no permanent backup. Symbolic/hard links and playing or
+prefetched files cannot be replaced. Conversion never silently upsamples,
+downmixes, normalizes, or converts a lossy file to improve its supposed quality.
+Exceptions and omitted metadata are listed in the operation report.
+
+Profile playlist import is separate from the existing profile-track dig. Public
+playlists do not require login. Private playlists require a valid session for the
+profile owner. This relies on SoundCloud's undocumented API: an incomplete or
+missing-track response preserves the old playlist and is reported. No external
+download gates are resolved by a mass import.
+
+### Upgrade from the old package name
+
+Close every running instance first. **Uninstall `dj-soundcloud-digger` before
+installing `dj-sc-digger`**: both distributions own the same module and CLI script.
+Do not install them together. Choose the commands for the manager you used:
+
+```sh
+# pip, inside the same virtual environment
+python -m pip uninstall dj-soundcloud-digger
+python -m pip install 'dj-sc-digger[play,analyze]'
+
+# pipx
+pipx uninstall dj-soundcloud-digger
+pipx install 'dj-sc-digger[play,analyze]'
+
+# uv tools
+uv tool uninstall dj-soundcloud-digger
+uv tool install 'dj-sc-digger[play,analyze]'
+```
+
+The `dj_digger` module, `dj-digger` command, configuration and data directories
+keep their names. Schema 0/1 databases with the recognized 1.0 shape get a
+verified SQLite backup including committed WAL data before migration to schema
+2. Unknown databases are refused without changes. Downgrading requires consciously
+restoring that backup while the app is closed; there is no automatic downgrade.
+See [release procedure](docs/implementation/release-1.1.md) and
+[deck rule sources](docs/implementation/deck-sources.md).
+
+
+### Responsive views and analysis validation
+
+The normal 80×24 view keeps local BPM, Key and Time visible. Secondary columns
+fold away without changing your column preferences or sort. Press **F4** for a
+summary of the loaded view; folder counts explicitly describe the loaded page.
+Settings group Appearance, Files, Accounts and Gates into tabs, with Save/Cancel
+always available. Account actions take effect immediately; cancelling preferences
+does not undo a login or profile reset.
+
+Export dialogs keep their main actions visible. Target-profile compatibility is
+expandable, while the review describes the actual planned file set. Replacement
+warnings stay next to the execution controls. **Ctrl+K** shows whether each local
+BPM/key value comes from a manual override, an estimate or a file tag.
+
+For a repeatable raw-analysis benchmark, use a fresh output directory:
+
+```bash
+uv run --extra analyze python scripts/benchmark_analysis.py --output /tmp/digger-benchmark
+```
+
+Add `--corpus /path/to/music` to read immediate audio files without editing audio
+or tags. Optional `--references references.json` maps filenames to entries such as
+`{"bpm": 120, "key": "Am", "verified": true}`. Only verified references count
+toward accuracy; embedded tags are not assumed to be ground truth. The report
+separates incorrect estimates, missing answers and half/double tempo. Controlled
+cadences test intended tonal patterns; they do not validate real-music accuracy.

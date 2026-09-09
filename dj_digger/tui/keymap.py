@@ -66,6 +66,13 @@ FOOTER_OPTIONAL = (
     "start_search",
 )
 
+# Local actions stay clickable in the footer without changing keyboard bindings.
+LOCAL_FOOTER_ACTIONS = (
+    'local_export', 'local_analyze', 'local_analyze_folder', 'play_pause', 'cancel_job', 'remove_track', 'toggle_select',
+    'local_edit', 'local_playlist', 'start_search', 'help', 'quit',
+)
+LOCAL_FOOTER_OPTIONAL = ('local_playlist', 'start_search', 'local_edit', 'toggle_select', 'quit', 'remove_track', 'local_analyze_folder')
+
 # Everything except the title gets a fixed budget; the title takes the rest, so
 # a wide terminal shows long titles instead of an empty margin.
 MARK_WIDTH = 1
@@ -105,6 +112,20 @@ OTHER = "Other"
 # (key, action, footer label, section, show in footer, longer help text).
 # Footer labels stay short because it gets one line; help has the room to explain.
 KEYMAP = [
+    ("f4", "view_summary", "View summary", OTHER, False, "Show counts for the loaded view without scanning"),
+    ('ctrl+u', 'local_resume', 'Resume export', OTHER, False, 'Resume the most recent unfinished folder export'),
+    ('ctrl+r', 'local_section', 'Sidebar section', OTHER, False, 'Toggle playlists, explorer or both; useful in small terminals'),
+    ('ctrl+f', 'local_folder', 'Folder', OTHER, False, 'Open a local music directory'),
+    ('ctrl+e', 'local_export', 'Convert', OTHER, False, 'Prepare a folder of deck-compatible audio'),
+    ('j', 'local_analyze', 'Analyze BPM/key', OTHER, False, 'Estimate BPM and key for selected local audio'),
+    ('J', 'local_analyze_folder', 'Analyze folder', OTHER, False, 'Analyze every audio file in the open folder, across all pages'),
+    ('f5', 'open_logs', 'Open logs', OTHER, False, 'View local diagnostic logs and open their folder'),
+    ('ctrl+k', 'local_edit', 'Edit BPM/key', OTHER, False, 'Edit manual BPM and key; double/halve tempo'),
+    ('ctrl+l', 'local_playlist', 'Local playlist', OTHER, False, 'Add local files to a local playlist'),
+    ('ctrl+n', 'local_page', 'Next page', OTHER, False, 'Next page of the current directory'),
+    ('ctrl+p', 'local_pin', 'Pin folder', OTHER, False, 'Pin the current directory in the explorer'),
+    ('ctrl+t', 'local_split', 'Panel split', OTHER, False, 'Change sidebar split: 50/50, 70/30, 30/70'),
+    ('i', 'profile_playlists', 'Import profile', OTHER, False, 'Import playlists created by a SoundCloud profile'),
     ("o,enter", "open_link", "Open", SELECTED, True, "Open its best link, or the filtered store"),
     ("O", "open_visible", "Open all", WHOLE_LIST, True, "Open every link shown, asks above 20"),
     ("d", "download_track", "Download", SELECTED, True, "Download an artist-provided SoundCloud file"),
@@ -118,7 +139,7 @@ KEYMAP = [
     ("g", "mark_got", "Got", SELECTED, True, "Mark as got, press again to undo"),
     ("k", "mark_skip", "Skip", SELECTED, True, "Mark as skipped, press again to undo"),
     ("u", "mark_new", "Unmark", SELECTED, True, "Clear the mark either way"),
-    ("x", "remove_track", "Remove", SELECTED, False, "Remove from this playlist, locally only"),
+    ("x", "remove_track", "Remove", SELECTED, False, "Remove from a playlist, or confirm deletion from disk in the explorer"),
     ("ctrl+z", "undo_remove", "Undo", SELECTED, False, "Put back the last removed track"),
     ("space", "play_pause", "Play", PLAYBACK, True, "Play or pause the highlighted track"),
     ("left_square_bracket", "seek(-1)", "Back", PLAYBACK, False, "Back 10 seconds"),
@@ -147,7 +168,7 @@ KEYMAP = [
     ("ctrl+b", "toggle_sidebar", "Playlists", CRATES, False, "Show or hide the playlist sidebar"),
     ("question_mark", "help", "Help", OTHER, True, "This screen"),
     ("s", "open_settings", "Settings", OTHER, True, "Configure profile name, email and gate comments"),
-    ("q", "quit", "Quit", OTHER, True, "Leave (ctrl+c does the same)"),
+    ("q", "quit", "Quit", OTHER, True, "Leave (ctrl+c and ctrl+q also quit)"),
 ]
 
 # Bound ahead of the focused widget: Input takes ctrl+x as "cut", and a stop
