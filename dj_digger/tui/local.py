@@ -250,7 +250,7 @@ class LocalController:
 
             from ..media import MediaError, binary
             if find_spec('librosa') is None:
-                raise MediaError("BPM/key analysis needs dj-digger[analyze]. For a local checkout, restart with: uv run --extra play --extra analyze dj-digger")
+                raise MediaError("BPM/key analysis needs dj-sc-digger[analyze]. For a local checkout, restart with: uv run --extra play --extra analyze dj-digger")
             binary('ffmpeg')
             binary('ffprobe')
             sources = (self.library.selection(folder, cancel=cancel) if folder is not None

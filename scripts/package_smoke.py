@@ -16,7 +16,7 @@ def main():
     options = parser.parse_args()
     if options.wheel is None:
         project = Path(__file__).resolve().parents[1]
-        metadata = tomllib.loads((project / 'pyproject.toml').read_text())['project']
+        metadata = tomllib.loads((project / 'pyproject.toml').read_text(encoding='utf-8'))['project']
         name = re.sub(r'[-_.]+', '_', metadata['name']).lower()
         options.wheel = project / 'dist' / f"{name}-{metadata['version']}-py3-none-any.whl"
     wheel = options.wheel.resolve()
@@ -33,7 +33,7 @@ def main():
             subprocess.run(['uv', 'pip', 'install', '--python', str(python), str(options.legacy_wheel.resolve())], check=True, env=env)
             subprocess.run(['uv', 'pip', 'uninstall', '--python', str(python), 'dj-soundcloud-digger'], check=True, env=env)
         subprocess.run(['uv', 'pip', 'install', '--python', str(python), str(wheel)], check=True, env=env)
-        subprocess.run([str(python), '-c', 'import dj_digger.cli; import dj_digger.tui; import dj_digger.analysis'], check=True, cwd=root, env=env)
+        subprocess.run([str(python), '-c', 'import dj_digger.cli; import dj_digger.tui; import dj_digger.analysis; from importlib.metadata import version; assert dj_digger.__version__ == version("dj-sc-digger")'], check=True, cwd=root, env=env)
         subprocess.run([str(python), '-m', 'dj_digger', '--version'], check=True, cwd=root, env=env)
         subprocess.run([str(python), '-m', 'dj_digger', '--help'], check=True, cwd=root, env=env, stdout=subprocess.DEVNULL)
         assert sentinel.read_text() == 'user data stays'

@@ -5,8 +5,8 @@
 - Product version verified: 1.1.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-09-09
-- Document lines: <!-- SPEC TOTAL LINES -->1430<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1430<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1436<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1436<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -66,48 +66,48 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 5.1 | ↳ Entry, orchestration, and models | 657–668 |
 | 5.2 | ↳ Network and external-system adapters | 669–687 |
 | 5.3 | ↳ Persistence, local media, and UI | 688–724 |
-| 6 | Runtime architecture and environments | 725–832 |
-| 6.1 | ↳ Runtime and dependencies | 727–742 |
-| 6.2 | ↳ Concurrency and lifecycle | 743–811 |
-| 6.3 | ↳ Local paths and environment variables | 812–832 |
-| 7 | Data model and persistence | 833–920 |
-| 7.1 | ↳ Domain objects and identity | 835–849 |
-| 7.2 | ↳ SQLite schema and invariants | 850–887 |
-| 7.3 | ↳ Crate persistence and deletion | 888–903 |
-| 7.4 | ↳ Configuration and credential stores | 904–920 |
-| 8 | Public interfaces and contracts | 921–977 |
-| 8.1 | ↳ CLI arguments and exit behavior | 923–951 |
-| 8.2 | ↳ JSON and CSV summary input | 952–966 |
-| 8.3 | ↳ URL-opening contract | 967–977 |
-| 9 | Authentication and authorization | 978–1021 |
-| 9.1 | ↳ SoundCloud authentication | 980–1000 |
-| 9.2 | ↳ Gate action consent | 1001–1021 |
-| 10 | External integrations | 1022–1157 |
-| 10.1 | ↳ SoundCloud API and media | 1024–1035 |
-| 10.2 | ↳ Link hubs and download gates | 1036–1098 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1044–1084 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1086–1091 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1093–1098 |
-| 10.3 | ↳ Browsers and clipboard | 1099–1110 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1111–1157 |
-| 11 | Security requirements and threat model | 1158–1212 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1160–1178 |
-| 11.2 | ↳ Secret and personal-data handling | 1179–1194 |
-| 11.3 | ↳ File and mutation safety | 1195–1212 |
-| 12 | Privacy, lifecycle, and retention | 1213–1256 |
-| 12.1 | ↳ Data stored locally | 1215–1234 |
-| 12.2 | ↳ Data sent to third parties | 1235–1246 |
-| 12.3 | ↳ User-controlled deletion | 1247–1256 |
-| 13 | Failure behavior and current limitations | 1257–1317 |
-| 13.1 | ↳ Error isolation and reporting | 1259–1278 |
-| 13.2 | ↳ Confirmed limitations | 1279–1317 |
-| 14 | Verification, CI, and release | 1318–1401 |
-| 14.1 | ↳ Offline and live test suites | 1320–1366 |
-| 14.2 | ↳ Continuous integration and publishing | 1367–1386 |
-| 14.3 | ↳ Specification-map verification | 1387–1401 |
-| 15 | Evidence and operational references | 1402–1430 |
-| 15.1 | ↳ Primary implementation evidence | 1404–1420 |
-| 15.2 | ↳ User and historical documentation | 1421–1430 |
+| 6 | Runtime architecture and environments | 725–838 |
+| 6.1 | ↳ Runtime and dependencies | 727–748 |
+| 6.2 | ↳ Concurrency and lifecycle | 749–817 |
+| 6.3 | ↳ Local paths and environment variables | 818–838 |
+| 7 | Data model and persistence | 839–926 |
+| 7.1 | ↳ Domain objects and identity | 841–855 |
+| 7.2 | ↳ SQLite schema and invariants | 856–893 |
+| 7.3 | ↳ Crate persistence and deletion | 894–909 |
+| 7.4 | ↳ Configuration and credential stores | 910–926 |
+| 8 | Public interfaces and contracts | 927–983 |
+| 8.1 | ↳ CLI arguments and exit behavior | 929–957 |
+| 8.2 | ↳ JSON and CSV summary input | 958–972 |
+| 8.3 | ↳ URL-opening contract | 973–983 |
+| 9 | Authentication and authorization | 984–1027 |
+| 9.1 | ↳ SoundCloud authentication | 986–1006 |
+| 9.2 | ↳ Gate action consent | 1007–1027 |
+| 10 | External integrations | 1028–1163 |
+| 10.1 | ↳ SoundCloud API and media | 1030–1041 |
+| 10.2 | ↳ Link hubs and download gates | 1042–1104 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1050–1090 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1092–1097 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1099–1104 |
+| 10.3 | ↳ Browsers and clipboard | 1105–1116 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1117–1163 |
+| 11 | Security requirements and threat model | 1164–1218 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1166–1184 |
+| 11.2 | ↳ Secret and personal-data handling | 1185–1200 |
+| 11.3 | ↳ File and mutation safety | 1201–1218 |
+| 12 | Privacy, lifecycle, and retention | 1219–1262 |
+| 12.1 | ↳ Data stored locally | 1221–1240 |
+| 12.2 | ↳ Data sent to third parties | 1241–1252 |
+| 12.3 | ↳ User-controlled deletion | 1253–1262 |
+| 13 | Failure behavior and current limitations | 1263–1323 |
+| 13.1 | ↳ Error isolation and reporting | 1265–1284 |
+| 13.2 | ↳ Confirmed limitations | 1285–1323 |
+| 14 | Verification, CI, and release | 1324–1407 |
+| 14.1 | ↳ Offline and live test suites | 1326–1372 |
+| 14.2 | ↳ Continuous integration and publishing | 1373–1392 |
+| 14.3 | ↳ Specification-map verification | 1393–1407 |
+| 15 | Evidence and operational references | 1408–1436 |
+| 15.1 | ↳ Primary implementation evidence | 1410–1426 |
+| 15.2 | ↳ User and historical documentation | 1427–1436 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -725,6 +725,12 @@ playback time and are not stored in the crate record.
 ## 6. Runtime architecture and environments
 
 ### 6.1 Runtime and dependencies
+
+The PyPI distribution is `dj-sc-digger`; its installed metadata provides
+`dj_digger.__version__`. The command remains `dj-digger`, the Python module
+remains `dj_digger`, and existing data/configuration directories keep their names.
+Users uninstall `dj-soundcloud-digger` before installing `dj-sc-digger`, because
+the two distributions own the same module and command.
 
 The package requires Python 3.12 or newer and is built with Hatchling. Runtime
 dependencies are `requests`, `beautifulsoup4`, `textual` (pinned to the 8.x
@@ -1381,7 +1387,7 @@ gate.
 `.github/workflows/publish.yml` runs its own offline test matrix for a published
 release or manual dispatch, checks the specification map before building, builds
 with `uv build`, and publishes to PyPI through a pinned action using trusted
-publisher OIDC. The publish job has `id-token: write`; other workflow permissions
+publisher OIDC for `dj-sc-digger`. The publish job has `id-token: write`; other workflow permissions
 default to read-only contents.
 
 ### 14.3 Specification-map verification

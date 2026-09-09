@@ -9,7 +9,7 @@
 - Manufacturer-based deck profiles, verified complete-folder audio export and journaled replacement/recovery.
 - Public/owner-private SoundCloud profile playlist import with stable provider identity and partial-response protection.
 - Schema 2 migration with consistent SQLite backups and a CLI instance lock.
-- Distribution/repository rename to dj-digger; module, CLI and data directories remain unchanged.
+- Distribution renamed to `dj-sc-digger`; GitHub repository renamed to `dj-digger`; module, CLI and data directories remain unchanged.
 - Private rotating diagnostic logs, an in-app log viewer and per-file analysis reports.
 - F4 view summaries and an isolated analysis benchmark with explicit reference coverage.
 

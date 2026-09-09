@@ -70,17 +70,19 @@ dj-digger https://soundcloud.com/someone/sets/that-playlist
 
 ## 📦 Installation
 
+The PyPI distribution is `dj-sc-digger`; launch it with `dj-digger`.
+
 ### Recommended (via `uv` or `pipx`)
 
 ```bash
 # Install with audio preview; store-cart support is included
-uv tool install 'dj-digger[play]'
+uv tool install 'dj-sc-digger[play]'
 ```
 
 or with `pipx`:
 
 ```bash
-pipx install 'dj-digger[play]'
+pipx install 'dj-sc-digger[play]'
 ```
 
 ### From Source (Development)
@@ -491,7 +493,7 @@ For a checkout, start with `uv run --extra play --extra analyze dj-digger`.
 | `ctrl+u` | Review/resume the most recent unfinished folder export |
 | `i` | Import playlists created by a SoundCloud profile |
 
-Install analysis with `pip install 'dj-digger[play,analyze]'` (or the equivalent
+Install analysis with `pip install 'dj-sc-digger[play,analyze]'` (or the equivalent
 pipx/uv tool command). Analysis is optional and its libraries load in a separate
 process only when requested. Results are estimates; ambiguous rhythm/key and
 silence can return no value. Manual values take precedence, followed by current
@@ -529,21 +531,21 @@ download gates are resolved by a mass import.
 ### Upgrade from the old package name
 
 Close every running instance first. **Uninstall `dj-soundcloud-digger` before
-installing `dj-digger`**: both distributions own the same module and CLI script.
+installing `dj-sc-digger`**: both distributions own the same module and CLI script.
 Do not install them together. Choose the commands for the manager you used:
 
 ```sh
 # pip, inside the same virtual environment
 python -m pip uninstall dj-soundcloud-digger
-python -m pip install 'dj-digger[play,analyze]'
+python -m pip install 'dj-sc-digger[play,analyze]'
 
 # pipx
 pipx uninstall dj-soundcloud-digger
-pipx install 'dj-digger[play,analyze]'
+pipx install 'dj-sc-digger[play,analyze]'
 
 # uv tools
 uv tool uninstall dj-soundcloud-digger
-uv tool install 'dj-digger[play,analyze]'
+uv tool install 'dj-sc-digger[play,analyze]'
 ```
 
 The `dj_digger` module, `dj-digger` command, configuration and data directories

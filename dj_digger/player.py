@@ -50,7 +50,7 @@ def _import_miniaudio():
         import miniaudio
     except ImportError as exc:  # pragma: no cover - depends on the install
         raise PlaybackUnavailable(
-            "Audio preview needs miniaudio: pip install 'dj-digger[play]'"
+            "Audio preview needs miniaudio: pip install 'dj-sc-digger[play]'"
         ) from exc
     return miniaudio
 

@@ -1,6 +1,6 @@
 # Release and package-name migration
 
-Distribution: `dj-digger` 1.1.0. Python module: `dj_digger`.
+Distribution: `dj-sc-digger` 1.1.0. Python module: `dj_digger`.
 Command and XDG directories remain `dj-digger`.
 
 ## Publication prerequisites
@@ -17,11 +17,12 @@ Command and XDG directories remain `dj-digger`.
 
 ## GitHub and Trusted Publisher
 
-Rename the existing repository to `fbialogrecki/dj-digger`; keep history, issues,
-releases and tags. Update the local remote. Do not create another repository
+The repository is `fbialogrecki/dj-digger`; history, issues, releases and tags
+are preserved. The PyPI distribution is `dj-sc-digger`, because `dj-digger`
+is already used by an unrelated PyPI project. Do not create another repository
 under `dj-soundcloud-digger`, which would break the old-name redirects.
 
-On PyPI, configure a pending Trusted Publisher for the **new** `dj-digger`
+On PyPI, configure a pending Trusted Publisher for the **new** `dj-sc-digger`
 project, with owner `fbialogrecki`, repository `dj-digger`, workflow
 `publish.yml`, environment `pypi`. Update the old project's publisher to the
 same renamed repository (the legacy branch retains the publishing workflow).
@@ -36,7 +37,7 @@ publish both distributions from one mixed `dist/` directory.
 
 Branch `release/legacy-name-1.0.1` starts at `v1.0.0`, not at the new feature
 branch. It keeps the old distribution and implementation and only updates the
-version, migration notice and read-only refusal to open schema >1 on downgrade. It must not depend on `dj-digger`: both packages
+version, migration notice and read-only refusal to open schema >1 on downgrade. It must not depend on `dj-sc-digger`: both packages
 own `dj_digger` and the `dj-digger` entry point, so pip installation ordering
 cannot make a metapackage migration safe.
 

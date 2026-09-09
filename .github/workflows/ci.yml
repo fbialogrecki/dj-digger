@@ -71,6 +71,6 @@ jobs:
         if: matrix.python-version == '3.14'
         run: |
           uv build --project .legacy-release --out-dir .legacy-dist
-          uv run --no-sync python scripts/tool_migration_smoke.py .legacy-dist/dj_soundcloud_digger-1.0.1-py3-none-any.whl dist/dj_digger-1.1.0-py3-none-any.whl --manager pip
-          uv run --no-sync python scripts/tool_migration_smoke.py .legacy-dist/dj_soundcloud_digger-1.0.1-py3-none-any.whl dist/dj_digger-1.1.0-py3-none-any.whl --manager pipx
-          uv run --no-sync python scripts/tool_migration_smoke.py .legacy-dist/dj_soundcloud_digger-1.0.1-py3-none-any.whl dist/dj_digger-1.1.0-py3-none-any.whl --manager uv
+          uv run --no-sync python scripts/tool_migration_smoke.py .legacy-dist/dj_soundcloud_digger-1.0.1-py3-none-any.whl dist/dj_sc_digger-1.1.0-py3-none-any.whl --manager pip
+          uv run --no-sync python scripts/tool_migration_smoke.py .legacy-dist/dj_soundcloud_digger-1.0.1-py3-none-any.whl dist/dj_sc_digger-1.1.0-py3-none-any.whl --manager pipx
+          uv run --no-sync python scripts/tool_migration_smoke.py .legacy-dist/dj_soundcloud_digger-1.0.1-py3-none-any.whl dist/dj_sc_digger-1.1.0-py3-none-any.whl --manager uv
