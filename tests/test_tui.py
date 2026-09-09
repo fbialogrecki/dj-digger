@@ -5130,14 +5130,14 @@ def test_local_explorer_and_export_dialog_defaults(state, tmp_path, monkeypatch)
     from textual.widgets import Checkbox, Tree
 
     from dj_digger.services.local_library import LocalLibrary
-    from dj_digger.tui.local_screens import ExportOptions
+    from dj_digger.tui.local_screens import AnalysisEdit, ExportOptions
 
     path = tmp_path / 'local.wav'
     path.write_bytes(b'not decoded in this UI test')
     local = LocalLibrary(state.db)
     track = local.register(path)
     monkeypatch.setattr(LocalLibrary, 'register', lambda self, path, **kwargs: track)
-    app = make_app([], state)
+    app = make_app(synthetic_records(1), state)
 
     async def scenario():
         async with app.run_test(size=(140, 50)) as pilot:
@@ -5156,7 +5156,7 @@ def test_local_explorer_and_export_dialog_defaults(state, tmp_path, monkeypatch)
             assert not app.screen.query_one('#replace', Checkbox).value
             await pilot.press('escape')
             app.action_local_edit()
-            await pilot.pause()
+            await wait_for_ui(pilot, lambda: isinstance(app.screen, AnalysisEdit) and app.screen.is_mounted)
             app.screen.query_one('#bpm', Input).value = '128'
             app.screen.query_one('#save', Button).press()
             await pilot.pause()  # dispatch Button.Pressed before waiting for its worker
@@ -5611,3 +5611,26 @@ def test_waveform_colour_does_not_change_with_music_level(state):
             assert quiet.spans == loud.spans
 
     run(scenario)
+
+
+def test_shutdown_discards_late_table_layout_event(state, monkeypatch):
+    original = DiggerApp.on_unmount
+    delivered = []
+
+    async def unmount(self):
+        # Textual removes screens before dispatching Unmount. A queued layout
+        # message must not look up table widgets once shutdown has started.
+        assert not self.is_running
+        self.on_track_table_layout_changed(TrackTable.LayoutChanged())
+        delivered.append(True)
+        await original(self)
+
+    monkeypatch.setattr(DiggerApp, 'on_unmount', unmount)
+    app = make_app(synthetic_records(1), state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await settle(app, pilot)
+
+    run(scenario)
+    assert delivered == [True]

@@ -506,7 +506,9 @@ class DiggerApp(App):
 
     def on_track_table_layout_changed(self, event: TrackTable.LayoutChanged) -> None:
         event.stop()
-        self.table_controller.relayout()
+        # Queued resize messages may arrive after shutdown removes the table.
+        if self.is_running:
+            self.table_controller.relayout()
 
     def _handle_exception(self, error: Exception) -> None:
         """Put the crash in the log before Textual tears the screen down.

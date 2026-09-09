@@ -22,6 +22,8 @@
 
 ### Fixed
 
+- Late table-layout events no longer access removed widgets during application shutdown.
+
 - SoundCloud repost collection uses the current stream endpoint and rejects repeated pagination pages.
 - SoundCloud preview falls back to MP3 HLS when progressive MP3 is absent; account/region blocks, absent streams and unsupported formats have distinct diagnostics.
 - Browser launch failures are reported accurately, and automatic local scans no longer show access errors for folders the user did not explicitly open.
