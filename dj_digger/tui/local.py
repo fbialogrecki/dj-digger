@@ -194,8 +194,8 @@ class LocalController:
             if folder and not selected:
                 sources = self.library.selection(folder, recursive=options['recursive'], cancel=cancel)
                 if search or hide_handled:
-                    from .playlist import filter_rows
-                    from .rows import Row
+                    from ..playlist import filter_rows
+                    from ..rows import Row
                     matching = []
                     for path in sources:
                         track = self.library.register(path, inspect=bool(search), cancel=cancel)

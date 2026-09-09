@@ -597,6 +597,11 @@ class Player:
     def toggle_mute(self) -> None:
         self._muted = not self._muted
 
+    @property
+    def level(self) -> float:
+        """The set volume regardless of mute, the value worth remembering."""
+        return self._volume
+
     def unload(self) -> None:
         """Stop and forget the track, so the bar has nothing left to say.
 

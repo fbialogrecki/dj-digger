@@ -6,8 +6,8 @@ Composed by ``DiggerApp`` with explicit state and presentation callbacks.
 from textual.widgets import DataTable, Input
 
 from ..models import LinkRecord
-from .playlist import filter_rows, operation_targets, sort_rows
-from .rows import Row
+from ..playlist import filter_rows, operation_targets, sort_rows
+from ..rows import Row
 
 # What ``t`` cycles through, in order. The last three only when their column
 # is switched on in Settings.

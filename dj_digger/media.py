@@ -37,7 +37,10 @@ def digest(path: Path, cancel=None) -> str:
 
 
 def binary(name: str) -> str:
-    found = shutil.which(name)
+    from .bundled import tool
+
+    bundled = tool(name)
+    found = str(bundled) if bundled else shutil.which(name)
     if not found:
         raise MediaError(f'{name} is required for this action; install FFmpeg')
     return found
@@ -55,7 +58,9 @@ def input_args(path: Path) -> list[str]:
 def run(args: list[str], *, cancel=None, timeout=300, output_limit=2 * 1024 * 1024, process_tree=False) -> bytes:
     """Bounded output, cooperative cancellation and unconditional process reaping."""
     process = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE, start_new_session=os.name != "nt" and (process_tree or os.environ.get("DJ_DIGGER_ANALYSIS_CHILD") != "1"))
+                               stderr=subprocess.PIPE,
+                               creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+                               start_new_session=os.name != "nt" and (process_tree or os.environ.get("DJ_DIGGER_ANALYSIS_CHILD") != "1"))
     register(process)
     output, errors = bytearray(), bytearray()
     overflow = threading.Event()
@@ -145,7 +150,9 @@ def pcm_blocks(path: Path, *, rate=None, sample_format='f64le', filters=None, ch
         args += ['-af', filters]
     args += ['-f', sample_format, '-']
     process = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE, start_new_session=os.name != "nt" and os.environ.get("DJ_DIGGER_ANALYSIS_CHILD") != "1")
+                               stderr=subprocess.PIPE,
+                               creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+                               start_new_session=os.name != "nt" and os.environ.get("DJ_DIGGER_ANALYSIS_CHILD") != "1")
     register(process)
     chunks = queue.Queue(maxsize=8)
     stopped = threading.Event()

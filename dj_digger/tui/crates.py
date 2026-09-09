@@ -10,7 +10,7 @@ from textual.widgets import Button, DataTable, Input, ListView
 from .. import links as links_module
 from ..crate_models import CrateHeader, CrateRecord
 from ..models import LinkRecord
-from .rows import Row
+from ..rows import Row
 from .screens import ConfirmScreen
 from .widgets import CrateButton, CrateItem
 

@@ -1,3 +1,30 @@
+# Desktop usability correction — 2026-09-09
+
+`graphify update .` re-extracted the eight changed GUI/test files: 3,723 nodes,
+9,593 edges, 155 communities. The GUI backend now owns a validating `form()`
+loop and typed dialog fields; the bridge exposes message levels, pinned folders
+and explicit whole-view actions; the table model exposes counts, store totals
+and sort state. The graph records structure only; QML behavior is verified by
+the rendering/input tests and offscreen screenshots, not inferred from edges.
+
+# Desktop waveform and explorer correction — 2026-09-09
+
+The local AST refresh now contains 3,712 nodes, 9,569 edges and 137 communities.
+GUI and TUI use `waveform.py` for column levels. The GUI bridge owns the native
+Qt filesystem model; local waveform work publishes through the existing signal
+boundary after a loaded-object identity check. QML behavior is verified through
+rendering/input tests, not inferred from graph edges. Older counts below are
+historical snapshots.
+
+# Desktop graph refresh — 2026-09-09
+
+`graphify update .` refreshed local AST navigation for the desktop branch:
+3,701 nodes, 9,530 edges, 162 communities. The graph includes the new GUI
+backend/bridge/model and shared `rows.py`/`playlist.py` ownership. It is not proof
+of runtime behavior, and changed Markdown has not received semantic extraction.
+Qt Linguist `.ts` catalogs are XML rather than TypeScript and are now excluded
+from future scans. The historical release snapshot below retains its own counts.
+
 # Knowledge-graph notes
 
 Updated on 2026-09-09 from the `feat/local-library-club-export` working tree,

@@ -1,0 +1,45 @@
+name: Desktop tests and Windows test installer
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  gui:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
+      - name: Desktop contracts
+        run: uv run --frozen --extra dev --extra gui --python 3.12 pytest tests/test_gui.py tests/test_bundled_tools.py
+      - name: Isolated desktop smoke
+        run: uv run --frozen --extra gui --python 3.12 python scripts/gui_smoke.py
+  installer:
+    needs: gui
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
+      - name: Build offline installer
+        run: uv run --frozen --extra gui --extra play --extra analyze --group windows-build --python 3.12 python packaging/windows/build.py
+      - name: Frozen desktop smoke
+        run: uv run --frozen --python 3.12 python scripts/gui_smoke.py dist/dj-digger/dj-digger-gui.exe --runtime
+      - name: Installer lifecycle and installed runtime
+        run: uv run --frozen --python 3.12 python packaging/windows/test_installer.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: windows-x64-test-installer
+          path: |
+            dist/installer/*
+            dist/dj-digger/build-manifest.json
+          if-no-files-found: error
+          retention-days: 14

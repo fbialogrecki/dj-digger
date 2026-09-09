@@ -1,9 +1,9 @@
 # 🎧 dj-digger
 
 [![Python Version](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
-[![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](https://github.com/fbialogrecki/dj-digger/blob/main/LICENSE)
 [![Built with Textual](https://img.shields.io/badge/TUI-Textual-ff69b4.svg)](https://textual.textualize.io/)
-[![Version](https://img.shields.io/badge/version-1.1.0-orange.svg)](pyproject.toml)
+[![PyPI](https://img.shields.io/pypi/v/dj-sc-digger.svg)](https://pypi.org/project/dj-sc-digger/)
 
 > **A local-first playlist workflow for DJs.**
 > Turn SoundCloud playlists, likes, and artist profiles into an auditionable,
@@ -17,13 +17,38 @@ stay on your machine, and checkout always stays in your hands.
 
 The current implemented behavior, architecture, interfaces, data model, and
 security/privacy boundaries are maintained in
-[PROJECT-SPECIFICATION.md](PROJECT-SPECIFICATION.md).
+[PROJECT-SPECIFICATION.md](https://github.com/fbialogrecki/dj-digger/blob/main/PROJECT-SPECIFICATION.md).
 
 ```bash
 dj-digger https://soundcloud.com/someone/sets/that-playlist
 ```
 
 ---
+
+## Qt Quick desktop (development branch)
+
+The optional desktop runs locally using Qt Quick, without a WebView. From this
+checkout:
+
+```bash
+uv run --extra gui --extra play --extra analyze dj-digger-gui
+```
+
+Install FFmpeg/ffprobe separately when running from source. Existing CLI/TUI
+commands, library and account files remain available. Chromium starts only for
+provider flows that need it; bundling it increases installer size.
+
+The desktop keeps the TUI keymap: `a` adds a playlist, `o`/`Enter` opens links,
+`d` downloads, `g`/`k`/`u` mark got/skipped/untouched, `/` searches, `h` hides
+handled tracks, `[`/`]` seek, `n`/`p` step tracks, `m` mutes, `Ctrl+B` toggles
+the sidebar and `?` shows the full generated list. Commands that need a selection
+stay disabled without one; "all visible" variants are separate menu entries.
+
+The `Desktop tests and Windows test installer` workflow builds an unsigned,
+offline Windows 11 x64 test installer with shortcuts. This is build configuration,
+not a released or locally verified Windows binary. See the
+[desktop implementation and acceptance record](docs/implementation/qt-quick-desktop.md)
+for commands, coverage and remaining platform checks.
 
 ## ⚡ The workflow
 
@@ -70,17 +95,26 @@ dj-digger https://soundcloud.com/someone/sets/that-playlist
 
 ## 📦 Installation
 
+**Version 1.1.0 is available on [PyPI](https://pypi.org/project/dj-sc-digger/1.1.0/)
+and [GitHub Releases](https://github.com/fbialogrecki/dj-digger/releases/tag/v1.1.0).**
+Install the package `dj-sc-digger`; launch it with `dj-digger`.
+
+Upgrading from `dj-soundcloud-digger`? Follow the
+[package-name migration instructions](#upgrade-from-the-old-package-name) first.
+
 ### Recommended (via `uv` or `pipx`)
 
 ```bash
-# Install with audio preview; store-cart support is included
-uv tool install 'dj-digger[play]'
+# Install with audio preview and local BPM/key analysis
+uv tool install 'dj-sc-digger[play,analyze]'
+dj-digger
 ```
 
 or with `pipx`:
 
 ```bash
-pipx install 'dj-digger[play]'
+pipx install 'dj-sc-digger[play,analyze]'
+dj-digger
 ```
 
 ### From Source (Development)
@@ -89,13 +123,13 @@ pipx install 'dj-digger[play]'
 git clone https://github.com/fbialogrecki/dj-digger.git
 cd dj-digger
 uv venv
-uv pip install -e '.[play,dev]'
+uv pip install -e '.[play,analyze,dev]'
 ```
 
-Run the working tree without installing or releasing anything:
+Run the working tree with playback and analysis:
 
 ```bash
-uv run --extra play dj-digger
+uv run --extra play --extra analyze dj-digger
 ```
 
 Logs are saved automatically at INFO level. Press `F5`, or click **Open logs**
@@ -124,7 +158,13 @@ XDG_DATA_HOME=/tmp/dj-dev XDG_CONFIG_HOME=/tmp/dj-dev XDG_CACHE_HOME=/tmp/dj-dev
 > **Requires Python 3.12 or newer.**
 >
 > **Note on optional extras**:
-> - `play`: Enables in-memory audio preview via `miniaudio`.
+> - `play`: Enables audio preview via `miniaudio`.
+> - `analyze`: Enables local BPM/key estimation via `librosa`. Omit it if you only
+>   need playback and link collection.
+>
+> Local audio inspection, playback, analysis and export also require **FFmpeg
+> and ffprobe** installed separately and available on `PATH`.
+>
 > Store-cart support is included. On the first `c` or `C`, the app asks before
 > downloading its matching Chromium build automatically.
 
@@ -148,7 +188,7 @@ XDG_DATA_HOME=/tmp/dj-dev XDG_CONFIG_HOME=/tmp/dj-dev XDG_CACHE_HOME=/tmp/dj-dev
 Launching `dj-digger` opens an interactive Textual browser divided into three key areas:
 1. **Playlist Sidebar (`Ctrl+B`)**: Switch between saved playlists, add new links (`a`), or refresh existing playlists (`r`).
 2. **Track Table**: Displays tracks with status badges (`·` untouched, `○` opened, `✓` got, `✗` skipped), position, artist/title, available store badges, genre, and duration.
-3. **Player & Waveform Bar**: A four-row, 32-level waveform with stable played/unplayed colors, over a one-row control strip: previous / play-pause / next buttons, track title, clock, a drag-to-set volume slider, and a close button.
+3. **Player & Waveform Bar**: A four-row, 32-level waveform with stable played/unplayed colors, over a three-row control strip: previous / play-pause / next buttons, track title, clock, a drag-to-set volume slider, and a close button.
 
 ```
 ▸ 0 all  1 soundcloud·18  2 bandcamp·12  3 gate·53      83/83 tracks · got 0 · skipped 4
@@ -374,11 +414,11 @@ will then remain manual.
 
 ## 🎧 In-Memory Streaming & Waveform Engine
 
-- **Zero-Latency Playback**: Decodes audio chunks directly off the network socket in memory via `miniaudio`.
-- **Pre-Fetching & Gapless Transitions**: While listening to a track, the next track's stream URL, waveform data, and initial MBs are buffered 20 seconds prior to track completion.
-- **SoundCloud Waveform Rendering**: Renders SoundCloud's 1800-sample waveform data into a 4-row block ASCII visualizer with logarithmic loudness scaling.
-- **Reactive Audio VU Metering**: Real-time RMS audio signal measurement rendered at 30 FPS.
-- **Remote SSH / Headless Systems**: Automatically degrades to 4 FPS under `TEXTUAL_ANIMATIONS=none` for smooth operation over SSH connections.
+- **In-memory SoundCloud preview**: Decodes progressive MP3 or MP3 HLS via `miniaudio`. HLS buffering is limited to 50 MiB; audio is not saved to disk.
+- **Prefetch and automatic advance**: Prepares the next visible track during the final 20 seconds and advances at the end of playback. Network and device conditions can still cause buffering.
+- **Stable waveform**: A four-row block waveform shows played and unplayed regions in stable colors. It does not pulse with volume. Local-file waveforms are generated separately and cached.
+- **Reduced animation**: `TEXTUAL_ANIMATIONS=none` reduces playback UI updates for terminals where frequent redraws are undesirable.
+- **Availability errors**: SoundCloud account/region restrictions, missing streams and unsupported formats are reported separately. A public track page does not guarantee an available stream.
 
 ---
 
@@ -415,8 +455,8 @@ CLI / Textual controllers
 
 Controllers own presentation; services own completed effects and resource
 lifecycles. The operation coordinator admits work and tracks cancellation until
-workers finish. See [the architecture guide](docs/architecture.md) for ownership
-and [the specification](PROJECT-SPECIFICATION.md) for behavioral contracts.
+workers finish. See [the architecture guide](https://github.com/fbialogrecki/dj-digger/blob/main/docs/architecture.md) for ownership
+and [the specification](https://github.com/fbialogrecki/dj-digger/blob/main/PROJECT-SPECIFICATION.md) for behavioral contracts.
 
 ---
 
@@ -439,7 +479,7 @@ uv run pytest -m shop_live
 
 ## 📄 License
 
-Distributed under the **Apache License 2.0**. See [`LICENSE`](LICENSE) for details.
+Distributed under the **Apache License 2.0**. See [`LICENSE`](https://github.com/fbialogrecki/dj-digger/blob/main/LICENSE) for details.
 
 ## Local music and club folders (1.1)
 
@@ -491,7 +531,7 @@ For a checkout, start with `uv run --extra play --extra analyze dj-digger`.
 | `ctrl+u` | Review/resume the most recent unfinished folder export |
 | `i` | Import playlists created by a SoundCloud profile |
 
-Install analysis with `pip install 'dj-digger[play,analyze]'` (or the equivalent
+Install analysis with `pip install 'dj-sc-digger[play,analyze]'` (or the equivalent
 pipx/uv tool command). Analysis is optional and its libraries load in a separate
 process only when requested. Results are estimates; ambiguous rhythm/key and
 silence can return no value. Manual values take precedence, followed by current
@@ -529,21 +569,21 @@ download gates are resolved by a mass import.
 ### Upgrade from the old package name
 
 Close every running instance first. **Uninstall `dj-soundcloud-digger` before
-installing `dj-digger`**: both distributions own the same module and CLI script.
+installing `dj-sc-digger`**: both distributions own the same module and CLI script.
 Do not install them together. Choose the commands for the manager you used:
 
 ```sh
 # pip, inside the same virtual environment
 python -m pip uninstall dj-soundcloud-digger
-python -m pip install 'dj-digger[play,analyze]'
+python -m pip install 'dj-sc-digger[play,analyze]'
 
 # pipx
 pipx uninstall dj-soundcloud-digger
-pipx install 'dj-digger[play,analyze]'
+pipx install 'dj-sc-digger[play,analyze]'
 
 # uv tools
 uv tool uninstall dj-soundcloud-digger
-uv tool install 'dj-digger[play,analyze]'
+uv tool install 'dj-sc-digger[play,analyze]'
 ```
 
 The `dj_digger` module, `dj-digger` command, configuration and data directories
@@ -551,8 +591,8 @@ keep their names. Schema 0/1 databases with the recognized 1.0 shape get a
 verified SQLite backup including committed WAL data before migration to schema
 2. Unknown databases are refused without changes. Downgrading requires consciously
 restoring that backup while the app is closed; there is no automatic downgrade.
-See [release procedure](docs/implementation/release-1.1.md) and
-[deck rule sources](docs/implementation/deck-sources.md).
+See [release procedure](https://github.com/fbialogrecki/dj-digger/blob/main/docs/implementation/release-1.1.md) and
+[deck rule sources](https://github.com/fbialogrecki/dj-digger/blob/main/docs/implementation/deck-sources.md).
 
 
 ### Responsive views and analysis validation

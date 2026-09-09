@@ -41,6 +41,7 @@ PERSISTED_FIELDS = (
     "pinned_directories",
     "sidebar_split",
     "sidebar_mode",
+    "volume",
 )
 
 # Optional track-table columns, in the order they appear when switched on.
@@ -91,6 +92,8 @@ class AppConfig:
         self.pinned_directories: list[str] = []
         self.sidebar_split: int = 50
         self.sidebar_mode: str = "both"
+        # Playback level shared by the TUI and the desktop; mute is not kept.
+        self.volume: float = 0.8
         # True when there was no config file to read, i.e. this is the first
         # launch. The TUI uses it to ask for the settings before anything needs
         # them - gates submit the name and email without asking again.
@@ -125,6 +128,8 @@ class AppConfig:
                 self.pinned_directories = [str(value) for value in raw.get('pinned_directories', []) if isinstance(value, str)] if isinstance(raw.get('pinned_directories'), list) else []
                 self.sidebar_mode = raw.get("sidebar_mode") if raw.get("sidebar_mode") in ("both", "playlists", "explorer") else "both"
                 self.sidebar_split = raw.get('sidebar_split') if raw.get('sidebar_split') in (30, 50, 70) else 50
+                if isinstance(raw.get("volume"), (int, float)) and not isinstance(raw.get("volume"), bool):
+                    self.volume = max(0.0, min(1.0, float(raw["volume"])))
                 columns = raw.get("columns")
                 if isinstance(columns, list):
                     self.columns = [

@@ -137,7 +137,10 @@ def analyze_spawned(path: Path, cancel=None) -> dict:
     # A fresh interpreter with explicit pipes needs no inherited tracker FDs.
     check_cancelled(cancel)
     with tempfile.TemporaryDirectory(prefix='dj-digger-analysis-job-') as temporary:
-        payload = run([sys.executable, '-m', 'dj_digger.analysis', str(path.absolute()), temporary],
+        from .bundled import tool
+        helper = tool('dj-digger-analysis')
+        command = [str(helper)] if helper else [sys.executable, '-m', 'dj_digger.analysis']
+        payload = run([*command, str(path.absolute()), temporary],
                       cancel=cancel, timeout=24 * 3600, process_tree=True)
     status, result = json.loads(payload)
     if status != 'ok':

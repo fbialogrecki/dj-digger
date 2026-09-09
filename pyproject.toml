@@ -42,9 +42,15 @@ play = ["miniaudio>=1.59"]
 # Compatibility for installs created before Playwright became a core dependency.
 shop = []
 dev = ["pytest>=7.0", "miniaudio>=1.59", "ruff>=0.6"]
+gui = [
+    "pyside6>=6.10,<7",
+]
 
 [project.scripts]
 dj-digger = "dj_digger.cli:main"
+
+[project.gui-scripts]
+dj-digger-gui = "dj_digger.gui:main"
 
 [project.urls]
 Homepage = "https://github.com/fbialogrecki/dj-digger"
@@ -73,3 +79,8 @@ markers = [
     "shop_mutate: adds, verifies and removes one name-your-price Bandcamp track in a throwaway profile (deselected by default; needs DJ_DIGGER_SHOP_MUTATE_URL; runs headless)",
 ]
 addopts = "-m 'not live and not shop_live and not hypeddit_live and not bandcamp_dom and not shop_mutate'"
+
+[dependency-groups]
+windows-build = [
+    "pyinstaller>=6.19,<7",
+]

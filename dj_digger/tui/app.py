@@ -469,8 +469,6 @@ class DiggerApp(App):
 
     def compose(self) -> ComposeResult:
         yield ErrorBanner(id="error-banner")
-        yield PlayerBar(self.player, id="player")
-        yield PlayerControls(self.player, id="player-controls")
         with Horizontal(id="body"):
             with Vertical(id="sidebar"):
                 with Vertical(id="playlist-pane"):
@@ -484,6 +482,10 @@ class DiggerApp(App):
                     yield Button("Next page", id="folder-next")
                     yield Button("+ Open folder", id="folder-open")
             with Vertical(id="main"):
+                # Beside the sidebar, not above it: the sidebar keeps the full
+                # height and the player belongs to the list it plays from.
+                yield PlayerBar(self.player, id="player")
+                yield PlayerControls(self.player, id="player-controls")
                 yield SearchInput(placeholder="Filter by artist, title, genre, tag or label", id="search")
                 yield TrackTable(id="tracks", cursor_type="row", zebra_stripes=True)
         yield StatusBar(id="status")

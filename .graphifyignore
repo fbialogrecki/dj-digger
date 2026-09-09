@@ -8,3 +8,7 @@ docs/graph-notes.md
 graphify-out/
 # Index the fixture-driven tests, not third-party HTML and API payloads.
 tests/fixtures/
+
+# Qt Linguist XML catalogs use .ts, not TypeScript.
+dj_digger/gui/translations/
+packaging/windows/icon.ico

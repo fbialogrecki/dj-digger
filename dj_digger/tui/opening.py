@@ -16,12 +16,12 @@ from dj_digger.diagnostics import log_safe_text
 
 from .. import links as links_module
 from ..models import GOT, OPENED, SKIP
+from ..rows import Row
 from ..services import purchases as cart_module
 from ..services.downloads import find_gate_url
 from .keymap import (
     OPEN_ALL_CONFIRM_THRESHOLD,
 )
-from .rows import Row
 from .screens import (
     CartManualScreen,
     CartPlanScreen,

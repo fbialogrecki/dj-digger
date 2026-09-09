@@ -12,6 +12,7 @@ from textual.widgets import DataTable, Static
 
 from .. import links as links_module
 from ..models import GOT, NEW, SKIP
+from ..rows import Row
 from .filters import SORT_COLUMN
 from .keymap import (
     DOMAIN_BADGE_CATEGORIES,
@@ -30,7 +31,6 @@ from .keymap import (
     STORES_WIDTH,
     TIME_WIDTH,
 )
-from .rows import Row
 from .widgets import FittedFooter, TrackTable
 
 

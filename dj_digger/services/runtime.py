@@ -104,6 +104,7 @@ class ApplicationServices:
             from ..player import Player
 
             self._player = Player()
+            self._player.set_volume(self.config.volume)
         return self._player
 
     @property
@@ -185,6 +186,9 @@ class ApplicationServices:
             return
         self._closed = True
         if self._player is not None:
+            if self._config is not None and self._player.level != self._config.volume:
+                self._config.volume = self._player.level
+                self._config.save()
             self._close_resource(self._player)
         from ..local_audio import close_all
         close_all()

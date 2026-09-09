@@ -8,6 +8,7 @@ from textual.containers import Horizontal
 from textual.widgets import Button, Static
 
 from ..player import Loaded, PlaybackUnavailable, Player
+from ..waveform import column_levels
 
 LOGGER = logging.getLogger(__name__)
 
@@ -17,40 +18,9 @@ LOGGER = logging.getLogger(__name__)
 # what the bar spends the row the title used to have on.
 BLOCKS = " \u2581\u2582\u2583\u2584\u2585\u2586\u2587\u2588"
 WAVEFORM_ROWS = 4
-# Loud tracks sit in the top tenth of the range, so the curve has to expand it.
-WAVEFORM_GAMMA = 3.0
 
 PLAYED_STYLE = "cyan"
 UNPLAYED_STYLE = "bright_black"
-
-
-def column_levels(samples: list[int], width: int) -> list[float]:
-    """One 0..1 level per column, with the loud end of the range expanded.
-
-    Two deliberate choices. Columns average their samples rather than taking the
-    peak: at roughly sixteen samples per column the peak almost always hits the
-    ceiling, which is most of why this looked like a brick. And the level is
-    measured against the track's own maximum rather than stretched between its
-    min and max - stretching made a track with no dynamics at all look the most
-    dynamic of the lot, because it amplified its noise to full scale. The power
-    curve then spreads the top of the range, which is where mastered music sits.
-    """
-
-    if width <= 0 or not samples:
-        return []
-
-    peak = max(samples)
-    if peak <= 0:
-        return [0.0] * width
-
-    per_column = len(samples) / width
-    levels = []
-    for column in range(width):
-        start = int(column * per_column)
-        end = max(start + 1, int((column + 1) * per_column))
-        window = samples[start:end]
-        levels.append((sum(window) / len(window) / peak) ** WAVEFORM_GAMMA)
-    return levels
 
 
 def waveform_rows(

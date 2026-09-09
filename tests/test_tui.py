@@ -30,6 +30,7 @@ from dj_digger import (
 from dj_digger.config import AppConfig
 from dj_digger.models import GOT, OPENED, SKIP, Cancelled, Crate, LinkRecord, Track
 from dj_digger.player import Loaded, PlaybackUnavailable
+from dj_digger.rows import Row
 from dj_digger.scanner import LocalMatch
 from dj_digger.services import purchases as cart
 from dj_digger.services.collection import DigOptions, TargetNotFound
@@ -45,7 +46,6 @@ from dj_digger.tui.audio import (
     PlayerControls,
     VolumeSlider,
 )
-from dj_digger.tui.rows import Row
 from dj_digger.tui.screens import (
     AskLinkScreen,
     CartPlanScreen,

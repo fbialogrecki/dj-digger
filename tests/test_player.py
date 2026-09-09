@@ -3,7 +3,7 @@ import threading
 
 import pytest
 
-from dj_digger import player
+from dj_digger import player, waveform
 from dj_digger.models import Track
 from dj_digger.services import playback
 from dj_digger.soundcloud import SoundCloudError
@@ -227,15 +227,15 @@ def test_zero_width_is_not_a_crash():
 
 
 def test_levels_are_measured_against_the_peak():
-    assert audio.column_levels([140, 140], 2) == [1.0, 1.0]
-    assert audio.column_levels([0, 140], 2)[0] == 0.0
+    assert waveform.column_levels([140, 140], 2) == [1.0, 1.0]
+    assert waveform.column_levels([0, 140], 2)[0] == 0.0
 
 
 def test_a_loud_master_still_shows_shape():
     """Real samples for a loud track sit at 120-140 out of 140."""
 
     loud = [138, 140, 122, 139, 128, 140, 131, 137]
-    levels = audio.column_levels(loud, 8)
+    levels = waveform.column_levels(loud, 8)
     # The power curve has to spread the top of the range enough to see.
     assert max(levels) - min(levels) > 0.2
     assert len(set(str(render_waveform(loud, 8, rows=1)))) > 2
@@ -245,7 +245,7 @@ def test_a_track_with_no_dynamics_is_not_faked_into_having_some():
     """Stretching min to max made the flattest track look the most dynamic."""
 
     flat = [130, 131, 130, 132, 131, 130]
-    levels = audio.column_levels(flat, 6)
+    levels = waveform.column_levels(flat, 6)
     assert max(levels) - min(levels) < 0.1
     assert all(level > 0.8 for level in levels), "a loud flat track must still read loud"
 
@@ -254,17 +254,17 @@ def test_columns_average_rather_than_peak():
     """At ~16 samples per column, taking the peak pins everything to the ceiling."""
 
     samples = [0, 100, 0, 100]
-    assert audio.column_levels(samples, 2) == [0.5**audio.WAVEFORM_GAMMA] * 2
+    assert waveform.column_levels(samples, 2) == [0.5**waveform.WAVEFORM_GAMMA] * 2
 
 
 def test_a_flat_waveform_does_not_divide_by_zero():
-    assert audio.column_levels([50, 50, 50], 3) == [1.0, 1.0, 1.0]
-    assert audio.column_levels([0, 0], 2) == [0.0, 0.0]
+    assert waveform.column_levels([50, 50, 50], 3) == [1.0, 1.0, 1.0]
+    assert waveform.column_levels([0, 0], 2) == [0.0, 0.0]
 
 
 def test_column_levels_of_nothing():
-    assert audio.column_levels([], 5) == []
-    assert audio.column_levels([1, 2], 0) == []
+    assert waveform.column_levels([], 5) == []
+    assert waveform.column_levels([1, 2], 0) == []
 
 
 def test_fetch_waveform_of_nothing_is_empty():

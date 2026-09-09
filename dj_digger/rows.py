@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from ..models import LinkRecord, Track
+from .models import LinkRecord, Track
 
 
 @dataclass

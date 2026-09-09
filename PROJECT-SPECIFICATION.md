@@ -5,8 +5,8 @@
 - Product version verified: 1.1.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-09-09
-- Document lines: <!-- SPEC TOTAL LINES -->1430<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1430<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1528<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1528<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -45,69 +45,70 @@ subsection; ordinary emphasized text is never promoted into the map.
 <!-- BEGIN GENERATED SECTION MAP -->
 | § | Section | Lines |
 | --- | --- | --- |
-| 1 | Specification governance | 113–141 |
-| 1.1 | ↳ Authority and scope | 115–127 |
-| 1.2 | ↳ Update contract | 128–141 |
-| 2 | Product purpose and execution modes | 142–176 |
-| 2.1 | ↳ Problem and product boundary | 144–157 |
-| 2.2 | ↳ Execution modes | 158–176 |
-| 3 | User-visible capabilities | 177–613 |
-| 3.1 | ↳ Track collection and saved HTML | 179–205 |
-| 3.2 | ↳ Link classification and exports | 206–224 |
-| 3.3 | ↳ TUI playlist library and interaction | 225–316 |
-| 3.4 | ↳ Audio preview | 317–382 |
-| 3.5 | ↳ Downloads and local-file matching | 383–412 |
-| 3.6 | ↳ Store purchase assistance | 413–497 |
-| 3.7 | ↳ Local library, analysis and audio export | 498–613 |
-| 4 | System context and data flow | 614–654 |
-| 4.1 | ↳ Context diagram | 616–638 |
-| 4.2 | ↳ Collection-to-library flow | 639–654 |
-| 5 | Repository layout and component ownership | 655–724 |
-| 5.1 | ↳ Entry, orchestration, and models | 657–668 |
-| 5.2 | ↳ Network and external-system adapters | 669–687 |
-| 5.3 | ↳ Persistence, local media, and UI | 688–724 |
-| 6 | Runtime architecture and environments | 725–832 |
-| 6.1 | ↳ Runtime and dependencies | 727–742 |
-| 6.2 | ↳ Concurrency and lifecycle | 743–811 |
-| 6.3 | ↳ Local paths and environment variables | 812–832 |
-| 7 | Data model and persistence | 833–920 |
-| 7.1 | ↳ Domain objects and identity | 835–849 |
-| 7.2 | ↳ SQLite schema and invariants | 850–887 |
-| 7.3 | ↳ Crate persistence and deletion | 888–903 |
-| 7.4 | ↳ Configuration and credential stores | 904–920 |
-| 8 | Public interfaces and contracts | 921–977 |
-| 8.1 | ↳ CLI arguments and exit behavior | 923–951 |
-| 8.2 | ↳ JSON and CSV summary input | 952–966 |
-| 8.3 | ↳ URL-opening contract | 967–977 |
-| 9 | Authentication and authorization | 978–1021 |
-| 9.1 | ↳ SoundCloud authentication | 980–1000 |
-| 9.2 | ↳ Gate action consent | 1001–1021 |
-| 10 | External integrations | 1022–1157 |
-| 10.1 | ↳ SoundCloud API and media | 1024–1035 |
-| 10.2 | ↳ Link hubs and download gates | 1036–1098 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1044–1084 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1086–1091 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1093–1098 |
-| 10.3 | ↳ Browsers and clipboard | 1099–1110 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1111–1157 |
-| 11 | Security requirements and threat model | 1158–1212 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1160–1178 |
-| 11.2 | ↳ Secret and personal-data handling | 1179–1194 |
-| 11.3 | ↳ File and mutation safety | 1195–1212 |
-| 12 | Privacy, lifecycle, and retention | 1213–1256 |
-| 12.1 | ↳ Data stored locally | 1215–1234 |
-| 12.2 | ↳ Data sent to third parties | 1235–1246 |
-| 12.3 | ↳ User-controlled deletion | 1247–1256 |
-| 13 | Failure behavior and current limitations | 1257–1317 |
-| 13.1 | ↳ Error isolation and reporting | 1259–1278 |
-| 13.2 | ↳ Confirmed limitations | 1279–1317 |
-| 14 | Verification, CI, and release | 1318–1401 |
-| 14.1 | ↳ Offline and live test suites | 1320–1366 |
-| 14.2 | ↳ Continuous integration and publishing | 1367–1386 |
-| 14.3 | ↳ Specification-map verification | 1387–1401 |
-| 15 | Evidence and operational references | 1402–1430 |
-| 15.1 | ↳ Primary implementation evidence | 1404–1420 |
-| 15.2 | ↳ User and historical documentation | 1421–1430 |
+| 1 | Specification governance | 114–142 |
+| 1.1 | ↳ Authority and scope | 116–128 |
+| 1.2 | ↳ Update contract | 129–142 |
+| 2 | Product purpose and execution modes | 143–179 |
+| 2.1 | ↳ Problem and product boundary | 145–158 |
+| 2.2 | ↳ Execution modes | 159–179 |
+| 3 | User-visible capabilities | 180–705 |
+| 3.1 | ↳ Track collection and saved HTML | 182–208 |
+| 3.2 | ↳ Link classification and exports | 209–227 |
+| 3.3 | ↳ TUI playlist library and interaction | 228–319 |
+| 3.4 | ↳ Audio preview | 320–385 |
+| 3.5 | ↳ Downloads and local-file matching | 386–415 |
+| 3.6 | ↳ Store purchase assistance | 416–500 |
+| 3.7 | ↳ Local library, analysis and audio export | 501–616 |
+| 3.8 | ↳ Qt Quick desktop | 617–705 |
+| 4 | System context and data flow | 706–746 |
+| 4.1 | ↳ Context diagram | 708–730 |
+| 4.2 | ↳ Collection-to-library flow | 731–746 |
+| 5 | Repository layout and component ownership | 747–821 |
+| 5.1 | ↳ Entry, orchestration, and models | 749–760 |
+| 5.2 | ↳ Network and external-system adapters | 761–779 |
+| 5.3 | ↳ Persistence, local media, and UI | 780–821 |
+| 6 | Runtime architecture and environments | 822–930 |
+| 6.1 | ↳ Runtime and dependencies | 824–840 |
+| 6.2 | ↳ Concurrency and lifecycle | 841–909 |
+| 6.3 | ↳ Local paths and environment variables | 910–930 |
+| 7 | Data model and persistence | 931–1018 |
+| 7.1 | ↳ Domain objects and identity | 933–947 |
+| 7.2 | ↳ SQLite schema and invariants | 948–985 |
+| 7.3 | ↳ Crate persistence and deletion | 986–1001 |
+| 7.4 | ↳ Configuration and credential stores | 1002–1018 |
+| 8 | Public interfaces and contracts | 1019–1075 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1021–1049 |
+| 8.2 | ↳ JSON and CSV summary input | 1050–1064 |
+| 8.3 | ↳ URL-opening contract | 1065–1075 |
+| 9 | Authentication and authorization | 1076–1119 |
+| 9.1 | ↳ SoundCloud authentication | 1078–1098 |
+| 9.2 | ↳ Gate action consent | 1099–1119 |
+| 10 | External integrations | 1120–1255 |
+| 10.1 | ↳ SoundCloud API and media | 1122–1133 |
+| 10.2 | ↳ Link hubs and download gates | 1134–1196 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1142–1182 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1184–1189 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1191–1196 |
+| 10.3 | ↳ Browsers and clipboard | 1197–1208 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1209–1255 |
+| 11 | Security requirements and threat model | 1256–1310 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1258–1276 |
+| 11.2 | ↳ Secret and personal-data handling | 1277–1292 |
+| 11.3 | ↳ File and mutation safety | 1293–1310 |
+| 12 | Privacy, lifecycle, and retention | 1311–1354 |
+| 12.1 | ↳ Data stored locally | 1313–1332 |
+| 12.2 | ↳ Data sent to third parties | 1333–1344 |
+| 12.3 | ↳ User-controlled deletion | 1345–1354 |
+| 13 | Failure behavior and current limitations | 1355–1415 |
+| 13.1 | ↳ Error isolation and reporting | 1357–1376 |
+| 13.2 | ↳ Confirmed limitations | 1377–1415 |
+| 14 | Verification, CI, and release | 1416–1499 |
+| 14.1 | ↳ Offline and live test suites | 1418–1464 |
+| 14.2 | ↳ Continuous integration and publishing | 1465–1484 |
+| 14.3 | ↳ Specification-map verification | 1485–1499 |
+| 15 | Evidence and operational references | 1500–1528 |
+| 15.1 | ↳ Primary implementation evidence | 1502–1518 |
+| 15.2 | ↳ User and historical documentation | 1519–1528 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -169,6 +170,8 @@ modes are implemented:
   either opens selected links or imports the partial data into the TUI.
 - `dj-digger auth ...` manages SoundCloud credentials.
 - `python -m dj_digger` delegates to the same CLI entry point.
+- `dj-digger-gui`, installed with the `gui` extra, starts the independent
+  PySide6/Qt Quick desktop entry point. CLI/TUI startup does not import Qt.
 
 The TUI is a local process. Network, disk scan, download, playback preparation,
 cart, and batch browser work are process-local background workers rather than a
@@ -611,6 +614,95 @@ the previous snapshot. Provider playlist IDs preserve identity across permalink
 changes; local deletion generations suppress stale results. Mass import performs
 no external gate/hub resolution.
 
+### 3.8 Qt Quick desktop
+
+The optional desktop uses PySide6 and a QML `ApplicationWindow`. The
+playlist/folder sidebar spans the full window height; the waveform and transport
+sit above the virtualized track table beside it, the same arrangement the TUI
+uses. Status is the first table column, as in the TUI, and the BPM/key columns
+appear only in local views. Transport buttons
+use SVG icons with accessible labels and tooltips. The desktop waveform rises
+from the bottom edge of its panel, never mirrored, filling the space down to the
+transport row; GUI and TUI share the same averaged, normalized envelope and
+level curve in `waveform.py`. Space always belongs to playback, wherever focus
+is, except while typing in a text field or inside a modal dialog: it starts the
+selected track, toggles it when it is the one loaded, or toggles the loaded track
+when nothing is selected. The read-only folder explorer is a Qt
+`TreeView`/`QFileSystemModel` rooted at the user home directory. Folder contents
+are requested on expansion and enumerated in Qt background work; selecting a
+folder opens its tracks in the paged table; pinned folders are listed above the
+tree and the page range appears only for folders above one page. It provides
+search, store filtering with per-store counts derived from the loaded view,
+hide-handled filtering, stable-key selection, numeric sorting with a header
+arrow, resizable columns, keyboard navigation and native clipboard copying. The
+title column absorbs the remaining width so status and store columns stay on
+screen at the default window size. Status cells use the TUI glyphs and colors,
+store cells render badges, local files and the playing track carry markers, a
+per-row progress bar replaces the status while downloading, and a summary line
+reports visible/total/owned/skipped/selected counts. Single-key shortcuts mirror
+the TUI keymap (add, refresh, open, download, got/skip/reset, undo, remove,
+search, hide handled, seek, next/previous, volume, mute, sidebar) and are listed
+in a generated Help dialog; they are suppressed while text fields or modal
+dialogs have focus. Actions that need a selection are disabled without one;
+whole-view variants (open all visible, download all visible, cart for all
+visible) are separate explicit commands, and bulk opening asks above twenty
+links as in the TUI. Errors are shown distinctly from informational messages in
+the footer and both are kept in a message log dialog. The transport collapses to
+one row when nothing is loaded, shows m:ss clocks, a position cursor, hover
+time, drag seeking and a mute toggle.
+Dialogs size to their content. Forms use choice lists for enumerated values,
+numeric validators, framed multi-line editors, labelled checkboxes, inline
+folder/file pickers and a monospace read-only view for logs and plans; the
+confirming button carries the action name. Validation runs before a form
+closes: an invalid answer re-opens the same dialog with the entered values and
+the error message instead of discarding the input.
+Language selection supports English and Polish UI catalogs; provider diagnostics
+and some service-generated summaries retain their original text. Themes support
+system, light and dark, with the current language, theme and sidebar state
+checked in the menus. The application palette covers alternating folder rows,
+input placeholders, control indicators, disabled text, popup states and tooltips;
+selected rows pair their foreground with the selected background in both themes.
+Window dimensions, column widths, sidebar width and visibility, language
+and theme persist privately in `config_dir()/gui.json`, separately from TUI
+presentation settings. The playback level is a shared `volume` field in the
+common configuration: the runtime applies it when the player is created and
+saves it on shutdown, so TUI and desktop start at the level last set in either. Existing data, credentials and configuration paths stay
+unchanged on every platform.
+
+Desktop actions use the existing services for collection/refresh/profile import,
+summary import/export, playlists, status/undo, local folders/scanning, downloads,
+BPM/key analysis and overrides, reviewed audio export/recovery, SoundCloud login,
+store login and cart preflight. Browser links select one eligible destination per
+track and honor the store filter. Bulk opening and destructive actions require
+confirmation; cart retry/manual completion and Soundiiz metadata transfer are
+explicit choices. Local files are paged in groups of 250. Playback uses the
+existing engine, bounded waveform samples and one prepared next-track source.
+Local waveform generation runs independently of play/automatic-next and publishes
+its result immediately, including while paused. Stop, replacement and shutdown
+cancel obsolete generation work; only the identical loaded object can receive
+the result. A failed attempt to prepare another track does not cancel the
+waveform of the track still loaded.
+
+The Qt owner thread only receives detached values through signals. A dedicated
+asyncio backend thread owns service orchestration, with blocking work delegated
+to the existing managed executor. Results carry view generations; selection uses
+track keys. The existing operation coordinator admits a main operation and the
+independent scan lane. Cancellation waits for worker settlement; shutdown requests
+cancellation and applies the existing three-second emergency process cleanup
+policy. QML renders provider text as plain text, loads packaged QML, and does not
+embed a WebView or automatically fetch artwork. Managed Chromium remains a
+separate on-demand dependency for the existing provider flows.
+
+Windows packaging source builds an onedir GUI executable and a separate console
+analysis helper with explicit captured pipes and hidden subprocess windows.
+Frozen media tools resolve only from the application bundle and fail if missing;
+source installations retain normal executable discovery. The per-user Inno Setup
+recipe targets Windows 11 x64, creates Start-menu/optional desktop shortcuts and
+does not delete application data on uninstall. An installer mutex prevents
+replacement while desktop/helper processes hold it; it is not a cross-process
+single-instance or data lock. Platform acceptance status belongs in the desktop
+implementation record, not an inference from the presence of these build recipes.
+
 ## 4. System context and data flow
 
 ### 4.1 Context diagram
@@ -718,9 +810,14 @@ playback time and are not stored in the crate record.
   concrete controllers. `tui/presentation.py` separates playlist, audio, sidebar,
   download, cart and scan state. Controllers receive concrete services and the
   presentation callbacks they use, rather than the application object.
-  `tui/playlist.py` computes filtering, stable sorting and operation targets.
+  `playlist.py` computes filtering, stable sorting and operation targets.
   `tui/render.py` preserves incremental row updates and cursor/viewport position.
   Account and settings dialogs delegate disk/network work to services.
+- `rows.py` and `playlist.py` own shared row values and pure playlist operations.
+  `gui/backend.py` orchestrates desktop services; `gui/bridge.py` owns the Qt
+  signal boundary and translation; `gui/model.py` owns table selection/filtering;
+  `gui/qml/Main.qml` owns desktop rendering and input. `waveform.py` owns the pure
+  envelope-to-column conversion shared by GUI and TUI. No service imports Qt.
 
 ## 6. Runtime architecture and environments
 
@@ -731,7 +828,8 @@ dependencies are `requests`, `beautifulsoup4`, `textual` (pinned to the 8.x
 line because the TUI relies on its binding semantics and a few private hooks),
 `rich`, and `playwright`. `miniaudio` is optional in the `play` extra. `librosa` is optional in the
 `analyze` extra and imports only in analysis workers. FFmpeg/ffprobe are external
-executables required only by local media inspection/playback/conversion/analysis. The `dev` extra adds
+executables required only by local media inspection/playback/conversion/analysis. The `gui` extra adds PySide6 6.x (minimum 6.10). Windows build tooling is isolated
+in the `windows-build` dependency group. The `dev` extra adds
 `pytest`, `miniaudio`, and `ruff`. There is no runtime JavaScript build, database
 server, container image, or infrastructure-as-code layer in the repository.
 

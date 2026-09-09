@@ -14,6 +14,7 @@ from threading import Event
 
 from .. import links as links_module
 from ..models import GOT, SKIP, Cancelled, Track, check_cancelled
+from ..rows import Row
 from ..services.downloads import (
     BROWSER_BATCH_MAX,
     FAILURE_GROUPS,
@@ -22,7 +23,6 @@ from ..services.downloads import (
     DownloadWorkflow,
     downloadable,
 )
-from .rows import Row
 from .screens import GateProfileScreen, SoundCloudAuthScreen
 
 _INVALID_FOLDER_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')

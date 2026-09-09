@@ -9,9 +9,9 @@ from textual.timer import Timer
 from textual.widgets.data_table import ColumnKey
 
 from ..crate_models import CrateHeader, CrateRecord
+from ..rows import Row
 from ..services.operations import OperationHandle
 from ..services.playback import Prepared
-from .rows import Row
 
 if TYPE_CHECKING:
     from .downloads import DownloadContext
