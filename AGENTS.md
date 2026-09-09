@@ -3,6 +3,39 @@
 Repository-wide routing and guardrails for `dj-digger`, a Python 3.12+
 terminal crate-digging CLI/TUI.
 
+## Required task startup and skills
+
+- At the start of every new task, before analysis, planning, or edits, read
+  `PROJECT-SPECIFICATION.md`: start with its section map and then the relevant
+  sections, following this repository's specification-reading rules below.
+- Always load the `graphify` skill and read the existing `graphify-out/graph.json`
+  at task startup, including for simple tasks. Inspect its structure and retrieve
+  task-relevant nodes and relationships; checking that the file exists is not
+  enough. Verify implementation decisions against current source files.
+- Automatic `graphify` use is strictly read-only. Never create, rebuild, update,
+  repair, cluster, export, or write graph files, sidecars, memories, or reflections
+  without an explicit user request for that operation. A missing or stale graph,
+  a coding request, or merely invoking the skill does not authorize graph writes.
+  Do not install tools or start watchers/hooks as part of automatic graph reading.
+  If a query command writes files or needs setup, traverse the JSON in memory.
+  These restrictions override the skill's default build/update/write workflow.
+- Before coding begins, including later in a conversation, automatically load
+  `ponytail` and apply its default `full` level unless the user selects another
+  level or opts out. Do not activate it for prose-only tasks.
+- These are explicit exceptions to any general manual-only skill policy:
+  `graphify` for required read-only startup and `ponytail` before coding.
+  Keep `openai-docs` available within its documented scope; other skills require
+  explicit user invocation. Resolve skills from the current skill catalog; on
+  this workstation they live under `/home/peregrin/.agents/skills/`.
+- If the specification, graph, or a required skill is missing or unreadable,
+  briefly report it and continue with available sources where possible. Do not
+  claim it was read or automatically create, install, or update it.
+- Reuse context already read in this task while files remain unchanged; do not
+  repeat startup on every follow-up message.
+- Plan auditing is a separate manual step: run `plan-audit` only when explicitly
+  invoked by the user. Do not automatically audit every plan or treat an audit
+  as authorization to implement it.
+
 ## Source of truth
 
 - Product behavior, architecture boundaries, public interfaces, data models,
