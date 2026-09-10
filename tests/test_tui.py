@@ -5599,3 +5599,26 @@ def test_waveform_colour_does_not_change_with_music_level(state):
             assert quiet.spans == loud.spans
 
     run(scenario)
+
+
+def test_shutdown_discards_late_table_layout_event(state, monkeypatch):
+    original = DiggerApp.on_unmount
+    delivered = []
+
+    async def unmount(self):
+        # Textual removes screens before dispatching Unmount. A queued layout
+        # message must not look up table widgets once shutdown has started.
+        assert not self.is_running
+        self.on_track_table_layout_changed(TrackTable.LayoutChanged())
+        delivered.append(True)
+        await original(self)
+
+    monkeypatch.setattr(DiggerApp, 'on_unmount', unmount)
+    app = make_app(synthetic_records(1), state)
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await settle(app, pilot)
+
+    run(scenario)
+    assert delivered == [True]

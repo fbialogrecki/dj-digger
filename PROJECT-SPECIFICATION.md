@@ -5,8 +5,8 @@
 - Product version verified: 1.1.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-09-09
-- Document lines: <!-- SPEC TOTAL LINES -->1536<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1536<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1539<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1539<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -67,48 +67,48 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 5.1 | ↳ Entry, orchestration, and models | 757–768 |
 | 5.2 | ↳ Network and external-system adapters | 769–787 |
 | 5.3 | ↳ Persistence, local media, and UI | 788–829 |
-| 6 | Runtime architecture and environments | 830–938 |
+| 6 | Runtime architecture and environments | 830–941 |
 | 6.1 | ↳ Runtime and dependencies | 832–848 |
-| 6.2 | ↳ Concurrency and lifecycle | 849–917 |
-| 6.3 | ↳ Local paths and environment variables | 918–938 |
-| 7 | Data model and persistence | 939–1026 |
-| 7.1 | ↳ Domain objects and identity | 941–955 |
-| 7.2 | ↳ SQLite schema and invariants | 956–993 |
-| 7.3 | ↳ Crate persistence and deletion | 994–1009 |
-| 7.4 | ↳ Configuration and credential stores | 1010–1026 |
-| 8 | Public interfaces and contracts | 1027–1083 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1029–1057 |
-| 8.2 | ↳ JSON and CSV summary input | 1058–1072 |
-| 8.3 | ↳ URL-opening contract | 1073–1083 |
-| 9 | Authentication and authorization | 1084–1127 |
-| 9.1 | ↳ SoundCloud authentication | 1086–1106 |
-| 9.2 | ↳ Gate action consent | 1107–1127 |
-| 10 | External integrations | 1128–1263 |
-| 10.1 | ↳ SoundCloud API and media | 1130–1141 |
-| 10.2 | ↳ Link hubs and download gates | 1142–1204 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1150–1190 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1192–1197 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1199–1204 |
-| 10.3 | ↳ Browsers and clipboard | 1205–1216 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1217–1263 |
-| 11 | Security requirements and threat model | 1264–1318 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1266–1284 |
-| 11.2 | ↳ Secret and personal-data handling | 1285–1300 |
-| 11.3 | ↳ File and mutation safety | 1301–1318 |
-| 12 | Privacy, lifecycle, and retention | 1319–1362 |
-| 12.1 | ↳ Data stored locally | 1321–1340 |
-| 12.2 | ↳ Data sent to third parties | 1341–1352 |
-| 12.3 | ↳ User-controlled deletion | 1353–1362 |
-| 13 | Failure behavior and current limitations | 1363–1423 |
-| 13.1 | ↳ Error isolation and reporting | 1365–1384 |
-| 13.2 | ↳ Confirmed limitations | 1385–1423 |
-| 14 | Verification, CI, and release | 1424–1507 |
-| 14.1 | ↳ Offline and live test suites | 1426–1472 |
-| 14.2 | ↳ Continuous integration and publishing | 1473–1492 |
-| 14.3 | ↳ Specification-map verification | 1493–1507 |
-| 15 | Evidence and operational references | 1508–1536 |
-| 15.1 | ↳ Primary implementation evidence | 1510–1526 |
-| 15.2 | ↳ User and historical documentation | 1527–1536 |
+| 6.2 | ↳ Concurrency and lifecycle | 849–920 |
+| 6.3 | ↳ Local paths and environment variables | 921–941 |
+| 7 | Data model and persistence | 942–1029 |
+| 7.1 | ↳ Domain objects and identity | 944–958 |
+| 7.2 | ↳ SQLite schema and invariants | 959–996 |
+| 7.3 | ↳ Crate persistence and deletion | 997–1012 |
+| 7.4 | ↳ Configuration and credential stores | 1013–1029 |
+| 8 | Public interfaces and contracts | 1030–1086 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1032–1060 |
+| 8.2 | ↳ JSON and CSV summary input | 1061–1075 |
+| 8.3 | ↳ URL-opening contract | 1076–1086 |
+| 9 | Authentication and authorization | 1087–1130 |
+| 9.1 | ↳ SoundCloud authentication | 1089–1109 |
+| 9.2 | ↳ Gate action consent | 1110–1130 |
+| 10 | External integrations | 1131–1266 |
+| 10.1 | ↳ SoundCloud API and media | 1133–1144 |
+| 10.2 | ↳ Link hubs and download gates | 1145–1207 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1153–1193 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1195–1200 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1202–1207 |
+| 10.3 | ↳ Browsers and clipboard | 1208–1219 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1220–1266 |
+| 11 | Security requirements and threat model | 1267–1321 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1269–1287 |
+| 11.2 | ↳ Secret and personal-data handling | 1288–1303 |
+| 11.3 | ↳ File and mutation safety | 1304–1321 |
+| 12 | Privacy, lifecycle, and retention | 1322–1365 |
+| 12.1 | ↳ Data stored locally | 1324–1343 |
+| 12.2 | ↳ Data sent to third parties | 1344–1355 |
+| 12.3 | ↳ User-controlled deletion | 1356–1365 |
+| 13 | Failure behavior and current limitations | 1366–1426 |
+| 13.1 | ↳ Error isolation and reporting | 1368–1387 |
+| 13.2 | ↳ Confirmed limitations | 1388–1426 |
+| 14 | Verification, CI, and release | 1427–1510 |
+| 14.1 | ↳ Offline and live test suites | 1429–1475 |
+| 14.2 | ↳ Continuous integration and publishing | 1476–1495 |
+| 14.3 | ↳ Specification-map verification | 1496–1510 |
+| 15 | Evidence and operational references | 1511–1539 |
+| 15.1 | ↳ Primary implementation evidence | 1513–1529 |
+| 15.2 | ↳ User and historical documentation | 1530–1539 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -847,6 +847,9 @@ Chromium flows require a desktop display; WSL requires a working graphical
 integration.
 
 ### 6.2 Concurrency and lifecycle
+
+The TUI ignores queued table-layout events once Textual starts shutting down,
+so they cannot access widgets removed during teardown.
 
 SQLite exposes one `Database` instance per path and one dedicated owning thread.
 The connection is created, used and closed there, with WAL, foreign keys and a
