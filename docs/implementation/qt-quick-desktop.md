@@ -38,7 +38,7 @@ remain manual checks, not established by the automated model/startup tests.
 On a disposable Windows x64 build environment:
 
 ```powershell
-uv run --frozen --extra gui --extra play --extra analyze --group windows-build --python 3.12 python packaging/windows/build.py
+uv run --frozen --extra gui --extra play --extra analyze --group desktop-build --python 3.12 python packaging/windows/build.py
 ```
 
 Build inputs use `uv.lock`, hashed FFmpeg/Inno Setup downloads and pinned CI
@@ -231,3 +231,47 @@ and an inactive backend; they do not establish Windows installer acceptance.
 Validation: **922 passed, 83 deselected** in the full offline suite, including
 **17 desktop tests**. The final focused desktop run, Ruff, specification-map
 check, diff whitespace check and isolated startup/shutdown smoke also passed.
+
+
+## macOS test DMG — 2026-09-10
+
+Build on a native macOS 15+ Apple Silicon or Intel machine:
+
+```bash
+brew install ffmpeg
+uv run --frozen --extra gui --extra play --extra analyze --group desktop-build --python 3.12 python packaging/macos/build.py
+```
+
+The shared `packaging/desktop.spec` and entry points serve Windows and macOS.
+No new runtime dependency is added. `desktop-build` replaces the Windows-specific
+build-group name; the lockfile keeps the same package versions.
+
+Outputs are `dist/installer/dj-digger-1.1.0-macos-arm64-test.dmg` or
+`dist/installer/dj-digger-1.1.0-macos-x86_64-test.dmg`, a SHA256 file and a build
+manifest. The DMG contains the app, an Applications shortcut and PL/EN
+instructions. The app bundles the matching Python, Qt, FFmpeg/ffprobe and their
+libraries, audio/analysis dependencies, an analysis helper and Chromium. Homebrew
+is needed on the build machine only; exact tool versions/hashes are recorded.
+Available dependency notices are copied into the app, without asserting that a
+public redistribution review is complete.
+
+No Developer ID identity, Apple credentials, hardened-runtime signing or
+notarization is configured. Native code and the outer bundle receive local
+ad-hoc signatures so Apple Silicon can execute them; this does not identify a
+trusted developer or bypass Gatekeeper. The package targets macOS 15+ because
+its native build dependencies come from macOS 15 runners. It does not claim
+compatibility with older macOS versions. Users may need to approve this specific
+test app under Privacy & Security; no system-wide security changes are requested.
+
+The desktop workflow uses `macos-15` for arm64 and `macos-15-intel` for x86_64.
+After building, it mounts each DMG read-only, copies the app into an isolated
+Applications directory containing spaces, ejects the image and tests the copied
+app. The check verifies architecture, ad-hoc signature integrity, absence of
+absolute non-system library dependencies, startup/shutdown, synthetic media,
+analysis and the bundled browser with Homebrew removed from PATH. Artifacts are
+uploaded only after this check succeeds, with 14-day retention. No release or
+PyPI publication is triggered by this workflow.
+
+Gatekeeper first-launch approval, Finder interaction, audible playback and
+physical device/high-DPI checks remain manual acceptance work. CI runtime
+results are recorded separately once builds finish.

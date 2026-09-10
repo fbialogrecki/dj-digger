@@ -44,9 +44,12 @@ handled tracks, `[`/`]` seek, `n`/`p` step tracks, `m` mutes, `Ctrl+B` toggles
 the sidebar and `?` shows the full generated list. Commands that need a selection
 stay disabled without one; "all visible" variants are separate menu entries.
 
-The `Desktop tests and Windows test installer` workflow builds an unsigned,
-offline Windows 11 x64 test installer with shortcuts. This is build configuration,
-not a released or locally verified Windows binary. See the
+The `Desktop tests and test installers` workflow builds an offline Windows 11
+x64 test installer and macOS 15+ DMGs for Apple Silicon (`arm64`) and Intel
+(`x86_64`). On a Mac, open the matching DMG, drag `dj-digger.app` to Applications,
+eject the image and launch the app from Applications. Python and terminal commands
+are not needed. These are test packages without a Developer ID signature or
+Apple notarization; macOS may require per-app approval on first launch. See the
 [desktop implementation and acceptance record](docs/implementation/qt-quick-desktop.md)
 for commands, coverage and remaining platform checks.
 

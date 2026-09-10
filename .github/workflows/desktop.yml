@@ -1,4 +1,4 @@
-name: Desktop tests and Windows test installer
+name: Desktop tests and test installers
 on:
   push:
   pull_request:
@@ -35,7 +35,7 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
       - name: Build offline installer
-        run: uv run --frozen --extra gui --extra play --extra analyze --group windows-build --python 3.12 python packaging/windows/build.py
+        run: uv run --frozen --extra gui --extra play --extra analyze --group desktop-build --python 3.12 python packaging/windows/build.py
       - name: Frozen desktop smoke
         run: uv run --frozen --python 3.12 python scripts/gui_smoke.py dist/dj-digger/dj-digger-gui.exe --runtime
       - name: Installer lifecycle and installed runtime
@@ -46,5 +46,36 @@ jobs:
           path: |
             dist/installer/*
             dist/dj-digger/build-manifest.json
+          if-no-files-found: error
+          retention-days: 14
+
+  dmg:
+    name: macOS DMG (${{ matrix.arch }})
+    needs: gui
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            arch: arm64
+          - os: macos-15-intel
+            arch: x86_64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
+      - name: Install build-time media tools
+        run: brew install ffmpeg
+      - name: Build offline test DMG (no Developer ID or notarization)
+        run: uv run --frozen --extra gui --extra play --extra analyze --group desktop-build --python 3.12 python packaging/macos/build.py
+      - name: Mount DMG and verify copied application
+        run: uv run --frozen --python 3.12 python packaging/macos/test_dmg.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: macos-${{ matrix.arch }}-test-dmg
+          path: dist/installer/*
           if-no-files-found: error
           retention-days: 14

@@ -4,9 +4,9 @@
 - Document version: 1.1
 - Product version verified: 1.1.0 (working tree)
 - Owner: Filip Białogrecki
-- Updated: 2026-09-09
-- Document lines: <!-- SPEC TOTAL LINES -->1540<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1540<!-- END SPEC MAP LIMIT -->
+- Updated: 2026-09-10
+- Document lines: <!-- SPEC TOTAL LINES -->1555<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1555<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,7 +51,7 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 143–179 |
 | 2.1 | ↳ Problem and product boundary | 145–158 |
 | 2.2 | ↳ Execution modes | 159–179 |
-| 3 | User-visible capabilities | 180–713 |
+| 3 | User-visible capabilities | 180–728 |
 | 3.1 | ↳ Track collection and saved HTML | 182–208 |
 | 3.2 | ↳ Link classification and exports | 209–227 |
 | 3.3 | ↳ TUI playlist library and interaction | 228–319 |
@@ -59,56 +59,56 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 3.5 | ↳ Downloads and local-file matching | 386–415 |
 | 3.6 | ↳ Store purchase assistance | 416–500 |
 | 3.7 | ↳ Local library, analysis and audio export | 501–616 |
-| 3.8 | ↳ Qt Quick desktop | 617–713 |
-| 4 | System context and data flow | 714–754 |
-| 4.1 | ↳ Context diagram | 716–738 |
-| 4.2 | ↳ Collection-to-library flow | 739–754 |
-| 5 | Repository layout and component ownership | 755–829 |
-| 5.1 | ↳ Entry, orchestration, and models | 757–768 |
-| 5.2 | ↳ Network and external-system adapters | 769–787 |
-| 5.3 | ↳ Persistence, local media, and UI | 788–829 |
-| 6 | Runtime architecture and environments | 830–941 |
-| 6.1 | ↳ Runtime and dependencies | 832–848 |
-| 6.2 | ↳ Concurrency and lifecycle | 849–920 |
-| 6.3 | ↳ Local paths and environment variables | 921–941 |
-| 7 | Data model and persistence | 942–1029 |
-| 7.1 | ↳ Domain objects and identity | 944–958 |
-| 7.2 | ↳ SQLite schema and invariants | 959–996 |
-| 7.3 | ↳ Crate persistence and deletion | 997–1012 |
-| 7.4 | ↳ Configuration and credential stores | 1013–1029 |
-| 8 | Public interfaces and contracts | 1030–1086 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1032–1060 |
-| 8.2 | ↳ JSON and CSV summary input | 1061–1075 |
-| 8.3 | ↳ URL-opening contract | 1076–1086 |
-| 9 | Authentication and authorization | 1087–1130 |
-| 9.1 | ↳ SoundCloud authentication | 1089–1109 |
-| 9.2 | ↳ Gate action consent | 1110–1130 |
-| 10 | External integrations | 1131–1266 |
-| 10.1 | ↳ SoundCloud API and media | 1133–1144 |
-| 10.2 | ↳ Link hubs and download gates | 1145–1207 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1153–1193 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1195–1200 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1202–1207 |
-| 10.3 | ↳ Browsers and clipboard | 1208–1219 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1220–1266 |
-| 11 | Security requirements and threat model | 1267–1321 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1269–1287 |
-| 11.2 | ↳ Secret and personal-data handling | 1288–1303 |
-| 11.3 | ↳ File and mutation safety | 1304–1321 |
-| 12 | Privacy, lifecycle, and retention | 1322–1365 |
-| 12.1 | ↳ Data stored locally | 1324–1343 |
-| 12.2 | ↳ Data sent to third parties | 1344–1355 |
-| 12.3 | ↳ User-controlled deletion | 1356–1365 |
-| 13 | Failure behavior and current limitations | 1366–1426 |
-| 13.1 | ↳ Error isolation and reporting | 1368–1387 |
-| 13.2 | ↳ Confirmed limitations | 1388–1426 |
-| 14 | Verification, CI, and release | 1427–1511 |
-| 14.1 | ↳ Offline and live test suites | 1429–1475 |
-| 14.2 | ↳ Continuous integration and publishing | 1476–1496 |
-| 14.3 | ↳ Specification-map verification | 1497–1511 |
-| 15 | Evidence and operational references | 1512–1540 |
-| 15.1 | ↳ Primary implementation evidence | 1514–1530 |
-| 15.2 | ↳ User and historical documentation | 1531–1540 |
+| 3.8 | ↳ Qt Quick desktop | 617–728 |
+| 4 | System context and data flow | 729–769 |
+| 4.1 | ↳ Context diagram | 731–753 |
+| 4.2 | ↳ Collection-to-library flow | 754–769 |
+| 5 | Repository layout and component ownership | 770–844 |
+| 5.1 | ↳ Entry, orchestration, and models | 772–783 |
+| 5.2 | ↳ Network and external-system adapters | 784–802 |
+| 5.3 | ↳ Persistence, local media, and UI | 803–844 |
+| 6 | Runtime architecture and environments | 845–956 |
+| 6.1 | ↳ Runtime and dependencies | 847–863 |
+| 6.2 | ↳ Concurrency and lifecycle | 864–935 |
+| 6.3 | ↳ Local paths and environment variables | 936–956 |
+| 7 | Data model and persistence | 957–1044 |
+| 7.1 | ↳ Domain objects and identity | 959–973 |
+| 7.2 | ↳ SQLite schema and invariants | 974–1011 |
+| 7.3 | ↳ Crate persistence and deletion | 1012–1027 |
+| 7.4 | ↳ Configuration and credential stores | 1028–1044 |
+| 8 | Public interfaces and contracts | 1045–1101 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1047–1075 |
+| 8.2 | ↳ JSON and CSV summary input | 1076–1090 |
+| 8.3 | ↳ URL-opening contract | 1091–1101 |
+| 9 | Authentication and authorization | 1102–1145 |
+| 9.1 | ↳ SoundCloud authentication | 1104–1124 |
+| 9.2 | ↳ Gate action consent | 1125–1145 |
+| 10 | External integrations | 1146–1281 |
+| 10.1 | ↳ SoundCloud API and media | 1148–1159 |
+| 10.2 | ↳ Link hubs and download gates | 1160–1222 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1168–1208 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1210–1215 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1217–1222 |
+| 10.3 | ↳ Browsers and clipboard | 1223–1234 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1235–1281 |
+| 11 | Security requirements and threat model | 1282–1336 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1284–1302 |
+| 11.2 | ↳ Secret and personal-data handling | 1303–1318 |
+| 11.3 | ↳ File and mutation safety | 1319–1336 |
+| 12 | Privacy, lifecycle, and retention | 1337–1380 |
+| 12.1 | ↳ Data stored locally | 1339–1358 |
+| 12.2 | ↳ Data sent to third parties | 1359–1370 |
+| 12.3 | ↳ User-controlled deletion | 1371–1380 |
+| 13 | Failure behavior and current limitations | 1381–1441 |
+| 13.1 | ↳ Error isolation and reporting | 1383–1402 |
+| 13.2 | ↳ Confirmed limitations | 1403–1441 |
+| 14 | Verification, CI, and release | 1442–1526 |
+| 14.1 | ↳ Offline and live test suites | 1444–1490 |
+| 14.2 | ↳ Continuous integration and publishing | 1491–1511 |
+| 14.3 | ↳ Specification-map verification | 1512–1526 |
+| 15 | Evidence and operational references | 1527–1555 |
+| 15.1 | ↳ Primary implementation evidence | 1529–1545 |
+| 15.2 | ↳ User and historical documentation | 1546–1555 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -711,6 +711,21 @@ replacement while desktop/helper processes hold it; it is not a cross-process
 single-instance or data lock. Platform acceptance status belongs in the desktop
 implementation record, not an inference from the presence of these build recipes.
 
+macOS packaging builds separate native arm64 and x86_64 test DMGs on macOS 15
+runners. The shared PyInstaller specification creates `dj-digger.app`, including
+Python, Qt Quick, audio/analysis libraries, a separate analysis helper, bundled
+FFmpeg/ffprobe with collected dylibs, and Playwright Chromium. Frozen macOS tools
+and browsers resolve inside `Contents/Resources`; the analysis helper lives in
+`Contents/MacOS`. Missing bundled tools fail without searching system paths.
+The DMG contains an Applications shortcut and bilingual installation instructions.
+It requires macOS 15 or newer and uses only ad-hoc code signatures, without a
+Developer ID certificate, notarization, credentials, or automatic updates.
+The CI acceptance check mounts the image read-only, copies the app into a path
+with spaces, ejects the image, rejects external build-machine dylib references,
+and runs the packaged GUI/media/analysis/browser checks with an isolated user
+profile and a system-only PATH. These checks do not certify Gatekeeper acceptance
+or interactive audio-device behavior on a user's Mac.
+
 ## 4. System context and data flow
 
 ### 4.1 Context diagram
@@ -836,8 +851,8 @@ dependencies are `requests`, `beautifulsoup4`, `textual` (pinned to the 8.x
 line because the TUI relies on its binding semantics and a few private hooks),
 `rich`, and `playwright`. `miniaudio` is optional in the `play` extra. `librosa` is optional in the
 `analyze` extra and imports only in analysis workers. FFmpeg/ffprobe are external
-executables required only by local media inspection/playback/conversion/analysis. The `gui` extra adds PySide6 6.x (minimum 6.10). Windows build tooling is isolated
-in the `windows-build` dependency group. The `dev` extra adds
+executables required only by local media inspection/playback/conversion/analysis. The `gui` extra adds PySide6 6.x (minimum 6.10). Desktop build tooling is isolated
+in the `desktop-build` dependency group. The `dev` extra adds
 `pytest`, `miniaudio`, and `ruff`. There is no runtime JavaScript build, database
 server, container image, or infrastructure-as-code layer in the repository.
 

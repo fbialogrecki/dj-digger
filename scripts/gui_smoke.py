@@ -12,6 +12,8 @@ def main():
         env = dict(os.environ, HOME=temporary, USERPROFILE=temporary,
                    LOCALAPPDATA=str(root / 'Local'), APPDATA=str(root / 'Roaming'),
                    QT_QPA_PLATFORM='offscreen')
+        if len(sys.argv) > 1 and sys.platform == 'darwin':
+            env['PATH'] = '/usr/bin:/bin:/usr/sbin:/sbin'
         for name in ('XDG_DATA_HOME', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'XDG_STATE_HOME'):
             env[name] = str(root / name)
         command = ([str(Path(sys.argv[1]).resolve())] if len(sys.argv) > 1 else

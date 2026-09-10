@@ -235,7 +235,7 @@ play = [
 ]
 
 [package.dev-dependencies]
-windows-build = [
+desktop-build = [
     { name = "pyinstaller" },
 ]
 
@@ -256,7 +256,7 @@ requires-dist = [
 provides-extras = ["analyze", "play", "shop", "dev", "gui"]
 
 [package.metadata.requires-dev]
-windows-build = [{ name = "pyinstaller", specifier = ">=6.19,<7" }]
+desktop-build = [{ name = "pyinstaller", specifier = ">=6.19,<7" }]
 
 [[package]]
 name = "greenlet"

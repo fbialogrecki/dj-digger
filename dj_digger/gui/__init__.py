@@ -18,7 +18,8 @@ def main():
     from .bridge import Bridge
 
     if getattr(sys, 'frozen', False):
-        os.environ['PLAYWRIGHT_BROWSERS_PATH'] = str(Path(sys.executable).parent / 'browsers')
+        from ..bundled import resource_root
+        os.environ['PLAYWRIGHT_BROWSERS_PATH'] = str(resource_root() / 'browsers')
     # Libraries sometimes write diagnostics directly when pythonw has no streams.
     for name in ('stdout', 'stderr'):
         if getattr(sys, name) is None:

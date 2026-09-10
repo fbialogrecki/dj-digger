@@ -1,0 +1,26 @@
+dj-digger — test version / wersja testowa
+
+Requires macOS 15 or newer. Choose arm64 for Apple Silicon (M-series),
+x86_64 for Intel. Python, FFmpeg and the browser components are included.
+
+Open the DMG and drag dj-digger.app onto Applications. Eject the disk image,
+then open dj-digger from Applications. No terminal commands are needed.
+
+This test app has no Developer ID signature or Apple notarization. macOS may
+block its first launch. Only if you trust this download, use System Settings >
+Privacy & Security > Open Anyway for this app. Do not disable system security.
+This package is for testing; automatic updates are not included.
+
+--- Polski ---
+
+Wymaga macOS 15 lub nowszego. Wybierz arm64 dla Apple Silicon (seria M),
+x86_64 dla Intela. Python, FFmpeg i komponenty przeglądarki są dołączone.
+
+Otwórz DMG i przeciągnij dj-digger.app na Applications (Aplikacje).
+Wysuń obraz dysku i uruchom dj-digger z folderu Aplikacje. Terminal nie jest
+potrzebny.
+
+Wersja testowa nie ma podpisu Developer ID ani notaryzacji Apple. macOS może
+zablokować pierwsze uruchomienie. Jeżeli ufasz pobranemu plikowi, skorzystaj
+z Ustawienia systemowe > Prywatność i ochrona > Otwórz mimo to dla tej aplikacji.
+Nie wyłączaj zabezpieczeń systemu. Automatyczne aktualizacje nie są dostępne.

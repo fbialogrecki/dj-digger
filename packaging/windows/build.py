@@ -38,7 +38,7 @@ def main():
     download(tools['inno'], compiler)
     inno = staging / 'inno'
     subprocess.run([str(compiler), '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CURRENTUSER', f'/DIR={inno}'], check=True)
-    subprocess.run([sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean', 'packaging/windows/desktop.spec'], check=True)
+    subprocess.run([sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean', 'packaging/desktop.spec'], check=True)
     bundle = ROOT / 'dist/dj-digger'
     if any('qtwebengine' in file.name.lower() or 'qt6webengine' in file.name.lower() for file in bundle.rglob('*')):
         raise RuntimeError('Unexpected embedded Qt WebEngine in desktop bundle')
