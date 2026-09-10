@@ -5,8 +5,8 @@
 - Product version verified: 1.1.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-09-09
-- Document lines: <!-- SPEC TOTAL LINES -->1539<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1539<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1540<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1540<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -102,13 +102,13 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 13 | Failure behavior and current limitations | 1366–1426 |
 | 13.1 | ↳ Error isolation and reporting | 1368–1387 |
 | 13.2 | ↳ Confirmed limitations | 1388–1426 |
-| 14 | Verification, CI, and release | 1427–1510 |
+| 14 | Verification, CI, and release | 1427–1511 |
 | 14.1 | ↳ Offline and live test suites | 1429–1475 |
-| 14.2 | ↳ Continuous integration and publishing | 1476–1495 |
-| 14.3 | ↳ Specification-map verification | 1496–1510 |
-| 15 | Evidence and operational references | 1511–1539 |
-| 15.1 | ↳ Primary implementation evidence | 1513–1529 |
-| 15.2 | ↳ User and historical documentation | 1530–1539 |
+| 14.2 | ↳ Continuous integration and publishing | 1476–1496 |
+| 14.3 | ↳ Specification-map verification | 1497–1511 |
+| 15 | Evidence and operational references | 1512–1540 |
+| 15.1 | ↳ Primary implementation evidence | 1514–1530 |
+| 15.2 | ↳ User and historical documentation | 1531–1540 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -1488,10 +1488,11 @@ and by manual dispatch. It is an external-contract monitor rather than a release
 gate.
 
 `.github/workflows/publish.yml` runs its own offline test matrix for a published
-release or manual dispatch, checks the specification map before building, builds
+stable release or manual dispatch, checks the specification map before building, builds
 with `uv build`, and publishes to PyPI through a pinned action using trusted
 publisher OIDC. The publish job has `id-token: write`; other workflow permissions
-default to read-only contents.
+default to read-only contents. GitHub prereleases skip both jobs, allowing test
+installers to be shared without a PyPI upload.
 
 ### 14.3 Specification-map verification
 

@@ -17,6 +17,7 @@ jobs:
   # the commit and this one gates the upload - a release must not depend on a
   # run that happened to be green on some earlier push.
   test:
+    if: github.event_name == 'workflow_dispatch' || github.event.release.prerelease == false
     name: Release check on ${{ matrix.os }} / Python ${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -67,6 +68,7 @@ jobs:
           uv run --no-sync python scripts/tool_migration_smoke.py .legacy-dist/dj_soundcloud_digger-1.0.1-py3-none-any.whl dist/dj_digger-1.1.0-py3-none-any.whl --manager uv
 
   pypi-publish:
+    if: github.event_name == 'workflow_dispatch' || github.event.release.prerelease == false
     name: Upload release to PyPI
     needs: test
     runs-on: ubuntu-latest
