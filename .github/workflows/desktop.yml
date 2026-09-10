@@ -17,6 +17,11 @@ jobs:
         with:
           persist-credentials: false
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
+      - name: Install Linux Qt runtime libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libopengl0
       - name: Desktop contracts
         run: uv run --frozen --extra dev --extra gui --python 3.12 pytest tests/test_gui.py tests/test_bundled_tools.py
       - name: Isolated desktop smoke

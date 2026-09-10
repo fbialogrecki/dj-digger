@@ -24,6 +24,8 @@ from dj_digger.state import TrackState
 
 @pytest.fixture(scope='module')
 def app():
+    from PySide6.QtQuickControls2 import QQuickStyle
+    QQuickStyle.setStyle('Basic')
     return QGuiApplication.instance() or QGuiApplication([])
 
 
@@ -382,7 +384,7 @@ def test_qml_home_tree_and_one_sided_waveform(app, tmp_path, monkeypatch):
             QTest.qWait(10)
         assert tree.property('rows') == 2
         assert bridge.homePath == str(home)
-        assert bridge.directoryModel.filePath(bridge.homeIndex) == str(home)
+        assert Path(bridge.directoryModel.filePath(bridge.homeIndex)) == home
         # Expand and select through the actual delegate, not just the filesystem API.
         def find_item(item, name):
             if item.objectName() == name:
@@ -392,7 +394,8 @@ def test_qml_home_tree_and_one_sided_waveform(app, tmp_path, monkeypatch):
         assert music is not None
         point = music.mapToScene(QPointF(80, 16)).toPoint()
         QTest.mouseClick(window, Qt.LeftButton, pos=point)
-        assert ('folder', {'path': str(home / 'Music'), 'offset': 0}) in bridge.backend.calls
+        assert any(call[0] == 'folder' and Path(call[1]['path']) == home / 'Music' and call[1]['offset'] == 0
+                   for call in bridge.backend.calls)
         painted = QSignalSpy(window.frameSwapped)
         window.update()
         assert painted.wait(3000)  # Use the settled delegate geometry for the next click.
