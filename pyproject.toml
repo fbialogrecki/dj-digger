@@ -83,4 +83,7 @@ addopts = "-m 'not live and not shop_live and not hypeddit_live and not bandcamp
 [dependency-groups]
 desktop-build = [
     "pyinstaller>=6.19,<7",
+    # Last Numba series with Intel macOS wheels; DMGs build with Python 3.12.
+    "numba>=0.67; sys_platform != 'darwin' or platform_machine != 'x86_64' or python_version >= '3.14'",
+    "numba<0.63; sys_platform == 'darwin' and platform_machine == 'x86_64' and python_version < '3.14'",
 ]

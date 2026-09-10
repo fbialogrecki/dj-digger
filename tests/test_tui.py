@@ -1696,6 +1696,15 @@ async def settle(app, pilot):
     await pilot.pause()
 
 
+
+async def wait_for_ui(pilot, ready):
+    """Wait for resize/recompose callbacks, bounded even when rendering breaks."""
+    deadline = asyncio.get_running_loop().time() + 5
+    while not ready() and asyncio.get_running_loop().time() < deadline:
+        await pilot.pause(0.01)
+    assert ready(), "UI did not settle"
+
+
 def test_an_empty_app_asks_for_a_link(state):
     app = make_app([], state)
 
@@ -5286,8 +5295,7 @@ def test_local_footer_exposes_conversion_analysis_and_restores_online_actions(st
             assert {'BPM', 'Key'} <= app.playlist_state._column_keys.keys()
             assert len(app.screen_stack) == 1
             await pilot.resize_terminal(80, 24)
-            await pilot.pause()
-            assert {'local_export', 'local_analyze', 'play_pause'} <= actions().keys()
+            await wait_for_ui(pilot, lambda: {'local_export', 'local_analyze', 'play_pause'} <= actions().keys())
             messages = []
             monkeypatch.setattr(app.local_controller, 'notify', lambda message, **kwargs: messages.append(message))
             monkeypatch.setattr(importlib.util, 'find_spec', lambda name, *a: None if name == 'librosa' else original_find_spec(name, *a))
@@ -5470,6 +5478,10 @@ def test_resize_keeps_sort_selection_and_local_metadata_columns(records, state):
                 await pilot.resize_terminal(*size)
                 await pilot.pause()
                 table = app.query_one('#tracks', DataTable)
+                footer = app.query_one(FittedFooter)
+                await wait_for_ui(pilot, lambda: not table.show_horizontal_scrollbar
+                                  and bool(footer.children)
+                                  and all(child.region.right <= footer.region.right for child in footer.children))
                 assert app.playlist_state.sort_key == 'bpm'
                 assert app.playlist_state.selected == selected
                 assert not table.show_horizontal_scrollbar

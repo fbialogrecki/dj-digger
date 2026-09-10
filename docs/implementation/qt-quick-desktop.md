@@ -275,3 +275,5 @@ PyPI publication is triggered by this workflow.
 Gatekeeper first-launch approval, Finder interaction, audible playback and
 physical device/high-DPI checks remain manual acceptance work. CI runtime
 results are recorded separately once builds finish.
+
+Intel DMGs use Numba 0.62.x / llvmlite 0.45.x, the last series with Intel macOS wheels. The build dependency markers keep the newer Numba series on other platforms. The dependency audit uses `otool -m` to handle Chromium helper names containing parentheses.

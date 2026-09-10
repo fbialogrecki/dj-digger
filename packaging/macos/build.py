@@ -25,7 +25,7 @@ def main():
             raise SystemExit(f'Install {name} before building the DMG.')
         with open(executable, 'rb') as stream:
             digest = hashlib.file_digest(stream, 'sha256').hexdigest()
-        tools[name] = {'sha256': digest, 'version': subprocess.check_output([executable, '-version'], text=True).splitlines()[0]}
+        tools[name] = {'source_sha256': digest, 'version': subprocess.check_output([executable, '-version'], text=True).splitlines()[0]}
     subprocess.run([sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean', 'packaging/desktop.spec'], check=True)
     bundle = ROOT / 'dist/dj-digger.app'
     resources = bundle / 'Contents/Resources'

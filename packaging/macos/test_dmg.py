@@ -19,7 +19,7 @@ def check_dependencies(bundle):
         with path.open('rb') as stream:
             if stream.read(4) not in MACHO:
                 continue
-        output = subprocess.check_output(['otool', '-L', str(path)], text=True)
+        output = subprocess.check_output(['otool', '-m', '-L', str(path)], text=True)
         for line in output.splitlines():
             if not line.startswith('\t'):
                 continue
