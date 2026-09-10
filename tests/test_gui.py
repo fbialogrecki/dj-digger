@@ -461,3 +461,94 @@ def test_qml_home_tree_and_one_sided_waveform(app, tmp_path, monkeypatch):
         assert not errors
     finally:
         shiboken6.delete(engine)
+
+
+def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkeypatch):
+    import shiboken6
+    from PySide6.QtCore import QPointF, QUrl
+    from PySide6.QtQml import QQmlApplicationEngine
+    from PySide6.QtQuick import QQuickItem
+    from PySide6.QtTest import QSignalSpy, QTest
+
+    from dj_digger.gui.bridge import Bridge
+
+    class PassiveBackend:
+        def __init__(self, emit):
+            self.calls = []
+        def submit(self, *args):
+            self.calls.append(args)
+
+    monkeypatch.setenv('XDG_CONFIG_HOME', str(tmp_path / 'config'))
+    engine = QQmlApplicationEngine()
+    warnings = []
+    engine.warnings.connect(lambda items: warnings.extend(str(w) for w in items))
+    bridge = Bridge(engine, backend_factory=PassiveBackend, home_path=tmp_path)
+    engine.rootContext().setContextProperty('desktop', bridge)
+    engine.rootContext().setContextProperty('systemLanguage', 'pl')
+    engine.load(QUrl.fromLocalFile(str(Path('dj_digger/gui/qml/Main.qml').resolve())))
+    try:
+        window = engine.rootObjects()[0]
+        def settle():
+            painted = QSignalSpy(window.frameSwapped)
+            window.update()
+            assert painted.wait(3000)
+        def click(item):
+            settle()
+            point = item.mapToScene(QPointF(item.width()/2, item.height()/2)).toPoint()
+            QTest.mouseClick(window, Qt.LeftButton, pos=point)
+        def find(item, name):
+            if item.objectName() == name:
+                return item
+            return next((found for child in item.childItems() if (found := find(child, name))), None)
+        bridge.receive('ready', {})
+        bridge.receive('sidebar', {'items': [{'source': 'fixture', 'title': 'Test playlist'}]})
+        bridge.receive('view', dict(title='Local', source='fixture', local=True, generation=1,
+                                    rows=[row('a', 'Alpha'), row('b', 'Beta')]))
+        bridge.receive('audio', dict(key='a', title='Alpha', playing=True, duration=180, position=30))
+        bridge.table.select(1)
+        play = window.findChild(QQuickItem, 'playPause')
+        assert not window.property('pauseTarget')
+        click(play)
+        assert bridge.backend.calls[-1][0] == 'play'
+        assert bridge.backend.calls[-1][1]['keys'] == ['b']
+        bridge.table.select(0)
+        assert window.property('pauseTarget')
+        click(play)
+        assert bridge.backend.calls[-1][1]['keys'] == ['a']
+        bridge.table.clearSelection()
+        click(play)
+        assert bridge.backend.calls[-1] == ('transport', {'operation': 'toggle', 'value': 0.0})
+        bridge.table.select(1)
+        for theme in ('light', 'dark'):
+            window.setProperty('themeChoice', theme)
+            settle()
+            playlist = find(window.contentItem(), 'playlist-fixture')
+            assert playlist.property('background').property('color') == window.property('accent')
+            labels = playlist.property('contentItem').childItems()
+            assert all(label.property('color') == window.property('selectionText') for label in labels)
+        window.setWidth(760)
+        window.setHeight(520)
+        bridge.receive('error', {'text': 'Unable to load track. ' * 30})
+        bridge.receive('message', {'text': 'Background scan completed'})
+        settle()
+        banner = window.findChild(QQuickItem, 'errorBanner')
+        assert banner.isVisible()
+        for name in ('volumeSlider', 'trackActions', 'errorBanner'):
+            item = window.findChild(QQuickItem, name)
+            for control in ([item] if name != 'trackActions' else item.childItems()):
+                if not control.isVisible():
+                    continue
+                corner = control.mapToScene(QPointF(control.width(), control.height()))
+                assert corner.x() <= window.width() + 1, (name, corner)
+                assert corner.y() <= window.height() + 1, (name, corner)
+        click(window.findChild(QQuickItem, 'errorDetails'))
+        assert window.property('dialogOpen')
+        QTest.keyClick(window, Qt.Key_Escape)
+        settle()
+        assert banner.isVisible()
+        click(window.findChild(QQuickItem, 'dismissError'))
+        assert not banner.isVisible()
+        assert 'Unable to load track.' in str(window.property('messages').toVariant())
+        assert not warnings
+    finally:
+        shiboken6.delete(engine)

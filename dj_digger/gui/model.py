@@ -166,5 +166,7 @@ class TrackModel(QAbstractTableModel):
             self.dataChanged.emit(self.index(0, 0), self.index(len(self.visible)-1, len(COLUMNS)-1), [Qt.UserRole + 1])
         self.changed.emit()
 
+    firstSelectedKey = Property(str, lambda self: next((r['key'] for r in self.visible if r['key'] in self.selected), ''), notify=changed)
+
     def keys(self):
         return [r['key'] for r in self.visible if r['key'] in self.selected]

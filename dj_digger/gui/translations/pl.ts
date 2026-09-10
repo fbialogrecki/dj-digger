@@ -2,6 +2,8 @@
 <TS version="2.1" language="pl_PL" sourcelanguage="en">
   <context>
     <name>Main</name>
+    <message><source>Details</source><translation>Szczegóły</translation></message>
+    <message><source>Dismiss error</source><translation>Zamknij błąd</translation></message>
     <message>
       <source>Library</source>
       <translation>Biblioteka</translation>

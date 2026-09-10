@@ -32,6 +32,8 @@ ApplicationWindow {
     property real volume: desktop.volume
     property var pendingQuestions: []
     property var messages: []
+    property string errorMessage: ""
+    readonly property bool pauseTarget: !!desktop.audio.playing && (!hasSelection || desktop.model.firstSelectedKey === desktop.audio.key)
     property var columnWidths: [85, 150, 280, 85, 50, 45, 50, 95, 50, 140]
     readonly property int titleColumn: 2
     function columnVisible(column) { return (column !== 4 && column !== 5) || !!desktop.view.local }
@@ -163,7 +165,10 @@ ApplicationWindow {
             if (dialog.ident === id) dialog.close()
             Qt.callLater(root.nextQuestion)
         }
-        function onNotice(text, level) { root.note(text, level) }
+        function onNotice(text, level) {
+            root.note(text, level)
+            if (level === "error") root.errorMessage = text
+        }
     }
 
     menuBar: MenuBar {
@@ -277,6 +282,7 @@ ApplicationWindow {
                 orientation: Qt.Vertical
                 handle: Rectangle { implicitWidth: 6; implicitHeight: 6; color: "transparent" }
                 SplitView.preferredWidth: root.sidebarWidth; SplitView.minimumWidth: 160
+                SplitView.maximumWidth: Math.max(160, root.width - 520)
                 ColumnLayout {
                     SplitView.preferredHeight: parent.height / 2; SplitView.minimumHeight: 120
                     Label { text: qsTr("Playlists"); font.bold: true; color: root.muted; Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; topPadding: 4 }
@@ -288,6 +294,8 @@ ApplicationWindow {
                         model: desktop.playlists
                         delegate: ItemDelegate {
                             id: playlistItem
+                            objectName: "playlist-" + modelData.source
+                            background: Rectangle { color: playlistItem.highlighted ? root.accent : playlistItem.hovered ? root.hoverSurface : "transparent" }
                             required property var modelData
                             width: ListView.view.width
                             highlighted: modelData.source === desktop.view.source
@@ -312,6 +320,7 @@ ApplicationWindow {
                         model: desktop.pinned
                         ItemDelegate {
                             id: pinnedItem
+                            background: Rectangle { color: pinnedItem.highlighted ? root.accent : pinnedItem.hovered ? root.hoverSurface : "transparent" }
                             required property string modelData
                             Layout.fillWidth: true
                             highlighted: root.folderView && desktop.folder.path === modelData
@@ -371,7 +380,7 @@ ApplicationWindow {
                 }
             }
             ColumnLayout {
-                SplitView.fillWidth: true
+                SplitView.fillWidth: true; SplitView.minimumWidth: 0
             Rectangle {
                 id: player
                 Layout.fillWidth: true; Layout.preferredHeight: root.loaded ? 156 : 52
@@ -420,20 +429,19 @@ ApplicationWindow {
                             objectName: "playPause"
                             implicitWidth: 40
                             enabled: root.loaded || root.hasSelection
-                            text: desktop.audio.playing ? qsTr("Pause") : qsTr("Play")
+                            text: root.pauseTarget ? qsTr("Pause") : qsTr("Play")
                             display: AbstractButton.IconOnly
-                            icon.source: desktop.audio.playing ? "icons/pause.svg" : "icons/play.svg"
+                            icon.source: root.pauseTarget ? "icons/pause.svg" : "icons/play.svg"
                             icon.color: palette.buttonText; icon.width: 20; icon.height: 20
                             Accessible.name: text
                             ToolTip.visible: hovered; ToolTip.text: text + " (Space)"
-                            onClicked: root.loaded ? desktop.transport("toggle", 0) : desktop.action("play")
+                            onClicked: root.playSelected()
                         }
                         Button { text: qsTr("Next track"); enabled: root.loaded; display: AbstractButton.IconOnly; implicitWidth: 40; icon.source: "icons/next.svg"; icon.color: palette.buttonText; Accessible.name: text; ToolTip.visible: hovered; ToolTip.text: text + " (N)"; onClicked: desktop.step(1) }
                         Button { text: qsTr("Stop"); enabled: root.loaded; display: AbstractButton.IconOnly; implicitWidth: 40; icon.source: "icons/stop.svg"; icon.color: palette.buttonText; Accessible.name: text; ToolTip.visible: hovered; ToolTip.text: text + " (Ctrl+W)"; onClicked: desktop.transport("stop", 0) }
                         Label { visible: root.loaded; text: root.clock(desktop.audio.position) + " / " + root.clock(desktop.audio.duration); color: root.muted }
-                        Label { visible: root.loaded; text: desktop.audio.title || ""; textFormat: Text.PlainText; elide: Text.ElideRight; Layout.fillWidth: true; font.bold: true }
-                        Label { visible: !root.loaded; text: root.hasSelection ? qsTr("Press Space to play the selected track") : qsTr("Select a track to play"); color: root.muted; elide: Text.ElideRight; Layout.fillWidth: true }
-                        Item { Layout.fillWidth: true }
+                        Label { visible: root.loaded; text: desktop.audio.title || ""; textFormat: Text.PlainText; elide: Text.ElideRight; Layout.fillWidth: true; Layout.minimumWidth: 0; font.bold: true }
+                        Label { visible: !root.loaded; text: root.hasSelection ? qsTr("Press Space to play the selected track") : qsTr("Select a track to play"); color: root.muted; elide: Text.ElideRight; Layout.fillWidth: true; Layout.minimumWidth: 0 }
                         ToolButton {
                             text: root.isMuted ? qsTr("Unmute") : qsTr("Mute")
                             display: AbstractButton.TextOnly
@@ -442,7 +450,9 @@ ApplicationWindow {
                             onClicked: root.toggleMute()
                         }
                         Slider {
-                            from: 0; to: 1; value: root.volume; implicitWidth: 140
+                            objectName: "volumeSlider"
+                            from: 0; to: 1; value: root.volume
+                            Layout.fillWidth: true; Layout.minimumWidth: 50; Layout.preferredWidth: 100; Layout.maximumWidth: 140
                             onMoved: { root.volume = value; root.isMuted = false; desktop.transport("volume", value) }
                             Accessible.name: qsTr("Volume")
                             ToolTip.visible: hovered || pressed; ToolTip.text: qsTr("Volume") + " " + Math.round(value * 100) + "%"
@@ -452,7 +462,7 @@ ApplicationWindow {
             }
                 RowLayout {
                     TextField {
-                        id: search; objectName: "trackSearch"; placeholderText: qsTr("Search artist, title, genre, tag or label  ( / )"); Layout.fillWidth: true
+                        id: search; objectName: "trackSearch"; placeholderText: qsTr("Search artist, title, genre, tag or label  ( / )"); Layout.fillWidth: true; Layout.minimumWidth: 0
                         onTextChanged: filterTimer.restart()
                         Keys.onReturnPressed: table.forceActiveFocus()
                         Keys.onDownPressed: table.forceActiveFocus()
@@ -601,8 +611,10 @@ ApplicationWindow {
                 }
                 }
                 RowLayout {
+                    Layout.fillWidth: true; Layout.minimumWidth: 0
                     Layout.leftMargin: 6; Layout.rightMargin: 6
                     Label {
+                        Layout.fillWidth: true; Layout.minimumWidth: 0
                         color: root.muted; elide: Text.ElideRight
                         property var c: desktop.model.counts
                         text: root.hasRows || c.total > 0 ? qsTr("%1 / %2 tracks · owned %3 · skipped %4").arg(c.visible).arg(c.total).arg(c.got).arg(c.skipped)
@@ -610,8 +622,8 @@ ApplicationWindow {
                     }
                     BusyIndicator { running: desktop.busy || root.shuttingDown || !desktop.ready; visible: running; implicitHeight: 24; implicitWidth: 24 }
                     Label {
-                        Layout.fillWidth: true; textFormat: Text.PlainText; elide: Text.ElideRight
-                        text: root.shuttingDown ? qsTr("Closing…") : !desktop.ready ? qsTr("Loading library…") : desktop.message
+                        Layout.fillWidth: true; Layout.minimumWidth: 0; textFormat: Text.PlainText; elide: Text.ElideRight
+                        text: root.shuttingDown ? qsTr("Closing…") : !desktop.ready ? qsTr("Loading library…") : desktop.level === "error" ? "" : desktop.message
                         color: desktop.level === "error" ? root.danger : root.muted
                         font.bold: desktop.level === "error"
                         ToolTip.visible: hovered && text.length > 0; ToolTip.text: text
@@ -620,6 +632,31 @@ ApplicationWindow {
                         TapHandler { onTapped: messageLog.open() }
                         Accessible.name: text
                     }
+                }
+                Rectangle {
+                    objectName: "errorBanner"
+                    visible: root.errorMessage.length > 0
+                    Layout.fillWidth: true; Layout.minimumWidth: 0
+                    implicitHeight: errorContent.implicitHeight + 16
+                    color: root.panel; border.color: root.danger; radius: 4
+                    RowLayout {
+                        id: errorContent
+                        anchors.fill: parent; anchors.margins: 8
+                        Label {
+                            Layout.fillWidth: true; Layout.minimumWidth: 0
+                            text: root.errorMessage; textFormat: Text.PlainText
+                            wrapMode: Text.Wrap; maximumLineCount: 3; elide: Text.ElideRight
+                            color: root.danger; Accessible.name: text
+                        }
+                        Button { objectName: "errorDetails"; text: qsTr("Details"); onClicked: messageLog.open() }
+                        ToolButton { objectName: "dismissError"; text: "×"; Accessible.name: qsTr("Dismiss error"); ToolTip.visible: hovered; ToolTip.text: Accessible.name; onClicked: root.errorMessage = "" }
+                    }
+                }
+                Flow {
+                    objectName: "trackActions"
+                    Layout.fillWidth: true; Layout.minimumWidth: 0
+                    Layout.preferredHeight: implicitHeight
+                    spacing: 5
                     Button { text: qsTr("Cancel"); visible: desktop.busy; onClicked: desktop.action("cancel") }
                     Button { text: qsTr("Open links"); enabled: root.hasSelection; ToolTip.visible: hovered; ToolTip.text: qsTr("Open the best store link for each selected track (O)"); onClicked: desktop.action("open") }
                     Button { text: qsTr("Download"); enabled: root.hasSelection && !desktop.busy; ToolTip.visible: hovered; ToolTip.text: qsTr("Download the selected tracks (D)"); onClicked: desktop.action("download") }

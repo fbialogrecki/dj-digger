@@ -207,3 +207,27 @@ and TUI (`compose()` moved the player widgets into `#main`); status is the first
 column and BPM/key columns are hidden outside local views; the playback level
 is a shared `volume` config field applied at player creation and saved at
 shutdown. GUI (16), player, config and TUI (240) suites pass.
+
+
+## Compact-window and feedback correction — 2026-09-10
+
+Playlist and pinned-folder highlights now set their background explicitly in
+both themes. The main pane may shrink without pushing transport or footer
+controls outside the window: the sidebar has a window-relative maximum, the
+volume slider and labels flex, and action buttons wrap below a separate status
+row. The table keeps horizontal scrolling for wide sets of columns.
+
+The Play button and Space share the selected-track rule; the Play/Pause icon
+also follows that target. A separate error banner survives later informational
+messages, offers Details, and can be dismissed without deleting message history.
+The Polish catalog includes the new controls.
+
+Regression coverage renders the real QML, checks selection colors in both
+themes, clicks Play with different/same/no selection, and verifies the visible
+controls remain inside a 760×520 Polish window with a long error. It also checks
+that closing the error banner preserves history. Screenshots use synthetic data
+and an inactive backend; they do not establish Windows installer acceptance.
+
+Validation: **922 passed, 83 deselected** in the full offline suite, including
+**17 desktop tests**. The final focused desktop run, Ruff, specification-map
+check, diff whitespace check and isolated startup/shutdown smoke also passed.

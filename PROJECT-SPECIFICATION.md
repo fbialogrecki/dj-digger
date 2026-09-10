@@ -5,8 +5,8 @@
 - Product version verified: 1.1.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-09-09
-- Document lines: <!-- SPEC TOTAL LINES -->1528<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1528<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1536<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1536<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,7 +51,7 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 143–179 |
 | 2.1 | ↳ Problem and product boundary | 145–158 |
 | 2.2 | ↳ Execution modes | 159–179 |
-| 3 | User-visible capabilities | 180–705 |
+| 3 | User-visible capabilities | 180–713 |
 | 3.1 | ↳ Track collection and saved HTML | 182–208 |
 | 3.2 | ↳ Link classification and exports | 209–227 |
 | 3.3 | ↳ TUI playlist library and interaction | 228–319 |
@@ -59,56 +59,56 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 3.5 | ↳ Downloads and local-file matching | 386–415 |
 | 3.6 | ↳ Store purchase assistance | 416–500 |
 | 3.7 | ↳ Local library, analysis and audio export | 501–616 |
-| 3.8 | ↳ Qt Quick desktop | 617–705 |
-| 4 | System context and data flow | 706–746 |
-| 4.1 | ↳ Context diagram | 708–730 |
-| 4.2 | ↳ Collection-to-library flow | 731–746 |
-| 5 | Repository layout and component ownership | 747–821 |
-| 5.1 | ↳ Entry, orchestration, and models | 749–760 |
-| 5.2 | ↳ Network and external-system adapters | 761–779 |
-| 5.3 | ↳ Persistence, local media, and UI | 780–821 |
-| 6 | Runtime architecture and environments | 822–930 |
-| 6.1 | ↳ Runtime and dependencies | 824–840 |
-| 6.2 | ↳ Concurrency and lifecycle | 841–909 |
-| 6.3 | ↳ Local paths and environment variables | 910–930 |
-| 7 | Data model and persistence | 931–1018 |
-| 7.1 | ↳ Domain objects and identity | 933–947 |
-| 7.2 | ↳ SQLite schema and invariants | 948–985 |
-| 7.3 | ↳ Crate persistence and deletion | 986–1001 |
-| 7.4 | ↳ Configuration and credential stores | 1002–1018 |
-| 8 | Public interfaces and contracts | 1019–1075 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1021–1049 |
-| 8.2 | ↳ JSON and CSV summary input | 1050–1064 |
-| 8.3 | ↳ URL-opening contract | 1065–1075 |
-| 9 | Authentication and authorization | 1076–1119 |
-| 9.1 | ↳ SoundCloud authentication | 1078–1098 |
-| 9.2 | ↳ Gate action consent | 1099–1119 |
-| 10 | External integrations | 1120–1255 |
-| 10.1 | ↳ SoundCloud API and media | 1122–1133 |
-| 10.2 | ↳ Link hubs and download gates | 1134–1196 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1142–1182 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1184–1189 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1191–1196 |
-| 10.3 | ↳ Browsers and clipboard | 1197–1208 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1209–1255 |
-| 11 | Security requirements and threat model | 1256–1310 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1258–1276 |
-| 11.2 | ↳ Secret and personal-data handling | 1277–1292 |
-| 11.3 | ↳ File and mutation safety | 1293–1310 |
-| 12 | Privacy, lifecycle, and retention | 1311–1354 |
-| 12.1 | ↳ Data stored locally | 1313–1332 |
-| 12.2 | ↳ Data sent to third parties | 1333–1344 |
-| 12.3 | ↳ User-controlled deletion | 1345–1354 |
-| 13 | Failure behavior and current limitations | 1355–1415 |
-| 13.1 | ↳ Error isolation and reporting | 1357–1376 |
-| 13.2 | ↳ Confirmed limitations | 1377–1415 |
-| 14 | Verification, CI, and release | 1416–1499 |
-| 14.1 | ↳ Offline and live test suites | 1418–1464 |
-| 14.2 | ↳ Continuous integration and publishing | 1465–1484 |
-| 14.3 | ↳ Specification-map verification | 1485–1499 |
-| 15 | Evidence and operational references | 1500–1528 |
-| 15.1 | ↳ Primary implementation evidence | 1502–1518 |
-| 15.2 | ↳ User and historical documentation | 1519–1528 |
+| 3.8 | ↳ Qt Quick desktop | 617–713 |
+| 4 | System context and data flow | 714–754 |
+| 4.1 | ↳ Context diagram | 716–738 |
+| 4.2 | ↳ Collection-to-library flow | 739–754 |
+| 5 | Repository layout and component ownership | 755–829 |
+| 5.1 | ↳ Entry, orchestration, and models | 757–768 |
+| 5.2 | ↳ Network and external-system adapters | 769–787 |
+| 5.3 | ↳ Persistence, local media, and UI | 788–829 |
+| 6 | Runtime architecture and environments | 830–938 |
+| 6.1 | ↳ Runtime and dependencies | 832–848 |
+| 6.2 | ↳ Concurrency and lifecycle | 849–917 |
+| 6.3 | ↳ Local paths and environment variables | 918–938 |
+| 7 | Data model and persistence | 939–1026 |
+| 7.1 | ↳ Domain objects and identity | 941–955 |
+| 7.2 | ↳ SQLite schema and invariants | 956–993 |
+| 7.3 | ↳ Crate persistence and deletion | 994–1009 |
+| 7.4 | ↳ Configuration and credential stores | 1010–1026 |
+| 8 | Public interfaces and contracts | 1027–1083 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1029–1057 |
+| 8.2 | ↳ JSON and CSV summary input | 1058–1072 |
+| 8.3 | ↳ URL-opening contract | 1073–1083 |
+| 9 | Authentication and authorization | 1084–1127 |
+| 9.1 | ↳ SoundCloud authentication | 1086–1106 |
+| 9.2 | ↳ Gate action consent | 1107–1127 |
+| 10 | External integrations | 1128–1263 |
+| 10.1 | ↳ SoundCloud API and media | 1130–1141 |
+| 10.2 | ↳ Link hubs and download gates | 1142–1204 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1150–1190 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1192–1197 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1199–1204 |
+| 10.3 | ↳ Browsers and clipboard | 1205–1216 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1217–1263 |
+| 11 | Security requirements and threat model | 1264–1318 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1266–1284 |
+| 11.2 | ↳ Secret and personal-data handling | 1285–1300 |
+| 11.3 | ↳ File and mutation safety | 1301–1318 |
+| 12 | Privacy, lifecycle, and retention | 1319–1362 |
+| 12.1 | ↳ Data stored locally | 1321–1340 |
+| 12.2 | ↳ Data sent to third parties | 1341–1352 |
+| 12.3 | ↳ User-controlled deletion | 1353–1362 |
+| 13 | Failure behavior and current limitations | 1363–1423 |
+| 13.1 | ↳ Error isolation and reporting | 1365–1384 |
+| 13.2 | ↳ Confirmed limitations | 1385–1423 |
+| 14 | Verification, CI, and release | 1424–1507 |
+| 14.1 | ↳ Offline and live test suites | 1426–1472 |
+| 14.2 | ↳ Continuous integration and publishing | 1473–1492 |
+| 14.3 | ↳ Specification-map verification | 1493–1507 |
+| 15 | Evidence and operational references | 1508–1536 |
+| 15.1 | ↳ Primary implementation evidence | 1510–1526 |
+| 15.2 | ↳ User and historical documentation | 1527–1536 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -627,7 +627,9 @@ transport row; GUI and TUI share the same averaged, normalized envelope and
 level curve in `waveform.py`. Space always belongs to playback, wherever focus
 is, except while typing in a text field or inside a modal dialog: it starts the
 selected track, toggles it when it is the one loaded, or toggles the loaded track
-when nothing is selected. The read-only folder explorer is a Qt
+when nothing is selected. The transport Play button uses the same selection
+rule, and its icon/label describe the selected target rather than a different
+loaded track. The read-only folder explorer is a Qt
 `TreeView`/`QFileSystemModel` rooted at the user home directory. Folder contents
 are requested on expansion and enumerated in Qt background work; selecting a
 folder opens its tracks in the paged table; pinned folders are listed above the
@@ -646,9 +648,10 @@ in a generated Help dialog; they are suppressed while text fields or modal
 dialogs have focus. Actions that need a selection are disabled without one;
 whole-view variants (open all visible, download all visible, cart for all
 visible) are separate explicit commands, and bulk opening asks above twenty
-links as in the TUI. Errors are shown distinctly from informational messages in
-the footer and both are kept in a message log dialog. The transport collapses to
-one row when nothing is loaded, shows m:ss clocks, a position cursor, hover
+links as in the TUI. Errors appear in a separate, dismissible banner with a
+Details button opening the message log. Later informational messages do not dismiss an error; closing
+the banner retains it in the log. Informational messages remain in the footer.
+The transport collapses to one row when nothing is loaded, shows m:ss clocks, a position cursor, hover
 time, drag seeking and a mute toggle.
 Dialogs size to their content. Forms use choice lists for enumerated values,
 numeric validators, framed multi-line editors, labelled checkboxes, inline
@@ -662,6 +665,11 @@ system, light and dark, with the current language, theme and sidebar state
 checked in the menus. The application palette covers alternating folder rows,
 input placeholders, control indicators, disabled text, popup states and tooltips;
 selected rows pair their foreground with the selected background in both themes.
+Playlist and pinned-folder selection explicitly pair the accent background
+with selection text in both themes. At the 760×520 minimum window size, sidebar
+width is constrained to leave room for transport controls, volume is flexible,
+and bottom actions wrap into additional rows. The track table retains horizontal
+scrolling for columns that do not fit.
 Window dimensions, column widths, sidebar width and visibility, language
 and theme persist privately in `config_dir()/gui.json`, separately from TUI
 presentation settings. The playback level is a shared `volume` field in the
