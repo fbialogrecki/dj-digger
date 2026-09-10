@@ -5372,7 +5372,8 @@ def test_explorer_delete_requires_confirmation_and_removes_disk_file(state, tmp_
             await settle(app, pilot)
             assert not path.exists()
             assert not state.db.media(track.local_id)['available']
-            assert app.playlist_state.rows == []
+            # Deletion starts a separate folder reload worker.
+            await wait_for_ui(pilot, lambda: app.playlist_state.rows == [])
 
     run(scenario)
 

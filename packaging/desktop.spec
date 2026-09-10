@@ -43,7 +43,8 @@ collection = COLLECT(gui_exe, helper_exe, gui.binaries, gui.datas, helper.binari
 
 if macos:
     version = tomllib.loads((root / 'pyproject.toml').read_text(encoding='utf-8'))['project']['version']
-    BUNDLE(collection, name='dj-digger.app', icon=str(root / 'packaging/macos/icon.icns'),
+    # COLLECT sorts both executables; explicitly inherit the windowed GUI entry.
+    BUNDLE(gui_exe, collection.toc, name='dj-digger.app', icon=str(root / 'packaging/macos/icon.icns'),
            bundle_identifier='com.fbialogrecki.dj-digger', version=version,
            info_plist={'CFBundleDisplayName': 'dj-digger', 'LSMinimumSystemVersion': '15.0',
                        'NSHighResolutionCapable': True})

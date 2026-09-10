@@ -244,14 +244,15 @@ uv run --frozen --extra gui --extra play --extra analyze --group desktop-build -
 
 The shared `packaging/desktop.spec` and entry points serve Windows and macOS.
 No new runtime dependency is added. `desktop-build` replaces the Windows-specific
-build-group name; the lockfile keeps the same package versions.
+build-group name. The lockfile selects compatible analysis-library versions for
+Intel macOS and NumPy 2.3.5 for the shared analysis dependency set.
 
 Outputs are `dist/installer/dj-digger-1.1.0-macos-arm64-test.dmg` or
 `dist/installer/dj-digger-1.1.0-macos-x86_64-test.dmg`, a SHA256 file and a build
 manifest. The DMG contains the app, an Applications shortcut and PL/EN
 instructions. The app bundles the matching Python, Qt, FFmpeg/ffprobe and their
 libraries, audio/analysis dependencies, an analysis helper and Chromium. Homebrew
-is needed on the build machine only; exact tool versions/hashes are recorded.
+is needed on the build machine only; exact tool versions and source hashes before bundle relocation are recorded.
 Available dependency notices are copied into the app, without asserting that a
 public redistribution review is complete.
 

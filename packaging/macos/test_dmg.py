@@ -47,6 +47,8 @@ def main():
             subprocess.run(['hdiutil', 'detach', str(mount)], check=True)
         info = plistlib.loads((installed / 'Contents/Info.plist').read_bytes())
         assert info['LSMinimumSystemVersion'] == '15.0'
+        assert info['CFBundleExecutable'] == 'dj-digger-gui'
+        assert not info.get('LSBackgroundOnly', False)
         executable = installed / 'Contents/MacOS' / info['CFBundleExecutable']
         assert executable.is_file()
         assert platform.machine() in subprocess.check_output(['lipo', '-archs', str(executable)], text=True).split()
