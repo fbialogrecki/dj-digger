@@ -2400,12 +2400,13 @@ def test_the_footer_drops_keys_rather_than_cutting_one_in_half(state):
 
     async def scenario():
         async with app.run_test(size=(80, 24)) as pilot:
-            # The footer builds its keys on mount and rebuilds them whenever
-            # focus moves, so one pause is not a guarantee that they exist yet -
-            # on a slow runner this read an empty set and asserted nothing.
-            for _ in range(3):
-                await pilot.pause()
-            keys = [key for key in app.query("FooterKey") if key.display]
+            # Wait for the actual footer: focus/resize can recompose it after
+            # any fixed number of event-loop turns on a slower runner.
+            deadline = asyncio.get_running_loop().time() + 5
+            keys = []
+            while not keys and asyncio.get_running_loop().time() < deadline:
+                await pilot.pause(0.01)
+                keys = [key for key in app.query("FooterKey") if key.display]
             assert keys, "the footer never composed"
 
             spent = sum(len(k.key_display) + len(k.description) + 3 for k in keys)
