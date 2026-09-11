@@ -34,6 +34,15 @@ def main():
             subprocess.run(['uv', 'pip', 'uninstall', '--python', str(python), 'dj-soundcloud-digger'], check=True, env=env)
         subprocess.run(['uv', 'pip', 'install', '--python', str(python), str(wheel)], check=True, env=env)
         subprocess.run([str(python), '-c', 'import dj_digger.cli; import dj_digger.tui; import dj_digger.analysis'], check=True, cwd=root, env=env)
+        # A plain wheel install must include the native audio decoder, without extras.
+        subprocess.run([str(python), '-c', '''
+import wave
+from dj_digger.player import _import_miniaudio
+with wave.open('audio.wav', 'wb') as output:
+    output.setparams((1, 2, 44100, 0, 'NONE', 'not compressed'))
+    output.writeframes(bytes(8820))
+assert len(_import_miniaudio().decode_file('audio.wav').samples) > 0
+'''], check=True, cwd=root, env=env)
         subprocess.run([str(python), '-m', 'dj_digger', '--version'], check=True, cwd=root, env=env)
         subprocess.run([str(python), '-m', 'dj_digger', '--help'], check=True, cwd=root, env=env, stdout=subprocess.DEVNULL)
         assert sentinel.read_text() == 'user data stays'

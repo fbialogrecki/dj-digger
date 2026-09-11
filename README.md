@@ -161,7 +161,7 @@ XDG_DATA_HOME=/tmp/dj-dev XDG_CONFIG_HOME=/tmp/dj-dev XDG_CACHE_HOME=/tmp/dj-dev
 > **Requires Python 3.12 or newer.**
 >
 > **Note on optional extras**:
-> - `play`: Enables audio preview via `miniaudio`.
+> - Audio preview via `miniaudio` is included by default; `play` remains a compatibility alias.
 > - `analyze`: Enables local BPM/key estimation via `librosa`. Omit it if you only
 >   need playback and link collection.
 >
