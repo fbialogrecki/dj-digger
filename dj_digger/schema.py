@@ -14,6 +14,10 @@ DDL = (
     'CREATE INDEX idx_local_normalized ON local_files(normalized_stem)',
     'CREATE TABLE crates (source TEXT PRIMARY KEY, title TEXT NOT NULL, updated TEXT NOT NULL, record_json TEXT NOT NULL)',
 )
+LEGACY_LOCAL_FILES_DDL = (
+    'CREATE TABLE local_files (path TEXT PRIMARY KEY, mtime REAL NOT NULL, '
+    'size INTEGER NOT NULL, artist TEXT NOT NULL, title TEXT NOT NULL, normalized_stem TEXT NOT NULL)'
+)
 MEDIA_DDL = (
     "CREATE TABLE media_roots (path TEXT PRIMARY KEY, device INTEGER NOT NULL, inode INTEGER NOT NULL)",
     "CREATE TABLE media_files (id TEXT PRIMARY KEY, path TEXT NOT NULL UNIQUE, signature TEXT NOT NULL, metadata_json TEXT NOT NULL DEFAULT '{}', parent_id TEXT, available INTEGER NOT NULL DEFAULT 1)",
@@ -41,9 +45,11 @@ def signature(conn: sqlite3.Connection) -> tuple:
     )
 
 
-def expected_signature(version=1) -> tuple:
+def expected_signature(version=1, *, legacy_local_files=False) -> tuple:
     with closing(sqlite3.connect(':memory:')) as conn:
         for statement in DDL + (MEDIA_DDL if version == 2 else ()):
+            if legacy_local_files and statement == DDL[1]:
+                statement = LEGACY_LOCAL_FILES_DDL
             conn.execute(statement)
         return signature(conn)
 
@@ -51,7 +57,10 @@ def expected_signature(version=1) -> tuple:
 def recognize(conn: sqlite3.Connection) -> tuple:
     version = conn.execute('PRAGMA user_version').fetchone()[0]
     shape = signature(conn)
-    if version not in (0, 1, 2) or shape != expected_signature(2 if version == 2 else 1):
+    supported = version in (0, 1, 2) and shape == expected_signature(2 if version == 2 else 1)
+    if not supported and version in (0, 1):
+        supported = shape == expected_signature(legacy_local_files=True)
+    if not supported:
         raise UnsupportedSchema(f'Unsupported library schema (version {version}); database left unchanged')
     return version, shape
 
@@ -109,6 +118,9 @@ def open_database(path: Path) -> sqlite3.Connection:
             if current[0] < 2:
                 with closing(sqlite3.connect(path.resolve().as_uri()+'?mode=ro', uri=True)) as reader:
                     backup(reader, path)
+                if current[1] == expected_signature(legacy_local_files=True):
+                    for column in ('size', 'artist', 'title'):
+                        conn.execute(f'ALTER TABLE local_files DROP COLUMN {column}')
                 for statement in MEDIA_DDL:
                     conn.execute(statement)
         conn.execute('PRAGMA user_version=2')

@@ -488,7 +488,17 @@ class Database:
     def media_at_identity(self, signature):
         info = json.loads(signature)
         with self.connection() as conn:
-            return [dict(row) for row in conn.execute("SELECT * FROM media_files WHERE json_extract(signature,'$[0]')=? AND json_extract(signature,'$[1]')=? LIMIT 2", info[:2])]
+            # Let SQLite extract large IDs from JSON instead of binding Python
+            # integers. Its numeric index can round them, so verify exact IDs
+            # before applying the two-match limit.
+            rows = conn.execute("SELECT * FROM media_files WHERE json_extract(signature,'$[0]')=json_extract(?,'$[0]') AND json_extract(signature,'$[1]')=json_extract(?,'$[1]')", (signature, signature))
+            matches = []
+            for row in rows:
+                if json.loads(row['signature'])[:2] == info[:2]:
+                    matches.append(dict(row))
+                    if len(matches) == 2:
+                        break
+            return matches
 
     @owned
     def relocate_media(self, media_id, old_path, new_path, old_signature, new_signature):
@@ -505,14 +515,19 @@ class Database:
         with self.connection(write=True) as conn:
             old = conn.execute('SELECT device,inode FROM media_roots WHERE path=?', (path,)).fetchone()
             if old is None:
-                conn.execute('INSERT INTO media_roots VALUES(?,?,?)', (path, device, inode))
+                # BLOB avoids INTEGER affinity rounding oversized Windows IDs
+                # to REAL; int() reads both legacy INTEGERs and decimal bytes.
+                stored = tuple(value if -(1 << 63) <= value < (1 << 63)
+                               else str(value).encode('ascii') for value in (device, inode))
+                conn.execute('INSERT INTO media_roots VALUES(?,?,?)', (path, *stored))
                 return True
-            return (old['device'], old['inode']) == (device, inode)
+            return (int(old['device']), int(old['inode'])) == (device, inode)
 
     @owned
     def media_roots(self):
         with self.connection() as conn:
-            return [dict(row) for row in conn.execute('SELECT * FROM media_roots')]
+            return [dict(row, device=int(row['device']), inode=int(row['inode']))
+                    for row in conn.execute('SELECT * FROM media_roots')]
 
     @owned
     def mark_media_deleted(self, media_id, path):

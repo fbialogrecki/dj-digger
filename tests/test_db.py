@@ -177,6 +177,93 @@ def test_backup_failure_does_not_register_version(tmp_path, monkeypatch):
         assert conn.execute('PRAGMA user_version').fetchone()[0] == 0
 
 
+@pytest.fixture
+def legacy_cache_database(tmp_path):
+    import sqlite3
+    from contextlib import closing
+
+    from dj_digger.schema import DDL
+
+    path = tmp_path / 'legacy.db'
+    with closing(sqlite3.connect(path, isolation_level=None)) as conn:
+        conn.execute('PRAGMA journal_mode=WAL')
+        # The cache shape shipped before 1.0, independent of the recognizer.
+        conn.execute('''CREATE TABLE local_files (
+            path TEXT PRIMARY KEY, mtime REAL NOT NULL, size INTEGER NOT NULL,
+            artist TEXT NOT NULL, title TEXT NOT NULL, normalized_stem TEXT NOT NULL
+        )''')
+        for sql in DDL:
+            if not sql.startswith('CREATE TABLE local_files'):
+                conn.execute(sql)
+        conn.execute("INSERT INTO local_files VALUES ('C:/Music/one.mp3', 1.5, 42, 'Artist', 'One', 'one')")
+        conn.execute("INSERT INTO track_states VALUES ('one', 'got', 'now')")
+        conn.execute("INSERT INTO track_local_files VALUES ('one', 'C:/Music/one.mp3')")
+        conn.execute('INSERT INTO crates VALUES (?, ?, ?, ?)',
+                     ('playlist', 'Saved', 'now', '{"source":"playlist","title":"Saved","tracks":[]}'))
+        yield path, conn
+
+
+@pytest.mark.parametrize('version', [0, 1])
+def test_legacy_cache_migration_preserves_library_and_backup(legacy_cache_database, version):
+    import sqlite3
+    from contextlib import closing
+
+    from dj_digger.schema import expected_signature, signature
+
+    path, writer = legacy_cache_database
+    writer.execute(f'PRAGMA user_version={version}')
+    before = list(writer.iterdump())
+    db = Database(path)
+    assert db.all_track_statuses() == {'one': 'got'}
+    assert db.all_track_local_files() == {'one': 'C:/Music/one.mp3'}
+    assert db.get_cached_files() == {'C:/Music/one.mp3': (1.5, 'one')}
+    assert db.load_crate('playlist') == {'source': 'playlist', 'title': 'Saved', 'tracks': []}
+    db.upsert_local_files([('C:/Music/two.mp3', 2.0, 'two')])
+    db.close()
+    assert writer.execute('PRAGMA user_version').fetchone()[0] == 2
+    assert signature(writer) == expected_signature(2)
+    copies = list((path.parent / 'backups').glob('*.db'))
+    assert len(copies) == 1
+    with closing(sqlite3.connect(copies[0])) as saved:
+        assert saved.execute('PRAGMA user_version').fetchone()[0] == version
+        assert list(saved.iterdump()) == before
+    Database(path).close()
+    assert list((path.parent / 'backups').glob('*.db')) == copies
+
+
+@pytest.mark.parametrize('failure', ['backup', 'migration'])
+def test_legacy_cache_failure_preserves_original(legacy_cache_database, monkeypatch, failure):
+    import sqlite3
+
+    from dj_digger import schema
+
+    path, writer = legacy_cache_database
+    writer.execute('PRAGMA user_version=1')
+    before = list(writer.iterdump())
+    if failure == 'backup':
+        def fail(*args):
+            raise OSError('backup denied')
+        monkeypatch.setattr(schema, 'backup', fail)
+    else:
+        # Fail after the legacy columns have been dropped, exercising rollback.
+        monkeypatch.setattr(schema, 'MEDIA_DDL', ('CREATE TABLE local_files (duplicate TEXT)',))
+    with pytest.raises((OSError, sqlite3.OperationalError)):
+        Database(path)
+    assert writer.execute('PRAGMA user_version').fetchone()[0] == 1
+    assert list(writer.iterdump()) == before
+
+
+def test_legacy_cache_with_unknown_constraint_is_rejected(legacy_cache_database):
+    path, writer = legacy_cache_database
+    writer.execute('PRAGMA user_version=1')
+    writer.execute('CREATE UNIQUE INDEX unexpected ON local_files(size)')
+    before = list(writer.iterdump())
+    with pytest.raises(UnsupportedSchema):
+        Database(path)
+    assert list(writer.iterdump()) == before
+    assert not (path.parent / 'backups').exists()
+
+
 @pytest.mark.parametrize('version', [-1, 2, 99])
 def test_unknown_version_leaves_database_unchanged(tmp_path, version):
     import sqlite3
@@ -210,6 +297,39 @@ def test_connection_never_crosses_thread_boundary(tmp_path):
     assert len(db.all_track_local_files()) == 40
     db.close()
     db.close()
+
+
+@pytest.mark.parametrize('device,inode', [
+    (1, 2), ((1 << 63) - 1, (1 << 63) - 1),
+    (1 << 63, 1 << 63), ((1 << 64) - 1, (1 << 128) - 1),
+])
+def test_filesystem_identity_round_trips_without_overflow(tmp_path, device, inode):
+    path = tmp_path / 'library.db'
+    db = Database(path)
+    assert db.observe_root('root', device, inode)
+    db.close()
+    db = Database(path)
+    assert db.media_roots() == [{'path': 'root', 'device': device, 'inode': inode}]
+    assert db.observe_root('root', device, inode)
+    assert not db.observe_root('root', device + 1, inode)
+    assert not db.observe_root('root', device, inode + 1)
+
+
+@pytest.mark.parametrize('device,inode', [(1, 2), ((1 << 64) - 1, (1 << 127) + 100)])
+def test_media_identity_filters_rounded_collisions_before_limit(tmp_path, device, inode):
+    import json
+
+    db = Database(tmp_path / 'library.db')
+    # Oversized adjacent IDs become the same REAL in SQLite's JSON index.
+    for offset in range(1, 4):
+        db.register_media(f'other-inode-{offset}', json.dumps([device, inode + offset, 1, 2, 3]))
+        db.register_media(f'other-device-{offset}', json.dumps([device + offset, inode, 1, 2, 3]))
+    signature = json.dumps([device, inode, 1, 2, 3])
+    exact = [db.register_media(f'exact-{n}', signature)['id'] for n in range(3)]
+    matches = db.media_at_identity(signature)
+    assert len(matches) == 2
+    assert {row['id'] for row in matches} <= set(exact)
+    assert db.media_at_identity(json.dumps([device + 4, inode + 4, 1, 2, 3])) == []
 
 
 def test_wal_read_does_not_wait_for_external_writer(tmp_path):

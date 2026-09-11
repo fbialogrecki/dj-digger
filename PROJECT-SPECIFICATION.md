@@ -5,8 +5,8 @@
 - Product version verified: 1.1.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-09-10
-- Document lines: <!-- SPEC TOTAL LINES -->1555<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1555<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1566<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1566<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -71,44 +71,44 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 6.1 | ↳ Runtime and dependencies | 847–863 |
 | 6.2 | ↳ Concurrency and lifecycle | 864–935 |
 | 6.3 | ↳ Local paths and environment variables | 936–956 |
-| 7 | Data model and persistence | 957–1044 |
+| 7 | Data model and persistence | 957–1055 |
 | 7.1 | ↳ Domain objects and identity | 959–973 |
-| 7.2 | ↳ SQLite schema and invariants | 974–1011 |
-| 7.3 | ↳ Crate persistence and deletion | 1012–1027 |
-| 7.4 | ↳ Configuration and credential stores | 1028–1044 |
-| 8 | Public interfaces and contracts | 1045–1101 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1047–1075 |
-| 8.2 | ↳ JSON and CSV summary input | 1076–1090 |
-| 8.3 | ↳ URL-opening contract | 1091–1101 |
-| 9 | Authentication and authorization | 1102–1145 |
-| 9.1 | ↳ SoundCloud authentication | 1104–1124 |
-| 9.2 | ↳ Gate action consent | 1125–1145 |
-| 10 | External integrations | 1146–1281 |
-| 10.1 | ↳ SoundCloud API and media | 1148–1159 |
-| 10.2 | ↳ Link hubs and download gates | 1160–1222 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1168–1208 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1210–1215 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1217–1222 |
-| 10.3 | ↳ Browsers and clipboard | 1223–1234 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1235–1281 |
-| 11 | Security requirements and threat model | 1282–1336 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1284–1302 |
-| 11.2 | ↳ Secret and personal-data handling | 1303–1318 |
-| 11.3 | ↳ File and mutation safety | 1319–1336 |
-| 12 | Privacy, lifecycle, and retention | 1337–1380 |
-| 12.1 | ↳ Data stored locally | 1339–1358 |
-| 12.2 | ↳ Data sent to third parties | 1359–1370 |
-| 12.3 | ↳ User-controlled deletion | 1371–1380 |
-| 13 | Failure behavior and current limitations | 1381–1441 |
-| 13.1 | ↳ Error isolation and reporting | 1383–1402 |
-| 13.2 | ↳ Confirmed limitations | 1403–1441 |
-| 14 | Verification, CI, and release | 1442–1526 |
-| 14.1 | ↳ Offline and live test suites | 1444–1490 |
-| 14.2 | ↳ Continuous integration and publishing | 1491–1511 |
-| 14.3 | ↳ Specification-map verification | 1512–1526 |
-| 15 | Evidence and operational references | 1527–1555 |
-| 15.1 | ↳ Primary implementation evidence | 1529–1545 |
-| 15.2 | ↳ User and historical documentation | 1546–1555 |
+| 7.2 | ↳ SQLite schema and invariants | 974–1022 |
+| 7.3 | ↳ Crate persistence and deletion | 1023–1038 |
+| 7.4 | ↳ Configuration and credential stores | 1039–1055 |
+| 8 | Public interfaces and contracts | 1056–1112 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1058–1086 |
+| 8.2 | ↳ JSON and CSV summary input | 1087–1101 |
+| 8.3 | ↳ URL-opening contract | 1102–1112 |
+| 9 | Authentication and authorization | 1113–1156 |
+| 9.1 | ↳ SoundCloud authentication | 1115–1135 |
+| 9.2 | ↳ Gate action consent | 1136–1156 |
+| 10 | External integrations | 1157–1292 |
+| 10.1 | ↳ SoundCloud API and media | 1159–1170 |
+| 10.2 | ↳ Link hubs and download gates | 1171–1233 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1179–1219 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1221–1226 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1228–1233 |
+| 10.3 | ↳ Browsers and clipboard | 1234–1245 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1246–1292 |
+| 11 | Security requirements and threat model | 1293–1347 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1295–1313 |
+| 11.2 | ↳ Secret and personal-data handling | 1314–1329 |
+| 11.3 | ↳ File and mutation safety | 1330–1347 |
+| 12 | Privacy, lifecycle, and retention | 1348–1391 |
+| 12.1 | ↳ Data stored locally | 1350–1369 |
+| 12.2 | ↳ Data sent to third parties | 1370–1381 |
+| 12.3 | ↳ User-controlled deletion | 1382–1391 |
+| 13 | Failure behavior and current limitations | 1392–1452 |
+| 13.1 | ↳ Error isolation and reporting | 1394–1413 |
+| 13.2 | ↳ Confirmed limitations | 1414–1452 |
+| 14 | Verification, CI, and release | 1453–1537 |
+| 14.1 | ↳ Offline and live test suites | 1455–1501 |
+| 14.2 | ↳ Continuous integration and publishing | 1502–1522 |
+| 14.3 | ↳ Specification-map verification | 1523–1537 |
+| 15 | Evidence and operational references | 1538–1566 |
+| 15.1 | ↳ Primary implementation evidence | 1540–1556 |
+| 15.2 | ↳ User and historical documentation | 1557–1566 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -998,13 +998,24 @@ file records; `LibraryService.load` hydrates metadata and analysis on demand.
 Export copies have separate file IDs and a parent-file reference. Replacement
 preserves file identity and manual values. Confirmed same-inode renames on the
 same filesystem can relocate the record; similar titles never merge versions.
+Filesystem device/inode IDs retain their full precision, including oversized
+Windows IDs. `media_roots` stores IDs outside signed 64-bit range as ASCII decimal
+BLOBs in its existing columns; repository reads return Python integers for both
+storage forms. Media identity lookup uses the JSON index for candidates and
+compares exact Python integers before limiting results, preventing numeric
+rounding from conflating distinct IDs.
 
 `PRAGMA user_version=2` is created for new libraries. Existing recognized v0/v1
 shapes are checked read-only first, then under `BEGIN IMMEDIATE`. A separate
 committed reader performs `Connection.backup()` while the writer is reserved.
 Every migration gets an integrity-checked backup including committed WAL data,
 with a 30-second backup deadline. Failure aborts migration. No media scan or
-decode is part of migration. Unknown/older/newer shapes are left untouched and
+decode is part of migration. Recognized v0/v1 libraries also include the shipped
+six-column `local_files` cache with `size`, `artist`, and `title`. Migration drops
+only those obsolete cache columns, preserving cached paths, mtimes, normalized
+stems, playlists, statuses, and file provenance; the backup retains all original
+columns and values. Failure rolls back the entire migration.
+Unknown/older/newer shapes are left untouched and
 raise `UnsupportedSchema`. A CLI instance lock protects the data directory;
 users must close older applications before upgrading. Downgrade requires an
 explicit backup restore. POSIX private file modes do not promise Windows ACLs.
