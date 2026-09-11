@@ -9,6 +9,7 @@ from uuid import uuid4
 from .. import links
 from ..diagnostics import log_safe_text
 from ..models import GOT, NEW, SKIP, Cancelled, check_cancelled
+from ..paths import playlist_download_directory
 from ..services.collection import DigOptions
 from ..services.local_library import LocalLibrary, media_track
 from ..services.runtime import ApplicationServices
@@ -306,8 +307,10 @@ class Backend:
         if self.services.config.first_run:
             await self.action_settings({})
         source = self.record.source if self.record else ''
+        directory = playlist_download_directory(self.services.config.download_directory,
+                                                self.record.title if self.record else '')
         request = DownloadRequest(source, self.services.state.db.crate_generation(source),
-                                  Path(self.services.config.download_directory).expanduser(), 20)
+                                  directory, 20)
         async def work(handle):
             def prerequisites(profile, auth):
                 async def configure():
@@ -342,7 +345,7 @@ class Backend:
             for row in rows:
                 if row.track.local_path:
                     if await self.io(self.services.library.needs_copy, row.track.local_path, request.directory):
-                        await self.io(self.services.downloads.copy, row.track.key, row.track.local_path, request.directory, handle.cancel)
+                        await self.io(self.services.downloads.copy, row.track.key, Path(row.track.local_path), request.directory, handle.cancel)
                     else:
                         await self.io(self.services.library.mark_existing, row.track)
                 else:

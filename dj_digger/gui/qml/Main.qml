@@ -542,21 +542,24 @@ ApplicationWindow {
                         readonly property bool playing: desktop.audio.key === trackKey
                         implicitHeight: 34; implicitWidth: 100
                         color: chosen ? root.accent : (row % 2 ? root.panel : root.bg)
+                        Rectangle {
+                            visible: cell.progress >= 0
+                            // Each cell paints its slice of one continuous row-wide fill.
+                            width: Math.max(0, Math.min(cell.width,
+                                table.contentWidth * Math.max(0, Math.min(1, cell.progress)) - cell.x))
+                            height: parent.height
+                            color: cell.chosen ? root.fg : root.accent
+                            opacity: cell.chosen ? 0.16 : root.dark ? 0.28 : 0.20
+                        }
                         Rectangle { visible: row === table.keyboardRow && table.activeFocus; anchors.fill: parent; color: "transparent"; border.color: root.accent; border.width: 1 }
                         Label {
-                            visible: cell.column !== 9 && !(cell.column === 0 && cell.progress >= 0)
+                            visible: cell.column !== 9
                             anchors.fill: parent; anchors.margins: 7; textFormat: Text.PlainText; elide: Text.ElideRight
                             horizontalAlignment: [4, 6, 8].indexOf(cell.column) >= 0 ? Text.AlignRight : Text.AlignLeft
                             font.bold: cell.column === root.titleColumn && cell.playing
                             text: (cell.column === root.titleColumn ? (cell.playing ? "▶ " : "") + (cell.local ? "▣ " : "") : "") + cell.display
-                            color: cell.chosen ? root.selectionText : cell.column === 0 ? root.statusColor(cell.status)
+                            color: cell.chosen ? root.selectionText : cell.progress >= 0 ? root.fg : cell.column === 0 ? root.statusColor(cell.status)
                                  : [3, 7, 8].indexOf(cell.column) >= 0 ? root.muted : root.fg
-                        }
-                        ProgressBar {
-                            visible: cell.column === 0 && cell.progress >= 0
-                            anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: 7 }
-                            from: 0; to: 1; value: Math.max(0, cell.progress)
-                            Accessible.name: cell.display
                         }
                         Row {
                             visible: cell.column === 9

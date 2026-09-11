@@ -152,9 +152,13 @@ def test_finished_progress_emits_redraw_even_if_row_data_is_unchanged(app):
     model = TrackModel()
     rows = [row('1', 'Track')]
     model.replace(rows)
-    model.update_progress({'1': 50})
     redraws = []
     model.dataChanged.connect(lambda *args: redraws.append(args))
+    model.update_progress({'1': 0.5})
+    first, last, *_ = redraws[-1]
+    assert (first.column(), last.column()) == (0, model.columnCount()-1)
+    assert model.data(model.index(0, 0)) == '50%'
+    redraws.clear()
     model.update_rows(rows)
     assert redraws
     assert model.progress == {}
@@ -201,6 +205,53 @@ def test_cancel_bulk_open_has_no_browser_side_effect(backend):
     worker.answer(question['id'], None)
     assert wait_event(events, 'message')['text'] == 'Cancelled'
     assert not opened
+
+
+@pytest.mark.parametrize('title,base_name,subfolder,count,local', [
+    ('Warehouse / Session: 01', 'Downloads', 'Warehouse Session 01', 1, False),
+    ('Warehouse / Session: 01', 'Downloads', 'Warehouse Session 01', 2, False),
+    ('Warehouse / Session: 01', 'Downloads', 'Warehouse Session 01', 1, True),
+    ('Warehouse Session 01', 'warehouse session 01', '', 1, False),
+    ('', 'Downloads', '', 1, False),
+])
+def test_download_uses_playlist_folder(backend, tmp_path, title, base_name, subfolder, count, local):
+    from dj_digger.crate_models import CrateRecord
+
+    worker, events = backend
+    worker.rows = online_rows(count)
+    worker.record = CrateRecord(source='playlist', title=title)
+    base = tmp_path / base_name
+    worker.services.config.download_directory = str(base)
+    worker.services.config.first_run = False
+    for row in worker.rows:
+        row.track.downloadable = True
+        row.track.has_downloads_left = True
+        if local:
+            source = tmp_path / 'existing.wav'
+            source.write_bytes(b'audio')
+            row.track.local_path = str(source)
+
+    class Client:
+        def download_track(self, track, directory, **kwargs):
+            assert not local
+            directory.mkdir(parents=True, exist_ok=True)
+            path = directory / f'{track.id}.wav'
+            path.write_bytes(b'audio')
+            return path
+
+        def close(self):
+            pass
+
+    worker.services._client = Client()
+    keys = [row.track.key for row in worker.rows]
+    worker.submit('download', {'keys': keys, 'generation': worker.generation})
+    wait_event(events, 'rows')
+    expected = base / subfolder if subfolder else base
+    paths = worker.services.state.db.all_track_local_files()
+    for key in keys:
+        assert worker.services.state.get(key) == 'got'
+        assert Path(paths[key]).parent == expected
+        assert Path(paths[key]).read_bytes() == b'audio'
 
 
 def test_form_reopens_with_entered_values_until_valid(backend, tmp_path):

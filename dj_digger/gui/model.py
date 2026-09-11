@@ -74,7 +74,7 @@ class TrackModel(QAbstractTableModel):
         self.progress.update(updates)
         for i, row in enumerate(self.visible):
             if row['key'] in updates:
-                self.dataChanged.emit(self.index(i, 0), self.index(i, 0))
+                self.dataChanged.emit(self.index(i, 0), self.index(i, len(COLUMNS)-1))
 
     def update_rows(self, rows):
         changed = set(self.progress)

@@ -1,4 +1,4 @@
-"""XDG base directories for dj-digger, and the one filename rule they share.
+"""Shared application directories and filename rules for dj-digger.
 
 A leaf module on purpose: config, auth, db, state, library and cart all need
 these, so anything imported here would be one step from an import cycle.
@@ -6,6 +6,7 @@ Not memoized - tests point XDG_* somewhere private after import.
 """
 
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -24,6 +25,17 @@ def log_dir() -> Path:
     if sys.platform == 'darwin':
         return Path.home() / 'Library' / 'Logs' / 'dj-digger'
     return Path(os.environ.get('XDG_STATE_HOME') or Path.home() / '.local' / 'state') / 'dj-digger'
+
+
+def playlist_download_directory(directory: str | Path, title: str) -> Path:
+    """Share the playlist folder policy between TUI and desktop downloads."""
+    base = Path(directory).expanduser()
+    if not title.strip():
+        return base
+    cleaned = re.sub(r'[<>:"/\\|?*\x00-\x1f]', ' ', title)
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip(' .')
+    folder = cleaned[:120].rstrip(' .') or 'playlist'
+    return base if base.name.casefold() == folder.casefold() else base / folder
 
 
 def unique_target(directory: Path, stem: str, suffix: str) -> Path:

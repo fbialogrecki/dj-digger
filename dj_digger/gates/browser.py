@@ -497,7 +497,7 @@ class _TabWatch:
             self.watch(page, key)
 
     def open_tabs(self, context: Any) -> list[Any]:
-        return [page for page in context.pages if id(page) in self._owners]
+        return [page for page in context.pages if id(page) in self._owners and not _page_closed(page)]
 
     def fail_unsettled(self, reason: str) -> None:
         for key in self.pending:
@@ -622,6 +622,7 @@ def _await_downloads(
 
     cancel = watch.cancel
     cancelled = False
+    closed_reason = "browser tab closed before the download finished"
     for key, page in pages:
         if watch.settled(key):
             continue
@@ -647,13 +648,19 @@ def _await_downloads(
             open_pages = watch.open_tabs(context)
         except Exception:
             break
-        if not open_pages:
+        open_keys = {watch._owners[id(page)] for page in open_pages}
+        for key in watch.pending:
+            if not watch.settled(key) and key not in open_keys:
+                watch.failures[key] = GateManualActionRequired(closed_reason)
+        if not open_pages or watch.done():
             break
         try:
             open_pages[0].wait_for_timeout(250)
         except Exception:
-            # Closing the whole window races the last short wait. Treat it
-            # exactly like context.pages becoming empty.
+            # A closed tab rejects its wait even while other gates remain open.
+            # Recheck ownership so a surviving popup can still finish its track.
+            if _page_closed(open_pages[0]):
+                continue
             break
 
     if cancelled:
@@ -661,7 +668,7 @@ def _await_downloads(
     elif timed_out:
         reason = "the browser download did not finish in time"
     else:
-        reason = "browser tab closed before the download finished"
+        reason = closed_reason
     watch.fail_unsettled(reason)
     return cancelled
 

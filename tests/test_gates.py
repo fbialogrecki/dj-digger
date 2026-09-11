@@ -1205,6 +1205,59 @@ def test_unknown_gate_dom_is_handed_to_the_window(tmp_path, monkeypatch):
     assert path.read_bytes() == b"RIFF-bare"
 
 
+@pytest.mark.parametrize('closed', ['first', 'other', 'completed', 'parent_with_popup', 'window'])
+def test_manual_gate_tab_closure_does_not_abort_other_downloads(tmp_path, monkeypatch, closed):
+    class Page(_GatePage):
+        def __init__(self, context):
+            super().__init__(context, steps=())
+            self.closed = False
+
+        def is_closed(self):
+            return self.closed
+
+        def wait_for_timeout(self, milliseconds):
+            context = self.context
+            context.clock['t'] += milliseconds / 1000
+            context.waits = getattr(context, 'waits', 0) + 1
+            assert context.attended and context.waits <= 2
+            if context.waits == 1:
+                first, second = context.pages
+                if closed == 'completed':
+                    first.handlers['download'](_download('1.wav', b'RIFF-1'))
+                if closed == 'parent_with_popup':
+                    popup = Page(context)
+                    popup.opener = first
+                    popup.url = 'https://hypeddit.com/download/1'
+                    context.pages.append(popup)
+                    first.handlers['popup'](popup)
+                if closed == 'other':
+                    second.closed = True
+                    return
+                first.closed = True
+                if closed == 'window':
+                    second.closed = True
+                # Playwright rejects a pending wait when its page is closed.
+                # Keep closed pages in the fake list to cover stale references.
+                raise RuntimeError('Target page, context or browser has been closed')
+            for page in context.pages:
+                if not page.closed:
+                    key = page.url.rsplit('/', 1)[-1]
+                    page.handlers['download'](_download(f'{key}.wav', f'RIFF-{key}'.encode()))
+
+    launches = _gate_browser(monkeypatch, Page)
+    items = [(Track(id=i, title=f'Track {i}', permalink_url=f'https://soundcloud.com/a/{i}'),
+              f'https://hypeddit.com/track/{i}') for i in (1, 2)]
+    result = gate_browser.download_hypeddit_batch_in_browser(items, tmp_path, None, social=False)
+    assert [hidden for hidden, _context in launches] == [True, False]
+    assert launches[-1][1].waits <= 2
+    failed = {'first': {'1'}, 'other': {'2'}, 'window': {'1', '2'}}.get(closed, set())
+    assert {key for key, _error in result.failures} == failed
+    assert {key for key, _path in result.completed} == {'1', '2'} - failed
+    assert all(path.read_bytes() == f'RIFF-{key}'.encode() for key, path in result.completed)
+    assert all(isinstance(error, gate_models.GateManualActionRequired) for _key, error in result.failures)
+    assert not result.cancelled
+
+
 def test_soundcloud_click_through_never_calls_soundcloud_or_mobile_step_endpoints():
 
     session = _stepping_gate_session()

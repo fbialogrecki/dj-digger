@@ -3,7 +3,6 @@
 Composed by ``DiggerApp`` with explicit state and presentation callbacks.
 """
 
-import re
 import time
 from contextlib import contextmanager
 from copy import deepcopy
@@ -14,6 +13,7 @@ from threading import Event
 
 from .. import links as links_module
 from ..models import GOT, SKIP, Cancelled, Track, check_cancelled
+from ..paths import playlist_download_directory
 from ..rows import Row
 from ..services.downloads import (
     BROWSER_BATCH_MAX,
@@ -24,16 +24,6 @@ from ..services.downloads import (
     downloadable,
 )
 from .screens import GateProfileScreen, SoundCloudAuthScreen
-
-_INVALID_FOLDER_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
-
-
-def _playlist_folder_name(title: str) -> str:
-    cleaned = _INVALID_FOLDER_CHARS.sub(" ", title)
-    cleaned = re.sub(r"\s+", " ", cleaned).strip(" .")
-    # 120 keeps stem + suffix inside common 255-byte filename limits with room
-    # for the " (n)" uniqueness counter.
-    return cleaned[:120].rstrip(" .") or "playlist"
 
 
 @dataclass(frozen=True)
@@ -136,12 +126,8 @@ class DownloadController:
         return self.download_state._download_context
 
     def _download_directory(self) -> Path:
-        base = Path(self.config.download_directory).expanduser()
         title = self.playlist_state.crate.title if self.playlist_state.crate is not None else self.playlist_state.crate_title
-        if not title.strip():
-            return base
-        folder = _playlist_folder_name(title)
-        return base if base.name.casefold() == folder.casefold() else base / folder
+        return playlist_download_directory(self.config.download_directory, title)
 
     async def action_download_track(self) -> None:
         if not self._main_available():

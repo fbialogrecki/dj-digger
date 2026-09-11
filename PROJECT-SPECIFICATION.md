@@ -5,8 +5,8 @@
 - Product version verified: 1.1.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-09-10
-- Document lines: <!-- SPEC TOTAL LINES -->1571<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1571<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1584<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1584<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,64 +51,64 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 143–179 |
 | 2.1 | ↳ Problem and product boundary | 145–158 |
 | 2.2 | ↳ Execution modes | 159–179 |
-| 3 | User-visible capabilities | 180–731 |
+| 3 | User-visible capabilities | 180–740 |
 | 3.1 | ↳ Track collection and saved HTML | 182–208 |
 | 3.2 | ↳ Link classification and exports | 209–227 |
 | 3.3 | ↳ TUI playlist library and interaction | 228–319 |
 | 3.4 | ↳ Audio preview | 320–388 |
-| 3.5 | ↳ Downloads and local-file matching | 389–418 |
-| 3.6 | ↳ Store purchase assistance | 419–503 |
-| 3.7 | ↳ Local library, analysis and audio export | 504–619 |
-| 3.8 | ↳ Qt Quick desktop | 620–731 |
-| 4 | System context and data flow | 732–772 |
-| 4.1 | ↳ Context diagram | 734–756 |
-| 4.2 | ↳ Collection-to-library flow | 757–772 |
-| 5 | Repository layout and component ownership | 773–847 |
-| 5.1 | ↳ Entry, orchestration, and models | 775–786 |
-| 5.2 | ↳ Network and external-system adapters | 787–805 |
-| 5.3 | ↳ Persistence, local media, and UI | 806–847 |
-| 6 | Runtime architecture and environments | 848–960 |
-| 6.1 | ↳ Runtime and dependencies | 850–867 |
-| 6.2 | ↳ Concurrency and lifecycle | 868–939 |
-| 6.3 | ↳ Local paths and environment variables | 940–960 |
-| 7 | Data model and persistence | 961–1059 |
-| 7.1 | ↳ Domain objects and identity | 963–977 |
-| 7.2 | ↳ SQLite schema and invariants | 978–1026 |
-| 7.3 | ↳ Crate persistence and deletion | 1027–1042 |
-| 7.4 | ↳ Configuration and credential stores | 1043–1059 |
-| 8 | Public interfaces and contracts | 1060–1116 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1062–1090 |
-| 8.2 | ↳ JSON and CSV summary input | 1091–1105 |
-| 8.3 | ↳ URL-opening contract | 1106–1116 |
-| 9 | Authentication and authorization | 1117–1160 |
-| 9.1 | ↳ SoundCloud authentication | 1119–1139 |
-| 9.2 | ↳ Gate action consent | 1140–1160 |
-| 10 | External integrations | 1161–1296 |
-| 10.1 | ↳ SoundCloud API and media | 1163–1174 |
-| 10.2 | ↳ Link hubs and download gates | 1175–1237 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1183–1223 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1225–1230 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1232–1237 |
-| 10.3 | ↳ Browsers and clipboard | 1238–1249 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1250–1296 |
-| 11 | Security requirements and threat model | 1297–1351 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1299–1317 |
-| 11.2 | ↳ Secret and personal-data handling | 1318–1333 |
-| 11.3 | ↳ File and mutation safety | 1334–1351 |
-| 12 | Privacy, lifecycle, and retention | 1352–1395 |
-| 12.1 | ↳ Data stored locally | 1354–1373 |
-| 12.2 | ↳ Data sent to third parties | 1374–1385 |
-| 12.3 | ↳ User-controlled deletion | 1386–1395 |
-| 13 | Failure behavior and current limitations | 1396–1456 |
-| 13.1 | ↳ Error isolation and reporting | 1398–1417 |
-| 13.2 | ↳ Confirmed limitations | 1418–1456 |
-| 14 | Verification, CI, and release | 1457–1542 |
-| 14.1 | ↳ Offline and live test suites | 1459–1505 |
-| 14.2 | ↳ Continuous integration and publishing | 1506–1527 |
-| 14.3 | ↳ Specification-map verification | 1528–1542 |
-| 15 | Evidence and operational references | 1543–1571 |
-| 15.1 | ↳ Primary implementation evidence | 1545–1561 |
-| 15.2 | ↳ User and historical documentation | 1562–1571 |
+| 3.5 | ↳ Downloads and local-file matching | 389–424 |
+| 3.6 | ↳ Store purchase assistance | 425–509 |
+| 3.7 | ↳ Local library, analysis and audio export | 510–625 |
+| 3.8 | ↳ Qt Quick desktop | 626–740 |
+| 4 | System context and data flow | 741–781 |
+| 4.1 | ↳ Context diagram | 743–765 |
+| 4.2 | ↳ Collection-to-library flow | 766–781 |
+| 5 | Repository layout and component ownership | 782–856 |
+| 5.1 | ↳ Entry, orchestration, and models | 784–795 |
+| 5.2 | ↳ Network and external-system adapters | 796–814 |
+| 5.3 | ↳ Persistence, local media, and UI | 815–856 |
+| 6 | Runtime architecture and environments | 857–969 |
+| 6.1 | ↳ Runtime and dependencies | 859–876 |
+| 6.2 | ↳ Concurrency and lifecycle | 877–948 |
+| 6.3 | ↳ Local paths and environment variables | 949–969 |
+| 7 | Data model and persistence | 970–1068 |
+| 7.1 | ↳ Domain objects and identity | 972–986 |
+| 7.2 | ↳ SQLite schema and invariants | 987–1035 |
+| 7.3 | ↳ Crate persistence and deletion | 1036–1051 |
+| 7.4 | ↳ Configuration and credential stores | 1052–1068 |
+| 8 | Public interfaces and contracts | 1069–1125 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1071–1099 |
+| 8.2 | ↳ JSON and CSV summary input | 1100–1114 |
+| 8.3 | ↳ URL-opening contract | 1115–1125 |
+| 9 | Authentication and authorization | 1126–1169 |
+| 9.1 | ↳ SoundCloud authentication | 1128–1148 |
+| 9.2 | ↳ Gate action consent | 1149–1169 |
+| 10 | External integrations | 1170–1309 |
+| 10.1 | ↳ SoundCloud API and media | 1172–1183 |
+| 10.2 | ↳ Link hubs and download gates | 1184–1250 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1192–1236 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1238–1243 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1245–1250 |
+| 10.3 | ↳ Browsers and clipboard | 1251–1262 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1263–1309 |
+| 11 | Security requirements and threat model | 1310–1364 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1312–1330 |
+| 11.2 | ↳ Secret and personal-data handling | 1331–1346 |
+| 11.3 | ↳ File and mutation safety | 1347–1364 |
+| 12 | Privacy, lifecycle, and retention | 1365–1408 |
+| 12.1 | ↳ Data stored locally | 1367–1386 |
+| 12.2 | ↳ Data sent to third parties | 1387–1398 |
+| 12.3 | ↳ User-controlled deletion | 1399–1408 |
+| 13 | Failure behavior and current limitations | 1409–1469 |
+| 13.1 | ↳ Error isolation and reporting | 1411–1430 |
+| 13.2 | ↳ Confirmed limitations | 1431–1469 |
+| 14 | Verification, CI, and release | 1470–1555 |
+| 14.1 | ↳ Offline and live test suites | 1472–1518 |
+| 14.2 | ↳ Continuous integration and publishing | 1519–1540 |
+| 14.3 | ↳ Specification-map verification | 1541–1555 |
+| 15 | Evidence and operational references | 1556–1584 |
+| 15.1 | ↳ Primary implementation evidence | 1558–1574 |
+| 15.2 | ↳ User and historical documentation | 1575–1584 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -388,8 +388,14 @@ list the final track stays loaded; pressing play again starts it from the beginn
 
 ### 3.5 Downloads and local-file matching
 
-The selected track or all eligible visible tracks can be downloaded to the
-configured directory. Resolution priority is a selected gate, an explicit
+The selected track or all eligible visible tracks download into a playlist-named
+subfolder of the configured directory in both TUI and desktop. Both use
+`paths.playlist_download_directory`: expand `~`, replace invalid filename
+characters, collapse whitespace, trim dots/spaces, and limit the
+folder name to 120 characters. A blank title uses the configured directory;
+an already matching final directory name is reused case-insensitively. The
+destination is captured for the operation, including gate completion and copies
+of existing local files. Resolution priority is a selected gate, an explicit
 artist download URL, then the authenticated SoundCloud download endpoint.
 Finished files are atomically renamed from a `.part` file to a sanitized,
 collision-free filename. Recognized suffixes are MP3, WAV, FLAC, AIFF/AIF, and
@@ -643,7 +649,10 @@ arrow, resizable columns, keyboard navigation and native clipboard copying. The
 title column absorbs the remaining width so status and store columns stay on
 screen at the default window size. Status cells use the TUI glyphs and colors,
 store cells render badges, local files and the playing track carry markers, a
-per-row progress bar replaces the status while downloading, and a summary line
+continuous progress fill spans the full row background while downloading, with
+the percentage in the Status column and text drawn above the fill. The fill
+follows column widths and horizontal scrolling; selection remains visible in
+both themes. A summary line
 reports visible/total/owned/skipped/selected counts. Single-key shortcuts mirror
 the TUI keymap (add, refresh, open, download, got/skip/reset, undo, remove,
 search, hide handled, seek, next/previous, volume, mute, sidebar) and are listed
@@ -821,7 +830,7 @@ playback time and are not stored in the crate record.
   its path), failed, cancelled, and waiting for user input. Batch summaries count
   cancellation separately. The TUI coalesces byte events and presents outcomes
   after persistence.
-- `paths.py` owns data/config/cache directories and platform-specific log paths. `config.py` owns preferences;
+- `paths.py` owns data/config/cache directories, platform-specific log paths, and shared playlist download destinations. `config.py` owns preferences;
   `private_json.py` owns private atomic JSON writes; `clipboard.py` owns clipboard
   subprocesses. `diagnostics.py` redacts credential fields and URL queries.
   `logging_setup.py` owns private rotating logs and native-fault output rebinding;
@@ -1214,7 +1223,11 @@ provider wait and reports what stopped instead of failing the row. Nothing
 outside Hypeddit's page is ever clicked. A hidden pass always ends five
 minutes after its driving; a single gate's window has the same limit, a
 batch's window lasts as long as a tab stays open. Downloads are watched only
-in the tabs and popups the batch's own pages opened, the batch ends when
+in the tabs and popups the batch's own pages opened. Closing one tab does not
+close the other gates: only an unfinished track with no remaining owned tab or
+popup receives a manual-action failure. A popup can finish its track after its
+parent tab closes, and already completed files keep their successful result.
+The batch ends when
 every pending row has settled, and files pass the same size/type/atomic
 validation as HTTP downloads. Browser cancellation preserves completed files
 and genuine failures; unfinished items remain cancelled instead of receiving a
