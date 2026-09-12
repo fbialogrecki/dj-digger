@@ -5,8 +5,8 @@
 - Product version verified: 1.1.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-09-10
-- Document lines: <!-- SPEC TOTAL LINES -->1587<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1587<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1594<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1594<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,7 +51,7 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 143–179 |
 | 2.1 | ↳ Problem and product boundary | 145–158 |
 | 2.2 | ↳ Execution modes | 159–179 |
-| 3 | User-visible capabilities | 180–740 |
+| 3 | User-visible capabilities | 180–747 |
 | 3.1 | ↳ Track collection and saved HTML | 182–208 |
 | 3.2 | ↳ Link classification and exports | 209–227 |
 | 3.3 | ↳ TUI playlist library and interaction | 228–319 |
@@ -59,56 +59,56 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 3.5 | ↳ Downloads and local-file matching | 389–424 |
 | 3.6 | ↳ Store purchase assistance | 425–509 |
 | 3.7 | ↳ Local library, analysis and audio export | 510–625 |
-| 3.8 | ↳ Qt Quick desktop | 626–740 |
-| 4 | System context and data flow | 741–781 |
-| 4.1 | ↳ Context diagram | 743–765 |
-| 4.2 | ↳ Collection-to-library flow | 766–781 |
-| 5 | Repository layout and component ownership | 782–856 |
-| 5.1 | ↳ Entry, orchestration, and models | 784–795 |
-| 5.2 | ↳ Network and external-system adapters | 796–814 |
-| 5.3 | ↳ Persistence, local media, and UI | 815–856 |
-| 6 | Runtime architecture and environments | 857–969 |
-| 6.1 | ↳ Runtime and dependencies | 859–876 |
-| 6.2 | ↳ Concurrency and lifecycle | 877–948 |
-| 6.3 | ↳ Local paths and environment variables | 949–969 |
-| 7 | Data model and persistence | 970–1068 |
-| 7.1 | ↳ Domain objects and identity | 972–986 |
-| 7.2 | ↳ SQLite schema and invariants | 987–1035 |
-| 7.3 | ↳ Crate persistence and deletion | 1036–1051 |
-| 7.4 | ↳ Configuration and credential stores | 1052–1068 |
-| 8 | Public interfaces and contracts | 1069–1125 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1071–1099 |
-| 8.2 | ↳ JSON and CSV summary input | 1100–1114 |
-| 8.3 | ↳ URL-opening contract | 1115–1125 |
-| 9 | Authentication and authorization | 1126–1169 |
-| 9.1 | ↳ SoundCloud authentication | 1128–1148 |
-| 9.2 | ↳ Gate action consent | 1149–1169 |
-| 10 | External integrations | 1170–1312 |
-| 10.1 | ↳ SoundCloud API and media | 1172–1183 |
-| 10.2 | ↳ Link hubs and download gates | 1184–1253 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1192–1239 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1241–1246 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1248–1253 |
-| 10.3 | ↳ Browsers and clipboard | 1254–1265 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1266–1312 |
-| 11 | Security requirements and threat model | 1313–1367 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1315–1333 |
-| 11.2 | ↳ Secret and personal-data handling | 1334–1349 |
-| 11.3 | ↳ File and mutation safety | 1350–1367 |
-| 12 | Privacy, lifecycle, and retention | 1368–1411 |
-| 12.1 | ↳ Data stored locally | 1370–1389 |
-| 12.2 | ↳ Data sent to third parties | 1390–1401 |
-| 12.3 | ↳ User-controlled deletion | 1402–1411 |
-| 13 | Failure behavior and current limitations | 1412–1472 |
-| 13.1 | ↳ Error isolation and reporting | 1414–1433 |
-| 13.2 | ↳ Confirmed limitations | 1434–1472 |
-| 14 | Verification, CI, and release | 1473–1558 |
-| 14.1 | ↳ Offline and live test suites | 1475–1521 |
-| 14.2 | ↳ Continuous integration and publishing | 1522–1543 |
-| 14.3 | ↳ Specification-map verification | 1544–1558 |
-| 15 | Evidence and operational references | 1559–1587 |
-| 15.1 | ↳ Primary implementation evidence | 1561–1577 |
-| 15.2 | ↳ User and historical documentation | 1578–1587 |
+| 3.8 | ↳ Qt Quick desktop | 626–747 |
+| 4 | System context and data flow | 748–788 |
+| 4.1 | ↳ Context diagram | 750–772 |
+| 4.2 | ↳ Collection-to-library flow | 773–788 |
+| 5 | Repository layout and component ownership | 789–863 |
+| 5.1 | ↳ Entry, orchestration, and models | 791–802 |
+| 5.2 | ↳ Network and external-system adapters | 803–821 |
+| 5.3 | ↳ Persistence, local media, and UI | 822–863 |
+| 6 | Runtime architecture and environments | 864–976 |
+| 6.1 | ↳ Runtime and dependencies | 866–883 |
+| 6.2 | ↳ Concurrency and lifecycle | 884–955 |
+| 6.3 | ↳ Local paths and environment variables | 956–976 |
+| 7 | Data model and persistence | 977–1075 |
+| 7.1 | ↳ Domain objects and identity | 979–993 |
+| 7.2 | ↳ SQLite schema and invariants | 994–1042 |
+| 7.3 | ↳ Crate persistence and deletion | 1043–1058 |
+| 7.4 | ↳ Configuration and credential stores | 1059–1075 |
+| 8 | Public interfaces and contracts | 1076–1132 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1078–1106 |
+| 8.2 | ↳ JSON and CSV summary input | 1107–1121 |
+| 8.3 | ↳ URL-opening contract | 1122–1132 |
+| 9 | Authentication and authorization | 1133–1176 |
+| 9.1 | ↳ SoundCloud authentication | 1135–1155 |
+| 9.2 | ↳ Gate action consent | 1156–1176 |
+| 10 | External integrations | 1177–1319 |
+| 10.1 | ↳ SoundCloud API and media | 1179–1190 |
+| 10.2 | ↳ Link hubs and download gates | 1191–1260 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1199–1246 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1248–1253 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1255–1260 |
+| 10.3 | ↳ Browsers and clipboard | 1261–1272 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1273–1319 |
+| 11 | Security requirements and threat model | 1320–1374 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1322–1340 |
+| 11.2 | ↳ Secret and personal-data handling | 1341–1356 |
+| 11.3 | ↳ File and mutation safety | 1357–1374 |
+| 12 | Privacy, lifecycle, and retention | 1375–1418 |
+| 12.1 | ↳ Data stored locally | 1377–1396 |
+| 12.2 | ↳ Data sent to third parties | 1397–1408 |
+| 12.3 | ↳ User-controlled deletion | 1409–1418 |
+| 13 | Failure behavior and current limitations | 1419–1479 |
+| 13.1 | ↳ Error isolation and reporting | 1421–1440 |
+| 13.2 | ↳ Confirmed limitations | 1441–1479 |
+| 14 | Verification, CI, and release | 1480–1565 |
+| 14.1 | ↳ Offline and live test suites | 1482–1528 |
+| 14.2 | ↳ Continuous integration and publishing | 1529–1550 |
+| 14.3 | ↳ Specification-map verification | 1551–1565 |
+| 15 | Evidence and operational references | 1566–1594 |
+| 15.1 | ↳ Primary implementation evidence | 1568–1584 |
+| 15.2 | ↳ User and historical documentation | 1585–1594 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -638,11 +638,18 @@ is, except while typing in a text field or inside a modal dialog: it starts the
 selected track, toggles it when it is the one loaded, or toggles the loaded track
 when nothing is selected. The transport Play button uses the same selection
 rule, and its icon/label describe the selected target rather than a different
-loaded track. The read-only folder explorer is a Qt
-`TreeView`/`QFileSystemModel` rooted at the user home directory. Folder contents
-are requested on expansion and enumerated in Qt background work; selecting a
-folder opens its tracks in the paged table; pinned folders are listed above the
-tree and the page range appears only for folders above one page. It provides
+loaded track. The read-only folder explorer starts with the system Downloads and
+Music locations from `QStandardPaths`, plus previously saved additional folders.
+The home directory is not a default root. “Add folder…” (also Ctrl+O) validates,
+saves, and opens a chosen directory using `pinned_directories`; duplicates are
+shown only once. Each root has a native Qt `TreeView` backed by the shared
+`gui/directories.py` `DirectoryModel`/`QFileSystemModel`. Native hidden directories
+and dot-prefixed directories are excluded, including on Windows. Qt background
+enumeration checks visible subdirectories before showing an expansion arrow;
+folders with only files or hidden subfolders remain selectable leaves.
+Large expanded roots have a bounded, scrollable tree viewport. Selecting a
+folder opens its tracks in the paged table, and the page range appears only for
+folders above one page. It provides
 search, store filtering with per-store counts derived from the loaded view,
 hide-handled filtering, stable-key selection, numeric sorting with a header
 arrow, resizable columns, keyboard navigation and native clipboard copying. The

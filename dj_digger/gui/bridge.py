@@ -7,27 +7,28 @@ from pathlib import Path
 
 from PySide6.QtCore import (
     Property,
-    QDir,
     QLibraryInfo,
     QModelIndex,
     QObject,
+    QStandardPaths,
     Qt,
     QTranslator,
     Signal,
     Slot,
 )
 from PySide6.QtGui import QGuiApplication
-from PySide6.QtWidgets import QFileSystemModel
 
 from ..paths import config_dir
 from ..private_json import write_private_json
 from .backend import Backend
+from .directories import DirectoryModel
 from .model import TrackModel
 
 
 class Bridge(QObject):
     event = Signal(str, object)
     changed = Signal()
+    rootsChanged = Signal()
     question = Signal('QVariantMap')
     dismiss = Signal(str)
     notice = Signal(str, str)
@@ -41,11 +42,15 @@ class Bridge(QObject):
         self._sidebar = []
         self._pinned = []
         self._level = 'info'
-        self._home = str(Path(home_path) if home_path is not None else Path.home())
-        self._directories = QFileSystemModel(self)
-        self._directories.setReadOnly(True)
-        self._directories.setFilter(QDir.Filter.Dirs | QDir.Filter.NoDotAndDotDot)
-        self._home_index = self._directories.setRootPath(self._home)
+        self._default_roots = [
+            str(Path(home_path) / name) if home_path is not None else
+            QStandardPaths.writableLocation(location)
+            for name, location in (('Downloads', QStandardPaths.DownloadLocation),
+                                   ('Music', QStandardPaths.MusicLocation))
+        ]
+        self._directories = DirectoryModel(self)
+        self._roots = []
+        self._refresh_roots()
         self._folder = dict(path='', offset=0, total=0, directories=[])
         self._audio = {}
         self._busy = False
@@ -63,17 +68,34 @@ class Bridge(QObject):
     model = Property(QObject, lambda self: self.table, constant=True)
     view = Property('QVariantMap', lambda self: self._view, notify=changed)
     playlists = Property('QVariantList', lambda self: self._sidebar, notify=changed)
-    pinned = Property('QVariantList', lambda self: self._pinned, notify=changed)
     level = Property(str, lambda self: self._level, notify=changed)
     directoryModel = Property(QObject, lambda self: self._directories, constant=True)
-    homeIndex = Property(QModelIndex, lambda self: self._home_index, constant=True)
-    homePath = Property(str, lambda self: self._home, constant=True)
+    directoryRoots = Property('QVariantList', lambda self: self._roots, notify=rootsChanged)
     folder = Property('QVariantMap', lambda self: self._folder, notify=changed)
     audio = Property('QVariantMap', lambda self: self._audio, notify=changed)
     busy = Property(bool, lambda self: self._busy, notify=changed)
     ready = Property(bool, lambda self: self._ready, notify=changed)
     volume = Property(float, lambda self: self._volume, notify=changed)
     message = Property(str, lambda self: self._message, notify=changed)
+
+    def _refresh_roots(self):
+        roots = []
+        seen = set()
+        for index, path in enumerate([*self._default_roots, *self._pinned]):
+            if not path:
+                continue
+            path = str(Path(path).expanduser().absolute())
+            identity = os.path.normcase(os.path.normpath(path))
+            if identity in seen or Path(path).name.startswith('.'):
+                continue
+            model_index = self._directories.setRootPath(path)
+            if self._directories.fileInfo(model_index).isHidden():
+                continue
+            seen.add(identity)
+            roots.append(dict(path=path, kind=('downloads', 'music')[index] if index < 2 else 'custom'))
+        if roots != self._roots:
+            self._roots = roots
+            self.rootsChanged.emit()
 
     @Slot(str, object)
     def receive(self, kind, values):
@@ -89,6 +111,7 @@ class Bridge(QObject):
         elif kind == 'sidebar':
             self._sidebar = values['items']
             self._pinned = values.get('pinned', [])
+            self._refresh_roots()
         elif kind == 'folder':
             self._folder = values
         elif kind == 'audio':
@@ -149,6 +172,19 @@ class Bridge(QObject):
         index = self._directories.index(path)
         if index.isValid() and self._directories.canFetchMore(index):
             self._directories.fetchMore(index)
+
+    @Slot(str, result=QModelIndex)
+    def directoryIndex(self, path):
+        return self._directories.index(path)
+
+    @Slot(str, result=bool)
+    def directoryHasChildren(self, path):
+        index = self._directories.index(path)
+        return index.isValid() and self._directories.hasChildren(index)
+
+    @Slot(str)
+    def addFolder(self, path):
+        self.backend.submit('add_folder', {'path': self.localPath(path)})
 
     @Slot(QModelIndex)
     def openDirectory(self, index):

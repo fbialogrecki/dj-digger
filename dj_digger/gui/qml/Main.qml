@@ -175,7 +175,7 @@ ApplicationWindow {
         Menu {
             title: qsTr("Library")
             Action { text: qsTr("Add playlist…"); shortcut: "A"; onTriggered: desktop.action("dig") }
-            Action { text: qsTr("Open folder…"); shortcut: "Ctrl+O"; onTriggered: folderDialog.open() }
+            Action { text: qsTr("Add folder…"); shortcut: "Ctrl+O"; onTriggered: folderDialog.open() }
             Action { text: qsTr("Import profile playlists…"); onTriggered: desktop.action("profile") }
             Action { text: qsTr("Import saved summary…"); onTriggered: desktop.action("import_summary") }
             MenuSeparator {}
@@ -316,61 +316,87 @@ ApplicationWindow {
                 ColumnLayout {
                     SplitView.minimumHeight: 120
                     Label { text: qsTr("Local files"); font.bold: true; color: root.muted; Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; topPadding: 4 }
-                    Repeater {
-                        model: desktop.pinned
-                        ItemDelegate {
-                            id: pinnedItem
-                            background: Rectangle { color: pinnedItem.highlighted ? root.accent : pinnedItem.hovered ? root.hoverSurface : "transparent" }
-                            required property string modelData
-                            Layout.fillWidth: true
-                            highlighted: root.folderView && desktop.folder.path === modelData
-                            contentItem: RowLayout {
-                                Label { text: "📌"; color: pinnedItem.highlighted ? root.selectionText : root.muted }
-                                Label { Layout.fillWidth: true; text: pinnedItem.modelData.split(/[\\/]/).filter(p => p).pop() || pinnedItem.modelData; textFormat: Text.PlainText; elide: Text.ElideMiddle; color: pinnedItem.highlighted ? root.selectionText : root.fg }
-                            }
-                            ToolTip.visible: hovered; ToolTip.text: modelData
-                            onClicked: desktop.openFolder(modelData, 0)
-                        }
-                    }
-                    RowLayout {
-                        Layout.fillWidth: true
-                        ToolButton {
-                            text: directoryTree.visible ? "▾" : "▸"
-                            Accessible.name: qsTr("Home folder")
-                            onClicked: directoryTree.visible = !directoryTree.visible
-                        }
-                        ItemDelegate {
-                            Layout.fillWidth: true
-                            contentItem: Label { text: desktop.homePath; textFormat: Text.PlainText; elide: Text.ElideMiddle; font.bold: true }
-                            Accessible.name: desktop.homePath
-                            onClicked: desktop.openFolder(desktop.homePath, 0)
-                        }
-                    }
-                    TreeView {
-                        id: directoryTree; objectName: "directoryTree"
+                    ScrollView {
+                        id: folderScroll
                         Layout.fillWidth: true; Layout.fillHeight: true
-                        clip: true; model: desktop.directoryModel; rootIndex: desktop.homeIndex
-                        editTriggers: TableView.NoEditTriggers
-                        selectionBehavior: TableView.SelectRows
-                        selectionModel: ItemSelectionModel { model: desktop.directoryModel }
-                        columnWidthProvider: column => column === 0 ? width : 0
-                        delegate: TreeViewDelegate {
-                            id: directoryDelegate
-                            objectName: "directory-" + fileName
-                            required property string fileName
-                            required property string filePath
-                            implicitWidth: directoryTree.width; implicitHeight: 32
-                            leftMargin: 20
-                            contentItem: Label { text: directoryDelegate.fileName; textFormat: Text.PlainText; elide: Text.ElideRight; color: directoryDelegate.highlighted ? root.selectionText : root.fg }
-                            palette.windowText: highlighted ? root.selectionText : root.fg
-                            onExpandedChanged: if (expanded) Qt.callLater(() => { if (expanded) desktop.expandDirectory(filePath) })
-                            Accessible.name: fileName
-                            onClicked: desktop.openFolder(filePath, 0)
+                        contentWidth: availableWidth
+                        Column {
+                            width: folderScroll.availableWidth
+                            Repeater {
+                                model: desktop.directoryRoots
+                                Column {
+                                    id: folderRoot
+                                    required property var modelData
+                                    width: parent.width
+                                    property bool expanded: false
+                                    readonly property bool expandable: {
+                                        // Refresh after Qt's background directory enumeration.
+                                        const revision = desktop.directoryModel.revision
+                                        return desktop.directoryHasChildren(modelData.path)
+                                    }
+                                    onExpandableChanged: if (!expandable) expanded = false
+                                    ItemDelegate {
+                                        id: rootItem
+                                        objectName: "root-" + folderRoot.modelData.kind
+                                        width: parent.width; height: 32
+                                        highlighted: root.folderView && desktop.folder.path === folderRoot.modelData.path
+                                        background: Rectangle { color: rootItem.highlighted ? root.accent : rootItem.hovered ? root.hoverSurface : "transparent" }
+                                        contentItem: RowLayout {
+                                            ToolButton {
+                                                objectName: "expand-" + folderRoot.modelData.kind
+                                                text: folderRoot.expanded ? "▾" : "▸"
+                                                enabled: folderRoot.expandable
+                                                opacity: enabled ? 1 : 0
+                                                implicitWidth: 24; implicitHeight: 24
+                                                Accessible.ignored: !enabled
+                                                Accessible.name: folderRoot.modelData.path
+                                                onClicked: folderRoot.expanded = !folderRoot.expanded
+                                            }
+                                            Label {
+                                                Layout.fillWidth: true
+                                                text: folderRoot.modelData.kind === "downloads" ? qsTr("Downloads")
+                                                    : folderRoot.modelData.kind === "music" ? qsTr("Music")
+                                                    : folderRoot.modelData.path.split(/[\\/]/).filter(p => p).pop() || folderRoot.modelData.path
+                                                textFormat: Text.PlainText; elide: Text.ElideMiddle
+                                                color: rootItem.highlighted ? root.selectionText : root.fg
+                                            }
+                                        }
+                                        ToolTip.visible: hovered; ToolTip.text: folderRoot.modelData.path
+                                        onClicked: desktop.openFolder(folderRoot.modelData.path, 0)
+                                    }
+                                    TreeView {
+                                        id: directoryTree
+                                        objectName: "directoryTree-" + folderRoot.modelData.kind
+                                        width: parent.width
+                                        height: visible ? Math.min(contentHeight, Math.max(96, folderScroll.availableHeight - 64)) : 0
+                                        visible: folderRoot.expanded && folderRoot.expandable
+                                        clip: true; model: desktop.directoryModel
+                                        rootIndex: desktop.directoryIndex(folderRoot.modelData.path)
+                                        editTriggers: TableView.NoEditTriggers
+                                        selectionBehavior: TableView.SelectRows
+                                        selectionModel: ItemSelectionModel { model: desktop.directoryModel }
+                                        columnWidthProvider: column => column === 0 ? width : 0
+                                        delegate: TreeViewDelegate {
+                                            id: directoryDelegate
+                                            objectName: "directory-" + fileName
+                                            required property string fileName
+                                            required property string filePath
+                                            implicitWidth: directoryTree.width; implicitHeight: 32
+                                            leftMargin: 20
+                                            contentItem: Label { text: directoryDelegate.fileName; textFormat: Text.PlainText; elide: Text.ElideRight; color: directoryDelegate.highlighted ? root.selectionText : root.fg }
+                                            palette.windowText: highlighted ? root.selectionText : root.fg
+                                            onExpandedChanged: if (expanded) Qt.callLater(() => { if (expanded) desktop.expandDirectory(filePath) })
+                                            Accessible.name: fileName
+                                            onClicked: desktop.openFolder(filePath, 0)
+                                        }
+                                        Keys.onReturnPressed: if (currentRow >= 0) desktop.openDirectory(index(currentRow, 0))
+                                        ScrollBar.vertical: ScrollBar {}
+                                    }
+                                }
+                            }
                         }
-                        Keys.onReturnPressed: if (currentRow >= 0) desktop.openDirectory(index(currentRow, 0))
-                        ScrollBar.vertical: ScrollBar {}
                     }
-                    Button { text: qsTr("Open folder…"); Layout.fillWidth: true; onClicked: folderDialog.open() }
+                    Button { objectName: "addFolder"; text: qsTr("Add folder…"); Layout.fillWidth: true; onClicked: folderDialog.open() }
                     RowLayout {
                         visible: root.folderView && desktop.folder.total > 250
                         Button { text: "‹"; Accessible.name: qsTr("Previous page"); ToolTip.visible: hovered; ToolTip.text: Accessible.name; enabled: desktop.folder.offset > 0; onClicked: desktop.openFolder(desktop.folder.path, Math.max(0, desktop.folder.offset-250)) }
@@ -610,7 +636,7 @@ ApplicationWindow {
                     visible: !root.hasRows && desktop.ready; wrapMode: Text.WordWrap; horizontalAlignment: Text.AlignHCenter; color: root.muted
                     text: desktop.model.counts.total > 0 ? qsTr("No tracks match the search or filters. Press Esc to clear them.")
                         : desktop.view.title ? qsTr("This view has no tracks.")
-                        : qsTr("Add a playlist (A), pick one in the sidebar or open a folder (Ctrl+O) to start.")
+                        : qsTr("Add a playlist (A), pick one in the sidebar or add a folder (Ctrl+O) to start.")
                 }
                 }
                 RowLayout {
@@ -670,7 +696,7 @@ ApplicationWindow {
             }
         }
     }
-    FolderDialog { id: folderDialog; title: qsTr("Open folder"); onAccepted: desktop.openFolder(selectedFolder.toString(), 0) }
+    FolderDialog { id: folderDialog; title: qsTr("Add folder"); onAccepted: desktop.addFolder(selectedFolder.toString()) }
     Menu {
         id: playlistMenu
         property string source

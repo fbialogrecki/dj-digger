@@ -1,6 +1,7 @@
 """Desktop orchestration. Qt receives detached values, never service objects."""
 import asyncio
 import logging
+import stat
 import threading
 from copy import deepcopy
 from pathlib import Path
@@ -784,6 +785,17 @@ class Backend:
             folders = list(dict.fromkeys([*self.services.config.pinned_directories, str(self.folder)]))
             await self.io(self.services.accounts.save_preferences, {'pinned_directories': folders})
             await self.sidebar()
+
+    async def action_add_folder(self, values):
+        path = await self.io(Path(values['path']).expanduser().resolve, strict=True)
+        if not await self.io(path.is_dir):
+            raise ValueError('Select a folder')
+        if path.name.startswith('.') or getattr(await self.io(path.stat), 'st_file_attributes', 0) & stat.FILE_ATTRIBUTE_HIDDEN:
+            raise ValueError('Select a visible folder')
+        folders = list(dict.fromkeys([*self.services.config.pinned_directories, str(path)]))
+        await self.io(self.services.accounts.save_preferences, {'pinned_directories': folders})
+        await self.sidebar()
+        await self.action_folder({'path': str(path)})
 
     async def action_restore(self, values):
         if self.record and self.record.removed_track_keys:

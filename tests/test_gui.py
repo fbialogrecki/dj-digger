@@ -102,6 +102,25 @@ def test_backend_empty_folder_and_shutdown(backend, tmp_path):
     assert not worker.thread.is_alive()
 
 
+def test_added_folder_is_opened_and_saved_without_duplicates(backend, tmp_path):
+    worker, events = backend
+    folder = tmp_path / 'DJ Sets'
+    folder.mkdir()
+    for _ in range(2):
+        worker.submit('add_folder', {'path': str(folder)})
+        assert wait_event(events, 'sidebar')['pinned'] == [str(folder)]
+        assert wait_event(events, 'view')['title'] == str(folder)
+        wait_event(events, 'folder')
+        wait_event(events, 'view')
+    assert AppConfig(tmp_path / 'config.json').pinned_directories == [str(folder)]
+    hidden = tmp_path / '.hidden'
+    hidden.mkdir()
+    worker.submit('add_folder', {'path': str(hidden)})
+    kind, value = events.get(timeout=10)
+    assert kind == 'error' and 'visible folder' in value['text']
+    assert worker.services.config.pinned_directories == [str(folder)]
+
+
 def test_stale_folder_results_do_not_replace_new_view(backend, tmp_path):
     worker, events = backend
     entered, release = threading.Event(), threading.Event()
@@ -392,7 +411,7 @@ def test_stopped_local_waveform_is_cancelled_and_cannot_restore_audio(backend, m
     worker.services.player._loaded = None
 
 
-def test_qml_home_tree_and_one_sided_waveform(app, tmp_path, monkeypatch):
+def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypatch):
     import time
 
     import shiboken6
@@ -412,7 +431,12 @@ def test_qml_home_tree_and_one_sided_waveform(app, tmp_path, monkeypatch):
     monkeypatch.setenv('XDG_CONFIG_HOME', str(tmp_path / 'config'))
     monkeypatch.setenv('XDG_CACHE_HOME', str(tmp_path / 'cache'))
     home = tmp_path / 'home'
-    (home / 'Music' / 'House').mkdir(parents=True)
+    (home / 'Downloads').mkdir(parents=True)
+    (home / 'Music' / 'House' / 'Deep').mkdir(parents=True)
+    (home / 'Music' / '.hidden').mkdir()
+    (home / 'Music' / 'Only hidden' / '.private').mkdir(parents=True)
+    (home / 'Music' / 'Only audio').mkdir()
+    (home / 'Music' / 'Only audio' / 'track.wav').write_bytes(b'audio')
     (home / 'Sets').mkdir()
     (home / 'hidden-from-folder-tree.wav').write_bytes(b'')
     engine = QQmlApplicationEngine()
@@ -428,36 +452,69 @@ def test_qml_home_tree_and_one_sided_waveform(app, tmp_path, monkeypatch):
         bridge.receive('ready', {})
         bridge.receive('audio', dict(title='Local fixture.wav', playing=True, position=1, duration=4,
                                      waveform=[1000] * 512 + [200] * 512))
-        tree = window.findChild(QQuickItem, 'directoryTree')
+        tree = window.findChild(QQuickItem, 'directoryTree-music')
         canvas = window.findChild(QQuickItem, 'waveform')
-        deadline = time.monotonic() + 5
-        while tree.property('rows') != 2 and time.monotonic() < deadline:
-            QTest.qWait(10)
-        assert tree.property('rows') == 2
-        assert bridge.homePath == str(home)
-        assert Path(bridge.directoryModel.filePath(bridge.homeIndex)) == home
-        # Expand and select through the actual delegate, not just the filesystem API.
         def find_item(item, name):
             if item.objectName() == name:
                 return item
             return next((found for child in item.childItems() if (found := find_item(child, name))), None)
-        music = find_item(tree, 'directory-Music')
-        assert music is not None
-        point = music.mapToScene(QPointF(80, 16)).toPoint()
+        scene = window.contentItem()
+        tree = find_item(scene, 'directoryTree-music')
+        assert bridge.directoryRoots == [dict(path=str(home / 'Downloads'), kind='downloads'),
+                                         dict(path=str(home / 'Music'), kind='music')]
+        assert find_item(scene, 'directory-Sets') is None
+        assert find_item(scene, 'addFolder').property('text') == 'Add folder…'
+        painted = QSignalSpy(window.frameSwapped)
+        window.update()
+        assert painted.wait(3000)
+        music = find_item(scene, 'root-music')
+        point = music.mapToScene(QPointF(100, 16)).toPoint()
         QTest.mouseClick(window, Qt.LeftButton, pos=point)
         assert any(call[0] == 'folder' and Path(call[1]['path']) == home / 'Music' and call[1]['offset'] == 0
                    for call in bridge.backend.calls)
+        expand = find_item(scene, 'expand-music')
+        deadline = time.monotonic() + 5
+        while not expand.isEnabled() and time.monotonic() < deadline:
+            QTest.qWait(10)
+        assert expand.isEnabled()
+        assert not find_item(scene, 'expand-downloads').isEnabled()
+        point = expand.mapToScene(QPointF(expand.width()/2, expand.height()/2)).toPoint()
+        QTest.mouseClick(window, Qt.LeftButton, pos=point)
+        deadline = time.monotonic() + 5
+        while (find_item(tree, 'directory-House') is None
+               or not find_item(tree, 'directory-House').property('hasChildren')) and time.monotonic() < deadline:
+            QTest.qWait(10)
+        assert tree.property('rows') == 3
+        assert find_item(tree, 'directory-.hidden') is None
+        for name in ('Only audio', 'Only hidden'):
+            leaf = find_item(tree, 'directory-' + name)
+            assert leaf is not None and not leaf.property('hasChildren')
+            assert not leaf.property('indicator').isVisible()
+        child = home / 'Music' / 'Only audio' / 'New folder'
+        child.mkdir()
+        leaf = find_item(tree, 'directory-Only audio')
+        deadline = time.monotonic() + 5
+        while not leaf.property('hasChildren') and time.monotonic() < deadline:
+            QTest.qWait(10)
+        assert leaf.property('hasChildren')
+        child.rmdir()
+        deadline = time.monotonic() + 5
+        while leaf.property('hasChildren') and time.monotonic() < deadline:
+            QTest.qWait(10)
+        assert not leaf.property('hasChildren')
         painted = QSignalSpy(window.frameSwapped)
         window.update()
         assert painted.wait(3000)  # Use the settled delegate geometry for the next click.
-        music = find_item(tree, 'directory-Music')
-        indicator = music.property('indicator')
+        house = find_item(tree, 'directory-House')
+        indicator = house.property('indicator')
         point = indicator.mapToScene(QPointF(indicator.width()/2, indicator.height()/2)).toPoint()
         QTest.mouseClick(window, Qt.LeftButton, pos=point)
         deadline = time.monotonic() + 5
-        while find_item(tree, 'directory-House') is None and time.monotonic() < deadline:
+        while find_item(tree, 'directory-Deep') is None and time.monotonic() < deadline:
             QTest.qWait(10)
-        assert find_item(tree, 'directory-House') is not None
+        assert find_item(tree, 'directory-Deep') is not None
+        bridge.addFolder(QUrl.fromLocalFile(str(home / 'Sets')).toString())
+        assert bridge.backend.calls[-1] == ('add_folder', {'path': str(home / 'Sets')})
         painted = QSignalSpy(window.frameSwapped)
         window.update()
         assert painted.wait(3000)
@@ -499,9 +556,9 @@ def test_qml_home_tree_and_one_sided_waveform(app, tmp_path, monkeypatch):
             assert contrast(search.property('color'), search_background) >= 4.5
             assert contrast(store.property('indicator').property('color'), store.property('background').property('color')) >= 3
             deadline = time.monotonic() + 3
-            while any(find_item(tree, 'directory-' + name) is None for name in ('Music', 'House')) and time.monotonic() < deadline:
+            while any(find_item(tree, 'directory-' + name) is None for name in ('House', 'Deep')) and time.monotonic() < deadline:
                 QTest.qWait(10)
-            for name in ('Music', 'House'):
+            for name in ('House', 'Deep'):
                 item = find_item(tree, 'directory-' + name)
                 assert item is not None, (theme, name, tree.property('rows'), tree.property('height'))
                 background = item.property('background').property('color')
@@ -513,6 +570,9 @@ def test_qml_home_tree_and_one_sided_waveform(app, tmp_path, monkeypatch):
             assert contrast(search.property('color'), search.property('background').property('color')) >= 4.5
             search.setProperty('enabled', True)
         assert not errors
+        bridge.receive('sidebar', {'items': [], 'pinned': [str(home / 'Sets'), str(home / 'Music'),
+                                                         str(home / 'Music' / '.hidden')]})
+        assert [item['path'] for item in bridge.directoryRoots] == [str(home / name) for name in ('Downloads', 'Music', 'Sets')]
     finally:
         shiboken6.delete(engine)
 

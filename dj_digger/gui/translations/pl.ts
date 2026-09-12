@@ -2,6 +2,10 @@
 <TS version="2.1" language="pl_PL" sourcelanguage="en">
   <context>
     <name>Main</name>
+    <message><source>Add folder…</source><translation>Dodaj folder…</translation></message>
+    <message><source>Add folder</source><translation>Dodaj folder</translation></message>
+    <message><source>Downloads</source><translation>Pobrane</translation></message>
+    <message><source>Music</source><translation>Muzyka</translation></message>
     <message><source>Details</source><translation>Szczegóły</translation></message>
     <message><source>Dismiss error</source><translation>Zamknij błąd</translation></message>
     <message>
@@ -189,8 +193,8 @@
       <translation>Ten widok nie zawiera utworów.</translation>
     </message>
     <message>
-      <source>Add a playlist (A), pick one in the sidebar or open a folder (Ctrl+O) to start.</source>
-      <translation>Dodaj playlistę (A), wybierz jedną z panelu bocznego lub otwórz folder (Ctrl+O), aby zacząć.</translation>
+      <source>Add a playlist (A), pick one in the sidebar or add a folder (Ctrl+O) to start.</source>
+      <translation>Dodaj playlistę (A), wybierz jedną z panelu bocznego lub dodaj folder (Ctrl+O), aby zacząć.</translation>
     </message>
     <message>
       <source>%1 / %2 tracks · owned %3 · skipped %4</source>
@@ -403,6 +407,8 @@
   </context>
   <context>
     <name>Bridge</name>
+    <message><source>Select a folder</source><translation>Wybierz folder</translation></message>
+    <message><source>Select a visible folder</source><translation>Wybierz folder, który nie jest ukryty</translation></message>
     <message>
       <source>Library</source>
       <translation>Biblioteka</translation>
