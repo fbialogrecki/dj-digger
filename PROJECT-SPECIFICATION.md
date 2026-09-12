@@ -5,8 +5,8 @@
 - Product version verified: 1.1.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-09-10
-- Document lines: <!-- SPEC TOTAL LINES -->1584<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1584<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1587<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1587<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -83,32 +83,32 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 9 | Authentication and authorization | 1126–1169 |
 | 9.1 | ↳ SoundCloud authentication | 1128–1148 |
 | 9.2 | ↳ Gate action consent | 1149–1169 |
-| 10 | External integrations | 1170–1309 |
+| 10 | External integrations | 1170–1312 |
 | 10.1 | ↳ SoundCloud API and media | 1172–1183 |
-| 10.2 | ↳ Link hubs and download gates | 1184–1250 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1192–1236 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1238–1243 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1245–1250 |
-| 10.3 | ↳ Browsers and clipboard | 1251–1262 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1263–1309 |
-| 11 | Security requirements and threat model | 1310–1364 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1312–1330 |
-| 11.2 | ↳ Secret and personal-data handling | 1331–1346 |
-| 11.3 | ↳ File and mutation safety | 1347–1364 |
-| 12 | Privacy, lifecycle, and retention | 1365–1408 |
-| 12.1 | ↳ Data stored locally | 1367–1386 |
-| 12.2 | ↳ Data sent to third parties | 1387–1398 |
-| 12.3 | ↳ User-controlled deletion | 1399–1408 |
-| 13 | Failure behavior and current limitations | 1409–1469 |
-| 13.1 | ↳ Error isolation and reporting | 1411–1430 |
-| 13.2 | ↳ Confirmed limitations | 1431–1469 |
-| 14 | Verification, CI, and release | 1470–1555 |
-| 14.1 | ↳ Offline and live test suites | 1472–1518 |
-| 14.2 | ↳ Continuous integration and publishing | 1519–1540 |
-| 14.3 | ↳ Specification-map verification | 1541–1555 |
-| 15 | Evidence and operational references | 1556–1584 |
-| 15.1 | ↳ Primary implementation evidence | 1558–1574 |
-| 15.2 | ↳ User and historical documentation | 1575–1584 |
+| 10.2 | ↳ Link hubs and download gates | 1184–1253 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1192–1239 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1241–1246 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1248–1253 |
+| 10.3 | ↳ Browsers and clipboard | 1254–1265 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1266–1312 |
+| 11 | Security requirements and threat model | 1313–1367 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1315–1333 |
+| 11.2 | ↳ Secret and personal-data handling | 1334–1349 |
+| 11.3 | ↳ File and mutation safety | 1350–1367 |
+| 12 | Privacy, lifecycle, and retention | 1368–1411 |
+| 12.1 | ↳ Data stored locally | 1370–1389 |
+| 12.2 | ↳ Data sent to third parties | 1390–1401 |
+| 12.3 | ↳ User-controlled deletion | 1402–1411 |
+| 13 | Failure behavior and current limitations | 1412–1472 |
+| 13.1 | ↳ Error isolation and reporting | 1414–1433 |
+| 13.2 | ↳ Confirmed limitations | 1434–1472 |
+| 14 | Verification, CI, and release | 1473–1558 |
+| 14.1 | ↳ Offline and live test suites | 1475–1521 |
+| 14.2 | ↳ Continuous integration and publishing | 1522–1543 |
+| 14.3 | ↳ Specification-map verification | 1544–1558 |
+| 15 | Evidence and operational references | 1559–1587 |
+| 15.1 | ↳ Primary implementation evidence | 1561–1577 |
+| 15.2 | ↳ User and historical documentation | 1578–1587 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -1219,8 +1219,11 @@ while it is present. A row whose step only a person can finish
 (a provider still asking for a login, a CAPTCHA, a placeholder email, a name
 the profile lacks, a page without known controls) is deferred, and every deferred row of the batch is
 reopened in one visible window where the same driver runs with a five-minute
-provider wait and reports what stopped instead of failing the row. Nothing
-outside Hypeddit's page is ever clicked. A hidden pass always ends five
+provider wait and reports what stopped instead of failing the row. Suspended gate drivers are polled
+round-robin on the same Playwright-owning thread, so other tabs advance to their
+own login/manual step. Each driver retains its current slide and popup across
+polls, avoiding repeated Connect clicks or form submissions when it resumes.
+Nothing outside Hypeddit's page is ever clicked. A hidden pass always ends five
 minutes after its driving; a single gate's window has the same limit, a
 batch's window lasts as long as a tab stays open. Downloads are watched only
 in the tabs and popups the batch's own pages opened. Closing one tab does not

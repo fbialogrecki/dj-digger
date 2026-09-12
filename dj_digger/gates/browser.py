@@ -6,7 +6,7 @@ social media login steps.
 
 import time
 import urllib.parse
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
@@ -124,7 +124,7 @@ def _drive_gate_steps(
     name: str | None,
     attended: bool,
     config=None,
-) -> bool:
+) -> Generator[None, None, bool]:
     """Walk the gate's step slides the way a fan does, then press its Download.
 
     Only elements on the Hypeddit page are ever clicked. A follow or like
@@ -165,7 +165,7 @@ def _drive_gate_steps(
                 raise _NeedsPerson("the gate's download button is not where it was")
             return True
         if kind in GATE_CONNECT_STEPS:
-            _connect_provider(context, page, slide.locator, cancel, status, attended=attended)
+            yield from _connect_provider(context, page, slide.locator, cancel, status, attended=attended)
         elif kind == "email":
             _share_email(slide.locator, email, name, guard=guard, config=config)
         elif kind in CLICK_THROUGH_STEPS:
@@ -262,10 +262,10 @@ def _connect_provider(
     status: StatusCallback | None,
     *,
     attended: bool,
-) -> None:
+) -> Generator[None, None, None]:
     before = list(context.pages)
     slide.locator(GATE_CONNECT_BUTTON).first.click(**_CLICK)
-    _wait_for_provider(context, page, before, cancel, status, attended=attended)
+    yield from _wait_for_provider(context, page, before, cancel, status, attended=attended)
 
 
 def _opener(page: Any) -> Any | None:
@@ -294,7 +294,7 @@ def _wait_for_provider(
     status: StatusCallback | None,
     *,
     attended: bool,
-) -> None:
+) -> Generator[None, None, None]:
     """Wait until the provider popup (or the tab itself) is back at Hypeddit.
 
     The callback page tells the gate through the browser's storage the
@@ -331,6 +331,7 @@ def _wait_for_provider(
             status(message)
             told = message
         page.wait_for_timeout(250)
+        yield  # Let other gates advance while this provider needs the person.
     if attended:
         raise GateManualActionRequired("provider step was not completed in time")
     raise _NeedsPerson(f"{where} wants you to sign in")
@@ -562,7 +563,7 @@ def _drive_tab(
     email: str | None,
     name: str | None,
     attended: bool,
-) -> bool:
+) -> Generator[None, None, bool]:
     """Drive one tab's steps. True when the batch was cancelled meanwhile.
 
     What the driver cannot finish is deferred to a window when nobody is at
@@ -577,9 +578,9 @@ def _drive_tab(
             # the gate (seen on a hidden pass, 2026-09-02).
             _track, url = watch.pending[key]
             page.goto(url, wait_until="domcontentloaded", timeout=30_000)
-        if not _drive_gate_steps(
+        if not (yield from _drive_gate_steps(
             context, page, watch.cancel, status, social=social, email=email, name=name, attended=attended, config=watch.config
-        ) and not attended:
+        )) and not attended:
             raise _NeedsPerson("the gate page has no step controls this program knows")
     except (GateSocialActionsDisabled, GateProfileRequired) as exc:
         watch.failures[key] = exc
@@ -623,17 +624,26 @@ def _await_downloads(
     cancel = watch.cancel
     cancelled = False
     closed_reason = "browser tab closed before the download finished"
-    for key, page in pages:
-        if watch.settled(key):
-            continue
-        if _cancelled(cancel):
-            cancelled = True
-            break
-        if _drive_tab(
-            context, key, page, watch, status, social=social, email=email, name=name, attended=attended
-        ):
-            cancelled = True
-            break
+    # Playwright stays on its owning thread. Suspended drivers retain their
+    # current step and popup so round-robin polling never repeats a Connect.
+    drivers = {key: _drive_tab(context, key, page, watch, status, social=social,
+                              email=email, name=name, attended=attended)
+               for key, page in pages if not watch.settled(key)}
+    while drivers and not cancelled:
+        for key, driver in list(drivers.items()):
+            if _cancelled(cancel):
+                cancelled = True
+                break
+            if watch.settled(key):
+                del drivers[key]
+                continue
+            try:
+                next(driver)
+            except StopIteration as finished:
+                del drivers[key]
+                if finished.value:
+                    cancelled = True
+                    break
 
     deadline = None if time_limit is None else _now() + time_limit
     timed_out = False

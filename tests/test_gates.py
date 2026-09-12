@@ -1045,6 +1045,74 @@ def test_a_provider_that_wants_a_login_moves_the_gate_to_a_window(tmp_path, monk
     assert path.read_bytes() == b"RIFF-gate"
 
 
+def test_every_gate_reaches_login_before_waiting_for_the_person(tmp_path, monkeypatch):
+    class Page(_GatePage):
+        def __init__(self, context):
+            super().__init__(context, spotify_signed_in=False)
+            self.connected_at = None
+
+        def click(self, selector, slide):
+            if selector == gate_browser.GATE_CONNECT_BUTTON:
+                assert self.connected_at is None, 'Connect must not be repeated on resume'
+                self.connected_at = self.context.clock['t']
+            super().click(selector, slide)
+
+        def wait_for_timeout(self, milliseconds):
+            context = self.context
+            pages = [page for page in context.pages if isinstance(page, Page)]
+            ready = all(page.connected_at is not None for page in pages)
+            if context.attended and ready and not getattr(context, 'logins_ready', False):
+                context.logins_ready = True
+                for page in pages:
+                    for popup in page.popups:
+                        popup.polls = 0
+            attended = context.attended
+            # The person signs in only after all gates have reached Connect.
+            context.attended = attended and ready
+            try:
+                super().wait_for_timeout(milliseconds)
+            finally:
+                context.attended = attended
+
+    launches = _gate_browser(monkeypatch, Page)
+    items = [(Track(id=i, title=f'Track {i}', permalink_url=f'https://soundcloud.com/a/{i}'),
+              f'https://hypeddit.com/track/{i}') for i in (1, 2, 3)]
+    result = gate_browser.download_hypeddit_batch_in_browser(
+        items, tmp_path, None, config=_DJ, time_limit=2,
+    )
+    assert [hidden for hidden, _context in launches] == [True, False]
+    for _hidden, context in launches:
+        pages = [page for page in context.pages if isinstance(page, Page)]
+        times = [page.connected_at for page in pages]
+        assert None not in times
+        assert max(times) - min(times) < 2
+    assert result.failures == ()
+    assert {key for key, _path in result.completed} == {'1', '2', '3'}
+    assert not result.cancelled
+
+
+def test_cancel_during_provider_wait_does_not_start_other_gates(tmp_path, monkeypatch):
+    from threading import Event
+
+    cancel = Event()
+
+    class Page(_GatePage):
+        def __init__(self, context):
+            super().__init__(context, steps=('sp', 'dw'), spotify_signed_in=False)
+
+        def wait_for_timeout(self, milliseconds):
+            super().wait_for_timeout(milliseconds)
+            cancel.set()
+
+    launches = _gate_browser(monkeypatch, Page)
+    items = [(Track(id=i, title=f'Track {i}', permalink_url=f'https://soundcloud.com/a/{i}'),
+              f'https://hypeddit.com/track/{i}') for i in (1, 2)]
+    result = gate_browser.download_hypeddit_batch_in_browser(items, tmp_path, cancel, config=_DJ)
+    assert result.cancelled and not result.failures and not result.completed
+    assert len(launches) == 1
+    assert launches[0][1].pages[1].clicked == []
+
+
 def test_a_login_popup_that_shows_up_a_moment_after_the_click_is_still_waited_for(
     tmp_path, monkeypatch
 ):
