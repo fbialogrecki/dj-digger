@@ -514,7 +514,9 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
             QTest.qWait(10)
         assert find_item(tree, 'directory-Deep') is not None
         bridge.addFolder(QUrl.fromLocalFile(str(home / 'Sets')).toString())
-        assert bridge.backend.calls[-1] == ('add_folder', {'path': str(home / 'Sets')})
+        action, values = bridge.backend.calls[-1]
+        assert action == 'add_folder'
+        assert Path(values['path']) == home / 'Sets'
         painted = QSignalSpy(window.frameSwapped)
         window.update()
         assert painted.wait(3000)
