@@ -693,12 +693,34 @@ ApplicationWindow {
                     Keys.onDownPressed: table.forceActiveFocus()
                     Accessible.name: qsTr("Search tracks")
                 }
-                // Filters on the left; actions for the selection join the same row while tracks are selected.
+                // Actions for the selection lead the row while tracks are selected; the filters follow.
                 RowLayout {
                     id: toolbar
                     Layout.fillWidth: true; Layout.minimumWidth: 0; spacing: 6
                     // Below this width the action buttons keep their icons and tooltips only.
                     readonly property bool compact: width < 1040
+                    RowLayout {
+                        id: trackActions
+                        objectName: "trackActions"
+                        visible: root.hasSelection
+                        Layout.minimumWidth: 0; spacing: 2
+                        component ActionButton: FlatButton {
+                            display: toolbar.compact ? AbstractButton.IconOnly : AbstractButton.TextBesideIcon
+                            icon.width: 16; icon.height: 16
+                            implicitHeight: 32; padding: 6; spacing: 6
+                        }
+                        ActionButton { text: qsTr("Open links"); keys: "O"; icon.source: "icons/link.svg"; onClicked: desktop.action("open") }
+                        ActionButton { text: qsTr("Download"); keys: "D"; icon.source: "icons/download.svg"; enabled: !desktop.busy; onClicked: desktop.action("download") }
+                        ActionButton { text: qsTr("Mark owned"); keys: "G"; icon.source: "icons/owned.svg"; onClicked: desktop.mark("got") }
+                        ActionButton { text: qsTr("Skip"); keys: "K"; icon.source: "icons/skip.svg"; onClicked: desktop.mark("skip") }
+                        ActionButton { text: qsTr("Analyze BPM / key"); icon.source: "icons/analyze.svg"; visible: !!desktop.view.local; enabled: !desktop.busy; onClicked: desktop.action("analyze") }
+                        ActionButton {
+                            id: moreActions
+                            text: qsTr("More actions"); icon.source: "icons/more.svg"; display: AbstractButton.IconOnly
+                            onClicked: contextMenu.popup(moreActions, 0, moreActions.height)
+                        }
+                    }
+                    Rectangle { visible: root.hasSelection; Layout.preferredWidth: 1; Layout.preferredHeight: 22; color: root.alternate }
                     ComboBox {
                         id: store; objectName: "storeFilter"
                         visible: !desktop.view.local
@@ -721,29 +743,6 @@ ApplicationWindow {
                         }
                     }
                     CheckBox { id: hide; text: qsTr("Hide handled"); onToggled: filterTimer.restart(); ToolTip.visible: hovered; ToolTip.text: qsTr("Hide owned and skipped tracks (H)") }
-                    Rectangle { visible: root.hasSelection; Layout.preferredWidth: 1; Layout.preferredHeight: 22; color: root.alternate }
-                    RowLayout {
-                        id: trackActions
-                        objectName: "trackActions"
-                        visible: root.hasSelection
-                        Layout.minimumWidth: 0; spacing: 2
-                        component ActionButton: FlatButton {
-                            display: toolbar.compact ? AbstractButton.IconOnly : AbstractButton.TextBesideIcon
-                            icon.width: 16; icon.height: 16
-                            implicitHeight: 32; padding: 6; spacing: 6
-                        }
-                        Label { text: qsTr("%1 selected").arg(desktop.model.counts.selected); font.bold: true; color: root.fg; Layout.leftMargin: 4; Layout.rightMargin: 4 }
-                        ActionButton { text: qsTr("Open links"); keys: "O"; icon.source: "icons/link.svg"; onClicked: desktop.action("open") }
-                        ActionButton { text: qsTr("Download"); keys: "D"; icon.source: "icons/download.svg"; enabled: !desktop.busy; onClicked: desktop.action("download") }
-                        ActionButton { text: qsTr("Mark owned"); keys: "G"; icon.source: "icons/owned.svg"; onClicked: desktop.mark("got") }
-                        ActionButton { text: qsTr("Skip"); keys: "K"; icon.source: "icons/skip.svg"; onClicked: desktop.mark("skip") }
-                        ActionButton { text: qsTr("Analyze BPM / key"); icon.source: "icons/analyze.svg"; visible: !!desktop.view.local; enabled: !desktop.busy; onClicked: desktop.action("analyze") }
-                        ActionButton {
-                            id: moreActions
-                            text: qsTr("More actions"); icon.source: "icons/more.svg"; display: AbstractButton.IconOnly
-                            onClicked: contextMenu.popup(moreActions, 0, moreActions.height)
-                        }
-                    }
                     Item { Layout.fillWidth: true; Layout.minimumWidth: 0 }
                 }
                 Timer { id: filterTimer; interval: 120; onTriggered: desktop.model.filter(search.text, store.currentIndex > 0 && store.stores[store.currentIndex - 1] ? store.stores[store.currentIndex - 1].name : "", hide.checked) }

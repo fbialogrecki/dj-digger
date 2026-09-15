@@ -210,10 +210,6 @@
       <translation>%1 / %2 utworów · posiadane %3 · pominięte %4</translation>
     </message>
     <message>
-      <source>%1 selected</source>
-      <translation>zaznaczone: %1</translation>
-    </message>
-    <message>
       <source>Loading library…</source>
       <translation>Wczytywanie biblioteki…</translation>
     </message>
