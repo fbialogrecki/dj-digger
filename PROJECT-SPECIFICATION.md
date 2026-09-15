@@ -5,8 +5,8 @@
 - Product version verified: 1.1.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-09-10
-- Document lines: <!-- SPEC TOTAL LINES -->1594<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1594<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1586<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1586<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,7 +51,7 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 143–179 |
 | 2.1 | ↳ Problem and product boundary | 145–158 |
 | 2.2 | ↳ Execution modes | 159–179 |
-| 3 | User-visible capabilities | 180–747 |
+| 3 | User-visible capabilities | 180–739 |
 | 3.1 | ↳ Track collection and saved HTML | 182–208 |
 | 3.2 | ↳ Link classification and exports | 209–227 |
 | 3.3 | ↳ TUI playlist library and interaction | 228–319 |
@@ -59,56 +59,56 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 3.5 | ↳ Downloads and local-file matching | 389–424 |
 | 3.6 | ↳ Store purchase assistance | 425–509 |
 | 3.7 | ↳ Local library, analysis and audio export | 510–625 |
-| 3.8 | ↳ Qt Quick desktop | 626–747 |
-| 4 | System context and data flow | 748–788 |
-| 4.1 | ↳ Context diagram | 750–772 |
-| 4.2 | ↳ Collection-to-library flow | 773–788 |
-| 5 | Repository layout and component ownership | 789–863 |
-| 5.1 | ↳ Entry, orchestration, and models | 791–802 |
-| 5.2 | ↳ Network and external-system adapters | 803–821 |
-| 5.3 | ↳ Persistence, local media, and UI | 822–863 |
-| 6 | Runtime architecture and environments | 864–976 |
-| 6.1 | ↳ Runtime and dependencies | 866–883 |
-| 6.2 | ↳ Concurrency and lifecycle | 884–955 |
-| 6.3 | ↳ Local paths and environment variables | 956–976 |
-| 7 | Data model and persistence | 977–1075 |
-| 7.1 | ↳ Domain objects and identity | 979–993 |
-| 7.2 | ↳ SQLite schema and invariants | 994–1042 |
-| 7.3 | ↳ Crate persistence and deletion | 1043–1058 |
-| 7.4 | ↳ Configuration and credential stores | 1059–1075 |
-| 8 | Public interfaces and contracts | 1076–1132 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1078–1106 |
-| 8.2 | ↳ JSON and CSV summary input | 1107–1121 |
-| 8.3 | ↳ URL-opening contract | 1122–1132 |
-| 9 | Authentication and authorization | 1133–1176 |
-| 9.1 | ↳ SoundCloud authentication | 1135–1155 |
-| 9.2 | ↳ Gate action consent | 1156–1176 |
-| 10 | External integrations | 1177–1319 |
-| 10.1 | ↳ SoundCloud API and media | 1179–1190 |
-| 10.2 | ↳ Link hubs and download gates | 1191–1260 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1199–1246 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1248–1253 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1255–1260 |
-| 10.3 | ↳ Browsers and clipboard | 1261–1272 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1273–1319 |
-| 11 | Security requirements and threat model | 1320–1374 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1322–1340 |
-| 11.2 | ↳ Secret and personal-data handling | 1341–1356 |
-| 11.3 | ↳ File and mutation safety | 1357–1374 |
-| 12 | Privacy, lifecycle, and retention | 1375–1418 |
-| 12.1 | ↳ Data stored locally | 1377–1396 |
-| 12.2 | ↳ Data sent to third parties | 1397–1408 |
-| 12.3 | ↳ User-controlled deletion | 1409–1418 |
-| 13 | Failure behavior and current limitations | 1419–1479 |
-| 13.1 | ↳ Error isolation and reporting | 1421–1440 |
-| 13.2 | ↳ Confirmed limitations | 1441–1479 |
-| 14 | Verification, CI, and release | 1480–1565 |
-| 14.1 | ↳ Offline and live test suites | 1482–1528 |
-| 14.2 | ↳ Continuous integration and publishing | 1529–1550 |
-| 14.3 | ↳ Specification-map verification | 1551–1565 |
-| 15 | Evidence and operational references | 1566–1594 |
-| 15.1 | ↳ Primary implementation evidence | 1568–1584 |
-| 15.2 | ↳ User and historical documentation | 1585–1594 |
+| 3.8 | ↳ Qt Quick desktop | 626–739 |
+| 4 | System context and data flow | 740–780 |
+| 4.1 | ↳ Context diagram | 742–764 |
+| 4.2 | ↳ Collection-to-library flow | 765–780 |
+| 5 | Repository layout and component ownership | 781–855 |
+| 5.1 | ↳ Entry, orchestration, and models | 783–794 |
+| 5.2 | ↳ Network and external-system adapters | 795–813 |
+| 5.3 | ↳ Persistence, local media, and UI | 814–855 |
+| 6 | Runtime architecture and environments | 856–968 |
+| 6.1 | ↳ Runtime and dependencies | 858–875 |
+| 6.2 | ↳ Concurrency and lifecycle | 876–947 |
+| 6.3 | ↳ Local paths and environment variables | 948–968 |
+| 7 | Data model and persistence | 969–1067 |
+| 7.1 | ↳ Domain objects and identity | 971–985 |
+| 7.2 | ↳ SQLite schema and invariants | 986–1034 |
+| 7.3 | ↳ Crate persistence and deletion | 1035–1050 |
+| 7.4 | ↳ Configuration and credential stores | 1051–1067 |
+| 8 | Public interfaces and contracts | 1068–1124 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1070–1098 |
+| 8.2 | ↳ JSON and CSV summary input | 1099–1113 |
+| 8.3 | ↳ URL-opening contract | 1114–1124 |
+| 9 | Authentication and authorization | 1125–1168 |
+| 9.1 | ↳ SoundCloud authentication | 1127–1147 |
+| 9.2 | ↳ Gate action consent | 1148–1168 |
+| 10 | External integrations | 1169–1311 |
+| 10.1 | ↳ SoundCloud API and media | 1171–1182 |
+| 10.2 | ↳ Link hubs and download gates | 1183–1252 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1191–1238 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1240–1245 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1247–1252 |
+| 10.3 | ↳ Browsers and clipboard | 1253–1264 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1265–1311 |
+| 11 | Security requirements and threat model | 1312–1366 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1314–1332 |
+| 11.2 | ↳ Secret and personal-data handling | 1333–1348 |
+| 11.3 | ↳ File and mutation safety | 1349–1366 |
+| 12 | Privacy, lifecycle, and retention | 1367–1410 |
+| 12.1 | ↳ Data stored locally | 1369–1388 |
+| 12.2 | ↳ Data sent to third parties | 1389–1400 |
+| 12.3 | ↳ User-controlled deletion | 1401–1410 |
+| 13 | Failure behavior and current limitations | 1411–1471 |
+| 13.1 | ↳ Error isolation and reporting | 1413–1432 |
+| 13.2 | ↳ Confirmed limitations | 1433–1471 |
+| 14 | Verification, CI, and release | 1472–1557 |
+| 14.1 | ↳ Offline and live test suites | 1474–1520 |
+| 14.2 | ↳ Continuous integration and publishing | 1521–1542 |
+| 14.3 | ↳ Specification-map verification | 1543–1557 |
+| 15 | Evidence and operational references | 1558–1586 |
+| 15.1 | ↳ Primary implementation evidence | 1560–1576 |
+| 15.2 | ↳ User and historical documentation | 1577–1586 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -642,8 +642,7 @@ loaded track. The read-only folder explorer starts with the system Downloads and
 Music locations from `QStandardPaths`, plus previously saved additional folders.
 The home directory is not a default root. “Add folder…” (also Ctrl+O) validates,
 saves, and opens a chosen directory using `pinned_directories`; duplicates are
-shown only once. Each root has a native Qt `TreeView` backed by the shared
-`gui/directories.py` `DirectoryModel`/`QFileSystemModel`. Native hidden directories
+shown only once. Each root has a native Qt `TreeView` backed by the shared `gui/directories.py` `DirectoryModel`/`QFileSystemModel`. Both sidebar sections use a left-aligned uppercase header with a “+” button (Add playlist, Add folder…) instead of full-width buttons under the lists. Root rows and tree rows share one 28 px row style: a small chevron that turns when expanded, a folder icon, 16 px indentation per level, a hover surface and the accent selection background; rows without visible subfolders show no chevron. Native hidden directories
 and dot-prefixed directories are excluded, including on Windows. Qt background
 enumeration checks visible subdirectories before showing an expansion arrow;
 folders with only files or hidden subfolders remain selectable leaves.
@@ -659,12 +658,7 @@ store cells render badges, local files and the playing track carry markers, a
 continuous progress fill spans the full row background while downloading, with
 the percentage in the Status column and text drawn above the fill. The fill
 follows column widths and horizontal scrolling; selection remains visible in
-both themes. A summary line
-reports visible/total/owned/skipped/selected counts. Single-key shortcuts mirror
-the TUI keymap (add, refresh, open, download, got/skip/reset, undo, remove,
-search, hide handled, seek, next/previous, volume, mute, sidebar) and are listed
-in a generated Help dialog; they are suppressed while text fields or modal
-dialogs have focus. Actions that need a selection are disabled without one;
+both themes. A status line reports visible/total/owned/skipped counts, the busy indicator and, during an operation, a Cancel button. While at least one track is selected, a selection bar above the status line shows the selected count and flat icon buttons for Open links, Download, Mark owned, Skip, Analyze BPM / key (local views only) and More actions, which opens the row context menu. Below 640 px of main-pane width these buttons show icons only; tooltips name the action and its shortcut. The menus are Library, Tracks (open, download, status, undo, remove), Playback, Tools (BPM/key analysis and overrides, audio export, file deletion, link export, cart), View (search, hide handled, select all, sidebar, language, theme), Settings (preferences, accounts) and Help. Every menu entry, including the row and playlist context menus, uses one layout: a fixed check column, the label and the shortcut in the muted color, and menus size to their widest entry after retranslation. Space is the shortcut of the Play / pause action. Single-key shortcuts mirror the TUI keymap (add, refresh, open, download, got/skip/reset, undo, remove, search, hide handled, seek, next/previous, volume, mute, sidebar) and are listed in a generated Help dialog; they are suppressed while text fields or modal dialogs have focus. Actions that need a selection are disabled without one;
 whole-view variants (open all visible, download all visible, cart for all
 visible) are separate explicit commands, and bulk opening asks above twenty
 links as in the TUI. Errors appear in a separate, dismissible banner with a
@@ -685,9 +679,7 @@ checked in the menus. The application palette covers alternating folder rows,
 input placeholders, control indicators, disabled text, popup states and tooltips;
 selected rows pair their foreground with the selected background in both themes.
 Playlist and pinned-folder selection explicitly pair the accent background
-with selection text in both themes. At the 760×520 minimum window size, sidebar
-width is constrained to leave room for transport controls, volume is flexible,
-and bottom actions wrap into additional rows. The track table retains horizontal
+with selection text in both themes. At the 760×520 minimum window size, sidebar width is constrained to leave room for transport controls, volume is flexible, and the selection bar keeps to one icon-only row. The track table retains horizontal
 scrolling for columns that do not fit.
 Window dimensions, column widths, sidebar width and visibility, language
 and theme persist privately in `config_dir()/gui.json`, separately from TUI

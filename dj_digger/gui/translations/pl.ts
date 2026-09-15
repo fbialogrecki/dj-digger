@@ -2,6 +2,11 @@
 <TS version="2.1" language="pl_PL" sourcelanguage="en">
   <context>
     <name>Main</name>
+    <message><source>Tools</source><translation>Narzędzia</translation></message>
+    <message><source>View</source><translation>Widok</translation></message>
+    <message><source>Expand</source><translation>Rozwiń</translation></message>
+    <message><source>Collapse</source><translation>Zwiń</translation></message>
+    <message><source>More actions</source><translation>Więcej akcji</translation></message>
     <message><source>Add folder…</source><translation>Dodaj folder…</translation></message>
     <message><source>Add folder</source><translation>Dodaj folder</translation></message>
     <message><source>Downloads</source><translation>Pobrane</translation></message>
@@ -203,14 +208,6 @@
     <message>
       <source>%1 selected</source>
       <translation>zaznaczone: %1</translation>
-    </message>
-    <message>
-      <source>Open the best store link for each selected track (O)</source>
-      <translation>Otwórz najlepszy link sklepu dla każdego zaznaczonego utworu (O)</translation>
-    </message>
-    <message>
-      <source>Download the selected tracks (D)</source>
-      <translation>Pobierz zaznaczone utwory (D)</translation>
     </message>
     <message>
       <source>Loading library…</source>

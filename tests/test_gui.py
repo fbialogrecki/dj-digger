@@ -564,7 +564,10 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
                 item = find_item(tree, 'directory-' + name)
                 assert item is not None, (theme, name, tree.property('rows'), tree.property('height'))
                 background = item.property('background').property('color')
-                assert contrast(item.property('contentItem').property('color'), background) >= 4.5
+                icon, label = item.property('contentItem').childItems()
+                assert label.property('text') == name
+                assert contrast(label.property('color'), background) >= 4.5
+                assert contrast(icon.property('color'), background) >= 3
                 arrow = item.property('indicator').childItems()[0]
                 assert contrast(arrow.property('color'), background) >= 3
             # Disabled controls remain legible, with a distinct subdued text role.
@@ -634,7 +637,24 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
         bridge.table.clearSelection()
         click(play)
         assert bridge.backend.calls[-1] == ('transport', {'operation': 'toggle', 'value': 0.0})
+        # The selection bar exists only while something is selected.
+        actions = window.findChild(QQuickItem, 'trackActions')
+        assert not actions.isVisible()
         bridge.table.select(1)
+        settle()
+        assert actions.isVisible()
+        # Menus are grouped by task and every entry shows its shortcut in one column.
+        from PySide6.QtQml import QQmlEngine, QQmlExpression
+        def qml(expression):
+            return QQmlExpression(QQmlEngine.contextForObject(window), window, expression).evaluate()[0]
+        titles = [qml(f'menuBar.menuAt({i}).title') for i in range(int(qml('menuBar.count')))]
+        assert titles == ['Biblioteka', 'Utwory', 'Odtwarzanie', 'Narzędzia', 'Widok', 'Ustawienia', 'Pomoc']
+        assert qml('menuBar.menuAt(1).itemAt(0).text') == 'Otwórz linki'
+        assert qml('menuBar.menuAt(1).itemAt(0).shortcutText') == 'O'
+        assert qml('menuBar.menuAt(2).itemAt(0).shortcutText') == 'Space'
+        assert qml('menuBar.menuAt(4).itemAt(1).checkable') is True
+        assert qml('menuBar.menuAt(1).itemAt(0).leftPadding') == qml('menuBar.menuAt(4).itemAt(1).leftPadding')
+        assert qml('contextMenu.itemAt(0).shortcutText') == 'Space'
         for theme in ('light', 'dark'):
             window.setProperty('themeChoice', theme)
             settle()

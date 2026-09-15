@@ -278,3 +278,44 @@ physical device/high-DPI checks remain manual acceptance work. CI runtime
 results are recorded separately once builds finish.
 
 Intel DMGs use Numba 0.62.x / llvmlite 0.45.x, the last series with Intel macOS wheels. The build dependency markers keep the newer Numba series on other platforms. The dependency audit uses `otool -m` to handle Chromium helper names containing parentheses.
+
+
+## Explorer, selection bar and menu redesign — 2026-09-15
+
+The owner's Windows screenshots showed three problems: the folder explorer
+mixed two arrow styles (a text glyph on the roots, the Basic style's large
+chevron on children) with no visible hierarchy; the bottom row of five equal
+grey buttons wrapped at small widths and duplicated the menus; and the Tracks
+menu held 24 entries, indented only its checkable item, truncated Polish
+labels and rendered the hand-written "Space" hint as "S…".
+
+Changes, all in `Main.qml` with new SVG icons under `gui/qml/icons/`:
+
+- Explorer: both sidebar sections use an uppercase left-aligned header with a
+  "+" button (Add playlist, Add folder…); the full-width buttons under the
+  lists are gone. Root rows and `TreeViewDelegate` rows share a 28 px row with
+  a 10 px chevron, a folder icon, 16 px indentation per level, hover surface
+  and accent selection. Leaves keep the template's hidden indicator. The
+  paging row uses the same flat chevron buttons.
+- Selection bar: a panel above the status line appears only while tracks are
+  selected. It shows the selected count and flat icon buttons for open,
+  download, owned, skip, analyze (local views) and a "More actions" button
+  that pops the row context menu. Below 640 px of pane width the buttons are
+  icon-only with tooltips carrying the shortcut. Cancel moved next to the busy
+  indicator in the status line, which no longer repeats the selected count.
+- Menus: Library, Tracks, Playback, Tools, View, Settings, Help. `AppMenuItem`
+  gives every entry a fixed check column, the label and a right-aligned
+  shortcut measured with plain `Text`, so `AppMenu` can size itself to the
+  widest entry in `onAboutToShow` after retranslation. Space is now the
+  Play / pause `Action` shortcut instead of a separate `Shortcut`; the Help
+  list picks it up from the menu. Context menus use the same delegate with
+  explicit `keys` hints.
+- A `FlatButton` component (no frame at rest, hover surface) backs the "+",
+  chevron, selection-bar, Cancel and error-dismiss buttons.
+
+The Polish catalog gained Tools, View, Expand, Collapse and More actions; two
+obsolete tooltip strings were removed. Tests read the label inside the tree
+delegate's row, check that the selection bar is hidden without a selection,
+and assert the menu titles, shortcut column and shared left padding through
+`QQmlExpression`. Offscreen screenshots in Polish dark theme at 800×800 and
+760×520 were inspected; no Windows or macOS run is claimed.

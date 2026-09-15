@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Controls.impl
 import QtQuick.Layouts
 import QtQuick.Dialogs
 
@@ -119,7 +120,7 @@ ApplicationWindow {
             }
         }
         lines.push("\n" + qsTr("Track list"))
-        lines.push("  Space\t" + qsTr("Play / pause"), "  Enter\t" + qsTr("Open links"), "  Delete\t" + qsTr("Remove from playlist"),
+        lines.push("  Enter\t" + qsTr("Open links"), "  Delete\t" + qsTr("Remove from playlist"),
                    "  Esc\t" + qsTr("Clear selection, then search, then filters"), "  Ctrl+C\t" + qsTr("Copy artist and title"),
                    "  Ctrl+A\t" + qsTr("Select all"), "  Shift+↑/↓\t" + qsTr("Extend selection"), "  " + qsTr("Double click") + "\t" + qsTr("Play"))
         return lines.join("\n")
@@ -172,7 +173,7 @@ ApplicationWindow {
     }
 
     menuBar: MenuBar {
-        Menu {
+        AppMenu {
             title: qsTr("Library")
             Action { text: qsTr("Add playlist…"); shortcut: "A"; onTriggered: desktop.action("dig") }
             Action { text: qsTr("Add folder…"); shortcut: "Ctrl+O"; onTriggered: folderDialog.open() }
@@ -189,7 +190,7 @@ ApplicationWindow {
             MenuSeparator {}
             Action { text: qsTr("Quit"); shortcut: "Ctrl+Q"; onTriggered: root.close() }
         }
-        Menu {
+        AppMenu {
             title: qsTr("Tracks")
             Action { text: qsTr("Open links"); shortcut: "O"; enabled: root.hasSelection; onTriggered: desktop.action("open") }
             Action { text: qsTr("Open all visible links"); shortcut: "Shift+O"; enabled: root.hasRows && !desktop.busy; onTriggered: desktop.action("open", true) }
@@ -201,25 +202,12 @@ ApplicationWindow {
             Action { text: qsTr("Reset status"); shortcut: "U"; enabled: root.hasSelection; onTriggered: desktop.mark("new") }
             Action { text: qsTr("Undo status change"); shortcut: "Ctrl+Z"; onTriggered: desktop.action("undo") }
             Action { text: qsTr("Remove from playlist…"); shortcut: "X"; enabled: root.hasSelection && root.remoteView; onTriggered: desktop.action("remove") }
-            MenuSeparator {}
-            Action { text: qsTr("Analyze BPM / key"); enabled: root.hasSelection && !desktop.busy; onTriggered: desktop.action("analyze") }
-            Action { text: qsTr("Edit BPM / key…"); shortcut: "E"; enabled: desktop.model.counts.selected === 1; onTriggered: desktop.action("edit") }
-            Action { text: qsTr("Analyze folder"); enabled: root.folderView && !desktop.busy; onTriggered: desktop.action("analyze_folder") }
-            Action { text: qsTr("Export audio…"); enabled: (root.hasSelection || desktop.view.local) && !desktop.busy; onTriggered: desktop.action("export", !root.hasSelection) }
-            Action { text: qsTr("Resume export"); enabled: !desktop.busy; onTriggered: desktop.action("resume") }
-            Action { text: qsTr("Delete files…"); enabled: root.hasSelection && !desktop.busy; onTriggered: desktop.action("delete_files") }
-            MenuSeparator {}
-            Action { text: qsTr("Export links…"); shortcut: "Shift+E"; enabled: root.hasRows; onTriggered: desktop.action("summary", !root.hasSelection) }
-            Action { text: qsTr("Prepare cart / Beatport playlist"); shortcut: "C"; enabled: root.hasSelection && !desktop.busy; onTriggered: desktop.action("cart") }
-            Action { text: qsTr("Prepare cart for all visible"); shortcut: "Shift+C"; enabled: root.hasRows && !desktop.busy; onTriggered: desktop.action("cart", true) }
-            MenuSeparator {}
-            Action { text: qsTr("Search"); shortcut: "Ctrl+F"; onTriggered: { search.forceActiveFocus(); search.selectAll() } }
-            Action { id: hideAction; text: qsTr("Hide handled"); shortcut: "H"; checkable: true; onTriggered: { hide.checked = !hide.checked; filterTimer.restart() } }
-            Action { text: qsTr("Select all"); shortcut: "Ctrl+A"; onTriggered: desktop.model.selectAll() }
         }
-        Menu {
+        AppMenu {
             title: qsTr("Playback")
-            Action { text: qsTr("Play / pause") + "\tSpace"; enabled: root.loaded || root.hasSelection; onTriggered: root.playSelected() }
+            // Space always belongs to playback: the selected track if there is one (a different
+            // track starts, the playing one toggles), otherwise the loaded track.
+            Action { text: qsTr("Play / pause"); shortcut: "Space"; enabled: root.loaded || root.hasSelection; onTriggered: root.playSelected() }
             Action { text: qsTr("Stop"); shortcut: "Ctrl+W"; enabled: root.loaded; onTriggered: desktop.transport("stop", 0) }
             Action { text: qsTr("Previous track"); shortcut: "P"; enabled: root.loaded; onTriggered: desktop.step(-1) }
             Action { text: qsTr("Next track"); shortcut: "N"; enabled: root.loaded; onTriggered: desktop.step(1) }
@@ -230,21 +218,34 @@ ApplicationWindow {
             Action { text: qsTr("Volume up"); shortcut: "="; onTriggered: root.changeVolume(.05) }
             Action { id: muteAction; text: qsTr("Mute"); shortcut: "M"; checkable: true; onTriggered: root.toggleMute() }
         }
-        Menu {
-            title: qsTr("Settings")
-            Action { text: qsTr("Preferences…"); shortcut: "S"; onTriggered: desktop.action("settings") }
-            Action { text: qsTr("Sign in to SoundCloud"); enabled: !desktop.busy; onTriggered: desktop.action("login") }
-            Action { text: qsTr("Store accounts"); enabled: !desktop.busy; onTriggered: desktop.action("store_login") }
-            Action { text: qsTr("Sign out…"); onTriggered: desktop.action("logout") }
+        AppMenu {
+            title: qsTr("Tools")
+            Action { text: qsTr("Analyze BPM / key"); enabled: root.hasSelection && !desktop.busy; onTriggered: desktop.action("analyze") }
+            Action { text: qsTr("Edit BPM / key…"); shortcut: "E"; enabled: desktop.model.counts.selected === 1; onTriggered: desktop.action("edit") }
+            Action { text: qsTr("Analyze folder"); enabled: root.folderView && !desktop.busy; onTriggered: desktop.action("analyze_folder") }
+            MenuSeparator {}
+            Action { text: qsTr("Export audio…"); enabled: (root.hasSelection || desktop.view.local) && !desktop.busy; onTriggered: desktop.action("export", !root.hasSelection) }
+            Action { text: qsTr("Resume export"); enabled: !desktop.busy; onTriggered: desktop.action("resume") }
+            Action { text: qsTr("Delete files…"); enabled: root.hasSelection && !desktop.busy; onTriggered: desktop.action("delete_files") }
+            MenuSeparator {}
+            Action { text: qsTr("Export links…"); shortcut: "Shift+E"; enabled: root.hasRows; onTriggered: desktop.action("summary", !root.hasSelection) }
+            Action { text: qsTr("Prepare cart / Beatport playlist"); shortcut: "C"; enabled: root.hasSelection && !desktop.busy; onTriggered: desktop.action("cart") }
+            Action { text: qsTr("Prepare cart for all visible"); shortcut: "Shift+C"; enabled: root.hasRows && !desktop.busy; onTriggered: desktop.action("cart", true) }
+        }
+        AppMenu {
+            title: qsTr("View")
+            Action { text: qsTr("Search"); shortcut: "Ctrl+F"; onTriggered: { search.forceActiveFocus(); search.selectAll() } }
+            Action { id: hideAction; text: qsTr("Hide handled"); shortcut: "H"; checkable: true; onTriggered: { hide.checked = !hide.checked; filterTimer.restart() } }
+            Action { text: qsTr("Select all"); shortcut: "Ctrl+A"; onTriggered: desktop.model.selectAll() }
             MenuSeparator {}
             Action { id: sidebarAction; text: qsTr("Show sidebar"); shortcut: "Ctrl+B"; checkable: true; onTriggered: root.sidebarVisible = !root.sidebarVisible }
-            Menu {
+            AppMenu {
                 title: qsTr("Language")
                 ActionGroup { id: languageGroup }
                 Action { text: "Polski"; checkable: true; checked: root.languageCode === "pl"; ActionGroup.group: languageGroup; onTriggered: { root.languageCode = "pl"; desktop.language("pl") } }
                 Action { text: "English"; checkable: true; checked: root.languageCode === "en"; ActionGroup.group: languageGroup; onTriggered: { root.languageCode = "en"; desktop.language("en") } }
             }
-            Menu {
+            AppMenu {
                 title: qsTr("Theme")
                 ActionGroup { id: themeGroup }
                 Action { text: qsTr("System"); checkable: true; checked: root.themeChoice === "system"; ActionGroup.group: themeGroup; onTriggered: root.themeChoice = "system" }
@@ -252,7 +253,15 @@ ApplicationWindow {
                 Action { text: qsTr("Light"); checkable: true; checked: root.themeChoice === "light"; ActionGroup.group: themeGroup; onTriggered: root.themeChoice = "light" }
             }
         }
-        Menu {
+        AppMenu {
+            title: qsTr("Settings")
+            Action { text: qsTr("Preferences…"); shortcut: "S"; onTriggered: desktop.action("settings") }
+            MenuSeparator {}
+            Action { text: qsTr("Sign in to SoundCloud"); enabled: !desktop.busy; onTriggered: desktop.action("login") }
+            Action { text: qsTr("Store accounts"); enabled: !desktop.busy; onTriggered: desktop.action("store_login") }
+            Action { text: qsTr("Sign out…"); onTriggered: desktop.action("logout") }
+        }
+        AppMenu {
             title: qsTr("Help")
             Action { text: qsTr("Keyboard shortcuts"); shortcut: "?"; onTriggered: { helpText.text = root.shortcutList(); helpDialog.open() } }
             Action { text: qsTr("Messages"); onTriggered: messageLog.open() }
@@ -263,10 +272,92 @@ ApplicationWindow {
     Binding { target: muteAction; property: "checked"; value: root.isMuted }
     Binding { target: sidebarAction; property: "checked"; value: root.sidebarVisible }
     Shortcut { sequence: "/"; enabled: !root.dialogOpen; onActivated: { search.forceActiveFocus(); search.selectAll() } }
-    // Space always belongs to playback: the selected track if there is one (a different
-    // track starts, the playing one toggles), otherwise the loaded track.
-    Shortcut { sequence: "Space"; enabled: !root.dialogOpen; onActivated: root.playSelected() }
     Shortcut { sequence: "Escape"; enabled: !root.dialogOpen; onActivated: root.clearFilters() }
+
+    // Every menu shares one row layout: a fixed check column, the label, the
+    // shortcut in the muted color and a submenu arrow. Basic never shows
+    // shortcuts and indents only checkable items, which misaligned the labels.
+    component AppMenuItem: MenuItem {
+        id: menuItem
+        property string keys: ""
+        readonly property string shortcutText: keys || (action && action.shortcut ? String(action.shortcut) : "")
+        // Plain Text measures synchronously, so the menu can size itself before it opens.
+        implicitWidth: leftPadding + labelText.implicitWidth + (shortcutLabel.visible ? 28 + shortcutLabel.implicitWidth : 0) + rightPadding
+        implicitHeight: 30
+        padding: 4; leftPadding: 32; rightPadding: subMenu ? 28 : 14; spacing: 0
+        indicator: ColorImage {
+            x: 10; y: (menuItem.height - height) / 2; width: 14; height: 14; sourceSize: Qt.size(14, 14)
+            source: "icons/check.svg"; visible: menuItem.checkable && menuItem.checked
+            color: menuItem.enabled ? root.fg : root.disabledFg
+        }
+        arrow: ColorImage {
+            x: menuItem.width - width - 10; y: (menuItem.height - height) / 2; width: 12; height: 12; sourceSize: Qt.size(12, 12)
+            source: "icons/chevron.svg"; visible: menuItem.subMenu; color: menuItem.enabled ? root.muted : root.disabledFg
+        }
+        contentItem: Item {
+            implicitHeight: labelText.implicitHeight
+            Text {
+                id: labelText
+                anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
+                width: Math.min(implicitWidth, parent.width - (shortcutLabel.visible ? shortcutLabel.implicitWidth + 28 : 0))
+                text: menuItem.text; textFormat: Text.PlainText; elide: Text.ElideRight; font: menuItem.font
+                color: menuItem.enabled ? root.fg : root.disabledFg
+            }
+            Text {
+                id: shortcutLabel
+                anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
+                visible: text.length > 0; text: menuItem.shortcutText; textFormat: Text.PlainText
+                font.pixelSize: 12; color: menuItem.enabled ? root.muted : root.disabledFg
+            }
+        }
+        background: Rectangle { x: 3; width: menuItem.width - 6; height: menuItem.height; radius: 3; color: menuItem.highlighted ? root.hoverSurface : "transparent" }
+    }
+    component AppMenu: Menu {
+        id: appMenu
+        delegate: AppMenuItem {}
+        topPadding: 4; bottomPadding: 4
+        background: Rectangle { implicitWidth: 200; color: root.panel; border.color: root.alternate; radius: 4 }
+        // Retranslation can change label widths after the menu measured itself.
+        onAboutToShow: {
+            let widest = 200
+            for (let i = 0; i < count; i++) { let item = itemAt(i); if (item) widest = Math.max(widest, item.implicitWidth) }
+            width = widest + leftPadding + rightPadding
+        }
+    }
+    // Icon buttons share one flat look: no frame at rest, a soft hover surface.
+    component FlatButton: ToolButton {
+        id: flatButton
+        property string keys: ""
+        display: AbstractButton.IconOnly
+        icon.width: 14; icon.height: 14; icon.color: enabled ? root.fg : root.disabledFg
+        padding: 4
+        background: Rectangle { radius: 4; color: flatButton.down ? root.pressedSurface : flatButton.hovered ? root.hoverSurface : "transparent" }
+        Accessible.name: text
+        ToolTip.visible: hovered; ToolTip.text: text + (keys ? " (" + keys + ")" : "")
+    }
+    component SectionHeader: RowLayout {
+        id: sectionHeader
+        property alias title: sectionTitle.text
+        property string buttonText: ""
+        property string buttonName: ""
+        signal add()
+        Layout.fillWidth: true; Layout.leftMargin: 10; Layout.rightMargin: 2; spacing: 0
+        Label {
+            id: sectionTitle
+            Layout.fillWidth: true; textFormat: Text.PlainText; elide: Text.ElideRight
+            font.bold: true; font.pixelSize: 11; font.letterSpacing: 1; font.capitalization: Font.AllUppercase; color: root.muted
+        }
+        FlatButton {
+            objectName: sectionHeader.buttonName; text: sectionHeader.buttonText
+            implicitWidth: 26; implicitHeight: 26; icon.source: "icons/plus.svg"; icon.width: 12; icon.height: 12; icon.color: root.muted
+            onClicked: sectionHeader.add()
+        }
+    }
+    component FolderIcon: ColorImage {
+        property bool selected: false
+        width: 16; height: 16; sourceSize: Qt.size(16, 16); source: "icons/folder.svg"
+        color: selected ? root.selectionText : root.muted
+    }
 
     ColumnLayout {
         anchors.fill: parent; anchors.margins: 0; spacing: 0
@@ -285,7 +376,8 @@ ApplicationWindow {
                 SplitView.maximumWidth: Math.max(160, root.width - 520)
                 ColumnLayout {
                     SplitView.preferredHeight: parent.height / 2; SplitView.minimumHeight: 120
-                    Label { text: qsTr("Playlists"); font.bold: true; color: root.muted; Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; topPadding: 4 }
+                    spacing: 2
+                    SectionHeader { title: qsTr("Playlists"); Layout.topMargin: 4; buttonText: qsTr("Add playlist"); onAdd: desktop.action("dig") }
                     Item {
                     Layout.fillWidth: true; Layout.fillHeight: true
                     ListView {
@@ -297,9 +389,11 @@ ApplicationWindow {
                             objectName: "playlist-" + modelData.source
                             background: Rectangle { color: playlistItem.highlighted ? root.accent : playlistItem.hovered ? root.hoverSurface : "transparent" }
                             required property var modelData
-                            width: ListView.view.width
+                            width: ListView.view.width; height: 28
+                            padding: 0; leftPadding: 10; rightPadding: 6
                             highlighted: modelData.source === desktop.view.source
                             contentItem: RowLayout {
+                                spacing: 6
                                 Label { text: modelData.source.startsWith("local-playlist:") ? "▣" : "☁"; color: playlistItem.highlighted ? root.selectionText : root.muted }
                                 Label { Layout.fillWidth: true; text: modelData.title; textFormat: Text.PlainText; elide: Text.ElideRight; color: playlistItem.highlighted ? root.selectionText : root.fg }
                             }
@@ -311,11 +405,14 @@ ApplicationWindow {
                     }
                     Label { anchors.centerIn: parent; width: parent.width - 16; visible: playlistList.count === 0; wrapMode: Text.WordWrap; horizontalAlignment: Text.AlignHCenter; color: root.muted; text: qsTr("No playlists yet. Add a SoundCloud link to start digging.") }
                     }
-                    Button { text: qsTr("Add playlist"); Layout.fillWidth: true; onClicked: desktop.action("dig") }
                 }
                 ColumnLayout {
                     SplitView.minimumHeight: 120
-                    Label { text: qsTr("Local files"); font.bold: true; color: root.muted; Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; topPadding: 4 }
+                    spacing: 2
+                    SectionHeader {
+                        title: qsTr("Local files"); Layout.topMargin: 4
+                        buttonName: "addFolder"; buttonText: qsTr("Add folder…"); onAdd: folderDialog.open()
+                    }
                     ScrollView {
                         id: folderScroll
                         Layout.fillWidth: true; Layout.fillHeight: true
@@ -338,20 +435,27 @@ ApplicationWindow {
                                     ItemDelegate {
                                         id: rootItem
                                         objectName: "root-" + folderRoot.modelData.kind
-                                        width: parent.width; height: 32
+                                        width: parent.width; height: 28
+                                        padding: 0; leftPadding: 6; rightPadding: 6
                                         highlighted: root.folderView && desktop.folder.path === folderRoot.modelData.path
                                         background: Rectangle { color: rootItem.highlighted ? root.accent : rootItem.hovered ? root.hoverSurface : "transparent" }
                                         contentItem: RowLayout {
-                                            ToolButton {
+                                            spacing: 4
+                                            FlatButton {
                                                 objectName: "expand-" + folderRoot.modelData.kind
-                                                text: folderRoot.expanded ? "▾" : "▸"
+                                                text: folderRoot.expanded ? qsTr("Collapse") : qsTr("Expand")
+                                                icon.source: "icons/chevron.svg"; icon.width: 10; icon.height: 10
+                                                icon.color: rootItem.highlighted ? root.selectionText : root.muted
+                                                rotation: folderRoot.expanded ? 90 : 0
                                                 enabled: folderRoot.expandable
                                                 opacity: enabled ? 1 : 0
-                                                implicitWidth: 24; implicitHeight: 24
+                                                implicitWidth: 20; implicitHeight: 20; padding: 0
+                                                ToolTip.visible: false
                                                 Accessible.ignored: !enabled
-                                                Accessible.name: folderRoot.modelData.path
+                                                Accessible.name: text + " " + folderRoot.modelData.path
                                                 onClicked: folderRoot.expanded = !folderRoot.expanded
                                             }
+                                            FolderIcon { selected: rootItem.highlighted }
                                             Label {
                                                 Layout.fillWidth: true
                                                 text: folderRoot.modelData.kind === "downloads" ? qsTr("Downloads")
@@ -381,9 +485,25 @@ ApplicationWindow {
                                             objectName: "directory-" + fileName
                                             required property string fileName
                                             required property string filePath
-                                            implicitWidth: directoryTree.width; implicitHeight: 32
-                                            leftMargin: 20
-                                            contentItem: Label { text: directoryDelegate.fileName; textFormat: Text.PlainText; elide: Text.ElideRight; color: directoryDelegate.highlighted ? root.selectionText : root.fg }
+                                            implicitWidth: directoryTree.width; implicitHeight: 28
+                                            // Children sit one step right of the root row's chevron and share its icon.
+                                            leftMargin: 24; indentation: 16; spacing: 4
+                                            indicator: Item {
+                                                x: directoryDelegate.leftMargin + directoryDelegate.depth * directoryDelegate.indentation
+                                                y: (directoryDelegate.height - height) / 2
+                                                implicitWidth: 16; implicitHeight: 28
+                                                ColorImage {
+                                                    anchors.centerIn: parent; width: 10; height: 10; sourceSize: Qt.size(10, 10)
+                                                    source: "icons/chevron.svg"; rotation: directoryDelegate.expanded ? 90 : 0
+                                                    color: directoryDelegate.highlighted ? root.selectionText : root.muted
+                                                }
+                                            }
+                                            background: Rectangle { color: directoryDelegate.highlighted ? root.accent : directoryDelegate.hovered ? root.hoverSurface : root.bg }
+                                            contentItem: RowLayout {
+                                                spacing: 6
+                                                FolderIcon { selected: directoryDelegate.highlighted }
+                                                Label { Layout.fillWidth: true; text: directoryDelegate.fileName; textFormat: Text.PlainText; elide: Text.ElideRight; color: directoryDelegate.highlighted ? root.selectionText : root.fg }
+                                            }
                                             palette.windowText: highlighted ? root.selectionText : root.fg
                                             onExpandedChanged: if (expanded) Qt.callLater(() => { if (expanded) desktop.expandDirectory(filePath) })
                                             Accessible.name: fileName
@@ -396,12 +516,12 @@ ApplicationWindow {
                             }
                         }
                     }
-                    Button { objectName: "addFolder"; text: qsTr("Add folder…"); Layout.fillWidth: true; onClicked: folderDialog.open() }
                     RowLayout {
                         visible: root.folderView && desktop.folder.total > 250
-                        Button { text: "‹"; Accessible.name: qsTr("Previous page"); ToolTip.visible: hovered; ToolTip.text: Accessible.name; enabled: desktop.folder.offset > 0; onClicked: desktop.openFolder(desktop.folder.path, Math.max(0, desktop.folder.offset-250)) }
-                        Label { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; color: root.muted; text: (desktop.folder.offset + 1) + "–" + Math.min(desktop.folder.offset + 250, desktop.folder.total) + " / " + desktop.folder.total }
-                        Button { text: "›"; Accessible.name: qsTr("Next page"); ToolTip.visible: hovered; ToolTip.text: Accessible.name; enabled: desktop.folder.offset + 250 < desktop.folder.total; onClicked: desktop.openFolder(desktop.folder.path, desktop.folder.offset+250) }
+                        Layout.leftMargin: 6; Layout.rightMargin: 6; spacing: 0
+                        FlatButton { icon.source: "icons/chevron.svg"; icon.width: 10; icon.height: 10; icon.color: enabled ? root.muted : root.disabledFg; rotation: 180; implicitWidth: 24; implicitHeight: 24; text: qsTr("Previous page"); enabled: desktop.folder.offset > 0; onClicked: desktop.openFolder(desktop.folder.path, Math.max(0, desktop.folder.offset-250)) }
+                        Label { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; color: root.muted; font.pixelSize: 12; text: (desktop.folder.offset + 1) + "–" + Math.min(desktop.folder.offset + 250, desktop.folder.total) + " / " + desktop.folder.total }
+                        FlatButton { icon.source: "icons/chevron.svg"; icon.width: 10; icon.height: 10; icon.color: enabled ? root.muted : root.disabledFg; implicitWidth: 24; implicitHeight: 24; text: qsTr("Next page"); enabled: desktop.folder.offset + 250 < desktop.folder.total; onClicked: desktop.openFolder(desktop.folder.path, desktop.folder.offset+250) }
                     }
                 }
             }
@@ -639,17 +759,49 @@ ApplicationWindow {
                         : qsTr("Add a playlist (A), pick one in the sidebar or add a folder (Ctrl+O) to start.")
                 }
                 }
+                // Actions for the selection appear only while something is selected;
+                // the rest of the time the table keeps the space.
+                Rectangle {
+                    visible: root.hasSelection
+                    Layout.fillWidth: true; Layout.minimumWidth: 0
+                    implicitHeight: 40; color: root.panel
+                    RowLayout {
+                        id: trackActions
+                        objectName: "trackActions"
+                        anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 4; spacing: 2
+                        // Below this width the buttons keep their icons and tooltips only.
+                        readonly property bool compact: width < 640
+                        component ActionButton: FlatButton {
+                            display: trackActions.compact ? AbstractButton.IconOnly : AbstractButton.TextBesideIcon
+                            icon.width: 16; icon.height: 16
+                            implicitHeight: 32; padding: 6; spacing: 6
+                        }
+                        Label { text: qsTr("%1 selected").arg(desktop.model.counts.selected); font.bold: true; color: root.fg; Layout.rightMargin: 8 }
+                        ActionButton { text: qsTr("Open links"); keys: "O"; icon.source: "icons/link.svg"; onClicked: desktop.action("open") }
+                        ActionButton { text: qsTr("Download"); keys: "D"; icon.source: "icons/download.svg"; enabled: !desktop.busy; onClicked: desktop.action("download") }
+                        ActionButton { text: qsTr("Mark owned"); keys: "G"; icon.source: "icons/owned.svg"; onClicked: desktop.mark("got") }
+                        ActionButton { text: qsTr("Skip"); keys: "K"; icon.source: "icons/skip.svg"; onClicked: desktop.mark("skip") }
+                        ActionButton { text: qsTr("Analyze BPM / key"); icon.source: "icons/analyze.svg"; visible: !!desktop.view.local; enabled: !desktop.busy; onClicked: desktop.action("analyze") }
+                        Item { Layout.fillWidth: true; Layout.minimumWidth: 0 }
+                        ActionButton {
+                            id: moreActions
+                            text: qsTr("More actions"); icon.source: "icons/more.svg"; display: AbstractButton.IconOnly
+                            onClicked: contextMenu.popup(moreActions, 0, -contextMenu.height)
+                        }
+                    }
+                }
                 RowLayout {
                     Layout.fillWidth: true; Layout.minimumWidth: 0
-                    Layout.leftMargin: 6; Layout.rightMargin: 6
+                    Layout.leftMargin: 10; Layout.rightMargin: 6; Layout.topMargin: 2; Layout.bottomMargin: 2
                     Label {
-                        Layout.fillWidth: true; Layout.minimumWidth: 0
+                        // Counts keep their width; the message beside them gives way first.
+                        Layout.maximumWidth: parent.width * 0.7; Layout.minimumWidth: 0
                         color: root.muted; elide: Text.ElideRight
                         property var c: desktop.model.counts
-                        text: root.hasRows || c.total > 0 ? qsTr("%1 / %2 tracks · owned %3 · skipped %4").arg(c.visible).arg(c.total).arg(c.got).arg(c.skipped)
-                              + (c.selected > 0 ? " · " + qsTr("%1 selected").arg(c.selected) : "") : ""
+                        text: root.hasRows || c.total > 0 ? qsTr("%1 / %2 tracks · owned %3 · skipped %4").arg(c.visible).arg(c.total).arg(c.got).arg(c.skipped) : ""
                     }
                     BusyIndicator { running: desktop.busy || root.shuttingDown || !desktop.ready; visible: running; implicitHeight: 24; implicitWidth: 24 }
+                    FlatButton { text: qsTr("Cancel"); display: AbstractButton.TextOnly; visible: desktop.busy; implicitHeight: 26; onClicked: desktop.action("cancel") }
                     Label {
                         Layout.fillWidth: true; Layout.minimumWidth: 0; textFormat: Text.PlainText; elide: Text.ElideRight
                         text: root.shuttingDown ? qsTr("Closing…") : !desktop.ready ? qsTr("Loading library…") : desktop.level === "error" ? "" : desktop.message
@@ -678,49 +830,37 @@ ApplicationWindow {
                             color: root.danger; Accessible.name: text
                         }
                         Button { objectName: "errorDetails"; text: qsTr("Details"); onClicked: messageLog.open() }
-                        ToolButton { objectName: "dismissError"; text: "×"; Accessible.name: qsTr("Dismiss error"); ToolTip.visible: hovered; ToolTip.text: Accessible.name; onClicked: root.errorMessage = "" }
+                        FlatButton { objectName: "dismissError"; text: qsTr("Dismiss error"); icon.source: "icons/close.svg"; icon.width: 12; icon.height: 12; onClicked: root.errorMessage = "" }
                     }
-                }
-                Flow {
-                    objectName: "trackActions"
-                    Layout.fillWidth: true; Layout.minimumWidth: 0
-                    Layout.preferredHeight: implicitHeight
-                    spacing: 5
-                    Button { text: qsTr("Cancel"); visible: desktop.busy; onClicked: desktop.action("cancel") }
-                    Button { text: qsTr("Open links"); enabled: root.hasSelection; ToolTip.visible: hovered; ToolTip.text: qsTr("Open the best store link for each selected track (O)"); onClicked: desktop.action("open") }
-                    Button { text: qsTr("Download"); enabled: root.hasSelection && !desktop.busy; ToolTip.visible: hovered; ToolTip.text: qsTr("Download the selected tracks (D)"); onClicked: desktop.action("download") }
-                    Button { text: qsTr("Mark owned"); enabled: root.hasSelection; ToolTip.visible: hovered; ToolTip.text: "G"; onClicked: desktop.mark("got") }
-                    Button { text: qsTr("Skip"); enabled: root.hasSelection; ToolTip.visible: hovered; ToolTip.text: "K"; onClicked: desktop.mark("skip") }
-                    Button { text: qsTr("Analyze BPM / key"); enabled: root.hasSelection && !desktop.busy; visible: !!desktop.view.local; onClicked: desktop.action("analyze") }
                 }
             }
         }
     }
     FolderDialog { id: folderDialog; title: qsTr("Add folder"); onAccepted: desktop.addFolder(selectedFolder.toString()) }
-    Menu {
+    AppMenu {
         id: playlistMenu
         property string source
-        MenuItem { text: qsTr("Open"); onTriggered: desktop.load(playlistMenu.source) }
-        MenuItem { text: qsTr("Delete playlist…"); onTriggered: desktop.deletePlaylist(playlistMenu.source) }
+        AppMenuItem { text: qsTr("Open"); onTriggered: desktop.load(playlistMenu.source) }
+        AppMenuItem { text: qsTr("Delete playlist…"); keys: "Shift+X"; onTriggered: desktop.deletePlaylist(playlistMenu.source) }
     }
-    Menu {
+    AppMenu {
         id: contextMenu
-        MenuItem { text: qsTr("Play / pause"); onTriggered: desktop.action("play") }
-        MenuItem { text: qsTr("Open links"); onTriggered: desktop.action("open") }
-        MenuItem { text: qsTr("Download"); enabled: !desktop.busy; onTriggered: desktop.action("download") }
+        AppMenuItem { text: qsTr("Play / pause"); keys: "Space"; onTriggered: desktop.action("play") }
+        AppMenuItem { text: qsTr("Open links"); keys: "O"; onTriggered: desktop.action("open") }
+        AppMenuItem { text: qsTr("Download"); keys: "D"; enabled: !desktop.busy; onTriggered: desktop.action("download") }
         MenuSeparator {}
-        MenuItem { text: qsTr("Mark owned"); onTriggered: desktop.mark("got") }
-        MenuItem { text: qsTr("Skip"); onTriggered: desktop.mark("skip") }
-        MenuItem { text: qsTr("Reset status"); onTriggered: desktop.mark("new") }
+        AppMenuItem { text: qsTr("Mark owned"); keys: "G"; onTriggered: desktop.mark("got") }
+        AppMenuItem { text: qsTr("Skip"); keys: "K"; onTriggered: desktop.mark("skip") }
+        AppMenuItem { text: qsTr("Reset status"); keys: "U"; onTriggered: desktop.mark("new") }
         MenuSeparator {}
-        MenuItem { text: qsTr("Copy artist and title"); onTriggered: desktop.copy() }
-        MenuItem { text: qsTr("Analyze BPM / key"); enabled: !desktop.busy; onTriggered: desktop.action("analyze") }
-        MenuItem { text: qsTr("Edit BPM / key…"); enabled: desktop.model.counts.selected === 1; onTriggered: desktop.action("edit") }
-        MenuItem { text: qsTr("Export audio…"); enabled: !desktop.busy; onTriggered: desktop.action("export") }
-        MenuItem { text: qsTr("Prepare cart / Beatport playlist"); enabled: !desktop.busy; onTriggered: desktop.action("cart") }
+        AppMenuItem { text: qsTr("Copy artist and title"); keys: "Ctrl+C"; onTriggered: desktop.copy() }
+        AppMenuItem { text: qsTr("Analyze BPM / key"); enabled: !desktop.busy; onTriggered: desktop.action("analyze") }
+        AppMenuItem { text: qsTr("Edit BPM / key…"); keys: "E"; enabled: desktop.model.counts.selected === 1; onTriggered: desktop.action("edit") }
+        AppMenuItem { text: qsTr("Export audio…"); enabled: !desktop.busy; onTriggered: desktop.action("export") }
+        AppMenuItem { text: qsTr("Prepare cart / Beatport playlist"); keys: "C"; enabled: !desktop.busy; onTriggered: desktop.action("cart") }
         MenuSeparator {}
-        MenuItem { text: qsTr("Remove from playlist…"); enabled: root.remoteView; onTriggered: desktop.action("remove") }
-        MenuItem { text: qsTr("Delete files…"); enabled: !desktop.busy; onTriggered: desktop.action("delete_files") }
+        AppMenuItem { text: qsTr("Remove from playlist…"); keys: "X"; enabled: root.remoteView; onTriggered: desktop.action("remove") }
+        AppMenuItem { text: qsTr("Delete files…"); enabled: !desktop.busy; onTriggered: desktop.action("delete_files") }
     }
     FolderDialog {
         id: fieldFolder
