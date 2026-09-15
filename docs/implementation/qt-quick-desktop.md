@@ -332,3 +332,10 @@ to 40–600 px; taps in that strip do not sort. Right-click opens a column menu
 `headerName()`; the title column is never hidden). `hiddenColumns` joins the
 private `gui.json` shape. Tests drive the header with `QTest` double- and
 right-clicks through `QQmlExpression` in the window's own context.
+
+Window icon: the Windows title bar showed no icon because only the executable
+carried one. `main()` now sets `QGuiApplication.setWindowIcon` from
+`gui/qml/icons/app.png`, a PNG export of the 64×64 `packaging/windows/icon.ico`
+frame, which ships with the already packaged QML directory. Verified offscreen
+that the file loads as a `QIcon`; the title bar rendering itself is a Windows
+acceptance check.

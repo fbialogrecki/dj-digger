@@ -8,7 +8,7 @@ def main():
 
     try:
         from PySide6.QtCore import QLocale, QTimer, QUrl
-        from PySide6.QtGui import QGuiApplication
+        from PySide6.QtGui import QGuiApplication, QIcon
         from PySide6.QtQml import QQmlApplicationEngine
         from PySide6.QtQuickControls2 import QQuickStyle
     except ImportError:
@@ -32,6 +32,8 @@ def main():
     app = QGuiApplication(sys.argv)
     app.setApplicationName('dj-digger')
     app.setOrganizationName('dj-digger')
+    # The executable icon covers shortcuts only; the title bar and taskbar take the window icon.
+    app.setWindowIcon(QIcon(str(Path(__file__).parent / 'qml' / 'icons' / 'app.png')))
     from ..bundled import hold
     install_guard = hold()
     configure_logging('INFO')

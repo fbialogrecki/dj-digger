@@ -196,6 +196,12 @@ def test_finished_progress_emits_redraw_even_if_row_data_is_unchanged(app):
     assert model.progress == {}
 
 
+def test_packaged_window_icon_loads(app):
+    from PySide6.QtGui import QIcon
+    icon = QIcon(str(Path('dj_digger/gui/qml/icons/app.png').resolve()))
+    assert not icon.isNull() and icon.availableSizes()
+
+
 def test_cli_does_not_import_optional_qt():
     result = subprocess.run([sys.executable, '-c',
                              'import sys; import dj_digger.cli; assert not any(k.startswith("PySide6") for k in sys.modules)'],

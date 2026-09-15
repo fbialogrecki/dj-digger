@@ -5,8 +5,8 @@
 - Product version verified: 1.1.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-09-10
-- Document lines: <!-- SPEC TOTAL LINES -->1582<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1582<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1581<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1581<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,7 +51,7 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 143–179 |
 | 2.1 | ↳ Problem and product boundary | 145–158 |
 | 2.2 | ↳ Execution modes | 159–179 |
-| 3 | User-visible capabilities | 180–735 |
+| 3 | User-visible capabilities | 180–734 |
 | 3.1 | ↳ Track collection and saved HTML | 182–208 |
 | 3.2 | ↳ Link classification and exports | 209–227 |
 | 3.3 | ↳ TUI playlist library and interaction | 228–319 |
@@ -59,56 +59,56 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 3.5 | ↳ Downloads and local-file matching | 389–424 |
 | 3.6 | ↳ Store purchase assistance | 425–509 |
 | 3.7 | ↳ Local library, analysis and audio export | 510–625 |
-| 3.8 | ↳ Qt Quick desktop | 626–735 |
-| 4 | System context and data flow | 736–776 |
-| 4.1 | ↳ Context diagram | 738–760 |
-| 4.2 | ↳ Collection-to-library flow | 761–776 |
-| 5 | Repository layout and component ownership | 777–851 |
-| 5.1 | ↳ Entry, orchestration, and models | 779–790 |
-| 5.2 | ↳ Network and external-system adapters | 791–809 |
-| 5.3 | ↳ Persistence, local media, and UI | 810–851 |
-| 6 | Runtime architecture and environments | 852–964 |
-| 6.1 | ↳ Runtime and dependencies | 854–871 |
-| 6.2 | ↳ Concurrency and lifecycle | 872–943 |
-| 6.3 | ↳ Local paths and environment variables | 944–964 |
-| 7 | Data model and persistence | 965–1063 |
-| 7.1 | ↳ Domain objects and identity | 967–981 |
-| 7.2 | ↳ SQLite schema and invariants | 982–1030 |
-| 7.3 | ↳ Crate persistence and deletion | 1031–1046 |
-| 7.4 | ↳ Configuration and credential stores | 1047–1063 |
-| 8 | Public interfaces and contracts | 1064–1120 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1066–1094 |
-| 8.2 | ↳ JSON and CSV summary input | 1095–1109 |
-| 8.3 | ↳ URL-opening contract | 1110–1120 |
-| 9 | Authentication and authorization | 1121–1164 |
-| 9.1 | ↳ SoundCloud authentication | 1123–1143 |
-| 9.2 | ↳ Gate action consent | 1144–1164 |
-| 10 | External integrations | 1165–1307 |
-| 10.1 | ↳ SoundCloud API and media | 1167–1178 |
-| 10.2 | ↳ Link hubs and download gates | 1179–1248 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1187–1234 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1236–1241 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1243–1248 |
-| 10.3 | ↳ Browsers and clipboard | 1249–1260 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1261–1307 |
-| 11 | Security requirements and threat model | 1308–1362 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1310–1328 |
-| 11.2 | ↳ Secret and personal-data handling | 1329–1344 |
-| 11.3 | ↳ File and mutation safety | 1345–1362 |
-| 12 | Privacy, lifecycle, and retention | 1363–1406 |
-| 12.1 | ↳ Data stored locally | 1365–1384 |
-| 12.2 | ↳ Data sent to third parties | 1385–1396 |
-| 12.3 | ↳ User-controlled deletion | 1397–1406 |
-| 13 | Failure behavior and current limitations | 1407–1467 |
-| 13.1 | ↳ Error isolation and reporting | 1409–1428 |
-| 13.2 | ↳ Confirmed limitations | 1429–1467 |
-| 14 | Verification, CI, and release | 1468–1553 |
-| 14.1 | ↳ Offline and live test suites | 1470–1516 |
-| 14.2 | ↳ Continuous integration and publishing | 1517–1538 |
-| 14.3 | ↳ Specification-map verification | 1539–1553 |
-| 15 | Evidence and operational references | 1554–1582 |
-| 15.1 | ↳ Primary implementation evidence | 1556–1572 |
-| 15.2 | ↳ User and historical documentation | 1573–1582 |
+| 3.8 | ↳ Qt Quick desktop | 626–734 |
+| 4 | System context and data flow | 735–775 |
+| 4.1 | ↳ Context diagram | 737–759 |
+| 4.2 | ↳ Collection-to-library flow | 760–775 |
+| 5 | Repository layout and component ownership | 776–850 |
+| 5.1 | ↳ Entry, orchestration, and models | 778–789 |
+| 5.2 | ↳ Network and external-system adapters | 790–808 |
+| 5.3 | ↳ Persistence, local media, and UI | 809–850 |
+| 6 | Runtime architecture and environments | 851–963 |
+| 6.1 | ↳ Runtime and dependencies | 853–870 |
+| 6.2 | ↳ Concurrency and lifecycle | 871–942 |
+| 6.3 | ↳ Local paths and environment variables | 943–963 |
+| 7 | Data model and persistence | 964–1062 |
+| 7.1 | ↳ Domain objects and identity | 966–980 |
+| 7.2 | ↳ SQLite schema and invariants | 981–1029 |
+| 7.3 | ↳ Crate persistence and deletion | 1030–1045 |
+| 7.4 | ↳ Configuration and credential stores | 1046–1062 |
+| 8 | Public interfaces and contracts | 1063–1119 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1065–1093 |
+| 8.2 | ↳ JSON and CSV summary input | 1094–1108 |
+| 8.3 | ↳ URL-opening contract | 1109–1119 |
+| 9 | Authentication and authorization | 1120–1163 |
+| 9.1 | ↳ SoundCloud authentication | 1122–1142 |
+| 9.2 | ↳ Gate action consent | 1143–1163 |
+| 10 | External integrations | 1164–1306 |
+| 10.1 | ↳ SoundCloud API and media | 1166–1177 |
+| 10.2 | ↳ Link hubs and download gates | 1178–1247 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1186–1233 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1235–1240 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1242–1247 |
+| 10.3 | ↳ Browsers and clipboard | 1248–1259 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1260–1306 |
+| 11 | Security requirements and threat model | 1307–1361 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1309–1327 |
+| 11.2 | ↳ Secret and personal-data handling | 1328–1343 |
+| 11.3 | ↳ File and mutation safety | 1344–1361 |
+| 12 | Privacy, lifecycle, and retention | 1362–1405 |
+| 12.1 | ↳ Data stored locally | 1364–1383 |
+| 12.2 | ↳ Data sent to third parties | 1384–1395 |
+| 12.3 | ↳ User-controlled deletion | 1396–1405 |
+| 13 | Failure behavior and current limitations | 1406–1466 |
+| 13.1 | ↳ Error isolation and reporting | 1408–1427 |
+| 13.2 | ↳ Confirmed limitations | 1428–1466 |
+| 14 | Verification, CI, and release | 1467–1552 |
+| 14.1 | ↳ Offline and live test suites | 1469–1515 |
+| 14.2 | ↳ Continuous integration and publishing | 1516–1537 |
+| 14.3 | ↳ Specification-map verification | 1538–1552 |
+| 15 | Evidence and operational references | 1553–1581 |
+| 15.1 | ↳ Primary implementation evidence | 1555–1571 |
+| 15.2 | ↳ User and historical documentation | 1572–1581 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -629,8 +629,7 @@ The optional desktop uses PySide6 and a QML `ApplicationWindow`. The
 playlist/folder sidebar spans the full window height; the waveform and transport
 sit above the virtualized track table beside it, the same arrangement the TUI
 uses. Status is the first table column, as in the TUI, and the BPM/key columns
-appear only in local views. Transport buttons
-use SVG icons with accessible labels and tooltips. The desktop waveform rises
+appear only in local views. Transport buttons use SVG icons with accessible labels and tooltips. The window icon is the packaged application icon (`gui/qml/icons/app.png`), so the title bar and taskbar show it alongside the executable's shortcut icon. The desktop waveform rises
 from the bottom edge of its panel, never mirrored, filling the space down to the
 transport row; GUI and TUI share the same averaged, normalized envelope and
 level curve in `waveform.py`. Space always belongs to playback, wherever focus
