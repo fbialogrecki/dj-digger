@@ -593,6 +593,20 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
             search.setProperty('enabled', False)
             assert contrast(search.property('color'), search.property('background').property('color')) >= 4.5
             search.setProperty('enabled', True)
+        # Folder rows highlight the loaded folder only; loading a playlist clears them.
+        house = find_item(tree, 'directory-House')
+        point = house.mapToScene(QPointF(house.width() - 20, house.height() / 2)).toPoint()
+        QTest.mouseClick(window, Qt.LeftButton, pos=point)
+        folder_call = bridge.backend.calls[-1]
+        assert folder_call[0] == 'folder' and Path(folder_call[1]['path']) == home / 'Music' / 'House'
+        bridge.receive('folder', {'path': str(home / 'Music' / 'House'), 'offset': 0, 'total': 0})
+        bridge.receive('view', dict(title=str(home / 'Music' / 'House'), source='', local=True, generation=2, rows=[]))
+        assert house.property('highlighted') is True
+        assert find_item(tree, 'directory-Deep').property('highlighted') is False
+        bridge.receive('view', dict(title='Playlist', source='sc:1', local=False, generation=3, rows=[]))
+        assert house.property('highlighted') is False
+        assert bridge.samePath(str(home / 'Music' / './House'), str(home / 'Music' / 'House'))
+        assert not bridge.samePath('', str(home / 'Music'))
         assert not errors
         bridge.receive('sidebar', {'items': [], 'pinned': [str(home / 'Sets'), str(home / 'Music'),
                                                          str(home / 'Music' / '.hidden')]})

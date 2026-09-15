@@ -563,6 +563,9 @@ ApplicationWindow {
                                             required property string fileName
                                             required property string filePath
                                             implicitWidth: directoryTree.width; implicitHeight: 28
+                                            // Highlight follows the loaded view, not the tree's own selection,
+                                            // so opening a playlist clears the folder highlight.
+                                            highlighted: root.folderView && desktop.samePath(desktop.folder.path, filePath)
                                             // Children sit one step right of the root row's chevron and share its icon.
                                             leftMargin: 24; indentation: 16; spacing: 4
                                             indicator: Item {

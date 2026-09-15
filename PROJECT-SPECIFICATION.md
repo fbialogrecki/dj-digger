@@ -5,8 +5,8 @@
 - Product version verified: 1.1.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-09-10
-- Document lines: <!-- SPEC TOTAL LINES -->1581<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1581<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1579<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1579<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,7 +51,7 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 143–179 |
 | 2.1 | ↳ Problem and product boundary | 145–158 |
 | 2.2 | ↳ Execution modes | 159–179 |
-| 3 | User-visible capabilities | 180–734 |
+| 3 | User-visible capabilities | 180–732 |
 | 3.1 | ↳ Track collection and saved HTML | 182–208 |
 | 3.2 | ↳ Link classification and exports | 209–227 |
 | 3.3 | ↳ TUI playlist library and interaction | 228–319 |
@@ -59,56 +59,56 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 3.5 | ↳ Downloads and local-file matching | 389–424 |
 | 3.6 | ↳ Store purchase assistance | 425–509 |
 | 3.7 | ↳ Local library, analysis and audio export | 510–625 |
-| 3.8 | ↳ Qt Quick desktop | 626–734 |
-| 4 | System context and data flow | 735–775 |
-| 4.1 | ↳ Context diagram | 737–759 |
-| 4.2 | ↳ Collection-to-library flow | 760–775 |
-| 5 | Repository layout and component ownership | 776–850 |
-| 5.1 | ↳ Entry, orchestration, and models | 778–789 |
-| 5.2 | ↳ Network and external-system adapters | 790–808 |
-| 5.3 | ↳ Persistence, local media, and UI | 809–850 |
-| 6 | Runtime architecture and environments | 851–963 |
-| 6.1 | ↳ Runtime and dependencies | 853–870 |
-| 6.2 | ↳ Concurrency and lifecycle | 871–942 |
-| 6.3 | ↳ Local paths and environment variables | 943–963 |
-| 7 | Data model and persistence | 964–1062 |
-| 7.1 | ↳ Domain objects and identity | 966–980 |
-| 7.2 | ↳ SQLite schema and invariants | 981–1029 |
-| 7.3 | ↳ Crate persistence and deletion | 1030–1045 |
-| 7.4 | ↳ Configuration and credential stores | 1046–1062 |
-| 8 | Public interfaces and contracts | 1063–1119 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1065–1093 |
-| 8.2 | ↳ JSON and CSV summary input | 1094–1108 |
-| 8.3 | ↳ URL-opening contract | 1109–1119 |
-| 9 | Authentication and authorization | 1120–1163 |
-| 9.1 | ↳ SoundCloud authentication | 1122–1142 |
-| 9.2 | ↳ Gate action consent | 1143–1163 |
-| 10 | External integrations | 1164–1306 |
-| 10.1 | ↳ SoundCloud API and media | 1166–1177 |
-| 10.2 | ↳ Link hubs and download gates | 1178–1247 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1186–1233 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1235–1240 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1242–1247 |
-| 10.3 | ↳ Browsers and clipboard | 1248–1259 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1260–1306 |
-| 11 | Security requirements and threat model | 1307–1361 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1309–1327 |
-| 11.2 | ↳ Secret and personal-data handling | 1328–1343 |
-| 11.3 | ↳ File and mutation safety | 1344–1361 |
-| 12 | Privacy, lifecycle, and retention | 1362–1405 |
-| 12.1 | ↳ Data stored locally | 1364–1383 |
-| 12.2 | ↳ Data sent to third parties | 1384–1395 |
-| 12.3 | ↳ User-controlled deletion | 1396–1405 |
-| 13 | Failure behavior and current limitations | 1406–1466 |
-| 13.1 | ↳ Error isolation and reporting | 1408–1427 |
-| 13.2 | ↳ Confirmed limitations | 1428–1466 |
-| 14 | Verification, CI, and release | 1467–1552 |
-| 14.1 | ↳ Offline and live test suites | 1469–1515 |
-| 14.2 | ↳ Continuous integration and publishing | 1516–1537 |
-| 14.3 | ↳ Specification-map verification | 1538–1552 |
-| 15 | Evidence and operational references | 1553–1581 |
-| 15.1 | ↳ Primary implementation evidence | 1555–1571 |
-| 15.2 | ↳ User and historical documentation | 1572–1581 |
+| 3.8 | ↳ Qt Quick desktop | 626–732 |
+| 4 | System context and data flow | 733–773 |
+| 4.1 | ↳ Context diagram | 735–757 |
+| 4.2 | ↳ Collection-to-library flow | 758–773 |
+| 5 | Repository layout and component ownership | 774–848 |
+| 5.1 | ↳ Entry, orchestration, and models | 776–787 |
+| 5.2 | ↳ Network and external-system adapters | 788–806 |
+| 5.3 | ↳ Persistence, local media, and UI | 807–848 |
+| 6 | Runtime architecture and environments | 849–961 |
+| 6.1 | ↳ Runtime and dependencies | 851–868 |
+| 6.2 | ↳ Concurrency and lifecycle | 869–940 |
+| 6.3 | ↳ Local paths and environment variables | 941–961 |
+| 7 | Data model and persistence | 962–1060 |
+| 7.1 | ↳ Domain objects and identity | 964–978 |
+| 7.2 | ↳ SQLite schema and invariants | 979–1027 |
+| 7.3 | ↳ Crate persistence and deletion | 1028–1043 |
+| 7.4 | ↳ Configuration and credential stores | 1044–1060 |
+| 8 | Public interfaces and contracts | 1061–1117 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1063–1091 |
+| 8.2 | ↳ JSON and CSV summary input | 1092–1106 |
+| 8.3 | ↳ URL-opening contract | 1107–1117 |
+| 9 | Authentication and authorization | 1118–1161 |
+| 9.1 | ↳ SoundCloud authentication | 1120–1140 |
+| 9.2 | ↳ Gate action consent | 1141–1161 |
+| 10 | External integrations | 1162–1304 |
+| 10.1 | ↳ SoundCloud API and media | 1164–1175 |
+| 10.2 | ↳ Link hubs and download gates | 1176–1245 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1184–1231 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1233–1238 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1240–1245 |
+| 10.3 | ↳ Browsers and clipboard | 1246–1257 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1258–1304 |
+| 11 | Security requirements and threat model | 1305–1359 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1307–1325 |
+| 11.2 | ↳ Secret and personal-data handling | 1326–1341 |
+| 11.3 | ↳ File and mutation safety | 1342–1359 |
+| 12 | Privacy, lifecycle, and retention | 1360–1403 |
+| 12.1 | ↳ Data stored locally | 1362–1381 |
+| 12.2 | ↳ Data sent to third parties | 1382–1393 |
+| 12.3 | ↳ User-controlled deletion | 1394–1403 |
+| 13 | Failure behavior and current limitations | 1404–1464 |
+| 13.1 | ↳ Error isolation and reporting | 1406–1425 |
+| 13.2 | ↳ Confirmed limitations | 1426–1464 |
+| 14 | Verification, CI, and release | 1465–1550 |
+| 14.1 | ↳ Offline and live test suites | 1467–1513 |
+| 14.2 | ↳ Continuous integration and publishing | 1514–1535 |
+| 14.3 | ↳ Specification-map verification | 1536–1550 |
+| 15 | Evidence and operational references | 1551–1579 |
+| 15.1 | ↳ Primary implementation evidence | 1553–1569 |
+| 15.2 | ↳ User and historical documentation | 1570–1579 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -645,9 +645,7 @@ shown only once. Each root has a native Qt `TreeView` backed by the shared `gui/
 and dot-prefixed directories are excluded, including on Windows. Qt background
 enumeration checks visible subdirectories before showing an expansion arrow;
 folders with only files or hidden subfolders remain selectable leaves.
-Large expanded roots have a bounded, scrollable tree viewport. Selecting a
-folder opens its tracks in the paged table, and the page range appears only for
-folders above one page. It provides
+Large expanded roots have a bounded, scrollable tree viewport. Selecting a folder opens its tracks in the paged table, and the page range appears only for folders above one page. Root and tree rows highlight only the folder whose tracks are loaded (paths compared after normalization), so opening a playlist clears the folder highlight. It provides
 search, store filtering with per-store counts derived from the loaded view,
 hide-handled filtering, stable-key selection, numeric sorting with a header
 arrow, resizable columns, keyboard navigation and native clipboard copying. The title column absorbs the remaining width so status and store columns stay on screen at the default window size, unless the user has dragged or fitted it. Dragging a header divider resizes that column and the width provider honours the explicit width. Double-clicking a divider fits the column to its widest visible value or header; the divider strip does not sort. Right-clicking a header opens a column menu with Fit column to contents, Fit all columns, Reset column widths, Reset column order and a checkable entry per column; the title column cannot be hidden and BPM/key stay unavailable outside local views. Dragging a header moves the column; delegates, widths and sorting keep their logical column, and the visual order is restored at startup. Status cells use the TUI glyphs and colors,

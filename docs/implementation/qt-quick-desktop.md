@@ -355,3 +355,9 @@ double-click can no longer sort whatever column ends up under the pointer.
 `AppDialog` gives every dialog the panel surface, a compact title and
 right-aligned normal-sized buttons, and localizes Cancel/Close from the app
 catalog because the frozen bundle has no `qtbase_pl`.
+
+Folder highlight (same day): tree rows took `highlighted` from the TreeView's
+own selection model, so a clicked subfolder stayed highlighted after a
+playlist was loaded. The delegate now binds `highlighted` to the loaded
+folder through `Bridge.samePath`, which normalizes the forward-slash paths of
+`QFileSystemModel` against the native paths the backend echoes.

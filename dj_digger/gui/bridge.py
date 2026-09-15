@@ -202,6 +202,12 @@ class Bridge(QObject):
         url = QUrl(value)
         return url.toLocalFile() if url.isLocalFile() else value
 
+    @Slot(str, str, result=bool)
+    def samePath(self, first, second):
+        # QFileSystemModel reports forward slashes; the backend echoes native paths.
+        normalize = lambda value: os.path.normcase(os.path.normpath(self.localPath(value)))  # noqa: E731
+        return bool(first) and bool(second) and normalize(first) == normalize(second)
+
     @Slot(str, int)
     def openFolder(self, path, offset=0):
         from PySide6.QtCore import QUrl
