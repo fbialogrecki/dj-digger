@@ -339,3 +339,19 @@ carried one. `main()` now sets `QGuiApplication.setWindowIcon` from
 frame, which ships with the already packaged QML directory. Verified offscreen
 that the file loads as a `QIcon`; the title bar rendering itself is a Windows
 acceptance check.
+
+Toolbar, status bar, column order and dialogs (same day): the search field
+now takes the full pane width and the store filter, Hide handled and the
+selection actions share one toolbar row above the header, so the bottom of the
+pane is free. The status bar moved to the root layout and spans the window
+below the sidebar, counts on the left. `HorizontalHeaderView.movableColumns`
+enables drag-to-reorder; a probe confirmed `moveColumn(logical, visual)`,
+logical `column` in delegates and logical indices in `columnWidth`/the width
+provider, so no delegate changed. `columnMoved` keeps `columnOrder` (logical per
+visual slot) which persists in `gui.json` and is replayed at startup; the
+column menu gained Reset column order. The header's sort handler now lives on
+an Item that stops 10 px before the divider, so the second click of a fit
+double-click can no longer sort whatever column ends up under the pointer.
+`AppDialog` gives every dialog the panel surface, a compact title and
+right-aligned normal-sized buttons, and localizes Cancel/Close from the app
+catalog because the frozen bundle has no `qtbase_pl`.

@@ -253,7 +253,7 @@ class Bridge(QObject):
     @Slot('QVariantMap')
     def saveSettings(self, values):
         # Only this fixed presentation shape is persisted; no service preferences.
-        allowed = {'width', 'height', 'language', 'theme', 'sidebarWidth', 'sidebarVisible', 'columnWidths', 'hiddenColumns'}
+        allowed = {'width', 'height', 'language', 'theme', 'sidebarWidth', 'sidebarVisible', 'columnWidths', 'hiddenColumns', 'columnOrder'}
         self._settings = {k: v for k, v in values.items() if k in allowed}
 
     @Slot()

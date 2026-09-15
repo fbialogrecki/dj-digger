@@ -703,6 +703,26 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
         qml('toggleColumn(3); resetColumnWidths()')
         assert qml('table.columnWidth(3)') == 85 and qml('table.columnWidth(1)') == 150
         assert window.property('hiddenColumns').toVariant() == []
+        # Columns can be reordered; the order is tracked for persistence and can be reset.
+        qml('table.moveColumn(0, 2)')
+        settle()
+        assert window.property('columnOrder').toVariant() == [1, 2, 0, 3, 4, 5, 6, 7, 8, 9]
+        cells = qml('(function(){ let out = []; for (let c of table.contentItem.children) if (c.column !== undefined && c.row === 0 && c.visible) out.push([Math.round(c.x), c.column]); out.sort((a, b) => a[0] - b[0]); return JSON.stringify(out.slice(0, 3).map(c => c[1])) })()')
+        assert json.loads(cells) == [1, 2, 0]
+        qml('resetColumnOrder()')
+        settle()
+        assert window.property('columnOrder').toVariant() == list(range(10))
+        # The status bar spans the whole window and the dialog buttons are localized and compact.
+        status = window.findChild(QQuickItem, 'statusBar')
+        assert status.width() == window.width()
+        bridge.receive('question', dict(id='q1', title='Dodaj playlistę', body='', ok='Dodaj',
+                                        fields=[dict(name='url', label='Adres', kind='text', value='')]))
+        settle()
+        assert qml('dialog.standardButton(Dialog.Cancel).text') == 'Anuluj'
+        assert qml('dialog.standardButton(Dialog.Ok).text') == 'Dodaj'
+        assert qml('dialog.standardButton(Dialog.Cancel).width') < qml('dialog.width') / 3
+        qml('dialog.close()')
+        settle()
         for theme in ('light', 'dark'):
             window.setProperty('themeChoice', theme)
             settle()

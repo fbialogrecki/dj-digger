@@ -38,7 +38,20 @@ ApplicationWindow {
     readonly property var defaultColumnWidths: [85, 150, 280, 85, 50, 45, 50, 95, 50, 140]
     property var columnWidths: defaultColumnWidths.slice()
     property var hiddenColumns: []
+    // Logical column per visual position; TableView keeps delegates and widths logical.
+    property var columnOrder: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     readonly property int titleColumn: 2
+    function applyColumnOrder(order) {
+        for (let visual = 0; visual < order.length; visual++) table.moveColumn(order[visual], visual)
+    }
+    function resetColumnOrder() {
+        table.clearColumnReordering()
+        columnOrder = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    }
+    function localizeButtons(target) {
+        let cancel = target.standardButton(Dialog.Cancel); if (cancel) cancel.text = qsTr("Cancel")
+        let close = target.standardButton(Dialog.Close); if (close) close.text = qsTr("Close")
+    }
     function columnAvailable(column) { return (column !== 4 && column !== 5) || !!desktop.view.local }
     function columnVisible(column) { return columnAvailable(column) && hiddenColumns.indexOf(column) < 0 }
     // Width of the widest visible value (or the header) in a column, in cell pixels.
@@ -174,6 +187,9 @@ ApplicationWindow {
             columnWidths = s.columnWidths.map(v => Math.max(40, Math.min(600, Number(v) || 100)))
         if (Array.isArray(s.hiddenColumns))
             hiddenColumns = s.hiddenColumns.map(Number).filter(v => Number.isInteger(v) && v >= 0 && v < 10 && v !== titleColumn)
+        if (Array.isArray(s.columnOrder) && s.columnOrder.length === 10
+                && [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].every(i => s.columnOrder.map(Number).indexOf(i) >= 0))
+            applyColumnOrder(s.columnOrder.map(Number))
         sidebarWidth = Math.max(160, Math.min(400, Number(s.sidebarWidth) || 220))
         if (s.sidebarVisible === false) sidebarVisible = false
         desktop.language(languageCode)
@@ -185,7 +201,7 @@ ApplicationWindow {
             shuttingDown = true
             for (let i = 0; i < 10; i++) if (i !== titleColumn && columnVisible(i)) columnWidths[i] = table.columnWidth(i)
             desktop.saveSettings({sidebarWidth: sidebar.width, sidebarVisible: sidebarVisible, width: width, height: height, language: languageCode,
-                                  theme: themeChoice, columnWidths: columnWidths, hiddenColumns: hiddenColumns})
+                                  theme: themeChoice, columnWidths: columnWidths, hiddenColumns: hiddenColumns, columnOrder: columnOrder})
             desktop.close()
         }
     }
@@ -392,6 +408,27 @@ ApplicationWindow {
             implicitWidth: 26; implicitHeight: 26; icon.source: "icons/plus.svg"; icon.width: 12; icon.height: 12; icon.color: root.muted
             onClicked: sectionHeader.add()
         }
+    }
+    // Dialogs share the panel surface, a compact title and right-aligned, normal-sized buttons.
+    component AppDialog: Dialog {
+        id: appDialog
+        modal: true
+        padding: 16; topPadding: 8
+        background: Rectangle { color: root.panel; border.color: root.alternate; radius: 6 }
+        header: Label {
+            text: appDialog.title; visible: appDialog.title.length > 0
+            textFormat: Text.PlainText; elide: Text.ElideRight
+            font.bold: true; font.pixelSize: 15; color: root.fg
+            padding: 16; bottomPadding: 8
+        }
+        footer: DialogButtonBox {
+            visible: count > 0
+            alignment: Qt.AlignRight; spacing: 8
+            padding: 16; topPadding: 4
+            background: null
+            delegate: Button { implicitWidth: Math.max(96, implicitContentWidth + 32) }
+        }
+        onAboutToShow: root.localizeButtons(appDialog)
     }
     component FolderIcon: ColorImage {
         property bool selected: false
@@ -646,14 +683,19 @@ ApplicationWindow {
                     }
                 }
             }
+                TextField {
+                    id: search; objectName: "trackSearch"; placeholderText: qsTr("Search artist, title, genre, tag or label  ( / )"); Layout.fillWidth: true; Layout.minimumWidth: 0
+                    onTextChanged: filterTimer.restart()
+                    Keys.onReturnPressed: table.forceActiveFocus()
+                    Keys.onDownPressed: table.forceActiveFocus()
+                    Accessible.name: qsTr("Search tracks")
+                }
+                // Filters on the left; actions for the selection join the same row while tracks are selected.
                 RowLayout {
-                    TextField {
-                        id: search; objectName: "trackSearch"; placeholderText: qsTr("Search artist, title, genre, tag or label  ( / )"); Layout.fillWidth: true; Layout.minimumWidth: 0
-                        onTextChanged: filterTimer.restart()
-                        Keys.onReturnPressed: table.forceActiveFocus()
-                        Keys.onDownPressed: table.forceActiveFocus()
-                        Accessible.name: qsTr("Search tracks")
-                    }
+                    id: toolbar
+                    Layout.fillWidth: true; Layout.minimumWidth: 0; spacing: 6
+                    // Below this width the action buttons keep their icons and tooltips only.
+                    readonly property bool compact: width < 1040
                     ComboBox {
                         id: store; objectName: "storeFilter"
                         visible: !desktop.view.local
@@ -676,11 +718,35 @@ ApplicationWindow {
                         }
                     }
                     CheckBox { id: hide; text: qsTr("Hide handled"); onToggled: filterTimer.restart(); ToolTip.visible: hovered; ToolTip.text: qsTr("Hide owned and skipped tracks (H)") }
+                    Rectangle { visible: root.hasSelection; Layout.preferredWidth: 1; Layout.preferredHeight: 22; color: root.alternate }
+                    RowLayout {
+                        id: trackActions
+                        objectName: "trackActions"
+                        visible: root.hasSelection
+                        Layout.minimumWidth: 0; spacing: 2
+                        component ActionButton: FlatButton {
+                            display: toolbar.compact ? AbstractButton.IconOnly : AbstractButton.TextBesideIcon
+                            icon.width: 16; icon.height: 16
+                            implicitHeight: 32; padding: 6; spacing: 6
+                        }
+                        Label { text: qsTr("%1 selected").arg(desktop.model.counts.selected); font.bold: true; color: root.fg; Layout.leftMargin: 4; Layout.rightMargin: 4 }
+                        ActionButton { text: qsTr("Open links"); keys: "O"; icon.source: "icons/link.svg"; onClicked: desktop.action("open") }
+                        ActionButton { text: qsTr("Download"); keys: "D"; icon.source: "icons/download.svg"; enabled: !desktop.busy; onClicked: desktop.action("download") }
+                        ActionButton { text: qsTr("Mark owned"); keys: "G"; icon.source: "icons/owned.svg"; onClicked: desktop.mark("got") }
+                        ActionButton { text: qsTr("Skip"); keys: "K"; icon.source: "icons/skip.svg"; onClicked: desktop.mark("skip") }
+                        ActionButton { text: qsTr("Analyze BPM / key"); icon.source: "icons/analyze.svg"; visible: !!desktop.view.local; enabled: !desktop.busy; onClicked: desktop.action("analyze") }
+                        ActionButton {
+                            id: moreActions
+                            text: qsTr("More actions"); icon.source: "icons/more.svg"; display: AbstractButton.IconOnly
+                            onClicked: contextMenu.popup(moreActions, 0, moreActions.height)
+                        }
+                    }
+                    Item { Layout.fillWidth: true; Layout.minimumWidth: 0 }
                 }
                 Timer { id: filterTimer; interval: 120; onTriggered: desktop.model.filter(search.text, store.currentIndex > 0 && store.stores[store.currentIndex - 1] ? store.stores[store.currentIndex - 1].name : "", hide.checked) }
                 HorizontalHeaderView {
                     id: header; syncView: table; Layout.fillWidth: true; clip: true
-                    resizableColumns: true
+                    resizableColumns: true; movableColumns: true
                     delegate: Rectangle {
                         required property string display
                         required property int index
@@ -692,8 +758,12 @@ ApplicationWindow {
                         }
                         Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: root.alternate }
                         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: root.alternate }
-                        // The divider strip belongs to resizing and fit-on-double-click, not to sorting.
-                        TapHandler { acceptedButtons: Qt.LeftButton; onTapped: eventPoint => { if (eventPoint.position.x < parent.width - 10) desktop.model.sortBy(index) } }
+                        // Sorting only listens on the body of the cell, so a double-click on the divider
+                        // never reaches it even after the fitted column changes size under the pointer.
+                        Item {
+                            anchors.left: parent.left; anchors.right: parent.right; anchors.rightMargin: 10; height: parent.height
+                            TapHandler { acceptedButtons: Qt.LeftButton; onSingleTapped: desktop.model.sortBy(index) }
+                        }
                         TapHandler { acceptedButtons: Qt.RightButton; onTapped: { columnMenu.column = index; columnMenu.popup() } }
                         Item {
                             anchors.right: parent.right; width: 10; height: parent.height
@@ -724,6 +794,12 @@ ApplicationWindow {
                     }
                     property bool localView: !!desktop.view.local
                     onLocalViewChanged: forceLayout()
+                    // Emitted once per column whose visual slot changed, so slots can be assigned directly.
+                    onColumnMoved: (logicalIndex, oldVisualIndex, newVisualIndex) => {
+                        let order = root.columnOrder.slice()
+                        order[newVisualIndex] = logicalIndex
+                        root.columnOrder = order
+                    }
                     onWidthChanged: forceLayout()
                     resizableColumns: true
                     Connections { target: desktop.model; function onModelReset() { table.keyboardRow = 0 } }
@@ -811,61 +887,6 @@ ApplicationWindow {
                         : qsTr("Add a playlist (A), pick one in the sidebar or add a folder (Ctrl+O) to start.")
                 }
                 }
-                // Actions for the selection appear only while something is selected;
-                // the rest of the time the table keeps the space.
-                Rectangle {
-                    visible: root.hasSelection
-                    Layout.fillWidth: true; Layout.minimumWidth: 0
-                    implicitHeight: 40; color: root.panel
-                    RowLayout {
-                        id: trackActions
-                        objectName: "trackActions"
-                        anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 4; spacing: 2
-                        // Below this width the buttons keep their icons and tooltips only.
-                        readonly property bool compact: width < 640
-                        component ActionButton: FlatButton {
-                            display: trackActions.compact ? AbstractButton.IconOnly : AbstractButton.TextBesideIcon
-                            icon.width: 16; icon.height: 16
-                            implicitHeight: 32; padding: 6; spacing: 6
-                        }
-                        Label { text: qsTr("%1 selected").arg(desktop.model.counts.selected); font.bold: true; color: root.fg; Layout.rightMargin: 8 }
-                        ActionButton { text: qsTr("Open links"); keys: "O"; icon.source: "icons/link.svg"; onClicked: desktop.action("open") }
-                        ActionButton { text: qsTr("Download"); keys: "D"; icon.source: "icons/download.svg"; enabled: !desktop.busy; onClicked: desktop.action("download") }
-                        ActionButton { text: qsTr("Mark owned"); keys: "G"; icon.source: "icons/owned.svg"; onClicked: desktop.mark("got") }
-                        ActionButton { text: qsTr("Skip"); keys: "K"; icon.source: "icons/skip.svg"; onClicked: desktop.mark("skip") }
-                        ActionButton { text: qsTr("Analyze BPM / key"); icon.source: "icons/analyze.svg"; visible: !!desktop.view.local; enabled: !desktop.busy; onClicked: desktop.action("analyze") }
-                        Item { Layout.fillWidth: true; Layout.minimumWidth: 0 }
-                        ActionButton {
-                            id: moreActions
-                            text: qsTr("More actions"); icon.source: "icons/more.svg"; display: AbstractButton.IconOnly
-                            onClicked: contextMenu.popup(moreActions, 0, -contextMenu.height)
-                        }
-                    }
-                }
-                RowLayout {
-                    Layout.fillWidth: true; Layout.minimumWidth: 0
-                    Layout.leftMargin: 10; Layout.rightMargin: 6; Layout.topMargin: 2; Layout.bottomMargin: 2
-                    Label {
-                        // Counts keep their width; the message beside them gives way first.
-                        Layout.maximumWidth: parent.width * 0.7; Layout.minimumWidth: 0
-                        color: root.muted; elide: Text.ElideRight
-                        property var c: desktop.model.counts
-                        text: root.hasRows || c.total > 0 ? qsTr("%1 / %2 tracks · owned %3 · skipped %4").arg(c.visible).arg(c.total).arg(c.got).arg(c.skipped) : ""
-                    }
-                    BusyIndicator { running: desktop.busy || root.shuttingDown || !desktop.ready; visible: running; implicitHeight: 24; implicitWidth: 24 }
-                    FlatButton { text: qsTr("Cancel"); display: AbstractButton.TextOnly; visible: desktop.busy; implicitHeight: 26; onClicked: desktop.action("cancel") }
-                    Label {
-                        Layout.fillWidth: true; Layout.minimumWidth: 0; textFormat: Text.PlainText; elide: Text.ElideRight
-                        text: root.shuttingDown ? qsTr("Closing…") : !desktop.ready ? qsTr("Loading library…") : desktop.level === "error" ? "" : desktop.message
-                        color: desktop.level === "error" ? root.danger : root.muted
-                        font.bold: desktop.level === "error"
-                        ToolTip.visible: hovered && text.length > 0; ToolTip.text: text
-                        HoverHandler { id: messageHover }
-                        property bool hovered: messageHover.hovered
-                        TapHandler { onTapped: messageLog.open() }
-                        Accessible.name: text
-                    }
-                }
                 Rectangle {
                     objectName: "errorBanner"
                     visible: root.errorMessage.length > 0
@@ -887,6 +908,36 @@ ApplicationWindow {
                 }
             }
         }
+        // Status spans the whole window below the sidebar and the table.
+        Rectangle {
+            objectName: "statusBar"
+            Layout.fillWidth: true; Layout.minimumWidth: 0
+            implicitHeight: 28; color: root.panel
+            Rectangle { width: parent.width; height: 1; color: root.alternate }
+            RowLayout {
+                anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 8; spacing: 8
+                Label {
+                    // Counts keep their width; the message beside them gives way first.
+                    Layout.maximumWidth: parent.width * 0.7; Layout.minimumWidth: 0
+                    color: root.muted; elide: Text.ElideRight
+                    property var c: desktop.model.counts
+                    text: root.hasRows || c.total > 0 ? qsTr("%1 / %2 tracks · owned %3 · skipped %4").arg(c.visible).arg(c.total).arg(c.got).arg(c.skipped) : ""
+                }
+                BusyIndicator { running: desktop.busy || root.shuttingDown || !desktop.ready; visible: running; implicitHeight: 22; implicitWidth: 22 }
+                FlatButton { text: qsTr("Cancel"); display: AbstractButton.TextOnly; visible: desktop.busy; implicitHeight: 24; onClicked: desktop.action("cancel") }
+                Label {
+                    Layout.fillWidth: true; Layout.minimumWidth: 0; textFormat: Text.PlainText; elide: Text.ElideRight
+                    text: root.shuttingDown ? qsTr("Closing…") : !desktop.ready ? qsTr("Loading library…") : desktop.level === "error" ? "" : desktop.message
+                    color: desktop.level === "error" ? root.danger : root.muted
+                    font.bold: desktop.level === "error"
+                    ToolTip.visible: hovered && text.length > 0; ToolTip.text: text
+                    HoverHandler { id: messageHover }
+                    property bool hovered: messageHover.hovered
+                    TapHandler { onTapped: messageLog.open() }
+                    Accessible.name: text
+                }
+            }
+        }
     }
     FolderDialog { id: folderDialog; title: qsTr("Add folder"); onAccepted: desktop.addFolder(selectedFolder.toString()) }
     AppMenu {
@@ -903,6 +954,7 @@ ApplicationWindow {
         AppMenuItem { text: qsTr("Fit column to contents"); onTriggered: root.fitColumn(columnMenu.column) }
         AppMenuItem { text: qsTr("Fit all columns"); onTriggered: root.fitAllColumns() }
         AppMenuItem { text: qsTr("Reset column widths"); onTriggered: root.resetColumnWidths() }
+        AppMenuItem { text: qsTr("Reset column order"); onTriggered: root.resetColumnOrder() }
         MenuSeparator {}
         Instantiator {
             model: 10
@@ -957,28 +1009,28 @@ ApplicationWindow {
             dialog.values = updated
         }
     }
-    Dialog {
+    AppDialog {
         id: helpDialog
         title: qsTr("Keyboard shortcuts")
         anchors.centerIn: parent; width: Math.min(560, root.width - 50); height: Math.min(root.height - 50, implicitHeight)
-        modal: true; standardButtons: Dialog.Close
+        standardButtons: Dialog.Close
         contentItem: ScrollView {
             clip: true; implicitHeight: helpText.implicitHeight + 8
             TextArea { id: helpText; readOnly: true; textFormat: Text.PlainText; font.family: "monospace"; background: null }
         }
     }
-    Dialog {
+    AppDialog {
         id: messageLog
         title: qsTr("Messages")
         anchors.centerIn: parent; width: Math.min(720, root.width - 50); height: Math.min(root.height - 50, implicitHeight)
-        modal: true; standardButtons: Dialog.Close
+        standardButtons: Dialog.Close
         contentItem: ScrollView {
             clip: true; implicitHeight: Math.max(120, logText.implicitHeight + 8)
             TextArea { id: logText; readOnly: true; textFormat: Text.PlainText; selectByMouse: true; wrapMode: Text.Wrap; background: null
                        text: root.messages.length ? root.messages.join("\n") : qsTr("No messages yet.") }
         }
     }
-    Dialog {
+    AppDialog {
         id: dialog
         property string ident: ""
         property string body: ""
@@ -989,7 +1041,7 @@ ApplicationWindow {
         property var values: ({})
         anchors.centerIn: parent; width: Math.min(650, root.width - 50)
         height: Math.min(root.height - 50, implicitHeight)
-        modal: true; standardButtons: info ? Dialog.Ok : Dialog.Ok | Dialog.Cancel
+        standardButtons: info ? Dialog.Ok : Dialog.Ok | Dialog.Cancel
         onOkTextChanged: { let ok = standardButton(Dialog.Ok); if (ok) ok.text = okText || qsTr("OK") }
         onAccepted: desktop.answer(ident, values, true)
         onRejected: desktop.answer(ident, {}, false)
