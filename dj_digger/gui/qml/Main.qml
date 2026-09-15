@@ -340,6 +340,8 @@ ApplicationWindow {
         // Plain Text measures synchronously, so the menu can size itself before it opens.
         implicitWidth: leftPadding + labelText.implicitWidth + (shortcutLabel.visible ? 28 + shortcutLabel.implicitWidth : 0) + rightPadding
         implicitHeight: 30
+        // Menus do not collapse invisible entries on their own.
+        height: visible ? implicitHeight : 0
         padding: 4; leftPadding: 32; rightPadding: subMenu ? 28 : 14; spacing: 0
         indicator: ColorImage {
             x: 10; y: (menuItem.height - height) / 2; width: 14; height: 14; sourceSize: Qt.size(14, 14)
@@ -368,6 +370,7 @@ ApplicationWindow {
         }
         background: Rectangle { x: 3; width: menuItem.width - 6; height: menuItem.height; radius: 3; color: menuItem.highlighted ? root.hoverSurface : "transparent" }
     }
+    component AppSeparator: MenuSeparator { height: visible ? implicitHeight : 0 }
     component AppMenu: Menu {
         id: appMenu
         delegate: AppMenuItem {}
@@ -702,25 +705,26 @@ ApplicationWindow {
                     RowLayout {
                         id: trackActions
                         objectName: "trackActions"
-                        visible: root.hasSelection
+                        // Present as soon as a view is loaded; entries that need a selection are disabled without one.
+                        visible: !!desktop.view.title
                         Layout.minimumWidth: 0; spacing: 2
                         component ActionButton: FlatButton {
                             display: toolbar.compact ? AbstractButton.IconOnly : AbstractButton.TextBesideIcon
                             icon.width: 16; icon.height: 16
                             implicitHeight: 32; padding: 6; spacing: 6
                         }
-                        ActionButton { text: qsTr("Open links"); keys: "O"; icon.source: "icons/link.svg"; onClicked: desktop.action("open") }
-                        ActionButton { text: qsTr("Download"); keys: "D"; icon.source: "icons/download.svg"; enabled: !desktop.busy; onClicked: desktop.action("download") }
-                        ActionButton { text: qsTr("Mark owned"); keys: "G"; icon.source: "icons/owned.svg"; onClicked: desktop.mark("got") }
-                        ActionButton { text: qsTr("Skip"); keys: "K"; icon.source: "icons/skip.svg"; onClicked: desktop.mark("skip") }
-                        ActionButton { text: qsTr("Analyze BPM / key"); icon.source: "icons/analyze.svg"; visible: !!desktop.view.local; enabled: !desktop.busy; onClicked: desktop.action("analyze") }
+                        ActionButton { text: qsTr("Open links"); keys: "O"; icon.source: "icons/link.svg"; enabled: root.hasSelection; onClicked: desktop.action("open") }
+                        ActionButton { text: qsTr("Download"); keys: "D"; icon.source: "icons/download.svg"; enabled: root.hasSelection && !desktop.busy; onClicked: desktop.action("download") }
+                        ActionButton { text: qsTr("Mark owned"); keys: "G"; icon.source: "icons/owned.svg"; enabled: root.hasSelection; onClicked: desktop.mark("got") }
+                        ActionButton { text: qsTr("Skip"); keys: "K"; icon.source: "icons/skip.svg"; enabled: root.hasSelection; onClicked: desktop.mark("skip") }
+                        ActionButton { text: qsTr("Analyze BPM / key"); icon.source: "icons/analyze.svg"; visible: !!desktop.view.local; enabled: root.hasSelection && !desktop.busy; onClicked: desktop.action("analyze") }
                         ActionButton {
                             id: moreActions
                             text: qsTr("More actions"); icon.source: "icons/more.svg"; display: AbstractButton.IconOnly
-                            onClicked: contextMenu.popup(moreActions, 0, moreActions.height)
+                            onClicked: { contextMenu.fromToolbar = true; contextMenu.popup(moreActions, 0, moreActions.height) }
                         }
                     }
-                    Rectangle { visible: root.hasSelection; Layout.preferredWidth: 1; Layout.preferredHeight: 22; color: root.alternate }
+                    Rectangle { visible: trackActions.visible; Layout.preferredWidth: 1; Layout.preferredHeight: 22; color: root.alternate }
                     ComboBox {
                         id: store; objectName: "storeFilter"
                         visible: !desktop.view.local
@@ -856,7 +860,7 @@ ApplicationWindow {
                                 table.forceActiveFocus()
                                 table.keyboardRow = row
                                 if (mouse.button !== Qt.RightButton || !chosen) desktop.model.select(row, (mouse.modifiers & Qt.ControlModifier) !== 0, (mouse.modifiers & Qt.ShiftModifier) !== 0)
-                                if (mouse.button === Qt.RightButton) contextMenu.popup()
+                                if (mouse.button === Qt.RightButton) { contextMenu.fromToolbar = false; contextMenu.popup() }
                             }
                             onDoubleClicked: desktop.action("play")
                         }
@@ -975,22 +979,26 @@ ApplicationWindow {
     }
     AppMenu {
         id: contextMenu
-        AppMenuItem { text: qsTr("Play / pause"); keys: "Space"; onTriggered: desktop.action("play") }
-        AppMenuItem { text: qsTr("Open links"); keys: "O"; onTriggered: desktop.action("open") }
-        AppMenuItem { text: qsTr("Download"); keys: "D"; enabled: !desktop.busy; onTriggered: desktop.action("download") }
-        MenuSeparator {}
-        AppMenuItem { text: qsTr("Mark owned"); keys: "G"; onTriggered: desktop.mark("got") }
-        AppMenuItem { text: qsTr("Skip"); keys: "K"; onTriggered: desktop.mark("skip") }
-        AppMenuItem { text: qsTr("Reset status"); keys: "U"; onTriggered: desktop.mark("new") }
-        MenuSeparator {}
-        AppMenuItem { text: qsTr("Copy artist and title"); keys: "Ctrl+C"; onTriggered: desktop.copy() }
-        AppMenuItem { text: qsTr("Analyze BPM / key"); enabled: !desktop.busy; onTriggered: desktop.action("analyze") }
-        AppMenuItem { text: qsTr("Edit BPM / key…"); keys: "E"; enabled: desktop.model.counts.selected === 1; onTriggered: desktop.action("edit") }
-        AppMenuItem { text: qsTr("Export audio…"); enabled: !desktop.busy; onTriggered: desktop.action("export") }
-        AppMenuItem { text: qsTr("Prepare cart / Beatport playlist"); keys: "C"; enabled: !desktop.busy; onTriggered: desktop.action("cart") }
-        MenuSeparator {}
-        AppMenuItem { text: qsTr("Remove from playlist…"); keys: "X"; enabled: root.remoteView; onTriggered: desktop.action("remove") }
-        AppMenuItem { text: qsTr("Delete files…"); enabled: !desktop.busy; onTriggered: desktop.action("delete_files") }
+        // From the toolbar's "More actions" button the entries already on the toolbar are left out;
+        // local-file entries appear only in local views and playlist entries only in playlist views.
+        property bool fromToolbar: false
+        readonly property bool local: !!desktop.view.local
+        AppMenuItem { text: qsTr("Play / pause"); keys: "Space"; enabled: root.loaded || root.hasSelection; onTriggered: desktop.action("play") }
+        AppMenuItem { text: qsTr("Open links"); keys: "O"; visible: !contextMenu.fromToolbar; enabled: root.hasSelection; onTriggered: desktop.action("open") }
+        AppMenuItem { text: qsTr("Download"); keys: "D"; visible: !contextMenu.fromToolbar; enabled: root.hasSelection && !desktop.busy; onTriggered: desktop.action("download") }
+        AppSeparator { visible: !contextMenu.fromToolbar }
+        AppMenuItem { text: qsTr("Mark owned"); keys: "G"; visible: !contextMenu.fromToolbar; enabled: root.hasSelection; onTriggered: desktop.mark("got") }
+        AppMenuItem { text: qsTr("Skip"); keys: "K"; visible: !contextMenu.fromToolbar; enabled: root.hasSelection; onTriggered: desktop.mark("skip") }
+        AppMenuItem { text: qsTr("Reset status"); keys: "U"; enabled: root.hasSelection; onTriggered: desktop.mark("new") }
+        AppSeparator {}
+        AppMenuItem { text: qsTr("Copy artist and title"); keys: "Ctrl+C"; enabled: root.hasSelection; onTriggered: desktop.copy() }
+        AppMenuItem { text: qsTr("Analyze BPM / key"); visible: contextMenu.local && !contextMenu.fromToolbar; enabled: root.hasSelection && !desktop.busy; onTriggered: desktop.action("analyze") }
+        AppMenuItem { text: qsTr("Edit BPM / key…"); keys: "E"; visible: contextMenu.local; enabled: desktop.model.counts.selected === 1; onTriggered: desktop.action("edit") }
+        AppMenuItem { text: qsTr("Export audio…"); visible: contextMenu.local; enabled: root.hasSelection && !desktop.busy; onTriggered: desktop.action("export") }
+        AppMenuItem { text: qsTr("Prepare cart / Beatport playlist"); keys: "C"; enabled: root.hasSelection && !desktop.busy; onTriggered: desktop.action("cart") }
+        AppSeparator { visible: root.remoteView || contextMenu.local }
+        AppMenuItem { text: qsTr("Remove from playlist…"); keys: "X"; visible: root.remoteView; enabled: root.hasSelection; onTriggered: desktop.action("remove") }
+        AppMenuItem { text: qsTr("Delete files…"); visible: contextMenu.local; enabled: root.hasSelection && !desktop.busy; onTriggered: desktop.action("delete_files") }
     }
     FolderDialog {
         id: fieldFolder

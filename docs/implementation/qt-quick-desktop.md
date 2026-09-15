@@ -361,3 +361,12 @@ own selection model, so a clicked subfolder stayed highlighted after a
 playlist was loaded. The delegate now binds `highlighted` to the loaded
 folder through `Bridge.samePath`, which normalizes the forward-slash paths of
 `QFileSystemModel` against the native paths the backend echoes.
+
+Toolbar availability (same day): the action buttons show as soon as a view
+is loaded and disable without a selection, instead of appearing only after a
+row click. The context menu carries a `fromToolbar` flag: opened from "More
+actions" it omits the entries already on the toolbar, and in every form it
+hides local-file entries in playlist views and Remove from playlist in folder
+views. Qt Quick menus do not collapse invisible entries, so `AppMenuItem` and
+`AppSeparator` bind `height` to zero while hidden; a probe confirmed the
+`ListView` then packs the remaining entries.

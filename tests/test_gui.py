@@ -670,16 +670,37 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
         bridge.table.clearSelection()
         click(play)
         assert bridge.backend.calls[-1] == ('transport', {'operation': 'toggle', 'value': 0.0})
-        # The selection bar exists only while something is selected.
+        # The action buttons are present as soon as a view is loaded and enable with a selection.
         actions = window.findChild(QQuickItem, 'trackActions')
-        assert not actions.isVisible()
+        assert actions.isVisible()
+        open_links = next(c for c in actions.childItems() if c.property('text') == 'Otwórz linki')
+        assert not open_links.isEnabled()
         bridge.table.select(1)
         settle()
-        assert actions.isVisible()
-        # Menus are grouped by task and every entry shows its shortcut in one column.
+        assert open_links.isEnabled()
+        # "More actions" omits the toolbar entries; local-only and playlist-only entries follow the view.
         from PySide6.QtQml import QQmlEngine, QQmlExpression
         def qml(expression):
             return QQmlExpression(QQmlEngine.contextForObject(window), window, expression).evaluate()[0]
+        def menu_entries():
+            return [qml(f'contextMenu.itemAt({i}).text') for i in range(int(qml('contextMenu.count')))
+                    if qml(f'contextMenu.itemAt({i}).height') > 0 and qml(f'contextMenu.itemAt({i}).text')]
+        qml('contextMenu.fromToolbar = true; contextMenu.open()')
+        settle()
+        assert menu_entries() == ['Odtwórz / pauza', 'Resetuj status', 'Kopiuj artystę i tytuł', 'Edytuj BPM / tonację…',
+                                  'Eksportuj audio…', 'Przygotuj koszyk / playlistę Beatport', 'Usuń pliki…']
+        qml('contextMenu.close()')
+        bridge.receive('view', dict(title='Playlist', source='sc:1', local=False, generation=2, rows=[row('a', 'Alpha'), row('b', 'Beta')]))
+        bridge.table.select(1)
+        qml('contextMenu.fromToolbar = false; contextMenu.open()')
+        settle()
+        assert menu_entries() == ['Odtwórz / pauza', 'Otwórz linki', 'Pobierz', 'Oznacz jako posiadane', 'Pomiń', 'Resetuj status',
+                                  'Kopiuj artystę i tytuł', 'Przygotuj koszyk / playlistę Beatport', 'Usuń z playlisty…']
+        qml('contextMenu.close()')
+        bridge.receive('view', dict(title='Local', source='fixture', local=True, generation=3, rows=[row('a', 'Alpha'), row('b', 'Beta')]))
+        bridge.table.select(1)
+        settle()
+        # Menus are grouped by task and every entry shows its shortcut in one column.
         titles = [qml(f'menuBar.menuAt({i}).title') for i in range(int(qml('menuBar.count')))]
         assert titles == ['Biblioteka', 'Utwory', 'Odtwarzanie', 'Narzędzia', 'Widok', 'Ustawienia', 'Pomoc']
         assert qml('menuBar.menuAt(1).itemAt(0).text') == 'Otwórz linki'
