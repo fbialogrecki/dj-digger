@@ -43,6 +43,9 @@ class Backend:
         self.player_lock = asyncio.Lock()
         self.waveform_lock = asyncio.Lock()
         self.waveform_cancel = threading.Event()
+        # Seeks arriving faster than the decoder can honor them collapse into the latest.
+        self.seek_request = None
+        self.seeking = False
         self.thread.start()
 
     def _run(self):
@@ -608,6 +611,8 @@ class Backend:
                     self.tasks.add(task)
                     task.add_done_callback(self.tasks.discard)
                 await self.io(player.play)
+                self.publish_audio()
+                self.publish_waveform()
         finally:
             if prepared.source is not None:
                 await self.io(prepared.close)
@@ -623,7 +628,7 @@ class Backend:
             async with self.player_lock:
                 if not cancel.is_set() and self.services.player.loaded is loaded:
                     loaded.waveform = samples
-                    self.publish_audio()
+                    self.publish_waveform()
         except (Cancelled, asyncio.CancelledError):
             pass
         except Exception as exc:
@@ -632,11 +637,18 @@ class Backend:
                 self.send('error', {'text': 'Waveform unavailable: ' + log_safe_text(exc)})
 
     def publish_audio(self):
+        # The per-tick snapshot stays small: the waveform travels separately and only when it changes.
         p = self.services.player
         snapshot = dict(key=p.loaded.track.key, title=p.loaded.track.label, playing=p.playing, position=p.position,
-                        duration=p.duration, waveform=list(p.loaded.waveform)[::max(1, (len(p.loaded.waveform) + 1023) // 1024)]) if p.loaded else {}
+                        duration=p.duration) if p.loaded else {}
         self.send('audio', snapshot)
         return snapshot
+
+    def publish_waveform(self):
+        p = self.services.player
+        if p.loaded and p.loaded.waveform:
+            samples = list(p.loaded.waveform)
+            self.send('waveform', dict(key=p.loaded.track.key, samples=samples[::max(1, (len(samples) + 1023) // 1024)]))
 
     async def prepare_track(self, track):
         from ..services.playback import Prepared, fetch_waveform, resolve_stream
@@ -712,14 +724,36 @@ class Backend:
             self.send('audio', {})
         elif operation == 'toggle':
             await self.player_call(player.toggle)
-        elif operation == 'seek':
-            await self.player_call(player.seek, max(0, min(float(values['value']), player.duration)))
+            self.publish_audio()
+        elif operation in ('seek', 'nudge'):
+            await self.apply_seek(operation, float(values['value']))
         elif operation == 'volume':
             await self.player_call(player.set_volume, max(0, min(float(values['value']), 1)))
-        elif operation == 'nudge':
-            await self.player_call(player.nudge, float(values['value']))
         elif operation == 'mute':
             await self.player_call(player.toggle_mute)
+
+    async def apply_seek(self, operation, value):
+        """Serve the newest seek; nudges that pile up behind it add together."""
+        pending = self.seek_request
+        if operation == 'nudge' and pending is not None:
+            self.seek_request = (pending[0], pending[1] + value)
+        else:
+            self.seek_request = (operation, value)
+        if self.seeking:
+            return
+        self.seeking = True
+        try:
+            player = self.services.player
+            while self.seek_request is not None:
+                operation, value = self.seek_request
+                self.seek_request = None
+                if operation == 'seek':
+                    await self.player_call(player.seek, max(0, min(value, player.duration)))
+                else:
+                    await self.player_call(player.nudge, value)
+                self.publish_audio()
+        finally:
+            self.seeking = False
 
     async def action_logs(self, values):
         from ..logging_setup import current_log_path, read_log_tail

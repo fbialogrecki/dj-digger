@@ -5,8 +5,8 @@
 - Product version verified: 1.1.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-09-10
-- Document lines: <!-- SPEC TOTAL LINES -->1579<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1579<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1588<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1588<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,64 +51,64 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 143–179 |
 | 2.1 | ↳ Problem and product boundary | 145–158 |
 | 2.2 | ↳ Execution modes | 159–179 |
-| 3 | User-visible capabilities | 180–732 |
+| 3 | User-visible capabilities | 180–741 |
 | 3.1 | ↳ Track collection and saved HTML | 182–208 |
 | 3.2 | ↳ Link classification and exports | 209–227 |
 | 3.3 | ↳ TUI playlist library and interaction | 228–319 |
-| 3.4 | ↳ Audio preview | 320–388 |
-| 3.5 | ↳ Downloads and local-file matching | 389–424 |
-| 3.6 | ↳ Store purchase assistance | 425–509 |
-| 3.7 | ↳ Local library, analysis and audio export | 510–625 |
-| 3.8 | ↳ Qt Quick desktop | 626–732 |
-| 4 | System context and data flow | 733–773 |
-| 4.1 | ↳ Context diagram | 735–757 |
-| 4.2 | ↳ Collection-to-library flow | 758–773 |
-| 5 | Repository layout and component ownership | 774–848 |
-| 5.1 | ↳ Entry, orchestration, and models | 776–787 |
-| 5.2 | ↳ Network and external-system adapters | 788–806 |
-| 5.3 | ↳ Persistence, local media, and UI | 807–848 |
-| 6 | Runtime architecture and environments | 849–961 |
-| 6.1 | ↳ Runtime and dependencies | 851–868 |
-| 6.2 | ↳ Concurrency and lifecycle | 869–940 |
-| 6.3 | ↳ Local paths and environment variables | 941–961 |
-| 7 | Data model and persistence | 962–1060 |
-| 7.1 | ↳ Domain objects and identity | 964–978 |
-| 7.2 | ↳ SQLite schema and invariants | 979–1027 |
-| 7.3 | ↳ Crate persistence and deletion | 1028–1043 |
-| 7.4 | ↳ Configuration and credential stores | 1044–1060 |
-| 8 | Public interfaces and contracts | 1061–1117 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1063–1091 |
-| 8.2 | ↳ JSON and CSV summary input | 1092–1106 |
-| 8.3 | ↳ URL-opening contract | 1107–1117 |
-| 9 | Authentication and authorization | 1118–1161 |
-| 9.1 | ↳ SoundCloud authentication | 1120–1140 |
-| 9.2 | ↳ Gate action consent | 1141–1161 |
-| 10 | External integrations | 1162–1304 |
-| 10.1 | ↳ SoundCloud API and media | 1164–1175 |
-| 10.2 | ↳ Link hubs and download gates | 1176–1245 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1184–1231 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1233–1238 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1240–1245 |
-| 10.3 | ↳ Browsers and clipboard | 1246–1257 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1258–1304 |
-| 11 | Security requirements and threat model | 1305–1359 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1307–1325 |
-| 11.2 | ↳ Secret and personal-data handling | 1326–1341 |
-| 11.3 | ↳ File and mutation safety | 1342–1359 |
-| 12 | Privacy, lifecycle, and retention | 1360–1403 |
-| 12.1 | ↳ Data stored locally | 1362–1381 |
-| 12.2 | ↳ Data sent to third parties | 1382–1393 |
-| 12.3 | ↳ User-controlled deletion | 1394–1403 |
-| 13 | Failure behavior and current limitations | 1404–1464 |
-| 13.1 | ↳ Error isolation and reporting | 1406–1425 |
-| 13.2 | ↳ Confirmed limitations | 1426–1464 |
-| 14 | Verification, CI, and release | 1465–1550 |
-| 14.1 | ↳ Offline and live test suites | 1467–1513 |
-| 14.2 | ↳ Continuous integration and publishing | 1514–1535 |
-| 14.3 | ↳ Specification-map verification | 1536–1550 |
-| 15 | Evidence and operational references | 1551–1579 |
-| 15.1 | ↳ Primary implementation evidence | 1553–1569 |
-| 15.2 | ↳ User and historical documentation | 1570–1579 |
+| 3.4 | ↳ Audio preview | 320–391 |
+| 3.5 | ↳ Downloads and local-file matching | 392–427 |
+| 3.6 | ↳ Store purchase assistance | 428–512 |
+| 3.7 | ↳ Local library, analysis and audio export | 513–628 |
+| 3.8 | ↳ Qt Quick desktop | 629–741 |
+| 4 | System context and data flow | 742–782 |
+| 4.1 | ↳ Context diagram | 744–766 |
+| 4.2 | ↳ Collection-to-library flow | 767–782 |
+| 5 | Repository layout and component ownership | 783–857 |
+| 5.1 | ↳ Entry, orchestration, and models | 785–796 |
+| 5.2 | ↳ Network and external-system adapters | 797–815 |
+| 5.3 | ↳ Persistence, local media, and UI | 816–857 |
+| 6 | Runtime architecture and environments | 858–970 |
+| 6.1 | ↳ Runtime and dependencies | 860–877 |
+| 6.2 | ↳ Concurrency and lifecycle | 878–949 |
+| 6.3 | ↳ Local paths and environment variables | 950–970 |
+| 7 | Data model and persistence | 971–1069 |
+| 7.1 | ↳ Domain objects and identity | 973–987 |
+| 7.2 | ↳ SQLite schema and invariants | 988–1036 |
+| 7.3 | ↳ Crate persistence and deletion | 1037–1052 |
+| 7.4 | ↳ Configuration and credential stores | 1053–1069 |
+| 8 | Public interfaces and contracts | 1070–1126 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1072–1100 |
+| 8.2 | ↳ JSON and CSV summary input | 1101–1115 |
+| 8.3 | ↳ URL-opening contract | 1116–1126 |
+| 9 | Authentication and authorization | 1127–1170 |
+| 9.1 | ↳ SoundCloud authentication | 1129–1149 |
+| 9.2 | ↳ Gate action consent | 1150–1170 |
+| 10 | External integrations | 1171–1313 |
+| 10.1 | ↳ SoundCloud API and media | 1173–1184 |
+| 10.2 | ↳ Link hubs and download gates | 1185–1254 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1193–1240 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1242–1247 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1249–1254 |
+| 10.3 | ↳ Browsers and clipboard | 1255–1266 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1267–1313 |
+| 11 | Security requirements and threat model | 1314–1368 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1316–1334 |
+| 11.2 | ↳ Secret and personal-data handling | 1335–1350 |
+| 11.3 | ↳ File and mutation safety | 1351–1368 |
+| 12 | Privacy, lifecycle, and retention | 1369–1412 |
+| 12.1 | ↳ Data stored locally | 1371–1390 |
+| 12.2 | ↳ Data sent to third parties | 1391–1402 |
+| 12.3 | ↳ User-controlled deletion | 1403–1412 |
+| 13 | Failure behavior and current limitations | 1413–1473 |
+| 13.1 | ↳ Error isolation and reporting | 1415–1434 |
+| 13.2 | ↳ Confirmed limitations | 1435–1473 |
+| 14 | Verification, CI, and release | 1474–1559 |
+| 14.1 | ↳ Offline and live test suites | 1476–1522 |
+| 14.2 | ↳ Continuous integration and publishing | 1523–1544 |
+| 14.3 | ↳ Specification-map verification | 1545–1559 |
+| 15 | Evidence and operational references | 1560–1588 |
+| 15.1 | ↳ Primary implementation evidence | 1562–1578 |
+| 15.2 | ↳ User and historical documentation | 1579–1588 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -319,9 +319,12 @@ Cancel only discards unsaved preferences. Existing empty-field semantics remain.
 
 ### 3.4 Audio preview
 
-Local playback uses FFmpeg to produce 44.1 kHz stereo signed-16 PCM in a bounded
-two-second ready buffer. A single decoder-control thread handles repeated seeks;
-old generations cannot fill the new buffer. The audio callback only consumes
+Local playback uses FFmpeg to produce 44.1 kHz stereo signed-16 PCM. Decoded
+audio is retained in memory, up to 64 MB per source (about six minutes); once
+that cap is reached the oldest audio more than 30 s behind the read head is
+dropped first. A seek into retained audio moves the read head without a new
+decoder; only a seek outside it starts FFmpeg again. A single decoder-control
+thread handles repeated seeks; old generations cannot fill the new buffer. The audio callback only consumes
 ready samples: underrun produces silence without advancing the media position,
 while EOF and decoder failures remain distinct. Playback sources hold leases
 until their decoder has actually stopped; prefetched files are also protected
@@ -660,7 +663,13 @@ links as in the TUI. Errors appear in a separate, dismissible banner with a
 Details button opening the message log. Later informational messages do not dismiss an error; closing
 the banner retains it in the log. Informational messages remain in the footer.
 The transport collapses to one row when nothing is loaded, shows m:ss clocks, a position cursor, hover
-time, drag seeking and a mute toggle.
+time, drag seeking and a mute toggle. The waveform arrives in its own event once per loaded track (again
+when a local envelope is ready) and is painted once, in two layers; progress moves a clip edge and the
+cursor. The ten-per-second position snapshots carry only key, title, state, position and duration and
+notify audio bindings alone. Dragging on the waveform shows the pointer's time and sends one seek on
+release; the target stays displayed until the backend confirms the position or 1.5 s pass. Play/pause
+and seeks publish a snapshot as soon as they are applied; seeks arriving faster than the decoder serves
+them collapse to the newest, and nudges queued behind one add up.
 Dialogs size to their content, share the panel surface with a compact title, and place normal-sized buttons on the right; Cancel and Close use the application catalog rather than the Qt base translation, which the frozen bundle does not carry. Forms use choice lists for enumerated values,
 numeric validators, framed multi-line editors, labelled checkboxes, inline
 folder/file pickers and a monospace read-only view for logs and plans; the

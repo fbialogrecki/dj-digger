@@ -1,4 +1,4 @@
-"""Bounded PCM playback; subprocess and pipe work stays off the audio callback."""
+"""Local PCM playback that keeps what it decoded; subprocess and pipe work stays off the audio callback."""
 import array
 import threading
 from pathlib import Path
@@ -12,17 +12,34 @@ LEASES: dict[Path, int] = {}
 SOURCES = set()
 
 
+BYTES_PER_FRAME = 4
+BYTES_PER_SECOND = 44100 * BYTES_PER_FRAME
+# Decoded PCM is kept rather than streamed through a two-second window: a seek
+# into audio already decoded moves an index instead of restarting FFmpeg, and
+# after a few seconds a whole track shorter than this cap sits in memory.
+RETAINED_BYTES = 64 * 1024 * 1024
+# Once the cap is reached the oldest audio goes first, keeping this much
+# behind the read head so short backwards seeks still cost nothing.
+KEEP_BEHIND_BYTES = 30 * BYTES_PER_SECOND
+
+
 class LocalSource:
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, retained=RETAINED_BYTES):
         self.path = path.resolve(strict=True)
+        self.retained = retained
         self._lock = threading.Condition()
         self._buffer = bytearray()
+        # Byte offsets in the decoded stream: where the buffer starts and where
+        # the callback reads. Both move in whole frames.
+        self._base = 0
+        self._position = 0
         self._cancel = threading.Event()
         self._generation = 0
         self._request = 0.0
         self._eof = False
         self._error = None
         self.last_frames = 0
+        self.decodes = 0
         self._closed = False
         with LEASE_LOCK:
             LEASES[self.path] = LEASES.get(self.path, 0) + 1
@@ -30,12 +47,23 @@ class LocalSource:
         self._thread = threading.Thread(target=self._produce, name='local-audio-decoder')
         self._thread.start()
 
+    @staticmethod
+    def _offset(seconds):
+        return max(0, int(seconds * 44100)) * BYTES_PER_FRAME
+
     def restart(self, seconds):
+        """Move the read head; only audio outside the retained PCM needs a decoder."""
+        target = self._offset(seconds)
         with self._lock:
+            held = self._base <= target <= self._base + len(self._buffer)
+            if held and (target < self._base + len(self._buffer) or self._eof or self._request is None):
+                self._position = target
+                return
             self._cancel.set()
             self._generation += 1
             self._request = seconds
             self._buffer.clear()
+            self._base = self._position = target
             self._eof, self._error = False, None
             self._lock.notify_all()
 
@@ -50,14 +78,16 @@ class LocalSource:
                     seconds, generation = self._request, self._generation
                     self._request = None
                     cancel = self._cancel = threading.Event()
+                    self.decodes += 1
                 try:
                     for chunk in pcm_blocks(self.path, rate=44100, channels=2, sample_format='s16le', seek=seconds, cancel=cancel):
                         with self._lock:
-                            while len(self._buffer) + len(chunk) > 44100 * 4 * 2 and not cancel.is_set():
+                            while not self._room(len(chunk)) and not cancel.is_set():
                                 self._lock.wait(.1)
                             if cancel.is_set() or generation != self._generation:
                                 break
                             self._buffer.extend(chunk)
+                            self._lock.notify_all()
                 except Exception as exc:
                     with self._lock:
                         if generation == self._generation and not cancel.is_set():
@@ -74,19 +104,32 @@ class LocalSource:
                     del LEASES[self.path]
                 SOURCES.discard(self)
 
+    def _room(self, size):
+        """Make space for ``size`` more bytes by dropping audio far behind the head."""
+        excess = len(self._buffer) + size - self.retained
+        if excess <= 0:
+            return True
+        keep = min(KEEP_BEHIND_BYTES, self.retained // 4)
+        drop = min(excess, self._position - self._base - keep) // BYTES_PER_FRAME * BYTES_PER_FRAME
+        if drop > 0:
+            del self._buffer[:drop]
+            self._base += drop
+        return len(self._buffer) + size <= self.retained
+
     def take(self, frames):
         with self._lock:
-            count = min(frames * 4, len(self._buffer)) // 4 * 4
-            chunk = bytes(self._buffer[:count])
-            del self._buffer[:count]
-            self.last_frames = count // 4
+            start = self._position - self._base
+            count = max(0, min(frames * BYTES_PER_FRAME, len(self._buffer) - start)) // BYTES_PER_FRAME * BYTES_PER_FRAME
+            chunk = bytes(self._buffer[start:start + count])
+            self._position += count
+            self.last_frames = count // BYTES_PER_FRAME
             self._lock.notify_all()
             if not count and self._eof:
                 if self._error:
                     raise MediaError(self._error)
                 return array.array('h')
             if not self._eof:
-                chunk += bytes(frames * 4 - count)
+                chunk += bytes(frames * BYTES_PER_FRAME - count)
         result = array.array('h')
         result.frombytes(chunk)
         import sys

@@ -433,6 +433,16 @@ ApplicationWindow {
         }
         onAboutToShow: root.localizeButtons(appDialog)
     }
+    // One layer of waveform bars; the played layer is the same painting clipped to the progress.
+    component WaveformBars: Canvas {
+        property color color
+        onPaint: waveform.paintBars(getContext("2d"), width, height, color)
+        onColorChanged: requestPaint()
+        onWidthChanged: requestPaint()
+        onHeightChanged: requestPaint()
+        onVisibleChanged: requestPaint()
+        Connections { target: waveform; function onLevelsChanged() { requestPaint() } }
+    }
     component FolderIcon: ColorImage {
         property bool selected: false
         width: 16; height: 16; sourceSize: Qt.size(16, 16); source: "icons/folder.svg"
@@ -616,38 +626,53 @@ ApplicationWindow {
                 color: root.panel; radius: 6
                 ColumnLayout {
                     anchors.fill: parent; anchors.margins: 10
-                    Canvas {
+                    Item {
                         id: waveform; objectName: "waveform"
                         visible: root.loaded
                         Layout.fillWidth: true; Layout.fillHeight: true
-                        property var samples: desktop.audio.waveform || []
+                        property var samples: desktop.waveform
                         property real position: desktop.audio.position || 0
+                        readonly property real duration: desktop.audio.duration || 0
                         property var levels: desktop.waveformLevels(samples, Math.max(1, Math.floor(width / 3)))
-                        onLevelsChanged: requestPaint()
-                        onHeightChanged: requestPaint()
-                        onVisibleChanged: requestPaint()
-                        Connections { target: root; function onDarkChanged() { waveform.requestPaint() } }
-                        onPositionChanged: requestPaint()
-                        onWidthChanged: requestPaint()
-                        onPaint: {
-                            let ctx = getContext("2d"); ctx.reset()
-                            let duration = desktop.audio.duration || 1
+                        // The bars are painted once per waveform; progress only moves a clip edge and the cursor, so
+                        // ten position ticks a second and a drag cost no repaint. While scrubbing, the pointer's time
+                        // shows; after release the target shows until the backend confirms it (or 1.5 s pass).
+                        property real scrub: -1
+                        property real pending: -1
+                        readonly property real fraction: scrub >= 0 ? scrub : pending >= 0 ? pending : duration > 0 ? Math.min(1, position / duration) : 0
+                        onPositionChanged: if (pending >= 0 && Math.abs(position / Math.max(1, duration) - pending) < 0.02) pending = -1
+                        Timer { id: pendingTimer; interval: 1500; onTriggered: waveform.pending = -1 }
+                        function paintBars(ctx, width, height, color) {
+                            ctx.reset(); ctx.fillStyle = color
                             let count = levels.length
                             for (let i = 0; i < count; i++) {
-                                ctx.fillStyle = i / count < position / duration ? root.accent : root.muted
                                 let h = Math.max(1, levels[i] * (height - 2))
                                 ctx.fillRect(i * width / count, height - h, Math.max(1, width / count - 1), h)
                             }
-                            ctx.fillStyle = root.accent
-                            ctx.fillRect(Math.min(width - 1, position / duration * width), 0, 1, height)
                         }
+                        WaveformBars { anchors.fill: parent; color: root.muted }
+                        Item {
+                            clip: true
+                            anchors { top: parent.top; bottom: parent.bottom; left: parent.left }
+                            width: Math.round(waveform.fraction * waveform.width)
+                            WaveformBars { objectName: "playedBars"; width: waveform.width; height: waveform.height; color: root.accent }
+                        }
+                        Rectangle { objectName: "cursor"; x: Math.min(waveform.width - 1, Math.round(waveform.fraction * waveform.width)); width: 1; height: parent.height; color: root.accent }
                         MouseArea {
                             id: waveformMouse
                             anchors.fill: parent; hoverEnabled: true
-                            onClicked: mouse => desktop.transport("seek", mouse.x / width * (desktop.audio.duration || 0))
-                            onPositionChanged: mouse => { if (pressed) desktop.transport("seek", mouse.x / width * (desktop.audio.duration || 0)) }
+                            function fractionAt(x) { return Math.max(0, Math.min(1, x / width)) }
+                            onPressed: mouse => waveform.scrub = fractionAt(mouse.x)
+                            onPositionChanged: mouse => { if (pressed) waveform.scrub = fractionAt(mouse.x) }
+                            onCanceled: waveform.scrub = -1
+                            onReleased: mouse => {
+                                let target = fractionAt(mouse.x)
+                                waveform.scrub = -1
+                                waveform.pending = target; pendingTimer.restart()
+                                desktop.transport("seek", target * waveform.duration)
+                            }
                             ToolTip.visible: containsMouse; ToolTip.delay: 300
-                            ToolTip.text: root.clock(mouseX / width * (desktop.audio.duration || 0))
+                            ToolTip.text: root.clock(mouseX / width * waveform.duration)
                         }
                         Accessible.role: Accessible.Slider
                         Accessible.name: qsTr("Waveform")

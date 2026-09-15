@@ -370,3 +370,21 @@ hides local-file entries in playlist views and Remove from playlist in folder
 views. Qt Quick menus do not collapse invisible entries, so `AppMenuItem` and
 `AppSeparator` bind `height` to zero while hidden; a probe confirmed the
 `ListView` then packs the remaining entries.
+
+Playback responsiveness (2026-09-15): play/pause and waveform seeks felt
+laggy in both local and SoundCloud views. Measured offscreen with 300 rows and
+30 playlists, one backend `audio` tick cost the Qt thread about 75 ms, because
+the snapshot carried the 1024-sample waveform and every `desktop.audio.*`
+binding converted the whole map again, ten times a second. The waveform now
+travels in a separate `waveform` event (once per load, again when a local
+envelope arrives) and `Bridge.audio` notifies through its own `audioChanged`,
+so a tick costs about 1 ms and no longer re-evaluates view bindings. The bars
+are painted once into two `WaveformBars` canvases; progress only moves a clip
+edge and a 1 px cursor. Dragging used to send a seek per mouse move, and every
+local seek restarted FFmpeg while the seeks queued behind `player_lock`; the
+MouseArea now scrubs locally and sends one seek on release, the backend
+collapses queued seeks to the newest (`apply_seek`, nudges add up) and
+publishes a snapshot right after toggle/seek instead of waiting for the ticker.
+`LocalSource` retains decoded PCM up to 64 MB instead of a two-second window,
+so a seek into decoded audio moves the read head; only a seek outside it
+spawns a decoder (measured 60-80 ms on Linux, more on Windows).

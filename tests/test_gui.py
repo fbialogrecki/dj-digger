@@ -5,6 +5,7 @@ import queue
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -386,12 +387,47 @@ def test_local_waveform_arrives_after_pause_without_blocking_play(backend, tmp_p
         pause.result(timeout=2)
     finally:
         release.set()
-    snapshot = wait_event(events, 'audio')
-    while not snapshot.get('waveform'):
-        snapshot = wait_event(events, 'audio')
-    assert not snapshot['playing']
-    assert len(snapshot['waveform']) == 1024
-    assert max(snapshot['waveform']) > 0
+    waveform = wait_event(events, 'waveform')
+    assert waveform['key'] == track.key
+    assert len(waveform['samples']) == 1024
+    assert max(waveform['samples']) > 0
+    assert not wait_event(events, 'audio')['playing']
+
+
+def test_seeks_collapse_to_the_newest_and_nudges_add_up(backend, monkeypatch):
+    import asyncio
+
+    from dj_digger.models import Track
+    from dj_digger.player import Loaded
+    from dj_digger.services.playback import Stream
+
+    worker, events = backend
+    player = worker.services.player
+    player._loaded = Loaded(Track('Seekable', '', local_path='synthetic.wav'), Stream('synthetic.wav', duration=100))
+    applied = []
+
+    def slow_seek(seconds):
+        time.sleep(.05)
+        applied.append(seconds)
+        player._offset = seconds
+
+    monkeypatch.setattr(player, 'seek', slow_seek)
+    try:
+        for value in range(1, 21):
+            worker.submit('transport', {'operation': 'seek', 'value': value})
+        worker.submit('transport', {'operation': 'nudge', 'value': 10})
+        worker.submit('transport', {'operation': 'nudge', 'value': -3})
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline and not (applied and applied[-1] == 27):
+            time.sleep(.02)
+        assert applied[-1] == 27 and len(applied) < 10
+        assert applied[0] == 1  # the first seek was already running when the rest arrived
+        # Every applied seek publishes a snapshot immediately rather than waiting for the ticker.
+        assert wait_event(events, 'audio')['position'] in applied
+        assert asyncio.run_coroutine_threadsafe(worker.action_transport({'operation': 'nudge', 'value': 5}), worker.loop).result(2) is None
+        assert applied[-1] == 32
+    finally:
+        player._loaded = None
 
 
 def test_stopped_local_waveform_is_cancelled_and_cannot_restore_audio(backend, monkeypatch):
@@ -469,8 +505,9 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
         assert engine.rootObjects()
         window = engine.rootObjects()[0]
         bridge.receive('ready', {})
-        bridge.receive('audio', dict(title='Local fixture.wav', playing=True, position=1, duration=4,
-                                     waveform=[1000] * 512 + [200] * 512))
+        bridge.receive('audio', dict(key='w', title='Local fixture.wav', playing=True, position=1, duration=4))
+        bridge.receive('waveform', dict(key='w', samples=[1000] * 512 + [200] * 512))
+        assert len(bridge.waveform) == 1024
         tree = window.findChild(QQuickItem, 'directoryTree-music')
         canvas = window.findChild(QQuickItem, 'waveform')
         def find_item(item, name):
@@ -555,6 +592,26 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
                    for dx in range(width//2+4, width-2, 2) for dy in range(2, height//4))
         assert any(frame.pixelColor(x+dx, y+height-1) != background
                    for dx in range(width//2+4, width-2, 2))
+        # Scrubbing shows the pointer's time and sends one seek on release; the target stays on
+        # screen until the backend reports a matching position.
+        assert abs(canvas.property('fraction') - .25) < .01
+        seeks = lambda: [c[1]['value'] for c in bridge.backend.calls if c[0] == 'transport' and c[1]['operation'] == 'seek']  # noqa: E731
+        QTest.mousePress(window, Qt.LeftButton, pos=canvas.mapToScene(QPointF(canvas.width() * .5, 5)).toPoint())
+        QTest.mouseMove(window, canvas.mapToScene(QPointF(canvas.width() * .6, 5)).toPoint())
+        QTest.mouseMove(window, canvas.mapToScene(QPointF(canvas.width() * .75, 5)).toPoint())
+        assert abs(canvas.property('fraction') - .75) < .01 and not seeks()
+        QTest.mouseRelease(window, Qt.LeftButton, pos=canvas.mapToScene(QPointF(canvas.width() * .75, 5)).toPoint())
+        assert len(seeks()) == 1 and abs(seeks()[0] - 3) < .05
+        assert abs(canvas.property('fraction') - .75) < .01
+        bridge.receive('audio', dict(key='w', title='Local fixture.wav', playing=True, position=1, duration=4))
+        assert abs(canvas.property('fraction') - .75) < .01
+        bridge.receive('audio', dict(key='w', title='Local fixture.wav', playing=True, position=3, duration=4))
+        assert abs(canvas.property('fraction') - .75) < .01
+        bridge.receive('audio', dict(key='w', title='Local fixture.wav', playing=True, position=3.2, duration=4))
+        assert abs(canvas.property('fraction') - .8) < .01
+        assert len(bridge.waveform) == 1024
+        bridge.receive('audio', dict(key='other', title='Other', playing=True, position=0, duration=4))
+        assert bridge.waveform == []
         # Switch in place as in the user's screenshots; rendered delegates must
         # not retain light host-palette roles when the app selects a dark theme.
         def contrast(a, b):

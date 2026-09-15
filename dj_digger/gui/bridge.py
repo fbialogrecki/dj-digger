@@ -28,6 +28,8 @@ from .model import TrackModel
 class Bridge(QObject):
     event = Signal(str, object)
     changed = Signal()
+    audioChanged = Signal()
+    waveformChanged = Signal()
     rootsChanged = Signal()
     question = Signal('QVariantMap')
     dismiss = Signal(str)
@@ -53,6 +55,8 @@ class Bridge(QObject):
         self._refresh_roots()
         self._folder = dict(path='', offset=0, total=0, directories=[])
         self._audio = {}
+        self._waveform = []
+        self._waveform_key = ''
         self._busy = False
         self._message = ''
         self._ready = False
@@ -72,7 +76,9 @@ class Bridge(QObject):
     directoryModel = Property(QObject, lambda self: self._directories, constant=True)
     directoryRoots = Property('QVariantList', lambda self: self._roots, notify=rootsChanged)
     folder = Property('QVariantMap', lambda self: self._folder, notify=changed)
-    audio = Property('QVariantMap', lambda self: self._audio, notify=changed)
+    # Ten position ticks a second must not re-evaluate every view binding, nor carry the waveform.
+    audio = Property('QVariantMap', lambda self: self._audio, notify=audioChanged)
+    waveform = Property('QVariantList', lambda self: self._waveform, notify=waveformChanged)
     busy = Property(bool, lambda self: self._busy, notify=changed)
     ready = Property(bool, lambda self: self._ready, notify=changed)
     volume = Property(float, lambda self: self._volume, notify=changed)
@@ -116,6 +122,13 @@ class Bridge(QObject):
             self._folder = values
         elif kind == 'audio':
             self._audio = values
+            if values.get('key', '') != self._waveform_key:
+                self._set_waveform('', [])
+            self.audioChanged.emit()
+            return
+        elif kind == 'waveform':
+            self._set_waveform(values['key'], values['samples'])
+            return
         elif kind == 'busy':
             self._busy = values['value']
             if values['text']:
@@ -143,6 +156,11 @@ class Bridge(QObject):
                 self._close_timer.cancel()
             self.closed.emit()
         self.changed.emit()
+
+    def _set_waveform(self, key, samples):
+        if (key, samples) != (self._waveform_key, self._waveform):
+            self._waveform_key, self._waveform = key, samples
+            self.waveformChanged.emit()
 
     @Slot(str)
     @Slot(str, bool)
