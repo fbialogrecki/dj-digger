@@ -319,3 +319,16 @@ delegate's row, check that the selection bar is hidden without a selection,
 and assert the menu titles, shortcut column and shared left padding through
 `QQmlExpression`. Offscreen screenshots in Polish dark theme at 800×800 and
 760×520 were inspected; no Windows or macOS run is claimed.
+
+Same-day follow-up on the table header: dragging a divider did nothing because
+`columnWidthProvider` ignored `explicitColumnWidth()`, which Qt requires a
+provider to honour for `resizableColumns`. The provider now prefers the
+explicit width and the title column stops absorbing space once it has one.
+Double-clicking the 10 px divider strip calls `fitColumn()`, which measures
+`TrackModel.longestText(column)` (the visible cell with most characters) and
+the header with `TextMetrics`, badges included for the store column, and clamps
+to 40–600 px; taps in that strip do not sort. Right-click opens a column menu
+(fit column, fit all, reset widths, checkable visibility per column from
+`headerName()`; the title column is never hidden). `hiddenColumns` joins the
+private `gui.json` shape. Tests drive the header with `QTest` double- and
+right-clicks through `QQmlExpression` in the window's own context.

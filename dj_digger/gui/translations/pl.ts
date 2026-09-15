@@ -2,6 +2,9 @@
 <TS version="2.1" language="pl_PL" sourcelanguage="en">
   <context>
     <name>Main</name>
+    <message><source>Fit column to contents</source><translation>Dopasuj kolumnę do zawartości</translation></message>
+    <message><source>Fit all columns</source><translation>Dopasuj wszystkie kolumny</translation></message>
+    <message><source>Reset column widths</source><translation>Przywróć szerokości kolumn</translation></message>
     <message><source>Tools</source><translation>Narzędzia</translation></message>
     <message><source>View</source><translation>Widok</translation></message>
     <message><source>Expand</source><translation>Rozwiń</translation></message>

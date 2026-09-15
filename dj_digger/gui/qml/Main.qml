@@ -35,9 +35,47 @@ ApplicationWindow {
     property var messages: []
     property string errorMessage: ""
     readonly property bool pauseTarget: !!desktop.audio.playing && (!hasSelection || desktop.model.firstSelectedKey === desktop.audio.key)
-    property var columnWidths: [85, 150, 280, 85, 50, 45, 50, 95, 50, 140]
+    readonly property var defaultColumnWidths: [85, 150, 280, 85, 50, 45, 50, 95, 50, 140]
+    property var columnWidths: defaultColumnWidths.slice()
+    property var hiddenColumns: []
     readonly property int titleColumn: 2
-    function columnVisible(column) { return (column !== 4 && column !== 5) || !!desktop.view.local }
+    function columnAvailable(column) { return (column !== 4 && column !== 5) || !!desktop.view.local }
+    function columnVisible(column) { return columnAvailable(column) && hiddenColumns.indexOf(column) < 0 }
+    // Width of the widest visible value (or the header) in a column, in cell pixels.
+    function contentWidth(column) {
+        let sample = desktop.model.longestText(column)
+        let needed = 0
+        if (column === 9) {
+            needed = 12
+            for (let part of sample.split(", ").filter(s => s)) { badgeMetrics.text = part; needed += badgeMetrics.width + 14 }
+        } else {
+            fitMetrics.text = sample
+            needed = fitMetrics.width + 14 + (column === titleColumn ? 26 : 0)
+        }
+        fitMetrics.text = desktop.model.headerName(column) + " ▲"
+        return Math.ceil(Math.max(40, Math.min(600, Math.max(needed, fitMetrics.width + 10))))
+    }
+    function fitColumn(column) {
+        if (!columnVisible(column)) return
+        let width = contentWidth(column)
+        columnWidths[column] = width
+        table.setColumnWidth(column, width)
+        table.forceLayout()
+    }
+    function fitAllColumns() { for (let i = 0; i < 10; i++) fitColumn(i) }
+    function resetColumnWidths() {
+        table.clearColumnWidths()
+        columnWidths = defaultColumnWidths.slice()
+        table.forceLayout()
+    }
+    function toggleColumn(column) {
+        if (column === titleColumn) return
+        let hidden = hiddenColumns.slice()
+        let at = hidden.indexOf(column)
+        if (at >= 0) hidden.splice(at, 1); else hidden.push(column)
+        hiddenColumns = hidden
+        table.forceLayout()
+    }
     readonly property bool hasSelection: desktop.model.counts.selected > 0
     readonly property bool hasRows: desktop.model.counts.visible > 0
     readonly property bool loaded: !!desktop.audio.title
@@ -134,6 +172,8 @@ ApplicationWindow {
         themeChoice = ["system", "light", "dark"].indexOf(s.theme) >= 0 ? s.theme : "system"
         if (Array.isArray(s.columnWidths) && s.columnWidths.length === 10)
             columnWidths = s.columnWidths.map(v => Math.max(40, Math.min(600, Number(v) || 100)))
+        if (Array.isArray(s.hiddenColumns))
+            hiddenColumns = s.hiddenColumns.map(Number).filter(v => Number.isInteger(v) && v >= 0 && v < 10 && v !== titleColumn)
         sidebarWidth = Math.max(160, Math.min(400, Number(s.sidebarWidth) || 220))
         if (s.sidebarVisible === false) sidebarVisible = false
         desktop.language(languageCode)
@@ -145,7 +185,7 @@ ApplicationWindow {
             shuttingDown = true
             for (let i = 0; i < 10; i++) if (i !== titleColumn && columnVisible(i)) columnWidths[i] = table.columnWidth(i)
             desktop.saveSettings({sidebarWidth: sidebar.width, sidebarVisible: sidebarVisible, width: width, height: height, language: languageCode,
-                                  theme: themeChoice, columnWidths: columnWidths})
+                                  theme: themeChoice, columnWidths: columnWidths, hiddenColumns: hiddenColumns})
             desktop.close()
         }
     }
@@ -652,7 +692,14 @@ ApplicationWindow {
                         }
                         Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: root.alternate }
                         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: root.alternate }
-                        TapHandler { onTapped: desktop.model.sortBy(index) }
+                        // The divider strip belongs to resizing and fit-on-double-click, not to sorting.
+                        TapHandler { acceptedButtons: Qt.LeftButton; onTapped: eventPoint => { if (eventPoint.position.x < parent.width - 10) desktop.model.sortBy(index) } }
+                        TapHandler { acceptedButtons: Qt.RightButton; onTapped: { columnMenu.column = index; columnMenu.popup() } }
+                        Item {
+                            anchors.right: parent.right; width: 10; height: parent.height
+                            HoverHandler { cursorShape: Qt.SplitHCursor }
+                            TapHandler { acceptedButtons: Qt.LeftButton; gesturePolicy: TapHandler.WithinBounds; onDoubleTapped: root.fitColumn(index) }
+                        }
                     }
                 }
                 Item {
@@ -663,11 +710,16 @@ ApplicationWindow {
                     clip: true; model: desktop.model; reuseItems: true
                     // Title takes the remaining width so status and stores stay on screen.
                     // BPM and key only mean something for local files; SoundCloud rows never carry them.
+                    // A width the user dragged or fitted wins; without one the saved width applies.
+                    function chosenWidth(column) {
+                        let explicit = explicitColumnWidth(column)
+                        return explicit >= 0 ? explicit : root.columnWidths[column]
+                    }
                     columnWidthProvider: function(column) {
                         if (!root.columnVisible(column)) return 0
-                        if (column !== root.titleColumn) return root.columnWidths[column]
+                        if (column !== root.titleColumn || explicitColumnWidth(column) >= 0) return chosenWidth(column)
                         let used = 0
-                        for (let i = 0; i < 10; i++) if (i !== root.titleColumn && root.columnVisible(i)) used += root.columnWidths[i]
+                        for (let i = 0; i < 10; i++) if (i !== root.titleColumn && root.columnVisible(i)) used += chosenWidth(i)
                         return Math.max(150, width - used - 12)
                     }
                     property bool localView: !!desktop.view.local
@@ -842,6 +894,30 @@ ApplicationWindow {
         property string source
         AppMenuItem { text: qsTr("Open"); onTriggered: desktop.load(playlistMenu.source) }
         AppMenuItem { text: qsTr("Delete playlist…"); keys: "Shift+X"; onTriggered: desktop.deletePlaylist(playlistMenu.source) }
+    }
+    TextMetrics { id: fitMetrics }
+    TextMetrics { id: badgeMetrics; font.pixelSize: 12 }
+    AppMenu {
+        id: columnMenu
+        property int column: 0
+        AppMenuItem { text: qsTr("Fit column to contents"); onTriggered: root.fitColumn(columnMenu.column) }
+        AppMenuItem { text: qsTr("Fit all columns"); onTriggered: root.fitAllColumns() }
+        AppMenuItem { text: qsTr("Reset column widths"); onTriggered: root.resetColumnWidths() }
+        MenuSeparator {}
+        Instantiator {
+            model: 10
+            delegate: AppMenuItem {
+                required property int index
+                objectName: "column-" + index
+                // desktop.ready is notified again after every retranslation.
+                text: (desktop.ready, desktop.model.headerName(index))
+                checkable: true; checked: root.hiddenColumns.indexOf(index) < 0
+                enabled: index !== root.titleColumn && root.columnAvailable(index)
+                onTriggered: root.toggleColumn(index)
+            }
+            onObjectAdded: (index, object) => columnMenu.insertItem(columnMenu.count, object)
+            onObjectRemoved: (index, object) => columnMenu.removeItem(object)
+        }
     }
     AppMenu {
         id: contextMenu

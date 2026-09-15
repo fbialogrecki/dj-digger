@@ -12,7 +12,7 @@ import pytest
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 os.environ.setdefault('QT_QUICK_BACKEND', 'software')
 pytest.importorskip('PySide6')
-from PySide6.QtCore import Qt, QThread
+from PySide6.QtCore import QObject, Qt, QThread
 from PySide6.QtGui import QGuiApplication
 
 from dj_digger.config import AppConfig
@@ -60,6 +60,19 @@ def test_table_literal_text_and_numeric_sort(app):
     model.filter('other', 'bandcamp', False)
     assert model.rowCount() == 1
     assert model.visible[0]['key'] == '2'
+
+
+def test_table_longest_visible_text_and_header_names(app):
+    model = TrackModel()
+    model.replace([row('1', 'Short', 99), row('2', 'A much longer title', 120.5), row('3', 'Mid', 100)])
+    assert model.longestText(2) == 'A much longer title'
+    assert model.longestText(4) == '120.5'
+    assert model.longestText(0) == '·'
+    model.filter('short', '', False)
+    assert model.longestText(2) == 'Short'
+    assert model.longestText(42) == '' and model.longestText(-1) == ''
+    assert model.headerName(9) == 'Stores' and model.headerName(10) == ''
+    assert TrackModel().longestText(2) == ''
 
 
 def wait_event(events, kind):
@@ -655,6 +668,35 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
         assert qml('menuBar.menuAt(4).itemAt(1).checkable') is True
         assert qml('menuBar.menuAt(1).itemAt(0).leftPadding') == qml('menuBar.menuAt(4).itemAt(1).leftPadding')
         assert qml('contextMenu.itemAt(0).shortcutText') == 'Space'
+        # Columns: a dragged or fitted width wins over the saved one, the divider fits on
+        # double-click without sorting, and the header menu toggles visibility.
+        settle()
+        qml('table.setColumnWidth(1, 222); table.forceLayout()')
+        assert qml('table.columnWidth(1)') == 222
+        qml('fitColumn(3)')
+        assert qml('table.columnWidth(3)') == qml('contentWidth(3)') > 40
+        assert qml('contentWidth(2)') > qml('contentWidth(0)')
+        settle()
+        edge = qml('header.mapToItem(null, table.columnWidth(0) + table.columnWidth(1) - 3, 16)').toPoint()
+        QTest.mouseDClick(window, Qt.LeftButton, pos=edge)
+        settle()
+        assert qml('table.columnWidth(1)') == qml('contentWidth(1)') != 222
+        assert bridge.table.sort_column == -1
+        middle = qml('header.mapToItem(null, table.columnWidth(0) + 40, 16)').toPoint()
+        QTest.mouseClick(window, Qt.RightButton, pos=middle)
+        settle()
+        assert qml('columnMenu.visible') is True and qml('columnMenu.column') == 1
+        genre = window.findChild(QObject, 'column-3')
+        assert genre.property('text') == 'Gatunek' and genre.property('checked') is True
+        assert window.findChild(QObject, 'column-2').property('enabled') is False
+        qml('columnMenu.close()')
+        qml('toggleColumn(3)')
+        # Unloaded (zero-width) columns report -1 from TableView.
+        assert qml('table.columnWidth(3)') <= 0 and genre.property('checked') is False
+        assert window.property('hiddenColumns').toVariant() == [3]
+        qml('toggleColumn(3); resetColumnWidths()')
+        assert qml('table.columnWidth(3)') == 85 and qml('table.columnWidth(1)') == 150
+        assert window.property('hiddenColumns').toVariant() == []
         for theme in ('light', 'dark'):
             window.setProperty('themeChoice', theme)
             settle()

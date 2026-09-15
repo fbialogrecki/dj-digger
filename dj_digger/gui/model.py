@@ -64,6 +64,17 @@ class TrackModel(QAbstractTableModel):
             return self.tr(HEADERS[section])
         return super().headerData(section, orientation, role)
 
+    @Slot(int, result=str)
+    def headerName(self, column):
+        return self.headerData(column, Qt.Horizontal) if 0 <= column < len(COLUMNS) else ''
+
+    @Slot(int, result=str)
+    def longestText(self, column):
+        """Visible cell text with the most characters; the view measures it for fit-to-contents."""
+        if not 0 <= column < len(COLUMNS):
+            return ''
+        return max((self.data(self.index(i, column)) for i in range(len(self.visible))), key=len, default='')
+
     def replace(self, rows):
         self.rows = rows
         self.progress.clear()
