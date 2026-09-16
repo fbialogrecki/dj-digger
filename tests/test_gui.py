@@ -773,7 +773,9 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
         assert qml('table.columnWidth(1)') == 222
         qml('fitColumn(3)')
         assert qml('table.columnWidth(3)') == qml('contentWidth(3)') > 40
-        assert qml('contentWidth(2)') > qml('contentWidth(0)')
+        short_title_width = qml('contentWidth(2)')
+        bridge.table.update_rows([row('a', 'A much longer track title that needs a wider column')])
+        assert qml('contentWidth(2)') > short_title_width
         settle()
         edge = qml('header.mapToItem(null, table.columnWidth(0) + table.columnWidth(1) - 3, 16)').toPoint()
         QTest.mouseDClick(window, Qt.LeftButton, pos=edge)
