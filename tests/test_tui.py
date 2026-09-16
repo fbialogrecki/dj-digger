@@ -1687,22 +1687,11 @@ def crate_of(count, *, title="Fresh crate", source="https://soundcloud.com/a/set
     )
 
 
-async def wait_for_ui(pilot, ready):
-    """Wait for queued input, worker follow-ups or layout frames, with a deadline."""
-    for _ in range(60):
-        await pilot.pause(0.05)
-        if ready():
-            return
-    raise AssertionError('Expected UI state was not reached')
-
-
 async def settle(app, pilot):
     """Wait for background workers to finish and the UI to catch up."""
 
     await app.workers.wait_for_complete()
     await pilot.pause()
-
-
 
 async def wait_for_ui(pilot, ready):
     """Wait for resize/recompose callbacks, bounded even when rendering breaks."""
