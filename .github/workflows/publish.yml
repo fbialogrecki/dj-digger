@@ -47,7 +47,7 @@ jobs:
         if: runner.os == 'Windows'
         run: choco install ffmpeg --yes --no-progress
       - name: Run tests
-        run: uv run --extra dev --extra analyze --python ${{ matrix.python-version }} pytest
+        run: uv run --frozen --extra dev --extra analyze --python ${{ matrix.python-version }} pytest
       - name: Build and verify isolated installation
         run: |
           uv build
@@ -63,9 +63,9 @@ jobs:
         if: matrix.python-version == '3.14'
         run: |
           uv build --project .legacy-release --out-dir .legacy-dist
-          uv run --no-sync python scripts/tool_migration_smoke.py .legacy-dist/dj_soundcloud_digger-1.0.1-py3-none-any.whl dist/dj_digger-1.1.0-py3-none-any.whl --manager pip
-          uv run --no-sync python scripts/tool_migration_smoke.py .legacy-dist/dj_soundcloud_digger-1.0.1-py3-none-any.whl dist/dj_digger-1.1.0-py3-none-any.whl --manager pipx
-          uv run --no-sync python scripts/tool_migration_smoke.py .legacy-dist/dj_soundcloud_digger-1.0.1-py3-none-any.whl dist/dj_digger-1.1.0-py3-none-any.whl --manager uv
+          uv run --no-sync python scripts/tool_migration_smoke.py .legacy-dist/dj_soundcloud_digger-1.0.1-py3-none-any.whl --manager pip
+          uv run --no-sync python scripts/tool_migration_smoke.py .legacy-dist/dj_soundcloud_digger-1.0.1-py3-none-any.whl --manager pipx
+          uv run --no-sync python scripts/tool_migration_smoke.py .legacy-dist/dj_soundcloud_digger-1.0.1-py3-none-any.whl --manager uv
 
   pypi-publish:
     if: github.event_name == 'workflow_dispatch' || github.event.release.prerelease == false

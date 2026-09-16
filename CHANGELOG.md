@@ -1,5 +1,44 @@
 # Changelog
 
+## 1.2.0 — 2026-09-16
+
+### Added
+
+- Optional Qt Quick desktop with English/Polish menus, light/dark themes, playlist
+  and local-folder navigation, waveform playback, downloads, analysis and audio export.
+- Self-contained Windows 11 x64 installer and macOS 15+ disk images for Apple
+  Silicon and Intel. Desktop packages remain unsigned previews without automatic updates.
+- English installation guides covering downloads, first-launch warnings, updates
+  and removal for Windows and Mac.
+
+### Improved
+
+- Desktop toolbar, selection actions, full-width status bar, native file pickers,
+  and resizable, reorderable and hideable columns with saved preferences.
+- Playback responsiveness through retained decoded audio, coalesced seeks and
+  waveform updates independent of position ticks.
+- Manual download-gate sessions can advance other tabs while provider login waits.
+
+### Fixed
+
+- Default installations include the audio decoder required for playback.
+- Legacy libraries migrate without rejecting their older local-file layout;
+  large Windows filesystem identities retain their exact values.
+- Mac application bundles start the windowed GUI and include native media tools
+  and an analysis helper for each supported processor.
+- Package metadata and version reporting use the published `dj-sc-digger` name;
+  release checks find the current wheel without hard-coded version filenames.
+
+### Limitations
+
+- Desktop installers are previews. Automated startup, media, browser and installer
+  checks do not establish physical audio-device, screen-reader, high-DPI or full
+  keyboard/mouse acceptance on every supported platform.
+- Windows may warn about an unrecognized publisher. Mac packages have ad-hoc
+  signatures only, without Developer ID or Apple notarization. See the installation guide.
+- Existing provider, analysis-accuracy and hardware-compatibility limitations from
+  1.1.0 still apply.
+
 ## 1.1.0 — 2026-09-09
 
 ### Added

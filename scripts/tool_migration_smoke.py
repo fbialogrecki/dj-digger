@@ -1,19 +1,26 @@
 """Exercise actual pip, pipx and uv-tool uninstall/reinstall in temporary homes."""
 import argparse
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import tomllib
 from pathlib import Path
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('legacy', type=Path)
-    parser.add_argument('new', type=Path)
+    parser.add_argument('new', type=Path, nargs='?')
     parser.add_argument('--manager', choices=('pip', 'pipx', 'uv'), required=True)
     options = parser.parse_args()
+    if options.new is None:
+        project = Path(__file__).resolve().parents[1]
+        metadata = tomllib.loads((project / 'pyproject.toml').read_text())['project']
+        name = re.sub(r'[-_.]+', '_', metadata['name']).lower()
+        options.new = project / 'dist' / f"{name}-{metadata['version']}-py3-none-any.whl"
     old, new = str(options.legacy.resolve()), str(options.new.resolve())
     with tempfile.TemporaryDirectory(prefix='dj-digger-migrate-') as temporary:
         root = Path(temporary)

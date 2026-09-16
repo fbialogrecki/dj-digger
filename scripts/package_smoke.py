@@ -43,7 +43,8 @@ with wave.open('audio.wav', 'wb') as output:
     output.writeframes(bytes(8820))
 assert len(_import_miniaudio().decode_file('audio.wav').samples) > 0
 '''], check=True, cwd=root, env=env)
-        subprocess.run([str(python), '-m', 'dj_digger', '--version'], check=True, cwd=root, env=env)
+        output = subprocess.check_output([str(python), '-m', 'dj_digger', '--version'], text=True, cwd=root, env=env)
+        assert output.strip() == f"dj-digger {wheel.name.split('-')[1]}", output
         subprocess.run([str(python), '-m', 'dj_digger', '--help'], check=True, cwd=root, env=env, stdout=subprocess.DEVNULL)
         assert sentinel.read_text() == 'user data stays'
 

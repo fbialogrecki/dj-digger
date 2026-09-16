@@ -4,12 +4,13 @@ import shutil
 import sys
 import tomllib
 from pathlib import Path
-from PyInstaller.utils.hooks import collect_all
+from PyInstaller.utils.hooks import collect_all, copy_metadata
 
 root = Path(SPECPATH).parent
 macos = sys.platform == "darwin"
 datas = [(str(root / 'dj_digger' / 'gui' / 'qml'), 'dj_digger/gui/qml'),
          (str(root / 'dj_digger' / 'gui' / 'translations'), 'dj_digger/gui/translations')]
+datas += copy_metadata('dj-sc-digger')
 binaries, hiddenimports = [], []
 if macos:
     for tool in ("ffmpeg", "ffprobe"):

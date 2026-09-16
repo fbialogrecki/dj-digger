@@ -2,11 +2,11 @@
 
 - Status: current implemented system
 - Document version: 1.1
-- Product version verified: 1.1.0 (working tree)
+- Product version verified: 1.2.0 (working tree)
 - Owner: Filip Białogrecki
-- Updated: 2026-09-10
-- Document lines: <!-- SPEC TOTAL LINES -->1588<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1588<!-- END SPEC MAP LIMIT -->
+- Updated: 2026-09-16
+- Document lines: <!-- SPEC TOTAL LINES -->1600<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1600<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -67,48 +67,48 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 5.1 | ↳ Entry, orchestration, and models | 785–796 |
 | 5.2 | ↳ Network and external-system adapters | 797–815 |
 | 5.3 | ↳ Persistence, local media, and UI | 816–857 |
-| 6 | Runtime architecture and environments | 858–970 |
-| 6.1 | ↳ Runtime and dependencies | 860–877 |
-| 6.2 | ↳ Concurrency and lifecycle | 878–949 |
-| 6.3 | ↳ Local paths and environment variables | 950–970 |
-| 7 | Data model and persistence | 971–1069 |
-| 7.1 | ↳ Domain objects and identity | 973–987 |
-| 7.2 | ↳ SQLite schema and invariants | 988–1036 |
-| 7.3 | ↳ Crate persistence and deletion | 1037–1052 |
-| 7.4 | ↳ Configuration and credential stores | 1053–1069 |
-| 8 | Public interfaces and contracts | 1070–1126 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1072–1100 |
-| 8.2 | ↳ JSON and CSV summary input | 1101–1115 |
-| 8.3 | ↳ URL-opening contract | 1116–1126 |
-| 9 | Authentication and authorization | 1127–1170 |
-| 9.1 | ↳ SoundCloud authentication | 1129–1149 |
-| 9.2 | ↳ Gate action consent | 1150–1170 |
-| 10 | External integrations | 1171–1313 |
-| 10.1 | ↳ SoundCloud API and media | 1173–1184 |
-| 10.2 | ↳ Link hubs and download gates | 1185–1254 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1193–1240 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1242–1247 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1249–1254 |
-| 10.3 | ↳ Browsers and clipboard | 1255–1266 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1267–1313 |
-| 11 | Security requirements and threat model | 1314–1368 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1316–1334 |
-| 11.2 | ↳ Secret and personal-data handling | 1335–1350 |
-| 11.3 | ↳ File and mutation safety | 1351–1368 |
-| 12 | Privacy, lifecycle, and retention | 1369–1412 |
-| 12.1 | ↳ Data stored locally | 1371–1390 |
-| 12.2 | ↳ Data sent to third parties | 1391–1402 |
-| 12.3 | ↳ User-controlled deletion | 1403–1412 |
-| 13 | Failure behavior and current limitations | 1413–1473 |
-| 13.1 | ↳ Error isolation and reporting | 1415–1434 |
-| 13.2 | ↳ Confirmed limitations | 1435–1473 |
-| 14 | Verification, CI, and release | 1474–1559 |
-| 14.1 | ↳ Offline and live test suites | 1476–1522 |
-| 14.2 | ↳ Continuous integration and publishing | 1523–1544 |
-| 14.3 | ↳ Specification-map verification | 1545–1559 |
-| 15 | Evidence and operational references | 1560–1588 |
-| 15.1 | ↳ Primary implementation evidence | 1562–1578 |
-| 15.2 | ↳ User and historical documentation | 1579–1588 |
+| 6 | Runtime architecture and environments | 858–973 |
+| 6.1 | ↳ Runtime and dependencies | 860–880 |
+| 6.2 | ↳ Concurrency and lifecycle | 881–952 |
+| 6.3 | ↳ Local paths and environment variables | 953–973 |
+| 7 | Data model and persistence | 974–1072 |
+| 7.1 | ↳ Domain objects and identity | 976–990 |
+| 7.2 | ↳ SQLite schema and invariants | 991–1039 |
+| 7.3 | ↳ Crate persistence and deletion | 1040–1055 |
+| 7.4 | ↳ Configuration and credential stores | 1056–1072 |
+| 8 | Public interfaces and contracts | 1073–1129 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1075–1103 |
+| 8.2 | ↳ JSON and CSV summary input | 1104–1118 |
+| 8.3 | ↳ URL-opening contract | 1119–1129 |
+| 9 | Authentication and authorization | 1130–1173 |
+| 9.1 | ↳ SoundCloud authentication | 1132–1152 |
+| 9.2 | ↳ Gate action consent | 1153–1173 |
+| 10 | External integrations | 1174–1316 |
+| 10.1 | ↳ SoundCloud API and media | 1176–1187 |
+| 10.2 | ↳ Link hubs and download gates | 1188–1257 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1196–1243 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1245–1250 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1252–1257 |
+| 10.3 | ↳ Browsers and clipboard | 1258–1269 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1270–1316 |
+| 11 | Security requirements and threat model | 1317–1371 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1319–1337 |
+| 11.2 | ↳ Secret and personal-data handling | 1338–1353 |
+| 11.3 | ↳ File and mutation safety | 1354–1371 |
+| 12 | Privacy, lifecycle, and retention | 1372–1415 |
+| 12.1 | ↳ Data stored locally | 1374–1393 |
+| 12.2 | ↳ Data sent to third parties | 1394–1405 |
+| 12.3 | ↳ User-controlled deletion | 1406–1415 |
+| 13 | Failure behavior and current limitations | 1416–1476 |
+| 13.1 | ↳ Error isolation and reporting | 1418–1437 |
+| 13.2 | ↳ Confirmed limitations | 1438–1476 |
+| 14 | Verification, CI, and release | 1477–1571 |
+| 14.1 | ↳ Offline and live test suites | 1479–1525 |
+| 14.2 | ↳ Continuous integration and publishing | 1526–1556 |
+| 14.3 | ↳ Specification-map verification | 1557–1571 |
+| 15 | Evidence and operational references | 1572–1600 |
+| 15.1 | ↳ Primary implementation evidence | 1574–1590 |
+| 15.2 | ↳ User and historical documentation | 1591–1600 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -859,6 +859,9 @@ playback time and are not stored in the crate record.
 
 ### 6.1 Runtime and dependencies
 
+The PyPI distribution is `dj-sc-digger`; the Python module and command remain
+`dj_digger` and `dj-digger`. Version reporting reads the `dj-sc-digger` distribution
+metadata, which is also included in frozen desktop bundles.
 The package requires Python 3.12 or newer and is built with Hatchling. Runtime
 dependencies are `requests`, `beautifulsoup4`, `textual` (pinned to the 8.x
 line because the TUI relies on its binding semantics and a few private hooks),
@@ -1530,6 +1533,15 @@ Each job builds and checks an isolated bare-wheel installation, including native
 audio decoding without optional extras. Python 3.14 jobs
 on each OS additionally build the pinned legacy informational package and verify
 pip, pipx and uv uninstall/reinstall migration with temporary data sentinels.
+Migration checks derive the new wheel filename from current project metadata.
+The isolated package check verifies the reported version against the wheel name.
+
+`.github/workflows/desktop.yml` runs GUI contracts and isolated startup on Linux,
+Windows and macOS. It builds a Windows x64 installer and native macOS arm64 and
+x86_64 DMGs, verifies their bundled runtime and installation, and uploads test
+artifacts. These are unsigned desktop previews; physical-device and interactive
+acceptance remain separate from the automated checks. User installation steps
+and per-app security-warning guidance live in `docs/installation.md`.
 
 `.github/workflows/live.yml` runs the `live` marker weekly on Monday at 06:00 UTC
 and by manual dispatch. It is an external-contract monitor rather than a release

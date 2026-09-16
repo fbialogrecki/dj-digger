@@ -211,8 +211,8 @@ wheels = [
 ]
 
 [[package]]
-name = "dj-digger"
-version = "1.1.0"
+name = "dj-sc-digger"
+version = "1.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },

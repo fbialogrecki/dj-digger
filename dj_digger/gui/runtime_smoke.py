@@ -10,10 +10,12 @@ def run(directory):
     import miniaudio
     from playwright.sync_api import sync_playwright
 
+    from .. import __version__
     from ..analysis import analyze_spawned
     from ..media import probe
 
     root = Path(directory)
+    assert __version__ != '0.0.0+unknown', 'Application version metadata is missing'
     source = root / 'synthetic.wav'
     with wave.open(str(source), 'wb') as output:
         output.setnchannels(1)

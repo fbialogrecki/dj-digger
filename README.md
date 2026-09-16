@@ -25,7 +25,25 @@ dj-digger https://soundcloud.com/someone/sets/that-playlist
 
 ---
 
-## Qt Quick desktop (development branch)
+## 🖥️ Install the desktop app
+
+**No Python or terminal commands needed.** Use our step-by-step guides:
+
+| Your computer | Installation guide |
+| --- | --- |
+| Windows 11 — Intel or AMD, 64-bit | [Install on Windows](docs/installation.md#windows) |
+| macOS 15 or newer — Apple Silicon or Intel | [Install on Mac](docs/installation.md#mac) |
+
+> **Preview downloads:** dj-digger is a free, open-source hobby project. These
+> desktop previews do not have a verified publisher signature or Apple
+> notarization, so your computer may warn that the app is unrecognized or might
+> be unsafe. The guides explain why this happens and how to approve the specific
+> app when that option is available. Keep your system security protections on.
+
+[Find the right download](docs/installation.md#find-the-right-download) ·
+[Official downloads](https://github.com/fbialogrecki/dj-digger/releases)
+
+## Qt Quick desktop (preview)
 
 The optional desktop runs locally using Qt Quick, without a WebView. From this
 checkout:
@@ -46,10 +64,8 @@ stay disabled without one; "all visible" variants are separate menu entries.
 
 The `Desktop tests and test installers` workflow builds an offline Windows 11
 x64 test installer and macOS 15+ DMGs for Apple Silicon (`arm64`) and Intel
-(`x86_64`). On a Mac, open the matching DMG, drag `dj-digger.app` to Applications,
-eject the image and launch the app from Applications. Python and terminal commands
-are not needed. These are test packages without a Developer ID signature or
-Apple notarization; macOS may require per-app approval on first launch. See the
+(`x86_64`). For installation and first-launch warnings, see the
+[desktop installation guide](docs/installation.md). See the
 [desktop implementation and acceptance record](docs/implementation/qt-quick-desktop.md)
 for commands, coverage and remaining platform checks.
 
@@ -98,8 +114,8 @@ for commands, coverage and remaining platform checks.
 
 ## 📦 Installation
 
-**Version 1.1.0 is available on [PyPI](https://pypi.org/project/dj-sc-digger/1.1.0/)
-and [GitHub Releases](https://github.com/fbialogrecki/dj-digger/releases/tag/v1.1.0).**
+**Version 1.2.0 is available on [PyPI](https://pypi.org/project/dj-sc-digger/1.2.0/)
+and [GitHub Releases](https://github.com/fbialogrecki/dj-digger/releases/tag/v1.2.0).**
 Install the package `dj-sc-digger`; launch it with `dj-digger`.
 
 Upgrading from `dj-soundcloud-digger`? Follow the

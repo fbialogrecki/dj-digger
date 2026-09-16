@@ -1,15 +1,43 @@
-dj-digger — test version / wersja testowa
+dj-digger — desktop preview / wersja testowa
+
+ENGLISH — GETTING STARTED
 
 Requires macOS 15 or newer. Choose arm64 for Apple Silicon (M-series),
 x86_64 for Intel. Python, FFmpeg and the browser components are included.
 
-Open the DMG and drag dj-digger.app onto Applications. Eject the disk image,
-then open dj-digger from Applications. No terminal commands are needed.
+Not sure which Mac you have? Open Apple menu > About This Mac. An Apple M-series
+chip needs arm64; an Intel processor needs x86_64.
 
-This test app has no Developer ID signature or Apple notarization. macOS may
-block its first launch. Only if you trust this download, use System Settings >
-Privacy & Security > Open Anyway for this app. Do not disable system security.
-This package is for testing; automatic updates are not included.
+1. Drag dj-digger.app onto Applications and wait for the copy to finish.
+2. Eject the dj-digger disk image in Finder.
+3. Open Finder > Applications and double-click dj-digger.
+
+IF YOUR MAC SHOWS A SECURITY WARNING
+
+dj-digger is a free, open-source hobby project. This preview has no verified
+Developer ID signature or Apple notarization. Signing involves costs and
+administration the project has not taken on for these previews, so macOS may
+say it cannot verify the developer or check the app for malicious software.
+Open source does not guarantee a download is safe. Only continue if you trust
+the project and downloaded the app from github.com/fbialogrecki/dj-digger.
+
+For an unidentified-developer or missing-notarization warning:
+1. Dismiss the warning after trying to open dj-digger from Applications.
+2. Open System Settings > Privacy & Security.
+3. Find the message about dj-digger and choose Open Anyway, if available.
+4. Confirm when prompted; your Mac may ask for your password or Touch ID.
+
+This approves this app only. Keep your Mac's security protections on.
+If macOS reports malware, damage, or that the app will harm your computer,
+stop and report the exact message instead of bypassing security checks.
+
+FULL GUIDE AND HELP
+
+https://github.com/fbialogrecki/dj-digger/blob/main/docs/installation.md#mac
+Apple's guide: https://support.apple.com/en-gb/102445
+
+This is a preview and may have bugs. Updates are manual: close dj-digger,
+download the new DMG for your Mac, and replace the app in Applications.
 
 --- Polski ---
 

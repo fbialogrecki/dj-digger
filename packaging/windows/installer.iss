@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "1.1.0"
+  #error AppVersion must be supplied by packaging/windows/build.py
 #endif
 [Setup]
 AppId={{0A2D7B4C-42B7-4C68-8A94-7032A35116D3}
