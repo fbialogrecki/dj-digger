@@ -16,7 +16,7 @@ def main():
     options = parser.parse_args()
     if options.wheel is None:
         project = Path(__file__).resolve().parents[1]
-        metadata = tomllib.loads((project / 'pyproject.toml').read_text())['project']
+        metadata = tomllib.loads((project / 'pyproject.toml').read_text(encoding='utf-8'))['project']
         name = re.sub(r'[-_.]+', '_', metadata['name']).lower()
         options.wheel = project / 'dist' / f"{name}-{metadata['version']}-py3-none-any.whl"
     wheel = options.wheel.resolve()

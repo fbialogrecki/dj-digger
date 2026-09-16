@@ -32,7 +32,7 @@ def analyze_file(path: str, cancel=None, *, temporary_root=None) -> dict:
         import librosa
         import numpy as np
     except ImportError as exc:
-        raise MediaError("Analysis needs the optional extra: pip install 'dj-digger[analyze]'") from exc
+        raise MediaError("Analysis needs the optional extra: pip install 'dj-sc-digger[analyze]'") from exc
     source = Path(path)
     metadata = probe(source, cancel)
     if metadata['channels'] not in (1, 2):

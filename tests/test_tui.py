@@ -1489,12 +1489,10 @@ def test_search_reaches_genre_and_tags(state):
     async def scenario():
         async with app.run_test() as pilot:
             await pilot.press("slash")
-            app.query_one("#search").value = "dub"
-            await pilot.pause()
-            assert [row.position for row in app.playlist_state.visible_rows] == [3]
-            app.query_one("#search").value = "berlin"
-            await pilot.pause()
-            assert [row.position for row in app.playlist_state.visible_rows] == [1]
+            for term, position in [("dub", 3), ("berlin", 1)]:
+                app.query_one("#search").value = term
+                await wait_for_ui(pilot, lambda: app.playlist_state.search_term == term)
+                assert [row.position for row in app.playlist_state.visible_rows] == [position]
 
     run(scenario)
 
@@ -1687,6 +1685,15 @@ def crate_of(count, *, title="Fresh crate", source="https://soundcloud.com/a/set
             for index in range(count)
         ],
     )
+
+
+async def wait_for_ui(pilot, ready):
+    """Wait for queued input, worker follow-ups or layout frames, with a deadline."""
+    for _ in range(60):
+        await pilot.pause(0.05)
+        if ready():
+            return
+    raise AssertionError('Expected UI state was not reached')
 
 
 async def settle(app, pilot):
@@ -5133,14 +5140,14 @@ def test_local_explorer_and_export_dialog_defaults(state, tmp_path, monkeypatch)
     from textual.widgets import Checkbox, Tree
 
     from dj_digger.services.local_library import LocalLibrary
-    from dj_digger.tui.local_screens import ExportOptions
+    from dj_digger.tui.local_screens import AnalysisEdit, ExportOptions
 
     path = tmp_path / 'local.wav'
     path.write_bytes(b'not decoded in this UI test')
     local = LocalLibrary(state.db)
     track = local.register(path)
     monkeypatch.setattr(LocalLibrary, 'register', lambda self, path, **kwargs: track)
-    app = make_app([], state)
+    app = make_app(synthetic_records(1), state)
 
     async def scenario():
         async with app.run_test(size=(140, 50)) as pilot:
@@ -5159,7 +5166,7 @@ def test_local_explorer_and_export_dialog_defaults(state, tmp_path, monkeypatch)
             assert not app.screen.query_one('#replace', Checkbox).value
             await pilot.press('escape')
             app.action_local_edit()
-            await pilot.pause()
+            await wait_for_ui(pilot, lambda: isinstance(app.screen, AnalysisEdit) and app.screen.is_mounted)
             app.screen.query_one('#bpm', Input).value = '128'
             app.screen.query_one('#save', Button).press()
             await pilot.pause()  # dispatch Button.Pressed before waiting for its worker
@@ -5370,6 +5377,8 @@ def test_explorer_delete_requires_confirmation_and_removes_disk_file(state, tmp_
             assert path.exists()
             await pilot.press('x', 'y')
             await settle(app, pilot)
+            # Deletion starts a second worker to reload the folder.
+            await wait_for_ui(pilot, lambda: app.playlist_state.rows == [])
             assert not path.exists()
             assert not state.db.media(track.local_id)['available']
             # Deletion starts a separate folder reload worker.
@@ -5477,7 +5486,6 @@ def test_resize_keeps_sort_selection_and_local_metadata_columns(records, state):
             app.table_controller.rebuild_columns()
             for size in [(80, 24), (150, 42), (80, 24)]:
                 await pilot.resize_terminal(*size)
-                await pilot.pause()
                 table = app.query_one('#tracks', DataTable)
                 footer = app.query_one(FittedFooter)
                 await wait_for_ui(pilot, lambda: not table.show_horizontal_scrollbar
@@ -5487,7 +5495,6 @@ def test_resize_keeps_sort_selection_and_local_metadata_columns(records, state):
                 assert app.playlist_state.selected == selected
                 assert not table.show_horizontal_scrollbar
                 assert len(table.get_row_at(0)) == len(table.columns)
-                footer = app.query_one(FittedFooter)
                 assert all(child.region.right <= footer.region.right for child in footer.children)
             app.playlist_state.local_view = True
             app.table_controller.refresh_rows()

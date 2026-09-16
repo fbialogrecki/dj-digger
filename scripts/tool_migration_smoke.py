@@ -18,7 +18,7 @@ def main():
     options = parser.parse_args()
     if options.new is None:
         project = Path(__file__).resolve().parents[1]
-        metadata = tomllib.loads((project / 'pyproject.toml').read_text())['project']
+        metadata = tomllib.loads((project / 'pyproject.toml').read_text(encoding='utf-8'))['project']
         name = re.sub(r'[-_.]+', '_', metadata['name']).lower()
         options.new = project / 'dist' / f"{name}-{metadata['version']}-py3-none-any.whl"
     old, new = str(options.legacy.resolve()), str(options.new.resolve())
