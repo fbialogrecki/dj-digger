@@ -46,6 +46,7 @@ from ..paths import data_dir
 from ..store_urls import (
     STORE_HOME,
     STORE_HOSTS,
+    STORE_LOGIN,
     _direct_beatport_track_url,
     canonical_store_url,
 )
@@ -441,7 +442,8 @@ class CartBrowserSession:
         cancel: asyncio.Event,
         progress: ProgressCallback | None = None,
     ) -> None:
-        wanted = tuple(dict.fromkeys(store for store in stores if store in STORE_HOSTS))
+        # Only stores with a login page; Beatport is reached through Soundiiz instead.
+        wanted = tuple(dict.fromkeys(store for store in stores if store in STORE_LOGIN))
         if not wanted:
             return
         async with self._lock:

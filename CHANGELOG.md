@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- Desktop Add playlist collects the entered URL or saved HTML file instead of
+  failing with `'dict' object has no attribute 'strip'`.
+- Desktop Store accounts signs in to Bandcamp only instead of failing with `'beatport'`.
+- Desktop Settings no longer brings back the reserved placeholder email after an
+  empty email was saved, so settings save without clearing the field again.
+- Desktop summary import asks for a JSON file, and loading a CSV export says it
+  is output-only instead of reporting invalid JSON.
+- Desktop Replace originals no longer asks for a destination folder.
+- A partial desktop export names the first failed file and its reason in the
+  error banner, and finished operations no longer leave their label in the status bar.
+
 ## 1.2.0 — 2026-09-16
 
 ### Added

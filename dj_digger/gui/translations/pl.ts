@@ -659,8 +659,8 @@
       <translation>Usuń playlistę</translation>
     </message>
     <message>
-      <source>Destination folder</source>
-      <translation>Folder docelowy</translation>
+      <source>Destination folder (Copy only)</source>
+      <translation>Folder docelowy (tylko Kopiuj)</translation>
     </message>
     <message>
       <source>Mode: copy / replace</source>
@@ -803,8 +803,8 @@
       <translation>Importuj zapisane zestawienie</translation>
     </message>
     <message>
-      <source>JSON or CSV file</source>
-      <translation>Plik JSON lub CSV</translation>
+      <source>JSON file</source>
+      <translation>Plik JSON</translation>
     </message>
     <message>
       <source>Pin current folder</source>
@@ -849,6 +849,14 @@
     <message>
       <source>Export: {0}; missing files: {1}</source>
       <translation>Eksport: {0}; brakujących plików: {1}</translation>
+    </message>
+    <message>
+      <source>Export: {0}; missing files: {1}; {2}: {3}</source>
+      <translation>Eksport: {0}; brakujących plików: {1}; {2}: {3}</translation>
+    </message>
+    <message>
+      <source>Bandcamp session is ready</source>
+      <translation>Sesja Bandcamp jest gotowa</translation>
     </message>
     <message>
       <source>Replace existing file</source>
@@ -1250,8 +1258,8 @@
       <translation>Usuń playlistę</translation>
     </message>
     <message>
-      <source>Destination folder</source>
-      <translation>Folder docelowy</translation>
+      <source>Destination folder (Copy only)</source>
+      <translation>Folder docelowy (tylko Kopiuj)</translation>
     </message>
     <message>
       <source>Mode: copy / replace</source>
@@ -1394,8 +1402,8 @@
       <translation>Importuj zapisane zestawienie</translation>
     </message>
     <message>
-      <source>JSON or CSV file</source>
-      <translation>Plik JSON lub CSV</translation>
+      <source>JSON file</source>
+      <translation>Plik JSON</translation>
     </message>
     <message>
       <source>Pin current folder</source>
@@ -1440,6 +1448,14 @@
     <message>
       <source>Export: {0}; missing files: {1}</source>
       <translation>Eksport: {0}; brakujących plików: {1}</translation>
+    </message>
+    <message>
+      <source>Export: {0}; missing files: {1}; {2}: {3}</source>
+      <translation>Eksport: {0}; brakujących plików: {1}; {2}: {3}</translation>
+    </message>
+    <message>
+      <source>Bandcamp session is ready</source>
+      <translation>Sesja Bandcamp jest gotowa</translation>
     </message>
     <message>
       <source>Replace existing file</source>

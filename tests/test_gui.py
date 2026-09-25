@@ -312,6 +312,140 @@ def test_form_reopens_with_entered_values_until_valid(backend, tmp_path):
     assert worker.services.config.user_email == 'dj@example.com'
 
 
+def test_settings_show_placeholder_email_as_empty(backend, tmp_path):
+    from dj_digger.config import DEFAULT_EMAIL
+    worker, events = backend
+    for _ in range(2):
+        worker.submit('settings', {})
+        question = wait_event(events, 'question')
+        answer = {f['name']: f['value'] for f in question['fields']}
+        # A placeholder shown here would fail validation on every save.
+        assert answer['user_email'] == ''
+        worker.answer(question['id'], dict(answer, download_directory=str(tmp_path)))
+        wait_event(events, 'sidebar')
+        # What load() restores after an empty email was saved.
+        worker.services.config.user_email = DEFAULT_EMAIL
+
+
+def test_add_playlist_passes_the_entered_text(backend):
+    worker, events = backend
+    received = []
+
+    class Collection:
+        def collect(self, target, *args):
+            received.append(target)
+            return type('Result', (), {'record': None})()
+
+    worker.services._collection = Collection()
+    worker.submit('dig', {})
+    question = wait_event(events, 'question')
+    worker.answer(question['id'], {'target': '  https://soundcloud.com/a/sets/b  '})
+    wait_event(events, 'sidebar')
+    assert received == ['https://soundcloud.com/a/sets/b']
+
+
+def test_store_accounts_sign_in_to_bandcamp_only(backend):
+    worker, events = backend
+    received = []
+
+    class Cart:
+        async def setup_logins(self, stores, cancel):
+            received.append(tuple(stores))
+        async def close(self):
+            pass
+
+    worker.services._cart = Cart()
+    worker.submit('store_login', {})
+    assert wait_event(events, 'message')['text'] == 'Bandcamp session is ready'
+    assert received == [('bandcamp',)]
+
+
+def test_store_login_skips_stores_without_a_login_page(monkeypatch):
+    import asyncio
+
+    from dj_digger.services.purchases import CartBrowserSession
+    session = CartBrowserSession()
+    async def launch():
+        raise AssertionError('no browser for a store without a login page')
+    monkeypatch.setattr(session, '_playwright_handle', launch)
+    asyncio.run(session.setup_logins(('beatport',), asyncio.Event()))
+
+
+def test_replace_export_needs_no_destination_folder(backend, tmp_path):
+    worker, events = backend
+    folder = tmp_path / 'music'
+    folder.mkdir()
+    (folder / 'track.wav').write_bytes(b'audio')
+    worker.submit('folder', {'path': str(folder)})
+    generation = wait_event(events, 'view')['generation']
+    worker.submit('export', {'keys': [], 'generation': generation})
+    question = wait_event(events, 'question')
+    answer = {f['name']: f['value'] for f in question['fields']}
+    worker.answer(question['id'], dict(answer, folder=' '))
+    retry = wait_event(events, 'question')
+    assert retry['error'] == 'This field is required'
+    worker.answer(retry['id'], dict(answer, folder='', mode='replace'))
+    review = wait_event(events, 'question')
+    assert review['title'] == 'Review export'
+    worker.answer(review['id'], None)
+    assert wait_event(events, 'message')['text'] == 'Cancelled'
+    assert not [path for path in tmp_path.rglob('dj-digger-*') if path.is_dir()]
+
+
+def test_empty_replace_selection_reports_instead_of_crashing(backend, tmp_path):
+    worker, events = backend
+    folder = tmp_path / 'empty'
+    folder.mkdir()
+    worker.submit('folder', {'path': str(folder)})
+    generation = wait_event(events, 'view')['generation']
+    worker.submit('export', {'keys': [], 'generation': generation})
+    question = wait_event(events, 'question')
+    worker.answer(question['id'], dict({f['name']: f['value'] for f in question['fields']}, folder='', mode='replace'))
+    while (event := events.get(timeout=10))[0] != 'error':
+        pass
+    assert 'No audio files selected' in event[1]['text']
+
+
+def test_export_notice_names_the_first_failure():
+    from dj_digger.gui.backend import export_notice
+    complete = {'status': 'complete', 'missing': [], 'results': [{'source': '/m/a.wav', 'status': 'complete'}]}
+    assert export_notice(complete) == ('message', {'text': 'Export: {0}; missing files: {1}', 'args': ['complete', 0]})
+    assert export_notice({'status': 'cancelled', 'missing': ['/m/a.wav'], 'results': []})[0] == 'message'
+    partial = {'status': 'partial', 'missing': ['/m/a.wav', '/m/b.wav'], 'results': [
+        {'source': '/m/a.wav', 'status': 'failed', 'error': 'Source changed since export was reviewed'},
+        {'source': '/m/b.wav', 'status': 'failed', 'error': 'Destination already exists'}]}
+    kind, payload = export_notice(partial)
+    assert kind == 'error'
+    assert payload['args'] == ['partial', 2, 'a.wav', 'Source changed since export was reviewed (+1)']
+
+
+def test_finished_operation_label_is_cleared_but_results_stay(app, tmp_path, monkeypatch):
+    from PySide6.QtQml import QQmlApplicationEngine
+
+    from dj_digger.gui.bridge import Bridge
+
+    class PassiveBackend:
+        def __init__(self, emit):
+            pass
+        def submit(self, *args):
+            pass
+
+    monkeypatch.setenv('XDG_CONFIG_HOME', str(tmp_path / 'config'))
+    bridge = Bridge(QQmlApplicationEngine(), backend_factory=PassiveBackend, home_path=tmp_path)
+    bridge.receive('busy', {'value': True, 'text': 'Collecting tracks'})
+    assert bridge.message == 'Collecting tracks'
+    bridge.receive('busy', {'value': False, 'text': ''})
+    assert bridge.message == ''
+    bridge.receive('busy', {'value': True, 'text': 'Importing playlists'})
+    bridge.receive('message', {'text': 'Signed in'})
+    bridge.receive('busy', {'value': False, 'text': ''})
+    assert bridge.message == 'Signed in'
+    bridge.receive('busy', {'value': True, 'text': 'Exporting audio'})
+    bridge.receive('busy', {'value': False, 'text': ''})
+    bridge.receive('error', {'text': 'Disk full'})
+    assert bridge.message == 'Disk full'
+
+
 def test_model_counts_store_summary_and_status_labels(app):
     model = TrackModel()
     rows = [row('a', 'Alpha'), row('b', 'Beta'), row('c', 'Gamma')]

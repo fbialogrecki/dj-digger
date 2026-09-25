@@ -452,6 +452,13 @@ def test_a_yaml_summary_says_what_happened_rather_than_failing_to_parse(tmp_path
         links.load_summary(path)
 
 
+def test_a_csv_export_is_refused_as_output_only(tmp_path):
+    path = links.export_records([], "csv", tmp_path / "out.csv")
+
+    with pytest.raises(ValueError, match="output-only"):
+        links.load_summary(path)
+
+
 def test_yaml_is_not_offered_as_an_export_format():
     assert "yaml" not in links.EXPORT_FORMATS
     assert links.EXPORT_FORMATS == ["json", "csv", "none"]

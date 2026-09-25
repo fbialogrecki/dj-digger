@@ -248,7 +248,7 @@ class Backend:
     async def action_dig(self, values):
         target = values.get('target')
         if not target:
-            target = await self.form('Add playlist', '', [field('target', 'SoundCloud URL or saved HTML')], required('target'), ok='Add')
+            target = (await self.form('Add playlist', '', [field('target', 'SoundCloud URL or saved HTML')], required('target'), ok='Add'))['target'].strip()
         generation = self.generation
         async def work(handle):
             result = await self.io(self.services.collection.collect, target, DigOptions(),
@@ -430,12 +430,18 @@ class Backend:
         folder = self.folder
         if not tracks and folder is None:
             return
-        answer = await self.form('Export audio', '', [field('folder', 'Destination folder', kind='folder'),
+        def validate(answer):
+            # Replacing works in place, so only a copy needs somewhere to go.
+            answer['folder'] = str(answer['folder']).strip()
+            if answer['mode'] == 'copy' and not answer['folder']:
+                raise ValueError('This field is required')
+            return answer
+        answer = await self.form('Export audio', '', [field('folder', 'Destination folder (Copy only)', kind='folder'),
                                                      field('mode', 'Mode', 'copy', 'choice', [['copy', 'Copy'], ['replace', 'Replace originals']]),
                                                      field('format', 'Format', 'wav', 'choice', [[f, f.upper()] for f in ('wav', 'aiff', 'flac')]),
                                                      field('bits', 'Maximum bit depth', '24', 'choice', [['16', '16'], ['24', '24']]),
                                                      field('rate', 'Maximum sample rate', '48000', 'choice', [[str(r), str(r)] for r in (44100, 48000, 88200, 96000)]),
-                                                     field('recursive', 'Include subfolders', False, 'bool')], required('folder'), ok='Export')
+                                                     field('recursive', 'Include subfolders', False, 'bool')], validate, ok='Export')
         async def work(handle):
             paths = tuple(Path(t.local_path) for t in tracks)
             if folder and not values.get('selected'):
@@ -449,8 +455,11 @@ class Backend:
                         if filter_rows([Row(0, track, [])], values.get('search', ''), values.get('hide', False), lambda row: self.services.state.get(row.track.key)):
                             matching.append(path)
                     paths = tuple(matching)
+            # A replacement plan only falls back to this folder when the sources share no root.
+            destination = (Path(answer['folder']).expanduser() if answer['folder']
+                           else paths[0].parent if paths else Path())
             plan = await self.io(plan_export, paths,
-                                 Path(answer['folder']).expanduser(), Profile(answer['format'], int(answer['bits']), int(answer['rate'])), mode=answer['mode'], cancel=handle.cancel)
+                                 destination, Profile(answer['format'], int(answer['bits']), int(answer['rate'])), mode=answer['mode'], cancel=handle.cancel)
             await self.ask('Review export', 'Replacing originals permanently removes them after verification.' if plan.mode == 'replace' else '',
                            [field('plan', '', '\n'.join(f'{i.action}: {i.source} → {i.destination} ({i.reason})' for i in plan.items), 'log')],
                            handle.cancel, ok='Replace' if plan.mode == 'replace' else 'Export')
@@ -464,7 +473,7 @@ class Backend:
                 from ..paths import data_dir
                 from ..private_json import write_private_json
                 await self.io(write_private_json, data_dir() / ('export-' + plan.id + '.json'), report)
-            self.send('message', {'text': 'Export: {0}; missing files: {1}', 'args': [report['status'], len(report.get('missing', []))]})
+            self.send(*export_notice(report))
             await self.refresh_rows()
         await self.job('Exporting audio', work)
 
@@ -536,7 +545,7 @@ class Backend:
             return answer
         answer = await self.form('Settings', 'Gates may submit your name and email. Social actions may follow, repost or comment on your behalf.',
                                  [field('download_directory', 'Download folder', config.download_directory, 'folder'),
-                                  field('user_name', 'Name', config.user_name), field('user_email', 'Email', config.user_email),
+                                  field('user_name', 'Name', config.user_name), field('user_email', 'Email', config.user_email if config.has_real_email() else ''),
                                   field('gate_social_actions', 'Allow social actions', config.gate_social_actions, 'bool'),
                                   field('scan_directories', 'Scan folders (one per line)', '\n'.join(config.scan_directories), 'multiline'),
                                   field('pinned_directories', 'Pinned folders (one per line)', '\n'.join(config.pinned_directories), 'multiline'),
@@ -799,7 +808,7 @@ class Backend:
         await self.io(links.export_records, [record for row in rows for record in row.records], answer['format'], path)
 
     async def action_import_summary(self, values):
-        answer = await self.form('Import saved summary', '', [field('path', 'JSON or CSV file', kind='file')], required('path'), ok='Import')
+        answer = await self.form('Import saved summary', '', [field('path', 'JSON file', kind='file')], required('path'), ok='Import')
         self.generation += 1
         generation = self.generation
         records = await self.io(links.load_summary, Path(answer['path']).expanduser())
@@ -865,7 +874,7 @@ class Backend:
         async def work(handle):
             await self.ask('Resume export', plan.folder, cancel=handle.cancel, ok='Resume')
             report = await self.io(execute, plan, self.services.state.db, resume=True, cancel=handle.cancel)
-            self.send('message', {'text': 'Export: {0}; missing files: {1}', 'args': [report['status'], len(report.get('missing', []))]})
+            self.send(*export_notice(report))
         await self.job('Exporting audio', work)
 
     async def action_cart(self, values):
@@ -951,7 +960,9 @@ class Backend:
 
     async def action_store_login(self, values):
         async def work(handle):
-            await self.services.cart.setup_logins(('bandcamp', 'beatport'), handle.cancel)
+            # Beatport has no cart to sign in to; its handoff is a public Soundiiz playlist.
+            await self.services.cart.setup_logins(('bandcamp',), handle.cancel)
+            self.send('message', {'text': 'Bandcamp session is ready'})
         await self.job('Store accounts', work)
 
     def close(self):
@@ -977,6 +988,20 @@ class Backend:
                 await self.services._cart.close()
             self.services.stop()
         self.loop.stop()
+
+
+def export_notice(report):
+    """The event for a finished export; a partial one names its first failure."""
+    args = [report['status'], len(report.get('missing', []))]
+    failed = [result for result in report.get('results', []) if result.get('status') == 'failed']
+    if not failed:
+        return 'message', {'text': 'Export: {0}; missing files: {1}', 'args': args}
+    first = failed[0]
+    reason = log_safe_text(first.get('error', ''))[:300]
+    if len(failed) > 1:
+        reason += f' (+{len(failed) - 1})'
+    args += [log_safe_text(Path(first['source']).name), reason]
+    return ('error' if report['status'] == 'partial' else 'message'), {'text': 'Export: {0}; missing files: {1}; {2}: {3}', 'args': args}
 
 
 def field(name, label, value='', kind='text', options=()):

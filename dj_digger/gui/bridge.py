@@ -59,6 +59,7 @@ class Bridge(QObject):
         self._waveform_key = ''
         self._busy = False
         self._message = ''
+        self._busy_message = ''
         self._ready = False
         self._volume = .8
         self._settings = {}
@@ -133,6 +134,10 @@ class Bridge(QObject):
             self._busy = values['value']
             if values['text']:
                 self._message, self._level = self.tr(values['text']), 'info'
+                self._busy_message = self._message
+            elif not self._busy and self._level == 'info' and self._message == self._busy_message:
+                # The operation label goes when it ends; a result it reported stays.
+                self._message = ''
         elif kind in ('error', 'message'):
             self._message, self._level = self.tr(values['text']), kind if kind == 'error' else 'info'
             if 'args' in values:

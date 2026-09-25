@@ -5,8 +5,8 @@
 - Product version verified: 1.2.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-09-16
-- Document lines: <!-- SPEC TOTAL LINES -->1603<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1603<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1612<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1612<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,7 +51,7 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 143–179 |
 | 2.1 | ↳ Problem and product boundary | 145–158 |
 | 2.2 | ↳ Execution modes | 159–179 |
-| 3 | User-visible capabilities | 180–741 |
+| 3 | User-visible capabilities | 180–749 |
 | 3.1 | ↳ Track collection and saved HTML | 182–208 |
 | 3.2 | ↳ Link classification and exports | 209–227 |
 | 3.3 | ↳ TUI playlist library and interaction | 228–319 |
@@ -59,56 +59,56 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 3.5 | ↳ Downloads and local-file matching | 392–427 |
 | 3.6 | ↳ Store purchase assistance | 428–512 |
 | 3.7 | ↳ Local library, analysis and audio export | 513–628 |
-| 3.8 | ↳ Qt Quick desktop | 629–741 |
-| 4 | System context and data flow | 742–782 |
-| 4.1 | ↳ Context diagram | 744–766 |
-| 4.2 | ↳ Collection-to-library flow | 767–782 |
-| 5 | Repository layout and component ownership | 783–857 |
-| 5.1 | ↳ Entry, orchestration, and models | 785–796 |
-| 5.2 | ↳ Network and external-system adapters | 797–815 |
-| 5.3 | ↳ Persistence, local media, and UI | 816–857 |
-| 6 | Runtime architecture and environments | 858–976 |
-| 6.1 | ↳ Runtime and dependencies | 860–883 |
-| 6.2 | ↳ Concurrency and lifecycle | 884–955 |
-| 6.3 | ↳ Local paths and environment variables | 956–976 |
-| 7 | Data model and persistence | 977–1075 |
-| 7.1 | ↳ Domain objects and identity | 979–993 |
-| 7.2 | ↳ SQLite schema and invariants | 994–1042 |
-| 7.3 | ↳ Crate persistence and deletion | 1043–1058 |
-| 7.4 | ↳ Configuration and credential stores | 1059–1075 |
-| 8 | Public interfaces and contracts | 1076–1132 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1078–1106 |
-| 8.2 | ↳ JSON and CSV summary input | 1107–1121 |
-| 8.3 | ↳ URL-opening contract | 1122–1132 |
-| 9 | Authentication and authorization | 1133–1176 |
-| 9.1 | ↳ SoundCloud authentication | 1135–1155 |
-| 9.2 | ↳ Gate action consent | 1156–1176 |
-| 10 | External integrations | 1177–1319 |
-| 10.1 | ↳ SoundCloud API and media | 1179–1190 |
-| 10.2 | ↳ Link hubs and download gates | 1191–1260 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1199–1246 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1248–1253 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1255–1260 |
-| 10.3 | ↳ Browsers and clipboard | 1261–1272 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1273–1319 |
-| 11 | Security requirements and threat model | 1320–1374 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1322–1340 |
-| 11.2 | ↳ Secret and personal-data handling | 1341–1356 |
-| 11.3 | ↳ File and mutation safety | 1357–1374 |
-| 12 | Privacy, lifecycle, and retention | 1375–1418 |
-| 12.1 | ↳ Data stored locally | 1377–1396 |
-| 12.2 | ↳ Data sent to third parties | 1397–1408 |
-| 12.3 | ↳ User-controlled deletion | 1409–1418 |
-| 13 | Failure behavior and current limitations | 1419–1479 |
-| 13.1 | ↳ Error isolation and reporting | 1421–1440 |
-| 13.2 | ↳ Confirmed limitations | 1441–1479 |
-| 14 | Verification, CI, and release | 1480–1574 |
-| 14.1 | ↳ Offline and live test suites | 1482–1528 |
-| 14.2 | ↳ Continuous integration and publishing | 1529–1559 |
-| 14.3 | ↳ Specification-map verification | 1560–1574 |
-| 15 | Evidence and operational references | 1575–1603 |
-| 15.1 | ↳ Primary implementation evidence | 1577–1593 |
-| 15.2 | ↳ User and historical documentation | 1594–1603 |
+| 3.8 | ↳ Qt Quick desktop | 629–749 |
+| 4 | System context and data flow | 750–790 |
+| 4.1 | ↳ Context diagram | 752–774 |
+| 4.2 | ↳ Collection-to-library flow | 775–790 |
+| 5 | Repository layout and component ownership | 791–865 |
+| 5.1 | ↳ Entry, orchestration, and models | 793–804 |
+| 5.2 | ↳ Network and external-system adapters | 805–823 |
+| 5.3 | ↳ Persistence, local media, and UI | 824–865 |
+| 6 | Runtime architecture and environments | 866–984 |
+| 6.1 | ↳ Runtime and dependencies | 868–891 |
+| 6.2 | ↳ Concurrency and lifecycle | 892–963 |
+| 6.3 | ↳ Local paths and environment variables | 964–984 |
+| 7 | Data model and persistence | 985–1083 |
+| 7.1 | ↳ Domain objects and identity | 987–1001 |
+| 7.2 | ↳ SQLite schema and invariants | 1002–1050 |
+| 7.3 | ↳ Crate persistence and deletion | 1051–1066 |
+| 7.4 | ↳ Configuration and credential stores | 1067–1083 |
+| 8 | Public interfaces and contracts | 1084–1141 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1086–1114 |
+| 8.2 | ↳ JSON and CSV summary input | 1115–1130 |
+| 8.3 | ↳ URL-opening contract | 1131–1141 |
+| 9 | Authentication and authorization | 1142–1185 |
+| 9.1 | ↳ SoundCloud authentication | 1144–1164 |
+| 9.2 | ↳ Gate action consent | 1165–1185 |
+| 10 | External integrations | 1186–1328 |
+| 10.1 | ↳ SoundCloud API and media | 1188–1199 |
+| 10.2 | ↳ Link hubs and download gates | 1200–1269 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1208–1255 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1257–1262 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1264–1269 |
+| 10.3 | ↳ Browsers and clipboard | 1270–1281 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1282–1328 |
+| 11 | Security requirements and threat model | 1329–1383 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1331–1349 |
+| 11.2 | ↳ Secret and personal-data handling | 1350–1365 |
+| 11.3 | ↳ File and mutation safety | 1366–1383 |
+| 12 | Privacy, lifecycle, and retention | 1384–1427 |
+| 12.1 | ↳ Data stored locally | 1386–1405 |
+| 12.2 | ↳ Data sent to third parties | 1406–1417 |
+| 12.3 | ↳ User-controlled deletion | 1418–1427 |
+| 13 | Failure behavior and current limitations | 1428–1488 |
+| 13.1 | ↳ Error isolation and reporting | 1430–1449 |
+| 13.2 | ↳ Confirmed limitations | 1450–1488 |
+| 14 | Verification, CI, and release | 1489–1583 |
+| 14.1 | ↳ Offline and live test suites | 1491–1537 |
+| 14.2 | ↳ Continuous integration and publishing | 1538–1568 |
+| 14.3 | ↳ Specification-map verification | 1569–1583 |
+| 15 | Evidence and operational references | 1584–1612 |
+| 15.1 | ↳ Primary implementation evidence | 1586–1602 |
+| 15.2 | ↳ User and historical documentation | 1603–1612 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -696,7 +696,15 @@ BPM/key analysis and overrides, reviewed audio export/recovery, SoundCloud login
 store login and cart preflight. Browser links select one eligible destination per
 track and honor the store filter. Bulk opening and destructive actions require
 confirmation; cart retry/manual completion and Soundiiz metadata transfer are
-explicit choices. Local files are paged in groups of 250. Playback uses the
+explicit choices. Store accounts signs in to Bandcamp only; Beatport has no login
+because its path is the Soundiiz playlist. Settings shows an empty Email field while
+the reserved placeholder is configured, so saving never requires clearing it.
+Import saved summary asks for a JSON file. Export audio requires a destination
+folder only for Copy; Replace originals works in place and uses the first source's
+folder only as the plan root when the sources share none. An export with failed
+items reports its status, missing count and the first failed file with its redacted
+reason, as an error when the result is partial. The status-bar operation label is
+cleared when its operation ends unless a result or error has replaced it. Local files are paged in groups of 250. Playback uses the
 existing engine, bounded waveform samples and one prepared next-track source.
 Local waveform generation runs independently of play/automatic-next and publishes
 its result immediately, including while paused. Stop, replacement and shutdown
@@ -1112,7 +1120,8 @@ list, every item must be a mapping with `track_url`, and both `track_url` and
 `shop_link` must be HTTP(S) URLs with a host. Unknown category names become
 `others`; absent `shop_link` falls back to `track_url`.
 
-CSV is output-only in the current code; its header is `category, artist, title,
+CSV is output-only in the current code: loading a `.csv` summary raises an explicit
+export-only error. Its header is `category, artist, title,
 track_url, shop_link, bpm, key, release_year, label`, with the four newer
 columns appended so positional readers of the original five still work. YAML filenames are recognized only to
 produce the explicit unsupported legacy-format error. Opening an imported summary

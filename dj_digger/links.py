@@ -428,6 +428,8 @@ def load_summary(path: Path) -> list[LinkRecord]:
             f"{path} is YAML, which this version no longer reads. Convert it to "
             "JSON, or re-dig the source."
         )
+    if path.suffix.lower() == ".csv":
+        raise ValueError(f"{path} is a CSV export, which is output-only. Import the JSON export instead.")
 
     text = path.read_text(encoding="utf-8")
     try:

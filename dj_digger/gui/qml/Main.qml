@@ -1037,7 +1037,7 @@ ApplicationWindow {
     FileDialog {
         id: fieldFile
         property string targetName
-        nameFilters: ["JSON / CSV (*.json *.csv)", "All files (*)"]
+        nameFilters: ["JSON (*.json)", "All files (*)"]
         onAccepted: {
             let updated = Object.assign({}, dialog.values)
             updated[targetName] = desktop.localPath(selectedFile.toString())
