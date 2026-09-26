@@ -859,6 +859,22 @@
       <translation>Sesja Bandcamp jest gotowa</translation>
     </message>
     <message>
+      <source>No track id, so there is nothing to stream</source>
+      <translation>Brak identyfikatora utworu, więc nie ma czego odtworzyć</translation>
+    </message>
+    <message>
+      <source>Download Chromium</source>
+      <translation>Pobierz Chromium</translation>
+    </message>
+    <message>
+      <source>Store carts need Playwright Chromium. Download it now? This is a one-time download for the installed Playwright version.</source>
+      <translation>Koszyki sklepów wymagają Playwright Chromium. Pobrać go teraz? To jednorazowe pobranie dla zainstalowanej wersji Playwright.</translation>
+    </message>
+    <message>
+      <source>Soundiiz accepts at most 200 tracks; the playlist file was saved to {0}</source>
+      <translation>Soundiiz przyjmuje najwyżej 200 utworów; plik playlisty zapisano w {0}</translation>
+    </message>
+    <message>
       <source>Replace existing file</source>
       <translation>Zastąp istniejący plik</translation>
     </message>
@@ -1456,6 +1472,22 @@
     <message>
       <source>Bandcamp session is ready</source>
       <translation>Sesja Bandcamp jest gotowa</translation>
+    </message>
+    <message>
+      <source>No track id, so there is nothing to stream</source>
+      <translation>Brak identyfikatora utworu, więc nie ma czego odtworzyć</translation>
+    </message>
+    <message>
+      <source>Download Chromium</source>
+      <translation>Pobierz Chromium</translation>
+    </message>
+    <message>
+      <source>Store carts need Playwright Chromium. Download it now? This is a one-time download for the installed Playwright version.</source>
+      <translation>Koszyki sklepów wymagają Playwright Chromium. Pobrać go teraz? To jednorazowe pobranie dla zainstalowanej wersji Playwright.</translation>
+    </message>
+    <message>
+      <source>Soundiiz accepts at most 200 tracks; the playlist file was saved to {0}</source>
+      <translation>Soundiiz przyjmuje najwyżej 200 utworów; plik playlisty zapisano w {0}</translation>
     </message>
     <message>
       <source>Replace existing file</source>

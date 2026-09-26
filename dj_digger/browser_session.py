@@ -54,12 +54,12 @@ def require_display() -> None:
     if sys.platform.startswith("linux") and not (
         os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")
     ):
-        raise AutomationError("Store cart needs a desktop window; on WSL, enable WSLg")
+        raise AutomationError("The dedicated browser needs a desktop window; on WSL, enable WSLg")
 
 
 def _require_chromium(playwright: Any) -> None:
     if not Path(playwright.chromium.executable_path).is_file():
-        raise ChromiumMissing("Chromium is required for store carts")
+        raise ChromiumMissing("Playwright Chromium is required for the dedicated browser")
 
 
 def _profile_locked(exc: Exception) -> bool:
@@ -71,7 +71,7 @@ def classify_launch_error(exc: Exception, *, subject: str = "the dedicated store
     """Turn a Playwright launch failure into the error the user can act on."""
 
     if "executable doesn't exist" in str(exc).lower():
-        return ChromiumMissing("Chromium is required for store carts")
+        return ChromiumMissing("Playwright Chromium is required for the dedicated browser")
     if _profile_locked(exc):
         return AutomationError(f"{subject} profile is already open in another process")
     detail = f"could not start {subject}"

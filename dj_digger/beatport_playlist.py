@@ -141,14 +141,23 @@ def _soundiiz_metadata(request: CartRequest) -> dict[str, object]:
     return {"title": title, "artists": artists}
 
 
+SOUNDIIZ_LIMIT = 200
+
+
+class SoundiizLimit(ValueError):
+    """More tracks than one Soundiiz import accepts; the local playlist file still stands."""
+
+
 def _create_soundiiz_import(
     requests_: Sequence[CartRequest], outcome: CartBatchOutcome, title: str
 ) -> str:
     """Create Soundiiz's documented temporary review page for this tracklist."""
 
     selected = _beatport_playlist_requests(requests_, outcome)
-    if not 1 <= len(selected) <= 200:
-        raise ValueError("Soundiiz accepts between 1 and 200 tracks per import")
+    if len(selected) > SOUNDIIZ_LIMIT:
+        raise SoundiizLimit(f"Soundiiz accepts at most {SOUNDIIZ_LIMIT} tracks per import")
+    if not selected:
+        raise ValueError("Soundiiz needs at least one track per import")
     response = requests.post(
         SOUNDIIZ_IMPORT_URL,
         headers={

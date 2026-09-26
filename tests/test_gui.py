@@ -360,6 +360,57 @@ def test_store_accounts_sign_in_to_bandcamp_only(backend):
     assert received == [('bandcamp',)]
 
 
+def store_login_with(worker, setup_logins):
+    worker.services._cart = type('Cart', (), {'setup_logins': setup_logins, 'close': lambda self: asyncio_noop()})()
+    worker.submit('store_login', {})
+
+
+async def asyncio_noop():
+    pass
+
+
+def next_of(events, *kinds):
+    while (event := events.get(timeout=10))[0] not in kinds:
+        pass
+    return event
+
+
+def test_cancelled_store_login_is_not_an_error(backend):
+    from dj_digger.cart_models import CartCancelled
+    worker, events = backend
+    async def setup_logins(self, stores, cancel):
+        raise CartCancelled('cart operation was cancelled')
+    store_login_with(worker, setup_logins)
+    assert next_of(events, 'message', 'error') == ('message', {'text': 'Cancelled'})
+
+
+@pytest.mark.parametrize('choice', ['download', 'decline', 'cancel during download'])
+def test_missing_chromium_is_offered_as_a_download(backend, monkeypatch, choice):
+    from dj_digger.automation_errors import AutomationError, ChromiumMissing
+    worker, events = backend
+    calls, installs = [], []
+    async def setup_logins(self, stores, cancel):
+        calls.append(stores)
+        if len(calls) == 1:
+            raise ChromiumMissing('Chromium is required')
+    def install(cancel):
+        installs.append(cancel)
+        if choice == 'cancel during download':
+            cancel.set()
+            raise AutomationError('cart operation was cancelled')
+    monkeypatch.setattr('dj_digger.services.purchases.install_chromium', install)
+    store_login_with(worker, setup_logins)
+    question = next_of(events, 'question')[1]
+    assert question['title'] == 'Download Chromium'
+    worker.answer(question['id'], None if choice == 'decline' else {})
+    kind, value = next_of(events, 'message', 'error')
+    if choice == 'download':
+        assert value['text'] == 'Bandcamp session is ready' and len(calls) == 2 and len(installs) == 1
+    else:
+        assert (kind, value['text']) == ('message', 'Cancelled') and len(calls) == 1
+        assert len(installs) == (choice != 'decline')
+
+
 def test_store_login_skips_stores_without_a_login_page(monkeypatch):
     import asyncio
 
@@ -404,6 +455,81 @@ def test_empty_replace_selection_reports_instead_of_crashing(backend, tmp_path):
     while (event := events.get(timeout=10))[0] != 'error':
         pass
     assert 'No audio files selected' in event[1]['text']
+
+
+def test_title_only_scan_match_is_a_local_preview_only(backend, tmp_path, monkeypatch):
+    from dj_digger.models import Track
+    from dj_digger.rows import Row
+    worker, events = backend
+    loose = tmp_path / 'maybe.wav'
+    loose.write_bytes(b'audio')
+    worker.rows = [Row(0, Track('Maybe', 'https://soundcloud.com/a/maybe', id=7), [])]
+    library = worker.services.library
+    monkeypatch.setattr(library, 'scanner', lambda directories: type('Scanner', (), {'scan': lambda self, cancel=None: None})())
+    monkeypatch.setattr(library, 'match_tracks', lambda tracks, scanner: {'7': str(loose)})
+    worker.submit('scan', {})
+    row = wait_event(events, 'rows')['rows'][0]
+    assert row['path'] == str(loose) and row['status'] != 'got'
+    assert worker.rows[0].track.local_path is None
+    prepared = []
+    def prepare_local(track):
+        prepared.append(track.local_path)
+        raise ValueError('stop before audio')
+    monkeypatch.setattr('dj_digger.local_audio.prepare_local', prepare_local)
+    worker.submit('play', {'keys': ['7'], 'generation': worker.generation})
+    while events.get(timeout=10)[0] != 'error':
+        pass
+    assert prepared == [str(loose)]
+
+
+def test_a_track_without_an_id_says_there_is_nothing_to_stream(backend):
+    from dj_digger.models import Track
+    from dj_digger.rows import Row
+    worker, events = backend
+    worker.rows = [Row(0, Track('Nameless', 'https://soundcloud.com/a/nameless'), [])]
+    worker.submit('play', {'keys': ['https://soundcloud.com/a/nameless'], 'generation': worker.generation})
+    while (event := events.get(timeout=10))[0] != 'error':
+        pass
+    assert event[1]['text'] == 'No track id, so there is nothing to stream'
+
+
+def test_delete_refuses_a_selected_link_before_asking(backend, tmp_path):
+    folder = tmp_path / 'links'
+    folder.mkdir()
+    target = tmp_path / 'target.wav'
+    target.write_bytes(b'fixture')
+    try:
+        (folder / 'link.wav').symlink_to(target)
+    except OSError:
+        pytest.skip('symlinks unavailable')
+    worker, events = backend
+    worker.submit('folder', {'path': str(folder)})
+    view = wait_event(events, 'view')
+    worker.submit('delete_files', {'keys': [view['rows'][0]['key']], 'generation': view['generation']})
+    while (event := events.get(timeout=10))[0] not in ('error', 'question'):
+        pass
+    assert event[0] == 'error' and 'symbolic link' in event[1]['text']
+    assert target.exists()
+
+
+def test_refresh_keeps_a_locally_removed_row_and_shows_new_arrivals(backend, monkeypatch):
+    from dj_digger.models import Crate, Track
+    worker, events = backend
+    source = 'https://soundcloud.com/a/sets/b'
+    tracks = [Track(f'Track {n}', f'https://soundcloud.com/a/{n}', id=n) for n in (1, 2, 3)]
+    served = [tracks[:2]]
+    monkeypatch.setattr(worker.services.collection, 'read',
+                        lambda target, options, **kwargs: Crate(source, list(served[0]), 'Playlist'))
+    worker.submit('dig', {'target': source})
+    view = wait_event(events, 'view')
+    assert [row['key'] for row in view['rows']] == ['1', '2']
+    worker.submit('remove', {'keys': ['1'], 'generation': view['generation']})
+    worker.answer(wait_event(events, 'question')['id'], {})
+    assert [row['key'] for row in wait_event(events, 'view')['rows']] == ['2']
+    served[0] = tracks
+    worker.submit('refresh', {})
+    # Arrivals sort above older tracks; the removed row stays out.
+    assert [row['key'] for row in wait_event(events, 'view')['rows']] == ['3', '2']
 
 
 def test_export_notice_names_the_first_failure():

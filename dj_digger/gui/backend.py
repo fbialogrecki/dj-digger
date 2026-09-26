@@ -4,10 +4,12 @@ import logging
 import stat
 import threading
 from copy import deepcopy
+from dataclasses import replace
 from pathlib import Path
 from uuid import uuid4
 
 from .. import links
+from ..cart_models import CartCancelled
 from ..diagnostics import log_safe_text
 from ..models import GOT, NEW, SKIP, Cancelled, check_cancelled
 from ..paths import playlist_download_directory
@@ -39,6 +41,8 @@ class Backend:
         self.prefetch_task = None
         self.prefetch_attempt = ''
         self.undo = []
+        # Title-only scan matches: local preview only, never ownership, download or export.
+        self.preview_paths = {}
         self.mark_lock = asyncio.Lock()
         self.player_lock = asyncio.Lock()
         self.waveform_lock = asyncio.Lock()
@@ -150,7 +154,7 @@ class Backend:
                     await handler(values)
             else:
                 await handler(values)
-        except (Cancelled, asyncio.CancelledError):
+        except (Cancelled, CartCancelled, asyncio.CancelledError):
             self.send('message', {'text': 'Cancelled'})
         except Exception as exc:
             LOGGER.exception('Desktop action failed: %s', action)
@@ -175,7 +179,7 @@ class Backend:
         return dict(key=t.key, title=t.title, artist=t.artist, genre=t.genre_label,
                     bpm=t.bpm or '', keySignature=t.key_signature, year=t.release_year or '',
                     label=t.label_name, duration=t.duration, status=self.services.state.get(t.key),
-                    stores=', '.join(row.categories), local=bool(t.local_id), path=t.local_path or '',
+                    stores=', '.join(row.categories), local=bool(t.local_id), path=t.local_path or self.preview_paths.get(t.key, ''),
                     search=row.haystack)
 
     async def refresh_rows(self):
@@ -585,7 +589,7 @@ class Backend:
         rows = self.targets(values)
         if not rows:
             return
-        track = rows[0].track
+        track = self.playable(rows[0].track)
         self.play_order = values.get('order', [r.track.key for r in self.rows])
         player = self.services.player
         if player.loaded and player.loaded.track.key == track.key:
@@ -659,11 +663,18 @@ class Backend:
             samples = list(p.loaded.waveform)
             self.send('waveform', dict(key=p.loaded.track.key, samples=samples[::max(1, (len(samples) + 1023) // 1024)]))
 
+    def playable(self, track):
+        if track.local_path or track.key not in self.preview_paths:
+            return track
+        return replace(track, local_path=self.preview_paths[track.key])
+
     async def prepare_track(self, track):
         from ..services.playback import Prepared, fetch_waveform, resolve_stream
         if track.local_path:
             from ..local_audio import prepare_local
             return await self.io(prepare_local, track)
+        if not track.id:
+            raise ValueError('No track id, so there is nothing to stream')
         client = self.services.client
         def prepare():
             from ..player import open_source
@@ -698,7 +709,7 @@ class Backend:
                     and p.loaded.track.key in self.play_order):
                 index = self.play_order.index(p.loaded.track.key) + 1
                 if index < len(self.play_order):
-                    track = next((r.track for r in self.rows if r.track.key == self.play_order[index]), None)
+                    track = next((self.playable(r.track) for r in self.rows if r.track.key == self.play_order[index]), None)
                     if track and self.prefetch_attempt != track.key:
                         self.prefetch_attempt = track.key
                         self.prefetch_task = self.loop.create_task(self.prefetch(deepcopy(track), self.play_generation))
@@ -778,22 +789,15 @@ class Backend:
         await self.analyze_paths(paths)
 
     async def action_delete_files(self, values):
-        rows = self.targets(values)
-        files = []
-        for row in rows:
-            track = row.track
-            if track.local_id:
-                record = await self.io(self.services.state.db.media, track.local_id)
-                if record:
-                    files.append((track.local_id, Path(track.local_path), record['signature']))
+        files = await self.io(self.local.delete_targets, [row.track for row in self.targets(values)])
         if not files:
             return
         async def work(handle):
             await self.ask('Permanently delete files', '', [field('files', '', '\n'.join(str(p) for _, p, _ in files), 'log')], handle.cancel, ok='Delete')
-            for ident, path, signature in files:
-                check_cancelled(handle.cancel)
-                await self.io(self.local.delete, ident, path, signature)
-            await self.io(self.services.state.reload_file_paths)
+            try:
+                await self.io(self.local.delete_many, files, handle.cancel)
+            finally:
+                await self.io(self.services.state.reload_file_paths)
             if self.folder:
                 await self.action_folder({'path': str(self.folder), 'offset': self.offset})
         await self.job('Deleting files', work)
@@ -857,7 +861,12 @@ class Backend:
             scanner = self.services.library.scanner(self.services.config.scan_directories)
             await self.io(scanner.scan, cancel=handle.cancel)
             check_cancelled(handle.cancel)
-            await self.io(self.services.library.match_tracks, tracks, scanner)
+            paths = await self.io(self.services.library.match_tracks, tracks, scanner)
+            for key, path in paths.items():
+                if path and not self.services.state.local_file(key):
+                    self.preview_paths[key] = path
+                else:
+                    self.preview_paths.pop(key, None)
             await self.refresh_rows()
         finally:
             self.services.operations.finish(handle)
@@ -878,7 +887,6 @@ class Backend:
         await self.job('Exporting audio', work)
 
     async def action_cart(self, values):
-        from dataclasses import replace
         from decimal import Decimal
 
         from ..cart_models import CartPlan, CartRequest
@@ -920,7 +928,7 @@ class Backend:
             async def manual(items):
                 await self.ask('Finish in browser', '\n'.join(i.track_label for i in items), cancel=handle.cancel)
                 return True
-            outcome = await session.run_batch(requests, handle.cancel, approve=approve, manual=manual)
+            outcome = await self.with_chromium(lambda: session.run_batch(requests, handle.cancel, approve=approve, manual=manual), handle)
             if source and outcome.beatport_playlist_ready:
                 await self.io(self.services.library.remember_beatport, source, source_generation, outcome)
             while True:
@@ -941,7 +949,10 @@ class Backend:
                     exported = await prepare_playlist(requests, outcome, record.title if record else '',
                                                       Path(self.services.config.download_directory),
                                                       self.services.config.browser, io=self.io)
-                    self.send('message', {'text': str(exported.path or '') + (' — Soundiiz import failed' if exported.import_failed else '')})
+                    if exported.limit_exceeded:
+                        self.send('message', {'text': 'Soundiiz accepts at most 200 tracks; the playlist file was saved to {0}', 'args': [str(exported.path)]})
+                    else:
+                        self.send('message', {'text': str(exported.path or '') + (' — Soundiiz import failed' if exported.import_failed else '')})
                 if answer.get('manual'):
                     results = await session.finish_manually(list(outcome.manual_candidates), manual, handle.cancel)
                     self.send('message', {'text': '\n'.join(r.track_label + ': ' + r.status for r in results)})
@@ -951,8 +962,8 @@ class Backend:
                     continue
                 retry = [replace(request, links=tuple((store, url) for store, url in request.links
                          if (request.track.key, store) in outcome.retryable_targets)) for request in requests]
-                outcome = await session.run_batch([request for request in retry if request.links], handle.cancel,
-                                                  approve=approve, manual=manual)
+                outcome = await self.with_chromium(lambda: session.run_batch([request for request in retry if request.links], handle.cancel,
+                                                                             approve=approve, manual=manual), handle)
                 if source and outcome.beatport_playlist_ready:
                     await self.io(self.services.library.remember_beatport, source, source_generation, outcome)
             await self.refresh_rows()
@@ -961,9 +972,26 @@ class Backend:
     async def action_store_login(self, values):
         async def work(handle):
             # Beatport has no cart to sign in to; its handoff is a public Soundiiz playlist.
-            await self.services.cart.setup_logins(('bandcamp',), handle.cancel)
+            await self.with_chromium(lambda: self.services.cart.setup_logins(('bandcamp',), handle.cancel), handle)
             self.send('message', {'text': 'Bandcamp session is ready'})
         await self.job('Store accounts', work)
+
+    async def with_chromium(self, call, handle):
+        """Store browsers need Playwright Chromium; offer its one-time download, as the TUI does."""
+        from ..automation_errors import AutomationError, ChromiumMissing
+        try:
+            return await call()
+        except ChromiumMissing:
+            await self.ask('Download Chromium', 'Store carts need Playwright Chromium. Download it now? '
+                           'This is a one-time download for the installed Playwright version.', cancel=handle.cancel, ok='Download')
+        from ..services.purchases import install_chromium
+        try:
+            await self.io(install_chromium, handle.cancel)
+        except AutomationError:
+            if handle.cancel.is_set():
+                raise Cancelled() from None
+            raise
+        return await call()
 
     def close(self):
         self.loop.call_soon_threadsafe(lambda: self.loop.create_task(self._close()))

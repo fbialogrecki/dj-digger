@@ -30,7 +30,7 @@ from textual.widgets.option_list import Option
 
 from dj_digger import cart_models
 
-from ..config import AppConfig, is_real_email
+from ..config import DEFAULT_EMAIL, AppConfig, is_real_email
 from ..services.accounts import AccountService, GateProfileAnswer
 from .keymap import (
     CRATES,
@@ -891,7 +891,7 @@ class SettingsScreen(_Modal[None]):
                         yield Label("Your Name (for gate forms):", classes="settings-label")
                         yield Input(value=self.config.user_name, id="input-name")
                         yield Label("Your Email (for gate forms):", classes="settings-label")
-                        yield Input(value=self.config.user_email, id="input-email")
+                        yield Input(value=self.config.user_email if self.config.has_real_email() else "", id="input-email")
                         yield Label("Random Hype Comments (separated by | or newlines):", classes="settings-label")
                         comments_str = " | ".join(self.config.custom_comments)
                         yield Input(value=comments_str, id="input-comments")
@@ -920,12 +920,16 @@ class SettingsScreen(_Modal[None]):
             action()
             return
         if event.button.id == "btn-save-settings":
-            values = {"browser": self.query_one("#input-browser", Select).value}
+            # An empty email means none; gates then ask before they need one.
+            email = self.query_one("#input-email", Input).value.strip()
+            if email and not is_real_email(email):
+                self.app.notify("Enter a valid email, or leave it empty", severity="error", timeout=6)
+                return
+            values = {"browser": self.query_one("#input-browser", Select).value, "user_email": email or DEFAULT_EMAIL}
 
             # Blank fields keep their previous value.
             for widget_id, attribute in (
                 ("#input-name", "user_name"),
-                ("#input-email", "user_email"),
                 ("#input-download-dir", "download_directory"),
             ):
                 value = self.query_one(widget_id, Input).value.strip()

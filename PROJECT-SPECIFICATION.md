@@ -5,8 +5,8 @@
 - Product version verified: 1.2.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-09-16
-- Document lines: <!-- SPEC TOTAL LINES -->1612<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1612<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1624<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1624<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,64 +51,64 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 143–179 |
 | 2.1 | ↳ Problem and product boundary | 145–158 |
 | 2.2 | ↳ Execution modes | 159–179 |
-| 3 | User-visible capabilities | 180–749 |
+| 3 | User-visible capabilities | 180–759 |
 | 3.1 | ↳ Track collection and saved HTML | 182–208 |
 | 3.2 | ↳ Link classification and exports | 209–227 |
-| 3.3 | ↳ TUI playlist library and interaction | 228–319 |
-| 3.4 | ↳ Audio preview | 320–391 |
-| 3.5 | ↳ Downloads and local-file matching | 392–427 |
-| 3.6 | ↳ Store purchase assistance | 428–512 |
-| 3.7 | ↳ Local library, analysis and audio export | 513–628 |
-| 3.8 | ↳ Qt Quick desktop | 629–749 |
-| 4 | System context and data flow | 750–790 |
-| 4.1 | ↳ Context diagram | 752–774 |
-| 4.2 | ↳ Collection-to-library flow | 775–790 |
-| 5 | Repository layout and component ownership | 791–865 |
-| 5.1 | ↳ Entry, orchestration, and models | 793–804 |
-| 5.2 | ↳ Network and external-system adapters | 805–823 |
-| 5.3 | ↳ Persistence, local media, and UI | 824–865 |
-| 6 | Runtime architecture and environments | 866–984 |
-| 6.1 | ↳ Runtime and dependencies | 868–891 |
-| 6.2 | ↳ Concurrency and lifecycle | 892–963 |
-| 6.3 | ↳ Local paths and environment variables | 964–984 |
-| 7 | Data model and persistence | 985–1083 |
-| 7.1 | ↳ Domain objects and identity | 987–1001 |
-| 7.2 | ↳ SQLite schema and invariants | 1002–1050 |
-| 7.3 | ↳ Crate persistence and deletion | 1051–1066 |
-| 7.4 | ↳ Configuration and credential stores | 1067–1083 |
-| 8 | Public interfaces and contracts | 1084–1141 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1086–1114 |
-| 8.2 | ↳ JSON and CSV summary input | 1115–1130 |
-| 8.3 | ↳ URL-opening contract | 1131–1141 |
-| 9 | Authentication and authorization | 1142–1185 |
-| 9.1 | ↳ SoundCloud authentication | 1144–1164 |
-| 9.2 | ↳ Gate action consent | 1165–1185 |
-| 10 | External integrations | 1186–1328 |
-| 10.1 | ↳ SoundCloud API and media | 1188–1199 |
-| 10.2 | ↳ Link hubs and download gates | 1200–1269 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1208–1255 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1257–1262 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1264–1269 |
-| 10.3 | ↳ Browsers and clipboard | 1270–1281 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1282–1328 |
-| 11 | Security requirements and threat model | 1329–1383 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1331–1349 |
-| 11.2 | ↳ Secret and personal-data handling | 1350–1365 |
-| 11.3 | ↳ File and mutation safety | 1366–1383 |
-| 12 | Privacy, lifecycle, and retention | 1384–1427 |
-| 12.1 | ↳ Data stored locally | 1386–1405 |
-| 12.2 | ↳ Data sent to third parties | 1406–1417 |
-| 12.3 | ↳ User-controlled deletion | 1418–1427 |
-| 13 | Failure behavior and current limitations | 1428–1488 |
-| 13.1 | ↳ Error isolation and reporting | 1430–1449 |
-| 13.2 | ↳ Confirmed limitations | 1450–1488 |
-| 14 | Verification, CI, and release | 1489–1583 |
-| 14.1 | ↳ Offline and live test suites | 1491–1537 |
-| 14.2 | ↳ Continuous integration and publishing | 1538–1568 |
-| 14.3 | ↳ Specification-map verification | 1569–1583 |
-| 15 | Evidence and operational references | 1584–1612 |
-| 15.1 | ↳ Primary implementation evidence | 1586–1602 |
-| 15.2 | ↳ User and historical documentation | 1603–1612 |
+| 3.3 | ↳ TUI playlist library and interaction | 228–321 |
+| 3.4 | ↳ Audio preview | 322–393 |
+| 3.5 | ↳ Downloads and local-file matching | 394–430 |
+| 3.6 | ↳ Store purchase assistance | 431–516 |
+| 3.7 | ↳ Local library, analysis and audio export | 517–635 |
+| 3.8 | ↳ Qt Quick desktop | 636–759 |
+| 4 | System context and data flow | 760–800 |
+| 4.1 | ↳ Context diagram | 762–784 |
+| 4.2 | ↳ Collection-to-library flow | 785–800 |
+| 5 | Repository layout and component ownership | 801–875 |
+| 5.1 | ↳ Entry, orchestration, and models | 803–814 |
+| 5.2 | ↳ Network and external-system adapters | 815–833 |
+| 5.3 | ↳ Persistence, local media, and UI | 834–875 |
+| 6 | Runtime architecture and environments | 876–994 |
+| 6.1 | ↳ Runtime and dependencies | 878–901 |
+| 6.2 | ↳ Concurrency and lifecycle | 902–973 |
+| 6.3 | ↳ Local paths and environment variables | 974–994 |
+| 7 | Data model and persistence | 995–1093 |
+| 7.1 | ↳ Domain objects and identity | 997–1011 |
+| 7.2 | ↳ SQLite schema and invariants | 1012–1060 |
+| 7.3 | ↳ Crate persistence and deletion | 1061–1076 |
+| 7.4 | ↳ Configuration and credential stores | 1077–1093 |
+| 8 | Public interfaces and contracts | 1094–1151 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1096–1124 |
+| 8.2 | ↳ JSON and CSV summary input | 1125–1140 |
+| 8.3 | ↳ URL-opening contract | 1141–1151 |
+| 9 | Authentication and authorization | 1152–1197 |
+| 9.1 | ↳ SoundCloud authentication | 1154–1176 |
+| 9.2 | ↳ Gate action consent | 1177–1197 |
+| 10 | External integrations | 1198–1340 |
+| 10.1 | ↳ SoundCloud API and media | 1200–1211 |
+| 10.2 | ↳ Link hubs and download gates | 1212–1281 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1220–1267 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1269–1274 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1276–1281 |
+| 10.3 | ↳ Browsers and clipboard | 1282–1293 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1294–1340 |
+| 11 | Security requirements and threat model | 1341–1395 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1343–1361 |
+| 11.2 | ↳ Secret and personal-data handling | 1362–1377 |
+| 11.3 | ↳ File and mutation safety | 1378–1395 |
+| 12 | Privacy, lifecycle, and retention | 1396–1439 |
+| 12.1 | ↳ Data stored locally | 1398–1417 |
+| 12.2 | ↳ Data sent to third parties | 1418–1429 |
+| 12.3 | ↳ User-controlled deletion | 1430–1439 |
+| 13 | Failure behavior and current limitations | 1440–1500 |
+| 13.1 | ↳ Error isolation and reporting | 1442–1461 |
+| 13.2 | ↳ Confirmed limitations | 1462–1500 |
+| 14 | Verification, CI, and release | 1501–1595 |
+| 14.1 | ↳ Offline and live test suites | 1503–1549 |
+| 14.2 | ↳ Continuous integration and publishing | 1550–1580 |
+| 14.3 | ↳ Specification-map verification | 1581–1595 |
+| 15 | Evidence and operational references | 1596–1624 |
+| 15.1 | ↳ Primary implementation evidence | 1598–1614 |
+| 15.2 | ↳ User and historical documentation | 1615–1624 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -289,7 +289,9 @@ and sorts those arrivals above older active tracks while retaining source order
 within each group.
 
 The latest saved playlist opens when the TUI starts without incoming rows. On first
-run, settings are shown before the initial library scan. Terminals below 110
+run, settings are shown before the initial library scan. In TUI Settings an empty
+Email means no email (the reserved placeholder) and an invalid address is refused;
+other empty fields keep their previous value. Terminals below 110
 columns automatically collapse the sidebar; the full help remains available.
 Opening more than 20 visible links requires a repeated confirmation action.
 
@@ -418,7 +420,8 @@ modification time, size, and normalized filename data in SQLite in batches of
 without an error banner; explicit explorer access reports errors. Cancellation
 stops the walk between files while keeping what was already written. Artist-plus-title matches are confident and
 may set `got`; title-only matches require at least six normalized characters and
-only attach a path. A unique filename may contain extra text around the matched
+only attach a path: the TUI shows it, the desktop uses it for local preview and
+shows it, and Download never treats it as an owned file. A unique filename may contain extra text around the matched
 artist/title, such as a mix label; ambiguous decorated matches are rejected.
 Missing files are removed only after a complete readable parent listing on the
 known volume; inaccessible or replaced roots retain their records. Directory
@@ -494,7 +497,8 @@ accepted titles and artists, with Beatport preset as the destination, to
 Soundiiz's public playlist-import endpoint and opens the returned HTTPS review
 URL in the configured regular browser. The response URL must remain on
 `soundiiz.com/go/import-playlist/`; imports are limited to Soundiiz's documented
-1–200 tracks. Promo prefixes, uploader names, preview markers, trailing label
+1–200 tracks. Above 200 no request is sent; the saved playlist file remains and the
+limit is reported apart from other import failures. Promo prefixes, uploader names, preview markers, trailing label
 fields, and `OUT NOW` markers are removed from SoundCloud metadata when its title
 contains an explicit `artist - title` pair, including missing whitespace around
 the separator. Featured performers and remixers named in the cleaned metadata
@@ -575,7 +579,10 @@ remain independent of automatic results recorded in the diagnostic file.
 
 In an explorer folder, `x` / Remove asks for confirmation with the selected file
 paths (or the highlighted file) and permanently deletes those files from disk.
-Changed files, symbolic links and loaded/prefetched audio are refused. Deletion
+A folder page shows one row per file: a symbolic link to a file on the same page
+folds into that file's row. A selected symbolic link is refused before confirmation;
+every confirmed file is revalidated before any is deleted, so a changed file or
+loaded/prefetched audio stops the batch with nothing removed. Deletion
 marks central media records unavailable and clears cached file mappings, while
 preserving playlist references and manual metadata. A database failure after
 unlink is reported explicitly; filesystem and database updates are not atomic.
@@ -699,6 +706,9 @@ confirmation; cart retry/manual completion and Soundiiz metadata transfer are
 explicit choices. Store accounts signs in to Bandcamp only; Beatport has no login
 because its path is the Soundiiz playlist. Settings shows an empty Email field while
 the reserved placeholder is configured, so saving never requires clearing it.
+Cancelling Store accounts or a cart is reported as cancelled, not as an error, and
+a missing Playwright Chromium is offered as a confirmed download before retrying
+once. Playing a track with no SoundCloud id reports that there is nothing to stream.
 Import saved summary asks for a JSON file. Export audio requires a destination
 folder only for Copy; Replace originals works in place and uses the first source's
 folder only as the plan root when the sources share none. An export with failed
@@ -1151,7 +1161,9 @@ header.
 Login first accepts a valid stored/environment token, then scans plaintext
 Firefox `moz_cookies` databases on Linux/macOS and mounted Windows profiles,
 then uses a dedicated Chromium profile, with a hidden manual token fallback in
-the CLI. Browser databases are copied to a private temporary file before reading.
+the CLI. A browser failure the application diagnoses itself (Chromium download
+failed, profile in use, no desktop display) is reported with that reason; any other
+browser failure keeps a generic message and logs only its exception type. Browser databases are copied to a private temporary file before reading.
 Chromium-family cookie databases are not scanned because the values are
 encrypted. Candidate tokens are verified with SoundCloud `/me` before saving.
 
@@ -1276,7 +1288,7 @@ belongs to Textual.
 
 Playwright Chromium is a runtime dependency for Bandcamp carts, store product
 lookup, and managed gate browser completion. If the matching browser binary is
-missing, the TUI may offer a user-confirmed
+missing, the TUI and the desktop offer a user-confirmed
 `python -m playwright install chromium` operation.
 
 ### 10.4 Bandcamp cart and Beatport playlists

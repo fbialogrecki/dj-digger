@@ -2009,3 +2009,20 @@ def test_profile_reset_recreates_only_the_exact_private_profile(tmp_path, monkey
 
     assert profile.is_dir()
     assert not (profile / "cookie").exists()
+
+
+def test_soundiiz_limit_is_reported_apart_from_import_failures(tmp_path, monkeypatch):
+    import asyncio
+
+    from dj_digger import beatport_playlist
+    from dj_digger.services.purchases import prepare_playlist
+
+    lines = tuple(f"Artist - Track {index}" for index in range(201))
+    monkeypatch.setattr(beatport_playlist, "_beatport_playlist_lines", lambda requests, outcome: lines)
+    monkeypatch.setattr(beatport_playlist, "_beatport_playlist_requests", lambda requests, outcome: lines)
+    def post(*args, **kwargs):
+        raise AssertionError("an oversized import must not reach Soundiiz")
+    monkeypatch.setattr(beatport_playlist.requests, "post", post)
+    exported = asyncio.run(prepare_playlist((), None, "Big", tmp_path, ""))
+    assert exported.limit_exceeded and exported.import_failed
+    assert len(exported.path.read_text(encoding="utf-8").splitlines()) == 201

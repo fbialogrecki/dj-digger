@@ -268,3 +268,32 @@ def test_browser_login_installs_missing_playwright_chromium_once(monkeypatch):
     assert auth.login_with_chromium("client") == ("token", "DJ", 1)
     assert len(attempts) == 2
     assert len(installs) == 1
+
+
+def test_browser_login_names_its_own_failure_but_hides_browser_text(monkeypatch, caplog):
+    installs = []
+
+    @contextmanager
+    def missing(_profile):
+        raise automation_errors.ChromiumMissing("missing")
+        yield
+
+    def failed_install(cancel):
+        installs.append(cancel)
+        raise automation_errors.AutomationError("Chromium installation failed; run 'playwright install chromium'")
+
+    monkeypatch.setattr(browser_session, "sync_browser_context", missing)
+    monkeypatch.setattr(browser_session, "install_chromium", failed_install)
+    with pytest.raises(auth.SoundCloudAuthError, match="Chromium installation failed"):
+        auth.login_with_chromium("client")
+
+    @contextmanager
+    def crashed(_profile):
+        raise RuntimeError("page secret")
+        yield
+
+    monkeypatch.setattr(browser_session, "sync_browser_context", crashed)
+    with pytest.raises(auth.SoundCloudAuthError, match="Could not start") as caught:
+        auth.login_with_chromium("client")
+    assert "page secret" not in str(caught.value) and "page secret" not in caplog.text
+    assert "RuntimeError" in caplog.text

@@ -187,3 +187,18 @@ def test_first_refresh_keeps_concurrent_row_removal_without_discarding_arrivals(
     assert updated["title"] == "after"
     assert updated["removed_track_keys"] == ["1"]
     assert updated["new_track_keys"] == ["2"]
+
+
+def test_a_title_only_path_is_never_taken_as_an_owned_file(tmp_path):
+    from dj_digger.models import GOT, Track
+    from dj_digger.services.library import LibraryService
+    from dj_digger.state import TrackState
+
+    state = TrackState(tmp_path / "library.db")
+    loose = tmp_path / "maybe.wav"
+    loose.write_bytes(b"audio")
+    track = Track(id=1, title="one", permalink_url="https://soundcloud.com/a/one", local_path=str(loose))
+    assert not LibraryService(state).mark_existing(track)
+    assert state.get("1") != GOT
+    state.set_local_file("1", loose)
+    assert LibraryService(state).mark_existing(track)

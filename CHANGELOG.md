@@ -14,6 +14,17 @@
 - Desktop Replace originals no longer asks for a destination folder.
 - A partial desktop export names the first failed file and its reason in the
   error banner, and finished operations no longer leave their label in the status bar.
+- A symbolic link beside its file no longer shares that file's row, and deleting
+  local files checks every file before removing any, so a refused link can no
+  longer leave its original deleted.
+- Title-only scan matches play locally in the desktop, and Download in either
+  interface no longer marks such a guessed file as owned.
+- Cancelling Store accounts or a cart is no longer shown as an error, and the
+  desktop offers to download a missing Playwright Chromium like the TUI.
+- A Soundiiz handoff above 200 tracks says so instead of a generic import failure.
+- TUI Settings can clear the email and refuses an invalid one.
+- A failed SoundCloud login browser names causes the app diagnosed itself, such as
+  a failed Chromium download or a profile already in use.
 
 ## 1.2.0 — 2026-09-16
 

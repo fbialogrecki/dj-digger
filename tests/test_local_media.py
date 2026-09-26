@@ -86,6 +86,50 @@ def test_delete_rejects_changed_and_leased_files(tmp_path, db):
     assert path.read_bytes() == b'new content'
 
 
+def symlink(link, target):
+    try:
+        link.symlink_to(target)
+    except OSError:
+        pytest.skip('symlinks unavailable')
+    return link
+
+
+def test_a_link_beside_its_file_is_one_row(tmp_path, db):
+    (tmp_path / 'b.wav').write_bytes(b'fixture')
+    symlink(tmp_path / 'a-link.wav', tmp_path / 'b.wav')
+    tracks, _, total, _ = LocalLibrary(db).page(tmp_path)
+    assert total == 2
+    assert [Path(t.local_path).name for t in tracks] == ['b.wav']
+
+
+def test_a_selected_link_is_refused_before_anything_is_deleted(tmp_path, db):
+    from dj_digger.media import MediaError
+    folder = tmp_path / 'links'
+    folder.mkdir()
+    target = tmp_path / 'target.wav'
+    target.write_bytes(b'fixture')
+    library = LocalLibrary(db)
+    link = library.register(symlink(folder / 'link.wav', target))
+    with pytest.raises(MediaError, match='symbolic link'):
+        library.delete_targets([link])
+    assert target.exists()
+
+
+def test_delete_many_deletes_nothing_unless_every_file_is_safe(tmp_path, db):
+    from dj_digger.media import MediaError
+    library = LocalLibrary(db)
+    paths = [tmp_path / name for name in ('one.wav', 'two.wav')]
+    for path in paths:
+        path.write_bytes(b'fixture')
+    tracks = [library.register(path) for path in paths]
+    files = library.delete_targets(tracks + tracks)
+    assert len(files) == 2
+    paths[1].write_bytes(b'changed after confirmation')
+    with pytest.raises(MediaError, match='changed'):
+        library.delete_many(files)
+    assert all(path.exists() for path in paths)
+
+
 @pytest.mark.parametrize('version', [0, 1])
 def test_v2_migration_backs_up_committed_wal(tmp_path, version):
     path = tmp_path / 'library.db'

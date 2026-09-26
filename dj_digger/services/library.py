@@ -56,6 +56,9 @@ class LibraryService:
         remembered = self.state.local_file(track.key)
         if remembered:
             track.local_path = remembered
+        elif not track.local_id:
+            # Only a confident match is remembered; a title-only path must not become `got`.
+            return False
         if self.forget_missing(track) or not track.local_path:
             return False
         if self.state.get(track.key) != GOT or remembered != track.local_path:

@@ -27,7 +27,7 @@ from dj_digger import (
     soundcloud,
     store_match,
 )
-from dj_digger.config import AppConfig
+from dj_digger.config import DEFAULT_EMAIL, AppConfig
 from dj_digger.models import GOT, OPENED, SKIP, Cancelled, Crate, LinkRecord, Track
 from dj_digger.player import Loaded, PlaybackUnavailable
 from dj_digger.rows import Row
@@ -340,6 +340,33 @@ def test_choosing_a_theme_in_settings_persists_it(records, state):
     assert app.theme == "nord"
     assert app.config.theme == "nord"
     assert AppConfig(app.config.path).theme == "nord"
+
+
+@pytest.mark.parametrize(("before", "shown", "typed", "saved"), [
+    (DEFAULT_EMAIL, "", "", DEFAULT_EMAIL),
+    ("dj@example.com", "dj@example.com", "", DEFAULT_EMAIL),
+    ("dj@example.com", "dj@example.com", "abc", "dj@example.com"),
+])
+def test_settings_email_can_be_cleared_but_not_made_invalid(records, state, before, shown, typed, saved):
+    app = make_app(records, state)
+    app.config.user_email = before
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await pilot.press("s")
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            email = app.screen.query_one("#input-email", Input)
+            assert email.value == shown
+            email.value = typed
+            app.screen.query_one("#btn-save-settings", Button).press()
+            await pilot.pause()
+            await pilot.pause()
+            assert isinstance(app.screen, SettingsScreen) == (typed == "abc")
+
+    run(scenario)
+    assert app.config.user_email == saved
 
 
 def _beatport_record(track_id, url):

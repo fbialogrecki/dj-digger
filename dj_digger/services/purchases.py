@@ -1015,6 +1015,8 @@ async def prepare_playlist(requests, outcome, title, directory, browser, *, io=a
             beatport_playlist._create_soundiiz_import, requests, outcome,
             title or "DJ Digger Beatport playlist",
         )
+    except beatport_playlist.SoundiizLimit:
+        return PlaylistExport(len(lines), path, import_failed=True, limit_exceeded=True)
     except (OSError, ValueError, RequestException):
         return PlaylistExport(len(lines), path, import_failed=True)
     copied, opened = await asyncio.gather(
@@ -1031,6 +1033,7 @@ class PlaylistExport:
     copied: bool = False
     opened: bool = False
     import_failed: bool = False
+    limit_exceeded: bool = False
 
 
 def install_chromium(cancel):

@@ -56,23 +56,50 @@ class LocalLibrary:
         self.db = db
 
     def delete(self, media_id, path: Path, expected: str):
-        """Delete only the confirmed file; protect loaded and prefetched audio."""
-        from ..local_audio import LEASE_LOCK, LEASES
-        with LEASE_LOCK:
+        self.delete_many([(media_id, path, expected)])
+
+    def delete_targets(self, tracks):
+        """One confirmation entry per file; a symbolic link is refused before anyone confirms."""
+        files = {}
+        for track in tracks:
+            if not track.local_id or track.local_id in files:
+                continue
+            path = Path(track.local_path)
             if path.is_symlink():
                 raise MediaError('Select the original file rather than a symbolic link')
-            resolved = path.resolve(strict=True)
-            record = self.db.media(media_id)
-            if (record is None or record['path'] != str(resolved)
-                    or signature(resolved) != expected):
-                raise MediaError('File changed since selection; select it again')
-            if resolved in LEASES:
-                raise MediaError('Close the player before deleting a loaded or prefetched file')
-            resolved.unlink()
-            try:
-                self.db.mark_media_deleted(media_id, str(resolved))
-            except Exception as exc:
-                raise MediaError('File deleted, but the library could not be updated; reopen its folder') from exc
+            record = self.db.media(track.local_id)
+            if record:
+                files[track.local_id] = (track.local_id, path, record['signature'])
+        return list(files.values())
+
+    def delete_many(self, files, cancel=None):
+        """Delete only confirmed files, and none unless all of them are still safe to delete."""
+        from ..local_audio import LEASE_LOCK
+        with LEASE_LOCK:
+            for media_id, path, expected in files:
+                self._deletable(media_id, path, expected)
+            for media_id, path, expected in files:
+                check_cancelled(cancel)
+                resolved = self._deletable(media_id, path, expected)
+                resolved.unlink()
+                try:
+                    self.db.mark_media_deleted(media_id, str(resolved))
+                except Exception as exc:
+                    raise MediaError('File deleted, but the library could not be updated; reopen its folder') from exc
+
+    def _deletable(self, media_id, path: Path, expected: str) -> Path:
+        """Call with LEASE_LOCK held; loaded and prefetched audio is protected."""
+        from ..local_audio import LEASES
+        if path.is_symlink():
+            raise MediaError('Select the original file rather than a symbolic link')
+        resolved = path.resolve(strict=True)
+        record = self.db.media(media_id)
+        if (record is None or record['path'] != str(resolved)
+                or signature(resolved) != expected):
+            raise MediaError('File changed since selection; select it again')
+        if resolved in LEASES:
+            raise MediaError('Close the player before deleting a loaded or prefetched file')
+        return resolved
 
     def register(self, path: Path, *, inspect=False, cancel=None) -> Track:
         selected_path = path.absolute()
@@ -116,13 +143,22 @@ class LocalLibrary:
             self.db.mark_directory_missing(str(folder), {str(folder / name) for name in names}, folder_stat.st_dev)
         names.sort(key=str.casefold)
         directories.sort(key=str.casefold)
-        tracks, failures = [], []
+        tracks, failures, rows = [], [], {}
         for name in names[offset:offset + PAGE_SIZE]:
             check_cancelled(cancel)
             try:
-                tracks.append(self.register(folder / name))
+                track = self.register(folder / name)
             except OSError as exc:
                 failures.append(f'{name}: {exc}')
+                continue
+            # A link to a file on this page shares its identity, so it would share its selection.
+            if track.local_id in rows:
+                if Path(track.local_path).is_symlink():
+                    continue
+                tracks[rows[track.local_id]] = track
+            else:
+                rows[track.local_id] = len(tracks)
+                tracks.append(track)
         return tracks, directories, len(names), failures
 
     def selection(self, folder: Path, *, recursive=False, cancel=None):

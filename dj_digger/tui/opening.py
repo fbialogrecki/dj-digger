@@ -436,7 +436,9 @@ class OpeningController:
         if not result.count:
             self.notify("No Beatport tracks were available for the playlist", severity="warning", timeout=5)
             return
-        if result.import_failed:
+        if result.limit_exceeded:
+            message = f"Soundiiz accepts at most 200 tracks; the playlist file was saved to {result.path}"
+        elif result.import_failed:
             message = f"Playlist saved to {result.path}, but Soundiiz import failed"
         elif result.opened and result.copied:
             message = f"Beatport playlist ready in Soundiiz ({result.count} tracks)"

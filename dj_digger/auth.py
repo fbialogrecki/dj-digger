@@ -292,9 +292,13 @@ def login_with_chromium(
                 return run_browser(profile)
         except (SoundCloudAuthError, KeyboardInterrupt):
             raise
+        except automation_errors.AutomationError as exc:
+            # Written by this application (install failed, profile in use, no display).
+            raise SoundCloudAuthError(str(exc)) from exc
         except Exception as exc:
             # Do not include the browser exception: Playwright diagnostics can echo
             # page state and must not become a path by which credentials reach logs.
+            LOGGER.warning("SoundCloud login browser failed: %s", type(exc).__name__)
             raise SoundCloudAuthError("Could not start the SoundCloud login browser.") from exc
     finally:
         BROWSER_PROFILE_LOCK.release()

@@ -10,6 +10,7 @@ from textual.widgets import Button, Tree
 from ..analysis import analyze_track
 from ..analysis_report import AnalysisReport
 from ..export import execute, plan_export, recover, resume_plan
+from ..media import MediaError
 from ..models import Cancelled
 from ..services.local_library import PAGE_SIZE, LocalLibrary, media_analysis_values, media_track
 from ..services.profile_import import import_profile
@@ -287,11 +288,13 @@ class LocalController:
 
     def delete_files(self):
         rows = self.selected_rows() or [self.current_row()]
-        tracks = [row.track for row in rows if row and row.track.local_id]
-        if not tracks:
+        try:
+            files = self.library.delete_targets([row.track for row in rows if row])
+        except MediaError as exc:
+            self.notify(str(exc), severity='error', timeout=10)
             return
-        files = [(track.local_id, Path(track.local_path), self.services.state.db.media(track.local_id)['signature'])
-                 for track in tracks]
+        if not files:
+            return
         question = ('Permanently delete these files from disk? This cannot be undone.\n\n'
                     + '\n'.join(str(path) for _, path, _ in files))
         self.push_screen(ConfirmScreen(question),
@@ -299,22 +302,17 @@ class LocalController:
 
     async def _delete_files(self, files):
         def work(cancel):
-            from ..models import check_cancelled
-            failures = []
-            for media_id, path, expected in files:
-                check_cancelled(cancel)
-                try:
-                    self.library.delete(media_id, path, expected)
-                except Exception as exc:
-                    failures.append(f'{path.name}: {exc}')
-            return failures
-        failures = await self.job('Deleting files', work)
+            try:
+                self.library.delete_many(files, cancel)
+            except (MediaError, OSError) as exc:
+                return str(exc)
+            return ''
+        error = await self.job('Deleting files', work)
         await self.services.io(self.services.state.reload_file_paths)
-        if failures is not None:
-            self.notify(f'Deleted {len(files) - len(failures)} files; {len(failures)} failed',
-                        severity='warning' if failures else 'information')
-            if failures:
-                self.notify(failures[0], severity='error', timeout=10)
+        if error:
+            self.notify(f'Delete stopped: {error}', severity='error', timeout=10)
+        elif error is not None:
+            self.notify(f'Deleted {len(files)} files')
         if self.folder and self.playlist_state.crate is None:
             self.open(self.folder, self.offset)
 
