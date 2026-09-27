@@ -22,7 +22,10 @@
 - Cancelling Store accounts or a cart is no longer shown as an error, and the
   desktop offers to download a missing Playwright Chromium like the TUI.
 - A Soundiiz handoff above 200 tracks says so instead of a generic import failure.
-- TUI Settings can clear the email and refuses an invalid one.
+- TUI Settings can clear the email and refuses an invalid one; both interfaces
+  save no email the same way.
+- The TUI plays any track that has a file on disk locally, including downloads and
+  title-only matches, instead of streaming it or refusing it without a track id.
 - A failed SoundCloud login browser names causes the app diagnosed itself, such as
   a failed Chromium download or a profile already in use.
 

@@ -323,8 +323,8 @@ def test_settings_show_placeholder_email_as_empty(backend, tmp_path):
         assert answer['user_email'] == ''
         worker.answer(question['id'], dict(answer, download_directory=str(tmp_path)))
         wait_event(events, 'sidebar')
-        # What load() restores after an empty email was saved.
-        worker.services.config.user_email = DEFAULT_EMAIL
+        # The same spelling of "no email" the TUI saves.
+        assert json.loads((tmp_path / 'config.json').read_text())['user_email'] == DEFAULT_EMAIL
 
 
 def test_add_playlist_passes_the_entered_text(backend):

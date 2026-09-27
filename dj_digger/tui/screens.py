@@ -30,7 +30,7 @@ from textual.widgets.option_list import Option
 
 from dj_digger import cart_models
 
-from ..config import DEFAULT_EMAIL, AppConfig, is_real_email
+from ..config import AppConfig, is_real_email
 from ..services.accounts import AccountService, GateProfileAnswer
 from .keymap import (
     CRATES,
@@ -925,7 +925,7 @@ class SettingsScreen(_Modal[None]):
             if email and not is_real_email(email):
                 self.app.notify("Enter a valid email, or leave it empty", severity="error", timeout=6)
                 return
-            values = {"browser": self.query_one("#input-browser", Select).value, "user_email": email or DEFAULT_EMAIL}
+            values = {"browser": self.query_one("#input-browser", Select).value, "user_email": email}
 
             # Blank fields keep their previous value.
             for widget_id, attribute in (

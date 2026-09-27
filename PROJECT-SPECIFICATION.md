@@ -5,8 +5,8 @@
 - Product version verified: 1.2.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-09-16
-- Document lines: <!-- SPEC TOTAL LINES -->1624<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1624<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1627<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1627<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,64 +51,64 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 143–179 |
 | 2.1 | ↳ Problem and product boundary | 145–158 |
 | 2.2 | ↳ Execution modes | 159–179 |
-| 3 | User-visible capabilities | 180–759 |
+| 3 | User-visible capabilities | 180–762 |
 | 3.1 | ↳ Track collection and saved HTML | 182–208 |
 | 3.2 | ↳ Link classification and exports | 209–227 |
-| 3.3 | ↳ TUI playlist library and interaction | 228–321 |
-| 3.4 | ↳ Audio preview | 322–393 |
-| 3.5 | ↳ Downloads and local-file matching | 394–430 |
-| 3.6 | ↳ Store purchase assistance | 431–516 |
-| 3.7 | ↳ Local library, analysis and audio export | 517–635 |
-| 3.8 | ↳ Qt Quick desktop | 636–759 |
-| 4 | System context and data flow | 760–800 |
-| 4.1 | ↳ Context diagram | 762–784 |
-| 4.2 | ↳ Collection-to-library flow | 785–800 |
-| 5 | Repository layout and component ownership | 801–875 |
-| 5.1 | ↳ Entry, orchestration, and models | 803–814 |
-| 5.2 | ↳ Network and external-system adapters | 815–833 |
-| 5.3 | ↳ Persistence, local media, and UI | 834–875 |
-| 6 | Runtime architecture and environments | 876–994 |
-| 6.1 | ↳ Runtime and dependencies | 878–901 |
-| 6.2 | ↳ Concurrency and lifecycle | 902–973 |
-| 6.3 | ↳ Local paths and environment variables | 974–994 |
-| 7 | Data model and persistence | 995–1093 |
-| 7.1 | ↳ Domain objects and identity | 997–1011 |
-| 7.2 | ↳ SQLite schema and invariants | 1012–1060 |
-| 7.3 | ↳ Crate persistence and deletion | 1061–1076 |
-| 7.4 | ↳ Configuration and credential stores | 1077–1093 |
-| 8 | Public interfaces and contracts | 1094–1151 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1096–1124 |
-| 8.2 | ↳ JSON and CSV summary input | 1125–1140 |
-| 8.3 | ↳ URL-opening contract | 1141–1151 |
-| 9 | Authentication and authorization | 1152–1197 |
-| 9.1 | ↳ SoundCloud authentication | 1154–1176 |
-| 9.2 | ↳ Gate action consent | 1177–1197 |
-| 10 | External integrations | 1198–1340 |
-| 10.1 | ↳ SoundCloud API and media | 1200–1211 |
-| 10.2 | ↳ Link hubs and download gates | 1212–1281 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1220–1267 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1269–1274 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1276–1281 |
-| 10.3 | ↳ Browsers and clipboard | 1282–1293 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1294–1340 |
-| 11 | Security requirements and threat model | 1341–1395 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1343–1361 |
-| 11.2 | ↳ Secret and personal-data handling | 1362–1377 |
-| 11.3 | ↳ File and mutation safety | 1378–1395 |
-| 12 | Privacy, lifecycle, and retention | 1396–1439 |
-| 12.1 | ↳ Data stored locally | 1398–1417 |
-| 12.2 | ↳ Data sent to third parties | 1418–1429 |
-| 12.3 | ↳ User-controlled deletion | 1430–1439 |
-| 13 | Failure behavior and current limitations | 1440–1500 |
-| 13.1 | ↳ Error isolation and reporting | 1442–1461 |
-| 13.2 | ↳ Confirmed limitations | 1462–1500 |
-| 14 | Verification, CI, and release | 1501–1595 |
-| 14.1 | ↳ Offline and live test suites | 1503–1549 |
-| 14.2 | ↳ Continuous integration and publishing | 1550–1580 |
-| 14.3 | ↳ Specification-map verification | 1581–1595 |
-| 15 | Evidence and operational references | 1596–1624 |
-| 15.1 | ↳ Primary implementation evidence | 1598–1614 |
-| 15.2 | ↳ User and historical documentation | 1615–1624 |
+| 3.3 | ↳ TUI playlist library and interaction | 228–322 |
+| 3.4 | ↳ Audio preview | 323–396 |
+| 3.5 | ↳ Downloads and local-file matching | 397–433 |
+| 3.6 | ↳ Store purchase assistance | 434–519 |
+| 3.7 | ↳ Local library, analysis and audio export | 520–638 |
+| 3.8 | ↳ Qt Quick desktop | 639–762 |
+| 4 | System context and data flow | 763–803 |
+| 4.1 | ↳ Context diagram | 765–787 |
+| 4.2 | ↳ Collection-to-library flow | 788–803 |
+| 5 | Repository layout and component ownership | 804–878 |
+| 5.1 | ↳ Entry, orchestration, and models | 806–817 |
+| 5.2 | ↳ Network and external-system adapters | 818–836 |
+| 5.3 | ↳ Persistence, local media, and UI | 837–878 |
+| 6 | Runtime architecture and environments | 879–997 |
+| 6.1 | ↳ Runtime and dependencies | 881–904 |
+| 6.2 | ↳ Concurrency and lifecycle | 905–976 |
+| 6.3 | ↳ Local paths and environment variables | 977–997 |
+| 7 | Data model and persistence | 998–1096 |
+| 7.1 | ↳ Domain objects and identity | 1000–1014 |
+| 7.2 | ↳ SQLite schema and invariants | 1015–1063 |
+| 7.3 | ↳ Crate persistence and deletion | 1064–1079 |
+| 7.4 | ↳ Configuration and credential stores | 1080–1096 |
+| 8 | Public interfaces and contracts | 1097–1154 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1099–1127 |
+| 8.2 | ↳ JSON and CSV summary input | 1128–1143 |
+| 8.3 | ↳ URL-opening contract | 1144–1154 |
+| 9 | Authentication and authorization | 1155–1200 |
+| 9.1 | ↳ SoundCloud authentication | 1157–1179 |
+| 9.2 | ↳ Gate action consent | 1180–1200 |
+| 10 | External integrations | 1201–1343 |
+| 10.1 | ↳ SoundCloud API and media | 1203–1214 |
+| 10.2 | ↳ Link hubs and download gates | 1215–1284 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1223–1270 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1272–1277 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1279–1284 |
+| 10.3 | ↳ Browsers and clipboard | 1285–1296 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1297–1343 |
+| 11 | Security requirements and threat model | 1344–1398 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1346–1364 |
+| 11.2 | ↳ Secret and personal-data handling | 1365–1380 |
+| 11.3 | ↳ File and mutation safety | 1381–1398 |
+| 12 | Privacy, lifecycle, and retention | 1399–1442 |
+| 12.1 | ↳ Data stored locally | 1401–1420 |
+| 12.2 | ↳ Data sent to third parties | 1421–1432 |
+| 12.3 | ↳ User-controlled deletion | 1433–1442 |
+| 13 | Failure behavior and current limitations | 1443–1503 |
+| 13.1 | ↳ Error isolation and reporting | 1445–1464 |
+| 13.2 | ↳ Confirmed limitations | 1465–1503 |
+| 14 | Verification, CI, and release | 1504–1598 |
+| 14.1 | ↳ Offline and live test suites | 1506–1552 |
+| 14.2 | ↳ Continuous integration and publishing | 1553–1583 |
+| 14.3 | ↳ Specification-map verification | 1584–1598 |
+| 15 | Evidence and operational references | 1599–1627 |
+| 15.1 | ↳ Primary implementation evidence | 1601–1617 |
+| 15.2 | ↳ User and historical documentation | 1618–1627 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -290,7 +290,8 @@ within each group.
 
 The latest saved playlist opens when the TUI starts without incoming rows. On first
 run, settings are shown before the initial library scan. In TUI Settings an empty
-Email means no email (the reserved placeholder) and an invalid address is refused;
+Email means no email and an invalid address is refused; either interface saves no
+email as the reserved placeholder;
 other empty fields keep their previous value. Terminals below 110
 columns automatically collapse the sidebar; the full help remains available.
 Opening more than 20 visible links requires a repeated confirmation action.
@@ -321,6 +322,8 @@ Cancel only discards unsaved preferences. Existing empty-field semantics remain.
 
 ### 3.4 Audio preview
 
+Any track with a file on disk (library media, a download or a title-only match)
+plays that file in both interfaces; only tracks without one stream from SoundCloud.
 Local playback uses FFmpeg to produce 44.1 kHz stereo signed-16 PCM. Decoded
 audio is retained in memory, up to 64 MB per source (about six minutes); once
 that cap is reached the oldest audio more than 30 s behind the read head is
@@ -420,8 +423,8 @@ modification time, size, and normalized filename data in SQLite in batches of
 without an error banner; explicit explorer access reports errors. Cancellation
 stops the walk between files while keeping what was already written. Artist-plus-title matches are confident and
 may set `got`; title-only matches require at least six normalized characters and
-only attach a path: the TUI shows it, the desktop uses it for local preview and
-shows it, and Download never treats it as an owned file. A unique filename may contain extra text around the matched
+only attach a path: both interfaces show it and preview that file locally, and
+Download never treats it as an owned file. A unique filename may contain extra text around the matched
 artist/title, such as a mix label; ambiguous decorated matches are rejected.
 Missing files are removed only after a complete readable parent listing on the
 known volume; inaccessible or replaced roots retain their records. Directory

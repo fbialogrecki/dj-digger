@@ -145,7 +145,7 @@ class PlaybackController:
         if index is None:
             return
         track = self.playlist_state.visible_rows[index].track
-        if (not track.id and not track.local_id) or self.audio_state._preparing == track.key:
+        if (not track.id and not track.local_path) or self.audio_state._preparing == track.key:
             return
         if self.audio_state._prepared is not None and self.audio_state._prepared.key == track.key:
             return
@@ -155,7 +155,8 @@ class PlaybackController:
 
     def _prepare_audio(self, track: Track) -> Prepared:
         """Use the same source preparation for playback and prefetch workers."""
-        if track.local_id and track.local_path:
+        # Any file on disk plays locally: library media, downloads and title-only matches alike.
+        if track.local_path:
             from ..local_audio import prepare_local
             return prepare_local(track)
         stream = resolve_stream(self.client, track.id)
@@ -303,7 +304,7 @@ class PlaybackController:
     def _start_playback(self, track: Track) -> None:
         self._requested_row = next((row for row in self.playlist_state.visible_rows if row.track is track), None)
         self.audio_state._playback_generation += 1
-        if not track.id and not track.local_id:
+        if not track.id and not track.local_path:
             self.notify("No track id, so there is nothing to stream", timeout=4)
             return
         self._wake()
@@ -366,7 +367,7 @@ class PlaybackController:
         bar.message = ""
         previously_playing = self._playing_key()
         try:
-            self.player.load(track, stream, None if track.local_id else self.client.session, samples, source)
+            self.player.load(track, stream, None if track.local_path else self.client.session, samples, source)
             self.player.play()
         except PlaybackUnavailable as exc:
             self._playback_failed(str(exc))
@@ -386,7 +387,7 @@ class PlaybackController:
         self._paint_key(track.key)
         self._focus_playing_track()
         bar.refresh_bar()
-        if track.local_id and source is not None:
+        if track.local_path and source is not None:
             loaded = self.player.loaded
             self.run_worker(lambda: self._local_waveform_work(loaded, source),
                             thread=True, group='local-waveform', exclusive=True)

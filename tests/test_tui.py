@@ -2632,6 +2632,25 @@ def test_next_track_moves_on_to_the_next_track(state, monkeypatch):
     assert started == [901, 902]
 
 
+def test_a_file_on_disk_plays_locally_even_without_a_track_id(state, monkeypatch, tmp_path):
+    app = player_app(two_tracks_three_links(), state)
+    started, prepared = [], []
+    monkeypatch.setattr(app.playback_controller, "fetch_audio", lambda track, generation=None: started.append(track.local_path))
+    monkeypatch.setattr("dj_digger.local_audio.prepare_local", lambda track: prepared.append(track.local_path) or "local")
+    maybe = Track("Maybe", "https://soundcloud.com/a/maybe", local_path=str(tmp_path / "maybe.wav"))
+
+    async def scenario():
+        async with app.run_test() as pilot:
+            app.playback_controller._start_playback(maybe)
+            await pilot.pause()
+
+    run(scenario)
+    assert started == [maybe.local_path]
+    # A downloaded remote track plays its file too, rather than streaming again.
+    assert app.playback_controller._prepare_audio(Track("Got", "u", id=5, local_path="/music/got.wav")) == "local"
+    assert prepared == ["/music/got.wav"]
+
+
 def test_previous_track_walks_back(state, monkeypatch):
     app = player_app(two_tracks_three_links(), state)
     started = []

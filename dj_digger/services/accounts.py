@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from threading import Event, Lock
 
 from .. import auth, browser
+from ..config import DEFAULT_EMAIL
 from ..diagnostics import log_safe_text
 
 
@@ -55,6 +56,9 @@ class AccountService:
         self.save_preferences({"user_name": answer.name, "user_email": answer.email})
 
     def save_preferences(self, values):
+        if 'user_email' in values and not str(values['user_email']).strip():
+            # One spelling of "no email" in config.json, whichever interface saved it.
+            values = {**values, 'user_email': DEFAULT_EMAIL}
         with self.worker_scope(), self._preferences_lock:
             pending = copy(self.config)
             for key, value in values.items():
