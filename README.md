@@ -114,8 +114,8 @@ for commands, coverage and remaining platform checks.
 
 ## 📦 Installation
 
-**Version 1.2.0 is available on [PyPI](https://pypi.org/project/dj-sc-digger/1.2.0/)
-and [GitHub Releases](https://github.com/fbialogrecki/dj-digger/releases/tag/v1.2.0).**
+**Version 1.2.1 is available on [PyPI](https://pypi.org/project/dj-sc-digger/1.2.1/)
+and [GitHub Releases](https://github.com/fbialogrecki/dj-digger/releases/tag/v1.2.1).**
 Install the package `dj-sc-digger`; launch it with `dj-digger`.
 
 Upgrading from `dj-soundcloud-digger`? Follow the

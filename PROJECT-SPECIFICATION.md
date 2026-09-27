@@ -2,9 +2,9 @@
 
 - Status: current implemented system
 - Document version: 1.1
-- Product version verified: 1.2.0 (working tree)
+- Product version verified: 1.2.1 (working tree)
 - Owner: Filip Białogrecki
-- Updated: 2026-09-16
+- Updated: 2026-09-27
 - Document lines: <!-- SPEC TOTAL LINES -->1627<!-- END SPEC TOTAL LINES -->
 - Section map covers through line: <!-- SPEC MAP LIMIT -->1627<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`

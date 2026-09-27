@@ -685,6 +685,10 @@ def test_seeks_collapse_to_the_newest_and_nudges_add_up(backend, monkeypatch):
         # Every applied seek publishes a snapshot immediately rather than waiting for the ticker.
         assert wait_event(events, 'audio')['position'] in applied
         assert asyncio.run_coroutine_threadsafe(worker.action_transport({'operation': 'nudge', 'value': 5}), worker.loop).result(2) is None
+        # The seek to 27 may still be finishing, in which case the nudge queues behind it.
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline and applied[-1] != 32:
+            time.sleep(.02)
         assert applied[-1] == 32
     finally:
         player._loaded = None
