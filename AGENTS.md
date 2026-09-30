@@ -61,10 +61,9 @@ terminal crate-digging CLI/TUI.
 
 - `dj_digger/cli.py`, `services/`, `models.py`, `crate_models.py`, `links.py`: entry, collection
   orchestration, shared objects, classification, and exports.
-- `dj_digger/soundcloud.py`, `html_fallback.py`: SoundCloud API v2 and saved-page
-  inputs.
-- `dj_digger/tui/`, `player.py`: Textual crate browser and optional in-memory
-  audio preview.
+- `dj_digger/soundcloud.py`: SoundCloud API v2 inputs.
+- `dj_digger/tui/`, `player.py`, `beats.py`: Textual crate browser, optional
+  in-memory audio preview, and the beat grid the desktop pulses with.
 - `dj_digger/db.py`, `schema.py`, `state.py`, `library.py`, `scanner.py`, `config.py`: SQLite
   state, crates, local-file matching, and preferences.
 - `dj_digger/auth.py`, `spotify.py`, `gates/`, `stores/`, `http.py`, `browser.py`: external

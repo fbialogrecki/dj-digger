@@ -143,3 +143,10 @@ def test_decoder_eof_does_not_swallow_transfer_failure(monkeypatch):
             next(source.stream(0))
     finally:
         source.close()
+
+
+def test_the_length_is_known_once_every_segment_arrived():
+    source = hls_audio.HlsSourceMixin(Session(), BASE + "track.m3u8")
+    source._thread.join(2)
+    assert source.length == 6
+    source.close()

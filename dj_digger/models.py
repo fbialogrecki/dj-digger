@@ -1,6 +1,6 @@
 """Shared data structures.
 
-Lives in its own module so ``soundcloud``, ``html_fallback``, ``links`` and
+Lives in its own module so ``soundcloud``, ``links`` and
 ``tui`` can all speak the same vocabulary without importing each other.
 """
 

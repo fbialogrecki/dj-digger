@@ -3,19 +3,22 @@ import asyncio
 import logging
 import stat
 import threading
+import time
 from copy import deepcopy
 from dataclasses import replace
 from pathlib import Path
 from uuid import uuid4
 
 from .. import links
+from ..analysis import key_names
 from ..cart_models import CartCancelled
 from ..diagnostics import log_safe_text
-from ..models import GOT, NEW, SKIP, Cancelled, check_cancelled
+from ..models import GOT, NEW, SKIP, Cancelled, Crate, check_cancelled
 from ..paths import playlist_download_directory
 from ..services.collection import DigOptions
 from ..services.local_library import LocalLibrary, media_track
 from ..services.runtime import ApplicationServices
+from ..soundcloud import is_soundcloud_url
 
 LOGGER = logging.getLogger(__name__)
 
@@ -43,6 +46,9 @@ class Backend:
         self.undo = []
         # Title-only scan matches: local preview only, never ownership, download or export.
         self.preview_paths = {}
+        # The playlist being imported, listed in the sidebar before it is saved.
+        self.importing = None
+        self.saved_playlists = []
         self.mark_lock = asyncio.Lock()
         self.player_lock = asyncio.Lock()
         self.waveform_lock = asyncio.Lock()
@@ -162,7 +168,13 @@ class Backend:
 
     async def sidebar(self):
         headers = await self.io(self.services.library.headers)
-        self.send('sidebar', {'items': [dict(title=h.title, source=h.source) for h in headers],
+        self.saved_playlists = [dict(title=h.title, source=h.source) for h in headers]
+        self.send_sidebar()
+
+    def send_sidebar(self):
+        pending = [self.importing] if self.importing else []
+        self.send('sidebar', {'items': pending + [item for item in self.saved_playlists
+                                                  if not pending or item['source'] != pending[0]['source']],
                               'pinned': list(self.services.config.pinned_directories)})
 
     async def publish(self, tracks, title, generation):
@@ -176,8 +188,9 @@ class Backend:
 
     def row_value(self, row):
         t = row.track
+        classic, camelot = key_names(t.key_signature) or ('', '')
         return dict(key=t.key, title=t.title, artist=t.artist, genre=t.genre_label,
-                    bpm=t.bpm or '', keySignature=t.key_signature, year=t.release_year or '',
+                    bpm=t.bpm or '', keySignature=t.key_signature, classicKey=classic, camelot=camelot, year=t.release_year or '',
                     label=t.label_name, duration=t.duration, status=self.services.state.get(t.key),
                     stores=', '.join(row.categories), local=bool(t.local_id), path=t.local_path or self.preview_paths.get(t.key, ''),
                     search=row.haystack)
@@ -200,6 +213,10 @@ class Backend:
         if generation == self.generation:
             self.rows = rows
             self.send('rows', {'generation': generation, 'rows': [self.row_value(r) for r in rows]})
+            player = self.services.player
+            # Analysis or an edit may have given the playing track its BPM or key.
+            if player.loaded and (row := next((r for r in rows if r.track.key == player.loaded.track.key), None)):
+                self.publish_now_playing(row.track)
 
     def targets(self, values):
         if values.get('generation') != self.generation:
@@ -251,19 +268,61 @@ class Backend:
 
     async def action_dig(self, values):
         target = values.get('target')
-        if not target:
-            target = (await self.form('Add playlist', '', [field('target', 'SoundCloud URL or saved HTML')], required('target'), ok='Add'))['target'].strip()
+        # A refresh keeps its rows until the new ones are in; a new import shows itself at once.
+        adding = not target
+        if adding:
+            target = (await self.form('Add playlist', '', [field('target', 'Paste a link to your SoundCloud playlist')],
+                                      soundcloud_link('target'), ok='Add'))['target'].strip()
+            self.generation += 1
+            self.record, self.folder = None, None
+            self.importing = dict(title=target, source=target, pending=True)
+            self.show_import(Crate(source=target, tracks=[], title=target), self.generation)
+            await self.sidebar()
         generation = self.generation
+        last = [0.0]
+
+        def progress(stage, done, total):
+            # Called per track while link hubs open; ten updates a second are plenty to watch.
+            now = time.monotonic()
+            if done == total or now - last[0] > .1:
+                last[0] = now
+                self.loop.call_soon_threadsafe(self.send, 'importProgress', dict(stage=stage, done=done, total=total or 0))
+
+        def arrived(crate):
+            if adding:
+                self.loop.call_soon_threadsafe(self.show_import, crate, generation)
+
         async def work(handle):
             result = await self.io(self.services.collection.collect, target, DigOptions(),
                                    self.services.state.db.snapshot_generations(), 'none', None,
-                                   handle.cancel, lambda stage, done, total: None)
+                                   handle.cancel, progress, arrived)
             if result.record and generation == self.generation:
                 self.record, self.folder = result.record, None
                 self.generation += 1
                 await self.publish(result.record.active_tracks, result.record.title, self.generation)
+        try:
+            await self.job('Collecting tracks', work)
+        finally:
+            if adding and generation == self.generation:
+                # Nothing was saved (failed, cancelled or empty): withdraw the half-filled view.
+                self.generation += 1
+                self.rows = []
+                self.send('view', {'generation': self.generation, 'title': '', 'source': '', 'local': False, 'rows': []})
+            self.importing = None
+            self.send('importProgress', {})
             await self.sidebar()
-        await self.job('Collecting tracks', work)
+
+    def show_import(self, crate, generation):
+        """The tracks of an import so far, shown under its provisional sidebar entry; not saved yet."""
+        from ..rows import Row
+        if generation != self.generation:
+            return
+        self.rows = [Row(i, t, links.categorise(t)) for i, t in enumerate(crate.tracks)]
+        self.send('view', {'generation': generation, 'title': crate.title, 'source': crate.source, 'local': False,
+                           'rows': [self.row_value(r) for r in self.rows]})
+        if self.importing and self.importing['title'] != crate.title:
+            self.importing['title'] = crate.title
+            self.send_sidebar()
 
     async def action_refresh(self, values):
         if self.record and not self.record.source.startswith('local-playlist:'):
@@ -428,24 +487,33 @@ class Backend:
         await self.refresh_rows()
 
     async def action_export(self, values):
-        from ..decks import Profile
+        from ..decks import DECK_GROUPS
         from ..export import execute, plan_export
         tracks = [r.track for r in self.targets(values) if r.track.local_path]
         folder = self.folder
         if not tracks and folder is None:
             return
+        config = self.services.config
         def validate(answer):
             # Replacing works in place, so only a copy needs somewhere to go.
             answer['folder'] = str(answer['folder']).strip()
             if answer['mode'] == 'copy' and not answer['folder']:
                 raise ValueError('This field is required')
-            return answer
-        answer = await self.form('Export audio', '', [field('folder', 'Destination folder (Copy only)', kind='folder'),
-                                                     field('mode', 'Mode', 'copy', 'choice', [['copy', 'Copy'], ['replace', 'Replace originals']]),
-                                                     field('format', 'Format', 'wav', 'choice', [[f, f.upper()] for f in ('wav', 'aiff', 'flac')]),
-                                                     field('bits', 'Maximum bit depth', '24', 'choice', [['16', '16'], ['24', '24']]),
-                                                     field('rate', 'Maximum sample rate', '48000', 'choice', [[str(r), str(r)] for r in (44100, 48000, 88200, 96000)]),
-                                                     field('recursive', 'Include subfolders', False, 'bool')], validate, ok='Export')
+            picked = {str(index) for index in answer.get('decks') or ()}
+            decks = [name for index, group in enumerate(DECK_GROUPS) if str(index) in picked for name in group]
+            if not decks:
+                raise ValueError('Choose at least one deck')
+            # A copy: a retry re-opens the dialog with the ticked groups, not deck names.
+            return dict(answer, decks=decks)
+        answer = await self.form(
+            'Export audio', 'Choose the decks these files must play on; the best format they all play is picked for you.',
+            [field('decks', 'Decks', [str(index) for index, group in enumerate(DECK_GROUPS) if set(group) & set(config.export_decks)],
+                   'checks', [(str(index), ', '.join(group)) for index, group in enumerate(DECK_GROUPS)]),
+             field('folder', 'Destination folder (Copy only)', kind='folder'),
+             field('mode', 'Mode', 'copy', 'choice', [['copy', 'Copy'], ['replace', 'Replace originals']]),
+             field('recursive', 'Include subfolders', False, 'bool')], validate, ok='Export')
+        config.export_decks = answer['decks']
+        await self.io(config.save)
         async def work(handle):
             paths = tuple(Path(t.local_path) for t in tracks)
             if folder and not values.get('selected'):
@@ -462,10 +530,11 @@ class Backend:
             # A replacement plan only falls back to this folder when the sources share no root.
             destination = (Path(answer['folder']).expanduser() if answer['folder']
                            else paths[0].parent if paths else Path())
-            plan = await self.io(plan_export, paths,
-                                 destination, Profile(answer['format'], int(answer['bits']), int(answer['rate'])), mode=answer['mode'], cancel=handle.cancel)
+            plan = await self.io(plan_export, paths, destination, decks=answer['decks'], mode=answer['mode'], cancel=handle.cancel)
+            summary = [*(f'Warning: {note}' for note in plan.notes), f'{plan.profile.label()}, for files that need converting',
+                       *(f'{deck}: {state}' for deck, state in plan.compatibility().items()), '']
             await self.ask('Review export', 'Replacing originals permanently removes them after verification.' if plan.mode == 'replace' else '',
-                           [field('plan', '', '\n'.join(f'{i.action}: {i.source} → {i.destination} ({i.reason})' for i in plan.items), 'log')],
+                           [field('plan', '', '\n'.join([*summary, *(f'{i.action}: {i.source} → {i.destination} ({i.reason})' for i in plan.items)]), 'log')],
                            handle.cancel, ok='Replace' if plan.mode == 'replace' else 'Export')
             from ..local_audio import LEASE_LOCK, LEASES
             def protected():
@@ -626,6 +695,7 @@ class Backend:
                 await self.io(player.play)
                 self.publish_audio()
                 self.publish_waveform()
+                self.publish_now_playing()
         finally:
             if prepared.source is not None:
                 await self.io(prepared.close)
@@ -656,6 +726,17 @@ class Backend:
                         duration=p.duration) if p.loaded else {}
         self.send('audio', snapshot)
         return snapshot
+
+    def publish_now_playing(self, track=None):
+        """Details for the player panel, sent when a track loads or its details
+        change; the small audio snapshot stays small."""
+        p = self.services.player
+        if not p.loaded:
+            return
+        t = track or p.loaded.track
+        classic, camelot = key_names(t.key_signature) or ('', '')
+        self.send('nowPlaying', dict(key=p.loaded.track.key, artist=t.artist or '', name=t.title or t.label,
+                                     bpm=float(t.bpm or 0), classicKey=classic, camelot=camelot))
 
     def publish_waveform(self):
         p = self.services.player
@@ -703,6 +784,10 @@ class Backend:
                 if not p.loaded:
                     break
                 snapshot = self.publish_audio()
+                if snapshot['playing']:
+                    # Detected hits in queued audio reach the window before the speakers.
+                    pulses, period = p.beats()
+                    self.send('beats', dict(key=snapshot['key'], pulses=[list(pulse) for pulse in pulses], period=period))
                 event = p.take_event()
             if (snapshot['playing'] and snapshot['duration'] - snapshot['position'] < 15
                     and self.prepared is None and (self.prefetch_task is None or self.prefetch_task.done())
@@ -721,7 +806,7 @@ class Backend:
                     await self.player_call(p.stop)
                 else:
                     await self.action_step({'direction': 1})
-            await asyncio.sleep(.1 if snapshot['playing'] else .5)
+            await asyncio.sleep(.025 if snapshot['playing'] else .5)
 
     async def action_step(self, values):
         player = self.services.player
@@ -1034,6 +1119,17 @@ def export_notice(report):
 
 def field(name, label, value='', kind='text', options=()):
     return dict(name=name, label=label, value=value, kind=kind, options=[list(o) for o in options])
+
+
+def soundcloud_link(name):
+    def validate(answer):
+        value = str(answer.get(name, '')).strip()
+        if not value:
+            raise ValueError('This field is required')
+        if not is_soundcloud_url(value):
+            raise ValueError('Paste a link from soundcloud.com')
+        return answer
+    return validate
 
 
 def required(name):

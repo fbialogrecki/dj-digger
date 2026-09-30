@@ -160,7 +160,7 @@ class LocalController:
         self.notify(f'Added {len(tracks)} files to {title}')
 
     def export_options(self):
-        self.push_screen(ExportOptions(self.folder or Path(self.config.download_directory)),
+        self.push_screen(ExportOptions(self.folder or Path(self.config.download_directory), self.config.export_decks),
                          lambda options: self.run_worker(self._plan(options)) if options else None)
 
     async def job(self, name, operation):
@@ -184,6 +184,8 @@ class LocalController:
                     self._heavy_handle = None
 
     async def _plan(self, options):
+        self.config.export_decks = options['decks']
+        await self.services.io(self.config.save)
         selected = self.selected_rows()
         folder = self.folder if self.playlist_state.crate is None else None
         paths = tuple(Path(track.local_path) for track in self.tracks())
@@ -204,7 +206,7 @@ class LocalController:
                         if filter_rows([row], search, hide_handled, lambda value: self.services.state.get(value.track.key)):
                             matching.append(path)
                     sources = tuple(matching)
-            return plan_export(sources, options['folder'], options['profile'], mode=options['mode'], cancel=cancel)
+            return plan_export(sources, options['folder'], decks=options['decks'], mode=options['mode'], cancel=cancel)
 
         plan = await self.job('Inspecting export', build)
         if plan:

@@ -13,19 +13,121 @@ ApplicationWindow {
     property string languageCode: systemLanguage
     property string themeChoice: "system"
     property bool dark: themeChoice === "dark" || (themeChoice === "system" && Application.styleHints.colorScheme === Qt.Dark)
-    property color bg: dark ? "#141820" : "#f4f6fa"
-    property color panel: dark ? "#1c2330" : "#ffffff"
-    property color fg: dark ? "#e3e9f2" : "#1e293b"
-    property color muted: dark ? "#9aabc0" : "#526174"
-    property color alternate: dark ? "#232d3d" : "#e9eef5"
-    property color hoverSurface: dark ? "#2b3a50" : "#dce7f2"
-    property color pressedSurface: dark ? "#41536b" : "#c2d1e2"
-    property color disabledFg: dark ? "#8c9bb0" : "#637187"
-    property color selectionText: dark ? "#141820" : "#ffffff"
-    property color accent: dark ? "#64c9cb" : "#16777b"
-    property color success: dark ? "#7ed492" : "#1f7a3a"
-    property color warning: dark ? "#e8c46a" : "#8a5a00"
-    property color danger: dark ? "#f08a8a" : "#b3261e"
+    // Club palette: near-black surfaces, electric blue and bordeaux accents, metallic silver text.
+    property color bg: dark ? "#0b0b0e" : "#eceef1"
+    property color panel: dark ? "#141418" : "#fafafb"
+    property color fg: dark ? "#ececef" : "#111217"
+    property color muted: dark ? "#a3a6ad" : "#50535c"
+    property color alternate: dark ? "#1e1e24" : "#dfe2e7"
+    property color hoverSurface: dark ? "#26262e" : "#d6dae1"
+    property color pressedSurface: dark ? "#35353f" : "#c1c6cf"
+    property color disabledFg: dark ? "#8e9098" : "#585b64"
+    // Selection is a soft, low-chroma blue: a whole list selected must not glare.
+    property color selection: dark ? "#34466f" : "#c9d5f2"
+    property color selectionText: dark ? "#ffffff" : "#111217"
+    property color accent: dark ? "#2f63ea" : "#1f4fd1"
+    property color accent2: dark ? "#c02a4e" : "#8c1a36"
+    property color silver: dark ? "#c9ccd3" : "#7d818b"
+    property color success: dark ? "#6fd08c" : "#1c7a3c"
+    property color warning: dark ? "#e3b85c" : "#8a5a00"
+    property color danger: dark ? "#ff7088" : "#a3122f"
+    // Tabular digits keep times, BPM and counts from jittering as they change.
+    readonly property var tabular: ({ "tnum": 1 })
+    property string keyNotation: "camelot"
+    onKeyNotationChanged: desktop.model.setKeyNotation(keyNotation)
+    property bool animations: true
+    // Every transition checks this, so one switch turns motion off everywhere.
+    readonly property bool motion: animations && !shuttingDown
+    // Rows whose status just changed flash once; delegates created or reused in
+    // this short window (after a sort or filter reset) still catch the flash.
+    property var flashKeys: ({})
+    Timer { id: flashTimer; interval: 700; onTriggered: root.flashKeys = ({}) }
+    Connections {
+        target: desktop.model
+        function onStatusFlashed(keys) { if (root.motion) { root.flashKeys = keys; flashTimer.restart() } }
+    }
+    // Normal colours remain visible at rest; only detected bass attacks add saturation.
+    readonly property bool live: !!desktop.audio.playing
+    // PCM has already entered the output queue. The offset compensates for the
+    // speaker buffer, independently of detection (View → Pulse timing).
+    property int pulseOffset: 70
+    // The pulse envelope: a hit rises to its peak over 25 ms, holds 40 ms and
+    // releases exponentially over a third of a beat (90-180 ms), so the glow
+    // breathes with the kick instead of strobing. Later hits hold the peak and
+    // never add up; hits under 100 ms apart merge into one swell.
+    property real flash: 0
+    property real peak: 0
+    property real peakAt: 0
+    property real peakFrom: 0
+    readonly property real glow: flash
+    readonly property real release: Math.max(90, Math.min(180, 300 * (desktop.beats.period || .5)))
+    readonly property bool pulsing: live && motion
+    property real audioClock: -1
+    property real clockAt: 0
+    property real lastPosition: 0
+    property string clockKey: ""
+    property real lastFired: -1
+    property real lastShown: -1
+    // Heard audio time, interpolated every frame while pulsing; -1 falls back to the snapshot position.
+    property real playhead: -1
+    onPulsingChanged: if (!pulsing) { peak = 0; flash = 0; audioClock = -1; playhead = -1 }
+    Connections {
+        target: desktop
+        function onAudioChanged() { if (root.pulsing) root.syncClock(desktop.audio.position, Date.now()) }
+    }
+    FrameAnimation {
+        running: root.pulsing && root.visibility !== Window.Minimized
+        onTriggered: root.pulseTick(Date.now())
+    }
+    function syncClock(position, now) {
+        let predicted = audioClock + (now - clockAt) / 1000
+        let key = desktop.audio.key || ""
+        if (audioClock < 0 || key !== clockKey || Math.abs(position - predicted) > .15) {
+            audioClock = position
+            // Include the first queued attack, even when it arrived just before
+            // the first UI tick. pulseTick still rejects anything over 100 ms late.
+            if (key !== clockKey || Math.abs(position - lastPosition) > .15)
+                lastFired = position - pulseOffset / 1000 - .101
+            peak = 0; flash = 0; lastShown = -1
+            playhead = Math.max(0, position - pulseOffset / 1000)
+        } else {
+            audioClock = predicted + .25 * (position - predicted)
+        }
+        clockKey = key
+        lastPosition = position
+        clockAt = now
+    }
+    function pulseTick(now) {
+        if (!pulsing || audioClock < 0) return
+        let heard = Math.min(lastPosition, audioClock + (now - clockAt) / 1000 - pulseOffset / 1000)
+        playhead = Math.max(0, heard)
+        if (desktop.beats.key !== clockKey) return
+        let pulses = desktop.beats.pulses || [], due = -1
+        for (let i = 0; i < pulses.length; i++)
+            if (pulses[i][0] <= heard && pulses[i][0] > lastFired + .001) due = i
+        if (due >= 0) {
+            lastFired = pulses[due][0]
+            if (heard - lastFired <= .1) {
+                let amplitude = pulses[due][1]
+                // A hit within half a beat of the last one shown is the roll, not the kick.
+                if (lastShown >= 0 && lastFired - lastShown < .5 * (desktop.beats.period || .5)) amplitude *= .6
+                lastShown = lastFired
+                if (peak > 0 && now - peakAt < 100) peak = Math.max(peak, amplitude)
+                else { peakFrom = flash; peak = Math.max(amplitude, flash); peakAt = now }
+            }
+        }
+        if (peak <= 0) return
+        let age = now - peakAt
+        flash = age < 25 ? peakFrom + (peak - peakFrom) * age / 25
+              : age < 65 ? peak : peak * Math.exp(-(age - 65) / release)
+        if (age >= 65 && flash < .005) { flash = 0; peak = 0 }
+    }
+    // One shared sweep for every download fill, running only while something is busy.
+    property real shimmerPhase: 0
+    NumberAnimation on shimmerPhase {
+        from: 0; to: 1; duration: 1400; loops: Animation.Infinite
+        running: root.motion && desktop.busy && root.visibility !== Window.Minimized
+    }
     property real sidebarWidth: 220
     property bool sidebarVisible: true
     property bool shuttingDown: false
@@ -35,7 +137,7 @@ ApplicationWindow {
     property var messages: []
     property string errorMessage: ""
     readonly property bool pauseTarget: !!desktop.audio.playing && (!hasSelection || desktop.model.firstSelectedKey === desktop.audio.key)
-    readonly property var defaultColumnWidths: [85, 150, 280, 85, 50, 45, 50, 95, 50, 140]
+    readonly property var defaultColumnWidths: [85, 150, 280, 85, 64, 64, 50, 95, 50, 140]
     property var columnWidths: defaultColumnWidths.slice()
     property var hiddenColumns: []
     // Logical column per visual position; TableView keeps delegates and widths logical.
@@ -63,7 +165,7 @@ ApplicationWindow {
             for (let part of sample.split(", ").filter(s => s)) { badgeMetrics.text = part; needed += badgeMetrics.width + 14 }
         } else {
             fitMetrics.text = sample
-            needed = fitMetrics.width + 14 + (column === titleColumn ? 26 : 0)
+            needed = fitMetrics.width + 14 + (column === titleColumn ? 26 : column === 4 || column === 5 ? 14 : 0)
         }
         fitMetrics.text = desktop.model.headerName(column) + " ▲"
         return Math.ceil(Math.max(40, Math.min(600, Math.max(needed, fitMetrics.width + 10))))
@@ -102,7 +204,7 @@ ApplicationWindow {
     palette.text: fg
     palette.button: panel
     palette.buttonText: fg
-    palette.highlight: accent
+    palette.highlight: selection
     palette.highlightedText: selectionText
     // Basic controls use these roles for alternate rows, placeholders, arrows,
     // popup states and tooltips. Never inherit the host's opposite-theme colors.
@@ -111,7 +213,8 @@ ApplicationWindow {
     palette.light: hoverSurface
     palette.midlight: hoverSurface
     palette.mid: pressedSurface
-    palette.dark: muted
+    // Basic draws primary buttons, progress fills, spinners and combo arrows in this role.
+    palette.dark: accent
     palette.brightText: selectionText
     palette.shadow: "#000000"
     palette.toolTipBase: panel
@@ -138,8 +241,22 @@ ApplicationWindow {
         default: return fg
         }
     }
+    // Keys go around the Camelot wheel in twelve hues; B (major) is a lighter shade than A.
+    function camelotHue(code) { return ((parseInt(code) || 1) - 1) / 12 }
+    function keyTint(code, alpha) {
+        return code ? Qt.hsla(camelotHue(code), .72, code.endsWith("B") ? .6 : .48, alpha) : Qt.rgba(0, 0, 0, 0)
+    }
+    // Mixable with the playing track: same key, a step around the wheel, or its relative major/minor.
+    function harmonic(a, b) {
+        if (!a || !b) return false
+        let na = parseInt(a), nb = parseInt(b)
+        if (a.slice(-1) !== b.slice(-1)) return na === nb
+        let d = Math.abs(na - nb)
+        return d <= 1 || d === 11
+    }
+    function tempoMatch(bpm, other) { return bpm > 0 && other > 0 && Math.abs(bpm - other) <= other * .03 }
     function statusColor(status) {
-        return status === "got" ? success : status === "skip" ? muted : status === "opened" ? warning : fg
+        return status === "got" ? success : status === "skip" || status === "new" ? muted : status === "opened" ? warning : fg
     }
     function note(text, level) {
         messages = [(new Date()).toLocaleTimeString(Qt.locale(), Locale.ShortFormat) + (level === "error" ? " ! " : "   ") + text].concat(messages).slice(0, 50)
@@ -192,6 +309,9 @@ ApplicationWindow {
             applyColumnOrder(s.columnOrder.map(Number))
         sidebarWidth = Math.max(160, Math.min(400, Number(s.sidebarWidth) || 220))
         if (s.sidebarVisible === false) sidebarVisible = false
+        if (s.animations === false) animations = false
+        keyNotation = s.keyNotation === "classic" ? "classic" : "camelot"
+        if (Number.isInteger(s.pulseOffset) && s.pulseOffset >= 0 && s.pulseOffset <= 400) pulseOffset = s.pulseOffset
         desktop.language(languageCode)
         table.forceActiveFocus()
     }
@@ -201,7 +321,8 @@ ApplicationWindow {
             shuttingDown = true
             for (let i = 0; i < 10; i++) if (i !== titleColumn && columnVisible(i)) columnWidths[i] = table.columnWidth(i)
             desktop.saveSettings({sidebarWidth: sidebar.width, sidebarVisible: sidebarVisible, width: width, height: height, language: languageCode,
-                                  theme: themeChoice, columnWidths: columnWidths, hiddenColumns: hiddenColumns, columnOrder: columnOrder})
+                                  theme: themeChoice, columnWidths: columnWidths, hiddenColumns: hiddenColumns, columnOrder: columnOrder,
+                                  keyNotation: keyNotation, animations: animations, pulseOffset: pulseOffset})
             desktop.close()
         }
     }
@@ -308,6 +429,21 @@ ApplicationWindow {
                 Action { text: qsTr("Dark"); checkable: true; checked: root.themeChoice === "dark"; ActionGroup.group: themeGroup; onTriggered: root.themeChoice = "dark" }
                 Action { text: qsTr("Light"); checkable: true; checked: root.themeChoice === "light"; ActionGroup.group: themeGroup; onTriggered: root.themeChoice = "light" }
             }
+            AppMenu {
+                title: qsTr("Key notation")
+                ActionGroup { id: notationGroup }
+                Action { text: qsTr("Camelot (8A)"); checkable: true; checked: root.keyNotation === "camelot"; ActionGroup.group: notationGroup; onTriggered: root.keyNotation = "camelot" }
+                Action { text: qsTr("Classic (Am)"); checkable: true; checked: root.keyNotation === "classic"; ActionGroup.group: notationGroup; onTriggered: root.keyNotation = "classic" }
+            }
+            Action { id: animationsAction; text: qsTr("Animations"); checkable: true; onTriggered: root.animations = !root.animations }
+            // Tuned by ear while a track plays: the speaker delay differs per machine.
+            AppMenu {
+                title: qsTr("Pulse timing")
+                Action { text: qsTr("Delay: %1 ms").arg(root.pulseOffset); enabled: false }
+                Action { text: qsTr("Pulse earlier (−10 ms)"); enabled: root.pulseOffset > 0; onTriggered: root.pulseOffset = Math.max(0, root.pulseOffset - 10) }
+                Action { text: qsTr("Pulse later (+10 ms)"); enabled: root.pulseOffset < 400; onTriggered: root.pulseOffset = Math.min(400, root.pulseOffset + 10) }
+                Action { text: qsTr("Reset"); onTriggered: root.pulseOffset = 70 }
+            }
         }
         AppMenu {
             title: qsTr("Settings")
@@ -327,6 +463,7 @@ ApplicationWindow {
     Binding { target: hideAction; property: "checked"; value: hide.checked }
     Binding { target: muteAction; property: "checked"; value: root.isMuted }
     Binding { target: sidebarAction; property: "checked"; value: root.sidebarVisible }
+    Binding { target: animationsAction; property: "checked"; value: root.animations }
     Shortcut { sequence: "/"; enabled: !root.dialogOpen; onActivated: { search.forceActiveFocus(); search.selectAll() } }
     Shortcut { sequence: "Escape"; enabled: !root.dialogOpen; onActivated: root.clearFilters() }
 
@@ -435,14 +572,129 @@ ApplicationWindow {
     }
     // One layer of waveform bars; the played layer is the same painting clipped to the progress.
     component WaveformBars: Canvas {
-        property color color
-        onPaint: waveform.paintBars(getContext("2d"), width, height, color)
-        onColorChanged: requestPaint()
+        property bool played: false
+        property bool glow: false
+        onPaint: waveform.paintBars(getContext("2d"), width, height, played, glow)
         onWidthChanged: requestPaint()
         onHeightChanged: requestPaint()
         onVisibleChanged: requestPaint()
         Connections { target: waveform; function onLevelsChanged() { requestPaint() } }
+        Connections { target: root; function onDarkChanged() { requestPaint() } }
     }
+    // A rounded label for BPM and key; a key takes its Camelot hue, a match with the playing track gets a ring.
+    component Chip: Rectangle {
+        id: chip
+        property alias text: chipLabel.text
+        property string code: ""
+        property bool match: false
+        property bool selected: false
+        implicitWidth: chipLabel.implicitWidth + 14; implicitHeight: 22; radius: 11
+        color: selected ? root.panel : code ? root.keyTint(code, root.dark ? .3 : .22) : root.alternate
+        border.width: match ? 2 : code ? 1 : 0
+        border.color: match ? (selected ? root.accent2 : root.accent) : root.keyTint(code, .8)
+        Label {
+            id: chipLabel
+            anchors.centerIn: parent; textFormat: Text.PlainText; font.pixelSize: 12; font.features: root.tabular
+            font.bold: chip.match; color: root.fg
+        }
+        ToolTip.visible: match && chipHover.hovered; ToolTip.text: qsTr("Mixes with the playing track")
+        HoverHandler { id: chipHover }
+    }
+    // Generated artwork, never fetched: a record on a gradient, both picked from the track key.
+    // The record turns while the track plays.
+    component Cover: Rectangle {
+        id: cover
+        property string seed: ""
+        property bool spinning: false
+        readonly property int hash: {
+            let h = 7
+            for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0
+            return Math.abs(h)
+        }
+        readonly property var tones: [root.accent, root.accent2, "#4368ba", "#b23755", root.silver]
+        function tone(shift) { return tones[((hash >> shift) % 5 + shift) % 5] }
+        radius: 6; clip: true
+        gradient: Gradient {
+            orientation: cover.hash % 2 ? Gradient.Vertical : Gradient.Horizontal
+            GradientStop { position: 0; color: cover.tone(0) }
+            GradientStop { position: 1; color: cover.tone(3) }
+        }
+        // The backdrop glows on each kick.
+        Rectangle {
+            objectName: "coverGlow"
+            anchors.fill: parent; radius: parent.radius; opacity: root.glow
+            gradient: Gradient {
+                orientation: cover.hash % 2 ? Gradient.Vertical : Gradient.Horizontal
+                GradientStop { position: 0; color: root.peakColor(cover.tone(0)) }
+                GradientStop { position: 1; color: root.peakColor(cover.tone(3)) }
+            }
+        }
+        Item {
+            id: disc
+            width: parent.width * .84; height: width; anchors.centerIn: parent
+            // Near-black vinyl; the label is darkened so it does not outshine the record.
+            Rectangle { anchors.fill: parent; radius: width / 2; color: "#0c0c0e" }
+            Rectangle { anchors.centerIn: parent; width: disc.width * .34; height: width; radius: width / 2; color: Qt.darker(cover.tone(5), 1.25) }
+            // A barcode of the track: radial strokes and dots from the label to the rim, laid out
+            // from the key hash. Painted once per track; turning the record costs no repaint.
+            Canvas {
+                objectName: "trackCode"
+                anchors.fill: parent
+                property int code: cover.hash
+                onCodeChanged: requestPaint()
+                onWidthChanged: requestPaint()
+                onPaint: {
+                    let ctx = getContext("2d")
+                    ctx.reset()
+                    let state = code | 0
+                    function random() {  // mulberry32: the same track always draws the same code
+                        state = (state + 0x6D2B79F5) | 0
+                        let t = Math.imul(state ^ (state >>> 15), 1 | state)
+                        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+                        return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+                    }
+                    let centre = width / 2, inner = width * .19, outer = width * .48
+                    // Spans along the radius, 0 at the label and 1 at the rim; the empty one is dots only.
+                    let patterns = [[[0, 1]], [[0, .5]], [[.5, 1]], [[.3, .7]], [[0, 1 / 3], [2 / 3, 1]], []]
+                    ctx.strokeStyle = ctx.fillStyle = Qt.rgba(1, 1, 1, .6)
+                    ctx.lineWidth = Math.max(1, width / 110); ctx.lineCap = "round"
+                    // Evenly spread around the record, each nudged within its own slot, so no part
+                    // of it is left bare while no two tracks share a layout.
+                    let count = 18 + Math.floor(random() * 10), turn = random() * Math.PI * 2
+                    for (let i = 0; i < count; i++) {
+                        let angle = turn + (i + .15 + random() * .7) / count * Math.PI * 2, dx = Math.cos(angle), dy = Math.sin(angle)
+                        let pattern = patterns[Math.floor(random() * patterns.length)]
+                        for (let span of pattern) {
+                            let from = inner + span[0] * (outer - inner), to = inner + span[1] * (outer - inner)
+                            ctx.beginPath(); ctx.moveTo(centre + dx * from, centre + dy * from); ctx.lineTo(centre + dx * to, centre + dy * to); ctx.stroke()
+                        }
+                        if (pattern.length === 0 || random() < .3) {
+                            for (let dots = 1 + Math.floor(random() * 3); dots > 0; dots--) {
+                                let radius = inner + random() * (outer - inner)
+                                ctx.beginPath(); ctx.arc(centre + dx * radius, centre + dy * radius, ctx.lineWidth * 1.2, 0, Math.PI * 2); ctx.fill()
+                            }
+                        }
+                    }
+                }
+            }
+            NumberAnimation on rotation {
+                from: 0; to: 360; duration: 4000; loops: Animation.Infinite
+                running: root.motion; paused: running && !cover.spinning
+            }
+        }
+    }
+    // The same hue, more saturated and lighter: a kick makes a colour glow without
+    // washing it out. A red (from 70 % of linear R+G+B) only lightens, and less, so
+    // the bordeaux end stays under the WCAG 2.3.1 red-flash threshold.
+    function peakColor(value) {
+        let color = Qt.color(value)  // Artwork tones may be colour names as text.
+        let linear = c => c <= .04045 ? c / 12.92 : Math.pow((c + .055) / 1.055, 2.4)
+        let r = linear(color.r), g = linear(color.g), b = linear(color.b)
+        if (r / Math.max(1e-6, r + g + b) >= .7)
+            return Qt.hsla(color.hslHue, color.hslSaturation, Math.min(1, color.hslLightness + (dark ? .02 : .03)), 1)
+        return Qt.hsla(color.hslHue, Math.min(1, color.hslSaturation + .3), Math.min(1, color.hslLightness + (dark ? .06 : .08)), 1)
+    }
+    function bpmText(bpm) { return String(Math.round(bpm * 10) / 10) }
     component FolderIcon: ColorImage {
         property bool selected: false
         width: 16; height: 16; sourceSize: Qt.size(16, 16); source: "icons/folder.svg"
@@ -477,17 +729,24 @@ ApplicationWindow {
                         delegate: ItemDelegate {
                             id: playlistItem
                             objectName: "playlist-" + modelData.source
-                            background: Rectangle { color: playlistItem.highlighted ? root.accent : playlistItem.hovered ? root.hoverSurface : "transparent" }
+                            background: Rectangle { color: playlistItem.highlighted ? root.selection : playlistItem.hovered ? root.hoverSurface : "transparent" }
                             required property var modelData
                             width: ListView.view.width; height: 28
                             padding: 0; leftPadding: 10; rightPadding: 6
                             highlighted: modelData.source === desktop.view.source
+                            // A playlist still importing is listed at once, with a spinner; it opens when saved.
+                            readonly property bool pending: !!modelData.pending
                             contentItem: RowLayout {
                                 spacing: 6
-                                Label { text: modelData.source.startsWith("local-playlist:") ? "▣" : "☁"; color: playlistItem.highlighted ? root.selectionText : root.muted }
+                                Label { visible: !playlistItem.pending; text: modelData.source.startsWith("local-playlist:") ? "▣" : "☁"; color: playlistItem.highlighted ? root.selectionText : root.muted }
+                                BusyIndicator {
+                                    visible: playlistItem.pending; running: visible
+                                    implicitWidth: 16; implicitHeight: 16; padding: 0
+                                    palette.dark: playlistItem.highlighted ? root.selectionText : root.accent
+                                }
                                 Label { Layout.fillWidth: true; text: modelData.title; textFormat: Text.PlainText; elide: Text.ElideRight; color: playlistItem.highlighted ? root.selectionText : root.fg }
                             }
-                            onClicked: desktop.load(modelData.source)
+                            onClicked: if (!pending) desktop.load(modelData.source)
                             onPressAndHold: { playlistMenu.source = modelData.source; playlistMenu.popup() }
                             TapHandler { acceptedButtons: Qt.RightButton; onTapped: { playlistMenu.source = playlistItem.modelData.source; playlistMenu.popup() } }
                         }
@@ -528,7 +787,7 @@ ApplicationWindow {
                                         width: parent.width; height: 28
                                         padding: 0; leftPadding: 6; rightPadding: 6
                                         highlighted: root.folderView && desktop.folder.path === folderRoot.modelData.path
-                                        background: Rectangle { color: rootItem.highlighted ? root.accent : rootItem.hovered ? root.hoverSurface : "transparent" }
+                                        background: Rectangle { color: rootItem.highlighted ? root.selection : rootItem.hovered ? root.hoverSurface : "transparent" }
                                         contentItem: RowLayout {
                                             spacing: 4
                                             FlatButton {
@@ -591,7 +850,7 @@ ApplicationWindow {
                                                     color: directoryDelegate.highlighted ? root.selectionText : root.muted
                                                 }
                                             }
-                                            background: Rectangle { color: directoryDelegate.highlighted ? root.accent : directoryDelegate.hovered ? root.hoverSurface : root.bg }
+                                            background: Rectangle { color: directoryDelegate.highlighted ? root.selection : directoryDelegate.hovered ? root.hoverSurface : root.bg }
                                             contentItem: RowLayout {
                                                 spacing: 6
                                                 FolderIcon { selected: directoryDelegate.highlighted }
@@ -622,10 +881,44 @@ ApplicationWindow {
                 SplitView.fillWidth: true; SplitView.minimumWidth: 0
             Rectangle {
                 id: player
-                Layout.fillWidth: true; Layout.preferredHeight: root.loaded ? 156 : 52
+                Layout.fillWidth: true; Layout.preferredHeight: root.loaded ? 184 : 52
+                Behavior on Layout.preferredHeight { enabled: root.motion; NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
                 color: root.panel; radius: 6
+                RowLayout {
+                    anchors.fill: parent; anchors.margins: 10; spacing: 12
+                    Cover {
+                        objectName: "cover"
+                        // Transport controls come first; the artwork only takes room the panel can spare.
+                        visible: root.loaded && player.width >= 640
+                        Layout.fillHeight: true; Layout.preferredWidth: height
+                        seed: desktop.audio.key || ""
+                        spinning: !!desktop.audio.playing
+                    }
                 ColumnLayout {
-                    anchors.fill: parent; anchors.margins: 10
+                    Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumWidth: 0; spacing: 6
+                    RowLayout {
+                        visible: root.loaded; spacing: 6; Layout.minimumWidth: 0
+                        ColumnLayout {
+                            Layout.fillWidth: true; Layout.minimumWidth: 0; spacing: 0
+                            Label {
+                                objectName: "nowPlayingTitle"
+                                Layout.fillWidth: true; Layout.minimumWidth: 0
+                                text: desktop.nowPlaying.name || desktop.audio.title || ""
+                                textFormat: Text.PlainText; elide: Text.ElideRight; font.pixelSize: 17; font.bold: true
+                            }
+                            Label {
+                                Layout.fillWidth: true; Layout.minimumWidth: 0
+                                visible: text.length > 0; text: desktop.nowPlaying.artist || ""
+                                textFormat: Text.PlainText; elide: Text.ElideRight; color: root.silver
+                            }
+                        }
+                        Chip { visible: (desktop.nowPlaying.bpm || 0) > 0; text: root.bpmText(desktop.nowPlaying.bpm || 0) + " BPM" }
+                        Chip {
+                            visible: !!desktop.nowPlaying.camelot
+                            code: desktop.nowPlaying.camelot || ""
+                            text: (root.keyNotation === "camelot" ? desktop.nowPlaying.camelot : desktop.nowPlaying.classicKey) || ""
+                        }
+                    }
                     Item {
                         id: waveform; objectName: "waveform"
                         visible: root.loaded
@@ -635,29 +928,58 @@ ApplicationWindow {
                         readonly property real duration: desktop.audio.duration || 0
                         property var levels: desktop.waveformLevels(samples, Math.max(1, Math.floor(width / 3)))
                         // The bars are painted once per waveform; progress only moves a clip edge and the cursor, so
-                        // ten position ticks a second and a drag cost no repaint. While scrubbing, the pointer's time
+                        // position ticks and a drag cost no repaint. While scrubbing, the pointer's time
                         // shows; after release the target shows until the backend confirms it (or 1.5 s pass).
                         property real scrub: -1
                         property real pending: -1
-                        readonly property real fraction: scrub >= 0 ? scrub : pending >= 0 ? pending : duration > 0 ? Math.min(1, position / duration) : 0
+                        // While audio plays with motion on, the playhead follows the interpolated clock of heard audio.
+                        readonly property real heard: root.playhead >= 0 ? root.playhead : position
+                        readonly property real fraction: scrub >= 0 ? scrub : pending >= 0 ? pending : duration > 0 ? Math.min(1, heard / duration) : 0
                         onPositionChanged: if (pending >= 0 && Math.abs(position / Math.max(1, duration) - pending) < 0.02) pending = -1
+                        // A new waveform rises from the bottom.
+                        transform: Scale { id: waveformGrowth; origin.y: waveform.height }
+                        NumberAnimation { id: waveformRise; target: waveformGrowth; property: "yScale"; from: 0; to: 1; duration: 450; easing.type: Easing.OutCubic }
+                        onSamplesChanged: if (root.motion && samples.length) waveformRise.restart()
                         Timer { id: pendingTimer; interval: 1500; onTriggered: waveform.pending = -1 }
-                        function paintBars(ctx, width, height, color) {
-                            ctx.reset(); ctx.fillStyle = color
+                        function paintBars(ctx, width, height, played, glow) {
+                            ctx.reset()
+                            // Bordeaux at the foot of every bar rising into blue at the top of the panel;
+                            // the glow layer is the same gradient at its peak colours.
+                            let gradient = ctx.createLinearGradient(0, height, 0, 0)
+                            gradient.addColorStop(0, glow ? root.peakColor(root.accent2) : root.accent2)
+                            gradient.addColorStop(1, glow ? root.peakColor(root.accent) : root.accent)
+                            ctx.fillStyle = gradient
+                            ctx.globalAlpha = played ? 1 : root.dark ? .38 : .45
+                            if (glow) {  // Light spills around the bars at the peak.
+                                ctx.shadowBlur = 12
+                                let halo = root.peakColor(root.accent)
+                                ctx.shadowColor = Qt.rgba(halo.r, halo.g, halo.b, .9)
+                            }
                             let count = levels.length
                             for (let i = 0; i < count; i++) {
                                 let h = Math.max(1, levels[i] * (height - 2))
                                 ctx.fillRect(i * width / count, height - h, Math.max(1, width / count - 1), h)
                             }
                         }
-                        WaveformBars { anchors.fill: parent; color: root.muted }
+                        // The unplayed region stays in shadow and never pulses.
+                        WaveformBars { objectName: "unplayedBars"; anchors.fill: parent }
+                        // Only the played region crossfades to its peak colours on a kick.
                         Item {
                             clip: true
                             anchors { top: parent.top; bottom: parent.bottom; left: parent.left }
-                            width: Math.round(waveform.fraction * waveform.width)
-                            WaveformBars { objectName: "playedBars"; width: waveform.width; height: waveform.height; color: root.accent }
+                            width: waveform.fraction * waveform.width
+                            WaveformBars { objectName: "playedBars"; width: waveform.width; height: waveform.height; played: true }
+                            // The opaque played base keeps its normal colours under the flash.
+                            WaveformBars {
+                                objectName: "kickBars"; width: waveform.width; height: waveform.height; played: true; glow: true
+                                opacity: root.glow
+                            }
                         }
-                        Rectangle { objectName: "cursor"; x: Math.min(waveform.width - 1, Math.round(waveform.fraction * waveform.width)); width: 1; height: parent.height; color: root.accent }
+                        // Subpixel position: the playhead slides instead of stepping a pixel at a time.
+                        Rectangle {
+                            objectName: "cursor"; antialiasing: true
+                            x: Math.min(waveform.width - 2, waveform.fraction * waveform.width); width: 2; height: parent.height; color: root.fg
+                        }
                         MouseArea {
                             id: waveformMouse
                             anchors.fill: parent; hoverEnabled: true
@@ -680,6 +1002,7 @@ ApplicationWindow {
                     RowLayout {
                         Button { text: qsTr("Previous track"); enabled: root.loaded; display: AbstractButton.IconOnly; implicitWidth: 40; icon.source: "icons/previous.svg"; icon.color: palette.buttonText; Accessible.name: text; ToolTip.visible: hovered; ToolTip.text: text + " (P)"; onClicked: desktop.step(-1) }
                         Button {
+                            id: playButton
                             objectName: "playPause"
                             implicitWidth: 40
                             enabled: root.loaded || root.hasSelection
@@ -687,19 +1010,29 @@ ApplicationWindow {
                             display: AbstractButton.IconOnly
                             icon.source: root.pauseTarget ? "icons/pause.svg" : "icons/play.svg"
                             icon.color: palette.buttonText; icon.width: 20; icon.height: 20
+                            onIconChanged: if (root.motion) playPop.restart()
+                            SequentialAnimation {
+                                id: playPop
+                                NumberAnimation { target: playButton; property: "scale"; to: .82; duration: 70 }
+                                NumberAnimation { target: playButton; property: "scale"; to: 1; duration: 180; easing.type: Easing.OutBack }
+                            }
                             Accessible.name: text
                             ToolTip.visible: hovered; ToolTip.text: text + " (Space)"
                             onClicked: root.playSelected()
                         }
                         Button { text: qsTr("Next track"); enabled: root.loaded; display: AbstractButton.IconOnly; implicitWidth: 40; icon.source: "icons/next.svg"; icon.color: palette.buttonText; Accessible.name: text; ToolTip.visible: hovered; ToolTip.text: text + " (N)"; onClicked: desktop.step(1) }
                         Button { text: qsTr("Stop"); enabled: root.loaded; display: AbstractButton.IconOnly; implicitWidth: 40; icon.source: "icons/stop.svg"; icon.color: palette.buttonText; Accessible.name: text; ToolTip.visible: hovered; ToolTip.text: text + " (Ctrl+W)"; onClicked: desktop.transport("stop", 0) }
-                        Label { visible: root.loaded; text: root.clock(desktop.audio.position) + " / " + root.clock(desktop.audio.duration); color: root.muted }
-                        Label { visible: root.loaded; text: desktop.audio.title || ""; textFormat: Text.PlainText; elide: Text.ElideRight; Layout.fillWidth: true; Layout.minimumWidth: 0; font.bold: true }
+                        Label { visible: root.loaded; text: root.clock(desktop.audio.position) + " / " + root.clock(desktop.audio.duration); color: root.muted; font.features: root.tabular }
+                        Item { visible: root.loaded; Layout.fillWidth: true; Layout.minimumWidth: 0 }
                         Label { visible: !root.loaded; text: root.hasSelection ? qsTr("Press Space to play the selected track") : qsTr("Select a track to play"); color: root.muted; elide: Text.ElideRight; Layout.fillWidth: true; Layout.minimumWidth: 0 }
+                        // A speaker, struck through while muted; the words stay for tooltips and screen readers.
                         ToolButton {
+                            objectName: "muteButton"
                             text: root.isMuted ? qsTr("Unmute") : qsTr("Mute")
-                            display: AbstractButton.TextOnly
-                            checkable: true; checked: root.isMuted
+                            display: AbstractButton.IconOnly
+                            icon.source: root.isMuted ? "icons/volume-muted.svg" : "icons/volume.svg"
+                            icon.color: palette.buttonText; icon.width: 20; icon.height: 20
+                            implicitWidth: 40
                             Accessible.name: text; ToolTip.visible: hovered; ToolTip.text: text + " (M)"
                             onClicked: root.toggleMute()
                         }
@@ -712,6 +1045,7 @@ ApplicationWindow {
                             ToolTip.visible: hovered || pressed; ToolTip.text: qsTr("Volume") + " " + Math.round(value * 100) + "%"
                         }
                     }
+                }
                 }
             }
                 TextField {
@@ -768,7 +1102,7 @@ ApplicationWindow {
                                 text: storeOption.text; textFormat: Text.PlainText
                                 color: storeOption.highlighted ? root.selectionText : root.fg
                             }
-                            background: Rectangle { color: storeOption.highlighted ? root.accent : root.panel }
+                            background: Rectangle { color: storeOption.highlighted ? root.selection : root.panel }
                         }
                     }
                     CheckBox { id: hide; text: qsTr("Hide handled"); onToggled: filterTimer.restart(); ToolTip.visible: hovered; ToolTip.text: qsTr("Hide owned and skipped tracks (H)") }
@@ -806,7 +1140,7 @@ ApplicationWindow {
                 Item {
                 Layout.fillWidth: true; Layout.fillHeight: true
                 TableView {
-                    id: table; property int keyboardRow: 0
+                    id: table; objectName: "trackTable"; property int keyboardRow: 0
                     anchors.fill: parent
                     clip: true; model: desktop.model; reuseItems: true
                     // Title takes the remaining width so status and stores stay on screen.
@@ -814,7 +1148,8 @@ ApplicationWindow {
                     // A width the user dragged or fitted wins; without one the saved width applies.
                     function chosenWidth(column) {
                         let explicit = explicitColumnWidth(column)
-                        return explicit >= 0 ? explicit : root.columnWidths[column]
+                        // BPM and key chips need room even when an older, narrower width was saved.
+                        return Math.max(column === 4 || column === 5 ? 56 : 0, explicit >= 0 ? explicit : root.columnWidths[column])
                     }
                     columnWidthProvider: function(column) {
                         if (!root.columnVisible(column)) return 0
@@ -833,7 +1168,20 @@ ApplicationWindow {
                     }
                     onWidthChanged: forceLayout()
                     resizableColumns: true
-                    Connections { target: desktop.model; function onModelReset() { table.keyboardRow = 0 } }
+                    Connections {
+                        target: desktop.model
+                        function onModelReset() {
+                            table.keyboardRow = 0
+                            // Qt 6.11: moving a column also freezes a row mapping sized to the rows of that
+                            // moment, and the next larger view aborted the app in getRowHeight. Rows are
+                            // never reordered here, so the mapping is dropped; the column order stays.
+                            table.clearRowReordering()
+                        }
+                    }
+                    // Declared inside the Flickable, the handler sits on its contentItem, so the point
+                    // already includes the scroll offset; mapping it again lit a row further down.
+                    HoverHandler { id: tableHover }
+                    readonly property int hoverRow: tableHover.hovered ? cellAtPosition(tableHover.point.position, true).y : -1
                     delegate: Rectangle {
                         id: cell
                         required property string display
@@ -842,11 +1190,35 @@ ApplicationWindow {
                         required property real progress
                         required property bool local
                         required property string trackKey
+                        required property string camelot
                         required property int row
                         required property int column
                         readonly property bool playing: desktop.audio.key === trackKey
                         implicitHeight: 34; implicitWidth: 100
-                        color: chosen ? root.accent : (row % 2 ? root.panel : root.bg)
+                        color: chosen ? root.selection : (row % 2 ? root.panel : root.bg)
+                        // Only the hover layer fades; theme and selection colours switch at once.
+                        // A delegate taken from the pool shows its new row's state without fading into it.
+                        property bool recycled: false
+                        TableView.onPooled: recycled = true
+                        TableView.onReused: Qt.callLater(() => recycled = false)
+                        Rectangle {
+                            anchors.fill: parent; color: root.hoverSurface
+                            opacity: !cell.chosen && cell.row === table.hoverRow ? 1 : 0
+                            Behavior on opacity { enabled: root.motion && !cell.recycled; NumberAnimation { duration: 120 } }
+                        }
+                        readonly property string flashStatus: root.flashKeys[trackKey] || ""
+                        onFlashStatusChanged: if (flashStatus) flash.restart()
+                        Component.onCompleted: if (flashStatus) flash.restart()
+                        ParallelAnimation {
+                            id: flash
+                            NumberAnimation { target: flashOverlay; property: "opacity"; from: .45; to: 0; duration: 650; easing.type: Easing.OutQuad }
+                            NumberAnimation { target: cellText; property: "scale"; from: cell.column === 0 ? 1.3 : 1; to: 1; duration: 350; easing.type: Easing.OutBack }
+                        }
+                        Rectangle {
+                            id: flashOverlay
+                            anchors.fill: parent; opacity: 0
+                            color: cell.flashStatus === "got" ? root.success : cell.flashStatus === "skip" ? root.muted : root.accent
+                        }
                         Rectangle {
                             visible: cell.progress >= 0
                             // Each cell paints its slice of one continuous row-wide fill.
@@ -855,13 +1227,45 @@ ApplicationWindow {
                             height: parent.height
                             color: cell.chosen ? root.fg : root.accent
                             opacity: cell.chosen ? 0.16 : root.dark ? 0.28 : 0.20
+                            clip: true
+                            // The sweep binding lives inside the loaded item, so idle cells never evaluate it.
+                            Loader {
+                                active: cell.progress >= 0 && cell.progress < 1 && root.motion
+                                height: parent.height
+                                sourceComponent: Rectangle {
+                                    x: root.shimmerPhase * (table.contentWidth * cell.progress + 160) - 160 - cell.x
+                                    width: 160; height: parent ? parent.height : 0
+                                    gradient: Gradient {
+                                        orientation: Gradient.Horizontal
+                                        GradientStop { position: 0; color: "transparent" }
+                                        GradientStop { position: .5; color: Qt.rgba(1, 1, 1, .9) }
+                                        GradientStop { position: 1; color: "transparent" }
+                                    }
+                                }
+                            }
                         }
                         Rectangle { visible: row === table.keyboardRow && table.activeFocus; anchors.fill: parent; color: "transparent"; border.color: root.accent; border.width: 1 }
+                        readonly property bool chipColumn: cell.column === 4 || cell.column === 5
+                        Chip {
+                            visible: cell.chipColumn && cell.display !== ""
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.right: cell.column === 4 ? parent.right : undefined
+                            anchors.left: cell.column === 5 ? parent.left : undefined
+                            anchors.margins: 6
+                            text: cell.chipColumn ? cell.display : ""
+                            code: cell.column === 5 ? cell.camelot : ""
+                            selected: cell.chosen
+                            match: !cell.playing && (cell.column === 5 ? root.harmonic(cell.camelot, desktop.nowPlaying.camelot || "")
+                                                                         : cell.column === 4 && root.tempoMatch(parseFloat(cell.display), desktop.nowPlaying.bpm || 0))
+                        }
                         Label {
-                            visible: cell.column !== 9
+                            id: cellText
+                            transformOrigin: Item.Left
+                            visible: cell.column !== 9 && !cell.chipColumn
                             anchors.fill: parent; anchors.margins: 7; textFormat: Text.PlainText; elide: Text.ElideRight
                             horizontalAlignment: [4, 6, 8].indexOf(cell.column) >= 0 ? Text.AlignRight : Text.AlignLeft
                             font.bold: cell.column === root.titleColumn && cell.playing
+                            font.features: root.tabular
                             text: (cell.column === root.titleColumn ? (cell.playing ? "▶ " : "") + (cell.local ? "▣ " : "") : "") + cell.display
                             color: cell.chosen ? root.selectionText : cell.progress >= 0 ? root.fg : cell.column === 0 ? root.statusColor(cell.status)
                                  : [3, 7, 8].indexOf(cell.column) >= 0 ? root.muted : root.fg
@@ -874,8 +1278,9 @@ ApplicationWindow {
                                 Rectangle {
                                     required property string modelData
                                     width: badge.implicitWidth + 10; height: 22; radius: 4
-                                    color: cell.chosen ? root.selectionText : root.alternate
-                                    Label { id: badge; anchors.centerIn: parent; text: parent.modelData; font.pixelSize: 12; color: cell.chosen ? root.accent : root.storeColor(parent.modelData) }
+                                    // "no-link" is the absence of a store, so it reads as quiet text rather than a badge.
+                                    color: modelData === "no-link" ? "transparent" : cell.chosen ? root.panel : root.alternate
+                                    Label { id: badge; anchors.centerIn: parent; text: parent.modelData; font.pixelSize: 12; color: cell.chosen && parent.modelData === "no-link" ? root.selectionText : root.storeColor(parent.modelData) }
                                 }
                             }
                         }
@@ -950,15 +1355,27 @@ ApplicationWindow {
                 Label {
                     // Counts keep their width; the message beside them gives way first.
                     Layout.maximumWidth: parent.width * 0.7; Layout.minimumWidth: 0
-                    color: root.muted; elide: Text.ElideRight
+                    color: root.muted; elide: Text.ElideRight; font.features: root.tabular
                     property var c: desktop.model.counts
                     text: root.hasRows || c.total > 0 ? qsTr("%1 / %2 tracks · owned %3 · skipped %4").arg(c.visible).arg(c.total).arg(c.got).arg(c.skipped) : ""
                 }
                 BusyIndicator { running: desktop.busy || root.shuttingDown || !desktop.ready; visible: running; implicitHeight: 22; implicitWidth: 22 }
+                // An import shows its stage and how many of how many tracks are in.
+                ProgressBar {
+                    objectName: "importProgress"
+                    visible: (desktop.importProgress.total || 0) > 0
+                    from: 0; to: Math.max(1, desktop.importProgress.total || 0); value: desktop.importProgress.done || 0
+                    Layout.preferredWidth: 160; Layout.minimumWidth: 60
+                    Behavior on value { enabled: root.motion; NumberAnimation { duration: 150 } }
+                }
                 FlatButton { text: qsTr("Cancel"); display: AbstractButton.TextOnly; visible: desktop.busy; implicitHeight: 24; onClicked: desktop.action("cancel") }
                 Label {
                     Layout.fillWidth: true; Layout.minimumWidth: 0; textFormat: Text.PlainText; elide: Text.ElideRight
-                    text: root.shuttingDown ? qsTr("Closing…") : !desktop.ready ? qsTr("Loading library…") : desktop.level === "error" ? "" : desktop.message
+                    readonly property var importing: desktop.importProgress
+                    text: root.shuttingDown ? qsTr("Closing…") : !desktop.ready ? qsTr("Loading library…")
+                        : importing.stage ? importing.stage + (importing.total ? " " + importing.done + " / " + importing.total : "")
+                        : desktop.level === "error" ? "" : desktop.message
+                    font.features: root.tabular
                     color: desktop.level === "error" ? root.danger : root.muted
                     font.bold: desktop.level === "error"
                     ToolTip.visible: hovered && text.length > 0; ToolTip.text: text
@@ -1167,6 +1584,32 @@ ApplicationWindow {
                                     font.family: fieldItem.modelData.kind === "log" ? "monospace" : Qt.application.font.family
                                     onTextChanged: if (!readOnly) dialog.values[fieldItem.modelData.name] = text
                                     Accessible.name: fieldItem.modelData.label
+                                }
+                            }
+                        }
+                        // Several ticks under one label, in two columns where the dialog is wide enough.
+                        GridLayout {
+                            visible: fieldItem.modelData.kind === "checks"; Layout.fillWidth: true
+                            columns: dialog.availableWidth >= 520 ? 2 : 1; columnSpacing: 12; rowSpacing: 0
+                            Repeater {
+                                model: fieldItem.modelData.kind === "checks" ? fieldItem.modelData.options : []
+                                CheckBox {
+                                    id: option
+                                    required property var modelData
+                                    objectName: "check-" + fieldItem.modelData.name + "-" + modelData[0]
+                                    Layout.fillWidth: true; Layout.preferredWidth: 1
+                                    text: modelData[1]; Accessible.name: text
+                                    checked: (dialog.values[fieldItem.modelData.name] ?? fieldItem.modelData.value).indexOf(modelData[0]) >= 0
+                                    onToggled: {
+                                        let chosen = (dialog.values[fieldItem.modelData.name] ?? fieldItem.modelData.value).filter(v => v !== modelData[0])
+                                        if (checked) chosen.push(modelData[0])
+                                        dialog.values[fieldItem.modelData.name] = chosen
+                                    }
+                                    contentItem: Label {
+                                        leftPadding: option.indicator.width + option.spacing
+                                        text: option.text; textFormat: Text.PlainText; wrapMode: Text.Wrap
+                                        verticalAlignment: Text.AlignVCenter; color: root.fg
+                                    }
                                 }
                             }
                         }

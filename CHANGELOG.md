@@ -1,5 +1,73 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- The desktop has a darker club palette with blue and bordeaux accents, a Now
+  playing header with generated record artwork carrying a barcode of the track,
+  BPM and key chips with Camelot notation (View → Key notation) and harmonic and
+  tempo match rings, and animations that View → Animations turns off.
+- The desktop waveform and record backdrop keep their normal colours, also
+  while paused. Actual bass attacks add saturation on both sides of the
+  playhead, with the unplayed side remaining in shadow. Pulses start with the
+  first detected kick instead of waiting for a tempo grid, stop during breaks,
+  and follow fast kick rolls without a lingering glow. A short spectral detector
+  distinguishes bass movement from fresh attacks without requiring the RMS
+  rise and decay that missed heavily limited kicks. Flash intensity is reduced
+  by 40 % with a softer release. The detector remains an onset heuristic: an
+  abrupt bass note can still resemble a kick. View → Pulse timing
+  retains device calibration (70 ms by default); queued hits update every 25 ms.
+  Each pulse now carries an amplitude: a hit is weighed against the loudest
+  bass of the last two bars, so bass stabs between the kicks in a dubstep or
+  drum & bass drop pulse dimly or not at all while the kicks pulse fully, and
+  a quieter section regains its full pulse within two bars. The level is read
+  over the 40 ms after the attack, where a sidechained kick peaks. The glow is
+  an envelope rather than a flash: 25 ms up, a short hold, then a release of a
+  third of a beat, with rolls merging into one swell. Peak colours keep their
+  hue with more saturation and lightness and a soft halo instead of turning
+  neon, and stay under the WCAG flash thresholds, also at the bordeaux end. Only
+  the played part of the waveform pulses. Kicks carrying a loud click or a clap
+  on the same beat are no longer missed. The record is a flat near-black and
+  never pulses itself. The playhead slides with the heard audio instead of
+  stepping, without a glow.
+  Mute is a speaker icon that is struck through while muted.
+- New application icon: a record with a barcode like the track artwork, a white
+  label and a blue-to-bordeaux tile, at 256 px for the window and Linux docks.
+- Selected rows, playlists and folders use a soft pastel blue instead of the
+  bright accent.
+- Add playlist asks for a SoundCloud link, lists the import in the sidebar at
+  once, fills the table as tracks arrive and shows stage and done / total counts
+  with a progress bar in the status bar.
+- Converting audio asks which decks the files must play on instead of a format,
+  picks FLAC when they all read it and WAV otherwise, at the highest bit depth and
+  sampling rate they share, remembers the choice, and shows compatibility
+  for those decks only. A file is kept as it is only when every chosen deck plays
+  it, so a 32 kHz MP3 is no longer copied for a CDJ-3000. Decks that play the
+  same files share one box, ten in two columns.
+- The deck rules now follow the playable-file table of each manual and cover the
+  CDJ-900, 900NXS and TOUR1, the XDJ-700, 1000, 1000MK2 and AERO, and the XDJ-RX,
+  RX2, RR, XZ, RX3, OPUS-QUAD, XDJ-AZ, OMNIS-DUO and XDJ-AN. MP3 and AAC at 16-24 kHz
+  count as playable on the players whose manuals list them.
+- The export review warns when the destination drive uses a file system a chosen
+  deck cannot read (NTFS, or exFAT for most decks) and when files would sit more
+  than eight folders deep, which decks do not show.
+- On Linux the desktop reports the `dj-digger` app ID, so an open window shows the
+  name and icon of `dj-digger.desktop` instead of `python3`.
+
+### Fixed
+
+- After a column was dragged to a new place, opening a playlist with more rows
+  no longer closes the desktop app.
+- Seeking and changing tracks no longer replay audio queued from the old position,
+  and seeking late in an MP3 no longer pauses while the decoder works its way there.
+
+### Removed
+
+- Saved SoundCloud HTML pages are no longer accepted as a target, and `dig
+  --delay`, which only paced that path, is gone. Sign in to SoundCloud to read
+  your own private playlists.
+
 ## 1.2.1 — 2026-09-27
 
 ### Fixed

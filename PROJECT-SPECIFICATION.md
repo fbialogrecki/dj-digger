@@ -5,8 +5,8 @@
 - Product version verified: 1.2.1 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-09-27
-- Document lines: <!-- SPEC TOTAL LINES -->1627<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1627<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1814<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1814<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -48,67 +48,67 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 1 | Specification governance | 114–142 |
 | 1.1 | ↳ Authority and scope | 116–128 |
 | 1.2 | ↳ Update contract | 129–142 |
-| 2 | Product purpose and execution modes | 143–179 |
+| 2 | Product purpose and execution modes | 143–180 |
 | 2.1 | ↳ Problem and product boundary | 145–158 |
-| 2.2 | ↳ Execution modes | 159–179 |
-| 3 | User-visible capabilities | 180–762 |
-| 3.1 | ↳ Track collection and saved HTML | 182–208 |
-| 3.2 | ↳ Link classification and exports | 209–227 |
-| 3.3 | ↳ TUI playlist library and interaction | 228–322 |
-| 3.4 | ↳ Audio preview | 323–396 |
-| 3.5 | ↳ Downloads and local-file matching | 397–433 |
-| 3.6 | ↳ Store purchase assistance | 434–519 |
-| 3.7 | ↳ Local library, analysis and audio export | 520–638 |
-| 3.8 | ↳ Qt Quick desktop | 639–762 |
-| 4 | System context and data flow | 763–803 |
-| 4.1 | ↳ Context diagram | 765–787 |
-| 4.2 | ↳ Collection-to-library flow | 788–803 |
-| 5 | Repository layout and component ownership | 804–878 |
-| 5.1 | ↳ Entry, orchestration, and models | 806–817 |
-| 5.2 | ↳ Network and external-system adapters | 818–836 |
-| 5.3 | ↳ Persistence, local media, and UI | 837–878 |
-| 6 | Runtime architecture and environments | 879–997 |
-| 6.1 | ↳ Runtime and dependencies | 881–904 |
-| 6.2 | ↳ Concurrency and lifecycle | 905–976 |
-| 6.3 | ↳ Local paths and environment variables | 977–997 |
-| 7 | Data model and persistence | 998–1096 |
-| 7.1 | ↳ Domain objects and identity | 1000–1014 |
-| 7.2 | ↳ SQLite schema and invariants | 1015–1063 |
-| 7.3 | ↳ Crate persistence and deletion | 1064–1079 |
-| 7.4 | ↳ Configuration and credential stores | 1080–1096 |
-| 8 | Public interfaces and contracts | 1097–1154 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1099–1127 |
-| 8.2 | ↳ JSON and CSV summary input | 1128–1143 |
-| 8.3 | ↳ URL-opening contract | 1144–1154 |
-| 9 | Authentication and authorization | 1155–1200 |
-| 9.1 | ↳ SoundCloud authentication | 1157–1179 |
-| 9.2 | ↳ Gate action consent | 1180–1200 |
-| 10 | External integrations | 1201–1343 |
-| 10.1 | ↳ SoundCloud API and media | 1203–1214 |
-| 10.2 | ↳ Link hubs and download gates | 1215–1284 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1223–1270 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1272–1277 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1279–1284 |
-| 10.3 | ↳ Browsers and clipboard | 1285–1296 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1297–1343 |
-| 11 | Security requirements and threat model | 1344–1398 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1346–1364 |
-| 11.2 | ↳ Secret and personal-data handling | 1365–1380 |
-| 11.3 | ↳ File and mutation safety | 1381–1398 |
-| 12 | Privacy, lifecycle, and retention | 1399–1442 |
-| 12.1 | ↳ Data stored locally | 1401–1420 |
-| 12.2 | ↳ Data sent to third parties | 1421–1432 |
-| 12.3 | ↳ User-controlled deletion | 1433–1442 |
-| 13 | Failure behavior and current limitations | 1443–1503 |
-| 13.1 | ↳ Error isolation and reporting | 1445–1464 |
-| 13.2 | ↳ Confirmed limitations | 1465–1503 |
-| 14 | Verification, CI, and release | 1504–1598 |
-| 14.1 | ↳ Offline and live test suites | 1506–1552 |
-| 14.2 | ↳ Continuous integration and publishing | 1553–1583 |
-| 14.3 | ↳ Specification-map verification | 1584–1598 |
-| 15 | Evidence and operational references | 1599–1627 |
-| 15.1 | ↳ Primary implementation evidence | 1601–1617 |
-| 15.2 | ↳ User and historical documentation | 1618–1627 |
+| 2.2 | ↳ Execution modes | 159–180 |
+| 3 | User-visible capabilities | 181–942 |
+| 3.1 | ↳ Track collection | 183–207 |
+| 3.2 | ↳ Link classification and exports | 208–226 |
+| 3.3 | ↳ TUI playlist library and interaction | 227–321 |
+| 3.4 | ↳ Audio preview | 322–456 |
+| 3.5 | ↳ Downloads and local-file matching | 457–493 |
+| 3.6 | ↳ Store purchase assistance | 494–579 |
+| 3.7 | ↳ Local library, analysis and audio export | 580–734 |
+| 3.8 | ↳ Qt Quick desktop | 735–942 |
+| 4 | System context and data flow | 943–983 |
+| 4.1 | ↳ Context diagram | 945–967 |
+| 4.2 | ↳ Collection-to-library flow | 968–983 |
+| 5 | Repository layout and component ownership | 984–1061 |
+| 5.1 | ↳ Entry, orchestration, and models | 986–997 |
+| 5.2 | ↳ Network and external-system adapters | 998–1014 |
+| 5.3 | ↳ Persistence, local media, and UI | 1015–1061 |
+| 6 | Runtime architecture and environments | 1062–1180 |
+| 6.1 | ↳ Runtime and dependencies | 1064–1087 |
+| 6.2 | ↳ Concurrency and lifecycle | 1088–1159 |
+| 6.3 | ↳ Local paths and environment variables | 1160–1180 |
+| 7 | Data model and persistence | 1181–1281 |
+| 7.1 | ↳ Domain objects and identity | 1183–1197 |
+| 7.2 | ↳ SQLite schema and invariants | 1198–1246 |
+| 7.3 | ↳ Crate persistence and deletion | 1247–1262 |
+| 7.4 | ↳ Configuration and credential stores | 1263–1281 |
+| 8 | Public interfaces and contracts | 1282–1339 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1284–1312 |
+| 8.2 | ↳ JSON and CSV summary input | 1313–1328 |
+| 8.3 | ↳ URL-opening contract | 1329–1339 |
+| 9 | Authentication and authorization | 1340–1385 |
+| 9.1 | ↳ SoundCloud authentication | 1342–1364 |
+| 9.2 | ↳ Gate action consent | 1365–1385 |
+| 10 | External integrations | 1386–1528 |
+| 10.1 | ↳ SoundCloud API and media | 1388–1399 |
+| 10.2 | ↳ Link hubs and download gates | 1400–1469 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1408–1455 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1457–1462 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1464–1469 |
+| 10.3 | ↳ Browsers and clipboard | 1470–1481 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1482–1528 |
+| 11 | Security requirements and threat model | 1529–1583 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1531–1549 |
+| 11.2 | ↳ Secret and personal-data handling | 1550–1565 |
+| 11.3 | ↳ File and mutation safety | 1566–1583 |
+| 12 | Privacy, lifecycle, and retention | 1584–1628 |
+| 12.1 | ↳ Data stored locally | 1586–1606 |
+| 12.2 | ↳ Data sent to third parties | 1607–1618 |
+| 12.3 | ↳ User-controlled deletion | 1619–1628 |
+| 13 | Failure behavior and current limitations | 1629–1688 |
+| 13.1 | ↳ Error isolation and reporting | 1631–1650 |
+| 13.2 | ↳ Confirmed limitations | 1651–1688 |
+| 14 | Verification, CI, and release | 1689–1783 |
+| 14.1 | ↳ Offline and live test suites | 1691–1737 |
+| 14.2 | ↳ Continuous integration and publishing | 1738–1768 |
+| 14.3 | ↳ Specification-map verification | 1769–1783 |
+| 15 | Evidence and operational references | 1784–1814 |
+| 15.1 | ↳ Primary implementation evidence | 1786–1804 |
+| 15.2 | ↳ User and historical documentation | 1805–1814 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -147,8 +147,8 @@ values. Hand-written content outside those regions is preserved.
 `dj-digger` collects tracks behind SoundCloud playlist, user,
 collection, and track links, extracts purchase and download destinations, and
 presents them as a local playlist. It avoids relying on the finite set of tracks
-rendered in a SoundCloud page by using SoundCloud API v2, while retaining a
-saved-HTML path for private, unlisted, or otherwise inaccessible pages.
+rendered in a SoundCloud page by using SoundCloud API v2. Saved SoundCloud pages
+are not an input.
 
 The application helps the user inspect, open, download, classify, audition, and
 remember tracks. Local music can be browsed, analyzed, collected into local
@@ -164,8 +164,9 @@ modes are implemented:
 - `dj-digger [target]` assumes the `dig` command. With a terminal it may enter
   the Textual TUI; without a terminal or with `--no-tui`, it reports and exports
   non-interactively.
-- `dj-digger dig [target]` accepts a SoundCloud HTTP(S) URL or an existing local
-  saved-HTML file. A missing target is valid only when the TUI can ask for one.
+- `dj-digger dig [target]` accepts a SoundCloud HTTP(S) URL; anything else is
+  rejected as not a soundcloud.com link. A missing target is valid only when the
+  TUI can ask for one.
 - `dj-digger open SUMMARY` reads an exported JSON summary, displays it, and
   either opens selected links or imports the partial data into the TUI.
 - `dj-digger auth ...` manages SoundCloud credentials.
@@ -179,7 +180,7 @@ durable job queue.
 
 ## 3. User-visible capabilities
 
-### 3.1 Track collection and saved HTML
+### 3.1 Track collection
 
 For SoundCloud URLs, `SoundCloudClient.collect()` resolves the URL and handles:
 
@@ -190,14 +191,12 @@ For SoundCloud URLs, `SoundCloudClient.collect()` resolves the URL and handles:
 
 Hydration restores playlist order because the `/tracks` response is not assumed
 to preserve it. Deleted or unavailable tracks omitted by SoundCloud remain
-absent. Public API failures are surfaced as `SoundCloudError`; private or
-unlisted sources are directed to the saved-HTML fallback.
-
-For a local HTML file, `html_fallback.load_playlist()` reads
-`window.__sc_hydration`, track anchors, and a declared count. IDs are batch
-hydrated through API v2. If no IDs exist but track URLs do, pages are fetched
-sequentially with the configured delay and anchor text is inspected for purchase
-or download keywords. UTF-8 is tried first and Latin-1 is the decoding fallback.
+absent. Public API failures are surfaced as `SoundCloudError`; a 404 asks the
+user to check the link and, for their own private playlists, to sign in to
+SoundCloud first, since requests carry the stored OAuth token. The collection
+client can also report the tracks gathered so far after each hydration batch or
+page, already in playlist order; the desktop uses this to show an import as it
+grows, and nothing is saved until the whole collection succeeds.
 
 User repost collections use `/stream/users/{id}/reposts`; tracks and likes retain
 `/users/{id}/{collection}`. The shared paginator unwraps track entries, preserves
@@ -359,10 +358,71 @@ the interface thread.
 
 Audio is decoded from an HTTP source and is not persisted to disk. A declared
 source at or below 50 MiB is buffered progressively in memory; larger or
-undeclared sources stream directly. Range requests support seeking. Waveforms
-are cached in memory for the process, rendered as four block rows filling the
-player bar. The entire played region has one stable accent color; waveform
-colors do not pulse with audio amplitude.
+undeclared sources stream directly. Range requests support seeking. A seek in
+an MP3 of known size (a progressive source, or an HLS track once every segment
+arrived) opens the decoder at the byte proportional to the target after any
+ID3v2 tag, through a view of the source that starts there, instead of letting
+miniaudio decode every frame before the target; it takes about a millisecond at
+any position and lands within tens of milliseconds on constant-bitrate MP3.
+Other sources keep the decoder's frame seek. The output device uses 50 ms
+periods. Pause only stops the device, so resuming continues what it had queued;
+seek and stop close it and the next play opens a fresh one, so audio queued from
+the old position or track never plays after the jump. The first 10 ms after
+every start fade in. While audio is fed, `beats.py` detects bass transients from
+queued PCM before volume scaling. `KickDetector.feed(chunk, start)` takes the
+track time of the first frame, so its clock follows the playhead even when a
+source reports fewer frames than it sent. Every 10 ms it takes a 512-point
+Hann-windowed FFT of stereo PCM averaged down to 11.025 kHz (46 ms window).
+Channel powers are combined without cancelling opposite stereo phases. Positive
+spectral changes are measured against a five-bin frequency maximum of the
+previous spectrum, so moving bass harmonics contribute less than fresh attacks.
+The detector compares 30-180 Hz novelty with 180-1500 Hz novelty and energy.
+Its threshold follows the last 0.6 s of attacks rather than total bass loudness.
+A candidate must rise sharply and clear a small noise floor. A 0.5 % full-band
+rise, or a 30-180 Hz level at least 15 % above its lower value of the previous
+two hops, rejects constant-power sweeps; the bass-level rise keeps a kick whose
+click fades while its body swells, leaving full-band power flat. A large
+full-band attack can also confirm a weaker spectral change. The hit must be
+bass-led: at its attack (bass novelty at least half the 180-1500 Hz novelty and
+bass level at least a quarter of the 180-1500 Hz level) or at any hop of its
+body (bass level at least the 180-1500 Hz level), so a clap or snare on the kick
+does not hide it while a lone snare stays rejected. Neither a 10 %
+full-band rise nor a subsequent RMS decay is mandatory, allowing heavily
+limited kicks to register. Sub-bass-centred changes use stricter attack contrast;
+the relaxed threshold for overlapping roll attacks applies only above a 75 Hz
+novelty centroid and within 180 ms of a confirmed hit. Hits remain at least
+60 ms apart. A local peak is confirmed one analysis hop later and timestamped
+at the window centre. A stronger peak confirmed within 60 ms of a waiting hit
+takes over its time, and a waiting hit is held while the bass novelty is still
+rising above it (up to 80 ms after its attack), so the leading edge of a kick
+never stands in for its attack. The hit is then published four hops (40 ms) later with its
+`level`, the highest 30-180 Hz level from the attack through those hops, because
+a kick's body peaks 40-60 ms after its attack while a sidechained sub is still
+ducked, whereas a bass stab is loudest at its attack. There is no additional
+decay-confirmation wait.
+Output-buffer and UI delivery latency still depend on the device.
+Strength follows the square root of the attack's share of recent peak novelty.
+This is onset detection, not instrument separation: an abruptly started bass
+note can produce one pulse, percussive synth bass can resemble a kick, and
+masked kicks can still be missed. A held tone or changing pitch must not create
+an ongoing predicted roll.
+
+`PulseHistory` publishes an immutable, bounded history of detected hits, with
+no BPM warm-up, predicted grid or persistent roll charge. Each hit's amplitude
+is its `level` against a reference that is the loudest level of the last two
+bars (eight beats of the track's BPM when known, else 4 s; exponential decay,
+floored at a fixed noise level): `(level / reference - 0.6) / 0.4` clamped to
+0-1, so a bass stab at 75 % of the kick pulses at 0.4, one below 60 % is not
+published, and a quieter section regains full amplitude within two bars. The first detected
+kick is available after its short analysis window, without waiting for tempo; a break produces no invented
+beats, and rolls flash at their actual detected spacing. A new decoder or seek
+clears the history but keeps the reference; a pause retains queued audio and its hits.
+`Player.beats()` returns detected (track time, amplitude) pairs from 0.5 s behind
+the decoded position to that position, plus the seconds per beat: the track's
+BPM when known, else the median 0.25-1 s gap between recent hits, else 0.5.
+Waveforms are cached in memory for the process. The
+TUI renders them as four block rows filling the player bar, with one stable
+accent color for the entire played region, and does not pulse.
 
 MP3 HLS VOD manifests and each redirect/segment are restricted to HTTPS
 SoundCloud CDN subdomains, without credentials in URLs or nonstandard ports.
@@ -591,18 +651,54 @@ preserving playlist references and manual metadata. A database failure after
 unlink is reported explicitly; filesystem and database updates are not atomic.
 In saved playlists, Remove retains its existing playlist-only, undoable behavior.
 
-Convert (`ctrl+e`) opens format, quality-limit and destination settings, then
-constructs a frozen export plan and shows a review before execution. Defaults are
-WAV, at most 24 bit/48 kHz, copying every selected audio file to a unique new
-folder, including unchanged files. An unselected folder view covers all matching
-pages; recursion is explicit. WAV/AIFF targets retain compatible WAV/AIFF/MP3/AAC;
-FLAC additionally retains compatible FLAC/ALAC. Only necessary conversions run.
+Convert (`ctrl+e`) asks which decks the files must play on, plus the destination,
+then constructs a frozen export plan and shows a review before execution. The
+format is not chosen by hand: `decks.best_profile()` picks FLAC when every chosen
+deck reads FLAC and WAV otherwise, capped at the highest bit depth and sampling
+rate all chosen decks list for PCM (for example FLAC up to 24 bit/96 kHz for
+CDJ-3000 with OPUS-QUAD, FLAC up to 48 kHz once an XDJ-XZ joins, WAV up to 16
+bit/44.1 kHz with an XDJ-AERO). Decks that play exactly the same files (the
+same MP3, AAC and PCM rates, bit depths, lossless codecs and MPEG-2 AAC rule;
+file systems may differ) share one box, `decks.DECK_GROUPS`, ten groups laid
+out two to a row; ticking one chooses all its decks, and a group starts ticked
+when any of its decks was chosen before. The dialog shows the resulting format
+as groups are ticked and needs at least one. The chosen decks are remembered as
+`export_decks` in the shared configuration and saved in the plan, so resumed
+plans and their reports keep them; before a choice is saved, and for plans saved
+before this, the set is CDJ-350, 850/850-K, 2000, 2000NXS, 2000NXS2, 3000 and
+3000X. Exports copy every selected audio
+file to a unique new folder, including unchanged files. An unselected folder view
+covers all matching pages; recursion is explicit. A file is kept as it is only
+when every chosen deck plays it according to the rules below; PCM and, for a FLAC
+target, FLAC/ALAC otherwise convert to the target, while a lossy file some chosen
+deck cannot play is listed as an exception rather than transcoded. Only necessary
+conversions run.
 No automatic upsampling, downmix or normalization is performed. Nonstandard
 sample rates, ambiguous streams, clipping and unsupported parameters are reported
 as exceptions. Known text metadata is preserved where the output muxer supports
 it; supported FLAC artwork is copied, other omitted metadata is reported.
 
-Versioned rules cover CDJ-350, 850/850-K, 2000, 2000NXS, 2000NXS2, 3000 and 3000X.
+Versioned rules (`RULE_VERSION`; a plan made under other rules must be prepared
+again) transcribe the USB playable-file tables of the operating instructions, each
+deck citing its manual in `decks.SOURCES`: CDJ-350, 850/850-K, 900, 2000, 900NXS,
+2000NXS, 2000NXS2, TOUR1, 3000 and 3000X; XDJ-700, 1000, 1000MK2 and AERO; and the
+all-in-one XDJ-RX, RX2, RR, XZ, RX3, OPUS-QUAD, XDJ-AZ, OMNIS-DUO and XDJ-AN. Per
+deck they hold the MP3 and AAC LC sampling rates (MPEG-2 Layer-3 at 16-24 kHz with
+8-160 kbps from the CDJ-900 on and on the XDJ players; no 32 kHz on the CDJ-3000
+generation and the newest all-in-ones; 44.1 kHz only on the XDJ-AERO), the PCM
+rates and bit depths, and which of FLAC and ALAC are read. The CDJ-350, 850, 900,
+2000 and XDJ-AERO list MPEG-4 AAC LC only, so a raw ADTS `.aac` file, which may be
+MPEG-2 AAC, is unverified on them. A file outside a table is incompatible because
+it is not documented, not because it was tested. The rules also hold each deck's
+USB file systems (FAT16/FAT32 on all, HFS+ on all but the XDJ-RX, exFAT only on
+the CDJ-3000X, XDJ-RX3, OPUS-QUAD, XDJ-AZ, OMNIS-DUO and XDJ-AN, NTFS on none) and
+the eight folder levels every manual shows. Planning finds the mount point of the
+destination and its file system (`/proc/self/mounts` on Linux, `stat -f %T` on
+macOS, `GetVolumeInformationW` on Windows); when it is FAT, exFAT, HFS+ or NTFS
+the plan carries warnings, shown in both reviews without blocking, for chosen
+decks that cannot read that file system and for planned files more than eight
+folders below the drive root. Other or undetectable file systems, such as an
+internal disk, produce no warning.
 Both profile compatibility and actual-set compatibility distinguish documented
 compatible, incompatible and unverified files. These are audio rules, not proof
 of device testing or of USB filesystem support. WAV output is canonical RIFF PCM
@@ -610,8 +706,8 @@ with checked chunk sizes, alignment and sample identity for lossless transforms.
 New files undergo full decoding and length/parameter verification; copies also
 undergo byte hashing. Classic RIFF and FAT32 file-size limits are enforced.
 
-Export options keep Review/Cancel outside scrolling content; target-profile
-compatibility is expandable. Review shows actual-set compatibility and keeps
+Export options keep Review/Cancel outside scrolling content. Review names the
+target format and shows actual-set compatibility for the chosen decks only, and keeps
 Execute/Cancel plus the replacement warning visible. Button handlers accept only
 the explicit primary action; Cancel/Escape never authorize execution. The first
 200 plan entries remain visible with the complete report available separately.
@@ -642,10 +738,88 @@ The optional desktop uses PySide6 and a QML `ApplicationWindow`. The
 playlist/folder sidebar spans the full window height; the waveform and transport
 sit above the virtualized track table beside it, the same arrangement the TUI
 uses. Status is the first table column, as in the TUI, and the BPM/key columns
-appear only in local views. Transport buttons use SVG icons with accessible labels and tooltips. The window icon is the packaged application icon (`gui/qml/icons/app.png`), so the title bar and taskbar show it alongside the executable's shortcut icon. The desktop waveform rises
+appear only in local views. Transport buttons use SVG icons with accessible labels and tooltips. The window icon is the packaged application icon (`gui/qml/icons/app.png`, 256 px: a record carrying an artwork-style barcode seeded from `dj-digger`, with a white label, on a blue-to-bordeaux tile; `scripts/app_icon.py` draws it and writes the same design to the Windows `.ico` and macOS `.icns`), so the title bar and taskbar show it alongside the executable's shortcut icon. The desktop file name (the Wayland app_id) is `dj-digger`, so a Linux desktop entry named `dj-digger.desktop` supplies the dock name and icon of the open window; the repository does not ship that entry. The desktop waveform rises
 from the bottom edge of its panel, never mirrored, filling the space down to the
 transport row; GUI and TUI share the same averaged, normalized envelope and
-level curve in `waveform.py`. Space always belongs to playback, wherever focus
+level curve in `waveform.py`. Desktop bars share one vertical gradient from
+bordeaux at the bottom to blue at the top of the panel; the unplayed layer draws
+it with reduced opacity (0.38 dark theme, 0.45 light theme), and a 2 px playhead
+in the foreground colour is placed at subpixel precision without a glow. While a track plays, a 25 ms backend tick sends a
+small audio snapshot and a `beats` event (key, pulses, period) containing actual
+hits from queued audio with their amplitudes and the seconds per beat. The window schedules these as they are heard:
+- Clock: it follows audio position between ticks. A new key, resume or jump
+  over 150 ms re-anchors it; smaller differences ease by a quarter. Scheduling
+  never advances past the latest decoded position. While a track plays with
+  animations on, each frame also moves the playhead to this clock minus the
+  pulse timing, so it slides with the heard audio instead of stepping with the
+  snapshots; paused, or with animations off, it shows the snapshot position.
+- Flash: a `FrameAnimation` calls `pulseTick`. View → Pulse timing compensates
+  for the output queue (0-400 ms, default 70, in 10 ms steps; saved values remain
+  unchanged). A detected timestamp flashes at most once, including across a
+  pause/resume at the same position. Hits up to 100 ms late
+  can still flash, including the first queued attack; older hits are skipped.
+  Events from another track are ignored.
+- Envelope: one `flash` scalar (0-1) drives every glow. A hit rises from the
+  current value to its amplitude over 25 ms, holds 40 ms, then releases
+  exponentially with a time constant of 0.3 × the event's `period`, bounded to
+  90-180 ms, so the glow breathes with the kick and is nearly gone by the next
+  beat. A hit never adds to a running flash: it raises the peak at most. A hit
+  under 100 ms after the previous peak merges into it without a new attack, and
+  a hit within half a beat of the last one shown is scaled to 0.6, so kick rolls
+  read as one swell with the main kicks accented. A clock re-anchor clears the
+  envelope.
+- The waveform and the artwork keep their normal base colours, including
+  while paused. A hit crossfades the played region of the waveform and the
+  artwork backdrop toward their peak colours; the unplayed region never pulses.
+  Peak colours keep the hue with saturation + 0.3 and lightness + 0.06 (dark
+  theme) or + 0.08 (light theme); a red (linear R ≥ 70 % of R+G+B, the bordeaux
+  tones) only lightens, by 0.02 (dark) or 0.03 (light). The peak bars also cast
+  a 12 px halo in the peak accent colour at 90 % alpha, painted once with the
+  layer. The peak layers reach full opacity at `flash` = 1. Each palette tone's
+  base/peak pair stays under the WCAG 2.3.1 general flash threshold (relative
+  luminance change below 0.1) and red flash threshold (red value change below
+  20); the offline GUI test asserts both in both themes.
+- Disabling animations stops flashes and clears the clock.
+
+The TUI waveform keeps its single played/unplayed colours.
+The loaded track fills a Now playing header in the player panel: a large title,
+the artist, BPM and key chips, and generated artwork, never fetched: a record on
+a two-tone gradient with normal blue/bordeaux swatches (no darkened variants),
+both picked from a hash of the track key. The record is a flat near-black
+(`#0c0c0e`) with a label in the hashed tone darkened by 25 %; the record never
+pulses. Its
+surface carries a barcode of the track: 18 to 27 radial marks spread evenly
+around the record, each placed at random within its own slot, spanning the
+whole groove, its inner or outer half, its middle, or its thirds with a gap,
+with dots, laid out by a seeded generator so a track always draws the same code. The record turns
+while the track plays; with each beat flash the backdrop gradient crossfades
+toward its peak colours. The backdrop is never dimmed. The artwork is hidden when the panel is narrower
+than 640 px. These
+details arrive in a separate `nowPlaying` event when a track loads or its rows
+refresh (for example after analysis or an edit), not in the position snapshots.
+The palette is near-black (light theme: silver-grey) with an electric-blue
+accent, a bordeaux second accent and silver secondary text. Selected rows,
+playlists and folders use a soft low-chroma blue (dark `#34466f` with white
+text, light `#c9d5f2` with near-black text), and chips on a selected row sit
+on the panel colour; clocks, BPM and
+counts use tabular digits. In local views BPM and key render as chips; BPM shows
+one decimal place when fractional. Keys are parsed from common spellings (`Am`,
+`A minor`, `Amin`, `8A`, enharmonic sharps/flats) by `analysis.key_names`, shown
+in Camelot or classic notation (View → Key notation, default Camelot), sorted
+around the Camelot wheel with unrecognised keys last, and tinted with one of
+twelve wheel hues. A key chip is ringed when it mixes harmonically with the
+playing track (same key, one step around the wheel, or the relative
+major/minor) and a BPM chip when it is within 3 % of the playing tempo; the
+playing row itself is never ringed.
+Motion is on by default and View → Animations turns all of it off: rows fade to
+a hover surface; a status change flashes its rows (success colour for owned,
+muted for skipped, accent otherwise; not for more than 100 rows at once, and also after a sort or
+filter rebuilt the rows); download fills carry a sweeping highlight only while
+an operation runs; the play button pops when its icon changes; the player panel
+height eases between its collapsed and loaded forms; a new waveform rises from
+the bottom; the waveform and artwork keep their base colours, and detected kick flashes
+are part of this motion. Theme changes and recycled table delegates
+are not animated. Space always belongs to playback, wherever focus
 is, except while typing in a text field or inside a modal dialog: it starts the
 selected track, toggles it when it is the one loaded, or toggles the loaded track
 when nothing is selected. The transport Play button uses the same selection
@@ -661,21 +835,24 @@ folders with only files or hidden subfolders remain selectable leaves.
 Large expanded roots have a bounded, scrollable tree viewport. Selecting a folder opens its tracks in the paged table, and the page range appears only for folders above one page. Root and tree rows highlight only the folder whose tracks are loaded (paths compared after normalization), so opening a playlist clears the folder highlight. It provides
 search, store filtering with per-store counts derived from the loaded view,
 hide-handled filtering, stable-key selection, numeric sorting with a header
-arrow, resizable columns, keyboard navigation and native clipboard copying. The title column absorbs the remaining width so status and store columns stay on screen at the default window size, unless the user has dragged or fitted it. Dragging a header divider resizes that column and the width provider honours the explicit width. Double-clicking a divider fits the column to its widest visible value or header; the divider strip does not sort. Right-clicking a header opens a column menu with Fit column to contents, Fit all columns, Reset column widths, Reset column order and a checkable entry per column; the title column cannot be hidden and BPM/key stay unavailable outside local views. Dragging a header moves the column; delegates, widths and sorting keep their logical column, and the visual order is restored at startup. Status cells use the TUI glyphs and colors,
-store cells render badges, local files and the playing track carry markers, a
+arrow, resizable columns, keyboard navigation and native clipboard copying. The title column absorbs the remaining width so status and store columns stay on screen at the default window size, unless the user has dragged or fitted it. Dragging a header divider resizes that column and the width provider honours the explicit width. Double-clicking a divider fits the column to its widest visible value or header; the divider strip does not sort. Right-clicking a header opens a column menu with Fit column to contents, Fit all columns, Reset column widths, Reset column order and a checkable entry per column; the title column cannot be hidden and BPM/key stay unavailable outside local views. Dragging a header moves the column; delegates, widths and sorting keep their logical column, and the visual order is restored at startup. Rows are never reordered: every model reset drops the row mapping that Qt 6.11 freezes when a column moves, which otherwise aborted the app when a larger view loaded, while the column order stays. Status cells use the TUI glyphs, followed by a word except for `new`
+(`·`, `○ Opened`, `✓ Got`, `✗ Skipped`), coloured muted for new and skipped,
+success for owned and warning for opened. Store cells render badges, except
+`no-link`, which is plain muted text; local files and the playing track carry markers, a
 continuous progress fill spans the full row background while downloading, with
 the percentage in the Status column and text drawn above the fill. The fill
 follows column widths and horizontal scrolling; selection remains visible in
-both themes. The search field spans the full width of the track pane. Beneath it one toolbar row holds, whenever a view is loaded, flat icon buttons for Open links, Download, Mark owned, Skip, Analyze BPM / key (local views only) and More actions, followed by the store filter and Hide handled; buttons that need a selection are disabled without one. More actions opens the row context menu without the entries already on the toolbar. In both forms the menu shows BPM/key editing, audio export and file deletion only in local views and Remove from playlist only in playlist views. Below 1040 px of toolbar width these buttons show icons only; tooltips name the action and its shortcut. A status bar spans the whole window below the sidebar and the table with visible/total/owned/skipped counts on the left, the busy indicator, a Cancel button during operations and the last message. The menus are Library, Tracks (open, download, status, undo, remove), Playback, Tools (BPM/key analysis and overrides, audio export, file deletion, link export, cart), View (search, hide handled, select all, sidebar, language, theme), Settings (preferences, accounts) and Help. Every menu entry, including the row and playlist context menus, uses one layout: a fixed check column, the label and the shortcut in the muted color, and menus size to their widest entry after retranslation. Space is the shortcut of the Play / pause action. Single-key shortcuts mirror the TUI keymap (add, refresh, open, download, got/skip/reset, undo, remove, search, hide handled, seek, next/previous, volume, mute, sidebar) and are listed in a generated Help dialog; they are suppressed while text fields or modal dialogs have focus. Actions that need a selection are disabled without one;
+both themes. The search field spans the full width of the track pane. Beneath it one toolbar row holds, whenever a view is loaded, flat icon buttons for Open links, Download, Mark owned, Skip, Analyze BPM / key (local views only) and More actions, followed by the store filter and Hide handled; buttons that need a selection are disabled without one. More actions opens the row context menu without the entries already on the toolbar. In both forms the menu shows BPM/key editing, audio export and file deletion only in local views and Remove from playlist only in playlist views. Below 1040 px of toolbar width these buttons show icons only; tooltips name the action and its shortcut. A status bar spans the whole window below the sidebar and the table with visible/total/owned/skipped counts on the left, the busy indicator, a Cancel button during operations and the last message; during a playlist import the message shows the stage with done / total counts beside a progress bar, at most ten updates a second. Add playlist asks to paste a link to a SoundCloud playlist and re-opens with an error until the text is a soundcloud.com link. The import is listed at the top of the playlist sidebar at once, with a spinner and the link as its name until SoundCloud reports the title, and cannot be opened from there; the table opens on it and fills batch by batch in playlist order. These provisional rows are not saved: when the import succeeds they are replaced by the saved playlist, and when it fails, is cancelled or finds nothing the view is withdrawn and the sidebar entry disappears. Refresh keeps the current rows until the new ones are saved. The menus are Library, Tracks (open, download, status, undo, remove), Playback, Tools (BPM/key analysis and overrides, audio export, file deletion, link export, cart), View (search, hide handled, select all, sidebar, language, theme, key notation, animations), Settings (preferences, accounts) and Help. Every menu entry, including the row and playlist context menus, uses one layout: a fixed check column, the label and the shortcut in the muted color, and menus size to their widest entry after retranslation. Space is the shortcut of the Play / pause action. Single-key shortcuts mirror the TUI keymap (add, refresh, open, download, got/skip/reset, undo, remove, search, hide handled, seek, next/previous, volume, mute, sidebar) and are listed in a generated Help dialog; they are suppressed while text fields or modal dialogs have focus. Actions that need a selection are disabled without one;
 whole-view variants (open all visible, download all visible, cart for all
 visible) are separate explicit commands, and bulk opening asks above twenty
 links as in the TUI. Errors appear in a separate, dismissible banner with a
 Details button opening the message log. Later informational messages do not dismiss an error; closing
 the banner retains it in the log. Informational messages remain in the footer.
 The transport collapses to one row when nothing is loaded, shows m:ss clocks, a position cursor, hover
-time, drag seeking and a mute toggle. The waveform arrives in its own event once per loaded track (again
-when a local envelope is ready) and is painted once, in two layers; progress moves a clip edge and the
-cursor. The ten-per-second position snapshots carry only key, title, state, position and duration and
+time, drag seeking and a mute toggle drawn as a speaker icon that is struck through while muted (its
+Mute/Unmute name stays in the tooltip and accessible name). The waveform arrives in its own event once per loaded track (again
+when a local envelope is ready) and is painted in cached normal and peak layers; progress moves a clip edge and the
+cursor. The 25 ms position snapshots carry only key, title, state, position and duration and
 notify audio bindings alone. Dragging on the waveform shows the pointer's time and sends one seek on
 release; the target stays displayed until the backend confirms the position or 1.5 s pass. Play/pause
 and seeks publish a snapshot as soon as they are applied; seeks arriving faster than the decoder serves
@@ -688,14 +865,14 @@ closes: an invalid answer re-opens the same dialog with the entered values and
 the error message instead of discarding the input.
 Language selection supports English and Polish UI catalogs; provider diagnostics
 and some service-generated summaries retain their original text. Themes support
-system, light and dark, with the current language, theme and sidebar state
-checked in the menus. The application palette covers alternating folder rows,
+system, light and dark, with the current language, theme, key notation, sidebar
+and animation state checked in the menus. The application palette covers alternating folder rows,
 input placeholders, control indicators, disabled text, popup states and tooltips;
 selected rows pair their foreground with the selected background in both themes.
 Playlist and pinned-folder selection explicitly pair the accent background
 with selection text in both themes. At the 760×520 minimum window size, sidebar width is constrained to leave room for transport controls, volume is flexible, and the selection bar keeps to one icon-only row. The track table retains horizontal
 scrolling for columns that do not fit.
-Window dimensions, column widths, hidden columns, column order, sidebar width and visibility, language and theme persist privately in `config_dir()/gui.json`, separately from TUI presentation settings. The playback level is a shared `volume` field in the
+Window dimensions, column widths, hidden columns, column order, sidebar width and visibility, language, theme, key notation, the animation switch and the pulse timing persist privately in `config_dir()/gui.json`; unknown keys are dropped when saving and values are validated when loading, separately from TUI presentation settings. The playback level is a shared `volume` field in the
 common configuration: the runtime applies it when the player is created and
 saves it on shutdown, so TUI and desktop start at the level last set in either. Existing data, credentials and configuration paths stay
 unchanged on every platform.
@@ -712,7 +889,10 @@ the reserved placeholder is configured, so saving never requires clearing it.
 Cancelling Store accounts or a cart is reported as cancelled, not as an error, and
 a missing Playwright Chromium is offered as a confirmed download before retrying
 once. Playing a track with no SoundCloud id reports that there is nothing to stream.
-Import saved summary asks for a JSON file. Export audio requires a destination
+Import saved summary asks for a JSON file. Export audio asks for decks in the
+same way, with one checkbox per deck group in two columns (a `checks` form
+field) and the last choice ticked, and its review
+lists the chosen format and per-deck compatibility before the plan. It requires a destination
 folder only for Copy; Replace originals works in place and uses the first source's
 folder only as the plan root when the sources share none. An export with failed
 items reports its status, missing count and the first failed file with its redacted
@@ -807,8 +987,8 @@ playback time and are not stored in the crate record.
 
 - `dj_digger/cli.py` owns argument parsing, terminal selection, reporting,
   export/open flows, authentication commands, and process exit codes.
-- `dj_digger/services/collection.py` owns source selection, saved-HTML orchestration, progress
-  stages, and concurrent link-hub expansion.
+- `dj_digger/services/collection.py` owns SoundCloud target validation, progress
+  stages, partial-track reporting, and concurrent link-hub expansion.
 - `dj_digger/models.py` owns `Track`, `Crate`, and `LinkRecord`, the vocabulary
   shared across collection, classification, persistence, playback, and UI; it
   also defines the pure track-status vocabulary.
@@ -820,8 +1000,6 @@ playback time and are not stored in the crate record.
 - `soundcloud.py` owns API v2 discovery, authenticated requests, hydration,
   pagination and media authorization. `files.py` owns validated HTTP/browser
   file publication and local copies under one filename lock.
-- `html_fallback.py` owns saved SoundCloud page parsing and the slow per-track
-  page fallback.
 - `gates/hubs.py` inspects link hubs, `gates/providers.py` implements HTTP gate
   protocols and `gates/browser.py` drives Hypeddit completion in Chromium.
   `gate_models.py` owns their typed outcomes and inspection data.
@@ -858,7 +1036,11 @@ playback time and are not stored in the crate record.
   `logging_setup.py` owns private rotating logs and native-fault output rebinding;
   `analysis_report.py` owns the streamed last-analysis diagnostic file.
   `tui/diagnostic_screens.py` presents logs on explicit request.
-- `player.py` owns buffering, decoding and device lifecycle. Stream resolution
+- `player.py` owns buffering, decoding, byte-offset MP3 seeking and device
+  lifecycle; `beats.py` owns bass-transient detection and the bounded pulse history; `hls_audio.py` owns MP3 HLS buffering. `media.py` owns
+  FFmpeg/ffprobe invocation and PCM decoding; `local_audio.py` owns local playback
+  sources and the cached envelope; `analysis.py` owns BPM/key analysis and
+  key-name parsing (`key_names`). Stream resolution
   and prepared media live in `services/playback.py`, independently of table rows.
   Playback and prefetch share source preparation in the playback controller.
   `tui/audio.py` owns waveform, meter and transport rendering. The engine imports
@@ -872,7 +1054,8 @@ playback time and are not stored in the crate record.
   Account and settings dialogs delegate disk/network work to services.
 - `rows.py` and `playlist.py` own shared row values and pure playlist operations.
   `gui/backend.py` orchestrates desktop services; `gui/bridge.py` owns the Qt
-  signal boundary and translation; `gui/model.py` owns table selection/filtering;
+  signal boundary and translation; `gui/model.py` owns table selection, filtering,
+  sorting (Camelot order for keys), key-notation display and status-flash signals;
   `gui/qml/Main.qml` owns desktop rendering and input. `waveform.py` owns the pure
   envelope-to-column conversion shared by GUI and TUI. No service imports Qt.
 
@@ -889,7 +1072,7 @@ and command.
 The package requires Python 3.12 or newer and is built with Hatchling. Runtime
 dependencies are `requests`, `beautifulsoup4`, `textual` (pinned to the 8.x
 line because the TUI relies on its binding semantics and a few private hooks),
-`rich`, `playwright`, and `miniaudio`. The `play` extra is an empty compatibility
+`rich`, `playwright`, `miniaudio`, and NumPy 2.x (the streaming spectral detector). The `play` extra is an empty compatibility
 alias. `librosa` is optional in the
 `analyze` extra and imports only in analysis workers. FFmpeg/ffprobe are external
 executables required only by local media inspection/playback/conversion/analysis. The `gui` extra adds PySide6 6.x (minimum 6.10). Desktop build tooling is isolated
@@ -1084,7 +1267,9 @@ directories, browser choice, download directory, `gate_social_actions`,
 `columns`, the optional track-table columns (`bpm`, `key`, `year`, `label`)
 kept in canonical order with unknown names dropped, and `theme`, the Textual
 theme name applied at startup and saved whenever it changes. Local preferences
-also include `pinned_directories`, `sidebar_split` and `sidebar_mode`.
+also include `pinned_directories`, `sidebar_split`, `sidebar_mode` and
+`export_decks`, the decks of the last audio export in deck order (unknown names
+dropped, every deck when none remain).
 The default email uses the reserved `.invalid` domain. A first missing config is
 created and marks the launch as first-run.
 
@@ -1115,7 +1300,7 @@ logs screen. F5 / Open logs in Help or Settings shows the last 64 KiB and offers
 a worker-based desktop folder handoff. The TUI preserves logging when an active
 file handler exists and mutes terminal logging otherwise. Dig adds
 `--format {json,csv,none}`, `--output`, `--limit`, `--timeout` (20 seconds by
-default), and HTML fallback `--delay` (0.5 seconds by default). Open adds
+default). Open adds
 `--category`, `--skip`, `--limit`, `--no-open`, and a summary path.
 
 SoundCloud auth actions are `login [--token]`, `logout`, and `status`.
@@ -1406,8 +1591,9 @@ credentials, a cached public SoundCloud client ID, and separate managed-browser
 profiles. A requested Beatport transfer also writes a plain-text playlist in the
 configured crate download folder. Cart diagnostics (a screenshot, a redacted
 page copy, and a small JSON note per unverified click or structural failure,
-last ten kept) live under the data directory. Audio preview bytes and waveform
-cache are process memory only.
+last ten kept) live under the data directory. Audio preview bytes and remote
+waveforms are process memory only; envelopes of local files are cached as small
+JSON files under the user cache directory (`waveforms/`, newest 128).
 Diagnostics are local only: five rotating log files and one latest analysis
 report. Report writing is streamed one file at a time. No automatic upload occurs. Log/report paths and filenames may identify
 local media, but credential-like values are redacted. Users can open the log
@@ -1466,7 +1652,6 @@ as player events instead of escaping through Python-CFFI.
 
 - Public SoundCloud collection depends on an undocumented API v2 contract and a
   client ID discovered from current web assets.
-- Saved HTML without hydrated IDs uses slower, sequential track-page scraping.
 - Browser-cookie auto-detection reads Firefox stores only.
 - DNS names are not resolved and pinned by the automatic-fetch safety check.
 - SoundCloud playback supports progressive MP3 and MP3 HLS (up to 50 MiB).
@@ -1603,7 +1788,7 @@ markers, unowned named blocks, or absent numbered headings are explicit errors.
 - Packaging and command contract: `pyproject.toml`, `dj_digger/cli.py`,
   `dj_digger/__main__.py`.
 - Collection and link behavior: `dj_digger/soundcloud.py`,
-  `dj_digger/html_fallback.py`, `dj_digger/services/collection.py`, `dj_digger/links.py`.
+  `dj_digger/services/collection.py`, `dj_digger/links.py`.
 - Local state: `dj_digger/models.py`, `dj_digger/db.py`, `dj_digger/state.py`,
   `dj_digger/crate_models.py`, `dj_digger/library.py`, `dj_digger/schema.py`,
   `dj_digger/config.py`, `dj_digger/scanner.py`, `dj_digger/services/library.py`.
@@ -1611,8 +1796,10 @@ markers, unowned named blocks, or absent numbered headings are explicit errors.
   `dj_digger/gates/`, `dj_digger/browser.py`, `dj_digger/services/purchases.py`.
 - Composition and operation settlement: `dj_digger/services/runtime.py`,
   `dj_digger/services/operations.py`, `dj_digger/services/downloads.py`.
-- UI and playback: `dj_digger/player.py`, `dj_digger/services/playback.py`,
-  `dj_digger/tui/`.
+- UI and playback: `dj_digger/player.py`, `dj_digger/hls_audio.py`,
+  `dj_digger/local_audio.py`, `dj_digger/media.py`, `dj_digger/waveform.py`,
+  `dj_digger/analysis.py`, `dj_digger/services/playback.py`, `dj_digger/tui/`,
+  `dj_digger/gui/`.
 - Verification and release: `tests/`, `pyproject.toml`, `.github/workflows/`.
 
 ### 15.2 User and historical documentation

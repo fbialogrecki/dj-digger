@@ -3,8 +3,8 @@
 The headline change from v0.1: ``dj-digger <link>`` is all you need. The link can
 be a playlist, an artist profile, someone's /likes or a single track, and there is
 no subcommand to remember - ``dig`` is assumed when the first argument is not one.
-A saved HTML file still works in the same position, and running ``dj-digger`` with
-no arguments at all opens the browser and asks for a link.
+Running ``dj-digger`` with no arguments at all opens the browser and asks for a
+link.
 """
 
 import argparse
@@ -84,13 +84,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     dig_cmd = subparsers.add_parser(
         "dig",
-        help="Dig a SoundCloud link (or a saved playlist HTML file). Assumed by default.",
+        help="Dig a SoundCloud link. Assumed by default.",
     )
     dig_cmd.add_argument(
         "target",
         nargs="?",
         help=(
-            "SoundCloud URL (playlist, profile, /likes, track) or a saved HTML file. "
+            "SoundCloud URL (playlist, profile, /likes, track). "
             "Omit it and you will be asked."
         ),
     )
@@ -122,12 +122,6 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=20.0,
         help="HTTP request timeout in seconds (default: 20)",
-    )
-    dig_cmd.add_argument(
-        "--delay",
-        type=float,
-        default=0.5,
-        help="Delay between requests, only used by the slow HTML fallback (default: 0.5)",
     )
     _add_shared_arguments(dig_cmd)
 
@@ -252,7 +246,7 @@ def _should_use_tui(args: argparse.Namespace) -> bool:
 
 
 def _dig_options(args: argparse.Namespace) -> dig_module.DigOptions:
-    return dig_module.DigOptions(limit=args.limit, timeout=args.timeout, delay=args.delay)
+    return dig_module.DigOptions(limit=args.limit, timeout=args.timeout)
 
 
 def handle_dig(args: argparse.Namespace) -> int:

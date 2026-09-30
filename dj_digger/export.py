@@ -8,6 +8,7 @@ import os
 import re
 import shutil
 import stat
+import subprocess
 import sys
 import tempfile
 import unicodedata
@@ -16,7 +17,15 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from . import wav
-from .decks import RULE_VERSION, Profile, compatibility
+from .decks import (
+    DEFAULT_DECKS,
+    MAX_FOLDER_LEVELS,
+    RULE_VERSION,
+    Profile,
+    best_profile,
+    chosen,
+    compatibility,
+)
 from .media import (
     MediaError,
     binary,
@@ -53,6 +62,10 @@ class ExportPlan:
     mode: str
     folder: str
     rules: str = RULE_VERSION
+    # The decks this export is for; plans saved before the choice existed meant the original CDJ set.
+    decks: tuple[str, ...] = DEFAULT_DECKS
+    # Warnings about the destination drive that do not stop the export.
+    notes: tuple[str, ...] = ()
 
     def compatibility(self):
         media = []
@@ -63,7 +76,7 @@ class ExportPlan:
                 media.append(json.loads(item.metadata_json))
             else:
                 media.append(self.profile.media(rate=item.rate, bits=item.bits))
-        return compatibility(media)
+        return compatibility(media, self.decks)
 
 
 def portable(name: str) -> str:
@@ -97,15 +110,18 @@ def common_root(paths):
         return None
 
 
-def _transformation(path, meta, profile, mode, cancel):
-    """Choose the minimal allowed audio change, retaining explicit exceptions."""
+def _transformation(path, meta, profile, mode, cancel, decks=DEFAULT_DECKS):
+    """Choose the minimal allowed audio change, retaining explicit exceptions.
+
+    A file is kept as it is only when every chosen deck plays it."""
     action, reason, bits, rate = 'copy', '', meta['bits'], meta['rate']
+    plays_everywhere = all(value == 'compatible' for value in compatibility([meta], decks).values())
     try:
         if meta['channels'] not in (1, 2):
             raise MediaError('Multichannel audio requires an explicit downmix decision')
         if meta['codec'] in ('mp3', 'aac'):
-            if not any(value == 'compatible' for value in compatibility([meta]).values()):
-                raise MediaError('Lossy file parameters are incompatible or unverified; no automatic lossy transcode')
+            if not plays_everywhere:
+                raise MediaError('Lossy file does not play on every chosen deck; no automatic lossy transcode')
         else:
             rate = target_rate(meta['rate'], profile.rate)
             bits = min(meta['bits'] or profile.bits, profile.bits)
@@ -115,7 +131,7 @@ def _transformation(path, meta, profile, mode, cancel):
             if profile.format == 'flac':
                 accepted_codecs |= {'flac', 'alac'}
             if (meta['codec'] not in accepted_codecs or rate != meta['rate'] or bits != meta['bits']
-                    or not any(value == 'compatible' for value in compatibility([meta]).values())):
+                    or not plays_everywhere):
                 action = 'convert'
             if path.suffix.lower() == '.wav' and action == 'copy':
                 try:
@@ -159,9 +175,77 @@ def _portable_parts(relative, directory_owners):
     return parts
 
 
-def plan_export(paths, folder: Path, profile=Profile(), *, mode='copy', cancel=None) -> ExportPlan:
+# File system names as the deck manuals use them; FAT covers FAT16 and FAT32.
+FILESYSTEMS = {'vfat': 'fat', 'msdos': 'fat', 'fat': 'fat', 'fat16': 'fat', 'fat32': 'fat', 'exfat': 'exfat',
+               'hfsplus': 'hfs+', 'hfs': 'hfs+', 'ntfs': 'ntfs', 'ntfs3': 'ntfs'}
+FILESYSTEM_LABELS = {'fat': 'FAT', 'exfat': 'exFAT', 'hfs+': 'HFS+', 'ntfs': 'NTFS'}
+
+
+def mount_type(mounts: str, root: Path):
+    """The type /proc/self/mounts gives ``root``; the last entry wins, as with stacked mounts."""
+    kind = None
+    for line in mounts.splitlines():
+        fields = line.split()
+        if len(fields) >= 3:
+            point = re.sub(r'\\([0-7]{3})', lambda match: chr(int(match[1], 8)), fields[1])
+            if Path(point) == root:
+                kind = fields[2]
+    return kind
+
+
+def destination_drive(folder: Path):
+    """The mount point holding ``folder`` and its file system in the manuals' terms,
+    or None for anything else (an internal disk, a FUSE mount) or when it cannot be told."""
+    root = Path(folder).absolute()
+    while not os.path.ismount(root) and root.parent != root:
+        root = root.parent
+    try:
+        if sys.platform.startswith('linux'):
+            kind = mount_type(Path('/proc/self/mounts').read_text(encoding='utf-8', errors='replace'), root)
+        elif sys.platform == 'darwin':
+            kind = subprocess.run(['stat', '-f', '%T', str(root)], capture_output=True, text=True, timeout=5).stdout.strip()
+        elif os.name == 'nt':
+            import ctypes
+            name = ctypes.create_unicode_buffer(64)
+            ok = ctypes.windll.kernel32.GetVolumeInformationW(root.anchor, None, 0, None, None, None, name, 64)
+            kind = name.value if ok else None
+        else:
+            kind = None
+    except (OSError, subprocess.SubprocessError):
+        kind = None
+    return root, FILESYSTEMS.get((kind or '').lower())
+
+
+def drive_notes(folder: Path, targets, decks):
+    """What the manuals say about the drive the files land on: its file system, and
+    folders deeper than the decks show. Only for the file systems decks can read."""
+    root, kind = destination_drive(folder)
+    if kind is None:
+        return ()
+    notes = []
+    unreadable = [deck.name for deck in chosen(decks) if kind not in deck.filesystems]
+    if unreadable:
+        notes.append(f'The destination drive uses {FILESYSTEM_LABELS[kind]}, which {", ".join(unreadable)} '
+                     'cannot read; FAT32 works on every deck.')
+    deep = 0
+    for target in targets:
+        try:
+            deep += len(Path(target).relative_to(root).parts) - 1 > MAX_FOLDER_LEVELS
+        except ValueError:
+            pass
+    if deep:
+        notes.append(f'{deep} {"file sits" if deep == 1 else "files sit"} more than {MAX_FOLDER_LEVELS} folders '
+                     'below the drive root, where decks do not show them.')
+    return tuple(notes)
+
+
+def plan_export(paths, folder: Path, profile=None, *, decks=None, mode='copy', cancel=None) -> ExportPlan:
+    """``decks`` names the target decks (the default set when omitted); without an explicit
+    ``profile`` the best one every target deck plays is used."""
     if mode not in ('copy', 'replace'):
         raise ValueError('Unknown export mode')
+    decks = tuple(deck.name for deck in chosen(DEFAULT_DECKS if decks is None else decks))
+    profile = profile or best_profile(decks)
     operation = uuid.uuid4().hex
     source_paths = tuple(dict.fromkeys(Path(path).expanduser().absolute().parent.resolve(strict=True) / Path(path).name for path in paths))
     if not source_paths:
@@ -179,7 +263,7 @@ def plan_export(paths, folder: Path, profile=Profile(), *, mode='copy', cancel=N
         except MediaError as exc:
             items.append(Item(str(path), before, sha, str(destination_root / portable(path.name)), 'exception', 0, 0, '{}', str(exc)))
             continue
-        action, reason, bits, rate = _transformation(path, meta, profile, mode, cancel)
+        action, reason, bits, rate = _transformation(path, meta, profile, mode, cancel, decks)
         relative = path.relative_to(root) if root is not None else Path(portable(path.anchor), *path.parts[1:])
         parts = _portable_parts(relative, directory_owners)
         target = destination_root.joinpath(*parts) if mode == 'copy' else path
@@ -195,7 +279,8 @@ def plan_export(paths, folder: Path, profile=Profile(), *, mode='copy', cancel=N
         if mode == 'replace' and target != path and target.exists():
             action, reason = 'exception', 'Destination already exists'
         items.append(Item(str(path), before, sha, str(target), action, bits, rate, json.dumps(meta), reason))
-    return ExportPlan(operation, tuple(items), profile, mode, str(destination_root))
+    notes = drive_notes(destination_root, [item.destination for item in items if item.action != 'exception'], decks)
+    return ExportPlan(operation, tuple(items), profile, mode, str(destination_root), decks=decks, notes=notes)
 
 
 def pcm_summary(path: Path, *, rate=None, cancel=None):
@@ -470,4 +555,5 @@ def resume_plan(record):
     """Only call with records loaded from the application's own operation table."""
     raw = record['plan']
     return ExportPlan(raw['id'], tuple(Item(**item) for item in raw['items']), Profile(**raw['profile']),
-                      raw['mode'], raw['folder'], raw['rules'])
+                      raw['mode'], raw['folder'], raw['rules'], tuple(raw.get('decks') or DEFAULT_DECKS),
+                      tuple(raw.get('notes', ())))

@@ -72,8 +72,8 @@ for commands, coverage and remaining platform checks.
 ## ⚡ The workflow
 
 - **Collect complete playlists**: SoundCloud API v2 reads playlists, likes, profiles,
-  and individual tracks without relying on the page's finite rendered list. A
-  saved-HTML fallback covers private and unlisted sources.
+  and individual tracks without relying on the page's finite rendered list; sign
+  in to SoundCloud to read your own private playlists.
 - **Audition and narrow down**: Preview, seek, search, filter, and sort tracks in
   the Textual interface without leaving the playlist.
 - **Remember every decision**: Local playlists keep `got it` / `skipped` status across
@@ -107,7 +107,6 @@ for commands, coverage and remaining platform checks.
 - **🔗 Link-Hub Expansion**: A purchase link that turns out to be a list of shops rather than a download—an ampsuite release page, a gate running in smart-link mode—is opened, and the Bandcamp and Beatport links behind it are added to the track directly instead of a `gate` badge.
 - **🛒 Store Purchase Assistance**: An optional, user-triggered flow verifies Bandcamp additions and prepares Beatport tracks as an importable playlist. Login, playlist transfer, and checkout stay manual.
 - **🆕 New Since Last Refresh**: Refreshing a playlist marks whatever it gained with `NEW` and sorts it to the top.
-- **📄 Saved-HTML Fallback**: Fully supports saved HTML pages (`Ctrl+S`) for private or unlisted SoundCloud playlists.
 - **⚙️ CLI & Non-Interactive Mode**: Export playlists directly to JSON or CSV for automated pipelines and scripts.
 
 ---
@@ -197,7 +196,6 @@ XDG_DATA_HOME=/tmp/dj-dev XDG_CONFIG_HOME=/tmp/dj-dev XDG_CACHE_HOME=/tmp/dj-dev
 | **User Likes** | `soundcloud.com/user/likes` | Every track liked by the user |
 | **Artist Profile** | `soundcloud.com/user` | All tracks uploaded by the artist |
 | **Single Track** | `soundcloud.com/user/track-name` | Single track metadata & purchase links |
-| **Saved HTML** | `playlist.html` | Private / unlisted playlist saved locally |
 | **Interactive Prompt**| *Run without arguments* | Prompts for a link or opens saved playlists |
 
 ---

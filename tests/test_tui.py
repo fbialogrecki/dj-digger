@@ -1769,7 +1769,7 @@ def test_the_target_is_passed_through_with_the_dig_options(state, monkeypatch):
         return crate_of(1)
 
     monkeypatch.setattr("dj_digger.services.collection.dig", fake_dig)
-    app = make_app([], state, dig_options=DigOptions(limit=7, timeout=5.0, delay=0.0))
+    app = make_app([], state, dig_options=DigOptions(limit=7, timeout=5.0))
 
     async def scenario():
         async with app.run_test() as pilot:
@@ -5199,6 +5199,23 @@ def test_local_explorer_and_export_dialog_defaults(state, tmp_path, monkeypatch)
             assert app.screen.profile().bits == 24
             assert app.screen.profile().rate == 48000
             assert not app.screen.query_one('#replace', Checkbox).value
+            # Only the newest decks: the format follows them, and no deck at all cannot be planned.
+            # Decks that play the same files share one box.
+            from dj_digger.decks import DECK_GROUPS
+            def tick(names):
+                for index, group in enumerate(DECK_GROUPS):
+                    app.screen.query_one(f'#deck-{index}', Checkbox).value = bool(set(group) & names)
+            tick({'CDJ-3000'})
+            await pilot.pause()
+            assert app.screen.chosen() == ['CDJ-3000', 'CDJ-3000X', 'OPUS-QUAD', 'XDJ-AZ']
+            assert app.screen.profile().format == 'flac'
+            assert 'FLAC, up to 24-bit / 96 kHz' in str(app.screen.query_one('#profile', Label).render())
+            tick({'CDJ-3000', 'XDJ-XZ'})  # The XZ reads FLAC only up to 48 kHz.
+            await pilot.pause()
+            assert app.screen.profile().label() == 'FLAC, up to 24-bit / 48 kHz'
+            tick(set())
+            await pilot.pause()
+            assert app.screen.query_one('#plan', Button).disabled
             await pilot.press('escape')
             app.action_local_edit()
             await wait_for_ui(pilot, lambda: isinstance(app.screen, AnalysisEdit) and app.screen.is_mounted)
@@ -5550,7 +5567,8 @@ def test_export_cancel_buttons_never_accept_a_plan(records, state):
     from dj_digger.tui.local_screens import ExportOptions, ExportReview
     app = make_app(records, state)
     answers = []
-    plan = SimpleNamespace(items=[], mode='replace', compatibility=lambda: {})
+    from dj_digger.decks import Profile
+    plan = SimpleNamespace(items=[], mode='replace', compatibility=lambda: {}, profile=Profile(), notes=('Check the drive',))
     async def scenario():
         async with app.run_test(size=(80, 24)) as pilot:
             for screen in (ExportOptions('/tmp'), ExportReview(plan)):

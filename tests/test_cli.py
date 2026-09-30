@@ -207,16 +207,16 @@ def test_tui_is_skipped_when_output_is_piped(monkeypatch):
     assert cli._should_use_tui(args) is False
 
 
-def test_dig_rejects_a_target_that_is_neither_link_nor_file(tmp_path, monkeypatch):
+def test_dig_rejects_a_target_that_is_not_a_soundcloud_link(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     args = cli.parse_cli_args(["definitely-not-here.html", "--no-tui"])
-    with pytest.raises(TargetNotFound, match="neither"):
+    with pytest.raises(TargetNotFound, match="not a soundcloud.com link"):
         cli.handle_dig(args)
 
 
 def test_main_turns_a_bad_target_into_a_clean_exit(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    with pytest.raises(SystemExit, match="neither"):
+    with pytest.raises(SystemExit, match="not a soundcloud.com link"):
         cli.main(["definitely-not-here.html", "--no-tui"])
 
 

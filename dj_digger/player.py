@@ -27,6 +27,7 @@ from functools import lru_cache
 from queue import Empty, SimpleQueue
 from typing import Literal
 
+from .beats import KickDetector, PulseHistory
 from .models import Track
 from .services.playback import Stream
 
@@ -36,6 +37,13 @@ SEEK_STEP = 10.0
 VOLUME_STEP = 0.1
 SAMPLE_RATE = 44100
 CHANNELS = 2
+# miniaudio's default 200 ms period queues up to 600 ms ahead of the speaker,
+# which is how far the level meter and the playhead ran ahead of the music.
+DEVICE_PERIOD_MS = 50
+# Audio starting mid-waveform clicks; the first 10 ms after every start fade in.
+FADE_SAMPLES = 441 * CHANNELS
+# Retain hits behind the decoded position: fed audio has not yet been heard.
+BEATS_BEHIND = 0.5
 DOWNLOAD_CHUNK = 64 * 1024
 # A two hour set is not a track, and a response that will not declare its size
 # could be anything. Both stream off the socket the way everything used to.
@@ -291,6 +299,45 @@ def http_source_type(miniaudio):
     return type("HttpSource", (HttpSourceMixin, miniaudio.StreamableSource), {})
 
 
+class StartsAtMixin:
+    """A source seen from byte ``base`` on, so a decoder can open mid-file.
+
+    miniaudio rewinds the source when it opens a decoder, and its own frame
+    seek decodes every frame before the target: 170 ms of silence at 4:40 into
+    a track, growing with the position. Opening at the right byte takes a
+    millisecond anywhere; MP3 frames resynchronise on their own headers.
+    """
+
+    def __init__(self, source, base: int) -> None:
+        self.source = source
+        self.base = base
+
+    def read(self, num_bytes: int) -> bytes:
+        return self.source.read(num_bytes)
+
+    def seek(self, offset: int, origin) -> bool:
+        origin = getattr(origin, "value", origin)
+        return self.source.seek(offset + self.base if origin == 0 else offset, origin)
+
+
+@lru_cache(maxsize=None)
+def starts_at_type(miniaudio):
+    return type("StartsAt", (StartsAtMixin, miniaudio.StreamableSource), {})
+
+
+def mp3_start(source, seconds: float, duration: float, length: int) -> int:
+    """The byte where ``seconds`` begins in a constant-bitrate MP3 of ``length``
+    bytes: the audio spreads evenly after any ID3v2 tag. SoundCloud serves
+    constant-bitrate MP3; a variable-bitrate file lands close, not exact."""
+
+    source.seek(0, 0)
+    head = source.read(10)
+    tag = 0
+    if len(head) == 10 and head[:3] == b"ID3":
+        tag = 10 + ((head[6] & 127) << 21 | (head[7] & 127) << 14 | (head[8] & 127) << 7 | (head[9] & 127))
+    return tag + int(max(0, length - tag) * min(1.0, max(0.0, seconds / duration)))
+
+
 @dataclass
 class Loaded:
     track: Track
@@ -329,6 +376,7 @@ class Player:
         self._events: SimpleQueue[PlaybackEvent] = SimpleQueue()
         self._volume = 0.8
         self._muted = False
+        self._beats = PulseHistory()
         self.unavailable_reason: str | None = None
 
     def _device_for(self, sample_rate: int, channels: int):
@@ -341,7 +389,7 @@ class Player:
             return self._device
         try:
             self._device = miniaudio.PlaybackDevice(
-                sample_rate=sample_rate, nchannels=channels
+                sample_rate=sample_rate, nchannels=channels, buffersize_msec=DEVICE_PERIOD_MS
             )
         except Exception as exc:
             # The raw miniaudio error is a numbered tuple, no use to anyone here.
@@ -406,6 +454,8 @@ class Player:
         self._session = session
         self._source = source
         self._loaded = Loaded(track=track, stream=stream, waveform=waveform or [])
+        # One pulse history per track; a new decoder clears it after a seek.
+        self._beats = PulseHistory(60 / track.bpm if track.bpm and track.bpm > 0 else None)
         self._frames = 0
         self._offset = 0.0
         return self._loaded
@@ -417,14 +467,19 @@ class Player:
         # the buffered track and put a connection in front of every seek.
         if self._source is None:
             self._source = open_source(self._session, self._loaded.stream.url, self._loaded.stream.protocol)
+        # An MP3 of known size opens at the byte of the target instead of
+        # decoding its way there; local files seek in their own decoder.
+        length = getattr(self._source, "length", None)
+        start = mp3_start(self._source, seek_frame / SAMPLE_RATE, self.duration, length) \
+            if seek_frame and length and self.duration else 0
         if hasattr(self._source, "stream"):
-            return self._source.stream(seek_frame)
+            return self._source.stream(seek_frame, start) if start else self._source.stream(seek_frame)
         return miniaudio.stream_any(
-            self._source,
+            starts_at_type(miniaudio)(self._source, start) if start else self._source,
             source_format=miniaudio.FileFormat.MP3,
             sample_rate=SAMPLE_RATE,
             nchannels=CHANNELS,
-            seek_frame=seek_frame,
+            seek_frame=0 if start else seek_frame,
         )
 
     def _drop_generator(self) -> None:
@@ -438,12 +493,13 @@ class Player:
             self._source.close()
             self._source = None
 
-    def _feed(self, stream, generation: int):
+    def _feed(self, stream, generation: int, kicks: KickDetector):
         # miniaudio sends a frame count into the callback generator, so the first
         # yield must happen before any decoding. It also makes an empty stream end
         # on the callback thread rather than raising while ``play`` primes us.
         required = yield b""
         first = True
+        faded = 0
         while True:
             if generation != self._generation:
                 return
@@ -454,7 +510,9 @@ class Player:
                 first = False
                 if not len(chunk):
                     raise StopIteration
+                start = self.position
                 self._frames += (self._source.last_frames if hasattr(self._source, "last_frames") else len(chunk) // CHANNELS)
+                kicks.feed(chunk, start)
                 volume = self.volume
                 out = (
                     chunk
@@ -463,6 +521,12 @@ class Player:
                     if volume >= 0.999
                     else array.array("h", [int(sample * volume) for sample in chunk])
                 )
+                if faded < FADE_SAMPLES:
+                    out = array.array("h", out)  # A copy: the decoder may still own ``chunk``.
+                    count = min(len(out), FADE_SAMPLES - faded)
+                    for index in range(count):
+                        out[index] = int(out[index] * (faded + index) / FADE_SAMPLES)
+                    faded += count
             except StopIteration:
                 if generation == self._generation:
                     self._playing = False
@@ -524,8 +588,10 @@ class Player:
             self._offset = self.position
             self._frames = 0
             self._generation += 1
+            # A new decoder must not replay hits from before a seek.
+            self._beats.seeked()
             self._generator = self._feed(
-                self._open_stream(int(self._offset * SAMPLE_RATE)), self._generation
+                self._open_stream(int(self._offset * SAMPLE_RATE)), self._generation, KickDetector(self._beats)
             )
             # miniaudio sends into the generator without priming it first, and
             # its own docstring says the caller must start it.
@@ -556,9 +622,11 @@ class Player:
 
     def stop(self) -> None:
         # Invalidate a callback before asking the device to stop. A late EOF from
-        # the old generator must not advance whatever is loaded next.
+        # the old generator must not advance whatever is loaded next. The device
+        # goes too: stopping only pauses it, and what it had queued of this track
+        # would play at the start of the next one.
         self._generation += 1
-        self._stop_device()
+        self._drop_device()
         self._close_source()
         self._playing = False
         self._ended = False
@@ -573,7 +641,9 @@ class Player:
         target = max(0.0, min(max(0.0, self.duration - 0.5), seconds))
         was_playing = self._playing
         self._generation += 1
-        self._stop_device()
+        # A fresh device, not a stopped one: stopping only pauses the output, and
+        # the audio it had queued from the old position played before the new one.
+        self._drop_device()
         # Only the decoder is rebuilt at the new frame. The source stays, and
         # with it the copy of the track, which is what makes this instant.
         self._drop_generator()
@@ -596,6 +666,15 @@ class Player:
 
     def toggle_mute(self) -> None:
         self._muted = not self._muted
+
+    def beats(self) -> tuple[list[tuple[float, float]], float]:
+        """Detected hits (track time, amplitude) in queued audio, plus seconds per beat.
+
+        The window starts behind ``position`` because fed audio is heard later.
+        """
+
+        position = self.position
+        return self._beats.pulses(position - BEATS_BEHIND, position)
 
     @property
     def level(self) -> float:

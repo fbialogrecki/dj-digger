@@ -15,7 +15,7 @@ import logging
 import os
 import re
 import threading
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Sequence
 from itertools import batched
 from pathlib import Path
 from typing import Any, Self
@@ -53,6 +53,8 @@ USER_COLLECTIONS = {"likes": "likes", "tracks": "tracks", "reposts": "reposts"}
 LOGGER = logging.getLogger(__name__)
 
 ProgressCallback = Callable[[int, int | None], None]
+# The tracks gathered so far, in their final order, so a caller can show an import as it grows.
+TracksCallback = Callable[["Crate"], None]
 
 
 
@@ -177,7 +179,7 @@ class SoundCloudClient:
 
         raise SoundCloudError(
             "Could not find a client_id in SoundCloud's JS bundles. "
-            "SoundCloud may have changed its site - try the saved-HTML fallback."
+            "SoundCloud may have changed its site - try again later or update dj-digger."
         )
 
     @property
@@ -214,8 +216,8 @@ class SoundCloudClient:
                     raise SoundCloudError("SoundCloud API redirected unexpectedly")
                 if response.status_code == 404:
                     raise SoundCloudError(
-                        "SoundCloud returned 404. Check the link, and note that private "
-                        "or unlisted content needs the saved-HTML fallback."
+                        "SoundCloud returned 404. Check the link; for your own private "
+                        "playlists, sign in to SoundCloud first."
                     )
                 if response.status_code >= 400:
                     raise SoundCloudError(
@@ -447,6 +449,7 @@ class SoundCloudClient:
         *,
         on_progress: ProgressCallback | None = None,
         cancel: threading.Event | None = None,
+        on_batch: Callable[[list[Track]], None] | None = None,
     ) -> list[Track]:
         """Turn bare track ids into full track objects, 50 per request."""
 
@@ -463,6 +466,8 @@ class SoundCloudClient:
                 tracks.extend(Track.from_api(item) for item in payload if isinstance(item, dict))
             if on_progress:
                 on_progress(len(tracks), len(ids))
+            if on_batch:
+                on_batch(sorted(tracks, key=lambda track: position.get(track.id or -1, len(ids))))
 
         # The endpoint neither preserves order nor returns deleted tracks.
         tracks.sort(key=lambda track: position.get(track.id or -1, len(ids)))
@@ -475,6 +480,7 @@ class SoundCloudClient:
         limit: int | None = None,
         on_progress: ProgressCallback | None = None,
         cancel: threading.Event | None = None,
+        on_batch: Callable[[list[Track]], None] | None = None,
     ) -> list[Track]:
         tracks: list[Track] = []
         visited: set[str] = set()
@@ -492,6 +498,8 @@ class SoundCloudClient:
                     tracks.append(Track.from_api(data))
             if on_progress:
                 on_progress(len(tracks), limit)
+            if on_batch:
+                on_batch(tracks[:limit] if limit is not None else list(tracks))
             if limit is not None and len(tracks) >= limit:
                 break
             next_href = payload.get("next_href")
@@ -512,6 +520,7 @@ class SoundCloudClient:
         limit: int | None = None,
         on_progress: ProgressCallback | None = None,
         cancel: threading.Event | None = None,
+        on_tracks: TracksCallback | None = None,
     ) -> Crate:
         """Pull every track behind a SoundCloud link."""
 
@@ -526,17 +535,19 @@ class SoundCloudClient:
             if not user_id:
                 raise SoundCloudError(f"Resolved {base_url} to a user without an id")
             endpoint = collection or "tracks"
+            title = f"{username} - {endpoint}"
             tracks = self._paginate(
                 (f"/stream/users/{user_id}/reposts" if endpoint == "reposts"
                  else f"/users/{user_id}/{endpoint}"),
                 limit=limit,
                 on_progress=on_progress,
                 cancel=cancel,
+                on_batch=on_tracks and (lambda part: on_tracks(Crate(source=url, tracks=part, title=title))),
             )
             return Crate(
                 source=url,
                 tracks=tracks,
-                title=f"{username} - {endpoint}",
+                title=title,
                 declared_count=len(tracks),
             )
 
@@ -558,11 +569,15 @@ class SoundCloudClient:
             declared = payload.get("track_count") or len(track_ids)
             if limit is not None:
                 track_ids = track_ids[:limit]
-            tracks = self.hydrate_tracks(track_ids, on_progress=on_progress, cancel=cancel)
+            title = payload.get("title") or url
+            tracks = self.hydrate_tracks(
+                track_ids, on_progress=on_progress, cancel=cancel,
+                on_batch=on_tracks and (lambda part: on_tracks(Crate(source=url, tracks=part, title=title, declared_count=declared))),
+            )
             return Crate(
                 source=url,
                 tracks=tracks,
-                title=payload.get("title") or url,
+                title=title,
                 declared_count=declared,
                 provider_id=payload.get("id"),
             )
@@ -580,19 +595,9 @@ def collect_tracks(
     timeout: float = 20.0,
     on_progress: ProgressCallback | None = None,
     cancel: threading.Event | None = None,
+    on_tracks: TracksCallback | None = None,
 ) -> Crate:
     """Convenience wrapper for one-shot use."""
 
     with SoundCloudClient(timeout=timeout) as client:
-        return client.collect(url, limit=limit, on_progress=on_progress, cancel=cancel)
-
-
-def hydrate_ids(
-    track_ids: Iterable[int],
-    *,
-    timeout: float = 20.0,
-    on_progress: ProgressCallback | None = None,
-    cancel: threading.Event | None = None,
-) -> list[Track]:
-    with SoundCloudClient(timeout=timeout) as client:
-        return client.hydrate_tracks(list(track_ids), on_progress=on_progress, cancel=cancel)
+        return client.collect(url, limit=limit, on_progress=on_progress, cancel=cancel, on_tracks=on_tracks)

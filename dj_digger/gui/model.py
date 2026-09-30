@@ -3,11 +3,21 @@ from PySide6.QtCore import Property, QAbstractTableModel, QModelIndex, Qt, Signa
 
 COLUMNS = ('status', 'artist', 'title', 'genre', 'bpm', 'keySignature', 'year', 'label', 'duration', 'stores')
 HEADERS = ('Status', 'Artist', 'Title', 'Genre', 'BPM', 'Key', 'Year', 'Label', 'Time', 'Stores')
+# Bulk status changes skip the row flash: a hundred rows lighting up is noise, not feedback.
+FLASH_LIMIT = 100
 STATUS_LABELS = {'new': '\u00b7', 'opened': '\u25cb Opened', 'got': '\u2713 Got', 'skip': '\u2717 Skipped'}
+
+
+def camelot_order(row):
+    """Keys sort around the Camelot wheel (1A, 1B, 2A ...); unknown keys last, by text."""
+    code = row.get('camelot', '')
+    return (0, int(code[:-1]), code[-1], '') if code else (1, 0, '', str(row.get('keySignature', '')).casefold())
 
 
 class TrackModel(QAbstractTableModel):
     changed = Signal()
+    # Track key -> new status, for rows whose status just changed.
+    statusFlashed = Signal('QVariantMap')
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -21,10 +31,12 @@ class TrackModel(QAbstractTableModel):
         self.reverse = False
         self.anchor = ''
         self.progress = {}
+        self.key_notation = 'camelot'
 
     def roleNames(self):
         return {Qt.DisplayRole: b'display', Qt.UserRole: b'trackKey', Qt.UserRole + 1: b'chosen',
-                Qt.UserRole + 2: b'status', Qt.UserRole + 3: b'progress', Qt.UserRole + 4: b'local'}
+                Qt.UserRole + 2: b'status', Qt.UserRole + 3: b'progress', Qt.UserRole + 4: b'local',
+                Qt.UserRole + 5: b'camelot'}
 
     def rowCount(self, parent=QModelIndex()):
         return 0 if parent.isValid() else len(self.visible)
@@ -46,6 +58,8 @@ class TrackModel(QAbstractTableModel):
             return self.progress.get(row['key'], -1.0)
         if role == Qt.UserRole + 4:
             return bool(row.get('local'))
+        if role == Qt.UserRole + 5:
+            return row.get('camelot', '')
         if role == Qt.DisplayRole:
             name = COLUMNS[index.column()]
             value = row.get(name, '')
@@ -55,7 +69,9 @@ class TrackModel(QAbstractTableModel):
                 seconds = int(value or 0) // 1000
                 return f'{seconds//60}:{seconds%60:02d}'
             if name == 'bpm' and value != '':
-                return f'{float(value):g}'
+                return f'{float(value):.1f}'.removesuffix('.0')
+            if name == 'keySignature':
+                return row.get('camelot' if self.key_notation == 'camelot' else 'classicKey') or str(value)
             return str(value)
         return None
 
@@ -94,6 +110,7 @@ class TrackModel(QAbstractTableModel):
             self.replace(rows)
             return
         changed.update(a['key'] for a, b in zip(self.rows, rows) if a != b)
+        flashed = {b['key']: b['status'] for a, b in zip(self.rows, rows) if a['status'] != b['status']}
         self.rows = rows
         if self.hide or self.search or self.store or self.sort_column >= 0:
             self.refilter()
@@ -103,6 +120,8 @@ class TrackModel(QAbstractTableModel):
                 if row['key'] in changed:
                     self.dataChanged.emit(self.index(i, 0), self.index(i, len(COLUMNS)-1))
             self.changed.emit()
+        if 0 < len(flashed) <= FLASH_LIMIT:
+            self.statusFlashed.emit(flashed)
 
     def refilter(self):
         tokens = self.search.casefold().split()
@@ -112,7 +131,9 @@ class TrackModel(QAbstractTableModel):
         if self.sort_column >= 0:
             name = COLUMNS[self.sort_column]
             numeric = name in {'bpm', 'duration', 'year'}
-            visible.sort(key=lambda r: float(r.get(name) or 0) if numeric else str(r.get(name, '')).casefold(), reverse=self.reverse)
+            order = camelot_order if name == 'keySignature' else (lambda r: float(r.get(name) or 0)) if numeric \
+                else (lambda r: str(r.get(name, '')).casefold())
+            visible.sort(key=order, reverse=self.reverse)
         self.beginResetModel()
         self.visible = visible
         self.endResetModel()
@@ -139,6 +160,15 @@ class TrackModel(QAbstractTableModel):
     def filter(self, text, store, hide):
         self.search, self.store, self.hide = text, store, hide
         self.refilter()
+
+    @Slot(str)
+    def setKeyNotation(self, notation):
+        if notation not in ('camelot', 'classic') or notation == self.key_notation:
+            return
+        self.key_notation = notation
+        column = COLUMNS.index('keySignature')
+        if self.visible:
+            self.dataChanged.emit(self.index(0, column), self.index(len(self.visible) - 1, column), [Qt.DisplayRole])
 
     @Slot(int)
     def sortBy(self, column):

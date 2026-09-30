@@ -43,7 +43,7 @@ triggered. The local results do not claim verification on those operating system
 
 | Contract | Executable evidence |
 | --- | --- |
-| CLI, JSON, nine-column CSV, saved HTML and config | `test_cli.py`, `test_links.py`, `test_dig.py`, `test_html_fallback.py`, `test_config.py` |
+| CLI, JSON, nine-column CSV and config | `test_cli.py`, `test_links.py`, `test_dig.py`, `test_config.py` |
 | Services without Textual/devices/Chromium; pure models; provider/UI boundaries | `test_architecture.py` |
 | Admission, cancellation and actual worker/resource settlement | `test_operations.py`, `test_download_workflow.py`, `test_tui_lifecycle.py` |
 | Cancellation during HTTP, profile/auth dialog, browser and publication | `test_tui.py`, `test_download_workflow.py`, `test_gates.py`, `test_file_results.py` |

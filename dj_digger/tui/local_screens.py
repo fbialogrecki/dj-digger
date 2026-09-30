@@ -2,11 +2,11 @@
 from pathlib import Path
 
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical, VerticalScroll
-from textual.widgets import Button, Checkbox, Collapsible, Footer, Input, Label, Select, Static
+from textual.containers import Grid, Horizontal, Vertical, VerticalScroll
+from textual.widgets import Button, Checkbox, Footer, Input, Label, Select, Static
 
 from ..analysis import NOTES, camelot
-from ..decks import Profile, compatibility
+from ..decks import DECK_GROUPS, DEFAULT_DECKS, best_profile
 from .screens import _Modal
 
 
@@ -41,70 +41,75 @@ class TextPrompt(_Modal):
 
 class ExportOptions(_Modal):
     BINDINGS = [Binding('escape', 'cancel', 'Cancel')]
-    DEFAULT_CSS = 'ExportOptions .modal-box { width: 90; max-width: 100%; height: 90%; } ExportOptions VerticalScroll { height: 1fr; } ExportOptions Horizontal { height: 3; } ExportOptions Label { width: 1fr; height: auto; }'
+    DEFAULT_CSS = ('ExportOptions .modal-box { width: 100; max-width: 100%; height: 90%; } ExportOptions VerticalScroll { height: 1fr; } ExportOptions Horizontal { height: 3; } ExportOptions Label { width: 1fr; height: auto; } '
+                   'ExportOptions #decks { grid-size: 2; grid-gutter: 0 1; height: auto; } ExportOptions #decks Checkbox { width: 1fr; }')
 
-    def __init__(self, folder):
+    def __init__(self, folder, decks=DEFAULT_DECKS):
         super().__init__()
         self.folder = str(folder)
+        self.decks = tuple(decks)
 
     def compose(self):
         with Vertical(classes='modal-box'):
             yield Label('Convert / prepare music folder')
             with VerticalScroll():
                 yield Label('Selected files are used. Without selection in a folder, matching files across all pages are included.')
-                yield Label('Format for files requiring conversion (compatible formats are kept)')
-                yield Select([('WAV', 'wav'), ('AIFF', 'aiff'), ('FLAC', 'flac')], value='wav', allow_blank=False, id='format')
-                with Horizontal():
-                    yield Select([('16-bit maximum', 16), ('24-bit maximum', 24)], value=24, allow_blank=False, id='bits')
-                    yield Select([(f'{rate / 1000:g} kHz maximum', rate) for rate in (44100, 48000, 88200, 96000)], value=48000, allow_blank=False, id='rate')
+                yield Label('Decks these files must play on (the format follows from them)')
+                # Decks that play the same files share one box, two to a row.
+                with Grid(id='decks'):
+                    for index, group in enumerate(DECK_GROUPS):
+                        yield Checkbox(', '.join(group), value=bool(set(group) & set(self.decks)), id=f'deck-{index}')
+                yield Label('', id='profile')
                 yield Label('Destination folder (or mounted USB)')
                 yield Input(value=self.folder, placeholder='Destination parent folder / mounted USB', id='folder')
                 yield Checkbox('Replace originals (no permanent backup)', id='replace')
                 yield Checkbox('Include subfolders of the open directory', id='recursive')
-                yield Label('Default: a new folder with COPIES of every selected audio file, including unchanged files. Existing compatible formats keep their quality.')
-                with Collapsible(title='Target profile compatibility', collapsed=True):
-                    yield Static('', id='compatibility', markup=False)
+                yield Label('Default: a new folder with COPIES of every selected audio file, including unchanged files. '
+                            'Files every chosen deck already plays keep their format and quality.')
             yield Label('', id='replace-warning')
             with Horizontal():
                 yield Button('Review plan', id='plan', variant='primary')
                 yield Button('Cancel', id='cancel')
         yield Footer()
 
+    def chosen(self):
+        return [name for index, group in enumerate(DECK_GROUPS) if self.query_one(f'#deck-{index}', Checkbox).value
+                for name in group]
+
+    def profile(self):
+        return best_profile(self.chosen())
+
     def on_checkbox_changed(self, event):
         if event.checkbox.id == 'replace':
             self.query_one('#replace-warning', Label).update(
                 'Replacement permanently removes originals after verification.' if event.value else '')
+        else:
+            self.update_profile()
 
     def on_mount(self):
-        self.update_compatibility()
+        self.update_profile()
 
-    def profile(self):
-        return Profile(self.query_one('#format', Select).value, self.query_one('#bits', Select).value,
-                       self.query_one('#rate', Select).value)
-
-    def on_select_changed(self, event):
-        event.stop()
-        self.update_compatibility()
-
-    def update_compatibility(self):
-        states = compatibility([self.profile().media()])
-        self.query_one('#compatibility', Static).update('Profile, according to documentation:\n' + '\n'.join(f'{name}: {value}' for name, value in states.items()))
+    def update_profile(self):
+        chosen = self.chosen()
+        self.query_one('#profile', Label).update(
+            f'Files that need converting become {self.profile().label()}.' if chosen else 'Choose at least one deck.')
+        self.query_one('#plan', Button).disabled = not chosen
 
     def on_button_pressed(self, event):
         event.stop()
         if event.button.id == 'cancel':
             self.dismiss(None)
             return
-        if event.button.id != 'plan':
+        if event.button.id != 'plan' or not self.chosen():
             return
-        self.dismiss(dict(profile=self.profile(), folder=Path(self.query_one('#folder', Input).value).expanduser(),
+        self.dismiss(dict(decks=self.chosen(), folder=Path(self.query_one('#folder', Input).value).expanduser(),
                           mode='replace' if self.query_one('#replace', Checkbox).value else 'copy',
                           recursive=self.query_one('#recursive', Checkbox).value))
 
 
 class ExportReview(_Modal):
     BINDINGS = [Binding('escape', 'cancel', 'Cancel')]
-    DEFAULT_CSS = 'ExportReview .modal-box { width: 95; max-width: 100%; height: 90%; } ExportReview VerticalScroll { height: 1fr; } ExportReview Horizontal { height: 3; } ExportReview Label { height: auto; }'
+    DEFAULT_CSS = 'ExportReview .modal-box { width: 95; max-width: 100%; height: 90%; } ExportReview VerticalScroll { height: 1fr; } ExportReview Horizontal { height: 3; } ExportReview Label { height: auto; } ExportReview .export-note { color: $warning; }'
 
     def __init__(self, plan):
         super().__init__()
@@ -114,7 +119,11 @@ class ExportReview(_Modal):
         with Vertical(classes='modal-box'):
             yield Label(f'{len(self.plan.items)} audio files · {self.plan.mode}')
             with VerticalScroll():
-                yield Static('Actual planned set, according to documentation:\n' + '\n'.join(f'{deck}: {state}' for deck, state in self.plan.compatibility().items()), markup=False)
+                for note in self.plan.notes:
+                    yield Static(f'Warning: {note}', classes='export-note', markup=False)
+                yield Static(f'Files that need converting become {self.plan.profile.label()}.\n'
+                             'Actual planned set on the chosen decks, according to documentation:\n'
+                             + '\n'.join(f'{deck}: {state}' for deck, state in self.plan.compatibility().items()), markup=False)
                 yield Static('\n'.join(f'{item.action}: {Path(item.source).name} → {Path(item.destination).name}' + (f' — {item.reason}' if item.reason else '') for item in self.plan.items[:200]), markup=False)
                 if len(self.plan.items) > 200:
                     yield Label('First 200 shown; the saved report includes the complete plan.')
