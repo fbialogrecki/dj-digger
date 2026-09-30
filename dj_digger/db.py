@@ -387,7 +387,7 @@ class Database:
                 if row['signature'] != signature:
                     conn.execute("UPDATE media_files SET signature=?,metadata_json='{}',available=1 WHERE id=?",
                                  (signature, media_id))
-                else:
+                elif not row['available']:
                     conn.execute('UPDATE media_files SET available=1 WHERE id=?', (media_id,))
             return dict(conn.execute('SELECT * FROM media_files WHERE id=?', (media_id,)).fetchone())
 
@@ -396,6 +396,17 @@ class Database:
         with self.connection() as conn:
             row = conn.execute('SELECT * FROM media_files WHERE id=?', (media_id,)).fetchone()
             return dict(row) if row is not None else None
+
+    @owned
+    def media_many(self, media_ids) -> dict[str, dict]:
+        ids = list(dict.fromkeys(media_ids))
+        with self.connection() as conn:
+            rows = []
+            # SQLite caps bound parameters; 500 per query stays well under every build's limit.
+            for start in range(0, len(ids), 500):
+                chunk = ids[start:start + 500]
+                rows += conn.execute(f"SELECT * FROM media_files WHERE id IN ({','.join('?' * len(chunk))})", chunk).fetchall()
+            return {row['id']: dict(row) for row in rows}
 
     @owned
     def update_media_metadata(self, media_id, signature, metadata) -> bool:

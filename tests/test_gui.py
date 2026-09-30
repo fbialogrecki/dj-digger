@@ -126,7 +126,6 @@ def test_added_folder_is_opened_and_saved_without_duplicates(backend, tmp_path):
         assert wait_event(events, 'sidebar')['pinned'] == [str(folder)]
         assert wait_event(events, 'view')['title'] == str(folder)
         wait_event(events, 'folder')
-        wait_event(events, 'view')
     assert AppConfig(tmp_path / 'config.json').pinned_directories == [str(folder)]
     hidden = tmp_path / '.hidden'
     hidden.mkdir()
@@ -231,6 +230,17 @@ def test_open_uses_only_selected_store(backend):
     worker.submit('open', {'keys': ['1'], 'generation': 0, 'store': 'beatport'})
     wait_event(events, 'rows')
     assert opened == ['https://beatport.com/track/0']
+
+
+def test_mark_and_undo_update_statuses_without_reloading_the_crate(backend):
+    worker, events = backend
+    worker.rows = online_rows(3)
+    worker.services.library.load = lambda source: pytest.fail('a mark must not reload the crate')
+    worker.submit('mark', {'keys': ['1', '3'], 'generation': 0, 'status': 'got'})
+    marked = wait_event(events, 'rows')['rows']
+    assert [row['status'] for row in marked] == ['got', 'new', 'got']
+    worker.submit('undo', {})
+    assert [row['status'] for row in wait_event(events, 'rows')['rows']] == ['new'] * 3
 
 
 def test_cancel_bulk_open_has_no_browser_side_effect(backend):

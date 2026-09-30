@@ -82,6 +82,15 @@
   25 ms audio tick; the `beats` event is sent only when the pulses change; the
   volume rescale and the local-file waveform run in numpy instead of a Python
   loop over every sample.
+- Marking or undoing statuses no longer reloads the playlist and re-queries every
+  local file; the statuses are written in one transaction.
+- Opening a folder probes only files it has never inspected and updates their rows
+  in place instead of rebuilding the table, and an already indexed file no longer
+  costs a database write.
+- A playlist import redraws the table at most once a second instead of every 50
+  tracks; table counts and store filters are computed once per change.
+- Matching tracks to local files no longer lists a folder for every file that is
+  still in place.
 - After a column was dragged to a new place, opening a playlist with more rows
   no longer closes the desktop app.
 - Seeking and changing tracks no longer replay audio queued from the old position,

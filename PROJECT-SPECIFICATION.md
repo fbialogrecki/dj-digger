@@ -5,8 +5,8 @@
 - Product version verified: 1.2.1 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-09-27
-- Document lines: <!-- SPEC TOTAL LINES -->1696<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1696<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1699<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1699<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,64 +51,64 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 143–181 |
 | 2.1 | ↳ Problem and product boundary | 145–158 |
 | 2.2 | ↳ Execution modes | 159–181 |
-| 3 | User-visible capabilities | 182–848 |
-| 3.1 | ↳ Track collection | 184–208 |
-| 3.2 | ↳ Link classification and exports | 209–227 |
-| 3.3 | ↳ Track statuses | 228–236 |
-| 3.4 | ↳ Audio preview | 237–361 |
-| 3.5 | ↳ Downloads and local-file matching | 362–398 |
-| 3.6 | ↳ Store purchase assistance | 399–484 |
-| 3.7 | ↳ Local library, analysis and audio export | 485–639 |
-| 3.8 | ↳ Qt Quick desktop | 640–848 |
-| 4 | System context and data flow | 849–889 |
-| 4.1 | ↳ Context diagram | 851–873 |
-| 4.2 | ↳ Collection-to-library flow | 874–889 |
-| 5 | Repository layout and component ownership | 890–957 |
-| 5.1 | ↳ Entry, orchestration, and models | 892–903 |
-| 5.2 | ↳ Network and external-system adapters | 904–920 |
-| 5.3 | ↳ Persistence, local media, and UI | 921–957 |
-| 6 | Runtime architecture and environments | 958–1069 |
-| 6.1 | ↳ Runtime and dependencies | 960–981 |
-| 6.2 | ↳ Concurrency and lifecycle | 982–1049 |
-| 6.3 | ↳ Local paths and environment variables | 1050–1069 |
-| 7 | Data model and persistence | 1070–1167 |
-| 7.1 | ↳ Domain objects and identity | 1072–1086 |
-| 7.2 | ↳ SQLite schema and invariants | 1087–1135 |
-| 7.3 | ↳ Crate persistence and deletion | 1136–1151 |
-| 7.4 | ↳ Configuration and credential stores | 1152–1167 |
-| 8 | Public interfaces and contracts | 1168–1221 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1170–1194 |
-| 8.2 | ↳ JSON and CSV summary input | 1195–1210 |
-| 8.3 | ↳ URL-opening contract | 1211–1221 |
-| 9 | Authentication and authorization | 1222–1267 |
-| 9.1 | ↳ SoundCloud authentication | 1224–1246 |
-| 9.2 | ↳ Gate action consent | 1247–1267 |
-| 10 | External integrations | 1268–1410 |
-| 10.1 | ↳ SoundCloud API and media | 1270–1281 |
-| 10.2 | ↳ Link hubs and download gates | 1282–1351 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1290–1337 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1339–1344 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1346–1351 |
-| 10.3 | ↳ Browsers and clipboard | 1352–1363 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1364–1410 |
-| 11 | Security requirements and threat model | 1411–1465 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1413–1431 |
-| 11.2 | ↳ Secret and personal-data handling | 1432–1447 |
-| 11.3 | ↳ File and mutation safety | 1448–1465 |
-| 12 | Privacy, lifecycle, and retention | 1466–1510 |
-| 12.1 | ↳ Data stored locally | 1468–1488 |
-| 12.2 | ↳ Data sent to third parties | 1489–1500 |
-| 12.3 | ↳ User-controlled deletion | 1501–1510 |
-| 13 | Failure behavior and current limitations | 1511–1570 |
-| 13.1 | ↳ Error isolation and reporting | 1513–1532 |
-| 13.2 | ↳ Confirmed limitations | 1533–1570 |
-| 14 | Verification, CI, and release | 1571–1665 |
-| 14.1 | ↳ Offline and live test suites | 1573–1619 |
-| 14.2 | ↳ Continuous integration and publishing | 1620–1650 |
-| 14.3 | ↳ Specification-map verification | 1651–1665 |
-| 15 | Evidence and operational references | 1666–1696 |
-| 15.1 | ↳ Primary implementation evidence | 1668–1686 |
-| 15.2 | ↳ User and historical documentation | 1687–1696 |
+| 3 | User-visible capabilities | 182–851 |
+| 3.1 | ↳ Track collection | 184–209 |
+| 3.2 | ↳ Link classification and exports | 210–228 |
+| 3.3 | ↳ Track statuses | 229–237 |
+| 3.4 | ↳ Audio preview | 238–362 |
+| 3.5 | ↳ Downloads and local-file matching | 363–399 |
+| 3.6 | ↳ Store purchase assistance | 400–485 |
+| 3.7 | ↳ Local library, analysis and audio export | 486–642 |
+| 3.8 | ↳ Qt Quick desktop | 643–851 |
+| 4 | System context and data flow | 852–892 |
+| 4.1 | ↳ Context diagram | 854–876 |
+| 4.2 | ↳ Collection-to-library flow | 877–892 |
+| 5 | Repository layout and component ownership | 893–960 |
+| 5.1 | ↳ Entry, orchestration, and models | 895–906 |
+| 5.2 | ↳ Network and external-system adapters | 907–923 |
+| 5.3 | ↳ Persistence, local media, and UI | 924–960 |
+| 6 | Runtime architecture and environments | 961–1072 |
+| 6.1 | ↳ Runtime and dependencies | 963–984 |
+| 6.2 | ↳ Concurrency and lifecycle | 985–1052 |
+| 6.3 | ↳ Local paths and environment variables | 1053–1072 |
+| 7 | Data model and persistence | 1073–1170 |
+| 7.1 | ↳ Domain objects and identity | 1075–1089 |
+| 7.2 | ↳ SQLite schema and invariants | 1090–1138 |
+| 7.3 | ↳ Crate persistence and deletion | 1139–1154 |
+| 7.4 | ↳ Configuration and credential stores | 1155–1170 |
+| 8 | Public interfaces and contracts | 1171–1224 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1173–1197 |
+| 8.2 | ↳ JSON and CSV summary input | 1198–1213 |
+| 8.3 | ↳ URL-opening contract | 1214–1224 |
+| 9 | Authentication and authorization | 1225–1270 |
+| 9.1 | ↳ SoundCloud authentication | 1227–1249 |
+| 9.2 | ↳ Gate action consent | 1250–1270 |
+| 10 | External integrations | 1271–1413 |
+| 10.1 | ↳ SoundCloud API and media | 1273–1284 |
+| 10.2 | ↳ Link hubs and download gates | 1285–1354 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1293–1340 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1342–1347 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1349–1354 |
+| 10.3 | ↳ Browsers and clipboard | 1355–1366 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1367–1413 |
+| 11 | Security requirements and threat model | 1414–1468 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1416–1434 |
+| 11.2 | ↳ Secret and personal-data handling | 1435–1450 |
+| 11.3 | ↳ File and mutation safety | 1451–1468 |
+| 12 | Privacy, lifecycle, and retention | 1469–1513 |
+| 12.1 | ↳ Data stored locally | 1471–1491 |
+| 12.2 | ↳ Data sent to third parties | 1492–1503 |
+| 12.3 | ↳ User-controlled deletion | 1504–1513 |
+| 13 | Failure behavior and current limitations | 1514–1573 |
+| 13.1 | ↳ Error isolation and reporting | 1516–1535 |
+| 13.2 | ↳ Confirmed limitations | 1536–1573 |
+| 14 | Verification, CI, and release | 1574–1668 |
+| 14.1 | ↳ Offline and live test suites | 1576–1622 |
+| 14.2 | ↳ Continuous integration and publishing | 1623–1653 |
+| 14.3 | ↳ Specification-map verification | 1654–1668 |
+| 15 | Evidence and operational references | 1669–1699 |
+| 15.1 | ↳ Primary implementation evidence | 1671–1689 |
+| 15.2 | ↳ User and historical documentation | 1690–1699 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -197,7 +197,8 @@ user to check the link and, for their own private playlists, to sign in to
 SoundCloud first, since requests carry the stored OAuth token. The collection
 client can also report the tracks gathered so far after each hydration batch or
 page, already in playlist order; the desktop uses this to show an import as it
-grows, and nothing is saved until the whole collection succeeds.
+grows (at most once a second, and always once the declared track count is reached),
+and nothing is saved until the whole collection succeeds.
 
 User repost collections use `/stream/users/{id}/reposts`; tracks and likes retain
 `/users/{id}/{collection}`. The shared paginator unwraps track entries, preserves
@@ -548,7 +549,9 @@ remain independent of automatic results recorded in the diagnostic file.
 In an explorer folder, `x` / Remove asks for confirmation with the selected file
 paths (or the highlighted file) and permanently deletes those files from disk.
 A folder page shows one row per file: a symbolic link to a file on the same page
-folds into that file's row. A selected symbolic link is refused before confirmation;
+folds into that file's row. The page shows at once from the media index; only files
+never probed (no stored duration) are then inspected with ffprobe, and their tags
+update the existing rows in place. A selected symbolic link is refused before confirmation;
 every confirmed file is revalidated before any is deleted, so a changed file or
 loaded/prefetched audio stops the batch with nothing removed. Deletion
 marks central media records unavailable and clears cached file mappings, while

@@ -72,15 +72,20 @@ class TrackState:
         return self._statuses.get(str(key), NEW)
 
     def set(self, key: str, status: str) -> None:
-        if status not in STATUSES:
-            raise ValueError(f"Unknown status: {status}")
+        self.set_many([(key, status)])
+
+    def set_many(self, changes: list[tuple[str, str]]) -> None:
+        """Apply several user decisions in one transaction."""
+        if unknown := {status for _, status in changes} - set(STATUSES):
+            raise ValueError(f"Unknown status: {', '.join(sorted(unknown))}")
         with self._lock:
             self._load()
-            self.db.set_track_state(key, status, None)
-            # A direct user decision is no longer contingent on a particular
-            # file. Automated scans/downloads use set_local_file instead.
-            self._remember(key, status)
-            self._files.pop(str(key), None)
+            self.db.set_track_states([(key, status, None) for key, status in changes])
+            for key, status in changes:
+                # A direct user decision is no longer contingent on a particular
+                # file. Automated scans/downloads use set_local_file instead.
+                self._remember(key, status)
+                self._files.pop(str(key), None)
 
     def mark_opened(self, key: str) -> None:
         """A completed browser handoff never replaces a later got/skip decision."""

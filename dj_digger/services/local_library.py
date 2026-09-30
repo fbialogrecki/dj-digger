@@ -51,6 +51,11 @@ def media_track(db, record: dict) -> Track:
                  bpm=resolved['bpm'][0], key_signature=resolved['key'][0])
 
 
+def media_tracks(db, media_ids) -> dict[str, Track]:
+    """Current tracks for local media ids, in one query; ids no longer indexed are left out."""
+    return {media_id: media_track(db, record) for media_id, record in db.media_many(media_ids).items()}
+
+
 class LocalLibrary:
     def __init__(self, db):
         self.db = db

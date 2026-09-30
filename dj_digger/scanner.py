@@ -51,7 +51,8 @@ class LocalScanner:
         # share the one process-wide instance the UI thread is already using.
         self.db = db or database()
         self._stale_stems: set[str] = set()
-        self._exact_paths: dict[str, list[str]] = {}
+        # Stem -> cached paths, built from the table on the first exact match after a scan.
+        self._exact_paths: dict[str, list[str]] | None = None
         # Folders the walk could not enter, as "path: reason". The scan used to
         # step over them in silence, so a permissions problem on the music
         # drive looked like a library with nothing in it.
@@ -68,6 +69,7 @@ class LocalScanner:
         the mtime cache makes the next scan pick up where this one left off.
         """
         cached = self.db.get_cached_files()
+        self._exact_paths = None
         self._stale_stems.clear()
         self.errors.clear()
         scanned = 0
@@ -79,7 +81,6 @@ class LocalScanner:
         for root_dir in self.directories:
             if cancel is not None and cancel.is_set():
                 self.db.upsert_local_files(pending)
-                self._refresh_exact_paths()
                 return scanned
             if not root_dir.exists():
                 continue
@@ -96,7 +97,6 @@ class LocalScanner:
             ):
                 if cancel is not None and cancel.is_set():
                     self.db.upsert_local_files(pending)
-                    self._refresh_exact_paths()
                     return scanned
                 try:
                     info = dirpath.stat()
@@ -142,6 +142,7 @@ class LocalScanner:
         for path in missing:
             self._stale_stems.add(cached[path][1])
         self.db.delete_local_files(missing)
+        # A cancelled scan leaves the index to be built by the first match that needs it.
         self._refresh_exact_paths()
         return scanned
 
@@ -203,6 +204,8 @@ class LocalScanner:
         """
 
         if find is None:
+            if self._exact_paths is None:
+                self._refresh_exact_paths()
             candidates = self._exact_paths.get(normalized_stem, [])
             while candidates:
                 path = candidates[0]

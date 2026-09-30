@@ -16,7 +16,7 @@ from ..diagnostics import log_safe_text
 from ..models import GOT, NEW, SKIP, Cancelled, Crate, check_cancelled
 from ..paths import playlist_download_directory
 from ..services.collection import DigOptions
-from ..services.local_library import LocalLibrary, media_track
+from ..services.local_library import LocalLibrary, media_tracks
 from ..services.runtime import ApplicationServices
 from ..soundcloud import is_soundcloud_url
 
@@ -67,8 +67,9 @@ class Backend:
         self.loop.close()
         self.send('closed', {})
 
-    def send(self, kind, values):
-        detached = deepcopy(values)
+    def send(self, kind, values, copy=True):
+        # copy=False only for payloads built in the call from immutable values.
+        detached = deepcopy(values) if copy else values
         if kind in {'error', 'message'} and 'text' in detached:
             detached['text'] = log_safe_text(detached['text'])
         self.emit(kind, detached)
@@ -181,7 +182,7 @@ class Backend:
         self.rows = [Row(i, t, links.categorise(t)) for i, t in enumerate(tracks)]
         self.send('view', {'generation': generation, 'title': title, 'source': self.record.source if self.record else '',
                           'local': self.folder is not None or bool(self.record and self.record.source.startswith('local-playlist:')),
-                          'rows': [self.row_value(r) for r in self.rows]})
+                          'rows': [self.row_value(r) for r in self.rows]}, copy=False)
 
     def row_value(self, row):
         t = row.track
@@ -201,15 +202,16 @@ class Backend:
             if row.track.key in by_key:
                 row.track = by_key[row.track.key]
                 row.records = links.categorise(row.track)
+        local_ids = [row.track.local_id for row in rows if row.track.local_id]
+        local = await self.io(media_tracks, self.services.state.db, local_ids) if local_ids else {}
+        for row in rows:
             if row.track.local_id:
-                record = await self.io(self.services.state.db.media, row.track.local_id)
-                if record:
-                    row.track = await self.io(media_track, self.services.state.db, record)
+                row.track = local.get(row.track.local_id, row.track)
             elif path := self.services.state.local_file(row.track.key):
                 row.track.local_path = path
         if generation == self.generation:
             self.rows = rows
-            self.send('rows', {'generation': generation, 'rows': [self.row_value(r) for r in rows]})
+            self.send('rows', {'generation': generation, 'rows': [self.row_value(r) for r in rows]}, copy=False)
             player = self.services.player
             # Analysis or an edit may have given the playing track its BPM or key.
             if player.loaded and (row := next((r for r in rows if r.track.key == player.loaded.track.key), None)):
@@ -242,17 +244,26 @@ class Backend:
         await self.publish(tracks, str(folder), generation)
         self.send('folder', dict(path=str(folder), offset=offset, total=total,
                                 directories=[str(folder / name) for name in directories[:1000]]))
-        # Metadata hydration uses private copies and cannot overwrite a later view.
+        # Metadata hydration uses private copies and cannot overwrite a later view. Only files
+        # never probed are inspected; an indexed file already carries its tags and duration.
+        # ponytail: duration 0 stands for "never probed"; a file ffprobe reads as 0 s is retried per visit.
+        if not any(track.duration == 0 for track in tracks):
+            return
         hydrated = []
         for track in tracks:
             if generation != self.generation:
                 return
-            try:
-                track = await self.io(self.local.register, Path(track.local_path), inspect=True)
-            except Exception as exc:
-                LOGGER.info('Metadata unavailable: %s', log_safe_text(exc))
+            if track.duration == 0:
+                try:
+                    track = await self.io(self.local.register, Path(track.local_path), inspect=True)
+                except Exception as exc:
+                    LOGGER.info('Metadata unavailable: %s', log_safe_text(exc))
             hydrated.append(track)
-        await self.publish(hydrated, str(folder), generation)
+        from ..rows import Row
+        if generation == self.generation:
+            # Same files in the same order: an update, not a new view, so the table keeps its state.
+            self.rows = [Row(i, t, links.categorise(t)) for i, t in enumerate(hydrated)]
+            self.send_rows(generation)
 
     async def job(self, name, work, lane='main'):
         handle = self.services.operations.start(name, lane=lane)
@@ -285,8 +296,15 @@ class Backend:
                 last[0] = now
                 self.loop.call_soon_threadsafe(self.send, 'importProgress', dict(stage=stage, done=done, total=total or 0))
 
+        shown = [0.0]
+
         def arrived(crate):
-            if adding:
+            # Each batch of 50 rebuilt the whole table; once a second is enough to watch it
+            # fill, and the complete list always shows before the link hubs are opened.
+            now = time.monotonic()
+            complete = bool(crate.declared_count) and len(crate.tracks) >= crate.declared_count
+            if adding and (complete or now - shown[0] >= 1):
+                shown[0] = now
                 self.loop.call_soon_threadsafe(self.show_import, crate, generation)
 
         async def work(handle):
@@ -316,7 +334,7 @@ class Backend:
             return
         self.rows = [Row(i, t, links.categorise(t)) for i, t in enumerate(crate.tracks)]
         self.send('view', {'generation': generation, 'title': crate.title, 'source': crate.source, 'local': False,
-                           'rows': [self.row_value(r) for r in self.rows]})
+                           'rows': [self.row_value(r) for r in self.rows]}, copy=False)
         if self.importing and self.importing['title'] != crate.title:
             self.importing['title'] = crate.title
             self.send_sidebar()
@@ -333,16 +351,21 @@ class Backend:
         if status not in {NEW, GOT, SKIP}:
             raise ValueError('Invalid status')
         previous = [(r.track.key, self.services.state.get(r.track.key)) for r in rows]
-        for key, _ in previous:
-            await self.io(self.services.state.set, key, status)
+        generation = self.generation
+        await self.io(self.services.state.set_many, [(key, status) for key, _ in previous])
         self.undo.append(previous)
-        await self.refresh_rows()
+        self.send_rows(generation)
 
     async def action_undo(self, values):
         if self.undo:
-            for key, status in self.undo.pop():
-                await self.io(self.services.state.set, key, status)
-            await self.refresh_rows()
+            generation = self.generation
+            await self.io(self.services.state.set_many, self.undo.pop())
+            self.send_rows(generation)
+
+    def send_rows(self, generation):
+        """Statuses changed but the crate did not: rebuild the row values from memory."""
+        if generation == self.generation:
+            self.send('rows', {'generation': generation, 'rows': [self.row_value(r) for r in self.rows]}, copy=False)
 
     async def action_open(self, values):
         rows = self.targets(values)
@@ -912,7 +935,7 @@ class Backend:
         self.record, self.folder = None, None
         self.rows = [Row(i, group[0].track, group) for i, group in enumerate(grouped.values())]
         self.send('view', {'generation': generation, 'title': Path(answer['path']).name, 'local': False,
-                          'rows': [self.row_value(r) for r in self.rows]})
+                          'rows': [self.row_value(r) for r in self.rows]}, copy=False)
 
     async def pin(self, path):
         folders = list(dict.fromkeys([*self.services.config.pinned_directories, str(path)]))
