@@ -5,8 +5,8 @@
 - Product version verified: 1.2.1 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-09-27
-- Document lines: <!-- SPEC TOTAL LINES -->1699<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1699<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1704<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1704<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -63,52 +63,52 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 4 | System context and data flow | 852–892 |
 | 4.1 | ↳ Context diagram | 854–876 |
 | 4.2 | ↳ Collection-to-library flow | 877–892 |
-| 5 | Repository layout and component ownership | 893–960 |
+| 5 | Repository layout and component ownership | 893–961 |
 | 5.1 | ↳ Entry, orchestration, and models | 895–906 |
 | 5.2 | ↳ Network and external-system adapters | 907–923 |
-| 5.3 | ↳ Persistence, local media, and UI | 924–960 |
-| 6 | Runtime architecture and environments | 961–1072 |
-| 6.1 | ↳ Runtime and dependencies | 963–984 |
-| 6.2 | ↳ Concurrency and lifecycle | 985–1052 |
-| 6.3 | ↳ Local paths and environment variables | 1053–1072 |
-| 7 | Data model and persistence | 1073–1170 |
-| 7.1 | ↳ Domain objects and identity | 1075–1089 |
-| 7.2 | ↳ SQLite schema and invariants | 1090–1138 |
-| 7.3 | ↳ Crate persistence and deletion | 1139–1154 |
-| 7.4 | ↳ Configuration and credential stores | 1155–1170 |
-| 8 | Public interfaces and contracts | 1171–1224 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1173–1197 |
-| 8.2 | ↳ JSON and CSV summary input | 1198–1213 |
-| 8.3 | ↳ URL-opening contract | 1214–1224 |
-| 9 | Authentication and authorization | 1225–1270 |
-| 9.1 | ↳ SoundCloud authentication | 1227–1249 |
-| 9.2 | ↳ Gate action consent | 1250–1270 |
-| 10 | External integrations | 1271–1413 |
-| 10.1 | ↳ SoundCloud API and media | 1273–1284 |
-| 10.2 | ↳ Link hubs and download gates | 1285–1354 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1293–1340 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1342–1347 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1349–1354 |
-| 10.3 | ↳ Browsers and clipboard | 1355–1366 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1367–1413 |
-| 11 | Security requirements and threat model | 1414–1468 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1416–1434 |
-| 11.2 | ↳ Secret and personal-data handling | 1435–1450 |
-| 11.3 | ↳ File and mutation safety | 1451–1468 |
-| 12 | Privacy, lifecycle, and retention | 1469–1513 |
-| 12.1 | ↳ Data stored locally | 1471–1491 |
-| 12.2 | ↳ Data sent to third parties | 1492–1503 |
-| 12.3 | ↳ User-controlled deletion | 1504–1513 |
-| 13 | Failure behavior and current limitations | 1514–1573 |
-| 13.1 | ↳ Error isolation and reporting | 1516–1535 |
-| 13.2 | ↳ Confirmed limitations | 1536–1573 |
-| 14 | Verification, CI, and release | 1574–1668 |
-| 14.1 | ↳ Offline and live test suites | 1576–1622 |
-| 14.2 | ↳ Continuous integration and publishing | 1623–1653 |
-| 14.3 | ↳ Specification-map verification | 1654–1668 |
-| 15 | Evidence and operational references | 1669–1699 |
-| 15.1 | ↳ Primary implementation evidence | 1671–1689 |
-| 15.2 | ↳ User and historical documentation | 1690–1699 |
+| 5.3 | ↳ Persistence, local media, and UI | 924–961 |
+| 6 | Runtime architecture and environments | 962–1073 |
+| 6.1 | ↳ Runtime and dependencies | 964–985 |
+| 6.2 | ↳ Concurrency and lifecycle | 986–1053 |
+| 6.3 | ↳ Local paths and environment variables | 1054–1073 |
+| 7 | Data model and persistence | 1074–1173 |
+| 7.1 | ↳ Domain objects and identity | 1076–1090 |
+| 7.2 | ↳ SQLite schema and invariants | 1091–1139 |
+| 7.3 | ↳ Crate persistence and deletion | 1140–1155 |
+| 7.4 | ↳ Configuration and credential stores | 1156–1173 |
+| 8 | Public interfaces and contracts | 1174–1227 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1176–1200 |
+| 8.2 | ↳ JSON and CSV summary input | 1201–1216 |
+| 8.3 | ↳ URL-opening contract | 1217–1227 |
+| 9 | Authentication and authorization | 1228–1273 |
+| 9.1 | ↳ SoundCloud authentication | 1230–1252 |
+| 9.2 | ↳ Gate action consent | 1253–1273 |
+| 10 | External integrations | 1274–1418 |
+| 10.1 | ↳ SoundCloud API and media | 1276–1287 |
+| 10.2 | ↳ Link hubs and download gates | 1288–1357 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1296–1343 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1345–1350 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1352–1357 |
+| 10.3 | ↳ Browsers and clipboard | 1358–1369 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1370–1418 |
+| 11 | Security requirements and threat model | 1419–1473 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1421–1439 |
+| 11.2 | ↳ Secret and personal-data handling | 1440–1455 |
+| 11.3 | ↳ File and mutation safety | 1456–1473 |
+| 12 | Privacy, lifecycle, and retention | 1474–1518 |
+| 12.1 | ↳ Data stored locally | 1476–1496 |
+| 12.2 | ↳ Data sent to third parties | 1497–1508 |
+| 12.3 | ↳ User-controlled deletion | 1509–1518 |
+| 13 | Failure behavior and current limitations | 1519–1578 |
+| 13.1 | ↳ Error isolation and reporting | 1521–1540 |
+| 13.2 | ↳ Confirmed limitations | 1541–1578 |
+| 14 | Verification, CI, and release | 1579–1673 |
+| 14.1 | ↳ Offline and live test suites | 1581–1627 |
+| 14.2 | ↳ Continuous integration and publishing | 1628–1658 |
+| 14.3 | ↳ Specification-map verification | 1659–1673 |
+| 15 | Evidence and operational references | 1674–1704 |
+| 15.1 | ↳ Primary implementation evidence | 1676–1694 |
+| 15.2 | ↳ User and historical documentation | 1695–1704 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -939,7 +939,8 @@ playback time and are not stored in the crate record.
   cancellation separately. The desktop coalesces byte events and presents outcomes
   after persistence.
 - `paths.py` owns data/config/cache directories, platform-specific log paths, and shared playlist download destinations. `config.py` owns preferences;
-  `private_json.py` owns private atomic JSON writes; `clipboard.py` owns clipboard
+  `private_json.py` owns atomic JSON writes (private 0600 by default; 0644 for
+  user-facing exports, with optional file and directory fsync); `clipboard.py` owns clipboard
   subprocesses. `diagnostics.py` redacts credential fields and URL queries.
   `logging_setup.py` owns private rotating logs and native-fault output rebinding;
   `analysis_report.py` owns the streamed last-analysis diagnostic file.
@@ -1164,7 +1165,9 @@ created and marks the launch as first-run.
 
 `auth.json` stores a verified SoundCloud OAuth token with username and user ID.
 JSON writes use a 0600 temporary file, atomic replacement, and an
-attempt to restrict the containing directory to 0700. Managed SoundCloud and
+attempt to restrict the containing directory to 0700. The JSON link export and
+the audio-export report are written the same atomic way but readable as ordinary
+files (0644), without touching the permissions of the user's folder. Managed SoundCloud and
 store Chromium profiles are separate directories under the data path and are
 restricted to 0700 on non-Windows systems.
 
@@ -1374,7 +1377,9 @@ bytes. Matching compares normalized title, artist, version tokens, stable produc
 IDs, availability, price, and currency.
 
 The dedicated browser uses one persistent profile, sandboxing where supported,
-and disabled downloads. Automated product work is headless; a separate visible
+and disabled downloads. Automated product work is headless, presenting the user
+agent of the same Chromium in a window (as the hidden gate browser does) rather than
+`HeadlessChrome`; a separate visible
 browser with the same cookies shows the finished cart and the manual-finish
 pages, and the profile is opened headed only for a user-requested Bandcamp
 login. Manual login receives up to five minutes. Production anti-bot challenges are

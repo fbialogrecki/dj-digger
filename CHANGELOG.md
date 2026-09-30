@@ -91,6 +91,10 @@
   tracks; table counts and store filters are computed once per change.
 - Matching tracks to local files no longer lists a folder for every file that is
   still in place.
+- The hidden store-cart browser no longer identifies itself as `HeadlessChrome`;
+  it presents the headed user agent the hidden gate browser already used.
+- The JSON link export is written atomically, so a failed write no longer leaves
+  a truncated summary in place of the previous one.
 - After a column was dragged to a new place, opening a playlist with more rows
   no longer closes the desktop app.
 - Seeking and changing tracks no longer replay audio queued from the old position,

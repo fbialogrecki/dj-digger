@@ -17,6 +17,7 @@ from urllib.parse import urljoin, urlparse, urlunparse
 from dj_digger.automation_errors import AutomationError
 from dj_digger.diagnostics import log_safe_text
 
+from ..browser_session import ACTION_TIMEOUT_MS
 from ..cart_models import (
     CART_DIAGNOSTICS_KEEP,
     VERIFY_STAGES,
@@ -57,7 +58,6 @@ from ..store_urls import (
 
 LOGGER = logging.getLogger(__name__)
 NAVIGATION_TIMEOUT_MS = 30_000
-ACTION_TIMEOUT_MS = 15_000
 LOGIN_TIMEOUT_SECONDS = 300
 BANDCAMP_CART_URL = "https://bandcamp.com/cart"
 

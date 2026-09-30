@@ -39,6 +39,7 @@ from .media import (
     signature,
 )
 from .models import Cancelled, check_cancelled
+from .private_json import write_json_atomic
 
 
 @dataclass(frozen=True)
@@ -378,13 +379,8 @@ def prepare(item: Item, profile: Profile, target: Path, *, cancel=None) -> dict:
 
 
 def _save_report(path: Path, report):
-    temporary = path.with_suffix('.tmp')
-    with temporary.open('w', encoding='utf-8') as output:
-        json.dump(report, output, ensure_ascii=False, indent=2)
-        output.flush()
-        os.fsync(output.fileno())
-    os.replace(temporary, path)
-    fsync_directory(path.parent)
+    # Not private: the report sits in the user's export folder, beside the music.
+    write_json_atomic(path, report, private=False, ensure_ascii=False, durable=True)
 
 
 def _replace_one(db, media_id: str, item: Item, result: Path, *, protected=lambda: (), failpoint=lambda phase: None, operation_id=None):

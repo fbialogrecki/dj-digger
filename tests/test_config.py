@@ -2,6 +2,8 @@ import json
 import tempfile
 from pathlib import Path
 
+import pytest
+
 from dj_digger.config import DEFAULT_COMMENTS, DEFAULT_EMAIL, DEFAULT_NAME, AppConfig
 
 
@@ -114,3 +116,20 @@ def test_an_older_config_without_a_download_directory_still_gets_one(tmp_path):
 
     assert config.user_name == "DJ Test"
     assert config.download_directory.endswith("Downloads")
+
+
+def test_public_json_is_atomic_and_ordinarily_readable(tmp_path):
+    import os
+
+    from dj_digger.private_json import write_json_atomic
+
+    (tmp_path / "out").mkdir()
+    path = tmp_path / "out" / "summary.json"
+    write_json_atomic(path, {"a": 1}, private=False, durable=True)
+    assert json.loads(path.read_text(encoding="utf-8")) == {"a": 1}
+    if os.name != "nt":
+        assert path.stat().st_mode & 0o777 == 0o644
+    with pytest.raises(TypeError):
+        write_json_atomic(path, {"a": object()}, private=False)
+    assert json.loads(path.read_text(encoding="utf-8")) == {"a": 1}, "a failed write keeps the old file"
+    assert [p.name for p in path.parent.iterdir()] == ["summary.json"]

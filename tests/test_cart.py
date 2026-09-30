@@ -793,6 +793,8 @@ def test_cart_session_relaunches_the_same_profile_visible_only_when_requested(
     executable = tmp_path / "chromium"
     executable.touch()
     monkeypatch.setenv("DISPLAY", ":test")
+    # The user agent lookup launches a throwaway browser; this test is about the context.
+    monkeypatch.setattr("dj_digger.browser_session._headed_user_agent", "Mozilla/5.0 test")
     calls = []
     contexts = []
 
@@ -1659,7 +1661,7 @@ def test_final_bandcamp_cart_is_the_first_visible_work_page(monkeypatch):
     assert launches == ["viewer page"]
     assert stores == ("bandcamp",)
     assert not warnings
-    assert page.url == cart.BANDCAMP_CART_URL
+    assert page.url == bandcamp_adapter.BANDCAMP_CART_URL
     assert page.focused == 1
 
 
@@ -1675,13 +1677,13 @@ def test_existing_bandcamp_item_is_checked_in_the_global_cart(monkeypatch):
         _page.url = url
 
     async def contains(_page, _item):
-        return _page.url == cart.BANDCAMP_CART_URL
+        return _page.url == bandcamp_adapter.BANDCAMP_CART_URL
 
     monkeypatch.setattr(bandcamp_adapter, "_navigate_async", navigate)
     monkeypatch.setattr(bandcamp_adapter, "_bandcamp_cart_contains_async", contains)
 
     assert asyncio.run(bandcamp_adapter._cart_contains_async(page, item, asyncio.Event()))
-    assert page.url == cart.BANDCAMP_CART_URL
+    assert page.url == bandcamp_adapter.BANDCAMP_CART_URL
 
 
 def test_the_viewer_carries_the_hidden_sessions_cookies(monkeypatch):

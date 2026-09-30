@@ -17,6 +17,7 @@ from collections.abc import Callable, Iterable
 from pathlib import Path
 
 from .http import is_openable
+from .models import is_cancelled
 
 # The stored preference meaning "whatever the OS opens links with".
 SYSTEM_DEFAULT = ""
@@ -189,7 +190,7 @@ def open_urls(
         controller = controller or resolve_controller(browser)
     opened = 0
     for index, url in enumerate(urls):
-        if cancel is not None and cancel.is_set():
+        if is_cancelled(cancel):
             break
         if not is_openable(url):
             err_msg = f"Refused tab #{index + 1}: {url!r} is not an http or https link"

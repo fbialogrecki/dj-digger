@@ -127,10 +127,6 @@ MAX_NESTED_GATES = 5
 
 
 
-def _cancelled(cancel: Any) -> bool:
-    return cancel is not None and cancel.is_set()
-
-
 def _input_fields(soup: BeautifulSoup) -> dict[str, tuple[str, ...]]:
     found: dict[str, list[str]] = {}
     for tag in soup.find_all("input"):

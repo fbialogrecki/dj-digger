@@ -36,8 +36,12 @@ class Cancelled(Exception):
     """
 
 
+def is_cancelled(cancel: threading.Event | None) -> bool:
+    return cancel is not None and cancel.is_set()
+
+
 def check_cancelled(cancel: threading.Event | None) -> None:
-    if cancel is not None and cancel.is_set():
+    if is_cancelled(cancel):
         raise Cancelled()
 
 def track_key(value) -> str:

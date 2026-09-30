@@ -29,14 +29,12 @@ from typing import Literal
 
 import numpy as np
 
-from .beats import KickDetector, PulseHistory
+from .beats import CHANNELS, SAMPLE_RATE, KickDetector, PulseHistory
 from .models import Track
 from .services.playback import Stream
 
 LOGGER = logging.getLogger(__name__)
 
-SAMPLE_RATE = 44100
-CHANNELS = 2
 # miniaudio's default 200 ms period queues up to 600 ms ahead of the speaker,
 # which is how far the level meter and the playhead ran ahead of the music.
 DEVICE_PERIOD_MS = 50

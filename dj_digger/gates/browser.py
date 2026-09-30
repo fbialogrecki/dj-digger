@@ -27,13 +27,12 @@ from dj_digger.gate_models import (
 from ..config import DEFAULT_NAME
 from ..http import is_fetchable
 from ..links import host_of, is_hypeddit_url
-from ..models import Cancelled
+from ..models import Cancelled, is_cancelled
 from .providers import (
     CLICK_THROUGH_STEPS,
     DIRECT_STEP,
     LOGGER,
     PROVIDER_OAUTH_STEPS,
-    _cancelled,
     check_gate_action,
     config_or_default,
 )
@@ -138,7 +137,7 @@ def _drive_gate_steps(
     """
 
     def guard(*, profile=False):
-        if _cancelled(cancel):
+        if is_cancelled(cancel):
             raise GateManualActionRequired(CANCELLED)
         if config is not None:
             check_gate_action(config, social=True, profile=profile)
@@ -156,7 +155,7 @@ def _drive_gate_steps(
     if slide is None:
         return False
     for _ in range(MAX_GATE_STEPS):
-        if _cancelled(cancel):
+        if is_cancelled(cancel):
             raise GateManualActionRequired(CANCELLED)
         guard()
         kind = slide.kind
@@ -195,7 +194,7 @@ def _next_slide(page: Any, slide: _Slide, cancel: Any) -> _Slide:
 
     deadline = _now() + STEP_SETTLE_SECONDS
     while _now() < deadline:
-        if _cancelled(cancel):
+        if is_cancelled(cancel):
             raise GateManualActionRequired(CANCELLED)
         current = _current_slide(page)
         if current is not None and current.group != slide.group:
@@ -310,7 +309,7 @@ def _wait_for_provider(
     seen = False
     came_home: dict[int, float] = {}
     while _now() < deadline:
-        if _cancelled(cancel):
+        if is_cancelled(cancel):
             raise GateManualActionRequired(CANCELLED)
         popups = _popups_of(context, page, before)
         seen = seen or bool(popups)
@@ -413,7 +412,7 @@ def _screen_batch(
     the whole batch was cancelled before it began."""
 
     keyed = {track.key: (track, url) for track, url in items}
-    if _cancelled(cancel):
+    if is_cancelled(cancel):
         return {}, {}, True
     failures = {
         key: GateProtocolChanged("Refusing an unsafe Hypeddit browser URL")
@@ -468,7 +467,7 @@ class _TabWatch:
         return str(getattr(track, "label", None) or key)
 
     def save(self, key: str, download: Any) -> None:
-        if self.settled(key) or _cancelled(self.cancel):
+        if self.settled(key) or is_cancelled(self.cancel):
             return
         from .. import files
 
@@ -536,7 +535,7 @@ def _open_gate_tabs(
         pages.append((key, page))
 
     for key, page in pages:
-        if _cancelled(watch.cancel):
+        if is_cancelled(watch.cancel):
             break
         _track, url = pending[key]
         try:
@@ -631,7 +630,7 @@ def _await_downloads(
                for key, page in pages if not watch.settled(key)}
     while drivers and not cancelled:
         for key, driver in list(drivers.items()):
-            if _cancelled(cancel):
+            if is_cancelled(cancel):
                 cancelled = True
                 break
             if watch.settled(key):
@@ -648,7 +647,7 @@ def _await_downloads(
     deadline = None if time_limit is None else _now() + time_limit
     timed_out = False
     while not cancelled and not watch.done():
-        if _cancelled(cancel):
+        if is_cancelled(cancel):
             cancelled = True
             break
         if deadline is not None and _now() >= deadline:

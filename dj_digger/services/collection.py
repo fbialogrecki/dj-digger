@@ -17,7 +17,7 @@ from dj_digger.gates import hubs as gate_hubs
 
 from .. import links, soundcloud
 from ..crate_models import CrateRecord
-from ..models import Cancelled, Crate, Track, check_cancelled
+from ..models import Cancelled, Crate, Track, check_cancelled, is_cancelled
 
 # stage, done, total (total is None while it is still unknown)
 ProgressHook = Callable[[str, int, int | None], None]
@@ -175,7 +175,7 @@ def expand_link_hubs(
     with ThreadPoolExecutor(max_workers=HUB_WORKERS) as pool:
         futures = [pool.submit(_expand_one, track, timeout, dead, cancel) for track in pending]
         for done, future in enumerate(as_completed(futures), start=1):
-            if cancel is not None and cancel.is_set():
+            if is_cancelled(cancel):
                 # Queued hubs are dropped; the ones already talking to a host
                 # finish their own timeout. ponytail: the pool's exit still
                 # waits for those, which is at most HUB_WORKERS timeouts.

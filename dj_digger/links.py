@@ -19,6 +19,7 @@ from urllib.parse import urlparse, urlunparse
 
 from .http import is_fetchable, is_openable
 from .models import LinkRecord, Track
+from .private_json import write_json_atomic
 
 # Domains grouped by where a link actually takes you. The membership here comes
 # from surveying purchase_url across 53 playlists / 3497 tracks rather than from
@@ -386,8 +387,8 @@ def export_records(
     summary = build_summary(records)
 
     if export_format == "json":
-        with path.open("w", encoding="utf-8") as handle:
-            json.dump(summary, handle, ensure_ascii=False, indent=2)
+        # Atomic, so a failed write never leaves half a summary where the last one was.
+        write_json_atomic(path, summary, private=False, ensure_ascii=False)
         LOGGER.info("Saved %s links to %s", len(records), path)
         return path
 

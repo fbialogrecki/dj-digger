@@ -13,7 +13,7 @@ from .. import links
 from ..analysis import key_names
 from ..cart_models import CartCancelled
 from ..diagnostics import log_safe_text
-from ..models import GOT, NEW, SKIP, Cancelled, Crate, check_cancelled
+from ..models import GOT, NEW, SKIP, Cancelled, Crate, check_cancelled, is_cancelled
 from ..paths import playlist_download_directory
 from ..services.collection import DigOptions
 from ..services.local_library import LocalLibrary, media_tracks
@@ -99,7 +99,7 @@ class Backend:
         self.send('question', dict(id=ident, title=title, body=body, fields=list(fields), ok=ok, error=error))
         try:
             while not future.done():
-                if self.closing or (cancel is not None and cancel.is_set()):
+                if self.closing or (is_cancelled(cancel)):
                     raise Cancelled()
                 await asyncio.wait({future}, timeout=.1)
             answer = future.result()
@@ -565,7 +565,7 @@ class Backend:
             if plan.mode == 'replace':
                 from ..paths import data_dir
                 from ..private_json import write_private_json
-                await self.io(write_private_json, data_dir() / ('export-' + plan.id + '.json'), report)
+                await self.io(write_private_json, data_dir() / ('export-' + plan.id + '.json'), report, durable=True)
             self.send(*export_notice(report))
             await self.refresh_rows()
         await self.job('Exporting audio', work)

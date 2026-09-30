@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from .db import Database, database
-from .models import Track
+from .models import Track, is_cancelled
 
 LOGGER = logging.getLogger(__name__)
 
@@ -79,7 +79,7 @@ class LocalScanner:
         visited: set[tuple[int, int]] = set()
 
         for root_dir in self.directories:
-            if cancel is not None and cancel.is_set():
+            if is_cancelled(cancel):
                 self.db.upsert_local_files(pending)
                 return scanned
             if not root_dir.exists():
@@ -95,7 +95,7 @@ class LocalScanner:
             for dirpath, _dirs, names in root.walk(
                 follow_symlinks=True, on_error=self._note_error
             ):
-                if cancel is not None and cancel.is_set():
+                if is_cancelled(cancel):
                     self.db.upsert_local_files(pending)
                     return scanned
                 try:
@@ -112,7 +112,7 @@ class LocalScanner:
                 if same_volume:
                     scanned_directories.add(dirpath)
                 for name in names:
-                    if cancel is not None and cancel.is_set():
+                    if is_cancelled(cancel):
                         self.db.upsert_local_files(pending)
                         return scanned
                     if os.path.splitext(name)[1].lower() not in AUDIO_EXTENSIONS:
