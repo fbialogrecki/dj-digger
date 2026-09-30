@@ -5,8 +5,8 @@
 - Product version verified: 1.2.1 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-09-27
-- Document lines: <!-- SPEC TOTAL LINES -->1704<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1704<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1716<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1716<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,64 +51,64 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 143–181 |
 | 2.1 | ↳ Problem and product boundary | 145–158 |
 | 2.2 | ↳ Execution modes | 159–181 |
-| 3 | User-visible capabilities | 182–851 |
+| 3 | User-visible capabilities | 182–860 |
 | 3.1 | ↳ Track collection | 184–209 |
 | 3.2 | ↳ Link classification and exports | 210–228 |
 | 3.3 | ↳ Track statuses | 229–237 |
-| 3.4 | ↳ Audio preview | 238–362 |
-| 3.5 | ↳ Downloads and local-file matching | 363–399 |
-| 3.6 | ↳ Store purchase assistance | 400–485 |
-| 3.7 | ↳ Local library, analysis and audio export | 486–642 |
-| 3.8 | ↳ Qt Quick desktop | 643–851 |
-| 4 | System context and data flow | 852–892 |
-| 4.1 | ↳ Context diagram | 854–876 |
-| 4.2 | ↳ Collection-to-library flow | 877–892 |
-| 5 | Repository layout and component ownership | 893–961 |
-| 5.1 | ↳ Entry, orchestration, and models | 895–906 |
-| 5.2 | ↳ Network and external-system adapters | 907–923 |
-| 5.3 | ↳ Persistence, local media, and UI | 924–961 |
-| 6 | Runtime architecture and environments | 962–1073 |
-| 6.1 | ↳ Runtime and dependencies | 964–985 |
-| 6.2 | ↳ Concurrency and lifecycle | 986–1053 |
-| 6.3 | ↳ Local paths and environment variables | 1054–1073 |
-| 7 | Data model and persistence | 1074–1173 |
-| 7.1 | ↳ Domain objects and identity | 1076–1090 |
-| 7.2 | ↳ SQLite schema and invariants | 1091–1139 |
-| 7.3 | ↳ Crate persistence and deletion | 1140–1155 |
-| 7.4 | ↳ Configuration and credential stores | 1156–1173 |
-| 8 | Public interfaces and contracts | 1174–1227 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1176–1200 |
-| 8.2 | ↳ JSON and CSV summary input | 1201–1216 |
-| 8.3 | ↳ URL-opening contract | 1217–1227 |
-| 9 | Authentication and authorization | 1228–1273 |
-| 9.1 | ↳ SoundCloud authentication | 1230–1252 |
-| 9.2 | ↳ Gate action consent | 1253–1273 |
-| 10 | External integrations | 1274–1418 |
-| 10.1 | ↳ SoundCloud API and media | 1276–1287 |
-| 10.2 | ↳ Link hubs and download gates | 1288–1357 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1296–1343 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1345–1350 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1352–1357 |
-| 10.3 | ↳ Browsers and clipboard | 1358–1369 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1370–1418 |
-| 11 | Security requirements and threat model | 1419–1473 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1421–1439 |
-| 11.2 | ↳ Secret and personal-data handling | 1440–1455 |
-| 11.3 | ↳ File and mutation safety | 1456–1473 |
-| 12 | Privacy, lifecycle, and retention | 1474–1518 |
-| 12.1 | ↳ Data stored locally | 1476–1496 |
-| 12.2 | ↳ Data sent to third parties | 1497–1508 |
-| 12.3 | ↳ User-controlled deletion | 1509–1518 |
-| 13 | Failure behavior and current limitations | 1519–1578 |
-| 13.1 | ↳ Error isolation and reporting | 1521–1540 |
-| 13.2 | ↳ Confirmed limitations | 1541–1578 |
-| 14 | Verification, CI, and release | 1579–1673 |
-| 14.1 | ↳ Offline and live test suites | 1581–1627 |
-| 14.2 | ↳ Continuous integration and publishing | 1628–1658 |
-| 14.3 | ↳ Specification-map verification | 1659–1673 |
-| 15 | Evidence and operational references | 1674–1704 |
-| 15.1 | ↳ Primary implementation evidence | 1676–1694 |
-| 15.2 | ↳ User and historical documentation | 1695–1704 |
+| 3.4 | ↳ Audio preview | 238–367 |
+| 3.5 | ↳ Downloads and local-file matching | 368–404 |
+| 3.6 | ↳ Store purchase assistance | 405–490 |
+| 3.7 | ↳ Local library, analysis and audio export | 491–647 |
+| 3.8 | ↳ Qt Quick desktop | 648–860 |
+| 4 | System context and data flow | 861–901 |
+| 4.1 | ↳ Context diagram | 863–885 |
+| 4.2 | ↳ Collection-to-library flow | 886–901 |
+| 5 | Repository layout and component ownership | 902–970 |
+| 5.1 | ↳ Entry, orchestration, and models | 904–915 |
+| 5.2 | ↳ Network and external-system adapters | 916–932 |
+| 5.3 | ↳ Persistence, local media, and UI | 933–970 |
+| 6 | Runtime architecture and environments | 971–1082 |
+| 6.1 | ↳ Runtime and dependencies | 973–994 |
+| 6.2 | ↳ Concurrency and lifecycle | 995–1062 |
+| 6.3 | ↳ Local paths and environment variables | 1063–1082 |
+| 7 | Data model and persistence | 1083–1185 |
+| 7.1 | ↳ Domain objects and identity | 1085–1099 |
+| 7.2 | ↳ SQLite schema and invariants | 1100–1151 |
+| 7.3 | ↳ Crate persistence and deletion | 1152–1167 |
+| 7.4 | ↳ Configuration and credential stores | 1168–1185 |
+| 8 | Public interfaces and contracts | 1186–1239 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1188–1212 |
+| 8.2 | ↳ JSON and CSV summary input | 1213–1228 |
+| 8.3 | ↳ URL-opening contract | 1229–1239 |
+| 9 | Authentication and authorization | 1240–1285 |
+| 9.1 | ↳ SoundCloud authentication | 1242–1264 |
+| 9.2 | ↳ Gate action consent | 1265–1285 |
+| 10 | External integrations | 1286–1430 |
+| 10.1 | ↳ SoundCloud API and media | 1288–1299 |
+| 10.2 | ↳ Link hubs and download gates | 1300–1369 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1308–1355 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1357–1362 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1364–1369 |
+| 10.3 | ↳ Browsers and clipboard | 1370–1381 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1382–1430 |
+| 11 | Security requirements and threat model | 1431–1485 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1433–1451 |
+| 11.2 | ↳ Secret and personal-data handling | 1452–1467 |
+| 11.3 | ↳ File and mutation safety | 1468–1485 |
+| 12 | Privacy, lifecycle, and retention | 1486–1530 |
+| 12.1 | ↳ Data stored locally | 1488–1508 |
+| 12.2 | ↳ Data sent to third parties | 1509–1520 |
+| 12.3 | ↳ User-controlled deletion | 1521–1530 |
+| 13 | Failure behavior and current limitations | 1531–1590 |
+| 13.1 | ↳ Error isolation and reporting | 1533–1552 |
+| 13.2 | ↳ Confirmed limitations | 1553–1590 |
+| 14 | Verification, CI, and release | 1591–1685 |
+| 14.1 | ↳ Offline and live test suites | 1593–1639 |
+| 14.2 | ↳ Continuous integration and publishing | 1640–1670 |
+| 14.3 | ↳ Specification-map verification | 1671–1685 |
+| 15 | Evidence and operational references | 1686–1716 |
+| 15.1 | ↳ Primary implementation evidence | 1688–1706 |
+| 15.2 | ↳ User and historical documentation | 1707–1716 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -248,8 +248,8 @@ thread handles repeated seeks; old generations cannot fill the new buffer. The a
 ready samples: underrun produces silence without advancing the media position,
 while EOF and decoder failures remain distinct. Playback sources hold leases
 until their decoder has actually stopped; prefetched files are also protected
-from replacement. Local waveforms are generated independently after playback is
-ready and cached in at most 128 files, each containing at most 1024 peaks.
+from replacement. Local waveforms are generated independently after playback has
+started, at most 1024 peaks, and kept in the library (§7.2).
 The rendered waveform updates when these peaks arrive; pause and seek do not
 discard them, while switching the loaded audio rejects obsolete results.
 This playback PCM is never reused for analysis or export.
@@ -268,9 +268,10 @@ returns its protocol, signed URL, duration and waveform location. Playback
 refusals log the numeric track ID, known policy, stream count and reason without
 signed URLs or tokens.
 
-The audio worker resolves the stream, fetches the waveform, and opens the HTTP
-source before handing the track to the UI thread, so no connection is opened from
-the interface thread.
+The audio worker resolves the stream and opens the HTTP source before handing the
+track to the UI thread, so no connection is opened from the interface thread.
+The waveform is not fetched before playback: it follows in the background
+(§3.8).
 
 Audio is decoded from an HTTP source and is not persisted to disk. A declared
 source at or below 50 MiB is buffered progressively in memory; larger or
@@ -336,7 +337,11 @@ clears the history but keeps the reference; a pause retains queued audio and its
 `Player.beats()` returns detected (track time, amplitude) pairs from 0.5 s behind
 the decoded position to that position, plus the seconds per beat: the track's
 BPM when known, else the median 0.25-1 s gap between recent hits, else 0.5.
-Waveforms are cached in memory for the process.
+`services.playback.track_waveform()` returns a track's envelope from the library's
+`waveforms` table (§7.2) or computes it (the SoundCloud waveform JSON, or the
+local decode) and stores a non-empty result, thinned to at most 1024 values. A
+local file's row is valid only for its current file signature; a changed file is
+decoded again.
 
 MP3 HLS VOD manifests and each redirect/segment are restricted to HTTPS
 SoundCloud CDN subdomains, without credentials in URLs or nonstandard ports.
@@ -683,9 +688,10 @@ The window schedules these as they are heard:
   artwork backdrop toward their peak colours; the unplayed region never pulses.
   Peak colours keep the hue with saturation + 0.3 and lightness + 0.06 (dark
   theme) or + 0.08 (light theme); a red (linear R ≥ 70 % of R+G+B, the bordeaux
-  tones) only lightens, by 0.02 (dark) or 0.03 (light). The peak bars also cast
-  a 12 px halo in the peak accent colour at 90 % alpha, painted once with the
-  layer. The peak layers reach full opacity at `flash` = 1. Each palette tone's
+  tones) only lightens, by 0.02 (dark) or 0.03 (light). The peak bars also carry
+  a halo in the peak accent colour, two translucent rims (3 px at 12 % and 1.5 px
+  at 22 % alpha) painted once with the layer; Canvas `shadowBlur` is not used,
+  since one blurred paint held the UI thread for about 1.5 s. The peak layers reach full opacity at `flash` = 1. Each palette tone's
   base/peak pair stays under the WCAG 2.3.1 general flash threshold (relative
   luminance change below 0.1) and red flash threshold (red value change below
   20); the offline GUI test asserts both in both themes.
@@ -725,8 +731,11 @@ a hover surface; a status change flashes its rows (success colour for owned,
 muted for skipped, accent otherwise; not for more than 100 rows at once, and also after a sort or
 filter rebuilt the rows); download fills carry a sweeping highlight only while
 an operation runs; the play button pops when its icon changes; the player panel
-switches height at once and its artwork and waveform fade in (180 ms); a new track's waveform rises from
-the bottom; the waveform and artwork keep their base colours, and detected kick flashes
+switches height at once and its artwork and waveform fade in (180 ms). Until the loaded track's waveform
+event arrives the artwork shows a white backdrop and label on a blank record and the bars wander on
+placeholder waves (about 30 repaints a second of the unplayed layer only); when it arrives the bars settle
+from their current heights into the envelope (700 ms) while the key colours and the record code fade in
+(600 ms). Without animations the placeholder stands still and both switch at once. The waveform and artwork keep their base colours, and detected kick flashes
 are part of this motion. Theme changes and recycled table delegates
 are not animated. Space always belongs to playback, wherever focus
 is, except while typing in a text field or inside a modal dialog: it starts the
@@ -759,8 +768,8 @@ Details button opening the message log. Later informational messages do not dism
 the banner retains it in the log. Informational messages remain in the footer.
 The transport collapses to one row when nothing is loaded, shows m:ss clocks, a position cursor, hover
 time, drag seeking and a mute toggle drawn as a speaker icon that is struck through while muted (its
-Mute/Unmute name stays in the tooltip and accessible name). The waveform arrives in its own event once per loaded track (again
-when a local envelope is ready) and is painted in cached normal and peak layers; progress moves a clip edge and the
+Mute/Unmute name stays in the tooltip and accessible name). The waveform arrives in its own event once per loaded track, after
+playback has started and empty when none could be had, and is painted in cached normal and peak layers; progress moves a clip edge and the
 cursor. The 25 ms position snapshots carry only key, title, state, position and duration and
 notify audio bindings alone. Dragging on the waveform shows the pointer's time and sends one seek on
 release; the target stays displayed until the backend confirms the position or 1.5 s pass. Play/pause
@@ -808,8 +817,8 @@ items reports its status, missing count and the first failed file with its redac
 reason, as an error when the result is partial. The status-bar operation label is
 cleared when its operation ends unless a result or error has replaced it. Local files are paged in groups of 250. Playback uses the
 existing engine, bounded waveform samples and one prepared next-track source.
-Local waveform generation runs independently of play/automatic-next and publishes
-its result immediately, including while paused. Stop, replacement and shutdown
+Waveform loading (library read, SoundCloud fetch or local decode) runs independently of play/automatic-next
+for every played track and publishes its result immediately, including while paused. Stop, replacement and shutdown
 cancel obsolete generation work; only the identical loaded object can receive
 the result. A failed attempt to prepare another track does not cancel the
 waveform of the track still loaded.
@@ -1122,7 +1131,10 @@ storage forms. Media identity lookup uses the JSON index for candidates and
 compares exact Python integers before limiting results, preventing numeric
 rounding from conflating distinct IDs.
 
-`PRAGMA user_version=2` is created for new libraries. Existing recognized v0/v1
+`PRAGMA user_version=3` is created for new libraries. Schema 3 adds only
+`waveforms(key PRIMARY KEY, signature, samples_json)`, the envelope of each played
+track with the local file's signature (`''` for a stream); rows are not pruned. A
+v2 library gains it inside the opening `BEGIN IMMEDIATE` transaction, without a backup. Existing recognized v0/v1
 shapes are checked read-only first, then under `BEGIN IMMEDIATE`. A separate
 committed reader performs `Connection.backup()` while the writer is reserved.
 Every migration gets an integrity-checked backup including committed WAL data,
@@ -1481,9 +1493,9 @@ credentials, a cached public SoundCloud client ID, and separate managed-browser
 profiles. A requested Beatport transfer also writes a plain-text playlist in the
 configured crate download folder. Cart diagnostics (a screenshot, a redacted
 page copy, and a small JSON note per unverified click or structural failure,
-last ten kept) live under the data directory. Audio preview bytes and remote
-waveforms are process memory only; envelopes of local files are cached as small
-JSON files under the user cache directory (`waveforms/`, newest 128).
+last ten kept) live under the data directory. Audio preview bytes are process
+memory only; the waveform envelope of every played track, remote or local, is
+kept in the library database (`waveforms`, at most 1024 values each).
 Diagnostics are local only: five rotating log files and one latest analysis
 report. Report writing is streamed one file at a time. No automatic upload occurs. Log/report paths and filenames may identify
 local media, but credential-like values are redacted. Users can open the log

@@ -1,8 +1,8 @@
 """Stream resolution and prepared media independent of table presentation."""
 
 import logging
-from dataclasses import dataclass, field
-from functools import lru_cache
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Protocol
 
 from ..models import Track
@@ -85,23 +85,32 @@ def resolve_stream(client: SoundCloudPlayback, track_id: int) -> Stream:
     )
 
 
-@lru_cache(maxsize=256)
-def _cached_waveform(client: SoundCloudPlayback, waveform_url: str) -> tuple:
-    """Kept in memory for the session - 7 KB from a CDN is not worth a cache file."""
-
-    try:
-        payload = client.session.get(waveform_url, timeout=15).json()
-    except Exception as exc:  # a missing waveform must not stop playback
-        LOGGER.debug("Could not read waveform %s: %s", waveform_url, exc)
-        return ()
-    samples = payload.get("samples")
-    return tuple(int(value) for value in samples) if isinstance(samples, list) else ()
-
-
 def fetch_waveform(client: SoundCloudPlayback, waveform_url: str) -> list[int]:
     if not waveform_url:
         return []
-    return list(_cached_waveform(client, waveform_url))
+    try:
+        samples = client.session.get(waveform_url, timeout=15).json().get("samples")
+        return [int(value) for value in samples] if isinstance(samples, list) else []
+    except Exception as exc:  # a missing waveform must not stop playback
+        LOGGER.debug("Could not read waveform %s: %s", waveform_url, exc)
+        return []
+
+
+def track_waveform(db, track: Track, waveform_url: str, client, cancel=None) -> list[int]:
+    """The track's envelope, at most 1024 values: kept in the library after the first computation."""
+
+    from .. import local_audio
+    from ..media import signature
+    mark = signature(Path(track.local_path)) if track.local_path else ""
+    cached = db.waveform(track.key, mark)
+    if cached is not None:
+        return cached
+    samples = (local_audio.waveform(Path(track.local_path), cancel) if track.local_path
+               else fetch_waveform(client, waveform_url))
+    samples = samples[::max(1, (len(samples) + 1023) // 1024)]
+    if samples:
+        db.save_waveform(track.key, mark, samples)
+    return samples
 
 
 @dataclass
@@ -110,7 +119,6 @@ class Prepared:
 
     track: Track
     stream: Stream
-    waveform: list[int] = field(default_factory=list)
     # An HTTP source already filling with audio, or None if miniaudio is absent.
     source: object = None
 

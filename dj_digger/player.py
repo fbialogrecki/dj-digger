@@ -22,7 +22,7 @@ import array
 import logging
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import lru_cache
 from queue import Empty, SimpleQueue
 from typing import Literal
@@ -348,7 +348,6 @@ def mp3_start(source, seconds: float, duration: float, length: int) -> int:
 class Loaded:
     track: Track
     stream: Stream
-    waveform: list[int] = field(default_factory=list)
 
     @property
     def duration(self) -> float:
@@ -446,7 +445,6 @@ class Player:
         track: Track,
         stream: Stream,
         session,
-        waveform: list[int] | None = None,
         source=None,
     ) -> Loaded:
         """``source`` is a stream someone opened ahead of time, already filling."""
@@ -455,7 +453,7 @@ class Player:
         self.stop()
         self._session = session
         self._source = source
-        self._loaded = Loaded(track=track, stream=stream, waveform=waveform or [])
+        self._loaded = Loaded(track=track, stream=stream)
         # One pulse history per track; a new decoder clears it after a seek.
         self._beats = PulseHistory(60 / track.bpm if track.bpm and track.bpm > 0 else None)
         self._frames = 0

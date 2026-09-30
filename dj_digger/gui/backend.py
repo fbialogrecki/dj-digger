@@ -731,17 +731,16 @@ class Backend:
                 self.waveform_cancel.set()
                 self.waveform_cancel = waveform_cancel = threading.Event()
                 loaded = await self.io(player.load, track, prepared.stream, None if track.local_path else self.services.client.session,
-                              prepared.waveform, prepared.source)
+                              prepared.source)
                 prepared.source = None
                 if generation != self.play_generation or self.closing:
                     return
-                if track.local_path:
-                    task = self.loop.create_task(self.local_waveform(loaded, waveform_cancel))
-                    self.tasks.add(task)
-                    task.add_done_callback(self.tasks.discard)
+                # Playback starts now; the waveform follows once read from the library or computed.
+                task = self.loop.create_task(self.load_waveform(loaded, waveform_cancel))
+                self.tasks.add(task)
+                task.add_done_callback(self.tasks.discard)
                 await self.io(player.play)
                 self.publish_audio()
-                self.publish_waveform()
                 self.publish_now_playing()
         finally:
             if prepared.source is not None:
@@ -749,22 +748,24 @@ class Backend:
         if not hasattr(self, 'ticker') or self.ticker.done():
             self.ticker = self.loop.create_task(self.tick())
 
-    async def local_waveform(self, loaded, cancel):
-        from ..local_audio import waveform
+    async def load_waveform(self, loaded, cancel):
+        from ..services.playback import track_waveform
+        samples = []
         try:
             async with self.waveform_lock:
                 check_cancelled(cancel)
-                samples = await self.io(waveform, Path(loaded.track.local_path), cancel)
-            async with self.player_lock:
-                if not cancel.is_set() and self.services.player.loaded is loaded:
-                    loaded.waveform = samples
-                    self.publish_waveform()
+                client = None if loaded.track.local_path else self.services.client
+                samples = await self.io(track_waveform, self.services.state.db, loaded.track, loaded.stream.waveform_url, client, cancel)
         except (Cancelled, asyncio.CancelledError):
-            pass
+            return
         except Exception as exc:
-            LOGGER.warning('Local waveform unavailable: %s', log_safe_text(exc))
+            LOGGER.warning('Waveform unavailable: %s', log_safe_text(exc))
             if not cancel.is_set():
                 self.send('error', {'text': 'Waveform unavailable: ' + log_safe_text(exc)})
+        # Sent even when empty: the window stops waiting for it and shows the track.
+        async with self.player_lock:
+            if not cancel.is_set() and self.services.player.loaded is loaded:
+                self.send('waveform', dict(key=loaded.track.key, samples=samples), copy=False)
 
     def publish_audio(self):
         # The per-tick snapshot stays small: the waveform travels separately and only when it changes.
@@ -785,19 +786,13 @@ class Backend:
         self.send('nowPlaying', dict(key=p.loaded.track.key, artist=t.artist or '', name=t.title or t.label,
                                      bpm=float(t.bpm or 0), classicKey=classic, camelot=camelot))
 
-    def publish_waveform(self):
-        p = self.services.player
-        if p.loaded and p.loaded.waveform:
-            samples = list(p.loaded.waveform)
-            self.send('waveform', dict(key=p.loaded.track.key, samples=samples[::max(1, (len(samples) + 1023) // 1024)]))
-
     def playable(self, track):
         if track.local_path or track.key not in self.preview_paths:
             return track
         return replace(track, local_path=self.preview_paths[track.key])
 
     async def prepare_track(self, track):
-        from ..services.playback import Prepared, fetch_waveform, resolve_stream
+        from ..services.playback import Prepared, resolve_stream
         if track.local_path:
             from ..local_audio import prepare_local
             return await self.io(prepare_local, track)
@@ -807,8 +802,7 @@ class Backend:
         def prepare():
             from ..player import open_source
             stream = resolve_stream(client, track.id)
-            return Prepared(track, stream, fetch_waveform(client, stream.waveform_url),
-                            open_source(client.session, stream.url, stream.protocol))
+            return Prepared(track, stream, open_source(client.session, stream.url, stream.protocol))
         return await self.io(prepare)
 
     async def prefetch(self, track, generation):

@@ -188,35 +188,14 @@ def _fold_peaks(peaks, block, frame, frames_per_bin):
 
 
 def waveform(path, cancel=None):
-    """Independent low-resolution envelope; bounded cache, never a playback gate."""
-    import hashlib
-    import json
-    import os
-
+    """Independent low-resolution envelope; never a playback gate. The library keeps it."""
     from .media import signature
-    root = Path(os.environ.get('XDG_CACHE_HOME') or Path.home() / '.cache') / 'dj-digger' / 'waveforms'
     path = Path(path)
     before = signature(path)
-    cache = root / (hashlib.sha256((str(path) + before).encode()).hexdigest() + '.json')
-    try:
-        values = json.loads(cache.read_text())
-        if isinstance(values, list) and len(values) <= 1024:
-            return values
-    except (OSError, ValueError):
-        pass
     metadata = probe(path, cancel)
     frames_per_bin = max(1, round(metadata['duration'] * 4000 / 1024))
     peaks = np.zeros(1024, dtype=np.int32)
     frame = 0
     for block in pcm_blocks(path, rate=4000, channels=2, sample_format='s16le', cancel=cancel):
         frame = _fold_peaks(peaks, block, frame, frames_per_bin)
-    bins = peaks.tolist()
-    if signature(path) != before:
-        return []
-    root.mkdir(parents=True, exist_ok=True)
-    from .private_json import write_private_json
-    write_private_json(cache, bins)
-    files = sorted(root.glob('*.json'), key=lambda entry: entry.stat().st_mtime, reverse=True)
-    for old in files[128:]:
-        old.unlink(missing_ok=True)
-    return bins
+    return peaks.tolist() if signature(path) == before else []

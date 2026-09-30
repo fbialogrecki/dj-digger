@@ -82,6 +82,15 @@
   25 ms audio tick; the `beats` event is sent only when the pulses change; the
   volume rescale and the local-file waveform run in numpy instead of a Python
   loop over every sample.
+- The desktop no longer freezes for about 1.5 s when a track starts or the window
+  is resized: the kick glow around the waveform was a blurred Canvas shadow,
+  and is now two translucent rims that paint in milliseconds.
+- A SoundCloud track starts playing without waiting for its waveform. Until the
+  waveform is in, the record is blank on a white sleeve and the bars wander;
+  then they settle into the waveform while the colours and the record code fade
+  in. Every played track's waveform is kept in the library (schema 3 adds a
+  `waveforms` table), so a track played again shows it at once; the local
+  waveform JSON cache in the user cache directory is no longer used.
 - Marking or undoing statuses no longer reloads the playlist and re-queries every
   local file; the statuses are written in one transaction.
 - Opening a folder probes only files it has never inspected and updates their rows

@@ -870,7 +870,7 @@ def test_a_seek_lands_on_time_at_any_position(monkeypatch, tmp_path):
     device = FakeDevice()
     monkeypatch.setattr(subject, "_device_for", lambda rate, channels: device)
     source = player.http_source_type(miniaudio)(FakeSession(path.read_bytes()), URL)
-    subject.load(Track(title="t", permalink_url="u"), playback.Stream(url=URL, duration=200.0), None, None, source)
+    subject.load(Track(title="t", permalink_url="u"), playback.Stream(url=URL, duration=200.0), None, source)
     subject.play()
     started = time.perf_counter()
     subject.seek(149.5)

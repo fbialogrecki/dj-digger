@@ -411,3 +411,30 @@ def test_waveform_peaks_match_the_frame_by_frame_fold():
     for block in blocks:
         frame = _fold_peaks(peaks, block, frame, 3)
     assert peaks.tolist() == expected
+
+
+def test_a_played_waveform_is_kept_in_the_library(tmp_path, db, monkeypatch):
+    from types import SimpleNamespace
+
+    from dj_digger import local_audio
+    from dj_digger.models import Track
+    from dj_digger.services.playback import track_waveform
+
+    fetched = []
+    session = SimpleNamespace(get=lambda url, timeout: fetched.append(url) or SimpleNamespace(json=lambda: {'samples': list(range(1800))}))
+    remote = Track('Remote', 'Artist', id=7)
+    first = track_waveform(db, remote, 'https://wave.sndcdn.com/x.json', SimpleNamespace(session=session))
+    assert len(first) == 900 and first[:2] == [0, 2]
+    assert track_waveform(db, remote, 'https://wave.sndcdn.com/x.json', SimpleNamespace(session=session)) == first
+    assert len(fetched) == 1, 'the second play reads the library'
+
+    path = tmp_path / 'local.wav'
+    path.write_bytes(b'one')
+    decoded = []
+    monkeypatch.setattr(local_audio, 'waveform', lambda source, cancel: decoded.append(source) or [5, 6])
+    local = Track('Local', '', local_path=str(path), local_id='x')
+    assert track_waveform(db, local, '', None) == [5, 6]
+    assert track_waveform(db, local, '', None) == [5, 6] and len(decoded) == 1
+    path.write_bytes(b'changed')
+    track_waveform(db, local, '', None)
+    assert len(decoded) == 2, 'a changed file is decoded again'

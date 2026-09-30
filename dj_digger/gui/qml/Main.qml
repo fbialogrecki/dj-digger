@@ -593,7 +593,7 @@ ApplicationWindow {
         onWidthChanged: settle.restart()
         onHeightChanged: settle.restart()
         onVisibleChanged: requestPaint()
-        Connections { target: waveform; function onLevelsChanged() { requestPaint() } }
+        Connections { target: waveform; function onRepaint() { requestPaint() } }
         Connections { target: root; function onDarkChanged() { requestPaint() } }
     }
     // A rounded label for BPM and key; a key takes its Camelot hue, a match with the playing track gets a ring.
@@ -616,11 +616,20 @@ ApplicationWindow {
         HoverHandler { id: chipHover }
     }
     // Generated artwork, never fetched: a record on a gradient, both picked from the track key.
-    // The record turns while the track plays.
+    // The record turns while the track plays. Until the track is ready the sleeve and label are
+    // white and the record blank; then the colours and the code fade in.
     component Cover: Rectangle {
         id: cover
         property string seed: ""
         property bool spinning: false
+        property bool ready: true
+        // A binding at first; the handler takes over from the first change.
+        property real reveal: ready ? 1 : 0
+        onReadyChanged: {
+            revealAnimation.stop()
+            if (ready && root.motion) revealAnimation.restart(); else reveal = ready ? 1 : 0
+        }
+        NumberAnimation { id: revealAnimation; target: cover; property: "reveal"; from: 0; to: 1; duration: 600; easing.type: Easing.InOutQuad }
         readonly property int hash: {
             let h = 7
             for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0
@@ -644,17 +653,20 @@ ApplicationWindow {
                 GradientStop { position: 1; color: root.peakColor(cover.tone(3)) }
             }
         }
+        Rectangle { objectName: "blankSleeve"; anchors.fill: parent; radius: parent.radius; color: "white"; opacity: 1 - cover.reveal }
         Item {
             id: disc
             width: parent.width * .84; height: width; anchors.centerIn: parent
             // Near-black vinyl; the label is darkened so it does not outshine the record.
             Rectangle { anchors.fill: parent; radius: width / 2; color: "#0c0c0e" }
             Rectangle { anchors.centerIn: parent; width: disc.width * .34; height: width; radius: width / 2; color: Qt.darker(cover.tone(5), 1.25) }
+            Rectangle { anchors.centerIn: parent; width: disc.width * .34; height: width; radius: width / 2; color: "white"; opacity: 1 - cover.reveal }
             // A barcode of the track: radial strokes and dots from the label to the rim, laid out
             // from the key hash. Painted once per track; turning the record costs no repaint.
             Canvas {
                 objectName: "trackCode"
                 anchors.fill: parent
+                opacity: cover.reveal
                 property int code: cover.hash
                 onCodeChanged: requestPaint()
                 onWidthChanged: requestPaint()
@@ -911,6 +923,7 @@ ApplicationWindow {
                         Layout.fillHeight: true; Layout.preferredWidth: height
                         seed: desktop.audioKey
                         spinning: desktop.playing
+                        ready: waveform.ready
                     }
                 ColumnLayout {
                     Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumWidth: 0; spacing: 6
@@ -949,6 +962,36 @@ ApplicationWindow {
                         // Recomputed when the bar count changes, not on every pixel of a resize.
                         readonly property int columns: Math.max(1, Math.floor(width / 3))
                         property var levels: desktop.waveformLevels(samples, columns)
+                        // The backend sends the waveform for every track, empty when there is none.
+                        readonly property bool ready: !!desktop.audioKey && desktop.waveformKey === desktop.audioKey
+                        // Until then the bars wander; when it lands they settle into it (0 → 1).
+                        property real wander: 0
+                        property real settle: ready ? 1 : 0
+                        property var settleFrom: []
+                        signal repaint()
+                        onLevelsChanged: repaint()
+                        onWanderChanged: repaint()
+                        onSettleChanged: repaint()
+                        onReadyChanged: {
+                            settleAnimation.stop()
+                            settleFrom = []
+                            for (let i = 0; i < columns; i++) settleFrom.push(placeholder(i))
+                            if (ready && root.motion) settleAnimation.restart(); else settle = ready ? 1 : 0
+                        }
+                        NumberAnimation { id: settleAnimation; target: waveform; property: "settle"; from: 0; to: 1; duration: 700; easing.type: Easing.InOutCubic }
+                        Timer { interval: 33; repeat: true; running: !waveform.ready && waveform.visible && root.motion; onTriggered: waveform.wander += .033 }
+                        // Each bar on its own slow wave, with a swell rolling across them all.
+                        function placeholder(i) {
+                            let r = Math.abs(Math.sin(i * 12.9898) * 43758.5453) % 1
+                            return Math.max(.05, Math.min(.85, .32 + .16 * Math.sin(wander * 2.2 - i * .3) + .14 * Math.sin(wander * (2 + 3 * r) + r * 40)))
+                        }
+                        function level(i) {
+                            if (!ready) return placeholder(i)
+                            let target = levels[i] || 0
+                            if (settle >= 1) return target
+                            let from = i < settleFrom.length ? settleFrom[i] : placeholder(i)
+                            return from + (target - from) * settle
+                        }
                         // The bars are painted once per waveform; progress only moves a clip edge and the cursor, so
                         // position ticks and a drag cost no repaint. While scrubbing, the pointer's time
                         // shows; after release the target shows until the backend confirms it (or 1.5 s pass).
@@ -958,15 +1001,6 @@ ApplicationWindow {
                         readonly property real heard: root.playhead >= 0 ? root.playhead : position
                         readonly property real fraction: scrub >= 0 ? scrub : pending >= 0 ? pending : duration > 0 ? Math.min(1, heard / duration) : 0
                         onPositionChanged: if (pending >= 0 && Math.abs(position / Math.max(1, duration) - pending) < 0.02) pending = -1
-                        // A new waveform rises from the bottom.
-                        transform: Scale { id: waveformGrowth; origin.y: waveform.height }
-                        NumberAnimation { id: waveformRise; target: waveformGrowth; property: "yScale"; from: 0; to: 1; duration: 450; easing.type: Easing.OutCubic }
-                        // Only a new track's waveform rises; the old → empty → new handover must not replay it.
-                        property string risen: ""
-                        onSamplesChanged: if (root.motion && samples.length && desktop.waveformKey !== risen) {
-                            risen = desktop.waveformKey
-                            waveformRise.restart()
-                        }
                         Timer { id: pendingTimer; interval: 1500; onTriggered: waveform.pending = -1 }
                         function paintBars(ctx, width, height, played, glow) {
                             ctx.reset()
@@ -977,22 +1011,27 @@ ApplicationWindow {
                             gradient.addColorStop(1, glow ? root.peakColor(root.accent) : root.accent)
                             ctx.fillStyle = gradient
                             ctx.globalAlpha = played ? 1 : root.dark ? .38 : .45
-                            if (glow) {  // Light spills around the bars at the peak.
-                                ctx.shadowBlur = 12
+                            let count = columns, step = width / count, bar = Math.max(1, step - 1)
+                            let heights = []
+                            for (let i = 0; i < count; i++) heights.push(Math.max(1, level(i) * (height - 2)))
+                            if (glow) {
+                                // Light spills around the bars at the peak: two widening translucent rims.
+                                // Not shadowBlur, which took the UI thread 1.5 s per paint.
                                 let halo = root.peakColor(root.accent)
-                                ctx.shadowColor = Qt.rgba(halo.r, halo.g, halo.b, .9)
+                                for (let rim of [[3, .12], [1.5, .22]]) {
+                                    ctx.fillStyle = Qt.rgba(halo.r, halo.g, halo.b, rim[1])
+                                    for (let i = 0; i < count; i++)
+                                        ctx.fillRect(i * step - rim[0], height - heights[i] - rim[0], bar + 2 * rim[0], heights[i] + rim[0])
+                                }
+                                ctx.fillStyle = gradient
                             }
-                            let count = levels.length
-                            for (let i = 0; i < count; i++) {
-                                let h = Math.max(1, levels[i] * (height - 2))
-                                ctx.fillRect(i * width / count, height - h, Math.max(1, width / count - 1), h)
-                            }
+                            for (let i = 0; i < count; i++) ctx.fillRect(i * step, height - heights[i], bar, heights[i])
                         }
                         // The unplayed region stays in shadow and never pulses.
                         WaveformBars { objectName: "unplayedBars"; anchors.fill: parent }
                         // Only the played region crossfades to its peak colours on a kick.
                         Item {
-                            clip: true
+                            clip: true; visible: waveform.ready
                             anchors { top: parent.top; bottom: parent.bottom; left: parent.left }
                             width: waveform.fraction * waveform.width
                             WaveformBars { objectName: "playedBars"; width: waveform.width; height: waveform.height; played: true }

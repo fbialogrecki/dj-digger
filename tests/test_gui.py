@@ -839,7 +839,7 @@ def test_seeks_collapse_to_the_newest_and_nudges_add_up(backend, monkeypatch):
         player._loaded = None
 
 
-def test_stopped_local_waveform_is_cancelled_and_cannot_restore_audio(backend, monkeypatch):
+def test_stopped_local_waveform_is_cancelled_and_cannot_restore_audio(backend, tmp_path, monkeypatch):
     import asyncio
     from types import SimpleNamespace
 
@@ -849,7 +849,9 @@ def test_stopped_local_waveform_is_cancelled_and_cannot_restore_audio(backend, m
     from dj_digger.services.playback import Stream
 
     worker, events = backend
-    loaded = Loaded(Track('Old local', '', local_path='synthetic.wav'), Stream('synthetic.wav', duration=10))
+    path = tmp_path / 'synthetic.wav'
+    path.write_bytes(b'audio')
+    loaded = Loaded(Track('Old local', '', local_path=str(path)), Stream(str(path), duration=10))
     worker.services.player._loaded = loaded
     entered, release = threading.Event(), threading.Event()
     cancel = worker.waveform_cancel
@@ -859,18 +861,16 @@ def test_stopped_local_waveform_is_cancelled_and_cannot_restore_audio(backend, m
         assert release.wait(5)
         return [123]  # Even a late worker ignoring cancellation must be discarded.
     monkeypatch.setattr(local_audio, 'waveform', delayed)
-    future = asyncio.run_coroutine_threadsafe(worker.local_waveform(loaded, cancel), worker.loop)
+    future = asyncio.run_coroutine_threadsafe(worker.load_waveform(loaded, cancel), worker.loop)
     try:
         assert entered.wait(5)
         asyncio.run_coroutine_threadsafe(worker.action_transport({'operation': 'stop'}), worker.loop).result(timeout=2)
         assert cancel.is_set()
         assert wait_event(events, 'audio') == {}
-        replacement = SimpleNamespace(track=loaded.track, waveform=[456])
-        worker.services.player._loaded = replacement
+        worker.services.player._loaded = SimpleNamespace(track=loaded.track)
     finally:
         release.set()
     future.result(timeout=5)
-    assert replacement.waveform == [456]
     assert events.empty()
     worker.services.player._loaded = None
 
@@ -917,7 +917,11 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
         window.setProperty('animations', False)
         bridge.receive('ready', {})
         bridge.receive('audio', dict(key='w', title='Local fixture.wav', playing=True, position=1, duration=4))
+        # Until its waveform arrives the track shows placeholder bars and a blank record.
+        loading, blank = window.findChild(QQuickItem, 'waveform'), window.findChild(QQuickItem, 'cover')
+        assert not loading.property('ready') and blank.property('reveal') == 0
         bridge.receive('waveform', dict(key='w', samples=[1000] * 512 + [200] * 512))
+        assert loading.property('ready') and blank.property('reveal') == 1
         assert len(bridge.waveform) == 1024
         tree = window.findChild(QQuickItem, 'directoryTree-music')
         canvas = window.findChild(QQuickItem, 'waveform')

@@ -27,6 +27,10 @@ MEDIA_DDL = (
     "CREATE TABLE playlist_aliases (provider_id TEXT PRIMARY KEY, source TEXT NOT NULL REFERENCES crates(source) ON DELETE CASCADE)",
     "CREATE TABLE media_operations (id TEXT PRIMARY KEY, record_json TEXT NOT NULL)",
 )
+# Played tracks' envelopes; signature is the local file's, '' for a stream.
+WAVEFORM_DDL = (
+    "CREATE TABLE waveforms (key TEXT PRIMARY KEY, signature TEXT NOT NULL, samples_json TEXT NOT NULL)",
+)
 BACKUP_TIMEOUT = 30.0
 
 
@@ -47,7 +51,7 @@ def signature(conn: sqlite3.Connection) -> tuple:
 
 def expected_signature(version=1, *, legacy_local_files=False) -> tuple:
     with closing(sqlite3.connect(':memory:')) as conn:
-        for statement in DDL + (MEDIA_DDL if version == 2 else ()):
+        for statement in DDL + (MEDIA_DDL if version >= 2 else ()) + (WAVEFORM_DDL if version >= 3 else ()):
             if legacy_local_files and statement == DDL[1]:
                 statement = LEGACY_LOCAL_FILES_DDL
             conn.execute(statement)
@@ -57,7 +61,7 @@ def expected_signature(version=1, *, legacy_local_files=False) -> tuple:
 def recognize(conn: sqlite3.Connection) -> tuple:
     version = conn.execute('PRAGMA user_version').fetchone()[0]
     shape = signature(conn)
-    supported = version in (0, 1, 2) and shape == expected_signature(2 if version == 2 else 1)
+    supported = version in (0, 1, 2, 3) and shape == expected_signature(max(1, version))
     if not supported and version in (0, 1):
         supported = shape == expected_signature(legacy_local_files=True)
     if not supported:
@@ -109,7 +113,7 @@ def open_database(path: Path) -> sqlite3.Connection:
         if observed is None:
             if signature(conn) or conn.execute('PRAGMA user_version').fetchone()[0]:
                 raise UnsupportedSchema('Library changed while opening it')
-            for statement in DDL + MEDIA_DDL:
+            for statement in DDL + MEDIA_DDL + WAVEFORM_DDL:
                 conn.execute(statement)
         else:
             current = recognize(conn)
@@ -123,7 +127,11 @@ def open_database(path: Path) -> sqlite3.Connection:
                         conn.execute(f'ALTER TABLE local_files DROP COLUMN {column}')
                 for statement in MEDIA_DDL:
                     conn.execute(statement)
-        conn.execute('PRAGMA user_version=2')
+            if current[0] < 3:
+                # Additive only, so the transaction alone makes it safe; no backup.
+                for statement in WAVEFORM_DDL:
+                    conn.execute(statement)
+        conn.execute('PRAGMA user_version=3')
         conn.commit()
         conn.execute('PRAGMA journal_mode=WAL')
         conn.execute('PRAGMA foreign_keys=ON')
