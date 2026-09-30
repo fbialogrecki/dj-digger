@@ -882,3 +882,9 @@ def test_a_seek_lands_on_time_at_any_position(monkeypatch, tmp_path):
             break
         heard += len(chunk) // 2
     assert abs(149.5 + heard / 44100 - 150.0) < 0.1
+
+
+def test_volume_scaling_matches_the_per_sample_rescale():
+    chunk = array.array("h", [-32768, 32767, 0, -1, 1, 12345, -12345] * 50)
+    for volume in (0.0, 0.1, 0.33, 0.8, 0.998):
+        assert player.scale_volume(chunk, volume) == array.array("h", [int(s * volume) for s in chunk])

@@ -29,6 +29,8 @@ class Bridge(QObject):
     event = Signal(str, object)
     changed = Signal()
     audioChanged = Signal()
+    playingChanged = Signal()
+    playlistsChanged = Signal()
     waveformChanged = Signal()
     nowPlayingChanged = Signal()
     beatsChanged = Signal()
@@ -78,14 +80,18 @@ class Bridge(QObject):
 
     model = Property(QObject, lambda self: self.table, constant=True)
     view = Property('QVariantMap', lambda self: self._view, notify=changed)
-    playlists = Property('QVariantList', lambda self: self._sidebar, notify=changed)
+    playlists = Property('QVariantList', lambda self: self._sidebar, notify=playlistsChanged)
     level = Property(str, lambda self: self._level, notify=changed)
     directoryModel = Property(QObject, lambda self: self._directories, constant=True)
     directoryRoots = Property('QVariantList', lambda self: self._roots, notify=rootsChanged)
     folder = Property('QVariantMap', lambda self: self._folder, notify=changed)
     # Ten position ticks a second must not re-evaluate every view binding, nor carry the waveform.
     audio = Property('QVariantMap', lambda self: self._audio, notify=audioChanged)
+    # The loaded track and whether it plays change rarely; table cells bind to these, not to every tick.
+    audioKey = Property(str, lambda self: self._audio.get('key', ''), notify=playingChanged)
+    playing = Property(bool, lambda self: bool(self._audio.get('playing')), notify=playingChanged)
     waveform = Property('QVariantList', lambda self: self._waveform, notify=waveformChanged)
+    waveformKey = Property(str, lambda self: self._waveform_key, notify=waveformChanged)
     # Artist, name, BPM and key of the loaded track; empty once another track loads.
     nowPlaying = Property('QVariantMap', lambda self: self._now_playing, notify=nowPlayingChanged)
     # Detected hits in queued audio: pulses as [track time, amplitude]
@@ -124,17 +130,23 @@ class Bridge(QObject):
             if values.get('local'):
                 self.table.store = ''
             self.table.replace(values['rows'])
-        elif kind == 'rows' and values['generation'] == self._view['generation']:
-            self.table.update_rows(values['rows'])
-        elif kind == 'progress' and values['generation'] == self._view['generation']:
-            self.table.update_progress(values['updates'])
+        elif kind == 'rows':
+            if values['generation'] == self._view['generation']:
+                self.table.update_rows(values['rows'])
+            return
+        elif kind == 'progress':
+            if values['generation'] == self._view['generation']:
+                self.table.update_progress(values['updates'])
+            return
         elif kind == 'sidebar':
             self._sidebar = values['items']
             self._pinned = values.get('pinned', [])
             self._refresh_roots()
+            self.playlistsChanged.emit()
         elif kind == 'folder':
             self._folder = values
         elif kind == 'audio':
+            before = (self._audio.get('key', ''), bool(self._audio.get('playing')))
             self._audio = values
             if values.get('key', '') != self._waveform_key:
                 self._set_waveform('', [])
@@ -144,6 +156,8 @@ class Bridge(QObject):
             if self._beats and values.get('key', '') != self._beats['key']:
                 self._beats = {}
                 self.beatsChanged.emit()
+            if before != (values.get('key', ''), bool(values.get('playing'))):
+                self.playingChanged.emit()
             self.audioChanged.emit()
             return
         elif kind == 'waveform':
@@ -154,8 +168,9 @@ class Bridge(QObject):
             self.importChanged.emit()
             return
         elif kind == 'beats':
-            self._beats = values
-            self.beatsChanged.emit()
+            if values != self._beats:
+                self._beats = values
+                self.beatsChanged.emit()
             return
         elif kind == 'nowPlaying':
             if values != self._now_playing:

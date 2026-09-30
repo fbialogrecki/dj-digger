@@ -27,6 +27,8 @@ from functools import lru_cache
 from queue import Empty, SimpleQueue
 from typing import Literal
 
+import numpy as np
+
 from .beats import KickDetector, PulseHistory
 from .models import Track
 from .services.playback import Stream
@@ -47,6 +49,14 @@ DOWNLOAD_CHUNK = 64 * 1024
 # could be anything. Both stream off the socket the way everything used to.
 MAX_BUFFER_BYTES = 50 * 1024 * 1024
 SOURCE_TIMEOUT = 30.0
+def scale_volume(chunk, volume: float) -> array.array:
+    """``int(sample * volume)`` for every sample, without a Python loop on the audio thread."""
+
+    scaled = array.array("h")
+    scaled.frombytes((np.frombuffer(chunk, dtype=np.int16) * volume).astype(np.int16).tobytes())
+    return scaled
+
+
 class PlaybackUnavailable(RuntimeError):
     """No audio output, or miniaudio is missing."""
 
@@ -508,13 +518,9 @@ class Player:
                 self._frames += (self._source.last_frames if hasattr(self._source, "last_frames") else len(chunk) // CHANNELS)
                 kicks.feed(chunk, start)
                 volume = self.volume
-                out = (
-                    chunk
-                    # >= 0.999 rather than == 1.0: a float comparison guard, and at
-                    # full volume the per-sample rescale loop is skipped entirely.
-                    if volume >= 0.999
-                    else array.array("h", [int(sample * volume) for sample in chunk])
-                )
+                # >= 0.999 rather than == 1.0: a float comparison guard, and at
+                # full volume the rescale is skipped entirely.
+                out = chunk if volume >= 0.999 else scale_volume(chunk, volume)
                 if faded < FADE_SAMPLES:
                     out = array.array("h", out)  # A copy: the decoder may still own ``chunk``.
                     count = min(len(out), FADE_SAMPLES - faded)

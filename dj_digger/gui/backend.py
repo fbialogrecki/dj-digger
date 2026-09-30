@@ -775,6 +775,7 @@ class Backend:
             self.prepared = prepared
 
     async def tick(self):
+        sent_beats = None
         while not self.closing:
             async with self.player_lock:
                 p = self.services.player
@@ -784,7 +785,11 @@ class Backend:
                 if snapshot['playing']:
                     # Detected hits in queued audio reach the window before the speakers.
                     pulses, period = p.beats()
-                    self.send('beats', dict(key=snapshot['key'], pulses=[list(pulse) for pulse in pulses], period=period))
+                    beats = dict(key=snapshot['key'], pulses=[list(pulse) for pulse in pulses], period=period)
+                    # Forty ticks a second; only new hits are worth crossing to the window.
+                    if beats != sent_beats:
+                        sent_beats = beats
+                        self.send('beats', beats)
                 event = p.take_event()
             if (snapshot['playing'] and snapshot['duration'] - snapshot['position'] < 15
                     and self.prepared is None and (self.prefetch_task is None or self.prefetch_task.done())

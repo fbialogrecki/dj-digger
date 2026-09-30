@@ -76,6 +76,12 @@
 
 ### Fixed
 
+- Starting a track no longer stutters. The player panel switches height at once
+  and fades its artwork and waveform in, instead of repainting every waveform
+  canvas on each frame of a resize; table cells no longer re-evaluate on every
+  25 ms audio tick; the `beats` event is sent only when the pulses change; the
+  volume rescale and the local-file waveform run in numpy instead of a Python
+  loop over every sample.
 - After a column was dragged to a new place, opening a playlist with more rows
   no longer closes the desktop app.
 - Seeking and changing tracks no longer replay audio queued from the old position,

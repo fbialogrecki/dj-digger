@@ -382,3 +382,32 @@ def test_the_review_warns_about_a_drive_the_decks_cannot_read(tmp_path, monkeypa
     assert replacing.notes == ('1 file sits more than 8 folders below the drive root, where decks do not show them.',)
     monkeypatch.setattr(export, 'destination_drive', lambda folder: (tmp_path, None))
     assert plan_export([deep], usb, decks=['CDJ-3000'], mode='replace').notes == ()
+
+
+def test_waveform_peaks_match_the_frame_by_frame_fold():
+    import array as array_module
+    import random
+
+    import numpy as np
+
+    from dj_digger.local_audio import _fold_peaks
+
+    rng = random.Random(1)
+    blocks = []
+    for size in (0, 7, 3001, 64):
+        samples = array_module.array('h', [rng.randint(-32768, 32767) for _ in range(size * 2)])
+        if size:
+            samples[0] = -32768
+        blocks.append(samples.tobytes())
+    expected, frame = [0] * 1024, 0
+    for block in blocks:
+        values = array_module.array('h')
+        values.frombytes(block)
+        for index in range(0, len(values), 2):
+            bucket = min(1023, frame // 3)
+            expected[bucket] = max(expected[bucket], abs(values[index]), abs(values[index + 1]))
+            frame += 1
+    peaks, frame = np.zeros(1024, dtype=np.int32), 0
+    for block in blocks:
+        frame = _fold_peaks(peaks, block, frame, 3)
+    assert peaks.tolist() == expected

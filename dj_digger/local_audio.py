@@ -3,6 +3,8 @@ import array
 import threading
 from pathlib import Path
 
+import numpy as np
+
 from .media import MediaError, pcm_blocks, probe
 from .services.playback import Prepared, Stream
 
@@ -174,6 +176,17 @@ def close_all():
         source.join()
 
 
+def _fold_peaks(peaks, block, frame, frames_per_bin):
+    """Fold one s16le stereo block into the per-bin peaks; returns the next frame number."""
+
+    # int32 before abs: -32768 has no positive int16.
+    samples = np.frombuffer(block, dtype='<i2', count=len(block) // 4 * 2).astype(np.int32)
+    loudest = np.abs(samples).reshape(-1, 2).max(axis=1, initial=0)
+    bins = np.minimum(1023, (frame + np.arange(len(loudest))) // frames_per_bin)
+    np.maximum.at(peaks, bins, loudest)
+    return frame + len(loudest)
+
+
 def waveform(path, cancel=None):
     """Independent low-resolution envelope; bounded cache, never a playback gate."""
     import hashlib
@@ -192,19 +205,12 @@ def waveform(path, cancel=None):
     except (OSError, ValueError):
         pass
     metadata = probe(path, cancel)
-    bins = [0] * 1024
     frames_per_bin = max(1, round(metadata['duration'] * 4000 / 1024))
+    peaks = np.zeros(1024, dtype=np.int32)
     frame = 0
     for block in pcm_blocks(path, rate=4000, channels=2, sample_format='s16le', cancel=cancel):
-        values = array.array('h')
-        values.frombytes(block)
-        import sys
-        if sys.byteorder != 'little':
-            values.byteswap()
-        for index in range(0, len(values), 2):
-            bucket = min(1023, frame // frames_per_bin)
-            bins[bucket] = max(bins[bucket], abs(values[index]), abs(values[index + 1]))
-            frame += 1
+        frame = _fold_peaks(peaks, block, frame, frames_per_bin)
+    bins = peaks.tolist()
     if signature(path) != before:
         return []
     root.mkdir(parents=True, exist_ok=True)

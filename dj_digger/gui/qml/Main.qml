@@ -47,7 +47,7 @@ ApplicationWindow {
         function onStatusFlashed(keys) { if (root.motion) { root.flashKeys = keys; flashTimer.restart() } }
     }
     // Normal colours remain visible at rest; only detected bass attacks add saturation.
-    readonly property bool live: !!desktop.audio.playing
+    readonly property bool live: desktop.playing
     // PCM has already entered the output queue. The offset compensates for the
     // speaker buffer, independently of detection (View → Pulse timing).
     property int pulseOffset: 70
@@ -60,7 +60,19 @@ ApplicationWindow {
     property real peakAt: 0
     property real peakFrom: 0
     readonly property real glow: flash
-    readonly property real release: Math.max(90, Math.min(180, 300 * (desktop.beats.period || .5)))
+    // Pulses are copied once per change; the frame loop reads these, not the Python property.
+    property string beatKey: ""
+    property var beatPulses: []
+    property real beatPeriod: .5
+    Connections {
+        target: desktop
+        function onBeatsChanged() {
+            root.beatKey = desktop.beats.key || ""
+            root.beatPulses = desktop.beats.pulses || []
+            root.beatPeriod = desktop.beats.period || .5
+        }
+    }
+    readonly property real release: Math.max(90, Math.min(180, 300 * beatPeriod))
     readonly property bool pulsing: live && motion
     property real audioClock: -1
     property real clockAt: 0
@@ -81,7 +93,7 @@ ApplicationWindow {
     }
     function syncClock(position, now) {
         let predicted = audioClock + (now - clockAt) / 1000
-        let key = desktop.audio.key || ""
+        let key = desktop.audioKey
         if (audioClock < 0 || key !== clockKey || Math.abs(position - predicted) > .15) {
             audioClock = position
             // Include the first queued attack, even when it arrived just before
@@ -101,8 +113,8 @@ ApplicationWindow {
         if (!pulsing || audioClock < 0) return
         let heard = Math.min(lastPosition, audioClock + (now - clockAt) / 1000 - pulseOffset / 1000)
         playhead = Math.max(0, heard)
-        if (desktop.beats.key !== clockKey) return
-        let pulses = desktop.beats.pulses || [], due = -1
+        if (beatKey !== clockKey) return
+        let pulses = beatPulses, due = -1
         for (let i = 0; i < pulses.length; i++)
             if (pulses[i][0] <= heard && pulses[i][0] > lastFired + .001) due = i
         if (due >= 0) {
@@ -110,7 +122,7 @@ ApplicationWindow {
             if (heard - lastFired <= .1) {
                 let amplitude = pulses[due][1]
                 // A hit within half a beat of the last one shown is the roll, not the kick.
-                if (lastShown >= 0 && lastFired - lastShown < .5 * (desktop.beats.period || .5)) amplitude *= .6
+                if (lastShown >= 0 && lastFired - lastShown < .5 * beatPeriod) amplitude *= .6
                 lastShown = lastFired
                 if (peak > 0 && now - peakAt < 100) peak = Math.max(peak, amplitude)
                 else { peakFrom = flash; peak = Math.max(amplitude, flash); peakAt = now }
@@ -136,7 +148,7 @@ ApplicationWindow {
     property var pendingQuestions: []
     property var messages: []
     property string errorMessage: ""
-    readonly property bool pauseTarget: !!desktop.audio.playing && (!hasSelection || desktop.model.firstSelectedKey === desktop.audio.key)
+    readonly property bool pauseTarget: desktop.playing && (!hasSelection || desktop.model.firstSelectedKey === desktop.audioKey)
     readonly property var defaultColumnWidths: [85, 150, 280, 85, 64, 64, 50, 95, 50, 140]
     property var columnWidths: defaultColumnWidths.slice()
     property var hiddenColumns: []
@@ -572,11 +584,14 @@ ApplicationWindow {
     }
     // One layer of waveform bars; the played layer is the same painting clipped to the progress.
     component WaveformBars: Canvas {
+        id: bars
         property bool played: false
         property bool glow: false
         onPaint: waveform.paintBars(getContext("2d"), width, height, played, glow)
-        onWidthChanged: requestPaint()
-        onHeightChanged: requestPaint()
+        // A resize repaints once it settles; a window or sidebar drag would otherwise paint every frame.
+        Timer { id: settle; interval: 50; onTriggered: bars.requestPaint() }
+        onWidthChanged: settle.restart()
+        onHeightChanged: settle.restart()
         onVisibleChanged: requestPaint()
         Connections { target: waveform; function onLevelsChanged() { requestPaint() } }
         Connections { target: root; function onDarkChanged() { requestPaint() } }
@@ -881,18 +896,21 @@ ApplicationWindow {
                 SplitView.fillWidth: true; SplitView.minimumWidth: 0
             Rectangle {
                 id: player
+                // The height switches at once: growing it frame by frame resized the cover and every
+                // waveform canvas on each frame. The artwork and waveform fade in instead.
                 Layout.fillWidth: true; Layout.preferredHeight: root.loaded ? 184 : 52
-                Behavior on Layout.preferredHeight { enabled: root.motion; NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
                 color: root.panel; radius: 6
                 RowLayout {
                     anchors.fill: parent; anchors.margins: 10; spacing: 12
                     Cover {
                         objectName: "cover"
                         // Transport controls come first; the artwork only takes room the panel can spare.
-                        visible: root.loaded && player.width >= 640
+                        opacity: root.loaded ? 1 : 0
+                        Behavior on opacity { enabled: root.motion; NumberAnimation { duration: 180 } }
+                        visible: root.loaded && opacity > 0 && player.width >= 640
                         Layout.fillHeight: true; Layout.preferredWidth: height
-                        seed: desktop.audio.key || ""
-                        spinning: !!desktop.audio.playing
+                        seed: desktop.audioKey
+                        spinning: desktop.playing
                     }
                 ColumnLayout {
                     Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumWidth: 0; spacing: 6
@@ -921,12 +939,16 @@ ApplicationWindow {
                     }
                     Item {
                         id: waveform; objectName: "waveform"
-                        visible: root.loaded
+                        opacity: root.loaded ? 1 : 0
+                        Behavior on opacity { enabled: root.motion; NumberAnimation { duration: 180 } }
+                        visible: root.loaded && opacity > 0
                         Layout.fillWidth: true; Layout.fillHeight: true
                         property var samples: desktop.waveform
                         property real position: desktop.audio.position || 0
                         readonly property real duration: desktop.audio.duration || 0
-                        property var levels: desktop.waveformLevels(samples, Math.max(1, Math.floor(width / 3)))
+                        // Recomputed when the bar count changes, not on every pixel of a resize.
+                        readonly property int columns: Math.max(1, Math.floor(width / 3))
+                        property var levels: desktop.waveformLevels(samples, columns)
                         // The bars are painted once per waveform; progress only moves a clip edge and the cursor, so
                         // position ticks and a drag cost no repaint. While scrubbing, the pointer's time
                         // shows; after release the target shows until the backend confirms it (or 1.5 s pass).
@@ -939,7 +961,12 @@ ApplicationWindow {
                         // A new waveform rises from the bottom.
                         transform: Scale { id: waveformGrowth; origin.y: waveform.height }
                         NumberAnimation { id: waveformRise; target: waveformGrowth; property: "yScale"; from: 0; to: 1; duration: 450; easing.type: Easing.OutCubic }
-                        onSamplesChanged: if (root.motion && samples.length) waveformRise.restart()
+                        // Only a new track's waveform rises; the old → empty → new handover must not replay it.
+                        property string risen: ""
+                        onSamplesChanged: if (root.motion && samples.length && desktop.waveformKey !== risen) {
+                            risen = desktop.waveformKey
+                            waveformRise.restart()
+                        }
                         Timer { id: pendingTimer; interval: 1500; onTriggered: waveform.pending = -1 }
                         function paintBars(ctx, width, height, played, glow) {
                             ctx.reset()
@@ -1193,7 +1220,7 @@ ApplicationWindow {
                         required property string camelot
                         required property int row
                         required property int column
-                        readonly property bool playing: desktop.audio.key === trackKey
+                        readonly property bool playing: desktop.audioKey === trackKey
                         implicitHeight: 34; implicitWidth: 100
                         color: chosen ? root.selection : (row % 2 ? root.panel : root.bg)
                         // Only the hover layer fades; theme and selection colours switch at once.
