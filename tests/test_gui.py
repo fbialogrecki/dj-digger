@@ -1388,3 +1388,18 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
         assert not warnings
     finally:
         shiboken6.delete(engine)
+
+
+def test_reviewed_cart_validates_editable_prices():
+    from decimal import Decimal
+
+    from dj_digger.cart_models import CartItem, CartPlan
+    from dj_digger.gui.backend import reviewed_cart
+    item = CartItem('1', 'A - B', 'bandcamp', 's', 'p', 'id', 'B', Decimal('1'), 'EUR',
+                    minimum_price=Decimal('1'), price_step=Decimal('0.5'), price_editable=True)
+    plan = CartPlan((item, item))
+    reviewed = reviewed_cart(plan, {'select_0': True, 'price_0': '2.5', 'select_1': False})
+    assert [i.price for i in reviewed.items] == [Decimal('2.5')]
+    for price, error in (('0.5', 'Invalid price'), ('1.2', 'Invalid price step'), ('abc', 'Invalid price')):
+        with pytest.raises(ValueError, match=f'^{error}$'):
+            reviewed_cart(plan, {'select_0': True, 'price_0': price, 'select_1': False})

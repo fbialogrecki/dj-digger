@@ -600,6 +600,73 @@ def _on_hot_or_not(page: Any) -> bool:
     return is_hypeddit_url(url) and urllib.parse.urlsplit(url).path.startswith("/hot-or-not/")
 
 
+_TAB_CLOSED = "browser tab closed before the download finished"
+
+
+def _drive_tabs(
+    context: Any,
+    pages: list[tuple[str, Any]],
+    watch: _TabWatch,
+    status: StatusCallback | None,
+    *,
+    social: bool,
+    email: str | None,
+    name: str | None,
+    attended: bool,
+) -> bool:
+    """Round-robin every unsettled tab's driver until each is done. True if cancelled."""
+
+    # Playwright stays on its owning thread. Suspended drivers retain their
+    # current step and popup so round-robin polling never repeats a Connect.
+    drivers = {key: _drive_tab(context, key, page, watch, status, social=social,
+                              email=email, name=name, attended=attended)
+               for key, page in pages if not watch.settled(key)}
+    while drivers:
+        for key, driver in list(drivers.items()):
+            if is_cancelled(watch.cancel):
+                return True
+            if watch.settled(key):
+                del drivers[key]
+                continue
+            try:
+                next(driver)
+            except StopIteration as finished:
+                del drivers[key]
+                if finished.value:
+                    return True
+    return False
+
+
+def _settle_wait(context: Any, watch: _TabWatch, time_limit: float | None) -> str | None:
+    """Wait for every row to settle; why the rest failed, or None if cancelled."""
+
+    deadline = None if time_limit is None else _now() + time_limit
+    while not watch.done():
+        if is_cancelled(watch.cancel):
+            return None
+        if deadline is not None and _now() >= deadline:
+            return "the browser download did not finish in time"
+        try:
+            open_pages = watch.open_tabs(context)
+        except Exception:
+            break
+        open_keys = {watch._owners[id(page)] for page in open_pages}
+        for key in watch.pending:
+            if not watch.settled(key) and key not in open_keys:
+                watch.failures[key] = GateManualActionRequired(_TAB_CLOSED)
+        if not open_pages or watch.done():
+            break
+        try:
+            open_pages[0].wait_for_timeout(250)
+        except Exception:
+            # A closed tab rejects its wait even while other gates remain open.
+            # Recheck ownership so a surviving popup can still finish its track.
+            if _page_closed(open_pages[0]):
+                continue
+            break
+    return _TAB_CLOSED
+
+
 def _await_downloads(
     context: Any,
     pages: list[tuple[str, Any]],
@@ -620,66 +687,14 @@ def _await_downloads(
     runs out.
     """
 
-    cancel = watch.cancel
-    cancelled = False
-    closed_reason = "browser tab closed before the download finished"
-    # Playwright stays on its owning thread. Suspended drivers retain their
-    # current step and popup so round-robin polling never repeats a Connect.
-    drivers = {key: _drive_tab(context, key, page, watch, status, social=social,
-                              email=email, name=name, attended=attended)
-               for key, page in pages if not watch.settled(key)}
-    while drivers and not cancelled:
-        for key, driver in list(drivers.items()):
-            if is_cancelled(cancel):
-                cancelled = True
-                break
-            if watch.settled(key):
-                del drivers[key]
-                continue
-            try:
-                next(driver)
-            except StopIteration as finished:
-                del drivers[key]
-                if finished.value:
-                    cancelled = True
-                    break
-
-    deadline = None if time_limit is None else _now() + time_limit
-    timed_out = False
-    while not cancelled and not watch.done():
-        if is_cancelled(cancel):
-            cancelled = True
-            break
-        if deadline is not None and _now() >= deadline:
-            timed_out = True
-            break
-        try:
-            open_pages = watch.open_tabs(context)
-        except Exception:
-            break
-        open_keys = {watch._owners[id(page)] for page in open_pages}
-        for key in watch.pending:
-            if not watch.settled(key) and key not in open_keys:
-                watch.failures[key] = GateManualActionRequired(closed_reason)
-        if not open_pages or watch.done():
-            break
-        try:
-            open_pages[0].wait_for_timeout(250)
-        except Exception:
-            # A closed tab rejects its wait even while other gates remain open.
-            # Recheck ownership so a surviving popup can still finish its track.
-            if _page_closed(open_pages[0]):
-                continue
-            break
-
-    if cancelled:
+    if _drive_tabs(context, pages, watch, status, social=social, email=email,
+                   name=name, attended=attended):
         return True
-    elif timed_out:
-        reason = "the browser download did not finish in time"
-    else:
-        reason = closed_reason
+    reason = _settle_wait(context, watch, time_limit)
+    if reason is None:
+        return True
     watch.fail_unsettled(reason)
-    return cancelled
+    return False
 
 
 def _browser_pass(

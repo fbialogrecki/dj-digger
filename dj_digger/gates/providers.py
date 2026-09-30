@@ -209,6 +209,65 @@ def _page_links(
     return shops, nested
 
 
+_GATE_DATA_RE = re.compile(r"var\s+jsonGateData\s*=\s*({.*?});", re.DOTALL)
+_ADDITIONAL_FIELD_RE = re.compile(
+    r"additional_[a-z0-9_]+_(?:user_id|type_array)\[\]", re.IGNORECASE
+)
+_ADDITIONAL_USER_ID_RE = re.compile(r"additional_([a-z0-9_]+)_user_id\[\]", re.IGNORECASE)
+
+
+def _parse_steps(
+    fields: dict[str, tuple[str, ...]], raw_steps: str
+) -> tuple[tuple[str, ...], tuple[tuple[str, ...], ...]]:
+    """The required steps, and the groups of alternatives the page lets us pick from."""
+
+    steps = tuple(step.strip().lower() for step in raw_steps.split(",") if step.strip())
+    step_groups = tuple(
+        group
+        for group in (
+            tuple(step.strip().lower() for step in raw.split("|") if step.strip())
+            for raw in _first(fields, "steps_select").split(",")
+        )
+        if group
+    )
+    return steps, step_groups
+
+
+def _csrf_and_external_id(text: str, soup: BeautifulSoup) -> tuple[str, str]:
+    csrf_tag = soup.find("meta", attrs={"name": "csrf-token"})
+    csrf = str(csrf_tag.get("content") or "") if csrf_tag else ""
+    external_id = ""
+    gate_data = _GATE_DATA_RE.search(text)
+    if gate_data:
+        try:
+            parsed = json.loads(gate_data.group(1))
+            if isinstance(parsed, dict):
+                external_id = str(parsed.get("externID") or "")
+        except ValueError:
+            pass
+    return csrf, external_id
+
+
+def _additional_fields(
+    fields: dict[str, tuple[str, ...]], soup: BeautifulSoup
+) -> dict[str, tuple[str, ...]]:
+    """The additional_* profile fields, with each user id's profile type filled in."""
+
+    additional: dict[str, tuple[str, ...]] = {
+        name: values
+        for name, values in fields.items()
+        if _ADDITIONAL_FIELD_RE.fullmatch(name)
+    }
+    for tag in soup.find_all("input"):
+        name = str(tag.get("name") or "")
+        match = _ADDITIONAL_USER_ID_RE.fullmatch(name)
+        profile_type = str(tag.get("data-profile_type") or "")
+        if match and profile_type:
+            key = f"additional_{match.group(1)}_type_array[]"
+            additional[key] = (*additional.get(key, ()), profile_type)
+    return additional
+
+
 def _parse_manifest(text: str, soup: BeautifulSoup) -> HypedditManifest | None:
     """The desktop download form's short-lived fields, when the page has one."""
 
@@ -222,49 +281,11 @@ def _parse_manifest(text: str, soup: BeautifulSoup) -> HypedditManifest | None:
     if not raw_steps and not download_file_id:
         return None
 
-    steps = tuple(step.strip().lower() for step in raw_steps.split(",") if step.strip())
-    step_groups = tuple(
-        group
-        for group in (
-            tuple(step.strip().lower() for step in raw.split("|") if step.strip())
-            for raw in _first(fields, "steps_select").split(",")
-        )
-        if group
-    )
-
-    csrf_tag = soup.find("meta", attrs={"name": "csrf-token"})
-    csrf = str(csrf_tag.get("content") or "") if csrf_tag else ""
-    external_id = ""
-    gate_data = re.search(r"var\s+jsonGateData\s*=\s*({.*?});", text, re.DOTALL)
-    if gate_data:
-        try:
-            parsed = json.loads(gate_data.group(1))
-            if isinstance(parsed, dict):
-                external_id = str(parsed.get("externID") or "")
-        except ValueError:
-            pass
-
+    steps, step_groups = _parse_steps(fields, raw_steps)
+    csrf, external_id = _csrf_and_external_id(text, soup)
     script = soup.find("script", id="gate_ul_preview_js")
     hypesource = str(script.get("data-hypesource") or "") if script else ""
     adcode = str(script.get("data-adcode") or "") if script else ""
-    additional: dict[str, tuple[str, ...]] = {
-        name: values
-        for name, values in fields.items()
-        if re.fullmatch(
-            r"additional_[a-z0-9_]+_(?:user_id|type_array)\[\]", name,
-            re.IGNORECASE,
-        )
-    }
-    for tag in soup.find_all("input"):
-        name = str(tag.get("name") or "")
-        match = re.fullmatch(
-            r"additional_([a-z0-9_]+)_user_id\[\]", name,
-            re.IGNORECASE,
-        )
-        profile_type = str(tag.get("data-profile_type") or "")
-        if match and profile_type:
-            key = f"additional_{match.group(1)}_type_array[]"
-            additional[key] = (*additional.get(key, ()), profile_type)
     return HypedditManifest(
         csrf=csrf,
         file_id=(
@@ -277,7 +298,7 @@ def _parse_manifest(text: str, soup: BeautifulSoup) -> HypedditManifest | None:
         wrndk=_first(fields, "wrndk"),
         external_id=external_id,
         steps=steps,
-        fields=additional,
+        fields=_additional_fields(fields, soup),
         step_groups=step_groups,
         sc_comment_required=_first(fields, "comment_sc") == "1",
         yt_comment_required=_first(fields, "comment_yt") == "1",

@@ -106,6 +106,29 @@ def _preflight_failure(
     return CartResult(request.track.key, label, store, status, str(exc), code, shown_url)
 
 
+def _execution_failure(
+    store: str, item: CartItem, exc: Exception, clicked: bool
+) -> CartResult:
+    """The result for an item whose cart step raised: once clicked, its state is uncertain."""
+
+    if isinstance(exc, CartCancelled):
+        if clicked:
+            return _failed(item, "cart state is uncertain", "cart_unverified")
+        return _cancelled_result(item)
+    if isinstance(exc, UnsafeRedirect):
+        return _failed(item, str(exc), "unsafe_redirect")
+    if isinstance(exc, AutomationError):
+        return _failed(item, str(exc), "cart_unverified" if clicked else "store_structure")
+    LOGGER.error(
+        "Unexpected cart execution error: store=%s track=%r error=%s",
+        store,
+        item.track_label,
+        type(exc).__name__,
+    )
+    code = "cart_unverified" if clicked else "browser_failure"
+    return _failed(item, "unexpected store interaction failure", code)
+
+
 class _StructureFailures:
     """Stores whose pages keep losing their shape.
 
@@ -204,6 +227,28 @@ def _merge_manual(
     return [
         result for result in results if (result.track_key, result.store) not in settled_keys
     ] + settled
+
+
+def _playlist_results(by_store: dict[str, list[CartItem]]) -> list[CartResult]:
+    """Approved Beatport items leave the cart work and become playlist entries."""
+
+    if "beatport" not in by_store:
+        return []
+    playlist_items = [
+        CartResult(
+            item.track_key,
+            item.track_label,
+            "beatport",
+            "playlist_ready",
+            "ready for Beatport playlist transfer",
+            "playlist_ready",
+            item.product_url,
+        )
+        for item in by_store.pop("beatport")
+    ]
+    for result in playlist_items:
+        bandcamp._log_cart_result("playlist", result)
+    return playlist_items
 
 
 def _log_batch_summary(outcome: CartBatchOutcome) -> None:
@@ -544,6 +589,55 @@ class CartBrowserSession:
             tuple(outcome for outcome in outcomes if isinstance(outcome, CartResult)),
         )
 
+    async def _execute_item(
+        self, store: str, item: CartItem, page: Any, cancel: asyncio.Event
+    ) -> tuple[CartResult, int]:
+        """Revalidate, check the cart, click and verify one item.
+
+        Returns its result and how many of its clicks went unverified.
+        """
+
+        clicked = False
+        unverified = 0
+        try:
+            current = await bandcamp._revalidated(
+                page, item, cancel, "product identity or price changed after preflight"
+            )
+            if isinstance(current, CartResult):
+                return current, unverified
+            if await bandcamp._cart_contains_async(page, current, cancel):
+                return CartResult(item.track_key, item.track_label, store, "already_in_cart"), unverified
+            ready = await bandcamp._revalidated(
+                page, item, cancel, "product identity or price changed after cart inspection"
+            )
+            if isinstance(ready, CartResult):
+                return ready, unverified
+            count_before = (
+                await bandcamp._bandcamp_cart_count_async(page) if store == "bandcamp" else None
+            )
+            await bandcamp._add_to_cart_async(page, ready, cancel)
+            clicked = True
+            outcome = await asyncio.wait_for(
+                bandcamp._verify_bandcamp_click_async(page, ready, count_before),
+                timeout=VERIFY_BUDGET_SECONDS,
+            )
+            if outcome.verified:
+                return CartResult(item.track_key, item.track_label, store, "added"), unverified
+            unverified += 1
+            await bandcamp.save_cart_diagnostics(page, store, item.product_url, "cart_unverified")
+            return _failed(
+                item,
+                f"cart click was not verified (gave up at the {outcome.stage} "
+                f"stage after {outcome.elapsed:.0f}s); it was not retried",
+                "cart_unverified",
+            ), unverified
+        except CartUnverified as exc:
+            unverified += 1
+            await bandcamp.save_cart_diagnostics(page, store, item.product_url, "cart_unverified")
+            return _failed(item, str(exc), "cart_unverified"), unverified
+        except Exception as exc:
+            return _execution_failure(store, item, exc, clicked), unverified
+
     async def _execute_store(
         self,
         store: str,
@@ -556,29 +650,6 @@ class CartBrowserSession:
     ) -> list[CartResult]:
         results: list[CartResult] = []
         unverified = 0
-        clicked = False
-
-        async def _click_and_verify(
-            item: CartItem, ready: CartItem, count_before: int | None
-        ) -> CartResult:
-            nonlocal clicked, unverified
-            await bandcamp._add_to_cart_async(page, ready, cancel)
-            clicked = True
-            outcome = await asyncio.wait_for(
-                bandcamp._verify_bandcamp_click_async(page, ready, count_before),
-                timeout=VERIFY_BUDGET_SECONDS,
-            )
-            if outcome.verified:
-                return CartResult(item.track_key, item.track_label, store, "added")
-            unverified += 1
-            await bandcamp.save_cart_diagnostics(page, store, item.product_url, "cart_unverified")
-            return _failed(
-                item,
-                f"cart click was not verified (gave up at the {outcome.stage} "
-                f"stage after {outcome.elapsed:.0f}s); it was not retried",
-                "cart_unverified",
-            )
-
         for index, item in enumerate(items):
             if cancel.is_set():
                 results.extend(
@@ -597,52 +668,10 @@ class CartBrowserSession:
                     for pending in items[index:]
                 )
                 break
-            clicked = False
             try:
-                current = await bandcamp._revalidated(
-                    page, item, cancel, "product identity or price changed after preflight"
-                )
-                if isinstance(current, CartResult):
-                    results.append(current)
-                    continue
-                if await bandcamp._cart_contains_async(page, current, cancel):
-                    results.append(
-                        CartResult(item.track_key, item.track_label, store, "already_in_cart")
-                    )
-                    continue
-                ready = await bandcamp._revalidated(
-                    page, item, cancel, "product identity or price changed after cart inspection"
-                )
-                if isinstance(ready, CartResult):
-                    results.append(ready)
-                    continue
-                count_before = (
-                    await bandcamp._bandcamp_cart_count_async(page) if store == "bandcamp" else None
-                )
-                results.append(await _click_and_verify(item, ready, count_before))
-            except CartUnverified as exc:
-                unverified += 1
-                await bandcamp.save_cart_diagnostics(page, store, item.product_url, "cart_unverified")
-                results.append(_failed(item, str(exc), "cart_unverified"))
-            except CartCancelled:
-                if clicked:
-                    results.append(_failed(item, "cart state is uncertain", "cart_unverified"))
-                else:
-                    results.append(_cancelled_result(item))
-            except UnsafeRedirect as exc:
-                results.append(_failed(item, str(exc), "unsafe_redirect"))
-            except AutomationError as exc:
-                code = "cart_unverified" if clicked else "store_structure"
-                results.append(_failed(item, str(exc), code))
-            except Exception as exc:
-                LOGGER.error(
-                    "Unexpected cart execution error: store=%s track=%r error=%s",
-                    store,
-                    item.track_label,
-                    type(exc).__name__,
-                )
-                code = "cart_unverified" if clicked else "browser_failure"
-                results.append(_failed(item, "unexpected store interaction failure", code))
+                result, missed = await self._execute_item(store, item, page, cancel)
+                unverified += missed
+                results.append(result)
             finally:
                 if results and results[-1].track_key == item.track_key:
                     bandcamp._log_cart_result("execution", results[-1])
@@ -738,6 +767,93 @@ class CartBrowserSession:
             opened.append(store)
         return tuple(opened), tuple(warnings)
 
+    async def _preflight_batch(
+        self,
+        direct_results: list[CartResult],
+        pending_requests: list[CartRequest],
+        pages: list[Any],
+        cancel: asyncio.Event,
+        progress: ProgressCallback | None,
+    ) -> CartPlan | CartBatchOutcome:
+        """The plan to approve, or the outcome when the batch ends at preflight."""
+
+        try:
+            plan = await self._preflight(
+                tuple(pending_requests), pages, cancel, progress
+            )
+        except UserActionTimeout as exc:
+            return CartBatchOutcome(
+                tuple(direct_results) + tuple(
+                    _request_failed(
+                        request, request.links[0][0] if request.links else "", str(exc), "user_action_timeout"
+                    )
+                    for request in pending_requests
+                )
+            )
+        plan = CartPlan(plan.items, tuple(direct_results) + plan.results)
+        if cancel.is_set():
+            cancelled = tuple(_cancelled_result(item) for item in plan.items)
+            return CartBatchOutcome(plan.results + cancelled, cancelled=True)
+        if not plan.items:
+            LOGGER.info(
+                "Cart batch stopped after preflight: ready=0 results=%d",
+                len(plan.results),
+            )
+            return CartBatchOutcome(plan.results)
+        LOGGER.info(
+            "Cart preflight completed: ready=%d results=%d",
+            len(plan.items),
+            len(plan.results),
+        )
+        return plan
+
+    async def _execute_approved(
+        self,
+        approved: CartPlan,
+        pages: list[Any],
+        cancel: asyncio.Event,
+        progress: ProgressCallback | None,
+        manual: ManualCallback | None,
+    ) -> CartBatchOutcome:
+        """Add the approved items, hand the uncertain ones over, then show the carts."""
+
+        by_store: dict[str, list[CartItem]] = defaultdict(list)
+        for item in approved.items:
+            by_store[item.store].append(item)
+        # Pages are assigned before Beatport leaves by_store, so the order counts.
+        store_pages = {
+            store: pages[index]
+            for index, store in enumerate(by_store)
+        }
+        progress_state = [0]
+        all_results = list(approved.results)
+        all_results.extend(_playlist_results(by_store))
+        tasks = [
+            self._execute_store(
+                store,
+                items,
+                store_pages[store],
+                cancel,
+                progress,
+                progress_state,
+                len(approved.items),
+            )
+            for store, items in by_store.items()
+        ]
+        for store_results in await asyncio.gather(*tasks):
+            all_results.extend(store_results)
+        successful, uncertain = _partition_outcomes(approved, all_results)
+        if uncertain and manual is not None and not cancel.is_set():
+            settled = await self._finish_manually(uncertain, manual, cancel, progress)
+            all_results = _merge_manual(all_results, settled, successful, uncertain)
+        opened, warnings = await self._open_final_carts(successful, uncertain)
+        all_results.extend(warnings)
+        bandcamp._emit_progress(progress, CartProgress("ready", len(approved.items), len(approved.items)))
+        candidates = tuple(item for items in uncertain.values() for item in items)
+        outcome = CartBatchOutcome(tuple(all_results), opened, cancel.is_set(), candidates)
+        _log_batch_summary(outcome)
+        return outcome
+
     async def run_batch(
         self,
         requests: Iterable[CartRequest],
@@ -759,91 +875,18 @@ class CartBrowserSession:
                 )
                 return CartBatchOutcome(tuple(direct_results))
             pages = await self._work_pages(2)
-            try:
-                plan = await self._preflight(
-                    tuple(pending_requests), pages, cancel, progress
-                )
-            except UserActionTimeout as exc:
-                return CartBatchOutcome(
-                    tuple(direct_results) + tuple(
-                        _request_failed(
-                            request, request.links[0][0] if request.links else "", str(exc), "user_action_timeout"
-                        )
-                        for request in pending_requests
-                    )
-                )
-            plan = CartPlan(plan.items, tuple(direct_results) + plan.results)
-            if cancel.is_set():
-                cancelled = tuple(_cancelled_result(item) for item in plan.items)
-                return CartBatchOutcome(plan.results + cancelled, cancelled=True)
-            if not plan.items:
-                LOGGER.info(
-                    "Cart batch stopped after preflight: ready=0 results=%d",
-                    len(plan.results),
-                )
-                return CartBatchOutcome(plan.results)
-            LOGGER.info(
-                "Cart preflight completed: ready=%d results=%d",
-                len(plan.items),
-                len(plan.results),
+            plan = await self._preflight_batch(
+                direct_results, pending_requests, pages, cancel, progress
             )
+            if isinstance(plan, CartBatchOutcome):
+                return plan
             bandcamp._emit_progress(progress, CartProgress("approval", 0, len(plan.items)))
             approved = await approve(plan)
             if approved is None or cancel.is_set():
                 LOGGER.info("Cart batch approval cancelled")
                 return CartBatchOutcome(plan.results, cancelled=True)
             LOGGER.info("Cart plan approved: items=%d", len(approved.items))
-
-            by_store: dict[str, list[CartItem]] = defaultdict(list)
-            for item in approved.items:
-                by_store[item.store].append(item)
-            store_pages = {
-                store: pages[index]
-                for index, store in enumerate(by_store)
-            }
-            progress_state = [0]
-            all_results = list(approved.results)
-            if "beatport" in by_store:
-                playlist_items = [
-                    CartResult(
-                        item.track_key,
-                        item.track_label,
-                        "beatport",
-                        "playlist_ready",
-                        "ready for Beatport playlist transfer",
-                        "playlist_ready",
-                        item.product_url,
-                    )
-                    for item in by_store.pop("beatport")
-                ]
-                all_results.extend(playlist_items)
-                for result in playlist_items:
-                    bandcamp._log_cart_result("playlist", result)
-            tasks = [
-                self._execute_store(
-                    store,
-                    items,
-                    store_pages[store],
-                    cancel,
-                    progress,
-                    progress_state,
-                    len(approved.items),
-                )
-                for store, items in by_store.items()
-            ]
-            for store_results in await asyncio.gather(*tasks):
-                all_results.extend(store_results)
-            successful, uncertain = _partition_outcomes(approved, all_results)
-            if uncertain and manual is not None and not cancel.is_set():
-                settled = await self._finish_manually(uncertain, manual, cancel, progress)
-                all_results = _merge_manual(all_results, settled, successful, uncertain)
-            opened, warnings = await self._open_final_carts(successful, uncertain)
-            all_results.extend(warnings)
-            bandcamp._emit_progress(progress, CartProgress("ready", len(approved.items), len(approved.items)))
-            candidates = tuple(item for items in uncertain.values() for item in items)
-            outcome = CartBatchOutcome(tuple(all_results), opened, cancel.is_set(), candidates)
-            _log_batch_summary(outcome)
-            return outcome
+            return await self._execute_approved(approved, pages, cancel, progress, manual)
 
     async def _stage_manual_page(self, context: Any, item: CartItem) -> Any:
         """A visible tab on the product, Buy control expanded and the price filled in."""

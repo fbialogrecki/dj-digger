@@ -4,14 +4,16 @@ import logging
 import stat
 import threading
 import time
+from contextlib import asynccontextmanager
 from copy import deepcopy
 from dataclasses import replace
+from decimal import Decimal
 from pathlib import Path
 from uuid import uuid4
 
 from .. import links
 from ..analysis import key_names
-from ..cart_models import CartCancelled
+from ..cart_models import CartCancelled, CartPlan
 from ..diagnostics import log_safe_text
 from ..models import GOT, NEW, SKIP, Cancelled, Crate, check_cancelled, is_cancelled
 from ..paths import playlist_download_directory
@@ -387,7 +389,7 @@ class Backend:
             await self.job('Open links', work)
 
     async def action_download(self, values):
-        from ..services.downloads import DownloadRequest, DownloadWorkflow, find_gate_url
+        from ..services.downloads import DownloadRequest, DownloadWorkflow
         rows = self.targets(values)
         if not rows:
             return
@@ -408,8 +410,32 @@ class Backend:
                     check_cancelled(handle.cancel)
                     return profile + auth
                 return asyncio.run_coroutine_threadsafe(configure(), self.loop).result()
-            pending = {}
-            pending_lock = threading.Lock()
+            put, flushing = self.progress_batch(values)
+            def emit(event):
+                if event.kind == 'progress':
+                    put(event.key, event.progress)
+                elif event.kind in {'failed', 'unrecorded'}:
+                    self.send('message', {'text': event.message})
+            workflow = DownloadWorkflow(self.services.downloads, request, handle,
+                                        client=lambda: self.services.client, config=self.services.config,
+                                        emit=emit, prerequisites=prerequisites)
+            remote = await self.settle_local(rows, request.directory, handle.cancel)
+            async with flushing():
+                if remote:
+                    await self.io(workflow.run_batch, remote)
+            await self.refresh_rows()
+        self.services.client
+        await self.job('Downloading', work)
+
+    def progress_batch(self, values):
+        """Download threads `put` progress; inside `flushing()` the loop sends it every 100 ms."""
+        pending = {}
+        pending_lock = threading.Lock()
+        def put(key, progress):
+            with pending_lock:
+                pending[key] = progress
+        @asynccontextmanager
+        async def flushing():
             settled = asyncio.Event()
             async def flush():
                 while not settled.is_set():
@@ -419,34 +445,27 @@ class Backend:
                     if updates:
                         self.send('progress', {'generation': values['generation'], 'updates': updates})
                     await asyncio.sleep(.1)
-            def emit(event):
-                if event.kind == 'progress':
-                    with pending_lock:
-                        pending[event.key] = event.progress
-                elif event.kind in {'failed', 'unrecorded'}:
-                    self.send('message', {'text': event.message})
-            workflow = DownloadWorkflow(self.services.downloads, request, handle,
-                                        client=lambda: self.services.client, config=self.services.config,
-                                        emit=emit, prerequisites=prerequisites)
-            remote = []
-            for row in rows:
-                if row.track.local_path:
-                    if await self.io(self.services.library.needs_copy, row.track.local_path, request.directory):
-                        await self.io(self.services.downloads.copy, row.track.key, Path(row.track.local_path), request.directory, handle.cancel)
-                    else:
-                        await self.io(self.services.library.mark_existing, row.track)
-                else:
-                    remote.append((row.track, find_gate_url(row.records)))
             monitor = self.loop.create_task(flush())
             try:
-                if remote:
-                    await self.io(workflow.run_batch, remote)
+                yield
             finally:
                 settled.set()
                 await monitor
-            await self.refresh_rows()
-        self.services.client
-        await self.job('Downloading', work)
+        return put, flushing
+
+    async def settle_local(self, rows, directory, cancel):
+        """Copy or mark rows already on disk; return the rest with their gate links."""
+        from ..services.downloads import find_gate_url
+        remote = []
+        for row in rows:
+            if row.track.local_path:
+                if await self.io(self.services.library.needs_copy, row.track.local_path, directory):
+                    await self.io(self.services.downloads.copy, row.track.key, Path(row.track.local_path), directory, cancel)
+                else:
+                    await self.io(self.services.library.mark_existing, row.track)
+            else:
+                remote.append((row.track, find_gate_url(row.records)))
+        return remote
 
     async def action_analyze(self, values):
         tracks = [r.track for r in self.targets(values) if r.track.local_id]
@@ -507,46 +526,17 @@ class Backend:
         await self.refresh_rows()
 
     async def action_export(self, values):
-        from ..decks import DECK_GROUPS
         from ..export import execute, plan_export
         tracks = [r.track for r in self.targets(values) if r.track.local_path]
         folder = self.folder
         if not tracks and folder is None:
             return
         config = self.services.config
-        def validate(answer):
-            # Replacing works in place, so only a copy needs somewhere to go.
-            answer['folder'] = str(answer['folder']).strip()
-            if answer['mode'] == 'copy' and not answer['folder']:
-                raise ValueError('This field is required')
-            picked = {str(index) for index in answer.get('decks') or ()}
-            decks = [name for index, group in enumerate(DECK_GROUPS) if str(index) in picked for name in group]
-            if not decks:
-                raise ValueError('Choose at least one deck')
-            # A copy: a retry re-opens the dialog with the ticked groups, not deck names.
-            return dict(answer, decks=decks)
-        answer = await self.form(
-            'Export audio', 'Choose the decks these files must play on; the best format they all play is picked for you.',
-            [field('decks', 'Decks', [str(index) for index, group in enumerate(DECK_GROUPS) if set(group) & set(config.export_decks)],
-                   'checks', [(str(index), ', '.join(group)) for index, group in enumerate(DECK_GROUPS)]),
-             field('folder', 'Destination folder (Copy only)', kind='folder'),
-             field('mode', 'Mode', 'copy', 'choice', [['copy', 'Copy'], ['replace', 'Replace originals']]),
-             field('recursive', 'Include subfolders', False, 'bool')], validate, ok='Export')
+        answer = await self.export_form(config)
         config.export_decks = answer['decks']
         await self.io(config.save)
         async def work(handle):
-            paths = tuple(Path(t.local_path) for t in tracks)
-            if folder and not values.get('selected'):
-                paths = await self.io(self.local.selection, folder, recursive=answer['recursive'], cancel=handle.cancel)
-                if values.get('search') or values.get('hide'):
-                    from ..playlist import filter_rows
-                    from ..rows import Row
-                    matching = []
-                    for path in paths:
-                        track = await self.io(self.local.register, path, inspect=bool(values.get('search')), cancel=handle.cancel)
-                        if filter_rows([Row(0, track, [])], values.get('search', ''), values.get('hide', False), lambda row: self.services.state.get(row.track.key)):
-                            matching.append(path)
-                    paths = tuple(matching)
+            paths = await self.export_paths(tracks, folder, values, answer, handle.cancel)
             # A replacement plan only falls back to this folder when the sources share no root.
             destination = (Path(answer['folder']).expanduser() if answer['folder']
                            else paths[0].parent if paths else Path())
@@ -569,6 +559,43 @@ class Backend:
             self.send(*export_notice(report))
             await self.refresh_rows()
         await self.job('Exporting audio', work)
+
+    async def export_form(self, config):
+        from ..decks import DECK_GROUPS
+        def validate(answer):
+            # Replacing works in place, so only a copy needs somewhere to go.
+            answer['folder'] = str(answer['folder']).strip()
+            if answer['mode'] == 'copy' and not answer['folder']:
+                raise ValueError('This field is required')
+            picked = {str(index) for index in answer.get('decks') or ()}
+            decks = [name for index, group in enumerate(DECK_GROUPS) if str(index) in picked for name in group]
+            if not decks:
+                raise ValueError('Choose at least one deck')
+            # A copy: a retry re-opens the dialog with the ticked groups, not deck names.
+            return dict(answer, decks=decks)
+        return await self.form(
+            'Export audio', 'Choose the decks these files must play on; the best format they all play is picked for you.',
+            [field('decks', 'Decks', [str(index) for index, group in enumerate(DECK_GROUPS) if set(group) & set(config.export_decks)],
+                   'checks', [(str(index), ', '.join(group)) for index, group in enumerate(DECK_GROUPS)]),
+             field('folder', 'Destination folder (Copy only)', kind='folder'),
+             field('mode', 'Mode', 'copy', 'choice', [['copy', 'Copy'], ['replace', 'Replace originals']]),
+             field('recursive', 'Include subfolders', False, 'bool')], validate, ok='Export')
+
+    async def export_paths(self, tracks, folder, values, answer, cancel):
+        """The chosen tracks, or the whole folder view narrowed by its search and hide filters."""
+        paths = tuple(Path(t.local_path) for t in tracks)
+        if folder and not values.get('selected'):
+            paths = await self.io(self.local.selection, folder, recursive=answer['recursive'], cancel=cancel)
+            if values.get('search') or values.get('hide'):
+                from ..playlist import filter_rows
+                from ..rows import Row
+                matching = []
+                for path in paths:
+                    track = await self.io(self.local.register, path, inspect=bool(values.get('search')), cancel=cancel)
+                    if filter_rows([Row(0, track, [])], values.get('search', ''), values.get('hide', False), lambda row: self.services.state.get(row.track.key)):
+                        matching.append(path)
+                paths = tuple(matching)
+        return paths
 
     async def action_save_playlist(self, values):
         tracks = [r.track for r in self.targets(values) if r.track.local_id]
@@ -995,9 +1022,7 @@ class Backend:
         await self.job('Exporting audio', work)
 
     async def action_cart(self, values):
-        from decimal import Decimal
-
-        from ..cart_models import CartPlan, CartRequest
+        from ..cart_models import CartRequest
         rows = self.targets(values)
         requests = [CartRequest(row.track, tuple((r.category, r.link_url) for r in row.records
                     if r.category in {'bandcamp', 'beatport'})) for row in rows]
@@ -1015,24 +1040,8 @@ class Backend:
                     fields.append(field('select_' + str(i), item.track_label, True, 'bool'))
                     if item.price_editable:
                         fields.append(field('price_' + str(i), item.currency, str(item.price)))
-                def validate(answer):
-                    selected = []
-                    for i, item in enumerate(plan.items):
-                        if not answer['select_' + str(i)]:
-                            continue
-                        if item.price_editable:
-                            try:
-                                price = Decimal(str(answer['price_' + str(i)]))
-                            except ArithmeticError:
-                                raise ValueError('Invalid price')
-                            if not price.is_finite() or price < (item.minimum_price or Decimal(0)):
-                                raise ValueError('Invalid price')
-                            if item.price_step and price % item.price_step:
-                                raise ValueError('Invalid price step')
-                            item = replace(item, price=price)
-                        selected.append(item)
-                    return CartPlan(tuple(selected), plan.results)
-                return await self.form('Review cart', plan.summary(), fields, validate, handle.cancel, ok='Continue')
+                return await self.form('Review cart', plan.summary(), fields, lambda answer: reviewed_cart(plan, answer),
+                                       handle.cancel, ok='Continue')
             async def manual(items):
                 await self.ask('Finish in browser', '\n'.join(i.track_label for i in items), cancel=handle.cancel)
                 return True
@@ -1136,6 +1145,26 @@ def export_notice(report):
         reason += f' (+{len(failed) - 1})'
     args += [log_safe_text(Path(first['source']).name), reason]
     return ('error' if report['status'] == 'partial' else 'message'), {'text': 'Export: {0}; missing files: {1}; {2}: {3}', 'args': args}
+
+
+def reviewed_cart(plan, answer):
+    """The ticked cart items, at the prices entered for pay-what-you-want ones."""
+    selected = []
+    for i, item in enumerate(plan.items):
+        if not answer['select_' + str(i)]:
+            continue
+        if item.price_editable:
+            try:
+                price = Decimal(str(answer['price_' + str(i)]))
+            except ArithmeticError:
+                raise ValueError('Invalid price')
+            if not price.is_finite() or price < (item.minimum_price or Decimal(0)):
+                raise ValueError('Invalid price')
+            if item.price_step and price % item.price_step:
+                raise ValueError('Invalid price step')
+            item = replace(item, price=price)
+        selected.append(item)
+    return CartPlan(tuple(selected), plan.results)
 
 
 def field(name, label, value='', kind='text', options=()):
