@@ -91,6 +91,9 @@
   in. Every played track's waveform is kept in the library (schema 3 adds a
   `waveforms` table), so a track played again shows it at once; the local
   waveform JSON cache in the user cache directory is no longer used.
+- Upgrading with the Windows installer now refreshes the desktop and Start-menu
+  shortcut icons; Explorer kept showing the previous app icon until its icon
+  cache was rebuilt.
 - Marking or undoing statuses no longer reloads the playlist and re-queries every
   local file; the statuses are written in one transaction.
 - Opening a folder probes only files it has never inspected and updates their rows
