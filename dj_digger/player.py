@@ -30,7 +30,7 @@ from typing import Literal
 import numpy as np
 
 from .beats import CHANNELS, SAMPLE_RATE, KickDetector, PulseHistory
-from .models import Track
+from .models import Track, is_cancelled
 from .services.playback import Stream
 
 LOGGER = logging.getLogger(__name__)
@@ -201,6 +201,19 @@ class HttpSourceMixin:
                 self._arrived.notify_all()
             return
         self._spawn()
+
+    def whole(self, cancel=None) -> bytes | None:
+        """The whole file once it has downloaded, for the waveform; None when this
+        source does not end up holding all of it."""
+
+        if not self._buffering:
+            return None
+        with self._arrived:
+            while not (self._done or self._closed or is_cancelled(cancel)):
+                self._arrived.wait(.2)
+            if self._done and not self._failed and not self._closed and self._base == 0:
+                return bytes(self._buffer)
+        return None
 
     # Reading
 

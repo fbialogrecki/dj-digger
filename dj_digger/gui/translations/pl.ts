@@ -2,6 +2,14 @@
 <TS version="2.1" language="pl_PL" sourcelanguage="en">
   <context>
     <name>Main</name>
+    <message>
+      <source>Images</source>
+      <translation>Obrazy</translation>
+    </message>
+    <message>
+      <source>All files</source>
+      <translation>Wszystkie pliki</translation>
+    </message>
     <message><source>Key notation</source><translation>Zapis tonacji</translation></message>
     <message><source>Camelot (8A)</source><translation>Camelot (8A)</translation></message>
     <message><source>Classic (Am)</source><translation>Klasyczny (Am)</translation></message>
@@ -414,6 +422,14 @@
   </context>
   <context>
     <name>Bridge</name>
+    <message>
+      <source>Default cover (tracks without artwork)</source>
+      <translation>Domyślna okładka (utwory bez okładki)</translation>
+    </message>
+    <message>
+      <source>The default cover is not a file</source>
+      <translation>Domyślna okładka nie jest plikiem</translation>
+    </message>
     <message><source>Choose the decks these files must play on; the best format they all play is picked for you.</source><translation>Wybierz decki, na których te pliki mają grać; najlepszy format obsługiwany przez wszystkie zostanie dobrany automatycznie.</translation></message>
     <message><source>Choose at least one deck</source><translation>Wybierz co najmniej jeden deck</translation></message>
     <message><source>Decks</source><translation>Decki</translation></message>

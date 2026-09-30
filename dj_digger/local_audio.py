@@ -199,3 +199,33 @@ def waveform(path, cancel=None):
     for block in pcm_blocks(path, rate=4000, channels=2, sample_format='s16le', cancel=cancel):
         frame = _fold_peaks(peaks, block, frame, frames_per_bin)
     return peaks.tolist() if signature(path) == before else []
+
+
+def encoded_waveform(data):
+    """The same 1024 peaks from a whole encoded file held in memory (a streamed MP3)."""
+    import miniaudio
+    decoded = miniaudio.decode(bytes(data), output_format=miniaudio.SampleFormat.SIGNED16, nchannels=2, sample_rate=4000)
+    peaks = np.zeros(1024, dtype=np.int32)
+    _fold_peaks(peaks, decoded.samples.tobytes(), 0, max(1, -(-decoded.num_frames // 1024)))
+    return peaks.tolist()
+
+
+ARTWORK_NAMES = ('cover', 'folder', 'front', 'albumart')
+MAX_ARTWORK_BYTES = 16 * 1024 * 1024
+
+
+def artwork(path, cancel=None):
+    """Picture embedded in the file, else a cover image beside it; None without one."""
+    from .media import binary, input_args, run
+    path = Path(path)
+    pictures = probe(path, cancel)['artwork']
+    if pictures:
+        data = run([binary('ffmpeg'), '-v', 'error', *input_args(path), '-map', f"0:{pictures[0]['index']}",
+                    '-c', 'copy', '-f', 'image2pipe', '-'], cancel=cancel, timeout=30, output_limit=MAX_ARTWORK_BYTES)
+        if data:
+            return data
+    for entry in sorted(path.parent.iterdir()):
+        if (entry.stem.lower() in ARTWORK_NAMES and entry.suffix.lower() in ('.jpg', '.jpeg', '.png')
+                and entry.is_file() and entry.stat().st_size <= MAX_ARTWORK_BYTES):
+            return entry.read_bytes()
+    return None

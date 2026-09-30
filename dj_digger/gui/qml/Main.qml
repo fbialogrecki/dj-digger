@@ -615,14 +615,16 @@ ApplicationWindow {
         ToolTip.visible: match && chipHover.hovered; ToolTip.text: qsTr("Mixes with the playing track")
         HoverHandler { id: chipHover }
     }
-    // Generated artwork, never fetched: a record on a gradient, both picked from the track key.
-    // The record turns while the track plays. Until the track is ready the sleeve and label are
-    // white and the record blank; then the colours and the code fade in.
+    // A record on a gradient, both picked from the track key; the label carries the track's
+    // artwork (or the default cover) when there is one, turning with the record while it plays.
+    // Until the track is ready the sleeve and label are white and the record blank; then the
+    // colours, the picture and the code fade in.
     component Cover: Rectangle {
         id: cover
         property string seed: ""
         property bool spinning: false
         property bool ready: true
+        property string artwork: ""
         // A binding at first; the handler takes over from the first change.
         property real reveal: ready ? 1 : 0
         onReadyChanged: {
@@ -660,6 +662,14 @@ ApplicationWindow {
             // Near-black vinyl; the label is darkened so it does not outshine the record.
             Rectangle { anchors.fill: parent; radius: width / 2; color: "#0c0c0e" }
             Rectangle { anchors.centerIn: parent; width: disc.width * .34; height: width; radius: width / 2; color: Qt.darker(cover.tone(5), 1.25) }
+            // Already cut to a circle by the backend, shown as it is: no tint, no overlay.
+            Image {
+                objectName: "labelArtwork"
+                anchors.centerIn: parent; width: disc.width * .34; height: width
+                source: cover.artwork; asynchronous: true; smooth: true; mipmap: true
+                opacity: status === Image.Ready ? 1 : 0
+                Behavior on opacity { enabled: root.motion; NumberAnimation { duration: 300 } }
+            }
             Rectangle { anchors.centerIn: parent; width: disc.width * .34; height: width; radius: width / 2; color: "white"; opacity: 1 - cover.reveal }
             // A barcode of the track: radial strokes and dots from the label to the rim, laid out
             // from the key hash. Painted once per track; turning the record costs no repaint.
@@ -924,6 +934,7 @@ ApplicationWindow {
                         seed: desktop.audioKey
                         spinning: desktop.playing
                         ready: waveform.ready
+                        artwork: desktop.artwork
                     }
                 ColumnLayout {
                     Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumWidth: 0; spacing: 6
@@ -1604,7 +1615,7 @@ ApplicationWindow {
                         Label { text: modelData.label; textFormat: Text.PlainText; color: root.muted; visible: text.length > 0 && modelData.kind !== "bool" }
                         RowLayout {
                             Layout.fillWidth: true
-                            visible: ["text", "folder", "file", "savefile", "number"].indexOf(fieldItem.modelData.kind) >= 0
+                            visible: ["text", "folder", "file", "savefile", "image", "number"].indexOf(fieldItem.modelData.kind) >= 0
                             TextField {
                                 id: fieldInput
                                 Layout.fillWidth: true
@@ -1618,7 +1629,7 @@ ApplicationWindow {
                             }
                             Button {
                                 text: qsTr("Browse…")
-                                visible: ["folder", "file", "savefile"].indexOf(fieldItem.modelData.kind) >= 0
+                                visible: ["folder", "file", "savefile", "image"].indexOf(fieldItem.modelData.kind) >= 0
                                 onClicked: {
                                     if (fieldItem.modelData.kind === "folder") {
                                         fieldFolder.targetName = fieldItem.modelData.name
@@ -1626,6 +1637,8 @@ ApplicationWindow {
                                     } else {
                                         fieldFile.targetName = fieldItem.modelData.name
                                         fieldFile.fileMode = fieldItem.modelData.kind === "savefile" ? FileDialog.SaveFile : FileDialog.OpenFile
+                                        fieldFile.nameFilters = fieldItem.modelData.kind === "image" ? [qsTr("Images") + " (*.png *.jpg *.jpeg *.webp)", qsTr("All files") + " (*)"]
+                                                                                                      : ["JSON (*.json)", qsTr("All files") + " (*)"]
                                         fieldFile.open()
                                     }
                                 }

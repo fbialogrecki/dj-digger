@@ -5,8 +5,8 @@
 - Product version verified: 1.2.1 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-09-27
-- Document lines: <!-- SPEC TOTAL LINES -->1719<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1719<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1743<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1743<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,64 +51,64 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 143–181 |
 | 2.1 | ↳ Problem and product boundary | 145–158 |
 | 2.2 | ↳ Execution modes | 159–181 |
-| 3 | User-visible capabilities | 182–863 |
+| 3 | User-visible capabilities | 182–883 |
 | 3.1 | ↳ Track collection | 184–209 |
 | 3.2 | ↳ Link classification and exports | 210–228 |
 | 3.3 | ↳ Track statuses | 229–237 |
-| 3.4 | ↳ Audio preview | 238–367 |
-| 3.5 | ↳ Downloads and local-file matching | 368–404 |
-| 3.6 | ↳ Store purchase assistance | 405–490 |
-| 3.7 | ↳ Local library, analysis and audio export | 491–647 |
-| 3.8 | ↳ Qt Quick desktop | 648–863 |
-| 4 | System context and data flow | 864–904 |
-| 4.1 | ↳ Context diagram | 866–888 |
-| 4.2 | ↳ Collection-to-library flow | 889–904 |
-| 5 | Repository layout and component ownership | 905–973 |
-| 5.1 | ↳ Entry, orchestration, and models | 907–918 |
-| 5.2 | ↳ Network and external-system adapters | 919–935 |
-| 5.3 | ↳ Persistence, local media, and UI | 936–973 |
-| 6 | Runtime architecture and environments | 974–1085 |
-| 6.1 | ↳ Runtime and dependencies | 976–997 |
-| 6.2 | ↳ Concurrency and lifecycle | 998–1065 |
-| 6.3 | ↳ Local paths and environment variables | 1066–1085 |
-| 7 | Data model and persistence | 1086–1188 |
-| 7.1 | ↳ Domain objects and identity | 1088–1102 |
-| 7.2 | ↳ SQLite schema and invariants | 1103–1154 |
-| 7.3 | ↳ Crate persistence and deletion | 1155–1170 |
-| 7.4 | ↳ Configuration and credential stores | 1171–1188 |
-| 8 | Public interfaces and contracts | 1189–1242 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1191–1215 |
-| 8.2 | ↳ JSON and CSV summary input | 1216–1231 |
-| 8.3 | ↳ URL-opening contract | 1232–1242 |
-| 9 | Authentication and authorization | 1243–1288 |
-| 9.1 | ↳ SoundCloud authentication | 1245–1267 |
-| 9.2 | ↳ Gate action consent | 1268–1288 |
-| 10 | External integrations | 1289–1433 |
-| 10.1 | ↳ SoundCloud API and media | 1291–1302 |
-| 10.2 | ↳ Link hubs and download gates | 1303–1372 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1311–1358 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1360–1365 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1367–1372 |
-| 10.3 | ↳ Browsers and clipboard | 1373–1384 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1385–1433 |
-| 11 | Security requirements and threat model | 1434–1488 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1436–1454 |
-| 11.2 | ↳ Secret and personal-data handling | 1455–1470 |
-| 11.3 | ↳ File and mutation safety | 1471–1488 |
-| 12 | Privacy, lifecycle, and retention | 1489–1533 |
-| 12.1 | ↳ Data stored locally | 1491–1511 |
-| 12.2 | ↳ Data sent to third parties | 1512–1523 |
-| 12.3 | ↳ User-controlled deletion | 1524–1533 |
-| 13 | Failure behavior and current limitations | 1534–1593 |
-| 13.1 | ↳ Error isolation and reporting | 1536–1555 |
-| 13.2 | ↳ Confirmed limitations | 1556–1593 |
-| 14 | Verification, CI, and release | 1594–1688 |
-| 14.1 | ↳ Offline and live test suites | 1596–1642 |
-| 14.2 | ↳ Continuous integration and publishing | 1643–1673 |
-| 14.3 | ↳ Specification-map verification | 1674–1688 |
-| 15 | Evidence and operational references | 1689–1719 |
-| 15.1 | ↳ Primary implementation evidence | 1691–1709 |
-| 15.2 | ↳ User and historical documentation | 1710–1719 |
+| 3.4 | ↳ Audio preview | 238–380 |
+| 3.5 | ↳ Downloads and local-file matching | 381–417 |
+| 3.6 | ↳ Store purchase assistance | 418–503 |
+| 3.7 | ↳ Local library, analysis and audio export | 504–660 |
+| 3.8 | ↳ Qt Quick desktop | 661–883 |
+| 4 | System context and data flow | 884–924 |
+| 4.1 | ↳ Context diagram | 886–908 |
+| 4.2 | ↳ Collection-to-library flow | 909–924 |
+| 5 | Repository layout and component ownership | 925–993 |
+| 5.1 | ↳ Entry, orchestration, and models | 927–938 |
+| 5.2 | ↳ Network and external-system adapters | 939–955 |
+| 5.3 | ↳ Persistence, local media, and UI | 956–993 |
+| 6 | Runtime architecture and environments | 994–1105 |
+| 6.1 | ↳ Runtime and dependencies | 996–1017 |
+| 6.2 | ↳ Concurrency and lifecycle | 1018–1085 |
+| 6.3 | ↳ Local paths and environment variables | 1086–1105 |
+| 7 | Data model and persistence | 1106–1210 |
+| 7.1 | ↳ Domain objects and identity | 1108–1122 |
+| 7.2 | ↳ SQLite schema and invariants | 1123–1174 |
+| 7.3 | ↳ Crate persistence and deletion | 1175–1190 |
+| 7.4 | ↳ Configuration and credential stores | 1191–1210 |
+| 8 | Public interfaces and contracts | 1211–1264 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1213–1237 |
+| 8.2 | ↳ JSON and CSV summary input | 1238–1253 |
+| 8.3 | ↳ URL-opening contract | 1254–1264 |
+| 9 | Authentication and authorization | 1265–1310 |
+| 9.1 | ↳ SoundCloud authentication | 1267–1289 |
+| 9.2 | ↳ Gate action consent | 1290–1310 |
+| 10 | External integrations | 1311–1455 |
+| 10.1 | ↳ SoundCloud API and media | 1313–1324 |
+| 10.2 | ↳ Link hubs and download gates | 1325–1394 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1333–1380 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1382–1387 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1389–1394 |
+| 10.3 | ↳ Browsers and clipboard | 1395–1406 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1407–1455 |
+| 11 | Security requirements and threat model | 1456–1510 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1458–1476 |
+| 11.2 | ↳ Secret and personal-data handling | 1477–1492 |
+| 11.3 | ↳ File and mutation safety | 1493–1510 |
+| 12 | Privacy, lifecycle, and retention | 1511–1557 |
+| 12.1 | ↳ Data stored locally | 1513–1535 |
+| 12.2 | ↳ Data sent to third parties | 1536–1547 |
+| 12.3 | ↳ User-controlled deletion | 1548–1557 |
+| 13 | Failure behavior and current limitations | 1558–1617 |
+| 13.1 | ↳ Error isolation and reporting | 1560–1579 |
+| 13.2 | ↳ Confirmed limitations | 1580–1617 |
+| 14 | Verification, CI, and release | 1618–1712 |
+| 14.1 | ↳ Offline and live test suites | 1620–1666 |
+| 14.2 | ↳ Continuous integration and publishing | 1667–1697 |
+| 14.3 | ↳ Specification-map verification | 1698–1712 |
+| 15 | Evidence and operational references | 1713–1743 |
+| 15.1 | ↳ Primary implementation evidence | 1715–1733 |
+| 15.2 | ↳ User and historical documentation | 1734–1743 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -264,7 +264,9 @@ restriction. No returned streams and unsupported stream formats are separate
 errors. Non-streamable tracks and snippet-only policy are also rejected.
 Resolution prefers a progressive MP3 transcoding and falls back to MP3
 HLS when progressive MP3 is absent. It authorizes the chosen transcoding and
-returns its protocol, signed URL, duration and waveform location. Playback
+returns its protocol, signed URL, duration and artwork URL (SoundCloud's
+`-large` image name rewritten to its `-t500x500` size). SoundCloud's own
+waveform JSON is not used. Playback
 refusals log the numeric track ID, known policy, stream count and reason without
 signed URLs or tokens.
 
@@ -338,10 +340,21 @@ clears the history but keeps the reference; a pause retains queued audio and its
 the decoded position to that position, plus the seconds per beat: the track's
 BPM when known, else the median 0.25-1 s gap between recent hits, else 0.5.
 `services.playback.track_waveform()` returns a track's envelope from the library's
-`waveforms` table (§7.2) or computes it (the SoundCloud waveform JSON, or the
-local decode) and stores a non-empty result, thinned to at most 1024 values. A
-local file's row is valid only for its current file signature; a changed file is
-decoded again.
+`waveforms` table (§7.2) or computes it from the track's own audio and stores a
+non-empty result of 1024 peaks. A local file is decoded by FFmpeg at 4 kHz; a
+stream is decoded by `miniaudio` at 4 kHz from the whole file once its buffered
+progressive or HLS source reports it complete (`whole()`). A source that does
+not hold the whole file (an unbuffered or failed progressive download, a
+download restarted by a far seek, a closed source) yields no waveform and
+nothing is stored. A local file's row is valid only for its current file
+signature; a changed file is decoded again.
+`services.playback.remote_artwork()` downloads the artwork URL through the same
+SoundCloud-CDN host check and bounded redirects as HLS media, at most 4 MiB,
+and keeps up to 64 pictures in process memory only (SoundCloud API terms §5 allow
+session caching of user content, not persistent storage).
+`local_audio.artwork()` returns the first picture embedded in a local file
+(copied out by FFmpeg, at most 16 MiB) or else a `cover`, `folder`, `front` or
+`albumart` `.jpg`/`.jpeg`/`.png` file (any case) beside it.
 
 MP3 HLS VOD manifests and each redirect/segment are restricted to HTTPS
 SoundCloud CDN subdomains, without credentials in URLs or nonstandard ports.
@@ -698,11 +711,18 @@ The window schedules these as they are heard:
 - Disabling animations stops flashes and clears the clock.
 
 The loaded track fills a Now playing header in the player panel: a large title,
-the artist, BPM and key chips, and generated artwork, never fetched: a record on
+the artist, BPM and key chips, and generated artwork: a record on
 a two-tone gradient with normal blue/bordeaux swatches (no darkened variants),
 both picked from a hash of the track key. The record is a flat near-black
 (`#0c0c0e`) with a label in the hashed tone darkened by 25 %; the record never
-pulses. Its
+pulses. The label carries the track's artwork when there is one (SoundCloud
+artwork, or a local file's embedded or folder picture), else the default cover
+chosen in Settings, else stays the plain tone. The backend cuts the picture's
+centre square to a 256 px circle (`gui/artwork.py`, QImage on the worker, no
+shader) and sends it as a PNG data URL in an `artwork` event (key, image) after
+playback has started; its colours are not altered and nothing is drawn over it.
+It turns with the record and fades in (300 ms) when it loads; artwork of any
+other track is ignored and the picture is cleared when another track loads. Its
 surface carries a barcode of the track: 18 to 27 radial marks spread evenly
 around the record, each placed at random within its own slot, spanning the
 whole groove, its inner or outer half, its middle, or its thirds with a gap,
@@ -831,7 +851,7 @@ track keys. The existing operation coordinator admits a main operation and the
 independent scan lane. Cancellation waits for worker settlement; shutdown requests
 cancellation and applies the existing three-second emergency process cleanup
 policy. QML renders provider text as plain text, loads packaged QML, and does not
-embed a WebView or automatically fetch artwork. Managed Chromium remains a
+embed a WebView; artwork reaches QML only as a data URL prepared by the backend. Managed Chromium remains a
 separate on-demand dependency for the existing provider flows.
 
 Windows packaging source builds an onedir GUI executable and a separate console
@@ -1174,7 +1194,9 @@ track states, credentials, downloads, or source media.
 directories, browser choice, download directory, `gate_social_actions`,
 and local preferences including `pinned_directories` and
 `export_decks`, the decks of the last audio export in deck order (unknown names
-dropped, every deck when none remain).
+dropped, every deck when none remain), and `default_artwork`, the path of a
+picture for the record label of tracks without artwork (empty for none; Settings
+requires an existing file).
 The default email uses the reserved `.invalid` domain. A first missing config is
 created and marks the launch as first-run.
 
@@ -1497,8 +1519,10 @@ profiles. A requested Beatport transfer also writes a plain-text playlist in the
 configured crate download folder. Cart diagnostics (a screenshot, a redacted
 page copy, and a small JSON note per unverified click or structural failure,
 last ten kept) live under the data directory. Audio preview bytes are process
-memory only; the waveform envelope of every played track, remote or local, is
-kept in the library database (`waveforms`, at most 1024 values each).
+memory only, and so are SoundCloud artwork pictures (at most 64). The waveform
+envelope of every played track, which the application computes from the audio
+itself, remote or local, is kept in the library database (`waveforms`, 1024
+peaks each).
 Diagnostics are local only: five rotating log files and one latest analysis
 report. Report writing is streamed one file at a time. No automatic upload occurs. Log/report paths and filenames may identify
 local media, but credential-like values are redacted. Users can open the log
@@ -1511,8 +1535,8 @@ as described in §3.5.
 
 ### 12.2 Data sent to third parties
 
-SoundCloud receives public collection/media requests and, when configured, the
-OAuth token for authenticated API calls. Link hubs, gates, stores, and download
+SoundCloud receives public collection/media requests (including the artwork of a
+played track from its CDN) and, when configured, the OAuth token for authenticated API calls. Link hubs, gates, stores, and download
 hosts receive ordinary HTTP request metadata. A gate may receive the configured
 name, real email, and comment only in the provider flows described in §10.2.
 Store sites receive browser navigation, Bandcamp login performed by the

@@ -32,6 +32,7 @@ class Bridge(QObject):
     playingChanged = Signal()
     playlistsChanged = Signal()
     waveformChanged = Signal()
+    artworkChanged = Signal()
     nowPlayingChanged = Signal()
     beatsChanged = Signal()
     importChanged = Signal()
@@ -62,6 +63,7 @@ class Bridge(QObject):
         self._audio = {}
         self._waveform = []
         self._waveform_key = ''
+        self._artwork = {}
         self._now_playing = {}
         self._beats = {}
         self._import = {}
@@ -92,6 +94,8 @@ class Bridge(QObject):
     playing = Property(bool, lambda self: bool(self._audio.get('playing')), notify=playingChanged)
     waveform = Property('QVariantList', lambda self: self._waveform, notify=waveformChanged)
     waveformKey = Property(str, lambda self: self._waveform_key, notify=waveformChanged)
+    # The loaded track's record label as a PNG data URL, '' while loading or without a picture.
+    artwork = Property(str, lambda self: self._artwork.get('image', ''), notify=artworkChanged)
     # Artist, name, BPM and key of the loaded track; empty once another track loads.
     nowPlaying = Property('QVariantMap', lambda self: self._now_playing, notify=nowPlayingChanged)
     # Detected hits in queued audio: pulses as [track time, amplitude]
@@ -150,6 +154,9 @@ class Bridge(QObject):
             self._audio = values
             if values.get('key', '') != self._waveform_key:
                 self._set_waveform('', [])
+            if self._artwork and values.get('key', '') != self._artwork['key']:
+                self._artwork = {}
+                self.artworkChanged.emit()
             if self._now_playing and values.get('key', '') != self._now_playing['key']:
                 self._now_playing = {}
                 self.nowPlayingChanged.emit()
@@ -162,6 +169,11 @@ class Bridge(QObject):
             return
         elif kind == 'waveform':
             self._set_waveform(values['key'], values['samples'])
+            return
+        elif kind == 'artwork':
+            if values.get('key') == self._audio.get('key'):
+                self._artwork = values
+                self.artworkChanged.emit()
             return
         elif kind == 'importProgress':
             self._import = dict(values, stage=self.tr(values['stage'])) if values else {}

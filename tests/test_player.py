@@ -37,7 +37,7 @@ def playable_payload(**overrides):
         "policy": "ALLOW",
         "streamable": True,
         "track_authorization": "token-123",
-        "waveform_url": "https://wave.sndcdn.com/x.json",
+        "artwork_url": "https://i1.sndcdn.com/artworks-x-large.jpg",
         "media": {"transcodings": [HLS, PROGRESSIVE]},
     }
     payload.update(overrides)
@@ -110,7 +110,7 @@ def test_resolve_picks_progressive_and_passes_the_authorisation():
     stream = playback.resolve_stream(client, 1)
 
     assert stream.url == "https://cdn/a.mp3"
-    assert stream.waveform_url == "https://wave.sndcdn.com/x.json"
+    assert stream.artwork_url == "https://i1.sndcdn.com/artworks-x-t500x500.jpg"
     assert client.authorize_calls == [
         ("https://api/media/prog", {"track_authorization": "token-123"})
     ]
@@ -217,8 +217,25 @@ def test_column_levels_of_nothing():
     assert waveform.column_levels([1, 2], 0) == []
 
 
-def test_fetch_waveform_of_nothing_is_empty():
-    assert playback.fetch_waveform(FakeClient(), "") == []
+def test_artwork_comes_only_from_soundclouds_cdn_and_is_bounded(monkeypatch):
+    from types import SimpleNamespace
+
+    from dj_digger.soundcloud_errors import SoundCloudError
+
+    playback.remote_artwork.cache_clear()
+    requested = []
+    def get(url, **kwargs):
+        requested.append(url)
+        return SimpleNamespace(status_code=200, headers={}, close=lambda: None,
+                               iter_content=lambda size: iter([b"x" * 1024] * 5))
+    session = type("Session", (), {"get": staticmethod(get)})()
+    with pytest.raises(SoundCloudError, match="untrusted"):
+        playback.remote_artwork(session, "https://evil.example/a.jpg")
+    assert requested == []
+    assert playback.remote_artwork(session, "https://i1.sndcdn.com/a.jpg") == b"x" * 5120
+    monkeypatch.setattr(playback, "MAX_ARTWORK_BYTES", 2048)
+    with pytest.raises(SoundCloudError, match="too large"):
+        playback.remote_artwork(session, "https://i1.sndcdn.com/b.jpg")
 
 
 # Player state without an audio device
@@ -609,6 +626,14 @@ def test_the_source_reads_the_bytes_in_order():
     assert source.read(4) == b"0123"
     assert source.read(4) == b"4567"
     assert source.offset == 8
+
+
+def test_the_whole_download_is_handed_over_only_when_it_is_complete():
+    """The waveform of a stream is computed from these bytes, never from part of them."""
+
+    assert player.HttpSourceMixin(FakeSession(b"0123456789", chunk_size=3), URL).whole() == b"0123456789"
+    assert unbuffered(FakeSession(b"0123456789")).whole() is None
+    assert player.HttpSourceMixin(HalfDeadSession(b"0123456789", 4), URL).whole() is None
 
 
 def test_the_source_keeps_pulling_on_a_short_read():

@@ -19,8 +19,19 @@
   `OperationHandle.describe`, `AccountService.wait_authentication` and
   `save_profile`, `OpeningService.open_many`, `GateProfileAnswer`.
 
+### Added
+
+- The record label in the player shows the track's artwork, turning with the
+  record and with its colours untouched: SoundCloud artwork (kept in memory for
+  the session only), or for a local file its embedded picture or a `cover`,
+  `folder`, `front` or `albumart` image beside it. Settings → Default cover
+  picks a picture for every track without one.
+
 ### Changed
 
+- The waveform of a SoundCloud track is computed by dj-digger from the audio it
+  has downloaded, like a local file's, instead of SoundCloud's waveform JSON; it
+  appears once the whole track is buffered.
 - Running `dj-digger` without a target now exits with "Nothing to dig. Pass a
   SoundCloud link, or run dj-digger-gui to browse."
 - The desktop has a darker club palette with blue and bordeaux accents, a Now

@@ -861,7 +861,7 @@ def test_stopped_local_waveform_is_cancelled_and_cannot_restore_audio(backend, t
         assert release.wait(5)
         return [123]  # Even a late worker ignoring cancellation must be discarded.
     monkeypatch.setattr(local_audio, 'waveform', delayed)
-    future = asyncio.run_coroutine_threadsafe(worker.load_waveform(loaded, cancel), worker.loop)
+    future = asyncio.run_coroutine_threadsafe(worker.load_waveform(loaded, None, cancel), worker.loop)
     try:
         assert entered.wait(5)
         asyncio.run_coroutine_threadsafe(worker.action_transport({'operation': 'stop'}), worker.loop).result(timeout=2)
@@ -922,6 +922,24 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
         assert not loading.property('ready') and blank.property('reveal') == 0
         bridge.receive('waveform', dict(key='w', samples=[1000] * 512 + [200] * 512))
         assert loading.property('ready') and blank.property('reveal') == 1
+        # Artwork of another track is ignored; the loaded track's goes on the label as it is.
+        from PySide6.QtCore import QBuffer, QByteArray
+        from PySide6.QtGui import QColor, QImage
+
+        from dj_digger.gui.artwork import label_image
+        picture, encoded = QImage(16, 16, QImage.Format_RGB32), QByteArray()
+        picture.fill(QColor('red'))
+        buffer = QBuffer(encoded)
+        buffer.open(QBuffer.WriteOnly)
+        picture.save(buffer, 'PNG')
+        bridge.receive('artwork', dict(key='other', image='data:image/png;base64,'))
+        assert bridge.artwork == ''
+        bridge.receive('artwork', dict(key='w', image=label_image(bytes(encoded))))
+        label = window.findChild(QQuickItem, 'labelArtwork')
+        deadline = time.monotonic() + 5
+        while label.property('opacity') < 1 and time.monotonic() < deadline:
+            QTest.qWait(10)
+        assert label.property('source').toString().startswith('data:image/png') and label.property('opacity') == 1
         assert len(bridge.waveform) == 1024
         tree = window.findChild(QQuickItem, 'directoryTree-music')
         canvas = window.findChild(QQuickItem, 'waveform')

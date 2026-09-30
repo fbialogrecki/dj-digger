@@ -660,6 +660,9 @@ class Backend:
                 raise ValueError('Enter a valid email')
             if not answer['download_directory'].strip():
                 raise ValueError('Specify a download folder')
+            answer['default_artwork'] = answer['default_artwork'].strip()
+            if answer['default_artwork'] and not Path(answer['default_artwork']).expanduser().is_file():
+                raise ValueError('The default cover is not a file')
             for name in ('scan_directories', 'pinned_directories', 'custom_comments'):
                 answer[name] = [line.strip() for line in answer[name].splitlines() if line.strip()]
             return answer
@@ -669,6 +672,7 @@ class Backend:
                                   field('gate_social_actions', 'Allow social actions', config.gate_social_actions, 'bool'),
                                   field('scan_directories', 'Scan folders (one per line)', '\n'.join(config.scan_directories), 'multiline'),
                                   field('pinned_directories', 'Pinned folders (one per line)', '\n'.join(config.pinned_directories), 'multiline'),
+                                  field('default_artwork', 'Default cover (tracks without artwork)', config.default_artwork, 'image'),
                                   field('browser', 'Browser', config.browser if any(config.browser == v for v, _ in choices) else '', 'choice',
                                         [['', 'System default'], *[[value, label] for value, label in choices]]),
                                   field('custom_comments', 'Gate comments (one per line)', '\n'.join(config.custom_comments), 'multiline')],
@@ -730,15 +734,17 @@ class Backend:
                     return
                 self.waveform_cancel.set()
                 self.waveform_cancel = waveform_cancel = threading.Event()
+                source = prepared.source
                 loaded = await self.io(player.load, track, prepared.stream, None if track.local_path else self.services.client.session,
-                              prepared.source)
+                              source)
                 prepared.source = None
                 if generation != self.play_generation or self.closing:
                     return
-                # Playback starts now; the waveform follows once read from the library or computed.
-                task = self.loop.create_task(self.load_waveform(loaded, waveform_cancel))
-                self.tasks.add(task)
-                task.add_done_callback(self.tasks.discard)
+                # Playback starts now; the waveform and artwork follow once read or computed.
+                for work in (self.load_waveform(loaded, source, waveform_cancel), self.load_artwork(loaded, waveform_cancel)):
+                    task = self.loop.create_task(work)
+                    self.tasks.add(task)
+                    task.add_done_callback(self.tasks.discard)
                 await self.io(player.play)
                 self.publish_audio()
                 self.publish_now_playing()
@@ -748,14 +754,13 @@ class Backend:
         if not hasattr(self, 'ticker') or self.ticker.done():
             self.ticker = self.loop.create_task(self.tick())
 
-    async def load_waveform(self, loaded, cancel):
+    async def load_waveform(self, loaded, source, cancel):
         from ..services.playback import track_waveform
         samples = []
         try:
             async with self.waveform_lock:
                 check_cancelled(cancel)
-                client = None if loaded.track.local_path else self.services.client
-                samples = await self.io(track_waveform, self.services.state.db, loaded.track, loaded.stream.waveform_url, client, cancel)
+                samples = await self.io(track_waveform, self.services.state.db, loaded.track, source, cancel)
         except (Cancelled, asyncio.CancelledError):
             return
         except Exception as exc:
@@ -766,6 +771,34 @@ class Backend:
         async with self.player_lock:
             if not cancel.is_set() and self.services.player.loaded is loaded:
                 self.send('waveform', dict(key=loaded.track.key, samples=samples), copy=False)
+
+    async def load_artwork(self, loaded, cancel):
+        """The label picture: the track's own artwork, else the default cover from Settings."""
+        from ..local_audio import artwork
+        from ..services.playback import remote_artwork
+        from .artwork import label_image
+        track, url = loaded.track, loaded.stream.artwork_url
+        def picture():
+            data = None
+            try:
+                if track.local_path:
+                    data = artwork(track.local_path, cancel)
+                elif url:
+                    data = remote_artwork(self.services.client.session, url)
+            except Exception as exc:
+                LOGGER.debug('Artwork unavailable: %s', log_safe_text(exc))
+            label = label_image(data) if data else ''
+            fallback = self.services.config.default_artwork
+            if not label and fallback:
+                try:
+                    label = label_image(Path(fallback).read_bytes())
+                except OSError as exc:
+                    LOGGER.debug('Default cover unavailable: %s', log_safe_text(exc))
+            return label
+        label = await self.io(picture)
+        async with self.player_lock:
+            if not cancel.is_set() and self.services.player.loaded is loaded:
+                self.send('artwork', dict(key=track.key, image=label), copy=False)
 
     def publish_audio(self):
         # The per-tick snapshot stays small: the waveform travels separately and only when it changes.

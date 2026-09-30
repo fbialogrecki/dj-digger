@@ -40,6 +40,7 @@ PERSISTED_FIELDS = (
     "pinned_directories",
     "volume",
     "export_decks",
+    "default_artwork",
 )
 
 def is_real_email(value: str) -> bool:
@@ -83,6 +84,8 @@ class AppConfig:
         self.volume: float = 0.8
         # Decks the last audio export was for, in deck order; the export format follows from them.
         self.export_decks: list[str] = list(DEFAULT_DECKS)
+        # A picture for the record label of tracks without artwork; empty for a blank label.
+        self.default_artwork: str = ""
         # True when there was no config file to read, i.e. this is the first
         # launch. The desktop uses it to ask for the settings before anything needs
         # them - gates submit the name and email without asking again.
@@ -119,6 +122,7 @@ class AppConfig:
                 decks = raw.get("export_decks")
                 if isinstance(decks, list):
                     self.export_decks = [name for name in DECK_NAMES if name in {str(d) for d in decks}] or list(DEFAULT_DECKS)
+                self.default_artwork = str(raw.get("default_artwork") or "").strip()
         except FileNotFoundError:
             self.first_run = True
             self.save()
