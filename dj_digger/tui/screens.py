@@ -81,7 +81,7 @@ class _Modal(ModalScreen[ResultType]):
 
 
 class AskLinkScreen(_Modal[str | None]):
-    """Asks for a SoundCloud link (or a saved HTML file)."""
+    """Asks for a SoundCloud link."""
 
     CSS = """
     #ask {
@@ -104,7 +104,7 @@ class AskLinkScreen(_Modal[str | None]):
         with Vertical(id="ask", classes="modal-box"):
             yield Label(self.message)
             yield Label(
-                "Playlist, artist profile, /likes, one track, or a saved .html file.",
+                "Playlist, artist profile, /likes or one track.",
                 id="ask-hint",
             )
             yield Input(placeholder="https://soundcloud.com/...", id="ask-input")

@@ -7,7 +7,6 @@ an ``on_progress`` hook.
 
 import logging
 import threading
-import time
 from collections import Counter
 from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -16,7 +15,7 @@ from pathlib import Path
 
 from dj_digger.gates import hubs as gate_hubs
 
-from .. import html_fallback, links, soundcloud
+from .. import links, soundcloud
 from ..crate_models import CrateRecord
 from ..models import Cancelled, Crate, Track, check_cancelled
 
@@ -25,7 +24,6 @@ ProgressHook = Callable[[str, int, int | None], None]
 
 STAGE_LINK = "Reading the link"
 STAGE_TRACKS = "Fetching tracks"
-STAGE_PAGES = "Scraping track pages"
 STAGE_HUBS = "Opening link hubs"
 
 # One page plus a handful of redirects per track, so this is worth doing several
@@ -52,73 +50,19 @@ class DigOptions:
 
     limit: int | None = None
     timeout: float = 20.0
-    delay: float = 0.5
 
 
 class TargetNotFound(ValueError):
-    """The target is neither a soundcloud.com link nor a file on disk."""
+    """The target is not a soundcloud.com link."""
 
     def __init__(self, target: str) -> None:
-        super().__init__(f"'{target}' is neither a soundcloud.com link nor an existing file.")
+        super().__init__(f"'{target}' is not a soundcloud.com link.")
         self.target = target
 
 
 def _notify(on_progress: ProgressHook | None, stage: str, done: int, total: int | None) -> None:
     if on_progress:
         on_progress(stage, done, total)
-
-
-def dig_html(
-    path: Path,
-    *,
-    limit: int | None = None,
-    timeout: float = 20.0,
-    delay: float = 0.5,
-    on_progress: ProgressHook | None = None,
-    cancel: threading.Event | None = None,
-) -> Crate:
-    """Read a saved page.
-
-    Track ids in the page's hydration blob go through the fast batch hydrator;
-    only a page without them falls back to fetching each track page in turn.
-    """
-
-    path = Path(path)
-    _notify(on_progress, STAGE_LINK, 0, None)
-    track_ids, track_urls, declared = html_fallback.load_playlist(path)
-    if limit is not None:
-        track_ids = track_ids[:limit]
-        track_urls = track_urls[:limit]
-
-    if track_ids:
-        LOGGER.info("Found %s track ids in %s - hydrating through the API", len(track_ids), path)
-        tracks = soundcloud.hydrate_ids(
-            track_ids,
-            timeout=timeout,
-            on_progress=lambda done, total: _notify(on_progress, STAGE_TRACKS, done, total),
-            cancel=cancel,
-        )
-    elif track_urls:
-        LOGGER.info(
-            "No track ids in %s - falling back to scraping %s track pages",
-            path,
-            len(track_urls),
-        )
-        session = soundcloud.create_requests_session()
-        tracks = []
-        try:
-            for index, track_url in enumerate(track_urls, start=1):
-                check_cancelled(cancel)
-                tracks.append(html_fallback.scrape_track_page(track_url, session, timeout))
-                _notify(on_progress, STAGE_PAGES, index, len(track_urls))
-                if delay > 0:
-                    time.sleep(delay)
-        finally:
-            session.close()
-    else:
-        tracks = []
-
-    return Crate(source=str(path), tracks=tracks, title=path.stem, declared_count=declared)
 
 
 class DeadHosts:
@@ -253,39 +197,29 @@ def dig(
     *,
     limit: int | None = None,
     timeout: float = 20.0,
-    delay: float = 0.5,
     on_progress: ProgressHook | None = None,
     cancel: threading.Event | None = None,
+    on_tracks: soundcloud.TracksCallback | None = None,
 ) -> Crate:
-    """Dig a SoundCloud link or a saved HTML file.
+    """Dig a SoundCloud link.
 
     ``cancel`` is checked between requests; a set event raises ``Cancelled``
     rather than returning a partial crate, so nothing half-collected is saved.
+    ``on_tracks`` only shows the tracks gathered so far; they are not saved.
     """
 
     target = target.strip()
-    if soundcloud.is_soundcloud_url(target):
-        _notify(on_progress, STAGE_LINK, 0, None)
-        crate = soundcloud.collect_tracks(
-            target,
-            limit=limit,
-            timeout=timeout,
-            on_progress=lambda done, total: _notify(on_progress, STAGE_TRACKS, done, total),
-            cancel=cancel,
-        )
-    else:
-        path = Path(target).expanduser()
-        if not path.exists():
-            raise TargetNotFound(target)
-        crate = dig_html(
-            path,
-            limit=limit,
-            timeout=timeout,
-            delay=delay,
-            on_progress=on_progress,
-            cancel=cancel,
-        )
-
+    if not soundcloud.is_soundcloud_url(target):
+        raise TargetNotFound(target)
+    _notify(on_progress, STAGE_LINK, 0, None)
+    crate = soundcloud.collect_tracks(
+        target,
+        limit=limit,
+        timeout=timeout,
+        on_progress=lambda done, total: _notify(on_progress, STAGE_TRACKS, done, total),
+        cancel=cancel,
+        on_tracks=on_tracks,
+    )
     expand_link_hubs(crate.tracks, timeout=timeout, on_progress=on_progress, cancel=cancel)
     return crate
 
@@ -304,14 +238,14 @@ class CollectionService:
     def db(self):
         return self.get_db()
 
-    def read(self, target, options, *, cancel=None, progress=None):
+    def read(self, target, options, *, cancel=None, progress=None, on_tracks=None):
         return dig(
             target,
             limit=options.limit,
             timeout=options.timeout,
-            delay=options.delay,
             on_progress=progress,
             cancel=cancel,
+            on_tracks=on_tracks,
         )
 
     def remember(self, crate, *, generation=None, partial=False):
@@ -331,8 +265,8 @@ class CollectionService:
         )
         return CollectionResult(record, exported)
 
-    def collect(self, target, options, generation, export_format, export_path, cancel, progress):
-        crate = self.read(target, options, cancel=cancel, progress=progress)
+    def collect(self, target, options, generation, export_format, export_path, cancel, progress, on_tracks=None):
+        crate = self.read(target, options, cancel=cancel, progress=progress, on_tracks=on_tracks)
         check_cancelled(cancel)
         if not crate.tracks:
             raise ValueError(f"Found no tracks behind {crate.source}")

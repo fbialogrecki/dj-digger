@@ -2,6 +2,16 @@
 <TS version="2.1" language="pl_PL" sourcelanguage="en">
   <context>
     <name>Main</name>
+    <message><source>Key notation</source><translation>Zapis tonacji</translation></message>
+    <message><source>Camelot (8A)</source><translation>Camelot (8A)</translation></message>
+    <message><source>Classic (Am)</source><translation>Klasyczny (Am)</translation></message>
+    <message><source>Animations</source><translation>Animacje</translation></message>
+    <message><source>Pulse timing</source><translation>Synchronizacja pulsowania</translation></message>
+    <message><source>Delay: %1 ms</source><translation>Opóźnienie: %1 ms</translation></message>
+    <message><source>Pulse earlier (−10 ms)</source><translation>Pulsuj wcześniej (−10 ms)</translation></message>
+    <message><source>Pulse later (+10 ms)</source><translation>Pulsuj później (+10 ms)</translation></message>
+    <message><source>Reset</source><translation>Przywróć domyślne</translation></message>
+    <message><source>Mixes with the playing track</source><translation>Pasuje do granego utworu</translation></message>
     <message><source>Reset column order</source><translation>Przywróć kolejność kolumn</translation></message>
     <message><source>Fit column to contents</source><translation>Dopasuj kolumnę do zawartości</translation></message>
     <message><source>Fit all columns</source><translation>Dopasuj wszystkie kolumny</translation></message>
@@ -404,6 +414,13 @@
   </context>
   <context>
     <name>Bridge</name>
+    <message><source>Choose the decks these files must play on; the best format they all play is picked for you.</source><translation>Wybierz decki, na których te pliki mają grać; najlepszy format obsługiwany przez wszystkie zostanie dobrany automatycznie.</translation></message>
+    <message><source>Choose at least one deck</source><translation>Wybierz co najmniej jeden deck</translation></message>
+    <message><source>Decks</source><translation>Decki</translation></message>
+    <message><source>Paste a link from soundcloud.com</source><translation>Wklej link z soundcloud.com</translation></message>
+    <message><source>Reading the link</source><translation>Odczytywanie linku</translation></message>
+    <message><source>Fetching tracks</source><translation>Importowanie utworów</translation></message>
+    <message><source>Opening link hubs</source><translation>Sprawdzanie linków do sklepów</translation></message>
     <message><source>Select a folder</source><translation>Wybierz folder</translation></message>
     <message><source>Select a visible folder</source><translation>Wybierz folder, który nie jest ukryty</translation></message>
     <message>
@@ -643,8 +660,8 @@
       <translation>Importowanie playlist</translation>
     </message>
     <message>
-      <source>SoundCloud URL or saved HTML</source>
-      <translation>Adres SoundCloud lub zapisany HTML</translation>
+      <source>Paste a link to your SoundCloud playlist</source>
+      <translation>Wklej link do swojej playlisty z SoundCloud</translation>
     </message>
     <message>
       <source>Download prerequisites</source>
@@ -1258,8 +1275,8 @@
       <translation>Importowanie playlist</translation>
     </message>
     <message>
-      <source>SoundCloud URL or saved HTML</source>
-      <translation>Adres SoundCloud lub zapisany HTML</translation>
+      <source>Paste a link to your SoundCloud playlist</source>
+      <translation>Wklej link do swojej playlisty z SoundCloud</translation>
     </message>
     <message>
       <source>Download prerequisites</source>

@@ -1,17 +1,11 @@
 import threading
 
 import pytest
-from helpers import a_crate, page_with_hydration
+from helpers import a_crate
 
 from dj_digger import gate_models
 from dj_digger.models import Cancelled, Track
 from dj_digger.services import collection as dig
-
-
-def page_with_ids(*ids):
-    return page_with_hydration(
-        [{"hydratable": "playlist", "data": {"track_count": len(ids), "tracks": [{"id": i} for i in ids]}}]
-    )
 
 
 def test_a_soundcloud_link_goes_through_the_api(monkeypatch):
@@ -28,9 +22,12 @@ def test_a_soundcloud_link_goes_through_the_api(monkeypatch):
     assert seen == {"url": "https://soundcloud.com/a/sets/b", "limit": 5}
 
 
-def test_a_missing_target_is_rejected_with_a_readable_message():
-    with pytest.raises(dig.TargetNotFound, match="neither a soundcloud.com link"):
-        dig.dig("definitely-not-here.html")
+def test_anything_but_a_soundcloud_link_is_rejected_with_a_readable_message(tmp_path):
+    saved = tmp_path / "saved.html"
+    saved.write_text("<html></html>", encoding="utf-8")
+    for target in ("definitely-not-here.html", str(saved), "https://example.com/sets/b"):
+        with pytest.raises(dig.TargetNotFound, match="not a soundcloud.com link"):
+            dig.dig(target)
 
 
 def test_surrounding_whitespace_is_forgiven(monkeypatch):
@@ -38,77 +35,6 @@ def test_surrounding_whitespace_is_forgiven(monkeypatch):
 
     monkeypatch.setattr("dj_digger.soundcloud.collect_tracks", lambda url, **kw: a_crate())
     dig.dig("  https://soundcloud.com/a/sets/b\n")
-
-
-def test_a_saved_page_with_track_ids_uses_the_batch_hydrator(tmp_path, monkeypatch):
-    path = tmp_path / "saved.html"
-    path.write_text(page_with_ids(11, 22, 33), encoding="utf-8")
-
-    hydrated = {}
-
-    def fake_hydrate(ids, **kwargs):
-        hydrated["ids"] = list(ids)
-        return a_crate(3).tracks
-
-    monkeypatch.setattr("dj_digger.soundcloud.hydrate_ids", fake_hydrate)
-    monkeypatch.setattr(
-        "dj_digger.html_fallback.scrape_track_page",
-        lambda *a, **k: pytest.fail("should not scrape when ids are available"),
-    )
-
-    crate = dig.dig(str(path))
-
-    assert hydrated["ids"] == [11, 22, 33]
-    assert crate.declared_count == 3
-    assert crate.title == "saved"
-
-
-def test_the_limit_applies_before_hydration(tmp_path, monkeypatch):
-    path = tmp_path / "saved.html"
-    path.write_text(page_with_ids(1, 2, 3, 4, 5), encoding="utf-8")
-
-    hydrated = {}
-
-    def fake_hydrate(ids, **kwargs):
-        # Not a one-liner with setdefault: that returns the id list, so the fake
-        # handed back ints instead of tracks and nothing downstream noticed.
-        hydrated["ids"] = list(ids)
-        return a_crate(2).tracks
-
-    monkeypatch.setattr("dj_digger.soundcloud.hydrate_ids", fake_hydrate)
-    dig.dig(str(path), limit=2)
-
-    assert hydrated["ids"] == [1, 2]
-
-
-def test_a_page_without_ids_falls_back_to_scraping(tmp_path, monkeypatch):
-    path = tmp_path / "anchors.html"
-    path.write_text(
-        '<a href="https://soundcloud.com/artist/one">a</a>'
-        '<a href="https://soundcloud.com/artist/two">b</a>',
-        encoding="utf-8",
-    )
-
-    scraped = []
-    monkeypatch.setattr(
-        "dj_digger.html_fallback.scrape_track_page",
-        lambda url, session, timeout: scraped.append(url)
-        or Track(title="scraped", permalink_url=url),
-    )
-
-    crate = dig.dig(str(path), delay=0)
-
-    assert sorted(scraped) == [
-        "https://soundcloud.com/artist/one",
-        "https://soundcloud.com/artist/two",
-    ]
-    assert len(crate.tracks) == 2
-
-
-def test_an_empty_page_yields_an_empty_crate(tmp_path):
-    path = tmp_path / "empty.html"
-    path.write_text("<html><body>nothing here</body></html>", encoding="utf-8")
-    assert dig.dig(str(path), delay=0).tracks == []
 
 
 def test_progress_is_reported_by_stage(monkeypatch):
@@ -129,23 +55,9 @@ def test_progress_is_reported_by_stage(monkeypatch):
     assert seen[1:] == [(dig.STAGE_TRACKS, 50, 120), (dig.STAGE_TRACKS, 120, 120)]
 
 
-def test_scraping_reports_progress_per_page(tmp_path, monkeypatch):
-    path = tmp_path / "anchors.html"
-    path.write_text('<a href="https://soundcloud.com/artist/one">a</a>', encoding="utf-8")
-    monkeypatch.setattr(
-        "dj_digger.html_fallback.scrape_track_page",
-        lambda url, session, timeout: Track(title="s", permalink_url=url),
-    )
-
-    seen = []
-    dig.dig(str(path), delay=0, on_progress=lambda *args: seen.append(args))
-
-    assert (dig.STAGE_PAGES, 1, 1) in seen
-
-
 def test_default_options():
     options = dig.DigOptions()
-    assert (options.limit, options.timeout, options.delay) == (None, 20.0, 0.5)
+    assert (options.limit, options.timeout) == (None, 20.0)
 
 
 def a_hub_track():

@@ -1,5 +1,6 @@
 """Offline contracts for the optional Qt desktop and its worker boundary."""
 import json
+import math
 import os
 import queue
 import subprocess
@@ -200,7 +201,7 @@ def test_finished_progress_emits_redraw_even_if_row_data_is_unchanged(app):
 def test_packaged_window_icon_loads(app):
     from PySide6.QtGui import QIcon
     icon = QIcon(str(Path('dj_digger/gui/qml/icons/app.png').resolve()))
-    assert not icon.isNull() and icon.availableSizes()
+    assert not icon.isNull() and icon.availableSizes()[0].width() == 256
 
 
 def test_cli_does_not_import_optional_qt():
@@ -327,21 +328,45 @@ def test_settings_show_placeholder_email_as_empty(backend, tmp_path):
         assert json.loads((tmp_path / 'config.json').read_text())['user_email'] == DEFAULT_EMAIL
 
 
-def test_add_playlist_passes_the_entered_text(backend):
+def test_add_playlist_lists_the_import_at_once_and_fills_it_as_tracks_arrive(backend):
+    from dj_digger.models import Crate, Track
+
     worker, events = backend
     received = []
 
     class Collection:
-        def collect(self, target, *args):
+        def collect(self, target, options, generation, export_format, export_path, cancel, progress, on_tracks=None):
             received.append(target)
+            progress('Fetching tracks', 1, 2)
+            on_tracks(Crate(source=target, tracks=[Track('One', 'https://soundcloud.com/a/one', id=1)], title='Set'))
+            progress('Fetching tracks', 2, 2)
             return type('Result', (), {'record': None})()
 
     worker.services._collection = Collection()
     worker.submit('dig', {})
     question = wait_event(events, 'question')
-    worker.answer(question['id'], {'target': '  https://soundcloud.com/a/sets/b  '})
-    wait_event(events, 'sidebar')
-    assert received == ['https://soundcloud.com/a/sets/b']
+    assert question['fields'][0]['label'] == 'Paste a link to your SoundCloud playlist'
+    worker.answer(question['id'], {'target': 'my-saved-page.html'})
+    question = wait_event(events, 'question')
+    assert question['error'] == 'Paste a link from soundcloud.com'
+    url = 'https://soundcloud.com/a/sets/b'
+    worker.answer(question['id'], {'target': f'  {url}  '})
+    seen = []
+    while not seen or seen[-1][0] != 'sidebar' or seen[-1][1]['items'][:1] == [dict(title='Set', source=url, pending=True)] \
+            or any(item.get('pending') for item in seen[-1][1]['items']):
+        kind, value = events.get(timeout=10)
+        assert kind != 'error', value
+        seen.append((kind, value))
+    assert received == [url]
+    sidebars = [value['items'] for kind, value in seen if kind == 'sidebar']
+    assert sidebars[0][0] == dict(title=url, source=url, pending=True)
+    assert dict(title='Set', source=url, pending=True) in sidebars[1]
+    views = [value for kind, value in seen if kind == 'view']
+    assert [len(view['rows']) for view in views[:2]] == [0, 1] and views[1]['source'] == url
+    # Nothing was saved, so the half-filled view is withdrawn; the progress line clears.
+    assert views[-1]['title'] == ''
+    progress = [value for kind, value in seen if kind == 'importProgress']
+    assert progress[0] == dict(stage='Fetching tracks', done=1, total=2) and progress[-1] == {}
 
 
 def test_store_accounts_sign_in_to_bandcamp_only(backend):
@@ -432,15 +457,60 @@ def test_replace_export_needs_no_destination_folder(backend, tmp_path):
     worker.submit('export', {'keys': [], 'generation': generation})
     question = wait_event(events, 'question')
     answer = {f['name']: f['value'] for f in question['fields']}
+    # The dialog asks for groups of decks that play the same files, those holding the
+    # original CDJ set ticked the first time; the format follows from them.
+    from dj_digger.decks import DECK_GROUPS, DEFAULT_DECKS
+    decks = next(f for f in question['fields'] if f['name'] == 'decks')
+    assert decks['kind'] == 'checks'
+    assert [label for _, label in decks['options']] == [', '.join(group) for group in DECK_GROUPS]
+    assert {name for index in answer['decks'] for name in DECK_GROUPS[int(index)]} >= set(DEFAULT_DECKS)
+    assert not {'format', 'bits', 'rate'} & set(answer)
+    newest = str(next(i for i, group in enumerate(DECK_GROUPS) if 'CDJ-3000' in group))
     worker.answer(question['id'], dict(answer, folder=' '))
     retry = wait_event(events, 'question')
     assert retry['error'] == 'This field is required'
-    worker.answer(retry['id'], dict(answer, folder='', mode='replace'))
+    # The retry keeps the ticked groups rather than the deck names they stand for.
+    assert next(f for f in retry['fields'] if f['name'] == 'decks')['value'] == answer['decks']
+    none = dict(answer, folder='', mode='replace', decks=[])
+    worker.answer(retry['id'], none)
+    retry = wait_event(events, 'question')
+    assert retry['error'] == 'Choose at least one deck'
+    worker.answer(retry['id'], dict(none, decks=[newest]))
     review = wait_event(events, 'question')
     assert review['title'] == 'Review export'
+    summary = review['fields'][0]['value'].splitlines()
+    assert summary[0].startswith('FLAC, up to 24-bit / 96 kHz')
+    newest_decks = ['CDJ-3000', 'CDJ-3000X', 'OPUS-QUAD', 'XDJ-AZ']
+    assert [line.split(':')[0] for line in summary[1:5]] == newest_decks
+    assert worker.services.config.export_decks == newest_decks
     worker.answer(review['id'], None)
     assert wait_event(events, 'message')['text'] == 'Cancelled'
     assert not [path for path in tmp_path.rglob('dj-digger-*') if path.is_dir()]
+
+
+def test_playing_sends_the_beats_ahead(backend):
+    import asyncio
+    from types import SimpleNamespace
+    worker, events = backend
+
+    class Playing:
+        playing, position, duration = True, 10.0, 300.0
+
+        def __init__(self):
+            self.loaded = SimpleNamespace(track=SimpleNamespace(key='k', label='K'))
+
+        def beats(self):
+            return [(10.2, 1.0), (10.7, .6)], .5
+
+        def take_event(self):
+            self.loaded = None  # One tick, then the loop ends.
+
+    worker.services._player = Playing()
+    try:
+        asyncio.run_coroutine_threadsafe(worker.tick(), worker.loop).result(timeout=5)
+        assert wait_event(events, 'beats') == dict(key='k', pulses=[[10.2, 1.0], [10.7, .6]], period=.5)
+    finally:
+        worker.services._player = None
 
 
 def test_empty_replace_selection_reports_instead_of_crashing(backend, tmp_path):
@@ -588,6 +658,65 @@ def test_model_counts_store_summary_and_status_labels(app):
     assert model.keys() == []
 
 
+def keyed(key, title, key_signature, bpm=120):
+    from dj_digger.analysis import key_names
+    classic, camelot = key_names(key_signature) or ('', '')
+    return {**row(key, title, bpm), 'keySignature': key_signature, 'classicKey': classic, 'camelot': camelot}
+
+
+def test_keys_follow_the_chosen_notation_and_sort_around_the_wheel(app):
+    model = TrackModel()
+    model.replace([keyed('a', 'A', 'A minor', 120.35), keyed('b', 'B', '12B'), keyed('c', 'C', 'Hm'), keyed('d', 'D', 'Db')])
+    assert [model.data(model.index(i, 5)) for i in range(4)] == ['8A', '12B', 'Hm', '3B']
+    assert model.data(model.index(0, 4)) == '120.3' and model.data(model.index(1, 4)) == '120'
+    assert model.data(model.index(3, 5), Qt.UserRole + 5) == '3B'
+    changed = []
+    model.dataChanged.connect(lambda first, last, roles: changed.append((first.column(), last.column())))
+    model.setKeyNotation('classic')
+    assert changed == [(5, 5)]
+    assert [model.data(model.index(i, 5)) for i in range(4)] == ['Am', 'E', 'Hm', 'C#']
+    model.setKeyNotation('bogus')
+    assert model.key_notation == 'classic'
+    model.sortBy(5)
+    assert [r['key'] for r in model.visible] == ['d', 'a', 'b', 'c']
+
+
+def test_only_real_status_changes_flash_and_bulk_changes_do_not(app):
+    from dj_digger.gui.model import FLASH_LIMIT
+    model = TrackModel()
+    flashes = []
+    model.statusFlashed.connect(flashes.append)
+    rows = [row('a', 'Alpha'), row('b', 'Beta')]
+    model.replace(rows)
+    model.update_progress({'a': .5})
+    model.select(0)
+    model.update_rows([dict(r) for r in rows])
+    assert flashes == []
+    changed = [dict(r) for r in rows]
+    changed[1]['status'] = 'got'
+    model.sortBy(2)  # The reset path flashes too.
+    model.update_rows(changed)
+    assert flashes == [{'b': 'got'}]
+    many = [row(str(i), str(i)) for i in range(FLASH_LIMIT + 1)]
+    model.replace(many)
+    model.update_rows([{**r, 'status': 'skip'} for r in many])
+    assert len(flashes) == 1
+
+
+def test_presentation_settings_keep_only_known_keys(app, tmp_path):
+    from dj_digger.gui.bridge import Bridge
+
+    class PassiveBackend:
+        def __init__(self, emit):
+            pass
+        def submit(self, *args):
+            pass
+
+    bridge = Bridge(None, backend_factory=PassiveBackend, home_path=tmp_path)
+    bridge.saveSettings({'keyNotation': 'classic', 'animations': False, 'pulseOffset': 140, 'theme': 'dark', 'token': 'secret'})
+    assert bridge._settings == {'keyNotation': 'classic', 'animations': False, 'pulseOffset': 140, 'theme': 'dark'}
+
+
 def test_summary_overwrite_needs_separate_confirmation(backend, tmp_path):
     worker, events = backend
     worker.rows = online_rows(1)
@@ -647,6 +776,8 @@ def test_local_waveform_arrives_after_pause_without_blocking_play(backend, tmp_p
         pause.result(timeout=2)
     finally:
         release.set()
+    now_playing = wait_event(events, 'nowPlaying')
+    assert (now_playing['key'], now_playing['name'], now_playing['camelot']) == (track.key, 'Local waveform', '')
     waveform = wait_event(events, 'waveform')
     assert waveform['key'] == track.key
     assert len(waveform['samples']) == 1024
@@ -768,6 +899,8 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
     try:
         assert engine.rootObjects()
         window = engine.rootObjects()[0]
+        # Geometry and colours are asserted as they settle, without transitions in between.
+        window.setProperty('animations', False)
         bridge.receive('ready', {})
         bridge.receive('audio', dict(key='w', title='Local fixture.wav', playing=True, position=1, duration=4))
         bridge.receive('waveform', dict(key='w', samples=[1000] * 512 + [200] * 512))
@@ -874,6 +1007,93 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
         bridge.receive('audio', dict(key='w', title='Local fixture.wav', playing=True, position=3.2, duration=4))
         assert abs(canvas.property('fraction') - .8) < .01
         assert len(bridge.waveform) == 1024
+        # Detected hits are scheduled against queued audio, including the first kick.
+        from PySide6.QtQml import QQmlEngine, QQmlExpression
+        def qml(expression):
+            result, _ = QQmlExpression(QQmlEngine.contextForObject(window), window, expression).evaluate()
+            return result
+        played, kick = find_item(canvas, 'playedBars'), find_item(canvas, 'kickBars')
+        # Only the played side pulses; the unplayed side has no peak layer.
+        assert find_item(canvas, 'unplayedKickBars') is None
+        assert find_item(canvas, 'unplayedBars').property('opacity') == 1
+        cover = find_item(scene, 'cover')
+        window.setProperty('animations', True)
+        window.setProperty('pulseOffset', 70)
+        qml('audioClock = -1; syncClock(.05, 0)')
+        bridge.receive('beats', dict(key='w', pulses=[[0, 1.0]], period=.5))
+        qml('pulseTick(10)')
+        assert window.property('flash') == 0
+        # The envelope rises to the peak over 25 ms and holds it for 40 ms.
+        qml('pulseTick(25); pulseTick(37.5)')
+        assert window.property('flash') == pytest.approx(.5)
+        qml('pulseTick(50)')
+        assert window.property('flash') == 1
+        assert played.property('opacity') == 1 and kick.property('opacity') == 1
+        assert cover.property('opacity') == 1
+        # Then it releases over a third of a beat (150 ms at 120 BPM), never a cut.
+        qml('pulseTick(90)')
+        assert window.property('flash') == 1
+        qml('pulseTick(240)')
+        assert window.property('flash') == pytest.approx(math.exp(-1), abs=.01)
+        # Polling the same hit never retriggers it.
+        qml('peak = 0; flash = 0; pulseTick(260)')
+        assert window.property('flash') == 0
+        # Speaker delay still shifts the schedule. The late delivery of a real
+        # hit is accepted once within 100 ms; older hits and other tracks are ignored.
+        window.setProperty('pulseOffset', 100)
+        qml('audioClock = -1; syncClock(3.4, 0)')
+        bridge.receive('beats', dict(key='w', pulses=[[3.0, 1.0], [3.35, .8]], period=.5))
+        qml('pulseTick(20)')
+        assert window.property('flash') == 0
+        qml('pulseTick(60); pulseTick(85)')
+        assert window.property('flash') == pytest.approx(.8)
+        qml('peak = 0; flash = 0; pulseTick(90)')
+        assert window.property('flash') == 0
+        bridge.receive('beats', dict(key='wrong', pulses=[[3.4, 1.0]], period=.5))
+        qml('pulseTick(100)')
+        assert window.property('flash') == 0
+        # A hit 50 ms after the last one is a roll: it holds the running peak instead of restarting it.
+        qml('peak = .8; peakAt = 60; flash = .8')
+        bridge.receive('beats', dict(key='w', pulses=[[3.4, 1.0]], period=.5))
+        qml('pulseTick(110)')
+        assert qml('lastFired') == 3.4 and window.property('flash') == pytest.approx(.8)
+        bridge.receive('beats', dict(key='w', pulses=[], period=.5))
+        QTest.qWait(250)
+        assert kick.property('opacity') == 0  # No residual roll charge in the break.
+        bridge.receive('audio', dict(key='w', title='Local fixture.wav', playing=False, position=3.2, duration=4))
+        assert canvas.property('opacity') == 1 and cover.property('opacity') == 1
+        # Resume at the same queued position must not replay a hit already shown.
+        qml('lastPosition = 3.2; lastFired = 3.15')
+        bridge.receive('audio', dict(key='w', title='Local fixture.wav', playing=True, position=3.2, duration=4))
+        bridge.receive('beats', dict(key='w', pulses=[[3.15, 1.0]], period=.5))
+        qml('pulseTick(clockAt + 100)')
+        assert window.property('flash') == 0
+        # While playing with motion on, the playhead follows the interpolated heard clock, at subpixel x.
+        qml('audioClock = 2; clockAt = 1000; lastPosition = 3; pulseOffset = 100')
+        qml('pulseTick(1350)')
+        assert window.property('playhead') == pytest.approx(2.25)
+        assert canvas.property('fraction') == pytest.approx(2.25 / 4)
+        cursor = find_item(canvas, 'cursor')
+        assert cursor.property('x') == pytest.approx(canvas.width() * 2.25 / 4)
+        # Pausing hands the playhead back to the snapshot position.
+        bridge.receive('audio', dict(key='w', title='Local fixture.wav', playing=False, position=3.2, duration=4))
+        assert window.property('playhead') == -1 and canvas.property('fraction') == pytest.approx(.8)
+        # The peak colours stay under the WCAG 2.3.1 general and red flash thresholds
+        # at the layers' full crossfade, in both themes and for every artwork tone.
+        def flash_luminance(color):
+            r, g, b = [c / 12.92 if c <= .04045 else ((c + .055) / 1.055) ** 2.4 for c in (color.redF(), color.greenF(), color.blueF())]
+            return .2126 * r + .7152 * g + .0722 * b, r / (r + g + b) >= .8, (r - g - b) * 320
+        for theme in ('dark', 'light'):
+            window.setProperty('themeChoice', theme)
+            for tone in ('accent', 'accent2', 'silver', 'Qt.color("#4368ba")', 'Qt.color("#b23755")'):
+                base, peak = qml(tone), qml(f'peakColor({tone})')
+                assert peak.hslHueF() == pytest.approx(base.hslHueF(), abs=.01)
+                assert peak.hslSaturationF() >= base.hslSaturationF() - .01 and peak.lightnessF() > base.lightnessF()
+                (y0, red_base, red0), (y1, red_peak, red1) = flash_luminance(base), flash_luminance(peak)
+                assert abs(y1 - y0) < .1, (theme, tone)
+                assert not (red_base or red_peak) or abs(red1 - red0) < 20, (theme, tone)
+        assert any(flash_luminance(qml(tone))[1] for tone in ('accent2', 'Qt.color("#b23755")'))  # The bound is exercised.
+        window.setProperty('animations', False)
         bridge.receive('audio', dict(key='other', title='Other', playing=True, position=0, duration=4))
         assert bridge.waveform == []
         # Switch in place as in the user's screenshots; rendered delegates must
@@ -961,6 +1181,8 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
     engine.load(QUrl.fromLocalFile(str(Path('dj_digger/gui/qml/Main.qml').resolve())))
     try:
         window = engine.rootObjects()[0]
+        # Geometry and colours are asserted as they settle, without transitions in between.
+        window.setProperty('animations', False)
         def settle():
             painted = QSignalSpy(window.frameSwapped)
             window.update()
@@ -984,6 +1206,18 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
         click(play)
         assert bridge.backend.calls[-1][0] == 'play'
         assert bridge.backend.calls[-1][1]['keys'] == ['b']
+        # Mute is a speaker icon that is struck through while muted; its name stays accessible.
+        from PySide6.QtQml import QQmlEngine, QQmlExpression
+        mute = window.findChild(QQuickItem, 'muteButton')
+        def mute_icon():
+            return QQmlExpression(QQmlEngine.contextForObject(mute), mute, 'icon.source.toString()').evaluate()[0]
+        assert mute_icon().endswith('icons/volume.svg')
+        click(mute)
+        assert bridge.backend.calls[-1][0] == 'transport' and bridge.backend.calls[-1][1]['operation'] == 'mute'
+        assert mute_icon().endswith('icons/volume-muted.svg')
+        assert mute.property('text') == 'Wyłącz wyciszenie'
+        click(mute)
+        assert mute_icon().endswith('icons/volume.svg')
         bridge.table.select(0)
         assert window.property('pauseTarget')
         click(play)
@@ -1000,7 +1234,6 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
         settle()
         assert open_links.isEnabled()
         # "More actions" omits the toolbar entries; local-only and playlist-only entries follow the view.
-        from PySide6.QtQml import QQmlEngine, QQmlExpression
         def qml(expression):
             return QQmlExpression(QQmlEngine.contextForObject(window), window, expression).evaluate()[0]
         def menu_entries():
@@ -1081,13 +1314,40 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
         assert qml('dialog.standardButton(Dialog.Cancel).width') < qml('dialog.width') / 3
         qml('dialog.close()')
         settle()
+        # Several ticks under one label sit two to a row and answer with the ticked values.
+        bridge.receive('question', dict(id='q2', title='Export', body='', ok='Export', fields=[dict(
+            name='decks', label='Decks', kind='checks', value=['1'],
+            options=[['0', 'CDJ-350, CDJ-850 / 850-K'], ['1', 'CDJ-900, CDJ-2000'], ['2', 'XDJ-AERO']])]))
+        settle()
+        boxes = [find(window.contentItem(), f'check-decks-{i}') for i in range(3)]
+        assert [box.property('checked') for box in boxes] == [False, True, False]
+        assert boxes[0].y() == boxes[1].y() < boxes[2].y() and boxes[0].x() < boxes[1].x()
+        QTest.mouseClick(window, Qt.LeftButton, pos=boxes[2].mapToScene(QPointF(8, boxes[2].height() / 2)).toPoint())
+        settle()
+        assert qml('JSON.stringify(dialog.values.decks)') == '["1","2"]'
+        qml('dialog.close()')
+        settle()
         for theme in ('light', 'dark'):
             window.setProperty('themeChoice', theme)
             settle()
             playlist = find(window.contentItem(), 'playlist-fixture')
-            assert playlist.property('background').property('color') == window.property('accent')
-            labels = playlist.property('contentItem').childItems()
+            assert playlist.property('background').property('color') == window.property('selection')
+            labels = [item for item in playlist.property('contentItem').childItems() if item.isVisible()]
             assert all(label.property('color') == window.property('selectionText') for label in labels)
+        # Hover lights the row under the pointer, also once the table has scrolled.
+        bridge.receive('view', dict(title='Local', source='fixture', local=True, generation=2,
+                                    rows=[row(str(i), f'Track {i}') for i in range(60)]))
+        settle()
+        qml('table.contentY = 34 * 4')
+        settle()
+        table = window.findChild(QQuickItem, 'trackTable')
+        for visible_row in (1, 3):
+            point = table.mapToScene(QPointF(200, visible_row * 34 + 17)).toPoint()
+            QTest.mouseMove(window, point)
+            settle()
+            assert qml('table.hoverRow') == 4 + visible_row
+        QTest.mouseMove(window, QPointF(2, 2).toPoint())
+        settle()
         window.setWidth(760)
         window.setHeight(520)
         bridge.receive('error', {'text': 'Unable to load track. ' * 30})

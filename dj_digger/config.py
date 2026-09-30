@@ -11,6 +11,7 @@ import random
 import re
 from pathlib import Path
 
+from .decks import DECK_NAMES, DEFAULT_DECKS
 from .paths import config_dir
 from .private_json import write_private_json
 
@@ -42,6 +43,7 @@ PERSISTED_FIELDS = (
     "sidebar_split",
     "sidebar_mode",
     "volume",
+    "export_decks",
 )
 
 # Optional track-table columns, in the order they appear when switched on.
@@ -94,6 +96,8 @@ class AppConfig:
         self.sidebar_mode: str = "both"
         # Playback level shared by the TUI and the desktop; mute is not kept.
         self.volume: float = 0.8
+        # Decks the last audio export was for, in deck order; the export format follows from them.
+        self.export_decks: list[str] = list(DEFAULT_DECKS)
         # True when there was no config file to read, i.e. this is the first
         # launch. The TUI uses it to ask for the settings before anything needs
         # them - gates submit the name and email without asking again.
@@ -130,6 +134,9 @@ class AppConfig:
                 self.sidebar_split = raw.get('sidebar_split') if raw.get('sidebar_split') in (30, 50, 70) else 50
                 if isinstance(raw.get("volume"), (int, float)) and not isinstance(raw.get("volume"), bool):
                     self.volume = max(0.0, min(1.0, float(raw["volume"])))
+                decks = raw.get("export_decks")
+                if isinstance(decks, list):
+                    self.export_decks = [name for name in DECK_NAMES if name in {str(d) for d in decks}] or list(DEFAULT_DECKS)
                 columns = raw.get("columns")
                 if isinstance(columns, list):
                     self.columns = [

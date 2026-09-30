@@ -32,6 +32,9 @@ def main():
     app = QGuiApplication(sys.argv)
     app.setApplicationName('dj-digger')
     app.setOrganizationName('dj-digger')
+    # Wayland app_id: without it the compositor sees the interpreter ("python3")
+    # and cannot pair the window with dj-digger.desktop for its name and icon.
+    app.setDesktopFileName('dj-digger')
     # The executable icon covers shortcuts only; the title bar and taskbar take the window icon.
     app.setWindowIcon(QIcon(str(Path(__file__).parent / 'qml' / 'icons' / 'app.png')))
     from ..bundled import hold

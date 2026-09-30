@@ -154,21 +154,31 @@ class HlsSourceMixin:
             self._offset = target
             return True
 
-    def stream(self, seek_frame):
+    @property
+    def length(self):
+        """Bytes of the whole track once every segment arrived, so a seek can open
+        at the right byte; unknown before that."""
+        with self._condition:
+            return len(self._buffer) if self._done and not self._error else None
+
+    def stream(self, seek_frame, start=0):
         import miniaudio
 
+        from .player import starts_at_type
+
+        source = starts_at_type(miniaudio)(self, start) if start else self
         try:
             yield from miniaudio.stream_any(
-                self, source_format=miniaudio.FileFormat.MP3,
-                sample_rate=44100, nchannels=2, seek_frame=seek_frame,
+                source, source_format=miniaudio.FileFormat.MP3,
+                sample_rate=44100, nchannels=2, seek_frame=0 if start else seek_frame,
             )
         except Exception:
-            if self._error or self.error_in_readcallback:
+            if self._error or self.error_in_readcallback or source.error_in_readcallback:
                 raise SoundCloudError(self._error or "SoundCloud HLS transfer failed; try playing again") from None
             raise
         # Some decoder EOF paths swallow a failed source read. A truncated
         # transfer must not look like a completed song and auto-advance.
-        if not self._closed and (self._error or self.error_in_readcallback):
+        if not self._closed and (self._error or self.error_in_readcallback or source.error_in_readcallback):
             raise SoundCloudError(self._error or "SoundCloud HLS transfer failed; try playing again")
 
     def close(self):

@@ -2,8 +2,10 @@ import array
 import threading
 
 import pytest
+from helpers import drums
 
 from dj_digger import player, waveform
+from dj_digger.beats import KickDetector
 from dj_digger.models import Track
 from dj_digger.services import playback
 from dj_digger.soundcloud import SoundCloudError
@@ -800,3 +802,147 @@ def test_a_read_error_ends_the_stream_quietly():
     source._response.raw = Exploding(b"")
 
     assert source.read(4) == b""
+
+
+# Seeking without stale audio or a long gap, and detected hits
+
+
+def test_seeking_and_stopping_start_a_fresh_output(monkeypatch):
+    """A stopped device only pauses: what it had queued played again after the seek."""
+
+    subject, device = loaded_player(monkeypatch)
+    closes = []
+    monkeypatch.setattr(device, "close", lambda: closes.append(True))
+    # Like the real one: the device made for a play is the one later dropped.
+    monkeypatch.setattr(subject, "_device_for", lambda rate, channels: setattr(subject, "_device", device) or device)
+    subject.play()
+    subject.pause()
+    assert closes == []  # Pause keeps the queue, so resuming continues seamlessly.
+    subject.play()
+    subject.seek(120.0)
+    assert closes == [True] and subject.playing
+    subject.stop()
+    assert closes == [True, True]
+
+
+def test_audio_fades_in_after_every_start(monkeypatch):
+    subject, device = loaded_player(monkeypatch)
+    subject.set_volume(1.0)
+    subject.play()
+    chunk = device.started_with.send(1024)
+    assert chunk[0] == 0 and 0 < chunk[player.FADE_SAMPLES // 2] < 100 and chunk[-1] == 100
+    assert device.started_with.send(1024)[0] == 100
+    subject.seek(30.0)
+    assert device.started_with.send(1024)[0] == 0
+
+
+def detect(audio, start=0.0):
+    detector = KickDetector()
+    return [kick for offset in range(0, len(audio), 4410)
+            for kick in detector.feed(audio[offset:offset + 4410], start + offset / 2 / 44100)]
+
+
+def test_kicks_are_found_on_time_through_a_roll():
+    beat = 60 / 128
+    four = [i * beat for i in range(8)]
+    eighths = [four[-1] + beat + i * beat / 2 for i in range(8)]
+    sixteenths = [eighths[-1] + beat / 2 + i * beat / 4 for i in range(16)]
+    truth = four + eighths + sixteenths
+    kicks = detect(drums(truth, truth[-1] + .5), start=30.0)
+    # Every hit once, within 10 ms, timed on the track rather than from the start of playback.
+    assert len(kicks) == len(truth)
+    assert all(abs(kick.time - 30.0 - t) < .01 for kick, t in zip(kicks, truth))
+    assert all(kick.strength > .5 for kick in kicks)
+
+
+def test_a_held_bass_or_silence_is_not_a_kick():
+    # Starting a held tone can produce one onset, but never repeated pulses.
+    held = detect(drums([], 3, bass=.5))
+    assert len(held) <= 1 and all(k.time <= .015 for k in held)
+    assert detect(array.array("h", bytes(44100 * 4))) == []
+    # A quiet kick after a loud drop still shows once the drop has been gone a few seconds.
+    loud, quiet = drums([0.0], 6), drums([0.0], 1)
+    quiet = array.array("h", (sample // 6 for sample in quiet))
+    assert len(detect(loud + quiet)) == 2
+
+
+def test_kicks_keep_time_with_the_start_each_chunk_is_given():
+    """A source can report fewer frames than it sent; the start of each chunk resyncs the clock."""
+    audio = drums([0.25, 1.25], 1.5)
+    detector = KickDetector()
+    kicks = detector.feed(audio[:44100], 10.0)
+    # The second second is said to start 0.5 s later than its samples would put it.
+    kicks += detector.feed(audio[44100:], 11.0)
+    assert [kick.time for kick in kicks] == pytest.approx([10.25, 11.75], abs=.015)
+
+
+def test_the_player_reads_detected_hits_around_its_position(monkeypatch):
+    subject, device = loaded_player(monkeypatch)
+    subject.set_volume(1.0)
+    beat = 60 / 128
+    audio = drums([i * beat for i in range(12)], 12 * beat)
+
+    def decoder(frame):
+        for offset in range(0, len(audio), 4410):
+            yield audio[offset:offset + 4410]
+
+    monkeypatch.setattr(subject, "_open_stream", decoder)
+    subject.play()
+    for _ in range(len(audio) // 4410 - 1):
+        device.started_with.send(2205)
+    pulses, period = subject.beats()
+    # From half a second behind the decoded position, which is fed but not yet heard.
+    assert pulses and pulses[0][0] >= subject.position - player.BEATS_BEHIND
+    assert all(abs(time / beat - round(time / beat)) * beat < .015 for time, _ in pulses)
+    assert period == pytest.approx(beat, abs=.02)
+
+
+def test_the_byte_of_a_position_skips_the_id3_tag():
+    class Source:
+        def __init__(self, data):
+            self.data, self.offset = data, 0
+        def seek(self, offset, origin):
+            self.offset = offset
+            return True
+        def read(self, count):
+            return self.data[self.offset:self.offset + count]
+
+    tagged = b"ID3\x03\x00\x00\x00\x00\x01\x00" + bytes(1000)  # A 128-byte tag after the header.
+    assert player.mp3_start(Source(tagged), 50.0, 100.0, 1138) == 138 + 500
+    assert player.mp3_start(Source(bytes(1000)), 25.0, 100.0, 1000) == 250
+    assert player.mp3_start(Source(bytes(1000)), 500.0, 100.0, 1000) == 1000
+
+
+def test_a_seek_lands_on_time_at_any_position(monkeypatch, tmp_path):
+    """Opening at the byte takes a millisecond anywhere; decoding up to the target grew with it."""
+
+    import shutil
+    import subprocess
+    import time
+
+    miniaudio = pytest.importorskip("miniaudio")
+    if not shutil.which("ffmpeg"):
+        pytest.skip("needs ffmpeg")
+    path = tmp_path / "marker.mp3"
+    made = subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo:d=150",
+                           "-f", "lavfi", "-i", "sine=f=1000:d=2:r=44100", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo:d=48",
+                           "-filter_complex", "[1]aformat=channel_layouts=stereo[t];[0][t][2]concat=n=3:v=0:a=1",
+                           "-c:a", "libmp3lame", "-b:a", "128k", str(path)], capture_output=True)
+    if made.returncode:
+        pytest.skip("FFmpeg has no MP3 encoder")
+    subject = player.Player()
+    device = FakeDevice()
+    monkeypatch.setattr(subject, "_device_for", lambda rate, channels: device)
+    source = player.http_source_type(miniaudio)(FakeSession(path.read_bytes()), URL)
+    subject.load(Track(title="t", permalink_url="u"), playback.Stream(url=URL, duration=200.0), None, None, source)
+    subject.play()
+    started = time.perf_counter()
+    subject.seek(149.5)
+    assert time.perf_counter() - started < 0.05
+    heard = 0
+    while heard < 44100:
+        chunk = device.started_with.send(441)
+        if max(chunk, default=0) > 2000:
+            break
+        heard += len(chunk) // 2
+    assert abs(149.5 + heard / 44100 - 150.0) < 0.1

@@ -439,6 +439,21 @@ def test_hydrate_reports_progress(monkeypatch):
     assert seen == [(50, 60), (60, 60)]
 
 
+def test_an_import_is_shown_batch_by_batch_in_playlist_order(monkeypatch, playlist_payload):
+    client = make_client()
+    monkeypatch.setattr(client, "resolve", lambda url: dict(playlist_payload, tracks=[{"id": i} for i in range(60, 0, -1)]))
+
+    def fake_get(path, **params):
+        return [track_payload(int(value)) for value in reversed(params["ids"].split(","))]
+
+    monkeypatch.setattr(client, "_get", fake_get)
+    shown = []
+    crate = client.collect("https://soundcloud.com/a/sets/b", on_tracks=shown.append)
+    assert [len(part.tracks) for part in shown] == [50, 60]
+    assert [track.id for track in shown[0].tracks] == list(range(60, 10, -1))
+    assert shown[-1].tracks == crate.tracks and {part.title for part in shown} == {crate.title}
+
+
 def test_hydrate_of_nothing_makes_no_requests(monkeypatch):
     client = make_client()
     monkeypatch.setattr(client, "_get", lambda *a, **k: pytest.fail("should not request"))
@@ -451,7 +466,7 @@ def test_collect_playlist_hydrates_every_stub(monkeypatch, playlist_payload):
 
     requested = []
 
-    def fake_hydrate(ids, on_progress=None, cancel=None):
+    def fake_hydrate(ids, on_progress=None, cancel=None, on_batch=None):
         requested.extend(ids)
         return [Track.from_api(track_payload(track_id)) for track_id in ids]
 
@@ -467,7 +482,7 @@ def test_collect_playlist_hydrates_every_stub(monkeypatch, playlist_payload):
 def test_collect_playlist_honours_limit(monkeypatch, playlist_payload):
     client = make_client()
     monkeypatch.setattr(client, "resolve", lambda url: playlist_payload)
-    monkeypatch.setattr(client, "hydrate_tracks", lambda ids, on_progress=None, cancel=None: list(ids))
+    monkeypatch.setattr(client, "hydrate_tracks", lambda ids, on_progress=None, cancel=None, on_batch=None: list(ids))
 
     crate = client.collect("https://soundcloud.com/a/sets/b", limit=7)
     assert len(crate.tracks) == 7

@@ -200,8 +200,11 @@ def test_changed_source_refused_and_lossy_32khz_shows_actual_compatibility(tmp_p
     path.write_bytes(path.read_bytes() + b'changed')
     assert execute(plan, db)['status'] == 'partial'
     mp3 = audio(tmp_path, '32.mp3', 'libmp3lame', 32000)
-    item = plan_export([mp3], tmp_path / 'out2').items[0]
-    assert item.action == 'copy'
+    # Kept as it is only for decks that all play it; a CDJ-3000 does not play 32 kHz MP3,
+    # and a lossy file is never transcoded, so it becomes a listed exception.
+    assert plan_export([mp3], tmp_path / 'out2', decks=['CDJ-2000NXS2', 'CDJ-350']).items[0].action == 'copy'
+    item = plan_export([mp3], tmp_path / 'out3', decks=['CDJ-3000', 'CDJ-350']).items[0]
+    assert item.action == 'exception' and 'every chosen deck' in item.reason
     states = compatibility([probe(mp3)])
     assert states['CDJ-3000'] == 'incompatible'
 
@@ -333,3 +336,49 @@ def test_analysis_sources_are_per_field_and_do_not_extend_track_serialization(tm
     assert 'bpm_source' not in asdict(media_track(db, record))
     db.set_media_manual(track.local_id, {})
     assert media_analysis_values(db, record)['bpm'] == (64, 'Analysis (estimate)')
+
+
+def test_the_chosen_decks_pick_the_format(tmp_path):
+    from dj_digger.decks import best_profile
+    from dj_digger.export import resume_plan
+
+    assert best_profile(['CDJ-3000', 'CDJ-2000NXS2']) == Profile('flac', 24, 96000)
+    assert best_profile(['CDJ-3000', 'CDJ-350']) == Profile('wav', 24, 48000)
+    with pytest.raises(ValueError, match='at least one deck'):
+        best_profile([])
+    hires = audio(tmp_path, 'hires.flac', 'flac')  # 96 kHz FLAC
+    # Every high-resolution deck plays it as it is; an older one in the set needs 48 kHz.
+    modern = plan_export([hires], tmp_path / 'modern', decks=['CDJ-3000', 'CDJ-2000NXS2'])
+    assert modern.items[0].action == 'copy' and modern.profile.format == 'flac'
+    mixed = plan_export([hires], tmp_path / 'mixed', decks=['CDJ-3000', 'CDJ-2000'])
+    assert (mixed.items[0].action, mixed.items[0].rate, mixed.profile.format) == ('convert', 48000, 'wav')
+    assert mixed.items[0].destination.endswith('.wav')
+    assert set(mixed.compatibility()) == {'CDJ-2000', 'CDJ-3000'}
+    record = {'plan': {**__import__('dataclasses').asdict(mixed)}}
+    assert resume_plan(record).decks == ('CDJ-2000', 'CDJ-3000')
+    del record['plan']['decks']  # Saved before decks could be chosen.
+    assert len(resume_plan(record).decks) == 7
+
+
+def test_the_review_warns_about_a_drive_the_decks_cannot_read(tmp_path, monkeypatch):
+    from dj_digger import export
+    from dj_digger.export import mount_type
+
+    assert mount_type('/dev/sdb1 /run/media/me/MY\\040USB vfat rw 0 0\n', Path('/run/media/me/MY USB')) == 'vfat'
+    source = audio(tmp_path, 'deep.wav', 'pcm_s16le', 48000)
+    nested = tmp_path.joinpath(*'abcdefghij')
+    nested.mkdir(parents=True)
+    deep = nested / 'deep.wav'
+    source.rename(deep)
+    usb = tmp_path / 'usb'
+    usb.mkdir()
+    monkeypatch.setattr(export, 'destination_drive', lambda folder: (usb, 'exfat'))
+    plan = plan_export([deep], usb, decks=['CDJ-3000', 'CDJ-3000X'])
+    assert plan.notes == ('The destination drive uses exFAT, which CDJ-3000 cannot read; FAT32 works on every deck.',)
+    shallow = plan_export([deep], usb, decks=['CDJ-3000X'])
+    assert shallow.notes == ()  # One file, one folder deep in the new export folder, on a drive it reads.
+    monkeypatch.setattr(export, 'destination_drive', lambda folder: (tmp_path, 'fat'))
+    replacing = plan_export([deep], usb, decks=['CDJ-3000'], mode='replace')
+    assert replacing.notes == ('1 file sits more than 8 folders below the drive root, where decks do not show them.',)
+    monkeypatch.setattr(export, 'destination_drive', lambda folder: (tmp_path, None))
+    assert plan_export([deep], usb, decks=['CDJ-3000'], mode='replace').notes == ()

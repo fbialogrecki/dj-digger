@@ -27,6 +27,30 @@ def camelot(key: str) -> str:
     return key
 
 
+SEMITONES = {'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11}
+
+
+def key_names(value) -> tuple[str, str] | None:
+    """(classic, Camelot) for the usual spellings of a key found in tags and
+    analysis - 'Am', 'A minor', 'Amin', 'A#m', 'Bb', '8A' - or None."""
+    import re
+
+    text = str(value or '').strip()
+    if len(text) > 12:
+        return None
+    if match := re.fullmatch(r'(1[0-2]|0?[1-9])\s*([AaBb])', text):
+        number, minor = int(match[1]), match[2] in 'Aa'
+        index = (MINOR_CAMELOT if minor else MAJOR_CAMELOT).index(number)
+        return NOTES[index] + ('m' if minor else ''), f'{number}{"A" if minor else "B"}'
+    match = re.fullmatch(r'([A-Ga-g])\s*([#b\u266f\u266d]?)\s*(m|min|minor|maj|major)?', text, re.IGNORECASE)
+    if not match or (match[2] == 'B'):
+        return None
+    index = (SEMITONES[match[1].upper()] + {'#': 1, '\u266f': 1, 'b': -1, '\u266d': -1}.get(match[2], 0)) % 12
+    minor = bool(match[3]) and not match[3].lower().startswith('maj')
+    classic = NOTES[index] + ('m' if minor else '')
+    return classic, camelot(classic)
+
+
 def analyze_file(path: str, cancel=None, *, temporary_root=None) -> dict:
     try:
         import librosa
