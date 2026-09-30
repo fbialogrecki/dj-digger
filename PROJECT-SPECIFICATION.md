@@ -734,8 +734,8 @@ an operation runs; the play button pops when its icon changes; the player panel
 switches height at once and its artwork and waveform fade in (180 ms). Until the loaded track's waveform
 event arrives the artwork shows a white backdrop and label on a blank record and the bars flicker as
 noise, each rising and falling with its own random range, speed and phase, unrelated to its neighbours
-(about 30 repaints a second of the unplayed layer only); when it arrives the bars settle
-from their current heights into the envelope (700 ms) while the key colours and the record code fade in
+(about 30 repaints a second of the unplayed layer only). A track change scatters the bars on screen into
+that noise (450 ms); when the waveform arrives the bars settle from their current heights into the envelope (700 ms) while the key colours and the record code fade in
 (600 ms). Without animations the placeholder stands still and both switch at once. The waveform and artwork keep their base colours, and detected kick flashes
 are part of this motion. Theme changes and recycled table delegates
 are not animated. Space always belongs to playback, wherever focus

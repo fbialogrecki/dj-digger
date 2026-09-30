@@ -964,21 +964,26 @@ ApplicationWindow {
                         property var levels: desktop.waveformLevels(samples, columns)
                         // The backend sends the waveform for every track, empty when there is none.
                         readonly property bool ready: !!desktop.audioKey && desktop.waveformKey === desktop.audioKey
-                        // Until then the bars wander; when it lands they settle into it (0 → 1).
+                        // Until then the bars flicker as noise. A new track scatters the old waveform into the
+                        // noise, and the noise settles into the waveform once it lands: blend runs 0 → 1 from
+                        // the bars last painted (shown) to the new target.
                         property real wander: 0
-                        property real settle: ready ? 1 : 0
-                        property var settleFrom: []
+                        property real blend: 1
+                        property var blendFrom: []
+                        property var shown: []
                         signal repaint()
                         onLevelsChanged: repaint()
                         onWanderChanged: repaint()
-                        onSettleChanged: repaint()
+                        onBlendChanged: repaint()
                         onReadyChanged: {
-                            settleAnimation.stop()
-                            settleFrom = []
-                            for (let i = 0; i < columns; i++) settleFrom.push(placeholder(i))
-                            if (ready && root.motion) settleAnimation.restart(); else settle = ready ? 1 : 0
+                            blendAnimation.stop()
+                            blendFrom = shown
+                            if (root.motion) {
+                                blendAnimation.duration = ready ? 700 : 450
+                                blendAnimation.restart()
+                            } else blend = 1
                         }
-                        NumberAnimation { id: settleAnimation; target: waveform; property: "settle"; from: 0; to: 1; duration: 700; easing.type: Easing.InOutCubic }
+                        NumberAnimation { id: blendAnimation; target: waveform; property: "blend"; from: 0; to: 1; easing.type: Easing.InOutCubic }
                         Timer { interval: 33; repeat: true; running: !waveform.ready && waveform.visible && root.motion; onTriggered: waveform.wander += .033 }
                         // Noise, not a wave: every bar has its own random height range, speeds and phases,
                         // unrelated to its neighbours, so the bars rise and fall scattered.
@@ -989,11 +994,9 @@ ApplicationWindow {
                             return Math.max(.04, Math.min(.95, v * (.35 + .65 * noise(i, 5))))
                         }
                         function level(i) {
-                            if (!ready) return placeholder(i)
-                            let target = levels[i] || 0
-                            if (settle >= 1) return target
-                            let from = i < settleFrom.length ? settleFrom[i] : placeholder(i)
-                            return from + (target - from) * settle
+                            let target = ready ? levels[i] || 0 : placeholder(i)
+                            if (blend >= 1 || i >= blendFrom.length) return target
+                            return blendFrom[i] + (target - blendFrom[i]) * blend
                         }
                         // The bars are painted once per waveform; progress only moves a clip edge and the cursor, so
                         // position ticks and a drag cost no repaint. While scrubbing, the pointer's time
@@ -1015,8 +1018,11 @@ ApplicationWindow {
                             ctx.fillStyle = gradient
                             ctx.globalAlpha = played ? 1 : root.dark ? .38 : .45
                             let count = columns, step = width / count, bar = Math.max(1, step - 1)
-                            let heights = []
-                            for (let i = 0; i < count; i++) heights.push(Math.max(1, level(i) * (height - 2)))
+                            let values = [], heights = []
+                            for (let i = 0; i < count; i++) values.push(level(i))
+                            for (let i = 0; i < count; i++) heights.push(Math.max(1, values[i] * (height - 2)))
+                            // What is on screen, for the next track change to scatter from.
+                            if (!played) shown = values
                             if (glow) {
                                 // Light spills around the bars at the peak: two widening translucent rims.
                                 // Not shadowBlur, which took the UI thread 1.5 s per paint.
