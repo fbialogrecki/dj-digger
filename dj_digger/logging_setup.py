@@ -4,7 +4,6 @@ import logging
 import os
 import platform
 import stat
-import subprocess
 import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -19,7 +18,7 @@ class DiagnosticHandler(RotatingFileHandler):
     last_error = ''
 
     def handleError(self, record):
-        # Logging must not print an unredacted record or overwrite the TUI when
+        # Logging must not print an unredacted record or overwrite the terminal when
         # its disk fills up. The diagnostics screen exposes this failure.
         self.last_error = log_safe_text(sys.exc_info()[1])
 
@@ -70,23 +69,6 @@ def current_log_path() -> Path | None:
             if isinstance(handler, DiagnosticHandler):
                 return Path(handler.baseFilename)
     return None
-
-
-def current_log_error() -> str:
-    for logger in (logging.getLogger('dj_digger'), logging.getLogger()):
-        for handler in logger.handlers:
-            if isinstance(handler, DiagnosticHandler):
-                return handler.last_error
-    return ''
-
-
-def open_log_folder(path: Path):
-    if sys.platform == 'win32':
-        os.startfile(str(path.parent))
-    else:
-        command = 'open' if sys.platform == 'darwin' else 'xdg-open'
-        subprocess.run([command, str(path.parent)], stdin=subprocess.DEVNULL,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10, check=True)
 
 
 def read_log_tail(path: Path) -> str:

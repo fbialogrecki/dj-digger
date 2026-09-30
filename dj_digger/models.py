@@ -1,7 +1,7 @@
 """Shared data structures.
 
 Lives in its own module so ``soundcloud``, ``links`` and
-``tui`` can all speak the same vocabulary without importing each other.
+``gui`` can all speak the same vocabulary without importing each other.
 """
 
 import shlex
@@ -25,8 +25,6 @@ def parse_tags(tag_list: str) -> list[str]:
     except ValueError:
         # An artist left a quote unclosed; we lose multi-word tags, not the lot.
         return tag_list.replace('"', " ").split()
-
-
 
 
 class Cancelled(Exception):
@@ -98,13 +96,6 @@ class Track:
         """The API says the artist currently offers a concrete download URL."""
 
         return self.free_download and bool(self.download_url)
-
-    @property
-    def duration_label(self) -> str:
-        if self.duration <= 0:
-            return ""
-        seconds = round(self.duration / 1000)
-        return f"{seconds // 60}:{seconds % 60:02d}"
 
     @property
     def label(self) -> str:

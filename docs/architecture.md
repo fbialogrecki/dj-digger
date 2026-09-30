@@ -8,10 +8,10 @@ where an implementation change belongs.
 ## Composition and execution
 
 `services/runtime.py:ApplicationServices` composes lazy application resources.
-Constructing it imports no Textual, opens no database/device and launches no
-Chromium. CLI and TUI obtain the same lazy collection service there; collection
-read/persist operations do not require mounting UI.
-Textual owns its workers and timers. Synchronous requests remain in threads;
+Constructing it imports no Qt, opens no database/device and launches no
+Chromium. The CLI and desktop obtain the same lazy collection service there; collection
+read/persist operations do not require UI.
+Synchronous requests remain in threads;
 store Playwright remains asynchronous on its creating loop.
 
 `OperationCoordinator` has one main slot and one scan slot. Handles identify
@@ -21,34 +21,24 @@ work and required dialogs settle. Single-link opening, exports and audio do not
 claim the main status bar. Main work takes precedence over scanning there.
 
 `ApplicationServices.worker()` counts actual running thread bodies, rather than
-Textual's cancellation flags. `io()` awaits the actual thread even when its
+cancellation flags. `io()` awaits the actual thread even when its
 caller is cancelled. Shutdown stops admission, signals operations and dialogs,
 settles workers, closes their resources and closes SQLite last. The existing
 bounded browser close remains. An independent three-second emergency guard
-starts during unmount, before asyncio can wait on an uninterruptible thread.
+starts during shutdown, before asyncio can wait on an uninterruptible thread.
 
 ## UI ownership
 
-`DiggerApp` composes widgets, routes actions/events and handles lifecycle.
-Controllers receive concrete services, the presentation state they use and
-explicit callbacks; none receives the app or a universal app facade.
+`gui/backend.py` orchestrates desktop services and holds the view state (rows,
+filters, sort, selection); `gui/bridge.py` owns the Qt signal boundary;
+`gui/model.py` owns the table model; `gui/qml/Main.qml` owns rendering and input.
+None of these does blocking network or disk work on the UI thread; results are
+delivered back to it. Network/disk effects belong to services.
 
-- `presentation.PlaylistState`: rows, filters, sort, selection, anchor and view
-  generation. `filters.py`, `playlist.py` and `render.py` manage querying and
-  painting; `TrackTable` retains Textual's cursor and viewport.
-- `SidebarState` and `crates.py`: playlist listing, switching and local removal.
-- `AudioState`, `playback.py` and `audio.py`: transport presentation and request
-  generations. `player.py` owns the engine; `services/playback.py` owns prepared
-  streams independently of row objects.
-- Download, cart and scan controllers keep their own presentation bookkeeping.
-  Network/disk effects belong to services; result delivery only updates UI.
-- Profile dialogs return `GateProfileAnswer`. Account verification and settings
-  writes run in `AccountService`; worker descriptions exclude token arguments.
-
-The pinned Textual 8.x integration uses private hooks for incremental table size
-updates and safe fatal-error presentation. Status actions serialize their
-semantics in async workers, keeping keyboard handling free while SQLite waits. Existing viewport, keymap and crash
-regressions cover these dependencies.
+- `player.py` owns the engine; `services/playback.py` owns prepared streams
+  independently of row objects.
+- Profile dialogs return their answers to `AccountService`; account verification
+  and settings writes run there, and worker descriptions exclude token arguments.
 
 ## Persistent effects and identity
 
@@ -105,7 +95,7 @@ in-flight profile save; old dialogs retain their originating cancellation event.
 - `http.py`: URL/redirect rules; `browser.py`: OS handoff; `clipboard.py`:
   clipboard processes; `private_json.py`: private JSON publication.
 - `diagnostics.py`: bounded external messages and credential/URL redaction.
-  External TUI text is literal and crashes do not render local-variable dumps.
+  External text is literal and crashes do not render local-variable dumps.
 
 Literal-address SSRF checks retain the known DNS/rebinding limitation. The
 refactor is not a claim that DNS pinning, a security audit, Windows ACL protection

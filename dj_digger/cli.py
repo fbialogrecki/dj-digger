@@ -1,10 +1,10 @@
 """Command line entry point.
 
-The headline change from v0.1: ``dj-digger <link>`` is all you need. The link can
+``dj-digger <link>`` is all you need. The link can
 be a playlist, an artist profile, someone's /likes or a single track, and there is
 no subcommand to remember - ``dig`` is assumed when the first argument is not one.
-Running ``dj-digger`` with no arguments at all opens the browser and asks for a
-link.
+The interactive crate browser is the desktop app (``dj-digger-gui``); this entry
+point is headless: it digs, exports and opens links.
 """
 
 import argparse
@@ -62,11 +62,6 @@ def _add_shared_arguments(parser: argparse.ArgumentParser) -> None:
             "Override the default local rotating log file (five files, up to 2 MiB each)"
         ),
     )
-    parser.add_argument(
-        "--no-tui",
-        action="store_true",
-        help="Skip the interactive browser and just report the results",
-    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -81,7 +76,13 @@ def build_parser() -> argparse.ArgumentParser:
     _add_shared_arguments(parser)
 
     subparsers = parser.add_subparsers(dest="command", required=True)
+    _add_dig_command(subparsers)
+    _add_open_command(subparsers)
+    _add_auth_command(subparsers)
+    return parser
 
+
+def _add_dig_command(subparsers) -> None:
     dig_cmd = subparsers.add_parser(
         "dig",
         help="Dig a SoundCloud link. Assumed by default.",
@@ -89,10 +90,7 @@ def build_parser() -> argparse.ArgumentParser:
     dig_cmd.add_argument(
         "target",
         nargs="?",
-        help=(
-            "SoundCloud URL (playlist, profile, /likes, track). "
-            "Omit it and you will be asked."
-        ),
+        help="SoundCloud URL (playlist, profile, /likes, track).",
     )
     dig_cmd.add_argument(
         "-f",
@@ -125,6 +123,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_shared_arguments(dig_cmd)
 
+
+def _add_open_command(subparsers) -> None:
     open_cmd = subparsers.add_parser(
         "open",
         help="Reopen a previously exported summary.",
@@ -133,7 +133,7 @@ def build_parser() -> argparse.ArgumentParser:
     open_cmd.add_argument(
         "--category",
         choices=links.CATEGORY_CHOICES,
-        help="Open one category straight away, without the interactive browser",
+        help="Open this category without being asked which one",
     )
     open_cmd.add_argument(
         "--skip",
@@ -153,6 +153,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_shared_arguments(open_cmd)
 
+
+def _add_auth_command(subparsers) -> None:
     auth_cmd = subparsers.add_parser(
         "auth",
         help="Manage authentication for direct downloads.",
@@ -169,16 +171,6 @@ def build_parser() -> argparse.ArgumentParser:
     auth_sub.add_parser("status", help="Show current authentication status.")
 
     _add_shared_arguments(auth_cmd)
-
-    return parser
-
-
-def _run_tui(args: argparse.Namespace, records: Sequence[LinkRecord], *, services, **kwargs) -> None:
-    # Imported here rather than at module top on purpose: textual and its
-    # dependency tree stay entirely off the --no-tui and export-only paths.
-    from .tui import run_tui
-
-    run_tui(records, services=services, keep_logging=bool(args.log_file), **kwargs)
 
 
 def inject_default_command(argv: Sequence[str]) -> list[str]:
@@ -236,15 +228,6 @@ def _print_summary(
     console.print(table)
 
 
-def _should_use_tui(args: argparse.Namespace) -> bool:
-    if args.no_tui:
-        return False
-    if not sys.stdout.isatty():
-        LOGGER.info("Not a terminal - skipping the interactive browser")
-        return False
-    return True
-
-
 def _dig_options(args: argparse.Namespace) -> dig_module.DigOptions:
     return dig_module.DigOptions(limit=args.limit, timeout=args.timeout)
 
@@ -259,20 +242,9 @@ def _handle_dig(args, services) -> int:
     options = _dig_options(args)
 
     if args.target is None:
-        if not _should_use_tui(args):
-            raise SystemExit(
-                "Nothing to dig. Pass a SoundCloud link, or run without --no-tui "
-                "to be asked for one."
-            )
-        _run_tui(
-            args,
-            [],
-            services=services,
-            export_format=args.export_format,
-            export_path=args.output,
-            dig_options=options,
+        raise SystemExit(
+            "Nothing to dig. Pass a SoundCloud link, or run dj-digger-gui to browse."
         )
-        return 0
 
     crate = _dig_with_progress(str(args.target), options, console, services.collection)
 
@@ -292,22 +264,8 @@ def _handle_dig(args, services) -> int:
         LOGGER.info("Collected %s tracks.", len(crate.tracks))
 
     # The library is the source of truth, so a CLI dig joins it too.
-    result = services.collection.persist(crate, None, args.export_format, args.output)
-    record, export_path = result.record, result.exported
-    records = links.categorise_all(record.active_tracks)
-    _print_summary(console, records, crate)
-
-    if _should_use_tui(args):
-        _run_tui(
-            args,
-            records,
-            crate_title=crate.title,
-            services=services,
-            export_format=args.export_format,
-            export_path=export_path or args.output,
-            dig_options=options,
-            crate_record=record,
-        )
+    record = services.collection.persist(crate, None, args.export_format, args.output).record
+    _print_summary(console, links.categorise_all(record.active_tracks), crate)
     return 0
 
 
@@ -341,54 +299,18 @@ def _batch_open(args: argparse.Namespace, records: Sequence[LinkRecord]) -> None
         LOGGER.info("No links left to open for category '%s'.", category)
         return
 
-    # The same setting the crate browser opens links with, so --no-tui and the
-    # interactive path do not disagree about which browser you meant.
+    # The same setting the desktop opens links with.
     chosen = AppConfig().browser
     opened = browser_module.open_urls([record.link_url for record in selected], chosen)
     LOGGER.info("Opened %s links in browser '%s'.", opened, chosen or "the system default")
 
 
 def handle_open(args: argparse.Namespace) -> int:
-    with ApplicationServices() as services:
-        return _handle_open(args, services)
-
-
-def _handle_open(args, services) -> int:
     console = Console(stderr=True)
-    path = Path(args.summary_file)
-    records = links.load_summary(path)
+    records = links.load_summary(Path(args.summary_file))
     _print_summary(console, records)
-
-    if args.no_open:
-        return 0
-
-    if args.category or not _should_use_tui(args):
+    if not args.no_open:
         _batch_open(args, records)
-        return 0
-
-    # An export carries fewer fields than the API does, so the crate joins the
-    # library marked partial - refreshing it fills in genre and the rest.
-    record = services.collection.remember(
-        Crate(
-            source=str(path),
-            title=path.stem,
-            tracks=links.tracks_from_records(records),
-        ),
-        partial=True,
-    )
-
-    _run_tui(
-        args,
-        # Re-derived from the URLs rather than trusting the category names in
-        # the file, so a summary written by an older version still groups the
-        # way this one does.
-        links.categorise_all(record.active_tracks),
-        services=services,
-        crate_title=record.title,
-        export_format="json",
-        export_path=path,
-        crate_record=record,
-    )
     return 0
 
 

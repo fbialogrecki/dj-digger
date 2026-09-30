@@ -29,7 +29,7 @@ WINDOWS_RESERVED = frozenset(
 # when the server decides it does. Two gigabytes clears any real DJ file - a
 # 10-minute WAV at 24/96 is under 400 MB - by a wide margin.
 MAX_DOWNLOAD_BYTES = 2 * 1024 * 1024 * 1024
-# Concurrent downloads in the TUI pool race between target.exists() and
+# Concurrent downloads in the download pool race between target.exists() and
 # os.replace when two tracks sanitise to the same stem; the lock makes
 # pick-a-unique-name-and-rename one atomic step.
 _DOWNLOAD_NAME_LOCK = threading.Lock()

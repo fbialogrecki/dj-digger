@@ -33,8 +33,6 @@ from .services.playback import Stream
 
 LOGGER = logging.getLogger(__name__)
 
-SEEK_STEP = 10.0
-VOLUME_STEP = 0.1
 SAMPLE_RATE = 44100
 CHANNELS = 2
 # miniaudio's default 200 ms period queues up to 600 ms ahead of the speaker,
@@ -430,10 +428,6 @@ class Player:
         return min(self.duration, self._offset + self._frames / SAMPLE_RATE)
 
     @property
-    def fraction(self) -> float:
-        return self.position / self.duration if self.duration else 0.0
-
-    @property
     def volume(self) -> float:
         return 0.0 if self._muted else self._volume
 
@@ -607,7 +601,7 @@ class Player:
             # device that has just been stopped is enough to produce one -
             # pressing play twice in quick succession did it. Raised as the
             # degraded state the app already knows how to show, rather than out
-            # through the message pump, where it took the whole TUI with it.
+            # through the message pump, where it took the whole app with it.
             LOGGER.debug("Could not start the audio device: %s", exc)
             self._drop_device()
             raise PlaybackUnavailable("The audio device would not start - try again") from exc
@@ -660,9 +654,6 @@ class Player:
     def set_volume(self, volume: float) -> None:
         self._volume = max(0.0, min(1.0, volume))
         self._muted = False
-
-    def change_volume(self, delta: float) -> None:
-        self.set_volume(self._volume + delta)
 
     def toggle_mute(self) -> None:
         self._muted = not self._muted

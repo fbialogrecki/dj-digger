@@ -1985,32 +1985,6 @@ def test_cancel_after_a_cart_click_finishes_verification_instead_of_clicking_aga
     assert results[0].status == "added"
 
 
-def test_profile_reset_refuses_a_symlink(tmp_path, monkeypatch):
-    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
-    parent = tmp_path / "dj-digger"
-    parent.mkdir()
-    elsewhere = tmp_path / "elsewhere"
-    elsewhere.mkdir()
-    (parent / "store-browser").symlink_to(elsewhere, target_is_directory=True)
-    session = cart.CartBrowserSession(parent / "store-browser")
-
-    with pytest.raises(automation_errors.AutomationError, match="symlinked"):
-        asyncio.run(session.reset_profile())
-
-
-def test_profile_reset_recreates_only_the_exact_private_profile(tmp_path, monkeypatch):
-    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
-    profile = tmp_path / "dj-digger" / "store-browser"
-    profile.mkdir(parents=True)
-    (profile / "cookie").write_text("private", encoding="utf-8")
-    session = cart.CartBrowserSession(profile)
-
-    asyncio.run(session.reset_profile())
-
-    assert profile.is_dir()
-    assert not (profile / "cookie").exists()
-
-
 def test_soundiiz_limit_is_reported_apart_from_import_failures(tmp_path, monkeypatch):
     import asyncio
 

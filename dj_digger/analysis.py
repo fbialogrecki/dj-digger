@@ -156,7 +156,7 @@ def _child(path, temporary_root):
 
 
 def analyze_spawned(path: Path, cancel=None) -> dict:
-    # Textual's stderr capture returns fileno() == -1. multiprocessing's
+    # A captured stderr can return fileno() == -1. multiprocessing's
     # resource tracker passes it to spawnv_passfds, breaking process startup.
     # A fresh interpreter with explicit pipes needs no inherited tracker FDs.
     check_cancelled(cancel)

@@ -1,4 +1,4 @@
-"""The two shapes a row of the crate browser is assembled from."""
+"""The two shapes a row of the desktop table is assembled from."""
 
 from dataclasses import dataclass
 
@@ -11,7 +11,7 @@ class Row:
 
     position: int
     track: Track
-    # Best first, in CATEGORY_NAMES order - see links.group_by_track.
+    # Best first, in CATEGORY_NAMES order.
     records: list[LinkRecord]
 
     @property
@@ -26,9 +26,3 @@ class Row:
         return " ".join(
             (track.artist, track.title, track.genre, *track.tags, track.label_name)
         ).lower()
-
-    def record_for(self, category: str) -> LinkRecord | None:
-        for record in self.records:
-            if record.category == category:
-                return record
-        return None

@@ -31,7 +31,7 @@ def test_app_config_save_load():
 
 
 def test_first_run_is_flagged_only_when_there_was_no_config_file(tmp_path):
-    """The TUI opens Settings on the strength of this flag."""
+    """The desktop opens Settings on the strength of this flag."""
 
     # Not config.json: conftest already wrote one there to isolate user data.
     path = tmp_path / "fresh-profile.json"
@@ -91,29 +91,6 @@ def test_the_browser_choice_round_trips(tmp_path):
     config.save()
 
     assert AppConfig(path).browser == "firefox"
-
-
-def test_the_column_choice_round_trips_and_ignores_unknown_names(tmp_path):
-    path = tmp_path / "config.json"
-    config = AppConfig(path)
-    assert config.columns == []
-
-    config.columns = ["year", "bpm"]
-    config.save()
-    path.write_text(path.read_text().replace('"year"', '"year", "nonsense"'))
-
-    assert AppConfig(path).columns == ["bpm", "year"], "canonical order, unknown names dropped"
-
-
-def test_the_theme_round_trips(tmp_path):
-    path = tmp_path / "config.json"
-    config = AppConfig(path)
-    assert config.theme == "", "empty means Textual's default"
-
-    config.theme = "nord"
-    config.save()
-
-    assert AppConfig(path).theme == "nord"
 
 
 def test_the_download_directory_round_trips(tmp_path):

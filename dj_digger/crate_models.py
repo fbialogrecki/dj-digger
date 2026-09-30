@@ -50,10 +50,6 @@ class CrateRecord:
         if track_key not in self.removed_track_keys:
             self.removed_track_keys.append(track_key)
 
-    def restore(self, track_key: str) -> None:
-        if track_key in self.removed_track_keys:
-            self.removed_track_keys.remove(track_key)
-
     @classmethod
     def from_crate(cls, crate: Crate, *, partial: bool = False) -> Self:
         return cls(

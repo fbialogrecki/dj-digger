@@ -154,8 +154,6 @@ def _display_text(value: str) -> str:
     return " ".join((value or "").split())
 
 
-
-
 @dataclass(frozen=True)
 class CartResult:
     track_key: str
@@ -221,10 +219,6 @@ class CartBatchOutcome:
             and result.code == "playlist_ready"
             for result in self.results
         )
-
-    @property
-    def retryable_keys(self) -> frozenset[str]:
-        return frozenset(result.track_key for result in self.results if result.retryable)
 
     @property
     def retryable_targets(self) -> frozenset[tuple[str, str]]:

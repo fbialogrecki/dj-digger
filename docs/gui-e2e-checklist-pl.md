@@ -99,7 +99,7 @@ Do TABLE-17 możesz zapisać poniższy tekst jako `~/dj-digger-e2e/summaries/lit
 - [ ] **SC-04 — Ponowne dodanie.** Dodaj P1 drugi raz. Oczekiwane: aktualizacja tej samej zapisanej playlisty, bez niezamierzonego nowego duplikatu źródła i bez utraty statusów.
 - [ ] **SC-05 — Przełączanie.** Dodaj P2, przechodź P1 → P2 → P1, także szybko podczas ładowania. Oczekiwane: tabela i nagłówek należą do ostatnio wybranego źródła.
 - [ ] **SC-06 — Błędny adres.** Spróbuj pustego pola, tekstu niebędącego źródłem, niedostępnego URL i linku spoza obsługiwanych źródeł. Oczekiwane: walidacja lub czytelny błąd, możliwość poprawy, brak uszkodzenia wcześniej zapisanych playlist.
-- [ ] **SC-07 — Odświeżenie.** Na własnej testowej playliście zmień zawartość w SoundCloud, wróć do GUI i naciśnij `R`. Oczekiwane: aktualna zawartość i zachowane statusy istniejących utworów. GUI nie ma potwierdzonego badge `NEW` z TUI.
+- [ ] **SC-07 — Odświeżenie.** Na własnej testowej playliście zmień zawartość w SoundCloud, wróć do GUI i naciśnij `R`. Oczekiwane: aktualna zawartość i zachowane statusy istniejących utworów.
 - [ ] **SC-08 — Usunięcia lokalne a odświeżenie.** Usuń utwór z widoku przez `X`, potem odśwież źródło. Oczekiwane: lokalnie usunięty utwór nie wraca sam; przywróć go osobną komendą z sekcji 6.
 - [ ] **SC-09 — Anulowanie importu.** Zacznij dłuższe zbieranie, kliknij Cancel. Oczekiwane: operacja kończy się po zatrzymaniu trwających zadań, GUI odzyskuje gotowość, nie zapisuje niepełnej nowej playlisty jako ukończonej.
 - [ ] **SC-10 — Zapisane HTML.** Zapisz stronę playlisty w przeglądarce, w Add playlist wpisz pełną ścieżkę do HTML. Oczekiwane: odczyt utworów obecnych w zapisanym materiale albo wyjaśniony brak danych. HTML może nadal wymagać sieci do uzupełnienia utworów; nie jest gwarancją importu całej prywatnej playlisty.
@@ -166,7 +166,7 @@ Do TABLE-17 możesz zapisać poniższy tekst jako `~/dj-digger-e2e/summaries/lit
 ## 8. Skanowanie i dopasowanie posiadanych plików
 
 - [ ] **SCAN-01 — Pełne dopasowanie.** W testowym katalogu skanowania umieść kopię nazwaną `Wykonawca - Tytuł.mp3`, zgodną z P1. Otwórz P1 → `Library → Scan local library`. Oczekiwane: pewne dopasowanie przypisuje plik i może oznaczyć got; odtwarzanie korzysta z pliku lokalnego.
-- [ ] **SCAN-02 — Sam tytuł.** Użyj unikalnej nazwy zgodnej tylko z tytułem, co najmniej sześć znormalizowanych znaków. Oczekiwane: brak `got`; ścieżka widoczna, a Play odtwarza znaleziony plik lokalnie. Download nadal pobiera źródło zdalne i nie oznacza utworu jako posiadanego (także w TUI).
+- [ ] **SCAN-02 — Sam tytuł.** Użyj unikalnej nazwy zgodnej tylko z tytułem, co najmniej sześć znormalizowanych znaków. Oczekiwane: brak `got`; ścieżka widoczna, a Play odtwarza znaleziony plik lokalnie. Download nadal pobiera źródło zdalne i nie oznacza utworu jako posiadanego.
 - [ ] **SCAN-03 — Niejednoznaczność.** Umieść dwie podobnie nazwane wersje utworu. Oczekiwane: brak arbitralnego wyboru niejednoznacznej wersji jako pewnego dopasowania.
 - [ ] **SCAN-04 — Skasowany plik testowy.** Po poprawnym dopasowaniu usuń kopię i wykonaj pełny skan czytelnego folderu. Oczekiwane: nieaktualne powiązanie zostaje wycofane; ręcznie nadany got nie powinien być kasowany jak status pochodzący wyłącznie z pliku.
 - [ ] **SCAN-05 — Niedostępny nośnik.** Po dopasowaniu odłącz testowy nośnik lub zablokuj dostęp do folderu i skanuj. Oczekiwane: brak traktowania samej niedostępności jako dowodu usunięcia wszystkich plików. Przywróć dostęp i sprawdź ponownie.
@@ -348,16 +348,16 @@ Poniższe przebiegi spinają pojedyncze przypadki. Zaliczenie osobnych przycisk�
 | Import CSV | Formularz mówi „JSON or CSV”, ale `links.load_summary()` czyta JSON. CSV jest formatem wyjściowym. |
 | Cofanie usunięcia | Ctrl+Z cofa statusy. Usunięte z playlisty SoundCloud wiersze przywraca Restore removed tracks. |
 | Lokalna playlista | Można zapisać/dopisać pliki i usunąć całą playlistę. Kontekst lokalny oferuje trwałe Delete files; zwykłe usunięcie pojedynczego odniesienia nie jest wystawione jak dla playlist SoundCloud. |
-| Importowany JSON | Backend buduje tymczasowy widok; ta akcja nie zapisuje automatycznie playlisty jak import w TUI. |
+| Importowany JSON | Backend buduje tymczasowy widok; ta akcja nie zapisuje automatycznie playlisty. |
 | CDJ/rekordbox | W formularzu GUI są format, bity, częstotliwość, tryb i rekursja. Nie ma selektora modelu CDJ, zapisu bazy rekordbox, beatgridu ani cue points. |
 | Eksplorator | Pokazuje obsługiwane rozszerzenia z `media.FORMATS`; lista nie jest identyczna z szerszą listą skanera. Filtry tabeli są ograniczone do załadowanej strony. |
 | Analyze folder | Obejmuje bezpośrednie pliki całego folderu, ignorując filtr, zaznaczenie i stronę. Rekursja jest opcją eksportu, nie tego polecenia analizy. |
 | Sklepy i filtr | Open links honoruje konkretny sklep. `action_cart()` zbiera oba rodzaje linków sklepowych z wybranych wierszy. |
 | Potwierdzenie koszyka | GUI przekazuje callback wyświetlający Review cart również dla pojedynczego Bandcamp. Opis skróconej ścieżki pojedynczego produktu w specyfikacji nie oznacza pominięcia tego dialogu GUI. Dokładne linki Beatport mogą od razu przejść do wyników playlisty bez zmiany koszyka. |
-| Wynik koszyka | GUI składa tekst z `status` i `reason`; nie należy wymagać identycznego bogatego, przetłumaczonego ekranu wyników z TUI. |
+| Wynik koszyka | GUI składa tekst z `status` i `reason`; nie należy wymagać bogatego, przetłumaczonego ekranu wyników. |
 | Wynik downloadu | GUI obsługuje postęp i błędy pojedynczych plików, ale nie prezentuje wszystkich summary/status/deferred zdarzeń workflow. |
 | Wylogowanie | W menu jest wylogowanie SoundCloud, nie ogólne wyczyszczenie wszystkich profili/cookies/kont. |
-| Skróty | Korzystaj z Help → Keyboard shortcuts w GUI. Nie przenoś automatycznie skrótów TUI: np. E oznacza edycję BPM/Key, Shift+E eksport linków, P poprzedni utwór; brak potwierdzonego F5/klawiszy 1–9/J/Y z TUI. |
+| Skróty | Korzystaj z Help → Keyboard shortcuts w GUI. Np. E oznacza edycję BPM/Key, Shift+E eksport linków, P poprzedni utwór. |
 | Wygląd/metadata | Rok/label/gatunek mogą być puste w lokalnym widoku mimo istnienia tagów; `media_track()` obecnie mapuje przede wszystkim artist/title, duration, BPM i key. |
 | Analiza i sprzęt | Dostępna funkcja analizy nie oznacza zmierzonej dokładności na kolekcji DJ-skiej; zgodność pliku nie zastępuje próby na odtwarzaczu. |
 | Aktualizacje | GUI nie ma automatycznej aktualizacji ani potwierdzonej funkcji pełnego kasowania danych aplikacji. |
@@ -398,4 +398,4 @@ Nie umieszczaj w zgłoszeniu haseł, tokenów, cookies ani nieprzejrzanych danyc
 | Dotychczasowe testy jako pomoc w doborze przypadków | [tests/test_gui.py](../tests/test_gui.py), [opis implementacji desktopu](implementation/qt-quick-desktop.md) — nie były uruchamiane w ramach przygotowania tej listy |
 | Ograniczenia grafu | [docs/graph-notes.md](graph-notes.md), [graf JSON](../graphify-out/graph.json) — graf nie jest dowodem zachowania QML |
 
-Źródłami nadrzędnymi dla tej listy są bieżący kod oraz właściwe sekcje specyfikacji. Szczegóły TUI znajdujące się w §3.3/§3.7 nie były automatycznie uznawane za funkcje GUI.
+Źródłami nadrzędnymi dla tej listy są bieżący kod oraz właściwe sekcje specyfikacji. Aplikacja nie ma już interfejsu TUI; GUI jest jedynym interfejsem interaktywnym.

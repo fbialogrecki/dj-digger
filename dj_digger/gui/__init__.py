@@ -12,7 +12,7 @@ def main():
         from PySide6.QtQml import QQmlApplicationEngine
         from PySide6.QtQuickControls2 import QQuickStyle
     except ImportError:
-        print('Install the desktop extra: pip install "dj-digger[gui,play,analyze]"', file=sys.stderr)
+        print('Install the desktop extra: pip install "dj-digger[gui,analyze]"', file=sys.stderr)
         return 1
     from ..logging_setup import close_logging, configure_logging
     from .bridge import Bridge

@@ -44,7 +44,7 @@ class TrackState:
         # SQLite round trip per ask made a 500-track crate stutter on each
         # keystroke in the search box. Every write goes through here, so the
         # mirror cannot drift from what this process wrote; another process
-        # writing the same database is not something the TUI has ever handled.
+        # writing the same database is not something this app has ever handled.
         self._statuses: dict[str, str] | None = None
         self._files: dict[str, str] | None = None
         self._revisions: dict[str, int] = {}
@@ -110,19 +110,6 @@ class TrackState:
             self.db.set_track_state(key, GOT, str(path))
             self._remember(key, GOT)
             self._files[str(key)] = str(path)
-
-    def clear_local_file(self, key: str) -> bool:
-        """Forget a missing file and undo only the GOT that depended on it."""
-
-        with self._lock:
-            self._load()
-            if self._files.get(str(key)) is None:
-                return False
-            status = NEW if self._statuses.get(str(key)) == GOT else self._statuses.get(str(key), NEW)
-            self.db.set_track_state(key, status, None)
-            self._files.pop(str(key), None)
-            self._remember(key, status)
-            return True
 
     def observe_file(self, key: str) -> FileObservation:
         """Read provenance and its revision together before inspecting the disk."""

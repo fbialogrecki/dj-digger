@@ -1,7 +1,8 @@
 
+import library_db as library
 from helpers import a_crate
 
-from dj_digger import crate_models, library
+from dj_digger import crate_models
 from dj_digger.db import database
 
 
@@ -52,69 +53,11 @@ def test_removed_tracks_disappear_from_active_tracks():
     assert library.load(record.source).removed_track_keys == ["101"]
 
 
-def test_restoring_brings_a_track_back():
-    record = crate_models.CrateRecord.from_crate(a_crate(2))
-    record.remove("100")
-    record.restore("100")
-    assert [track.id for track in record.active_tracks] == [100, 101]
-
-
 def test_removing_the_same_track_twice_is_harmless():
     record = crate_models.CrateRecord.from_crate(a_crate(2))
     record.remove("100")
     record.remove("100")
     assert record.removed_track_keys == ["100"]
-
-
-def test_refresh_replaces_tracks_but_keeps_local_deletions():
-    """A refresh must not resurrect what you deleted."""
-
-    record = crate_models.CrateRecord.from_crate(a_crate(3))
-    record.remove("101")
-
-    library.refresh(record, a_crate(5, title="A crate, now longer"))
-
-    assert len(record.tracks) == 5
-    assert record.removed_track_keys == ["101"]
-    # 103 and 104 arrived with this refresh, so they sort to the top.
-    assert [track.id for track in record.active_tracks] == [103, 104, 100, 102]
-    assert record.title == "A crate, now longer"
-    assert record.refreshed_at
-
-
-def test_refresh_marks_what_it_brought_in_and_puts_it_first():
-    record = crate_models.CrateRecord.from_crate(a_crate(2))
-    assert record.new_track_keys == [], "a first import has nothing to compare against"
-
-    library.refresh(record, a_crate(4))
-
-    assert record.new_track_keys == ["102", "103"]
-    assert [track.id for track in record.active_tracks] == [102, 103, 100, 101]
-
-
-def test_a_refresh_that_brought_nothing_keeps_the_previous_marks():
-    """Pressing r twice must not lose what the first press turned up."""
-
-    record = crate_models.CrateRecord.from_crate(a_crate(2))
-    library.refresh(record, a_crate(3))
-    library.refresh(record, a_crate(3))
-
-    assert record.new_track_keys == ["102"]
-
-
-def test_the_new_marks_survive_a_round_trip():
-    record = crate_models.CrateRecord.from_crate(a_crate(2))
-    library.refresh(record, a_crate(3))
-    library.save(record)
-
-    assert library.load(record.source).new_track_keys == ["102"]
-
-
-def test_refresh_clears_the_partial_flag():
-    record = crate_models.CrateRecord.from_crate(a_crate(1), partial=True)
-    assert record.partial is True
-    library.refresh(record, a_crate(2))
-    assert record.partial is False
 
 
 def test_delete_removes_the_crate():

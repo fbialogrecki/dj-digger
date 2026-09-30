@@ -238,7 +238,7 @@ async def launch_persistent_context(
     *,
     headless: bool = True,
 ) -> Any:
-    """The async twin, for the cart session on Textual's loop.
+    """The async twin, for the cart session on the caller's event loop.
 
     Headless by default: the store work happens out of sight, and a window is
     opened separately (see ``launch_viewer``) only when there is something to

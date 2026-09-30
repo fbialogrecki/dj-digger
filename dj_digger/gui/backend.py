@@ -121,9 +121,6 @@ class Backend:
                 error = str(exc)
                 fields = [dict(f, value=answer.get(f['name'], f['value'])) for f in fields]
 
-    def ask_sync(self, *args, **kwargs):
-        return asyncio.run_coroutine_threadsafe(self.ask(*args, **kwargs), self.loop).result()
-
     async def io(self, function, *args, **kwargs):
         return await self.services.io(function, *args, **kwargs)
 
@@ -257,8 +254,8 @@ class Backend:
             hydrated.append(track)
         await self.publish(hydrated, str(folder), generation)
 
-    async def job(self, name, work):
-        handle = self.services.operations.start(name)
+    async def job(self, name, work, lane='main'):
+        handle = self.services.operations.start(name, lane=lane)
         self.send('busy', {'value': True, 'text': name})
         try:
             return await work(handle)
@@ -912,11 +909,14 @@ class Backend:
         self.send('view', {'generation': generation, 'title': Path(answer['path']).name, 'local': False,
                           'rows': [self.row_value(r) for r in self.rows]})
 
+    async def pin(self, path):
+        folders = list(dict.fromkeys([*self.services.config.pinned_directories, str(path)]))
+        await self.io(self.services.accounts.save_preferences, {'pinned_directories': folders})
+        await self.sidebar()
+
     async def action_pin(self, values):
         if self.folder:
-            folders = list(dict.fromkeys([*self.services.config.pinned_directories, str(self.folder)]))
-            await self.io(self.services.accounts.save_preferences, {'pinned_directories': folders})
-            await self.sidebar()
+            await self.pin(self.folder)
 
     async def action_add_folder(self, values):
         path = await self.io(Path(values['path']).expanduser().resolve, strict=True)
@@ -924,9 +924,7 @@ class Backend:
             raise ValueError('Select a folder')
         if path.name.startswith('.') or getattr(await self.io(path.stat), 'st_file_attributes', 0) & stat.FILE_ATTRIBUTE_HIDDEN:
             raise ValueError('Select a visible folder')
-        folders = list(dict.fromkeys([*self.services.config.pinned_directories, str(path)]))
-        await self.io(self.services.accounts.save_preferences, {'pinned_directories': folders})
-        await self.sidebar()
+        await self.pin(path)
         await self.action_folder({'path': str(path)})
 
     async def action_restore(self, values):
@@ -940,9 +938,8 @@ class Backend:
 
     async def action_scan(self, values):
         tracks = deepcopy([r.track for r in self.rows])
-        handle = self.services.operations.start('Scanning', lane='scan')
-        self.send('busy', {'value': True, 'text': 'Scanning'})
-        try:
+
+        async def work(handle):
             scanner = self.services.library.scanner(self.services.config.scan_directories)
             await self.io(scanner.scan, cancel=handle.cancel)
             check_cancelled(handle.cancel)
@@ -953,9 +950,7 @@ class Backend:
                 else:
                     self.preview_paths.pop(key, None)
             await self.refresh_rows()
-        finally:
-            self.services.operations.finish(handle)
-            self.send('busy', {'value': self.services.operations.visible is not None, 'text': ''})
+        await self.job('Scanning', work, lane='scan')
 
     async def action_resume(self, values):
         from ..export import execute, resume_plan
@@ -1014,9 +1009,9 @@ class Backend:
                 await self.ask('Finish in browser', '\n'.join(i.track_label for i in items), cancel=handle.cancel)
                 return True
             outcome = await self.with_chromium(lambda: session.run_batch(requests, handle.cancel, approve=approve, manual=manual), handle)
-            if source and outcome.beatport_playlist_ready:
-                await self.io(self.services.library.remember_beatport, source, source_generation, outcome)
             while True:
+                if source and outcome.beatport_playlist_ready:
+                    await self.io(self.services.library.remember_beatport, source, source_generation, outcome)
                 options = [['close', 'Close'], ['focus', 'Show carts in browser']]
                 if outcome.beatport_playlist_ready:
                     options.append(['playlist', 'Send Beatport playlist metadata to Soundiiz'])
@@ -1049,8 +1044,6 @@ class Backend:
                          if (request.track.key, store) in outcome.retryable_targets)) for request in requests]
                 outcome = await self.with_chromium(lambda: session.run_batch([request for request in retry if request.links], handle.cancel,
                                                                              approve=approve, manual=manual), handle)
-                if source and outcome.beatport_playlist_ready:
-                    await self.io(self.services.library.remember_beatport, source, source_generation, outcome)
             await self.refresh_rows()
         await self.job('Preparing cart', work)
 
@@ -1062,14 +1055,14 @@ class Backend:
         await self.job('Store accounts', work)
 
     async def with_chromium(self, call, handle):
-        """Store browsers need Playwright Chromium; offer its one-time download, as the TUI does."""
+        """Store browsers need Playwright Chromium; offer its one-time download."""
         from ..automation_errors import AutomationError, ChromiumMissing
         try:
             return await call()
         except ChromiumMissing:
             await self.ask('Download Chromium', 'Store carts need Playwright Chromium. Download it now? '
                            'This is a one-time download for the installed Playwright version.', cancel=handle.cancel, ok='Download')
-        from ..services.purchases import install_chromium
+        from ..browser_session import install_chromium
         try:
             await self.io(install_chromium, handle.cancel)
         except AutomationError:

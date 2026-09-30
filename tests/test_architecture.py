@@ -23,7 +23,7 @@ def test_services_import_and_construct_without_ui_audio_or_browser():
 import builtins, importlib, pkgutil
 original = builtins.__import__
 def guarded(name, *args, **kwargs):
-    assert name.split('.')[0] not in {'textual', 'miniaudio', 'playwright'}, name
+    assert name.split('.')[0] not in {'miniaudio', 'playwright'}, name
     return original(name, *args, **kwargs)
 builtins.__import__ = guarded
 import dj_digger.services
@@ -40,12 +40,7 @@ services.stop()
 
 
 def test_services_and_models_keep_their_dependency_boundaries():
-    for path in (ROOT / "dj_digger/services").glob("*.py"):
-        assert not any("textual" in name or "tui" in name.split(".") for name in imports(path)), path
     for filename in ("models.py", "crate_models.py", "gate_models.py", "cart_models.py", "store_match.py", "store_urls.py"):
         path = ROOT / "dj_digger" / filename
-        assert not set(imports(path)) & {"sqlite3", "requests", "textual", "rich", "db", "browser_session"}, path
-    for path in (ROOT / "dj_digger/tui").glob("*.py"):
-        forbidden = {"soundcloud", "gates", "stores", "auth", "browser", "db", "scanner", "beatport_playlist"}
-        assert not any(set(name.split(".")) & forbidden for name in imports(path)), path
-    assert not set(imports(ROOT / "dj_digger/player.py")) & {"textual", "rich"}
+        assert not set(imports(path)) & {"sqlite3", "requests", "rich", "db", "browser_session"}, path
+    assert not set(imports(ROOT / "dj_digger/player.py")) & {"rich"}

@@ -9,7 +9,6 @@ from dj_digger.beats import KickDetector
 from dj_digger.models import Track
 from dj_digger.services import playback
 from dj_digger.soundcloud import SoundCloudError
-from dj_digger.tui import audio
 
 PROGRESSIVE = {"format": {"protocol": "progressive", "mime_type": "audio/mpeg"}, "url": "https://api/media/prog"}
 HLS = {"format": {"protocol": "hls", "mime_type": "audio/mpeg"}, "url": "https://api/media/hls"}
@@ -31,13 +30,6 @@ class FakeClient:
         return self.authorized
 
 
-
-def render_waveform(samples, width, played_fraction=0.0, rows=audio.WAVEFORM_ROWS):
-    """Compose the two real drawing stages the way the app does."""
-
-    return audio.paint_waveform(
-        audio.waveform_rows(samples, width, rows), played_fraction
-    )
 
 def playable_payload(**overrides):
     payload = {
@@ -149,83 +141,40 @@ def test_resolve_complains_when_no_url_comes_back():
 # Waveform
 
 
-def test_the_waveform_is_squashed_to_the_asked_width():
-    samples = list(range(100))
-    for width in (20, 7):
-        rows = str(render_waveform(samples, width, rows=1)).split("\n")
-        assert [len(row) for row in rows] == [width]
 
 
-def test_the_waveform_fills_every_row_of_the_bar():
-    """One row of eight blocks is what made a loud master look like a rectangle."""
-
-    rows = str(render_waveform(list(range(50)), 12)).split("\n")
-    assert len(rows) == audio.WAVEFORM_ROWS
-    assert all(len(row) == 12 for row in rows)
 
 
-def test_the_bottom_row_fills_before_the_top():
-    rendered = str(render_waveform([0, 140], 2)).split("\n")
-    top, bottom = rendered[0], rendered[-1]
-    # Quiet column: nothing on top, nothing much at the bottom.
-    assert top[0] == " "
-    # Loud column: both rows full.
-    assert top[1] == "\u2588" and bottom[1] == "\u2588"
 
 
-def test_a_missing_waveform_draws_flat_lines():
-    rows = str(render_waveform([], 5)).split("\n")
-    assert rows == ["\u2500" * 5] * audio.WAVEFORM_ROWS
 
 
-def styled_width(text, style):
-    """How many characters carry a style, whatever it took to say so."""
-
-    return sum(span.end - span.start for span in text.spans if span.style == style)
 
 
-def test_the_played_part_is_styled_differently():
-    rendered = render_waveform([100] * 10, 10, played_fraction=0.5, rows=1)
-
-    assert styled_width(rendered, audio.PLAYED_STYLE) == 5
-    assert styled_width(rendered, audio.UNPLAYED_STYLE) == 5
-    played = [span for span in rendered.spans if span.style == audio.PLAYED_STYLE]
-    todo = [span for span in rendered.spans if span.style == audio.UNPLAYED_STYLE]
-    assert max(span.end for span in played) <= min(span.start for span in todo)
 
 
-@pytest.mark.parametrize("fraction,expected_played", [(0.0, 0), (0.5, 5), (1.0, 10)])
-def test_the_progress_boundary_follows_the_fraction(fraction, expected_played):
-    rendered = render_waveform([100] * 10, 10, played_fraction=fraction, rows=1)
-    assert styled_width(rendered, audio.PLAYED_STYLE) == expected_played
 
 
-def test_a_frame_costs_a_handful_of_spans_not_one_per_column():
-    """Thirty frames a second is only affordable because of this."""
-
-    rendered = render_waveform([100] * 400, 400, played_fraction=0.5)
-    assert len(rendered.spans) <= 3 * audio.WAVEFORM_ROWS
 
 
-def test_the_entire_played_waveform_has_one_stable_colour():
-    rendered = render_waveform([100] * 60, 60, played_fraction=0.5, rows=1)
-    assert styled_width(rendered, audio.PLAYED_STYLE) == 30
-    assert {span.style for span in rendered.spans} == {audio.PLAYED_STYLE, audio.UNPLAYED_STYLE}
 
 
-def test_a_fraction_outside_the_range_is_clamped():
-    for fraction in (-5.0, 7.0):
-        rendered = render_waveform([100] * 4, 4, played_fraction=fraction, rows=1)
-        assert len(str(rendered)) == 4
 
 
-def test_loud_and_quiet_samples_map_to_different_glyphs():
-    rendered = str(render_waveform([1, 140], 2, rows=1))
-    assert rendered[0] != rendered[1]
 
 
-def test_zero_width_is_not_a_crash():
-    assert str(render_waveform([1, 2, 3], 0)) == ""
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 def test_levels_are_measured_against_the_peak():
@@ -240,7 +189,6 @@ def test_a_loud_master_still_shows_shape():
     levels = waveform.column_levels(loud, 8)
     # The power curve has to spread the top of the range enough to see.
     assert max(levels) - min(levels) > 0.2
-    assert len(set(str(render_waveform(loud, 8, rows=1)))) > 2
 
 
 def test_a_track_with_no_dynamics_is_not_faked_into_having_some():
@@ -273,17 +221,6 @@ def test_fetch_waveform_of_nothing_is_empty():
     assert playback.fetch_waveform(FakeClient(), "") == []
 
 
-# Clock
-
-
-@pytest.mark.parametrize(
-    "seconds,expected",
-    [(0, "0:00"), (5, "0:05"), (65, "1:05"), (432, "7:12"), (-3, "0:00")],
-)
-def test_format_time(seconds, expected):
-    assert audio.format_time(seconds) == expected
-
-
 # Player state without an audio device
 
 
@@ -292,7 +229,6 @@ def test_a_fresh_player_reports_nothing_loaded():
     assert subject.loaded is None
     assert subject.position == 0.0
     assert subject.duration == 0.0
-    assert subject.fraction == 0.0
     assert subject.playing is False
 
 
@@ -359,7 +295,7 @@ def test_a_device_that_will_not_start_degrades_instead_of_crashing(monkeypatch):
     """Pressing play twice in quick succession was enough, and it took the app down.
 
     miniaudio raises its own numbered error out of ``device.start``, which the
-    interface catches nowhere - so it came out through Textual's message pump.
+    interface catches nowhere.
     """
 
     subject, device = loaded_player(monkeypatch)

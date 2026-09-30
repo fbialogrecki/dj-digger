@@ -423,7 +423,7 @@ def test_missing_chromium_is_offered_as_a_download(backend, monkeypatch, choice)
         if choice == 'cancel during download':
             cancel.set()
             raise AutomationError('cart operation was cancelled')
-    monkeypatch.setattr('dj_digger.services.purchases.install_chromium', install)
+    monkeypatch.setattr('dj_digger.browser_session.install_chromium', install)
     store_login_with(worker, setup_logins)
     question = next_of(events, 'question')[1]
     assert question['title'] == 'Download Chromium'

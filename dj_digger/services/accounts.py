@@ -15,12 +15,6 @@ class AuthenticationResult:
     error: str = ""
 
 
-@dataclass(frozen=True)
-class GateProfileAnswer:
-    name: str
-    email: str
-
-
 class AccountService:
     def __init__(self, config, client_id, worker_scope):
         self.config = config
@@ -32,9 +26,6 @@ class AccountService:
 
     def begin_authentication(self):
         self._auth_settled.clear()
-
-    def wait_authentication(self):
-        self._auth_settled.wait()
 
     def authenticate(self, method, token, cancel, status):
         try:
@@ -51,9 +42,6 @@ class AccountService:
                     return AuthenticationResult(error=log_safe_text(exc))
         finally:
             self._auth_settled.set()
-
-    def save_profile(self, answer: GateProfileAnswer):
-        self.save_preferences({"user_name": answer.name, "user_email": answer.email})
 
     def save_preferences(self, values):
         if 'user_email' in values and not str(values['user_email']).strip():

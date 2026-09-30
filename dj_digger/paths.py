@@ -28,7 +28,7 @@ def log_dir() -> Path:
 
 
 def playlist_download_directory(directory: str | Path, title: str) -> Path:
-    """Share the playlist folder policy between TUI and desktop downloads."""
+    """Share the playlist folder policy between desktop downloads."""
     base = Path(directory).expanduser()
     if not title.strip():
         return base

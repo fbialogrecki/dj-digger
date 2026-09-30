@@ -37,18 +37,10 @@ PERSISTED_FIELDS = (
     "browser",
     "download_directory",
     "gate_social_actions",
-    "columns",
-    "theme",
     "pinned_directories",
-    "sidebar_split",
-    "sidebar_mode",
     "volume",
     "export_decks",
 )
-
-# Optional track-table columns, in the order they appear when switched on.
-OPTIONAL_COLUMNS = ("bpm", "key", "year", "label")
-
 
 def is_real_email(value: str) -> bool:
     email = value.strip()
@@ -86,20 +78,13 @@ class AppConfig:
         # changes behaviour - but now it is a sentence on the first-run screen
         # rather than a line in somebody else's source.
         self.gate_social_actions: bool = True
-        # Which of OPTIONAL_COLUMNS the track table shows. Off by default: the
-        # title column is what an 80-column terminal has room for.
-        self.columns: list[str] = []
-        # Textual theme name; empty means Textual's default.
-        self.theme: str = ""
         self.pinned_directories: list[str] = []
-        self.sidebar_split: int = 50
-        self.sidebar_mode: str = "both"
-        # Playback level shared by the TUI and the desktop; mute is not kept.
+        # Playback level shared by every player; mute is not kept.
         self.volume: float = 0.8
         # Decks the last audio export was for, in deck order; the export format follows from them.
         self.export_decks: list[str] = list(DEFAULT_DECKS)
         # True when there was no config file to read, i.e. this is the first
-        # launch. The TUI uses it to ask for the settings before anything needs
+        # launch. The desktop uses it to ask for the settings before anything needs
         # them - gates submit the name and email without asking again.
         self.first_run: bool = False
         self.load()
@@ -128,20 +113,12 @@ class AppConfig:
                     self.download_directory = download_dir
                 if "gate_social_actions" in raw:
                     self.gate_social_actions = bool(raw["gate_social_actions"])
-                self.theme = str(raw.get("theme") or "").strip()
                 self.pinned_directories = [str(value) for value in raw.get('pinned_directories', []) if isinstance(value, str)] if isinstance(raw.get('pinned_directories'), list) else []
-                self.sidebar_mode = raw.get("sidebar_mode") if raw.get("sidebar_mode") in ("both", "playlists", "explorer") else "both"
-                self.sidebar_split = raw.get('sidebar_split') if raw.get('sidebar_split') in (30, 50, 70) else 50
                 if isinstance(raw.get("volume"), (int, float)) and not isinstance(raw.get("volume"), bool):
                     self.volume = max(0.0, min(1.0, float(raw["volume"])))
                 decks = raw.get("export_decks")
                 if isinstance(decks, list):
                     self.export_decks = [name for name in DECK_NAMES if name in {str(d) for d in decks}] or list(DEFAULT_DECKS)
-                columns = raw.get("columns")
-                if isinstance(columns, list):
-                    self.columns = [
-                        name for name in OPTIONAL_COLUMNS if name in {str(c) for c in columns}
-                    ]
         except FileNotFoundError:
             self.first_run = True
             self.save()

@@ -3,9 +3,6 @@
 import asyncio
 import contextlib
 import logging
-import os
-import shutil
-import time
 from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -42,10 +39,7 @@ from ..cart_models import (
     _display_text,
 )
 from ..links import redact_url
-from ..paths import data_dir
 from ..store_urls import (
-    STORE_HOME,
-    STORE_HOSTS,
     STORE_LOGIN,
     _direct_beatport_track_url,
     canonical_store_url,
@@ -53,12 +47,8 @@ from ..store_urls import (
 from ..stores import bandcamp
 
 LOGGER = logging.getLogger(__name__)
-NAVIGATION_TIMEOUT_MS = 30_000
 ACTION_TIMEOUT_MS = 15_000
-LOGIN_TIMEOUT_SECONDS = 300
 BANDCAMP_CART_URL = "https://bandcamp.com/cart"
-
-
 
 
 def _cancelled_result(key: str, label: str, store: str) -> CartResult:
@@ -261,7 +251,7 @@ async def _manual_result(
 
 
 class CartBrowserSession:
-    """One lazy Playwright context shared by all cart batches in a TUI run.
+    """One lazy Playwright context shared by all cart batches in a desktop run.
 
     The work - product lookup, revalidation, the cart clicks - runs headless on
     the persistent profile, out of the user's way. A window opens only when
@@ -414,28 +404,6 @@ class CartBrowserSession:
                     await self._playwright.stop()
                 self._playwright = None
 
-    async def reset_profile(self) -> None:
-        async with self._lock:
-            await self._close_context()
-            target = Path(self.profile) if self.profile else data_dir() / "store-browser"
-            parent = data_dir().resolve()
-            if target.name != "store-browser" or target.parent.resolve() != parent:
-                raise AutomationError("refusing to reset an unexpected browser profile path")
-            if target.is_symlink():
-                raise AutomationError("refusing to reset a symlinked browser profile")
-            if not target.exists():
-                return
-            quarantine = target.with_name(f".store-browser-reset-{os.getpid()}-{time.time_ns()}")
-            target.rename(quarantine)
-            try:
-                shutil.rmtree(quarantine)
-            except Exception:
-                quarantine.rename(target)
-                raise
-            target.mkdir(parents=True, mode=0o700)
-            if os.name != "nt":
-                target.chmod(0o700)
-
     async def setup_logins(
         self,
         stores: Iterable[str],
@@ -461,24 +429,6 @@ class CartBrowserSession:
             finally:
                 with contextlib.suppress(Exception):
                     await context.close(reason="dj-digger login finished")
-
-    async def check_logins(self, stores: Iterable[str]) -> dict[str, bool]:
-        wanted = tuple(dict.fromkeys(store for store in stores if store in STORE_HOSTS))
-        if not wanted:
-            return {}
-        async with self._lock:
-            context = await self._ensure_context()
-            pages = [self._instrument_page(await context.new_page()) for _ in wanted]
-            try:
-                states: dict[str, bool] = {}
-                for store, page in zip(wanted, pages, strict=True):
-                    await bandcamp._navigate_async(page, STORE_HOME[store], store)
-                    states[store] = await bandcamp._is_logged_in_async(page, store)
-                return states
-            finally:
-                for page in pages:
-                    if not page.is_closed():
-                        await page.close()
 
     async def _preflight_one(
         self,
@@ -1035,8 +985,3 @@ class PlaylistExport:
     import_failed: bool = False
     limit_exceeded: bool = False
 
-
-def install_chromium(cancel):
-    """Install the browser required by the current cart suboperation."""
-    from .. import browser_session
-    return browser_session.install_chromium(cancel)

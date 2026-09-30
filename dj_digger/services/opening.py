@@ -16,9 +16,3 @@ class OpeningService:
         if opened and key is not None:
             self.state.mark_opened(key)
         return opened
-
-    def open_many(self, urls, keys, choice, *, on_success, on_error, cancel):
-        def finished(index, url):
-            self.state.mark_opened(keys[index])
-            on_success(index, url)
-        return browser.open_urls(urls, choice, on_success=finished, on_error=on_error, cancel=cancel)

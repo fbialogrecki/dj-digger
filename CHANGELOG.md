@@ -2,8 +2,27 @@
 
 ## Unreleased
 
+### Removed
+
+- The Textual terminal UI and the `--no-tui` flag. `dj-digger` is now a
+  headless CLI: `dig` exports, saves to the library and prints a summary table,
+  and `open SUMMARY` always batch-opens links (asking for a category unless
+  `--category` is given). The interactive UI is the Qt Quick desktop,
+  `dj-digger-gui`.
+- The `textual` dependency, `TEXTUAL_ANIMATIONS`, and the unused settings
+  `theme`, `columns`, `sidebar_split` and `sidebar_mode`.
+- Dead code left behind by the TUI: `links.group_by_track`,
+  `tracks_from_records` and `LINK_KEYWORDS`, `player.fraction` and
+  `change_volume`, `logging_setup.current_log_error` and `open_log_folder`,
+  `Track.duration_label`, `playlist.sort_rows` and `operation_targets`,
+  `Row.record_for`, `CrateRecord.restore`, `TrackState.clear_local_file`,
+  `OperationHandle.describe`, `AccountService.wait_authentication` and
+  `save_profile`, `OpeningService.open_many`, `GateProfileAnswer`.
+
 ### Changed
 
+- Running `dj-digger` without a target now exits with "Nothing to dig. Pass a
+  SoundCloud link, or run dj-digger-gui to browse."
 - The desktop has a darker club palette with blue and bordeaux accents, a Now
   playing header with generated record artwork carrying a barcode of the track,
   BPM and key chips with Camelot notation (View → Key notation) and harmonic and

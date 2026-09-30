@@ -1,7 +1,7 @@
 # AGENTS.md
 
 Repository-wide routing and guardrails for `dj-digger`, a Python 3.12+
-terminal crate-digging CLI/TUI.
+crate-digging headless CLI and Qt Quick desktop (`dj-digger-gui`).
 
 ## Required task startup and skills
 
@@ -62,9 +62,9 @@ terminal crate-digging CLI/TUI.
 - `dj_digger/cli.py`, `services/`, `models.py`, `crate_models.py`, `links.py`: entry, collection
   orchestration, shared objects, classification, and exports.
 - `dj_digger/soundcloud.py`: SoundCloud API v2 inputs.
-- `dj_digger/tui/`, `player.py`, `beats.py`: Textual crate browser, optional
+- `dj_digger/gui/`, `player.py`, `beats.py`: PySide6/Qt Quick desktop, optional
   in-memory audio preview, and the beat grid the desktop pulses with.
-- `dj_digger/db.py`, `schema.py`, `state.py`, `library.py`, `scanner.py`, `config.py`: SQLite
+- `dj_digger/db.py`, `schema.py`, `state.py`, `scanner.py`, `config.py`: SQLite
   state, crates, local-file matching, and preferences.
 - `dj_digger/auth.py`, `spotify.py`, `gates/`, `stores/`, `http.py`, `browser.py`: external
   authentication, gate/store integrations, browser handoff, and cart safety.
@@ -77,8 +77,8 @@ terminal crate-digging CLI/TUI.
   for behavior already covered by the platform or existing packages.
 - Fix root causes. When a core signature or data structure changes, update every
   caller and the corresponding specification contract.
-- Long-running network or disk work in `dj_digger/tui/` must run in Textual
-  workers/background threads and return UI mutations to the UI thread.
+- Blocking network or disk work in `dj_digger/gui/` must not run on the UI
+  thread; use background threads and return UI mutations to the UI thread.
 - Offline tests must never reach live endpoints, real XDG application state, or
   the user's music/download folders. Use fakes and `tests/fixtures/`.
 - Treat artist links, summary files, redirects, provider responses, and filenames

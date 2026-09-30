@@ -1,6 +1,6 @@
 """Turning a target into a crate, independent of how progress gets displayed.
 
-Both the CLI (rich progress bar) and the TUI (worker thread plus a status line)
+Both the CLI (rich progress bar) and the desktop (worker thread plus a status line)
 need to do exactly the same work, so the work lives here and the caller supplies
 an ``on_progress`` hook.
 """
@@ -46,7 +46,7 @@ LOGGER = logging.getLogger(__name__)
 
 @dataclass
 class DigOptions:
-    """The knobs a dig needs, bundled so the TUI can carry them around."""
+    """The knobs a dig needs, bundled so callers can carry them around."""
 
     limit: int | None = None
     timeout: float = 20.0

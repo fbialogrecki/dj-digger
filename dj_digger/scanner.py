@@ -1,7 +1,7 @@
 """Finding the tracks you already own.
 
 Walks the configured folders for audio files, normalises their names, and offers
-the crate browser a way to ask "do I have this one already?". The answer comes
+the desktop a way to ask "do I have this one already?". The answer comes
 with a confidence, because a filename is weak evidence: two different tracks can
 easily share a title, and being wrong here would overwrite a decision the user
 made by hand.

@@ -126,9 +126,6 @@ _HOST_FLOW_LIMITS_LOCK = threading.Lock()
 MAX_NESTED_GATES = 5
 
 
-# The TUI still reaches for this name; links.is_hypeddit_url is the one home.
-_is_hypeddit_url = is_hypeddit_url
-
 
 def _cancelled(cancel: Any) -> bool:
     return cancel is not None and cancel.is_set()

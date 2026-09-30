@@ -20,8 +20,6 @@ from urllib.parse import urlparse, urlunparse
 from .http import is_fetchable, is_openable
 from .models import LinkRecord, Track
 
-LINK_KEYWORDS = {"download", "free download", "free d/l", "buy", "purchase", "premiere", "kup"}
-
 # Domains grouped by where a link actually takes you. The membership here comes
 # from surveying purchase_url across 53 playlists / 3497 tracks rather than from
 # guesswork: smart links (lnk.to, ffm.to, fanlink, orcd.co and labels' own .link
@@ -97,7 +95,7 @@ STORE_DOMAINS = {
 # Labels buy their own smart-link domains on this TLD, which is what it exists for.
 SMARTLINK_TLD = ".link"
 
-# Ordered so that the best outcome comes first, which is also the order the TUI
+# Ordered so that the best outcome comes first, which is also the order the desktop
 # opens links in: a file SoundCloud will simply give you, then somewhere to buy,
 # then a gate to earn it free, then a click-through, then stream-only, then no
 # idea. Tracks with no recognised link get their own category so they cannot be
@@ -151,7 +149,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 # The only gate provider worth chasing out of a track description rather than
-# just purchase_url; shared so the TUI, the digger and the gate router all
+# just purchase_url; shared so the desktop, the digger and the gate router all
 # recognise the same hosts (compare via host_of, which strips www.).
 HYPEDDIT_HOSTS = frozenset({"hypeddit.com", "hypd.it"})
 
@@ -316,24 +314,6 @@ def categorise_all(tracks: Iterable[Track]) -> list[LinkRecord]:
     return list(chain.from_iterable(categorise(track) for track in tracks))
 
 
-def group_by_track(records: Sequence[LinkRecord]) -> list[list[LinkRecord]]:
-    """One list of links per track, tracks in first-seen order, best link first.
-
-    ``categorise`` emits a record per store, so a track selling on Bandcamp and
-    gated on Hypeddit arrives as two records. Anything showing one row per track
-    needs them back together, ordered so the first is the one worth opening.
-    """
-
-    rank = {name: index for index, name in enumerate(CATEGORY_NAMES)}
-    groups: dict[str, list[LinkRecord]] = {}
-    for record in records:
-        groups.setdefault(record.track.key, []).append(record)
-    return [
-        sorted(group, key=lambda record: rank.get(record.category, len(rank)))
-        for group in groups.values()
-    ]
-
-
 def _bucket(record: LinkRecord) -> str:
     return record.category if record.category in CATEGORY_NAMES else "others"
 
@@ -488,16 +468,3 @@ def _record_from_item(category: str, item: object) -> LinkRecord:
         link_text=item.get("link_text") or "",
     )
 
-
-def tracks_from_records(records: Sequence[LinkRecord]) -> list[Track]:
-    """Collapse records back into unique tracks, merging their links onto each."""
-
-    by_key: dict[str, Track] = {}
-    for record in records:
-        track = by_key.setdefault(record.track.key, record.track)
-        if track is record.track:
-            continue
-        for pair in record.track.extra_links:
-            if pair not in track.extra_links:
-                track.extra_links.append(pair)
-    return list(by_key.values())
