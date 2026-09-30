@@ -86,7 +86,8 @@
   is resized: the kick glow around the waveform was a blurred Canvas shadow,
   and is now two translucent rims that paint in milliseconds.
 - A SoundCloud track starts playing without waiting for its waveform. Until the
-  waveform is in, the record is blank on a white sleeve and the bars wander;
+  waveform is in, the record is blank on a white sleeve and the bars flicker as
+  random noise;
   then they settle into the waveform while the colours and the record code fade
   in. Every played track's waveform is kept in the library (schema 3 adds a
   `waveforms` table), so a track played again shows it at once; the local

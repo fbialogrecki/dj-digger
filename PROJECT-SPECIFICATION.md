@@ -5,8 +5,8 @@
 - Product version verified: 1.2.1 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-09-27
-- Document lines: <!-- SPEC TOTAL LINES -->1718<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1718<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->1719<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1719<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,7 +51,7 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 143–181 |
 | 2.1 | ↳ Problem and product boundary | 145–158 |
 | 2.2 | ↳ Execution modes | 159–181 |
-| 3 | User-visible capabilities | 182–862 |
+| 3 | User-visible capabilities | 182–863 |
 | 3.1 | ↳ Track collection | 184–209 |
 | 3.2 | ↳ Link classification and exports | 210–228 |
 | 3.3 | ↳ Track statuses | 229–237 |
@@ -59,56 +59,56 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 3.5 | ↳ Downloads and local-file matching | 368–404 |
 | 3.6 | ↳ Store purchase assistance | 405–490 |
 | 3.7 | ↳ Local library, analysis and audio export | 491–647 |
-| 3.8 | ↳ Qt Quick desktop | 648–862 |
-| 4 | System context and data flow | 863–903 |
-| 4.1 | ↳ Context diagram | 865–887 |
-| 4.2 | ↳ Collection-to-library flow | 888–903 |
-| 5 | Repository layout and component ownership | 904–972 |
-| 5.1 | ↳ Entry, orchestration, and models | 906–917 |
-| 5.2 | ↳ Network and external-system adapters | 918–934 |
-| 5.3 | ↳ Persistence, local media, and UI | 935–972 |
-| 6 | Runtime architecture and environments | 973–1084 |
-| 6.1 | ↳ Runtime and dependencies | 975–996 |
-| 6.2 | ↳ Concurrency and lifecycle | 997–1064 |
-| 6.3 | ↳ Local paths and environment variables | 1065–1084 |
-| 7 | Data model and persistence | 1085–1187 |
-| 7.1 | ↳ Domain objects and identity | 1087–1101 |
-| 7.2 | ↳ SQLite schema and invariants | 1102–1153 |
-| 7.3 | ↳ Crate persistence and deletion | 1154–1169 |
-| 7.4 | ↳ Configuration and credential stores | 1170–1187 |
-| 8 | Public interfaces and contracts | 1188–1241 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1190–1214 |
-| 8.2 | ↳ JSON and CSV summary input | 1215–1230 |
-| 8.3 | ↳ URL-opening contract | 1231–1241 |
-| 9 | Authentication and authorization | 1242–1287 |
-| 9.1 | ↳ SoundCloud authentication | 1244–1266 |
-| 9.2 | ↳ Gate action consent | 1267–1287 |
-| 10 | External integrations | 1288–1432 |
-| 10.1 | ↳ SoundCloud API and media | 1290–1301 |
-| 10.2 | ↳ Link hubs and download gates | 1302–1371 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1310–1357 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1359–1364 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1366–1371 |
-| 10.3 | ↳ Browsers and clipboard | 1372–1383 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1384–1432 |
-| 11 | Security requirements and threat model | 1433–1487 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1435–1453 |
-| 11.2 | ↳ Secret and personal-data handling | 1454–1469 |
-| 11.3 | ↳ File and mutation safety | 1470–1487 |
-| 12 | Privacy, lifecycle, and retention | 1488–1532 |
-| 12.1 | ↳ Data stored locally | 1490–1510 |
-| 12.2 | ↳ Data sent to third parties | 1511–1522 |
-| 12.3 | ↳ User-controlled deletion | 1523–1532 |
-| 13 | Failure behavior and current limitations | 1533–1592 |
-| 13.1 | ↳ Error isolation and reporting | 1535–1554 |
-| 13.2 | ↳ Confirmed limitations | 1555–1592 |
-| 14 | Verification, CI, and release | 1593–1687 |
-| 14.1 | ↳ Offline and live test suites | 1595–1641 |
-| 14.2 | ↳ Continuous integration and publishing | 1642–1672 |
-| 14.3 | ↳ Specification-map verification | 1673–1687 |
-| 15 | Evidence and operational references | 1688–1718 |
-| 15.1 | ↳ Primary implementation evidence | 1690–1708 |
-| 15.2 | ↳ User and historical documentation | 1709–1718 |
+| 3.8 | ↳ Qt Quick desktop | 648–863 |
+| 4 | System context and data flow | 864–904 |
+| 4.1 | ↳ Context diagram | 866–888 |
+| 4.2 | ↳ Collection-to-library flow | 889–904 |
+| 5 | Repository layout and component ownership | 905–973 |
+| 5.1 | ↳ Entry, orchestration, and models | 907–918 |
+| 5.2 | ↳ Network and external-system adapters | 919–935 |
+| 5.3 | ↳ Persistence, local media, and UI | 936–973 |
+| 6 | Runtime architecture and environments | 974–1085 |
+| 6.1 | ↳ Runtime and dependencies | 976–997 |
+| 6.2 | ↳ Concurrency and lifecycle | 998–1065 |
+| 6.3 | ↳ Local paths and environment variables | 1066–1085 |
+| 7 | Data model and persistence | 1086–1188 |
+| 7.1 | ↳ Domain objects and identity | 1088–1102 |
+| 7.2 | ↳ SQLite schema and invariants | 1103–1154 |
+| 7.3 | ↳ Crate persistence and deletion | 1155–1170 |
+| 7.4 | ↳ Configuration and credential stores | 1171–1188 |
+| 8 | Public interfaces and contracts | 1189–1242 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1191–1215 |
+| 8.2 | ↳ JSON and CSV summary input | 1216–1231 |
+| 8.3 | ↳ URL-opening contract | 1232–1242 |
+| 9 | Authentication and authorization | 1243–1288 |
+| 9.1 | ↳ SoundCloud authentication | 1245–1267 |
+| 9.2 | ↳ Gate action consent | 1268–1288 |
+| 10 | External integrations | 1289–1433 |
+| 10.1 | ↳ SoundCloud API and media | 1291–1302 |
+| 10.2 | ↳ Link hubs and download gates | 1303–1372 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1311–1358 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1360–1365 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1367–1372 |
+| 10.3 | ↳ Browsers and clipboard | 1373–1384 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1385–1433 |
+| 11 | Security requirements and threat model | 1434–1488 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1436–1454 |
+| 11.2 | ↳ Secret and personal-data handling | 1455–1470 |
+| 11.3 | ↳ File and mutation safety | 1471–1488 |
+| 12 | Privacy, lifecycle, and retention | 1489–1533 |
+| 12.1 | ↳ Data stored locally | 1491–1511 |
+| 12.2 | ↳ Data sent to third parties | 1512–1523 |
+| 12.3 | ↳ User-controlled deletion | 1524–1533 |
+| 13 | Failure behavior and current limitations | 1534–1593 |
+| 13.1 | ↳ Error isolation and reporting | 1536–1555 |
+| 13.2 | ↳ Confirmed limitations | 1556–1593 |
+| 14 | Verification, CI, and release | 1594–1688 |
+| 14.1 | ↳ Offline and live test suites | 1596–1642 |
+| 14.2 | ↳ Continuous integration and publishing | 1643–1673 |
+| 14.3 | ↳ Specification-map verification | 1674–1688 |
+| 15 | Evidence and operational references | 1689–1719 |
+| 15.1 | ↳ Primary implementation evidence | 1691–1709 |
+| 15.2 | ↳ User and historical documentation | 1710–1719 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -732,8 +732,9 @@ muted for skipped, accent otherwise; not for more than 100 rows at once, and als
 filter rebuilt the rows); download fills carry a sweeping highlight only while
 an operation runs; the play button pops when its icon changes; the player panel
 switches height at once and its artwork and waveform fade in (180 ms). Until the loaded track's waveform
-event arrives the artwork shows a white backdrop and label on a blank record and the bars wander on
-placeholder waves (about 30 repaints a second of the unplayed layer only); when it arrives the bars settle
+event arrives the artwork shows a white backdrop and label on a blank record and the bars flicker as
+noise, each rising and falling with its own random range, speed and phase, unrelated to its neighbours
+(about 30 repaints a second of the unplayed layer only); when it arrives the bars settle
 from their current heights into the envelope (700 ms) while the key colours and the record code fade in
 (600 ms). Without animations the placeholder stands still and both switch at once. The waveform and artwork keep their base colours, and detected kick flashes
 are part of this motion. Theme changes and recycled table delegates

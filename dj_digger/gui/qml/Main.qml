@@ -980,10 +980,13 @@ ApplicationWindow {
                         }
                         NumberAnimation { id: settleAnimation; target: waveform; property: "settle"; from: 0; to: 1; duration: 700; easing.type: Easing.InOutCubic }
                         Timer { interval: 33; repeat: true; running: !waveform.ready && waveform.visible && root.motion; onTriggered: waveform.wander += .033 }
-                        // Each bar on its own slow wave, with a swell rolling across them all.
+                        // Noise, not a wave: every bar has its own random height range, speeds and phases,
+                        // unrelated to its neighbours, so the bars rise and fall scattered.
+                        function noise(i, k) { let x = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453; return x - Math.floor(x) }
                         function placeholder(i) {
-                            let r = Math.abs(Math.sin(i * 12.9898) * 43758.5453) % 1
-                            return Math.max(.05, Math.min(.85, .32 + .16 * Math.sin(wander * 2.2 - i * .3) + .14 * Math.sin(wander * (2 + 3 * r) + r * 40)))
+                            let v = .5 + .32 * Math.sin(wander * (2 + 6 * noise(i, 1)) + 6.283 * noise(i, 2))
+                                       + .18 * Math.sin(wander * (5 + 9 * noise(i, 3)) + 6.283 * noise(i, 4))
+                            return Math.max(.04, Math.min(.95, v * (.35 + .65 * noise(i, 5))))
                         }
                         function level(i) {
                             if (!ready) return placeholder(i)
