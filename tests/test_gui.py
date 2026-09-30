@@ -447,7 +447,10 @@ def test_store_login_skips_stores_without_a_login_page(monkeypatch):
     asyncio.run(session.setup_logins(('beatport',), asyncio.Event()))
 
 
-def test_replace_export_needs_no_destination_folder(backend, tmp_path):
+def test_replace_export_needs_no_destination_folder(backend, tmp_path, monkeypatch):
+    from dj_digger import export
+
+    monkeypatch.setattr(export, 'destination_drive', lambda folder: (tmp_path, 'ntfs'))
     worker, events = backend
     folder = tmp_path / 'music'
     folder.mkdir()
@@ -479,6 +482,7 @@ def test_replace_export_needs_no_destination_folder(backend, tmp_path):
     review = wait_event(events, 'question')
     assert review['title'] == 'Review export'
     summary = review['fields'][0]['value'].splitlines()
+    assert summary.pop(0).startswith('Warning: The destination drive uses NTFS')
     assert summary[0].startswith('FLAC, up to 24-bit / 96 kHz')
     newest_decks = ['CDJ-3000', 'CDJ-3000X', 'OPUS-QUAD', 'XDJ-AZ']
     assert [line.split(':')[0] for line in summary[1:5]] == newest_decks
