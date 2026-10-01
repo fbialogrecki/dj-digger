@@ -35,7 +35,7 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
       - name: Build offline installer
-        run: uv run --frozen --extra gui --extra play --extra analyze --group desktop-build --python 3.12 python packaging/windows/build.py
+        run: uv run --frozen --extra gui --extra analyze --group desktop-build --python 3.12 python packaging/windows/build.py
       - name: Frozen desktop smoke
         run: uv run --frozen --python 3.12 python scripts/gui_smoke.py dist/dj-digger/dj-digger-gui.exe --runtime
       - name: Installer lifecycle and installed runtime
@@ -70,7 +70,7 @@ jobs:
       - name: Install build-time media tools
         run: brew install ffmpeg
       - name: Build offline test DMG (no Developer ID or notarization)
-        run: uv run --frozen --extra gui --extra play --extra analyze --group desktop-build --python 3.12 python packaging/macos/build.py
+        run: uv run --frozen --extra gui --extra analyze --group desktop-build --python 3.12 python packaging/macos/build.py
       - name: Mount DMG and verify copied application
         run: uv run --frozen --python 3.12 python packaging/macos/test_dmg.py
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

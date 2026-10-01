@@ -220,8 +220,8 @@ def test_legacy_cache_migration_preserves_library_and_backup(legacy_cache_databa
     assert db.load_crate('playlist') == {'source': 'playlist', 'title': 'Saved', 'tracks': []}
     db.upsert_local_files([('C:/Music/two.mp3', 2.0, 'two')])
     db.close()
-    assert writer.execute('PRAGMA user_version').fetchone()[0] == 2
-    assert signature(writer) == expected_signature(2)
+    assert writer.execute('PRAGMA user_version').fetchone()[0] == 3
+    assert signature(writer) == expected_signature(3)
     copies = list((path.parent / 'backups').glob('*.db'))
     assert len(copies) == 1
     with closing(sqlite3.connect(copies[0])) as saved:
@@ -264,7 +264,7 @@ def test_legacy_cache_with_unknown_constraint_is_rejected(legacy_cache_database)
     assert not (path.parent / 'backups').exists()
 
 
-@pytest.mark.parametrize('version', [-1, 2, 99])
+@pytest.mark.parametrize('version', [-1, 2, 3, 99])
 def test_unknown_version_leaves_database_unchanged(tmp_path, version):
     import sqlite3
     from contextlib import closing

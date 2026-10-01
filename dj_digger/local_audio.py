@@ -3,6 +3,8 @@ import array
 import threading
 from pathlib import Path
 
+import numpy as np
+
 from .media import MediaError, pcm_blocks, probe
 from .services.playback import Prepared, Stream
 
@@ -174,43 +176,56 @@ def close_all():
         source.join()
 
 
-def waveform(path, cancel=None):
-    """Independent low-resolution envelope; bounded cache, never a playback gate."""
-    import hashlib
-    import json
-    import os
+def _fold_peaks(peaks, block, frame, frames_per_bin):
+    """Fold one s16le stereo block into the per-bin peaks; returns the next frame number."""
 
+    # int32 before abs: -32768 has no positive int16.
+    samples = np.frombuffer(block, dtype='<i2', count=len(block) // 4 * 2).astype(np.int32)
+    loudest = np.abs(samples).reshape(-1, 2).max(axis=1, initial=0)
+    bins = np.minimum(1023, (frame + np.arange(len(loudest))) // frames_per_bin)
+    np.maximum.at(peaks, bins, loudest)
+    return frame + len(loudest)
+
+
+def waveform(path, cancel=None):
+    """Independent low-resolution envelope; never a playback gate. The library keeps it."""
     from .media import signature
-    root = Path(os.environ.get('XDG_CACHE_HOME') or Path.home() / '.cache') / 'dj-digger' / 'waveforms'
     path = Path(path)
     before = signature(path)
-    cache = root / (hashlib.sha256((str(path) + before).encode()).hexdigest() + '.json')
-    try:
-        values = json.loads(cache.read_text())
-        if isinstance(values, list) and len(values) <= 1024:
-            return values
-    except (OSError, ValueError):
-        pass
     metadata = probe(path, cancel)
-    bins = [0] * 1024
     frames_per_bin = max(1, round(metadata['duration'] * 4000 / 1024))
+    peaks = np.zeros(1024, dtype=np.int32)
     frame = 0
     for block in pcm_blocks(path, rate=4000, channels=2, sample_format='s16le', cancel=cancel):
-        values = array.array('h')
-        values.frombytes(block)
-        import sys
-        if sys.byteorder != 'little':
-            values.byteswap()
-        for index in range(0, len(values), 2):
-            bucket = min(1023, frame // frames_per_bin)
-            bins[bucket] = max(bins[bucket], abs(values[index]), abs(values[index + 1]))
-            frame += 1
-    if signature(path) != before:
-        return []
-    root.mkdir(parents=True, exist_ok=True)
-    from .private_json import write_private_json
-    write_private_json(cache, bins)
-    files = sorted(root.glob('*.json'), key=lambda entry: entry.stat().st_mtime, reverse=True)
-    for old in files[128:]:
-        old.unlink(missing_ok=True)
-    return bins
+        frame = _fold_peaks(peaks, block, frame, frames_per_bin)
+    return peaks.tolist() if signature(path) == before else []
+
+
+def encoded_waveform(data):
+    """The same 1024 peaks from a whole encoded file held in memory (a streamed MP3)."""
+    import miniaudio
+    decoded = miniaudio.decode(bytes(data), output_format=miniaudio.SampleFormat.SIGNED16, nchannels=2, sample_rate=4000)
+    peaks = np.zeros(1024, dtype=np.int32)
+    _fold_peaks(peaks, decoded.samples.tobytes(), 0, max(1, -(-decoded.num_frames // 1024)))
+    return peaks.tolist()
+
+
+ARTWORK_NAMES = ('cover', 'folder', 'front', 'albumart')
+MAX_ARTWORK_BYTES = 16 * 1024 * 1024
+
+
+def artwork(path, cancel=None):
+    """Picture embedded in the file, else a cover image beside it; None without one."""
+    from .media import binary, input_args, run
+    path = Path(path)
+    pictures = probe(path, cancel)['artwork']
+    if pictures:
+        data = run([binary('ffmpeg'), '-v', 'error', *input_args(path), '-map', f"0:{pictures[0]['index']}",
+                    '-c', 'copy', '-f', 'image2pipe', '-'], cancel=cancel, timeout=30, output_limit=MAX_ARTWORK_BYTES)
+        if data:
+            return data
+    for entry in sorted(path.parent.iterdir()):
+        if (entry.stem.lower() in ARTWORK_NAMES and entry.suffix.lower() in ('.jpg', '.jpeg', '.png')
+                and entry.is_file() and entry.stat().st_size <= MAX_ARTWORK_BYTES):
+            return entry.read_bytes()
+    return None

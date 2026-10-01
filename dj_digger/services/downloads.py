@@ -88,21 +88,6 @@ class DownloadService:
         self.record(key, path)
         return path
 
-    def finish_gate(self, track, url, directory, cancel, *, config, status=None):
-        from ..gates.browser import download_hypeddit_in_browser
-
-        path = download_hypeddit_in_browser(
-            track,
-            url,
-            directory,
-            cancel,
-            social=config.gate_social_actions,
-            config=config,
-            status=status,
-        )
-        self.record(track.key, path)
-        return path
-
     def finish_gates(self, items, directory, cancel, *, config, status=None):
         from ..gates.browser import download_hypeddit_batch_in_browser
 
@@ -352,61 +337,6 @@ class DownloadWorkflow:
             return track, url, "cancelled", None, changed
         except Exception as exc:
             return track, url, "failed", exc, changed
-
-    def run_one(self, track, url, allow_retry=True):
-        track, url, outcome, result, changed = self.attempt((track, url))
-        if changed:
-            self.send("hubs")
-        if outcome == "hub":
-            self.send(
-                "failed",
-                key=track.key,
-                message="Hypeddit link is a store hub rather than a download gate",
-            )
-            return
-        if (
-            outcome == "failed"
-            and isinstance(result, gate_models.BROWSER_REQUIRED_ERRORS)
-            and _is_hypeddit(url)
-        ):
-            self.send("status", message=f"Finishing in the hidden browser: {result}")
-            try:
-                result = self.service.finish_gate(
-                    track,
-                    url,
-                    self.request.directory,
-                    self.handle.cancel,
-                    config=self.config,
-                    status=lambda message: self.send("status", message=message),
-                )
-                outcome = "downloaded"
-            except Cancelled:
-                outcome = "cancelled"
-            except PublishedFileUnrecorded as exc:
-                result = exc
-            except Exception as exc:
-                result = RuntimeError(f"{exc} (after: {result})")
-        if outcome == "downloaded":
-            self.send("downloaded", key=track.key, path=Path(result))
-        elif outcome == "cancelled":
-            self.send("cancelled", key=track.key)
-        elif allow_retry and isinstance(
-            result, (gate_models.GateProfileRequired, soundcloud.SoundCloudLoginRequired)
-        ):
-            self.send("waiting", key=track.key)
-            item = (track, url)
-            try:
-                ready = self.prerequisites(
-                    [item] if isinstance(result, gate_models.GateProfileRequired) else [],
-                    [item] if isinstance(result, soundcloud.SoundCloudLoginRequired) else [],
-                )
-            except Cancelled:
-                self.send("cancelled", key=track.key)
-                return
-            if ready:
-                self.run_one(*ready[0], allow_retry=False)
-        else:
-            self.failed(track, result)
 
     def run_batch(self, items, allow_retry=True):
         items = [item for item in items if downloadable(*item)]

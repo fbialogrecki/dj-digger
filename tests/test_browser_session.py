@@ -246,11 +246,20 @@ def test_a_locked_profile_is_retried_before_it_is_reported(monkeypatch):
         def set_default_timeout(self, _timeout):
             pass
 
+    class Browser:
+        version = "151.0.7000.1"
+
+        async def close(self):
+            pass
+
     class Chromium:
         executable_path = __file__
 
-        async def launch_persistent_context(self, *_args, **_kwargs):
-            attempts.append(1)
+        async def launch(self, **_kwargs):
+            return Browser()
+
+        async def launch_persistent_context(self, *_args, **kwargs):
+            attempts.append(kwargs)
             if len(attempts) < 3:
                 raise RuntimeError("ProcessSingleton: user data directory is already in use")
             return Context()
@@ -259,10 +268,15 @@ def test_a_locked_profile_is_retried_before_it_is_reported(monkeypatch):
         chromium = Chromium()
 
     monkeypatch.setattr(browser_session, "PROFILE_LOCK_WAIT", 0)
+    monkeypatch.setattr(browser_session, "_headed_user_agent", None)
+    monkeypatch.setattr(browser_session.sys, "platform", "linux")
 
     asyncio.run(browser_session.launch_persistent_context(Playwright(), None, headless=True))
 
     assert len(attempts) == 3
+    # The hidden cart context presents the headed browser's user agent, as the gates do.
+    assert "HeadlessChrome" not in attempts[-1]["user_agent"]
+    assert "Chrome/151.0.0.0" in attempts[-1]["user_agent"]
 
 
 def test_the_viewer_needs_a_display_and_gets_the_cookies(monkeypatch):

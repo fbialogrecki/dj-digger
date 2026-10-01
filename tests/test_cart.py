@@ -793,6 +793,8 @@ def test_cart_session_relaunches_the_same_profile_visible_only_when_requested(
     executable = tmp_path / "chromium"
     executable.touch()
     monkeypatch.setenv("DISPLAY", ":test")
+    # The user agent lookup launches a throwaway browser; this test is about the context.
+    monkeypatch.setattr("dj_digger.browser_session._headed_user_agent", "Mozilla/5.0 test")
     calls = []
     contexts = []
 
@@ -1659,7 +1661,7 @@ def test_final_bandcamp_cart_is_the_first_visible_work_page(monkeypatch):
     assert launches == ["viewer page"]
     assert stores == ("bandcamp",)
     assert not warnings
-    assert page.url == cart.BANDCAMP_CART_URL
+    assert page.url == bandcamp_adapter.BANDCAMP_CART_URL
     assert page.focused == 1
 
 
@@ -1675,13 +1677,13 @@ def test_existing_bandcamp_item_is_checked_in_the_global_cart(monkeypatch):
         _page.url = url
 
     async def contains(_page, _item):
-        return _page.url == cart.BANDCAMP_CART_URL
+        return _page.url == bandcamp_adapter.BANDCAMP_CART_URL
 
     monkeypatch.setattr(bandcamp_adapter, "_navigate_async", navigate)
     monkeypatch.setattr(bandcamp_adapter, "_bandcamp_cart_contains_async", contains)
 
     assert asyncio.run(bandcamp_adapter._cart_contains_async(page, item, asyncio.Event()))
-    assert page.url == cart.BANDCAMP_CART_URL
+    assert page.url == bandcamp_adapter.BANDCAMP_CART_URL
 
 
 def test_the_viewer_carries_the_hidden_sessions_cookies(monkeypatch):
@@ -1983,32 +1985,6 @@ def test_cancel_after_a_cart_click_finishes_verification_instead_of_clicking_aga
 
     assert clicks == 1
     assert results[0].status == "added"
-
-
-def test_profile_reset_refuses_a_symlink(tmp_path, monkeypatch):
-    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
-    parent = tmp_path / "dj-digger"
-    parent.mkdir()
-    elsewhere = tmp_path / "elsewhere"
-    elsewhere.mkdir()
-    (parent / "store-browser").symlink_to(elsewhere, target_is_directory=True)
-    session = cart.CartBrowserSession(parent / "store-browser")
-
-    with pytest.raises(automation_errors.AutomationError, match="symlinked"):
-        asyncio.run(session.reset_profile())
-
-
-def test_profile_reset_recreates_only_the_exact_private_profile(tmp_path, monkeypatch):
-    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
-    profile = tmp_path / "dj-digger" / "store-browser"
-    profile.mkdir(parents=True)
-    (profile / "cookie").write_text("private", encoding="utf-8")
-    session = cart.CartBrowserSession(profile)
-
-    asyncio.run(session.reset_profile())
-
-    assert profile.is_dir()
-    assert not (profile / "cookie").exists()
 
 
 def test_soundiiz_limit_is_reported_apart_from_import_failures(tmp_path, monkeypatch):

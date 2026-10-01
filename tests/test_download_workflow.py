@@ -162,7 +162,7 @@ def test_workflow_reports_published_but_unrecorded_path_without_retransfer(tmp_p
             client=Client, config=services.config, emit=events.append,
             prerequisites=lambda *args: [],
         )
-        workflow.run_one(tracks()[0], None)
+        workflow.run_batch([(tracks()[0], None)])
         result = next(event for event in events if event.kind == 'unrecorded')
         assert result.path.read_bytes() == b'audio'
         assert calls == ['1']

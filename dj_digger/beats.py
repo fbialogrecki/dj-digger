@@ -1,188 +1,237 @@
-"""Causal bass attacks from queued PCM; no predicted beats during breaks."""
+"""How much a kick drum is sounding, every 10 ms, from decoded PCM; nothing is predicted.
+
+The light follows a continuous level instead of yes/no decisions, so it never
+stops on a missed hit. The level is the 40-130 Hz energy rising above what holds
+there (a sustained bass, its sidechain recovery, a pad), weighted by how much the
+onset sounds like a kick: like a generic kick at first, then like the kick this
+track keeps repeating. A bass note moves in pitch and holds; a kick drops in
+pitch and is the same sound every time. Any other low hit still shows, dimmer,
+in proportion to its energy. The player decodes 0.4 s ahead of the device, so
+each level is ready about 0.2 s before it is heard.
+"""
 import array
-import math
-import statistics
 from collections import deque
-from dataclasses import dataclass
 
 import numpy as np
 
 SAMPLE_RATE = 44100
 CHANNELS = 2
-# A short stereo FFT keeps bass pitch movement distinct from a fresh attack.
 DOWNSAMPLE = 4
-WINDOW = 512
-HOP_FRAMES = 440
-HOP = HOP_FRAMES / SAMPLE_RATE
-WINDOW_SECONDS = WINDOW * DOWNSAMPLE / SAMPLE_RATE
-KICK_GAP = .06  # Sixteenths up to 210 BPM, without double-counting a kick tail.
-# A kick's body peaks 40-60 ms after its attack, when a sidechained sub is still
-# ducked; a bass stab is as loud at the attack as it gets. Levels are read over
-# this many hops after the confirmed attack before a hit is published.
-BODY_FRAMES = 4
-# Below this bass level a hit is dust from a fade, never the loudest kick around.
-NOISE_LEVEL = .05
+RATE = SAMPLE_RATE / DOWNSAMPLE
+WINDOW = 512  # 46 ms at 11 kHz
+STEP = 110  # 10 ms hops
+HOP = STEP / RATE
+BANDS = slice(1, 11)  # 21-215 Hz in 21.5 Hz bins
+FREQUENCIES = np.fft.rfftfreq(WINDOW, 1 / RATE)[BANDS]
+KICK_BAND = (FREQUENCIES >= 40) & (FREQUENCIES <= 130)
+FLOOR = .003  # Log floor in |FFT|/128 units: silence is not a sound.
+# Each bin's median over hops n±SPAN is what holds there. Only what rises above it
+# can be a kick.
+SPAN = 12
+PRINT = 8  # Hops of residual spectrum in an onset's fingerprint.
+DELAY = SPAN + PRINT - 1  # Hops between a sound and its level.
+OFFSET = -.003  # Seconds from a window's centre to the attack whose level peaks there.
+# Kick-likeness of a fingerprint, as similarity ramps to a weight of WEIGHT_FLOOR-1.
+# The floor keeps fills, a filtered kick and bass hits visible in proportion.
+GENERIC_RAMP = (.45, .8)
+TRACK_RAMP = (.6, .85)
+WEIGHT_FLOOR = .4
+HOLD = 15  # Hops an onset's weight carries through its tail.
+# Loudness: a level is the weighted energy against the loudest of the last few
+# seconds, never below a share of the loudest of the last half minute (so a
+# breakdown stays dark after a drop) or a floor (so silence stays dark).
+FAST = 3.  # Seconds
+SLOW = 30.
+SLOW_SHARE = .35
+LEVEL_FLOOR = .05
+KNEE = .1
+KEEP = 3.  # Seconds of levels kept for readers.
+# Learning the track's kick from repeated onsets:
+FLUX = 2.6  # Summed log rise of an onset.
+PEAK = 3  # An onset is the largest rise within ±3 hops.
+WARM_UP = 13  # Hops before a fresh analysis may hear an onset.
+SEED = .6  # Similarity to the generic kick for an onset to teach the track's kick.
+TWIN = .92  # Similarity between repeats of the same kick.
+GROUP = 5  # Repeats that make a kick.
+ACCEPT = .85  # Similarity that counts as the track's kick.
+ADAPT = .9  # Similarity that lets an onset refine it.
+DROP = 10.  # Hz the band's centroid must fall over a kick's first 70 ms.
+RESEED = 4.  # Seconds without a match before another kick may take over.
+# ponytail: a low hit that sounds like the track's kick lights up like one, and a
+# kick without a pitch drop (a flat sine) never teaches the track's kick; it then
+# glows like any other low hit, in proportion to its energy.
 
 
-@dataclass(frozen=True)
-class Kick:
-    time: float  # On the track, in seconds.
-    strength: float  # 0..1 attack contrast against recent attacks
-    level: float  # 30-180 Hz level at the peak, in spectrum units
+def _spectra(down):
+    """|FFT|/128 in BANDS for every whole window, stepping STEP, over (n, 2) floats."""
+    count = (len(down) - WINDOW) // STEP + 1
+    if count <= 0:
+        return np.zeros((0, BANDS.stop - BANDS.start))
+    frames = down[np.arange(WINDOW)[None, :] + (np.arange(count) * STEP)[:, None]] * _HANN
+    # Combine channel powers: opposite stereo phases must not cancel bass.
+    return np.sqrt(np.mean(abs(np.fft.rfft(frames, axis=1)) ** 2, axis=2))[:, BANDS] / 128
 
 
-class KickDetector:
-    """Frequency-dilated spectral novelty with a local, gain-relative threshold.
+def _residual(spectra):
+    """Per hop of ``spectra[SPAN:-SPAN]``: the log rise above what holds, and the residual spectrum."""
+    logs = np.log(spectra + FLOOR)
+    held = np.median(np.lib.stride_tricks.sliding_window_view(logs, 2 * SPAN + 1, axis=0), axis=2)
+    rise = np.maximum(0, logs[SPAN:-SPAN] - held)
+    return rise, np.maximum(0, spectra[SPAN:-SPAN] - (np.exp(held) - FLOOR))
 
-    A moving harmonic is compared to neighbouring bins of the previous frame.
-    Sensitivity follows recent attacks, not the loudness of a sustained bass.
+
+def _unit(vector):
+    norm = np.linalg.norm(vector)
+    return vector / norm if norm > 0 else None
+
+
+def _falls(fingerprint) -> bool:
+    """A kick drops in pitch over its first hops; a bass note does not."""
+    energy = fingerprint.reshape(PRINT, -1) ** 2
+    centroid = energy @ FREQUENCIES / np.maximum(energy.sum(axis=1), 1e-12)
+    return centroid[:2].mean() - centroid[4:7].mean() >= DROP
+
+
+def _ramp(similarity, ramp) -> float:
+    low, high = ramp
+    return min(1., max(0., (similarity - low) / (high - low)))
+
+
+def _generic_kick():
+    """The mean fingerprint of a few synthetic kicks: plain, 808, clicky, driven, deep."""
+    prints = []
+    for start, end, sweep, decay, click, drive, length in (
+            (150, 50, 40, 12, 0, 1, .5), (110, 45, 25, 3, 0, 1, .9), (220, 55, 60, 18, .3, 1, .5),
+            (160, 52, 45, 10, 0, 3, .5), (90, 42, 30, 7, 0, 1, .5)):
+        t = np.arange(int(length * SAMPLE_RATE)) / SAMPLE_RATE
+        kick = np.exp(-t * decay) * np.sin(2 * np.pi * (end * t + (start - end) * (1 - np.exp(-t * sweep)) / sweep))
+        kick += click * np.random.default_rng(7).standard_normal(len(t)) * np.exp(-t * 400)
+        kick = np.tanh(drive * kick) / np.tanh(drive)
+        audio = np.zeros(2 * SAMPLE_RATE)
+        audio[SAMPLE_RATE // 2:SAMPLE_RATE // 2 + len(kick)] = .5 * kick
+        down = audio.reshape(-1, DOWNSAMPLE).mean(axis=1)[:, None].repeat(CHANNELS, axis=1)
+        spectra = _spectra(down)
+        rise, residual = _residual(np.concatenate((spectra[:1].repeat(SPAN, axis=0), spectra, spectra[-1:].repeat(SPAN, axis=0))))
+        flux = np.r_[0, np.maximum(0, np.diff(rise, axis=0)).sum(axis=1)]
+        onset = int(np.argmax(flux))
+        prints.append(_unit(residual[onset:onset + PRINT].ravel()))
+    return _unit(np.mean(prints, axis=0))
+
+
+_HANN = np.hanning(WINDOW)[None, :, None]
+GENERIC = _generic_kick()
+
+
+class KickEnergy:
+    """Per track: a kick level of 0-1 every HOP seconds, written from the audio thread.
+
+    ``feed`` takes contiguous stereo s16 PCM; the first call after ``seeked``
+    sets the track time of its first frame. A seek restarts the analysis but
+    keeps what the track has taught it: its kick and its loudness.
     """
 
-    # ponytail: onset detection, not instrument separation; percussive synth
-    # bass can still resemble a kick in a mastered mix.
-
-    def __init__(self, tracker: "PulseHistory | None" = None):
-        self._tracker = tracker
-        self._rest = array.array("h")
-        self._samples = np.zeros((WINDOW, CHANNELS))
-        self._window = np.hanning(WINDOW)[:, None]
-        self._spectrum = np.zeros(WINDOW // 2 + 1)
-        frequencies = np.fft.rfftfreq(WINDOW, DOWNSAMPLE / SAMPLE_RATE)
-        self._low = (frequencies >= 30) & (frequencies < 180)
-        self._upper = (frequencies >= 180) & (frequencies < 1500)
-        self._frequencies = frequencies[self._low]
-        self._novelty = deque([0.] * 60, maxlen=60)
-        self._power = deque([0.] * 4, maxlen=4)
-        self._levels = deque([0.] * 2, maxlen=2)
-        self._candidate = None
-        self._pending = None  # (time, strength, peak level, hops left, bass-led, previous hit, novelty)
-        self._last = -1.
-
-    def feed(self, chunk, start: float) -> list[Kick]:
-        """Consume stereo s16 PCM; ``start`` is the first input frame's track time."""
-        time = start - len(self._rest) / CHANNELS / SAMPLE_RATE
-        data = self._rest
-        data.extend(chunk)
-        step = HOP_FRAMES * CHANNELS
-        whole = len(data) - len(data) % step
-        self._rest = data[whole:]
-        kicks = []
-        for offset in range(0, whole, step):
-            pcm = np.frombuffer(data, dtype=np.int16, count=step, offset=offset * 2)
-            down = pcm.reshape(-1, DOWNSAMPLE, CHANNELS).mean(axis=1) / 32768
-            self._samples = np.concatenate((self._samples[len(down):], down))
-            time += HOP
-            if kick := self._onset(time):
-                kicks.append(kick)
-                if self._tracker is not None:
-                    self._tracker.kick(kick)
-        return kicks
-
-    def _onset(self, time: float) -> Kick | None:
-        fft = np.fft.rfft(self._samples * self._window, axis=0)
-        # Combine channel powers: opposite stereo phases must not cancel bass.
-        spectrum = np.sqrt(np.mean(abs(fft) ** 2, axis=1))
-        level = float(spectrum[self._low].sum())
-        padded = np.pad(self._spectrum, (2, 2))
-        expanded = np.maximum.reduce([padded[i:i + len(spectrum)] for i in range(5)])
-        novelty = np.maximum(0., spectrum - expanded)
-        self._spectrum = spectrum
-        bass = float(novelty[self._low].sum())
-        other = float(novelty[self._upper].sum())
-        upper_level = float(spectrum[self._upper].sum())
-        centroid = float(novelty[self._low] @ self._frequencies) / max(bass, 1e-9)
-        # Sub-bass swelling and a kick tail need more contrast than its attack.
-        sharpness = 3 if centroid < 75 else 2
-        power = float(np.linalg.norm(spectrum))
-        rise = max(power - self._power[-2], self._power[-1] - self._power[-3])
-        previous_rise = max(0., self._power[-2] - self._power[-4])
-        attack = rise > .10 * power and rise > 3 * previous_rise
-        self._power.append(power)
-        # A kick whose click fades while its body swells keeps full-band power level;
-        # its bass alone still grows clearly.
-        body = level - min(self._levels) >= .15 * level
-        self._levels.append(level)
-        previous = self._novelty[-1]
-        prior = sum(list(self._novelty)[-3:]) / 3
-        self._novelty.append(bass)
-        reference = max(self._novelty)
-        share = .35 if centroid >= 75 and time - WINDOW_SECONDS / 2 - self._last < .18 else .5
-        threshold = max(.02, 1.5 * sum(self._novelty) / len(self._novelty), share * reference)
-        # A clap or snare on the kick can outweigh its bass at the attack. The kick
-        # then shows in its body: the bass outweighs the rest once the click is gone.
-        balanced = level >= upper_level
-        kick = None
-        fresh = False
-        if self._candidate is not None and bass <= previous:
-            at, strength, peak, bassy, onset = self._candidate
-            pending = self._pending
-            if pending is not None and at - pending[0] < KICK_GAP and onset > pending[6]:
-                # The leading edge peaked first; the kick's own attack is stronger.
-                self._pending = (at, strength, max(peak, pending[2], level), BODY_FRAMES,
-                                 bassy or balanced or pending[4], pending[5], onset)
-                self._last, fresh = at, True
-            elif at - self._last >= KICK_GAP:
-                if pending is not None:  # A slow earlier hit is due now, before this one.
-                    kick = Kick(pending[0], pending[1], pending[2]) if pending[4] else None
-                self._pending = (at, strength, max(peak, level), BODY_FRAMES, bassy or balanced, self._last, onset)
-                self._last, fresh = at, True
-        if self._pending is not None and not fresh:
-            at, strength, peak, left, bassy, before, onset = self._pending
-            peak, left, bassy = max(peak, level), left - 1, bassy or balanced
-            if not left and bass > previous and bass > onset and time - WINDOW_SECONDS / 2 - at < .08:
-                left = 1  # A stronger attack is still rising: wait for it to take over.
-            self._pending = (at, strength, peak, left, bassy, before, onset) if left else None
-            if not left:
-                if bassy:
-                    kick = Kick(at, strength, peak)
-                else:
-                    self._last = before  # Not a kick; the gap belongs to the last one.
-        # Confirm a local peak one frame later. A tiny positive full-band rise
-        # rejects steady-power pitch sweeps without demanding a loudness jump
-        # or subsequent RMS decay from a compressed recording.
-        eligible = (bass > previous and (bass >= threshold and bass >= sharpness * prior
-                                         or attack and centroid >= 75 and bass >= .3 * reference)
-                    and bass >= max(.02, .03 * level) and (rise >= .005 * power or body))
-        at = max(0., time - WINDOW_SECONDS / 2)
-        bassy = bass >= .5 * other and level >= .25 * upper_level
-        self._candidate = (at, min(1., (bass / max(.02, reference)) ** .5), level, bassy, bass) if eligible else None
-        return kick
-
-
-class PulseHistory:
-    """Bounded hits from the audio thread; readers get one immutable snapshot.
-
-    Each hit is weighed against the loudest bass of the last two bars, so a stab
-    at 75 % of the kick pulses dimly and one under 60 % of it not at all, while
-    a quieter section recovers its full pulse within two bars. There is no BPM
-    warm-up, predicted grid or persistent roll charge.
-    """
-
-    def __init__(self, period: float | None = None):
-        self._period = period  # Seconds per beat when the track's BPM is known.
-        self._pulses: tuple[tuple[float, float], ...] = ()
-        self._reference = 0.
-        self._reference_at = 0.
-
-    def kick(self, kick: Kick) -> None:
-        memory = 8 * self._period if self._period else 4.0  # Two bars.
-        decayed = self._reference * math.exp(-max(0., kick.time - self._reference_at) / memory)
-        self._reference = max(kick.level, decayed, NOISE_LEVEL)
-        self._reference_at = kick.time
-        amplitude = min(1., max(0., (kick.level / self._reference - .6) / .4))
-        kept = tuple(p for p in self._pulses if p[0] >= kick.time - 2.0)
-        self._pulses = kept + ((kick.time, amplitude),) if amplitude > 0 else kept
+    def __init__(self):
+        self.kick_print = None  # The track's kick fingerprint, once learned.
+        self.matched = 0.  # When an onset last matched it.
+        self.pool: list = []  # Recent kick-like onset fingerprints to learn from.
+        self._fast = self._slow = 0.
+        self._series = (0., ())  # (time of the first level, levels): one immutable snapshot.
+        self.seeked()
 
     def seeked(self) -> None:
-        self._pulses = ()
+        self._start = None  # Track time of the first fed frame.
+        self._rest = array.array("h")
+        self._down = np.zeros((0, CHANNELS))
+        self._hops = 0  # Spectra computed so far.
+        self._spectra = None  # Spectra of the last 2·SPAN hops, edge-padded at the start.
+        self._rise = None  # Log rise of the last analysed hop.
+        self._pending = deque()  # (hop, flux, residual) awaiting the hops after them.
+        self._weights = deque([0.] * HOLD, maxlen=HOLD)
+        self._series = (0., ())
 
-    def period(self) -> float:
-        """Seconds per beat: the track's BPM, else the median gap of recent hits."""
-        if self._period:
-            return self._period
-        gaps = [b[0] - a[0] for a, b in zip(self._pulses, self._pulses[1:]) if .25 <= b[0] - a[0] <= 1.0]
-        return statistics.median(gaps) if gaps else .5
+    def levels(self, start: float, end: float) -> tuple[float, float, list[float]]:
+        """(time of the first level, seconds per level, levels) within start..end."""
+        first, levels = self._series
+        low = max(0, int(np.ceil((start - first) / HOP)))
+        high = min(len(levels), int((end - first) / HOP) + 1)
+        return first + low * HOP, HOP, list(levels[low:high]) if high > low else []
 
-    def pulses(self, start: float, end: float) -> tuple[list[tuple[float, float]], float]:
-        pulses = self._pulses
-        return [p for p in pulses if start <= p[0] <= end], self.period()
+    def feed(self, chunk, start: float) -> None:
+        if self._start is None:
+            self._start = start
+        data = self._rest
+        data.extend(chunk)
+        whole = len(data) - len(data) % (DOWNSAMPLE * CHANNELS)
+        self._rest = data[whole:]
+        if not whole:
+            return
+        pcm = np.frombuffer(data, dtype=np.int16, count=whole) / 32768
+        self._down = np.concatenate((self._down, pcm.reshape(-1, DOWNSAMPLE, CHANNELS).mean(axis=1)))
+        spectra = _spectra(self._down)
+        if not len(spectra):
+            return
+        self._down = self._down[len(spectra) * STEP:]
+        if self._spectra is None:  # The first hop stands in for the hops before it.
+            self._spectra = spectra[:1].repeat(SPAN, axis=0)
+        self._spectra = np.concatenate((self._spectra, spectra))
+        self._hops += len(spectra)
+        if len(self._spectra) <= 2 * SPAN:
+            return
+        rise, residual = _residual(self._spectra)
+        previous = self._rise if self._rise is not None else rise[:1]
+        flux = np.maximum(0, np.diff(np.concatenate((previous, rise)), axis=0)).sum(axis=1)
+        first = self._hops - len(self._spectra) + SPAN  # Hop of rise[0].
+        self._pending.extend((first + i, flux[i], residual[i]) for i in range(len(rise)))
+        self._rise = rise[-1:]
+        self._spectra = self._spectra[-2 * SPAN:]
+        self._weigh()
+
+    def _weigh(self) -> None:
+        pending, added = self._pending, []
+        fast = np.exp(-HOP / FAST)
+        slow = np.exp(-HOP / SLOW)
+        while len(pending) >= PEAK + max(PEAK + 1, PRINT):
+            hop, flux, residual = pending[PEAK]
+            time = self._start + hop * HOP + WINDOW / 2 / RATE + OFFSET
+            fingerprint = _unit(np.ravel([r for _, _, r in list(pending)[PEAK:PEAK + PRINT]]))
+            weight = 0.
+            if fingerprint is not None:
+                generic = float(fingerprint @ GENERIC)
+                track = float(fingerprint @ self.kick_print) if self.kick_print is not None else None
+                weight = max(WEIGHT_FLOOR, _ramp(track, TRACK_RAMP) if track is not None else _ramp(generic, GENERIC_RAMP))
+                if hop >= WARM_UP and flux >= FLUX and flux >= max(f for _, f, _ in list(pending)[:2 * PEAK + 1]):
+                    self._onset(fingerprint, generic, track, time)
+            self._weights.append(weight)
+            energy = float(residual[KICK_BAND].sum()) * max(self._weights)
+            self._fast = max(energy, self._fast * fast)
+            self._slow = max(energy, self._slow * slow)
+            reference = max(self._fast, SLOW_SHARE * self._slow, LEVEL_FLOOR)
+            # A plain float: the window cannot read a numpy one, and showed only 0 and 1.
+            level = float(min(1., max(0., (energy / reference - KNEE) / (1 - KNEE))))
+            added.append((time, level))
+            pending.popleft()
+        if added:
+            first, levels = self._series
+            if not levels:
+                first = added[0][0]
+            levels = levels + tuple(level for _, level in added)
+            drop = max(0, len(levels) - int(KEEP / HOP))
+            self._series = (first + drop * HOP, levels[drop:])
+
+    def _onset(self, fingerprint, generic: float, track: float | None, time: float) -> None:
+        """Learn and refine the track's kick from onsets that resemble a kick."""
+        if track is not None and track >= ACCEPT:
+            self.matched = time
+            if track >= ADAPT:
+                self.kick_print = _unit(.9 * self.kick_print + .1 * fingerprint)
+        if generic < SEED:
+            return
+        self.pool = (self.pool + [fingerprint])[-16:]
+        if (self.kick_print is None or time - self.matched >= RESEED) and len(self.pool) > GROUP:
+            prints = np.array(self.pool)
+            twins = prints @ prints.T >= TWIN
+            best = int(np.argmax(twins.sum(axis=1)))
+            if twins[best].sum() >= GROUP:
+                kick = _unit(prints[twins[best]].mean(axis=0))
+                if kick is not None and _falls(kick):
+                    self.kick_print, self.matched, self.pool = kick, time, []

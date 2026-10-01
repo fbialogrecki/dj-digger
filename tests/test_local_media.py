@@ -382,3 +382,108 @@ def test_the_review_warns_about_a_drive_the_decks_cannot_read(tmp_path, monkeypa
     assert replacing.notes == ('1 file sits more than 8 folders below the drive root, where decks do not show them.',)
     monkeypatch.setattr(export, 'destination_drive', lambda folder: (tmp_path, None))
     assert plan_export([deep], usb, decks=['CDJ-3000'], mode='replace').notes == ()
+
+
+def test_waveform_peaks_match_the_frame_by_frame_fold():
+    import array as array_module
+    import random
+
+    import numpy as np
+
+    from dj_digger.local_audio import _fold_peaks
+
+    rng = random.Random(1)
+    blocks = []
+    for size in (0, 7, 3001, 64):
+        samples = array_module.array('h', [rng.randint(-32768, 32767) for _ in range(size * 2)])
+        if size:
+            samples[0] = -32768
+        blocks.append(samples.tobytes())
+    expected, frame = [0] * 1024, 0
+    for block in blocks:
+        values = array_module.array('h')
+        values.frombytes(block)
+        for index in range(0, len(values), 2):
+            bucket = min(1023, frame // 3)
+            expected[bucket] = max(expected[bucket], abs(values[index]), abs(values[index + 1]))
+            frame += 1
+    peaks, frame = np.zeros(1024, dtype=np.int32), 0
+    for block in blocks:
+        frame = _fold_peaks(peaks, block, frame, 3)
+    assert peaks.tolist() == expected
+
+
+def test_a_played_waveform_is_kept_in_the_library(tmp_path, db, monkeypatch):
+    import io
+    import wave
+    from types import SimpleNamespace
+
+    from dj_digger import local_audio
+    from dj_digger.models import Track
+    from dj_digger.services.playback import track_waveform
+
+    audio = io.BytesIO()
+    with wave.open(audio, 'wb') as output:
+        output.setparams((2, 2, 8000, 0, 'NONE', 'not compressed'))
+        output.writeframes(b'\x00\x40' * 2 * 8000)
+    whole = []
+    source = SimpleNamespace(whole=lambda cancel: whole.append(1) or audio.getvalue())
+    remote = Track('Remote', 'Artist', id=7)
+    first = track_waveform(db, remote, source)
+    assert len(first) == 1024 and max(first) > 0, 'computed here from the streamed audio'
+    assert track_waveform(db, remote, source) == first
+    assert len(whole) == 1, 'the second play reads the library'
+    unfinished = Track('Unfinished', 'Artist', id=8)
+    assert track_waveform(db, unfinished, SimpleNamespace(whole=lambda cancel: None)) == []
+    assert db.waveform(unfinished.key, '') is None, 'nothing is kept for a stream that never completed'
+
+    path = tmp_path / 'local.wav'
+    path.write_bytes(b'one')
+    decoded = []
+    monkeypatch.setattr(local_audio, 'waveform', lambda source, cancel: decoded.append(source) or [5, 6])
+    local = Track('Local', '', local_path=str(path), local_id='x')
+    assert track_waveform(db, local, '', None) == [5, 6]
+    assert track_waveform(db, local, '', None) == [5, 6] and len(decoded) == 1
+    path.write_bytes(b'changed')
+    track_waveform(db, local, '', None)
+    assert len(decoded) == 2, 'a changed file is decoded again'
+
+
+def test_local_artwork_is_the_embedded_picture_else_a_cover_beside_the_file(tmp_path):
+    from dj_digger.local_audio import artwork
+
+    path = audio(tmp_path, 'plain.wav', 'pcm_s16le', 44100)
+    assert artwork(path) is None
+    (tmp_path / 'Cover.JPG').write_bytes(b'folder picture')
+    assert artwork(path) == b'folder picture'
+    picture = tmp_path / 'embedded.png'
+    subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', 'color=red:size=8x8', '-frames:v', '1', str(picture)], check=True)
+    tagged = tmp_path / 'tagged.flac'
+    made = subprocess.run(['ffmpeg', '-v', 'error', '-i', str(path), '-i', str(picture), '-map', '0', '-map', '1',
+                           '-c:a', 'flac', '-c:v', 'copy', '-disposition:v', 'attached_pic', str(tagged)])
+    if made.returncode:
+        pytest.skip('FFmpeg cannot embed a picture here')
+    assert artwork(tagged) == picture.read_bytes()
+
+
+def test_the_label_is_the_picture_cut_to_a_circle_with_its_colours_untouched():
+    pytest.importorskip('PySide6')
+    from PySide6.QtCore import QBuffer, QByteArray
+    from PySide6.QtGui import QColor, QImage
+
+    from dj_digger.gui.artwork import label_image
+
+    source = QImage(40, 20, QImage.Format_RGB32)
+    source.fill(QColor(200, 30, 60))
+    encoded = QByteArray()
+    buffer = QBuffer(encoded)
+    buffer.open(QBuffer.WriteOnly)
+    source.save(buffer, 'PNG')
+    url = label_image(bytes(encoded), 64)
+    assert url.startswith('data:image/png;base64,')
+    import base64
+    label = QImage.fromData(base64.b64decode(url.split(',', 1)[1]))
+    assert (label.width(), label.height()) == (64, 64)
+    assert label.pixelColor(32, 32) == QColor(200, 30, 60)
+    assert label.pixelColor(1, 1).alpha() == 0, 'outside the circle stays transparent'
+    assert label_image(b'not a picture') == ''

@@ -2,35 +2,63 @@
 
 ## Unreleased
 
+### Removed
+
+- The Textual terminal UI and the `--no-tui` flag. `dj-digger` is now a
+  headless CLI: `dig` exports, saves to the library and prints a summary table,
+  and `open SUMMARY` always batch-opens links (asking for a category unless
+  `--category` is given). The interactive UI is the Qt Quick desktop,
+  `dj-digger-gui`.
+- The `textual` dependency, `TEXTUAL_ANIMATIONS`, and the unused settings
+  `theme`, `columns`, `sidebar_split` and `sidebar_mode`.
+- Dead code left behind by the TUI: `links.group_by_track`,
+  `tracks_from_records` and `LINK_KEYWORDS`, `player.fraction` and
+  `change_volume`, `logging_setup.current_log_error` and `open_log_folder`,
+  `Track.duration_label`, `playlist.sort_rows` and `operation_targets`,
+  `Row.record_for`, `CrateRecord.restore`, `TrackState.clear_local_file`,
+  `OperationHandle.describe`, `AccountService.wait_authentication` and
+  `save_profile`, `OpeningService.open_many`, `GateProfileAnswer`.
+
+### Added
+
+- The record label in the player shows the track's artwork, turning with the
+  record and with its colours untouched: SoundCloud artwork (kept in memory for
+  the session only), or for a local file its embedded picture or a `cover`,
+  `folder`, `front` or `albumart` image beside it. Settings → Default cover
+  picks a picture for every track without one.
+
 ### Changed
 
+- The waveform of a SoundCloud track is computed by dj-digger from the audio it
+  has downloaded, like a local file's, instead of SoundCloud's waveform JSON; it
+  appears once the whole track is buffered.
+- Running `dj-digger` without a target now exits with "Nothing to dig. Pass a
+  SoundCloud link, or run dj-digger-gui to browse."
 - The desktop has a darker club palette with blue and bordeaux accents, a Now
   playing header with generated record artwork carrying a barcode of the track,
   BPM and key chips with Camelot notation (View → Key notation) and harmonic and
   tempo match rings, and animations that View → Animations turns off.
-- The desktop waveform and record backdrop keep their normal colours, also
-  while paused. Actual bass attacks add saturation on both sides of the
-  playhead, with the unplayed side remaining in shadow. Pulses start with the
-  first detected kick instead of waiting for a tempo grid, stop during breaks,
-  and follow fast kick rolls without a lingering glow. A short spectral detector
-  distinguishes bass movement from fresh attacks without requiring the RMS
-  rise and decay that missed heavily limited kicks. Flash intensity is reduced
-  by 40 % with a softer release. The detector remains an onset heuristic: an
-  abrupt bass note can still resemble a kick. View → Pulse timing
-  retains device calibration (70 ms by default); queued hits update every 25 ms.
-  Each pulse now carries an amplitude: a hit is weighed against the loudest
-  bass of the last two bars, so bass stabs between the kicks in a dubstep or
-  drum & bass drop pulse dimly or not at all while the kicks pulse fully, and
-  a quieter section regains its full pulse within two bars. The level is read
-  over the 40 ms after the attack, where a sidechained kick peaks. The glow is
-  an envelope rather than a flash: 25 ms up, a short hold, then a release of a
-  third of a beat, with rolls merging into one swell. Peak colours keep their
-  hue with more saturation and lightness and a soft halo instead of turning
-  neon, and stay under the WCAG flash thresholds, also at the bordeaux end. Only
-  the played part of the waveform pulses. Kicks carrying a loud click or a clap
-  on the same beat are no longer missed. The record is a flat near-black and
+- The desktop waveform and record backdrop glow with the kick drum: a
+  continuous kick level, every 10 ms, instead of yes/no flashes, so the light
+  never stops on a missed hit and keeps up at any tempo. The level is the
+  40-130 Hz energy rising above what holds there (a sustained bass, its
+  sidechain recovery, a pad), weighted by how much it sounds like a kick, first
+  a generic one, then the kick this track keeps repeating (learned from onsets
+  that drop in pitch, which a bass note does not), and compared with the
+  track's recent loudness, so breakdowns stay dark. The player decodes 0.4 s
+  ahead of the audio device and works out what the speaker plays from how much
+  it has queued, so the light is on time without a setting: View → Pulse timing
+  is gone; the light samples 40 ms ahead for the display's own delay. Kicks
+  are the brightest and fills, filtered kicks and bass hits glow dimmer, in
+  proportion. The light jumps up with a kick and falls to dark within 150 ms,
+  showing nothing below 15 %, so it goes out between kicks even at 174 BPM. The
+  played waveform rests in deep saturated tones and lights up in neon (over
+  twice as bright on the dark theme) just behind the playhead, with
+  a GPU glow where the scene graph has one; the playhead tints neon with it. The
+  record backdrop glows as before, and the record is a flat near-black that
   never pulses itself. The playhead slides with the heard audio instead of
-  stepping, without a glow.
+  stepping. `scripts/evaluate_kicks.py --audio` reports pulses and lit time per
+  15 s for your own files.
   Mute is a speaker icon that is struck through while muted.
 - New application icon: a record with a barcode like the track artwork, a white
   label and a blue-to-bordeaux tile, at 256 px for the window and Linux docks.
@@ -57,6 +85,38 @@
 
 ### Fixed
 
+- Starting a track no longer stutters. The player panel switches height at once
+  and fades its artwork and waveform in, instead of repainting every waveform
+  canvas on each frame of a resize; table cells no longer re-evaluate on every
+  25 ms audio tick; the `beats` event is sent only when the pulses change; the
+  volume rescale and the local-file waveform run in numpy instead of a Python
+  loop over every sample.
+- The desktop no longer freezes for about 1.5 s when a track starts or the window
+  is resized: the kick glow around the waveform was a blurred Canvas shadow,
+  and is now two translucent rims that paint in milliseconds.
+- A SoundCloud track starts playing without waiting for its waveform. Until the
+  waveform is in, the record is blank on a white sleeve and the bars flicker as
+  random noise (a track change scatters the previous waveform into it);
+  then they settle into the waveform while the colours and the record code fade
+  in. Every played track's waveform is kept in the library (schema 3 adds a
+  `waveforms` table), so a track played again shows it at once; the local
+  waveform JSON cache in the user cache directory is no longer used.
+- Upgrading with the Windows installer now refreshes the desktop and Start-menu
+  shortcut icons; Explorer kept showing the previous app icon until its icon
+  cache was rebuilt.
+- Marking or undoing statuses no longer reloads the playlist and re-queries every
+  local file; the statuses are written in one transaction.
+- Opening a folder probes only files it has never inspected and updates their rows
+  in place instead of rebuilding the table, and an already indexed file no longer
+  costs a database write.
+- A playlist import redraws the table at most once a second instead of every 50
+  tracks; table counts and store filters are computed once per change.
+- Matching tracks to local files no longer lists a folder for every file that is
+  still in place.
+- The hidden store-cart browser no longer identifies itself as `HeadlessChrome`;
+  it presents the headed user agent the hidden gate browser already used.
+- The JSON link export is written atomically, so a failed write no longer leaves
+  a truncated summary in place of the previous one.
 - After a column was dragged to a new place, opening a playlist with more rows
   no longer closes the desktop app.
 - Seeking and changing tracks no longer replay audio queued from the old position,

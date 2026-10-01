@@ -44,7 +44,7 @@ class TrackState:
         # SQLite round trip per ask made a 500-track crate stutter on each
         # keystroke in the search box. Every write goes through here, so the
         # mirror cannot drift from what this process wrote; another process
-        # writing the same database is not something the TUI has ever handled.
+        # writing the same database is not something this app has ever handled.
         self._statuses: dict[str, str] | None = None
         self._files: dict[str, str] | None = None
         self._revisions: dict[str, int] = {}
@@ -72,15 +72,20 @@ class TrackState:
         return self._statuses.get(str(key), NEW)
 
     def set(self, key: str, status: str) -> None:
-        if status not in STATUSES:
-            raise ValueError(f"Unknown status: {status}")
+        self.set_many([(key, status)])
+
+    def set_many(self, changes: list[tuple[str, str]]) -> None:
+        """Apply several user decisions in one transaction."""
+        if unknown := {status for _, status in changes} - set(STATUSES):
+            raise ValueError(f"Unknown status: {', '.join(sorted(unknown))}")
         with self._lock:
             self._load()
-            self.db.set_track_state(key, status, None)
-            # A direct user decision is no longer contingent on a particular
-            # file. Automated scans/downloads use set_local_file instead.
-            self._remember(key, status)
-            self._files.pop(str(key), None)
+            self.db.set_track_states([(key, status, None) for key, status in changes])
+            for key, status in changes:
+                # A direct user decision is no longer contingent on a particular
+                # file. Automated scans/downloads use set_local_file instead.
+                self._remember(key, status)
+                self._files.pop(str(key), None)
 
     def mark_opened(self, key: str) -> None:
         """A completed browser handoff never replaces a later got/skip decision."""
@@ -110,19 +115,6 @@ class TrackState:
             self.db.set_track_state(key, GOT, str(path))
             self._remember(key, GOT)
             self._files[str(key)] = str(path)
-
-    def clear_local_file(self, key: str) -> bool:
-        """Forget a missing file and undo only the GOT that depended on it."""
-
-        with self._lock:
-            self._load()
-            if self._files.get(str(key)) is None:
-                return False
-            status = NEW if self._statuses.get(str(key)) == GOT else self._statuses.get(str(key), NEW)
-            self.db.set_track_state(key, status, None)
-            self._files.pop(str(key), None)
-            self._remember(key, status)
-            return True
 
     def observe_file(self, key: str) -> FileObservation:
         """Read provenance and its revision together before inspecting the disk."""

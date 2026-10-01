@@ -6,9 +6,8 @@ import subprocess
 LOGGER = logging.getLogger(__name__)
 
 # Tried in order. OSC 52 is deliberately absent even though it is the one that
-# works over SSH: it copies by writing an escape sequence to stdout, and while
-# the crate browser is running stdout belongs to Textual - the sequence would
-# land in the middle of a frame and corrupt the screen.
+# works over SSH: it copies by writing an escape sequence to stdout, which a
+# desktop app has no terminal to receive.
 CLIPBOARD_COMMANDS = (
     ["wl-copy"],
     ["xclip", "-selection", "clipboard"],

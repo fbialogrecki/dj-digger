@@ -81,7 +81,9 @@ class LibraryService:
         for track in tracks:
             observed = self.state.observe_file(track.key)
             remembered = observed.path or track.local_path
-            stale = bool(remembered) and confirmed_missing(Path(remembered), self.state.db)
+            # A file that is there needs no parent listing to prove it is not missing.
+            stale = (bool(remembered) and not Path(remembered).is_file()
+                     and confirmed_missing(Path(remembered), self.state.db))
             if remembered and not stale:
                 path, confident = remembered, True
             else:

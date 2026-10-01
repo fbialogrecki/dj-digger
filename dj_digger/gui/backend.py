@@ -4,19 +4,21 @@ import logging
 import stat
 import threading
 import time
+from contextlib import asynccontextmanager
 from copy import deepcopy
 from dataclasses import replace
+from decimal import Decimal
 from pathlib import Path
 from uuid import uuid4
 
 from .. import links
 from ..analysis import key_names
-from ..cart_models import CartCancelled
+from ..cart_models import CartCancelled, CartPlan
 from ..diagnostics import log_safe_text
-from ..models import GOT, NEW, SKIP, Cancelled, Crate, check_cancelled
+from ..models import GOT, NEW, SKIP, Cancelled, Crate, check_cancelled, is_cancelled
 from ..paths import playlist_download_directory
 from ..services.collection import DigOptions
-from ..services.local_library import LocalLibrary, media_track
+from ..services.local_library import LocalLibrary, media_tracks
 from ..services.runtime import ApplicationServices
 from ..soundcloud import is_soundcloud_url
 
@@ -67,8 +69,9 @@ class Backend:
         self.loop.close()
         self.send('closed', {})
 
-    def send(self, kind, values):
-        detached = deepcopy(values)
+    def send(self, kind, values, copy=True):
+        # copy=False only for payloads built in the call from immutable values.
+        detached = deepcopy(values) if copy else values
         if kind in {'error', 'message'} and 'text' in detached:
             detached['text'] = log_safe_text(detached['text'])
         self.emit(kind, detached)
@@ -98,7 +101,7 @@ class Backend:
         self.send('question', dict(id=ident, title=title, body=body, fields=list(fields), ok=ok, error=error))
         try:
             while not future.done():
-                if self.closing or (cancel is not None and cancel.is_set()):
+                if self.closing or (is_cancelled(cancel)):
                     raise Cancelled()
                 await asyncio.wait({future}, timeout=.1)
             answer = future.result()
@@ -120,9 +123,6 @@ class Backend:
             except ValueError as exc:
                 error = str(exc)
                 fields = [dict(f, value=answer.get(f['name'], f['value'])) for f in fields]
-
-    def ask_sync(self, *args, **kwargs):
-        return asyncio.run_coroutine_threadsafe(self.ask(*args, **kwargs), self.loop).result()
 
     async def io(self, function, *args, **kwargs):
         return await self.services.io(function, *args, **kwargs)
@@ -184,7 +184,7 @@ class Backend:
         self.rows = [Row(i, t, links.categorise(t)) for i, t in enumerate(tracks)]
         self.send('view', {'generation': generation, 'title': title, 'source': self.record.source if self.record else '',
                           'local': self.folder is not None or bool(self.record and self.record.source.startswith('local-playlist:')),
-                          'rows': [self.row_value(r) for r in self.rows]})
+                          'rows': [self.row_value(r) for r in self.rows]}, copy=False)
 
     def row_value(self, row):
         t = row.track
@@ -204,15 +204,16 @@ class Backend:
             if row.track.key in by_key:
                 row.track = by_key[row.track.key]
                 row.records = links.categorise(row.track)
+        local_ids = [row.track.local_id for row in rows if row.track.local_id]
+        local = await self.io(media_tracks, self.services.state.db, local_ids) if local_ids else {}
+        for row in rows:
             if row.track.local_id:
-                record = await self.io(self.services.state.db.media, row.track.local_id)
-                if record:
-                    row.track = await self.io(media_track, self.services.state.db, record)
+                row.track = local.get(row.track.local_id, row.track)
             elif path := self.services.state.local_file(row.track.key):
                 row.track.local_path = path
         if generation == self.generation:
             self.rows = rows
-            self.send('rows', {'generation': generation, 'rows': [self.row_value(r) for r in rows]})
+            self.send('rows', {'generation': generation, 'rows': [self.row_value(r) for r in rows]}, copy=False)
             player = self.services.player
             # Analysis or an edit may have given the playing track its BPM or key.
             if player.loaded and (row := next((r for r in rows if r.track.key == player.loaded.track.key), None)):
@@ -245,20 +246,29 @@ class Backend:
         await self.publish(tracks, str(folder), generation)
         self.send('folder', dict(path=str(folder), offset=offset, total=total,
                                 directories=[str(folder / name) for name in directories[:1000]]))
-        # Metadata hydration uses private copies and cannot overwrite a later view.
+        # Metadata hydration uses private copies and cannot overwrite a later view. Only files
+        # never probed are inspected; an indexed file already carries its tags and duration.
+        # ponytail: duration 0 stands for "never probed"; a file ffprobe reads as 0 s is retried per visit.
+        if not any(track.duration == 0 for track in tracks):
+            return
         hydrated = []
         for track in tracks:
             if generation != self.generation:
                 return
-            try:
-                track = await self.io(self.local.register, Path(track.local_path), inspect=True)
-            except Exception as exc:
-                LOGGER.info('Metadata unavailable: %s', log_safe_text(exc))
+            if track.duration == 0:
+                try:
+                    track = await self.io(self.local.register, Path(track.local_path), inspect=True)
+                except Exception as exc:
+                    LOGGER.info('Metadata unavailable: %s', log_safe_text(exc))
             hydrated.append(track)
-        await self.publish(hydrated, str(folder), generation)
+        from ..rows import Row
+        if generation == self.generation:
+            # Same files in the same order: an update, not a new view, so the table keeps its state.
+            self.rows = [Row(i, t, links.categorise(t)) for i, t in enumerate(hydrated)]
+            self.send_rows(generation)
 
-    async def job(self, name, work):
-        handle = self.services.operations.start(name)
+    async def job(self, name, work, lane='main'):
+        handle = self.services.operations.start(name, lane=lane)
         self.send('busy', {'value': True, 'text': name})
         try:
             return await work(handle)
@@ -288,8 +298,15 @@ class Backend:
                 last[0] = now
                 self.loop.call_soon_threadsafe(self.send, 'importProgress', dict(stage=stage, done=done, total=total or 0))
 
+        shown = [0.0]
+
         def arrived(crate):
-            if adding:
+            # Each batch of 50 rebuilt the whole table; once a second is enough to watch it
+            # fill, and the complete list always shows before the link hubs are opened.
+            now = time.monotonic()
+            complete = bool(crate.declared_count) and len(crate.tracks) >= crate.declared_count
+            if adding and (complete or now - shown[0] >= 1):
+                shown[0] = now
                 self.loop.call_soon_threadsafe(self.show_import, crate, generation)
 
         async def work(handle):
@@ -319,7 +336,7 @@ class Backend:
             return
         self.rows = [Row(i, t, links.categorise(t)) for i, t in enumerate(crate.tracks)]
         self.send('view', {'generation': generation, 'title': crate.title, 'source': crate.source, 'local': False,
-                           'rows': [self.row_value(r) for r in self.rows]})
+                           'rows': [self.row_value(r) for r in self.rows]}, copy=False)
         if self.importing and self.importing['title'] != crate.title:
             self.importing['title'] = crate.title
             self.send_sidebar()
@@ -336,16 +353,21 @@ class Backend:
         if status not in {NEW, GOT, SKIP}:
             raise ValueError('Invalid status')
         previous = [(r.track.key, self.services.state.get(r.track.key)) for r in rows]
-        for key, _ in previous:
-            await self.io(self.services.state.set, key, status)
+        generation = self.generation
+        await self.io(self.services.state.set_many, [(key, status) for key, _ in previous])
         self.undo.append(previous)
-        await self.refresh_rows()
+        self.send_rows(generation)
 
     async def action_undo(self, values):
         if self.undo:
-            for key, status in self.undo.pop():
-                await self.io(self.services.state.set, key, status)
-            await self.refresh_rows()
+            generation = self.generation
+            await self.io(self.services.state.set_many, self.undo.pop())
+            self.send_rows(generation)
+
+    def send_rows(self, generation):
+        """Statuses changed but the crate did not: rebuild the row values from memory."""
+        if generation == self.generation:
+            self.send('rows', {'generation': generation, 'rows': [self.row_value(r) for r in self.rows]}, copy=False)
 
     async def action_open(self, values):
         rows = self.targets(values)
@@ -367,7 +389,7 @@ class Backend:
             await self.job('Open links', work)
 
     async def action_download(self, values):
-        from ..services.downloads import DownloadRequest, DownloadWorkflow, find_gate_url
+        from ..services.downloads import DownloadRequest, DownloadWorkflow
         rows = self.targets(values)
         if not rows:
             return
@@ -388,8 +410,32 @@ class Backend:
                     check_cancelled(handle.cancel)
                     return profile + auth
                 return asyncio.run_coroutine_threadsafe(configure(), self.loop).result()
-            pending = {}
-            pending_lock = threading.Lock()
+            put, flushing = self.progress_batch(values)
+            def emit(event):
+                if event.kind == 'progress':
+                    put(event.key, event.progress)
+                elif event.kind in {'failed', 'unrecorded'}:
+                    self.send('message', {'text': event.message})
+            workflow = DownloadWorkflow(self.services.downloads, request, handle,
+                                        client=lambda: self.services.client, config=self.services.config,
+                                        emit=emit, prerequisites=prerequisites)
+            remote = await self.settle_local(rows, request.directory, handle.cancel)
+            async with flushing():
+                if remote:
+                    await self.io(workflow.run_batch, remote)
+            await self.refresh_rows()
+        self.services.client
+        await self.job('Downloading', work)
+
+    def progress_batch(self, values):
+        """Download threads `put` progress; inside `flushing()` the loop sends it every 100 ms."""
+        pending = {}
+        pending_lock = threading.Lock()
+        def put(key, progress):
+            with pending_lock:
+                pending[key] = progress
+        @asynccontextmanager
+        async def flushing():
             settled = asyncio.Event()
             async def flush():
                 while not settled.is_set():
@@ -399,34 +445,27 @@ class Backend:
                     if updates:
                         self.send('progress', {'generation': values['generation'], 'updates': updates})
                     await asyncio.sleep(.1)
-            def emit(event):
-                if event.kind == 'progress':
-                    with pending_lock:
-                        pending[event.key] = event.progress
-                elif event.kind in {'failed', 'unrecorded'}:
-                    self.send('message', {'text': event.message})
-            workflow = DownloadWorkflow(self.services.downloads, request, handle,
-                                        client=lambda: self.services.client, config=self.services.config,
-                                        emit=emit, prerequisites=prerequisites)
-            remote = []
-            for row in rows:
-                if row.track.local_path:
-                    if await self.io(self.services.library.needs_copy, row.track.local_path, request.directory):
-                        await self.io(self.services.downloads.copy, row.track.key, Path(row.track.local_path), request.directory, handle.cancel)
-                    else:
-                        await self.io(self.services.library.mark_existing, row.track)
-                else:
-                    remote.append((row.track, find_gate_url(row.records)))
             monitor = self.loop.create_task(flush())
             try:
-                if remote:
-                    await self.io(workflow.run_batch, remote)
+                yield
             finally:
                 settled.set()
                 await monitor
-            await self.refresh_rows()
-        self.services.client
-        await self.job('Downloading', work)
+        return put, flushing
+
+    async def settle_local(self, rows, directory, cancel):
+        """Copy or mark rows already on disk; return the rest with their gate links."""
+        from ..services.downloads import find_gate_url
+        remote = []
+        for row in rows:
+            if row.track.local_path:
+                if await self.io(self.services.library.needs_copy, row.track.local_path, directory):
+                    await self.io(self.services.downloads.copy, row.track.key, Path(row.track.local_path), directory, cancel)
+                else:
+                    await self.io(self.services.library.mark_existing, row.track)
+            else:
+                remote.append((row.track, find_gate_url(row.records)))
+        return remote
 
     async def action_analyze(self, values):
         tracks = [r.track for r in self.targets(values) if r.track.local_id]
@@ -487,46 +526,17 @@ class Backend:
         await self.refresh_rows()
 
     async def action_export(self, values):
-        from ..decks import DECK_GROUPS
         from ..export import execute, plan_export
         tracks = [r.track for r in self.targets(values) if r.track.local_path]
         folder = self.folder
         if not tracks and folder is None:
             return
         config = self.services.config
-        def validate(answer):
-            # Replacing works in place, so only a copy needs somewhere to go.
-            answer['folder'] = str(answer['folder']).strip()
-            if answer['mode'] == 'copy' and not answer['folder']:
-                raise ValueError('This field is required')
-            picked = {str(index) for index in answer.get('decks') or ()}
-            decks = [name for index, group in enumerate(DECK_GROUPS) if str(index) in picked for name in group]
-            if not decks:
-                raise ValueError('Choose at least one deck')
-            # A copy: a retry re-opens the dialog with the ticked groups, not deck names.
-            return dict(answer, decks=decks)
-        answer = await self.form(
-            'Export audio', 'Choose the decks these files must play on; the best format they all play is picked for you.',
-            [field('decks', 'Decks', [str(index) for index, group in enumerate(DECK_GROUPS) if set(group) & set(config.export_decks)],
-                   'checks', [(str(index), ', '.join(group)) for index, group in enumerate(DECK_GROUPS)]),
-             field('folder', 'Destination folder (Copy only)', kind='folder'),
-             field('mode', 'Mode', 'copy', 'choice', [['copy', 'Copy'], ['replace', 'Replace originals']]),
-             field('recursive', 'Include subfolders', False, 'bool')], validate, ok='Export')
+        answer = await self.export_form(config)
         config.export_decks = answer['decks']
         await self.io(config.save)
         async def work(handle):
-            paths = tuple(Path(t.local_path) for t in tracks)
-            if folder and not values.get('selected'):
-                paths = await self.io(self.local.selection, folder, recursive=answer['recursive'], cancel=handle.cancel)
-                if values.get('search') or values.get('hide'):
-                    from ..playlist import filter_rows
-                    from ..rows import Row
-                    matching = []
-                    for path in paths:
-                        track = await self.io(self.local.register, path, inspect=bool(values.get('search')), cancel=handle.cancel)
-                        if filter_rows([Row(0, track, [])], values.get('search', ''), values.get('hide', False), lambda row: self.services.state.get(row.track.key)):
-                            matching.append(path)
-                    paths = tuple(matching)
+            paths = await self.export_paths(tracks, folder, values, answer, handle.cancel)
             # A replacement plan only falls back to this folder when the sources share no root.
             destination = (Path(answer['folder']).expanduser() if answer['folder']
                            else paths[0].parent if paths else Path())
@@ -545,10 +555,47 @@ class Backend:
             if plan.mode == 'replace':
                 from ..paths import data_dir
                 from ..private_json import write_private_json
-                await self.io(write_private_json, data_dir() / ('export-' + plan.id + '.json'), report)
+                await self.io(write_private_json, data_dir() / ('export-' + plan.id + '.json'), report, durable=True)
             self.send(*export_notice(report))
             await self.refresh_rows()
         await self.job('Exporting audio', work)
+
+    async def export_form(self, config):
+        from ..decks import DECK_GROUPS
+        def validate(answer):
+            # Replacing works in place, so only a copy needs somewhere to go.
+            answer['folder'] = str(answer['folder']).strip()
+            if answer['mode'] == 'copy' and not answer['folder']:
+                raise ValueError('This field is required')
+            picked = {str(index) for index in answer.get('decks') or ()}
+            decks = [name for index, group in enumerate(DECK_GROUPS) if str(index) in picked for name in group]
+            if not decks:
+                raise ValueError('Choose at least one deck')
+            # A copy: a retry re-opens the dialog with the ticked groups, not deck names.
+            return dict(answer, decks=decks)
+        return await self.form(
+            'Export audio', 'Choose the decks these files must play on; the best format they all play is picked for you.',
+            [field('decks', 'Decks', [str(index) for index, group in enumerate(DECK_GROUPS) if set(group) & set(config.export_decks)],
+                   'checks', [(str(index), ', '.join(group)) for index, group in enumerate(DECK_GROUPS)]),
+             field('folder', 'Destination folder (Copy only)', kind='folder'),
+             field('mode', 'Mode', 'copy', 'choice', [['copy', 'Copy'], ['replace', 'Replace originals']]),
+             field('recursive', 'Include subfolders', False, 'bool')], validate, ok='Export')
+
+    async def export_paths(self, tracks, folder, values, answer, cancel):
+        """The chosen tracks, or the whole folder view narrowed by its search and hide filters."""
+        paths = tuple(Path(t.local_path) for t in tracks)
+        if folder and not values.get('selected'):
+            paths = await self.io(self.local.selection, folder, recursive=answer['recursive'], cancel=cancel)
+            if values.get('search') or values.get('hide'):
+                from ..playlist import filter_rows
+                from ..rows import Row
+                matching = []
+                for path in paths:
+                    track = await self.io(self.local.register, path, inspect=bool(values.get('search')), cancel=cancel)
+                    if filter_rows([Row(0, track, [])], values.get('search', ''), values.get('hide', False), lambda row: self.services.state.get(row.track.key)):
+                        matching.append(path)
+                paths = tuple(matching)
+        return paths
 
     async def action_save_playlist(self, values):
         tracks = [r.track for r in self.targets(values) if r.track.local_id]
@@ -613,6 +660,9 @@ class Backend:
                 raise ValueError('Enter a valid email')
             if not answer['download_directory'].strip():
                 raise ValueError('Specify a download folder')
+            answer['default_artwork'] = answer['default_artwork'].strip()
+            if answer['default_artwork'] and not Path(answer['default_artwork']).expanduser().is_file():
+                raise ValueError('The default cover is not a file')
             for name in ('scan_directories', 'pinned_directories', 'custom_comments'):
                 answer[name] = [line.strip() for line in answer[name].splitlines() if line.strip()]
             return answer
@@ -622,6 +672,7 @@ class Backend:
                                   field('gate_social_actions', 'Allow social actions', config.gate_social_actions, 'bool'),
                                   field('scan_directories', 'Scan folders (one per line)', '\n'.join(config.scan_directories), 'multiline'),
                                   field('pinned_directories', 'Pinned folders (one per line)', '\n'.join(config.pinned_directories), 'multiline'),
+                                  field('default_artwork', 'Default cover (tracks without artwork)', config.default_artwork, 'image'),
                                   field('browser', 'Browser', config.browser if any(config.browser == v for v, _ in choices) else '', 'choice',
                                         [['', 'System default'], *[[value, label] for value, label in choices]]),
                                   field('custom_comments', 'Gate comments (one per line)', '\n'.join(config.custom_comments), 'multiline')],
@@ -683,18 +734,19 @@ class Backend:
                     return
                 self.waveform_cancel.set()
                 self.waveform_cancel = waveform_cancel = threading.Event()
+                source = prepared.source
                 loaded = await self.io(player.load, track, prepared.stream, None if track.local_path else self.services.client.session,
-                              prepared.waveform, prepared.source)
+                              source)
                 prepared.source = None
                 if generation != self.play_generation or self.closing:
                     return
-                if track.local_path:
-                    task = self.loop.create_task(self.local_waveform(loaded, waveform_cancel))
+                # Playback starts now; the waveform and artwork follow once read or computed.
+                for work in (self.load_waveform(loaded, source, waveform_cancel), self.load_artwork(loaded, waveform_cancel)):
+                    task = self.loop.create_task(work)
                     self.tasks.add(task)
                     task.add_done_callback(self.tasks.discard)
                 await self.io(player.play)
                 self.publish_audio()
-                self.publish_waveform()
                 self.publish_now_playing()
         finally:
             if prepared.source is not None:
@@ -702,28 +754,59 @@ class Backend:
         if not hasattr(self, 'ticker') or self.ticker.done():
             self.ticker = self.loop.create_task(self.tick())
 
-    async def local_waveform(self, loaded, cancel):
-        from ..local_audio import waveform
+    async def load_waveform(self, loaded, source, cancel):
+        from ..services.playback import track_waveform
+        samples = []
         try:
             async with self.waveform_lock:
                 check_cancelled(cancel)
-                samples = await self.io(waveform, Path(loaded.track.local_path), cancel)
-            async with self.player_lock:
-                if not cancel.is_set() and self.services.player.loaded is loaded:
-                    loaded.waveform = samples
-                    self.publish_waveform()
+                samples = await self.io(track_waveform, self.services.state.db, loaded.track, source, cancel)
         except (Cancelled, asyncio.CancelledError):
-            pass
+            return
         except Exception as exc:
-            LOGGER.warning('Local waveform unavailable: %s', log_safe_text(exc))
+            LOGGER.warning('Waveform unavailable: %s', log_safe_text(exc))
             if not cancel.is_set():
                 self.send('error', {'text': 'Waveform unavailable: ' + log_safe_text(exc)})
+        # Sent even when empty: the window stops waiting for it and shows the track.
+        async with self.player_lock:
+            if not cancel.is_set() and self.services.player.loaded is loaded:
+                self.send('waveform', dict(key=loaded.track.key, samples=samples), copy=False)
+
+    async def load_artwork(self, loaded, cancel):
+        """The label picture: the track's own artwork, else the default cover from Settings."""
+        from ..local_audio import artwork
+        from ..services.playback import remote_artwork
+        from .artwork import label_image
+        track, url = loaded.track, loaded.stream.artwork_url
+        def picture():
+            data = None
+            try:
+                if track.local_path:
+                    data = artwork(track.local_path, cancel)
+                elif url:
+                    data = remote_artwork(self.services.client.session, url)
+            except Exception as exc:
+                LOGGER.debug('Artwork unavailable: %s', log_safe_text(exc))
+            label = label_image(data) if data else ''
+            fallback = self.services.config.default_artwork
+            if not label and fallback:
+                try:
+                    label = label_image(Path(fallback).read_bytes())
+                except OSError as exc:
+                    LOGGER.debug('Default cover unavailable: %s', log_safe_text(exc))
+            return label
+        label = await self.io(picture)
+        async with self.player_lock:
+            if not cancel.is_set() and self.services.player.loaded is loaded:
+                self.send('artwork', dict(key=track.key, image=label), copy=False)
 
     def publish_audio(self):
         # The per-tick snapshot stays small: the waveform travels separately and only when it changes.
         p = self.services.player
+        # ``heard`` is the track time reaching the speaker at ``at`` (epoch seconds),
+        # so the window can run its clock from there without the delivery delay.
         snapshot = dict(key=p.loaded.track.key, title=p.loaded.track.label, playing=p.playing, position=p.position,
-                        duration=p.duration) if p.loaded else {}
+                        duration=p.duration, heard=p.heard(), at=time.time()) if p.loaded else {}
         self.send('audio', snapshot)
         return snapshot
 
@@ -738,19 +821,13 @@ class Backend:
         self.send('nowPlaying', dict(key=p.loaded.track.key, artist=t.artist or '', name=t.title or t.label,
                                      bpm=float(t.bpm or 0), classicKey=classic, camelot=camelot))
 
-    def publish_waveform(self):
-        p = self.services.player
-        if p.loaded and p.loaded.waveform:
-            samples = list(p.loaded.waveform)
-            self.send('waveform', dict(key=p.loaded.track.key, samples=samples[::max(1, (len(samples) + 1023) // 1024)]))
-
     def playable(self, track):
         if track.local_path or track.key not in self.preview_paths:
             return track
         return replace(track, local_path=self.preview_paths[track.key])
 
     async def prepare_track(self, track):
-        from ..services.playback import Prepared, fetch_waveform, resolve_stream
+        from ..services.playback import Prepared, resolve_stream
         if track.local_path:
             from ..local_audio import prepare_local
             return await self.io(prepare_local, track)
@@ -760,8 +837,7 @@ class Backend:
         def prepare():
             from ..player import open_source
             stream = resolve_stream(client, track.id)
-            return Prepared(track, stream, fetch_waveform(client, stream.waveform_url),
-                            open_source(client.session, stream.url, stream.protocol))
+            return Prepared(track, stream, open_source(client.session, stream.url, stream.protocol))
         return await self.io(prepare)
 
     async def prefetch(self, track, generation):
@@ -778,6 +854,7 @@ class Backend:
             self.prepared = prepared
 
     async def tick(self):
+        sent_kicks = None
         while not self.closing:
             async with self.player_lock:
                 p = self.services.player
@@ -785,9 +862,14 @@ class Backend:
                     break
                 snapshot = self.publish_audio()
                 if snapshot['playing']:
-                    # Detected hits in queued audio reach the window before the speakers.
-                    pulses, period = p.beats()
-                    self.send('beats', dict(key=snapshot['key'], pulses=[list(pulse) for pulse in pulses], period=period))
+                    # Kick levels come from decoded audio before the device takes it,
+                    # so they reach the window ahead of the speakers.
+                    start, step, levels = p.kicks()
+                    kicks = dict(key=snapshot['key'], start=start, step=step, levels=levels)
+                    # Forty ticks a second; only new levels are worth crossing to the window.
+                    if kicks != sent_kicks:
+                        sent_kicks = kicks
+                        self.send('kicks', kicks)
                 event = p.take_event()
             if (snapshot['playing'] and snapshot['duration'] - snapshot['position'] < 15
                     and self.prepared is None and (self.prefetch_task is None or self.prefetch_task.done())
@@ -910,13 +992,16 @@ class Backend:
         self.record, self.folder = None, None
         self.rows = [Row(i, group[0].track, group) for i, group in enumerate(grouped.values())]
         self.send('view', {'generation': generation, 'title': Path(answer['path']).name, 'local': False,
-                          'rows': [self.row_value(r) for r in self.rows]})
+                          'rows': [self.row_value(r) for r in self.rows]}, copy=False)
+
+    async def pin(self, path):
+        folders = list(dict.fromkeys([*self.services.config.pinned_directories, str(path)]))
+        await self.io(self.services.accounts.save_preferences, {'pinned_directories': folders})
+        await self.sidebar()
 
     async def action_pin(self, values):
         if self.folder:
-            folders = list(dict.fromkeys([*self.services.config.pinned_directories, str(self.folder)]))
-            await self.io(self.services.accounts.save_preferences, {'pinned_directories': folders})
-            await self.sidebar()
+            await self.pin(self.folder)
 
     async def action_add_folder(self, values):
         path = await self.io(Path(values['path']).expanduser().resolve, strict=True)
@@ -924,9 +1009,7 @@ class Backend:
             raise ValueError('Select a folder')
         if path.name.startswith('.') or getattr(await self.io(path.stat), 'st_file_attributes', 0) & stat.FILE_ATTRIBUTE_HIDDEN:
             raise ValueError('Select a visible folder')
-        folders = list(dict.fromkeys([*self.services.config.pinned_directories, str(path)]))
-        await self.io(self.services.accounts.save_preferences, {'pinned_directories': folders})
-        await self.sidebar()
+        await self.pin(path)
         await self.action_folder({'path': str(path)})
 
     async def action_restore(self, values):
@@ -940,9 +1023,8 @@ class Backend:
 
     async def action_scan(self, values):
         tracks = deepcopy([r.track for r in self.rows])
-        handle = self.services.operations.start('Scanning', lane='scan')
-        self.send('busy', {'value': True, 'text': 'Scanning'})
-        try:
+
+        async def work(handle):
             scanner = self.services.library.scanner(self.services.config.scan_directories)
             await self.io(scanner.scan, cancel=handle.cancel)
             check_cancelled(handle.cancel)
@@ -953,9 +1035,7 @@ class Backend:
                 else:
                     self.preview_paths.pop(key, None)
             await self.refresh_rows()
-        finally:
-            self.services.operations.finish(handle)
-            self.send('busy', {'value': self.services.operations.visible is not None, 'text': ''})
+        await self.job('Scanning', work, lane='scan')
 
     async def action_resume(self, values):
         from ..export import execute, resume_plan
@@ -972,9 +1052,7 @@ class Backend:
         await self.job('Exporting audio', work)
 
     async def action_cart(self, values):
-        from decimal import Decimal
-
-        from ..cart_models import CartPlan, CartRequest
+        from ..cart_models import CartRequest
         rows = self.targets(values)
         requests = [CartRequest(row.track, tuple((r.category, r.link_url) for r in row.records
                     if r.category in {'bandcamp', 'beatport'})) for row in rows]
@@ -992,31 +1070,15 @@ class Backend:
                     fields.append(field('select_' + str(i), item.track_label, True, 'bool'))
                     if item.price_editable:
                         fields.append(field('price_' + str(i), item.currency, str(item.price)))
-                def validate(answer):
-                    selected = []
-                    for i, item in enumerate(plan.items):
-                        if not answer['select_' + str(i)]:
-                            continue
-                        if item.price_editable:
-                            try:
-                                price = Decimal(str(answer['price_' + str(i)]))
-                            except ArithmeticError:
-                                raise ValueError('Invalid price')
-                            if not price.is_finite() or price < (item.minimum_price or Decimal(0)):
-                                raise ValueError('Invalid price')
-                            if item.price_step and price % item.price_step:
-                                raise ValueError('Invalid price step')
-                            item = replace(item, price=price)
-                        selected.append(item)
-                    return CartPlan(tuple(selected), plan.results)
-                return await self.form('Review cart', plan.summary(), fields, validate, handle.cancel, ok='Continue')
+                return await self.form('Review cart', plan.summary(), fields, lambda answer: reviewed_cart(plan, answer),
+                                       handle.cancel, ok='Continue')
             async def manual(items):
                 await self.ask('Finish in browser', '\n'.join(i.track_label for i in items), cancel=handle.cancel)
                 return True
             outcome = await self.with_chromium(lambda: session.run_batch(requests, handle.cancel, approve=approve, manual=manual), handle)
-            if source and outcome.beatport_playlist_ready:
-                await self.io(self.services.library.remember_beatport, source, source_generation, outcome)
             while True:
+                if source and outcome.beatport_playlist_ready:
+                    await self.io(self.services.library.remember_beatport, source, source_generation, outcome)
                 options = [['close', 'Close'], ['focus', 'Show carts in browser']]
                 if outcome.beatport_playlist_ready:
                     options.append(['playlist', 'Send Beatport playlist metadata to Soundiiz'])
@@ -1049,8 +1111,6 @@ class Backend:
                          if (request.track.key, store) in outcome.retryable_targets)) for request in requests]
                 outcome = await self.with_chromium(lambda: session.run_batch([request for request in retry if request.links], handle.cancel,
                                                                              approve=approve, manual=manual), handle)
-                if source and outcome.beatport_playlist_ready:
-                    await self.io(self.services.library.remember_beatport, source, source_generation, outcome)
             await self.refresh_rows()
         await self.job('Preparing cart', work)
 
@@ -1062,14 +1122,14 @@ class Backend:
         await self.job('Store accounts', work)
 
     async def with_chromium(self, call, handle):
-        """Store browsers need Playwright Chromium; offer its one-time download, as the TUI does."""
+        """Store browsers need Playwright Chromium; offer its one-time download."""
         from ..automation_errors import AutomationError, ChromiumMissing
         try:
             return await call()
         except ChromiumMissing:
             await self.ask('Download Chromium', 'Store carts need Playwright Chromium. Download it now? '
                            'This is a one-time download for the installed Playwright version.', cancel=handle.cancel, ok='Download')
-        from ..services.purchases import install_chromium
+        from ..browser_session import install_chromium
         try:
             await self.io(install_chromium, handle.cancel)
         except AutomationError:
@@ -1115,6 +1175,26 @@ def export_notice(report):
         reason += f' (+{len(failed) - 1})'
     args += [log_safe_text(Path(first['source']).name), reason]
     return ('error' if report['status'] == 'partial' else 'message'), {'text': 'Export: {0}; missing files: {1}; {2}: {3}', 'args': args}
+
+
+def reviewed_cart(plan, answer):
+    """The ticked cart items, at the prices entered for pay-what-you-want ones."""
+    selected = []
+    for i, item in enumerate(plan.items):
+        if not answer['select_' + str(i)]:
+            continue
+        if item.price_editable:
+            try:
+                price = Decimal(str(answer['price_' + str(i)]))
+            except ArithmeticError:
+                raise ValueError('Invalid price')
+            if not price.is_finite() or price < (item.minimum_price or Decimal(0)):
+                raise ValueError('Invalid price')
+            if item.price_step and price % item.price_step:
+                raise ValueError('Invalid price step')
+            item = replace(item, price=price)
+        selected.append(item)
+    return CartPlan(tuple(selected), plan.results)
 
 
 def field(name, label, value='', kind='text', options=()):

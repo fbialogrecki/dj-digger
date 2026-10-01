@@ -16,6 +16,7 @@ def camelot_order(row):
 
 class TrackModel(QAbstractTableModel):
     changed = Signal()
+    storesChanged = Signal()
     # Track key -> new status, for rows whose status just changed.
     statusFlashed = Signal('QVariantMap')
 
@@ -32,6 +33,19 @@ class TrackModel(QAbstractTableModel):
         self.anchor = ''
         self.progress = {}
         self.key_notation = 'camelot'
+        # Bindings read counts and stores many times per change; each is computed once per change.
+        self._cache = {}
+
+    def _changed(self, stores=False):
+        self._cache.clear()
+        if stores:
+            self.storesChanged.emit()
+        self.changed.emit()
+
+    def _cached(self, name, compute):
+        if name not in self._cache:
+            self._cache[name] = compute()
+        return self._cache[name]
 
     def roleNames(self):
         return {Qt.DisplayRole: b'display', Qt.UserRole: b'trackKey', Qt.UserRole + 1: b'chosen',
@@ -95,7 +109,7 @@ class TrackModel(QAbstractTableModel):
         self.rows = rows
         self.progress.clear()
         self.selected.intersection_update(r['key'] for r in rows)
-        self.refilter()
+        self.refilter(stores=True)
 
     def update_progress(self, updates):
         self.progress.update(updates)
@@ -113,17 +127,17 @@ class TrackModel(QAbstractTableModel):
         flashed = {b['key']: b['status'] for a, b in zip(self.rows, rows) if a['status'] != b['status']}
         self.rows = rows
         if self.hide or self.search or self.store or self.sort_column >= 0:
-            self.refilter()
+            self.refilter(stores=True)
         else:
             self.visible = list(rows)
             for i, row in enumerate(self.visible):
                 if row['key'] in changed:
                     self.dataChanged.emit(self.index(i, 0), self.index(i, len(COLUMNS)-1))
-            self.changed.emit()
+            self._changed(stores=True)
         if 0 < len(flashed) <= FLASH_LIMIT:
             self.statusFlashed.emit(flashed)
 
-    def refilter(self):
+    def refilter(self, stores=False):
         tokens = self.search.casefold().split()
         visible = [r for r in self.rows if all(t in r['search'].casefold() for t in tokens)
                    and (not self.store or self.store in r['stores'])
@@ -137,7 +151,7 @@ class TrackModel(QAbstractTableModel):
         self.beginResetModel()
         self.visible = visible
         self.endResetModel()
-        self.changed.emit()
+        self._changed(stores)
 
     def store_counts(self):
         counts = {}
@@ -151,8 +165,8 @@ class TrackModel(QAbstractTableModel):
         skipped = sum(r['status'] == 'skip' for r in self.rows)
         return dict(visible=len(self.visible), total=len(self.rows), got=got, skipped=skipped, selected=len(self.keys()))
 
-    stores = Property('QVariantList', store_counts, notify=changed)
-    counts = Property('QVariantMap', summary, notify=changed)
+    stores = Property('QVariantList', lambda self: self._cached('stores', self.store_counts), notify=storesChanged)
+    counts = Property('QVariantMap', lambda self: self._cached('counts', self.summary), notify=changed)
     sortColumn = Property(int, lambda self: self.sort_column, notify=changed)
     sortReverse = Property(bool, lambda self: self.reverse, notify=changed)
 
@@ -205,9 +219,10 @@ class TrackModel(QAbstractTableModel):
     def selection_changed(self):
         if self.visible:
             self.dataChanged.emit(self.index(0, 0), self.index(len(self.visible)-1, len(COLUMNS)-1), [Qt.UserRole + 1])
-        self.changed.emit()
+        self._changed()
 
-    firstSelectedKey = Property(str, lambda self: next((r['key'] for r in self.visible if r['key'] in self.selected), ''), notify=changed)
+    firstSelectedKey = Property(str, lambda self: self._cached(
+        'first', lambda: next((r['key'] for r in self.visible if r['key'] in self.selected), '')), notify=changed)
 
     def keys(self):
         return [r['key'] for r in self.visible if r['key'] in self.selected]

@@ -2,7 +2,6 @@
 
 [![Python Version](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](https://github.com/fbialogrecki/dj-digger/blob/main/LICENSE)
-[![Built with Textual](https://img.shields.io/badge/TUI-Textual-ff69b4.svg)](https://textual.textualize.io/)
 [![PyPI](https://img.shields.io/pypi/v/dj-sc-digger.svg)](https://pypi.org/project/dj-sc-digger/)
 
 > **A local-first playlist workflow for DJs.**
@@ -10,7 +9,7 @@
 > searchable library, then find the safest available path to download or buy
 > each track.
 
-`dj-digger` keeps the whole digging loop in one terminal application:
+`dj-digger` keeps the whole digging loop in one desktop application (with a headless CLI for scripts):
 collect a playlist, preview and filter it, mark decisions, match music already on
 disk, and follow verified store or download links. Your library and preferences
 stay on your machine, and checkout always stays in your hands.
@@ -20,7 +19,8 @@ security/privacy boundaries are maintained in
 [PROJECT-SPECIFICATION.md](https://github.com/fbialogrecki/dj-digger/blob/main/PROJECT-SPECIFICATION.md).
 
 ```bash
-dj-digger https://soundcloud.com/someone/sets/that-playlist
+dj-digger https://soundcloud.com/someone/sets/that-playlist   # headless: export + save to the library
+dj-digger-gui                                                    # interactive desktop
 ```
 
 ---
@@ -49,14 +49,14 @@ The optional desktop runs locally using Qt Quick, without a WebView. From this
 checkout:
 
 ```bash
-uv run --extra gui --extra play --extra analyze dj-digger-gui
+uv run --extra gui --extra analyze dj-digger-gui
 ```
 
-Install FFmpeg/ffprobe separately when running from source. Existing CLI/TUI
+Install FFmpeg/ffprobe separately when running from source. Existing CLI
 commands, library and account files remain available. Chromium starts only for
 provider flows that need it; bundling it increases installer size.
 
-The desktop keeps the TUI keymap: `a` adds a playlist, `o`/`Enter` opens links,
+Desktop keyboard shortcuts: `a` adds a playlist, `o`/`Enter` opens links,
 `d` downloads, `g`/`k`/`u` mark got/skipped/untouched, `/` searches, `h` hides
 handled tracks, `[`/`]` seek, `n`/`p` step tracks, `m` mutes, `Ctrl+B` toggles
 the sidebar and `?` shows the full generated list. Commands that need a selection
@@ -75,7 +75,7 @@ for commands, coverage and remaining platform checks.
   and individual tracks without relying on the page's finite rendered list; sign
   in to SoundCloud to read your own private playlists.
 - **Audition and narrow down**: Preview, seek, search, filter, and sort tracks in
-  the Textual interface without leaving the playlist.
+  the desktop app without leaving the playlist.
 - **Remember every decision**: Local playlists keep `got it` / `skipped` status across
   playlists, refreshes identify new additions, and a library scan finds tracks
   already on disk.
@@ -96,8 +96,8 @@ for commands, coverage and remaining platform checks.
 - **Store and gate classification**: Group links into **Bandcamp**, **Beatport**,
   **Traxsource**, **JunoDownload**, **record shops**, **download gates**, **smart
   links**, and **direct SoundCloud downloads**.
-- **In-memory audio preview**: Stream, seek, prefetch upcoming tracks, and render
-  block waveforms with stable progress coloring, powered by `miniaudio`.
+- **In-memory audio preview**: Stream, seek, prefetch upcoming tracks, and show
+  waveforms in the desktop, powered by `miniaudio`.
   SoundCloud preview supports progressive MP3 and MP3 HLS (up to 50 MiB in memory).
 - **Multi-playlist local library**: Save, switch, refresh, and search playlists stored in
   `~/.local/share/dj-digger/digger.db`.
@@ -107,7 +107,7 @@ for commands, coverage and remaining platform checks.
 - **🔗 Link-Hub Expansion**: A purchase link that turns out to be a list of shops rather than a download—an ampsuite release page, a gate running in smart-link mode—is opened, and the Bandcamp and Beatport links behind it are added to the track directly instead of a `gate` badge.
 - **🛒 Store Purchase Assistance**: An optional, user-triggered flow verifies Bandcamp additions and prepares Beatport tracks as an importable playlist. Login, playlist transfer, and checkout stay manual.
 - **🆕 New Since Last Refresh**: Refreshing a playlist marks whatever it gained with `NEW` and sorts it to the top.
-- **⚙️ CLI & Non-Interactive Mode**: Export playlists directly to JSON or CSV for automated pipelines and scripts.
+- **⚙️ Headless CLI**: Export playlists directly to JSON or CSV for automated pipelines and scripts.
 
 ---
 
@@ -124,14 +124,14 @@ Upgrading from `dj-soundcloud-digger`? Follow the
 
 ```bash
 # Install with audio preview and local BPM/key analysis
-uv tool install 'dj-sc-digger[play,analyze]'
+uv tool install 'dj-sc-digger[analyze]'
 dj-digger
 ```
 
 or with `pipx`:
 
 ```bash
-pipx install 'dj-sc-digger[play,analyze]'
+pipx install 'dj-sc-digger[analyze]'
 dj-digger
 ```
 
@@ -141,17 +141,16 @@ dj-digger
 git clone https://github.com/fbialogrecki/dj-digger.git
 cd dj-digger
 uv venv
-uv pip install -e '.[play,analyze,dev]'
+uv pip install -e '.[analyze,dev]'
 ```
 
 Run the working tree with playback and analysis:
 
 ```bash
-uv run --extra play --extra analyze dj-digger
+uv run --extra analyze dj-digger
 ```
 
-Logs are saved automatically at INFO level. Press `F5`, or click **Open logs**
-in Help/Settings, to view recent entries and open their folder. The application
+Logs are saved automatically at INFO level. The application
 keeps up to five log files of 2 MiB each, redacts credentials, and never uploads
 diagnostics automatically. Locations:
 
@@ -163,20 +162,20 @@ The browser is drawn on standard error, so `2>file` would redirect the interface
 itself. For more detail or a different log destination, use:
 
 ```bash
-uv run --extra play dj-digger --log-level DEBUG --log-file /tmp/dj-digger.log
+uv run dj-digger --log-level DEBUG --log-file /tmp/dj-digger.log
 ```
 
 To try it against a throwaway library instead of your real playlists, point the XDG
 directories somewhere temporary for that one run:
 
 ```bash
-XDG_DATA_HOME=/tmp/dj-dev XDG_CONFIG_HOME=/tmp/dj-dev XDG_CACHE_HOME=/tmp/dj-dev uv run --extra play dj-digger
+XDG_DATA_HOME=/tmp/dj-dev XDG_CONFIG_HOME=/tmp/dj-dev XDG_CACHE_HOME=/tmp/dj-dev uv run dj-digger
 ```
 
 > **Requires Python 3.12 or newer.**
 >
 > **Note on optional extras**:
-> - Audio preview via `miniaudio` is included by default; `play` remains a compatibility alias.
+> - Audio preview via `miniaudio` is included by default.
 > - `analyze`: Enables local BPM/key estimation via `librosa`. Omit it if you only
 >   need playback and link collection.
 >
@@ -196,74 +195,17 @@ XDG_DATA_HOME=/tmp/dj-dev XDG_CONFIG_HOME=/tmp/dj-dev XDG_CACHE_HOME=/tmp/dj-dev
 | **User Likes** | `soundcloud.com/user/likes` | Every track liked by the user |
 | **Artist Profile** | `soundcloud.com/user` | All tracks uploaded by the artist |
 | **Single Track** | `soundcloud.com/user/track-name` | Single track metadata & purchase links |
-| **Interactive Prompt**| *Run without arguments* | Prompts for a link or opens saved playlists |
+| **Interactive UI** | `dj-digger-gui` | Browse saved playlists and add links in the desktop app |
 
 ---
 
-## 🖥️ Interactive TUI Workflow
+## 🖥️ Interactive Desktop Workflow
 
-Launching `dj-digger` opens an interactive Textual browser divided into three key areas:
-1. **Playlist Sidebar (`Ctrl+B`)**: Switch between saved playlists, add new links (`a`), or refresh existing playlists (`r`).
-2. **Track Table**: Displays tracks with status badges (`·` untouched, `○` opened, `✓` got, `✗` skipped), position, artist/title, available store badges, genre, and duration.
-3. **Player & Waveform Bar**: A four-row, 32-level waveform with stable played/unplayed colors, over a three-row control strip: previous / play-pause / next buttons, track title, clock, a drag-to-set volume slider, and a close button.
-
-```
-▸ 0 all  1 soundcloud·18  2 bandcamp·12  3 gate·53      83/83 tracks · got 0 · skipped 4
-```
-
-### Keybinding Reference
-
-Press `?` inside the TUI at any time to view the full grouped keybinding modal.
-
-#### Track Navigation & Status Marks
-| Key | Action |
-| --- | --- |
-| `Up` / `Down` | Navigate track rows |
-| `o` or `Enter` | Open the best link (or active store filter) in your default web browser |
-| `d` | Download the highlighted artist-provided or gate file to your download folder (set it with `s`) |
-| `Shift+d` | Download all eligible tracks in the current view |
-| `Ctrl+X` | Stop the running dig or download batch; finished files are kept, unfinished tracks stay new |
-| `g` | Mark track as **Got** (`✓`) and move to next track |
-| `k` | Mark track as **Skipped** (`✗`) and move to next track |
-| `u` | Clear track status mark (`·`) |
-| `x` | Remove track from current playlist (`Ctrl+Z` to undo) |
-| `y` | Copy the path of the local file that matches this track (`▣` in the first column) |
-| `b` / `Shift+b` | Search in Bandcamp / Search in Beatport for the highlighted track |
-
-#### Audio Preview Controls
-| Key | Action |
-| --- | --- |
-| `Space` | Play / Pause highlighted track |
-| `[` / `]` | Seek backward / forward 10 seconds |
-| `n` / `p` | Advance to Next / Previous track |
-| `-` / `=` | Decrease / Increase playback volume (`m` to mute/unmute) |
-| `Ctrl+W` | Stop playback and close the player bar |
-| *Mouse Click* | Click anywhere on the waveform display to seek immediately, or use the buttons and volume slider under it |
-
-#### Filtering, Stores & Library
-| Key | Action |
-| --- | --- |
-| `/` | Live search/filter by artist, title, genre, tag or label (every word must match, any order) |
-| `t` / `Shift+t` | Sort by title, time, genre, status or store (`t` cycles, `Shift+t` reverses); the header shows the arrow |
-| `F4` | Show counts for the current loaded view; no scan or network request |
-| `v` / `Shift+v` / `Ctrl+A` | Select a row / extend the selection to here / select everything shown; batch keys then act on the selection |
-| `1` – `9` | Jump directly to store category filter |
-| `0` | Reset store filter (show all tracks) |
-| `h` | Toggle hiding handled tracks (`got` / `skipped`) |
-| `Escape` | Clear the selection; then the search; then the store filter and hiding |
-| `Shift+o` | Open all visible store links in browser (asks confirmation for >20 links) |
-| `c` | Add the highlighted track to Bandcamp, or prepare it for a Beatport playlist |
-| `Shift+c` | Review visible store tracks, add Bandcamp items, and prepare a Beatport playlist |
-| `Shift+p` | Open every exact Beatport track page shown in your regular browser, to add to cart by hand (asks above 20) |
-| `e` | Export visible rows to file |
-| `a` | Add a new playlist from a SoundCloud URL |
-| `r` | Refresh current playlist from SoundCloud (preserves local deletions) |
-| `Shift+x` | Delete the highlighted playlist, after confirming |
-| `Shift+u` | Reset every track in the playlist to untouched |
-| `Ctrl+B` | Toggle Playlist Sidebar |
-| `s` | Settings: profile, folders, browser, store session |
-| `?` | Full keybinding help |
-| `q` / `Ctrl+C` / `Ctrl+Q` | Quit (`Ctrl+Shift+C` remains separate for copying when the terminal distinguishes it) |
+`dj-digger-gui` is the only interactive interface: a playlist/folder sidebar, a
+track table with status, artist/title, store badges, genre and duration columns,
+and a player with waveform and transport controls. Press `?` (Help → Keyboard
+shortcuts) for the full generated shortcut list. Running `dj-digger` without a
+link prints a pointer to it and exits.
 
 ---
 
@@ -288,7 +230,7 @@ Links are parsed and categorized using strict domain-boundary matching:
 
 ### Bandcamp carts and Beatport playlists
 
-Pressing `c` or `C` does the product checks and the cart clicks in a hidden
+The desktop cart actions do the product checks and the cart clicks in a hidden
 Chromium; nothing pops up while it works. A window appears only when there is
 something for you: the completed Bandcamp cart, or items left to finish by
 hand. That window is a separate browser carrying the same cookies, so the
@@ -302,9 +244,9 @@ cookie-backed cart; opening a manual Bandcamp session in Settings is optional.
 Beatport login is never attempted there. The app never reads or fills your
 password, chooses a payment method, or completes checkout.
 
-- `c` resolves the highlighted track, then adds it to Bandcamp or prepares it for
+- The single-track cart action resolves the selected track, then adds it to Bandcamp or prepares it for
   a Beatport playlist.
-- `C` resolves all currently visible, unhandled tracks, then asks for one batch
+- The all-visible cart action resolves all currently visible, unhandled tracks, then asks for one batch
   confirmation. The active Bandcamp or Beatport filter limits the target store.
 - When both Bandcamp and Beatport filters are explicitly active, each track is
   handled for both destinations: Bandcamp is added to its cart and Beatport is
@@ -315,8 +257,8 @@ password, chooses a payment method, or completes checkout.
 
 Batch mode resolves every candidate first and shows exact products, prices,
 currencies, existing cart items, and skips before Bandcamp is changed. Bandcamp
-rows with seller-approved flexible pricing show their minimum; highlight one and
-press `E` to enter a higher value. Fixed-price rows cannot be edited. Bandcamp
+rows with seller-approved flexible pricing show their minimum; select one and
+enter a higher value. Fixed-price rows cannot be edited. Bandcamp
 pages are rechecked immediately before each click. Ambiguous titles, version
 mismatches, changed prices or product IDs, CAPTCHA, and changed store UI stop the
 affected Bandcamp operation instead of guessing. Two reusable work tabs bound
@@ -339,8 +281,8 @@ expanded and the price filled, asks you to press Add to cart yourself, and
 then checks the cart once. The result screen offers the same **Finish in
 browser** for anything left uncertain.
 
-Beatport login and cart mutation are not automated: `c`/`Shift+C` prepare a
-playlist, and `Shift+P` opens the exact Beatport track pages in your everyday
+Beatport login and cart mutation are not automated: the cart actions prepare a
+playlist, and the Beatport-pages action opens the exact Beatport track pages in your everyday
 browser, where you are already logged in, so adding to the cart is one click
 each. The result screen creates a
 new `Beatport playlist.txt` in the playlist's download folder, copies its contents,
@@ -363,10 +305,10 @@ Soundiiz's public import interface; use it in line with their terms. Showing
 the completed Bandcamp cart or opening its manual session needs a graphical
 session; WSL users need WSLg or another working display.
 
-For a timestamped diagnostic log that does not interfere with Textual, run:
+For a timestamped diagnostic log, run:
 
 ```bash
-uv run --extra play dj-digger --log-level DEBUG --log-file /tmp/dj-digger-cart.log
+uv run dj-digger --log-level DEBUG --log-file /tmp/dj-digger-cart.log
 ```
 
 ---
@@ -388,7 +330,7 @@ dj-digger auth status
 dj-digger auth logout
 ```
 
-The TUI opens the same choice automatically when a download needs SoundCloud.
+The desktop opens the same choice automatically when a download needs SoundCloud.
 Cancelling leaves the track untouched. A successful login updates credentials for subsequent API requests and retries
 the waiting track once. Existing transfers keep their resources until they finish.
 
@@ -399,7 +341,7 @@ variables override both base directories).
 If `SOUNDCLOUD_OAUTH_TOKEN` is set, it deliberately overrides that file; an
 invalid value must be unset or updated before the CLI wizard can replace a login.
 
-When Hypeddit or GateRush requires an email address, the TUI asks for a real
+When Hypeddit or GateRush requires an email address, the desktop asks for a real
 name and email before it submits the gate. It explains who receives those data,
 rejects placeholders and malformed addresses, and retries only the downloads
 that were waiting for the profile. Cancelling sends no retry request.
@@ -433,27 +375,25 @@ will then remain manual.
 
 - **In-memory SoundCloud preview**: Decodes progressive MP3 or MP3 HLS via `miniaudio`. HLS buffering is limited to 50 MiB; audio is not saved to disk.
 - **Prefetch and automatic advance**: Prepares the next visible track during the final 20 seconds and advances at the end of playback. Network and device conditions can still cause buffering.
-- **Stable waveform**: A four-row block waveform shows played and unplayed regions in stable colors. It does not pulse with volume. Local-file waveforms are generated separately and cached.
-- **Reduced animation**: `TEXTUAL_ANIMATIONS=none` reduces playback UI updates for terminals where frequent redraws are undesirable.
+- **Waveform**: Played and unplayed regions are drawn in the desktop player; the desktop glows with the kick drum's level, not the bass line, computed from audio decoded ahead of the speaker (animation switch in its settings). Local-file waveforms are generated separately and cached.
 - **Availability errors**: SoundCloud account/region restrictions, missing streams and unsupported formats are reported separately. A public track page does not guarantee an available stream.
 
 ---
 
-## 🤖 Non-Interactive CLI & Automation
+## 🤖 Headless CLI & Automation
 
-Add `--no-tui` to run `dj-digger` in batch mode for terminal pipelines, cron jobs, or export scripts:
+`dj-digger` is headless: `dig` exports and saves to the library, then prints a
+summary table; `open` batch-opens links from a saved summary. Use it in
+terminal pipelines, cron jobs, or export scripts:
 
 ```bash
 # Export playlist links to CSV
-dj-digger https://soundcloud.com/user/sets/playlist --no-tui -f csv -o playlist.csv
+dj-digger https://soundcloud.com/user/sets/playlist -f csv -o playlist.csv
 
 # Limit extraction to first 20 tracks and export to JSON
 dj-digger https://soundcloud.com/user/likes -n 20 -f json -o likes.json
 
-# Re-open a previously exported JSON playlist in the TUI browser
-dj-digger open likes.json
-
-# Open all Bandcamp links directly in browser from a saved playlist
+# Open all Bandcamp links from a saved summary (asks for a category if omitted)
 dj-digger open likes.json --category bandcamp
 ```
 
@@ -462,7 +402,7 @@ dj-digger open likes.json --category bandcamp
 ## 🏗️ Project Architecture
 
 ```text
-CLI / Textual controllers
+CLI / Qt desktop controllers
     └── ApplicationServices (lazy composition)
         ├── Collection, download, purchase and account services
         │   └── SoundCloud, gate and store adapters
@@ -479,7 +419,7 @@ and [the specification](https://github.com/fbialogrecki/dj-digger/blob/main/PROJ
 
 ## 🧪 Testing & Quality Assurance
 
-The codebase includes an extensive offline test suite covering unit tests, API serialization, player buffering, link parsing, cart safety, and TUI reactive widgets.
+The codebase includes an extensive offline test suite covering unit tests, API serialization, player buffering, link parsing, and cart safety.
 
 ```bash
 # Run the offline test suite (no network required)
@@ -500,55 +440,37 @@ Distributed under the **Apache License 2.0**. See [`LICENSE`](https://github.com
 
 ## Local music and club folders (1.1)
 
-Open a folder with `ctrl+f`, or use the explorer below your playlists. Files are
-loaded in pages of 250; `ctrl+n` moves to the next page. Opening a folder lists
+In the desktop app, open a folder by path or use the explorer below your
+playlists. Files are loaded in pages of 250. Opening a folder lists
 names first, then reads audio tags in the background. It does not analyze audio.
 Space or Enter previews a local file. FFmpeg/ffprobe must be installed and on
 PATH; playback also needs the `play` extra. WAV, AIFF/AIF, FLAC/FLA, MP3, AAC,
 and M4A/MP4 audio are supported, subject to successful decoder inspection.
 
-The bottom bar changes when you open local music. Its actions are clickable.
-
 To convert or prepare a club folder:
 
-1. Open a directory and optionally select tracks (`v`, or `ctrl+a` for the page).
-2. Click **Convert** in the bottom bar (or press `ctrl+e`). With no selection in a folder, export includes all matching files across every page.
-3. Choose the target format and maximum bit depth/sample rate, and enter the destination directory. A new folder with copies is the default.
-4. Click **Inspect files and review plan**, check each action and the actual deck compatibility, then click **Execute this plan**.
+1. Open a directory and optionally select tracks. With no selection in a folder, export includes all matching files across every page.
+2. Choose the audio export action, the target format and maximum bit depth/sample rate, and enter the destination directory. A new folder with copies is the default.
+3. Inspect files and review the plan, check each action and the actual deck compatibility, then execute the plan.
 
-To find BPM and key, click **Analyze BPM/key** (or `j`) to start immediately.
-With no selection this analyzes the highlighted track. **Analyze folder**
-(`Shift+J`) analyzes all audio files directly in the open folder, across every
-page and regardless of selection or filters. Subfolders are not included.
+To find BPM and key, use the analyze action. With no selection this analyzes
+the highlighted track. **Analyze folder** analyzes all audio files directly in
+the open folder, across every page and regardless of selection or filters.
+Subfolders are not included.
 The BPM and Key columns are always visible in local folder and local-playlist
 views, including previously saved results without rerunning analysis. Use
-**Edit BPM/key** (`ctrl+k`) to correct them manually.
+**Edit BPM / key** to correct them manually.
 After analysis, a short notification counts detected keys, unclear keys and
-processing errors; no summary panel opens. Missing-result reasons and technical
-errors are recorded in the logs (**F5** / **Open logs**). Per-file details are also
+processing errors. Missing-result reasons and technical
+errors are recorded in the logs. Per-file details are also
 stored privately as `last-analysis.jsonl` in the default log directory, replaced
 by the next run. Unclear keys are estimates without a decisive match, not decoder
 failures. The analysis cache version recalculates older results once when analysis
 is requested to record missing-result reasons.
-For a checkout, start with `uv run --extra play --extra analyze dj-digger`.
+For a checkout, start with `uv run --extra gui --extra analyze dj-digger-gui`.
+The full shortcut list is under Help → Keyboard shortcuts.
 
-| Key | Local library action |
-| --- | --- |
-| `ctrl+f` | Open a directory by path |
-| `ctrl+n` | Next directory page (wrap to first) |
-| `ctrl+p` | Pin the current directory |
-| `ctrl+t` | Sidebar split: 50/50, 70/30, 30/70 |
-| `ctrl+r` | Show playlists, explorer, or both; small terminals show one section |
-| `ctrl+l` | Add selected local files to a named local playlist; same name appends |
-| `j` | Immediately estimate BPM and key for selected local files, or the highlighted track |
-| `Shift+J` | Immediately analyze every audio file in the open folder, across all pages |
-| `x` | In the explorer, confirm permanent deletion of selected/highlighted files from disk; in playlists, remove playlist entries only |
-| `ctrl+k` | Edit manual BPM/key, double/halve tempo, or clear overrides |
-| `ctrl+e` | Inspect and export local audio for club players |
-| `ctrl+u` | Review/resume the most recent unfinished folder export |
-| `i` | Import playlists created by a SoundCloud profile |
-
-Install analysis with `pip install 'dj-sc-digger[play,analyze]'` (or the equivalent
+Install analysis with `pip install 'dj-sc-digger[analyze]'` (or the equivalent
 pipx/uv tool command). Analysis is optional and its libraries load in a separate
 process only when requested. Results are estimates; ambiguous rhythm/key and
 silence can return no value. Manual values take precedence, followed by current
@@ -592,15 +514,15 @@ Do not install them together. Choose the commands for the manager you used:
 ```sh
 # pip, inside the same virtual environment
 python -m pip uninstall dj-soundcloud-digger
-python -m pip install 'dj-sc-digger[play,analyze]'
+python -m pip install 'dj-sc-digger[analyze]'
 
 # pipx
 pipx uninstall dj-soundcloud-digger
-pipx install 'dj-sc-digger[play,analyze]'
+pipx install 'dj-sc-digger[analyze]'
 
 # uv tools
 uv tool uninstall dj-soundcloud-digger
-uv tool install 'dj-sc-digger[play,analyze]'
+uv tool install 'dj-sc-digger[analyze]'
 ```
 
 The `dj_digger` module, `dj-digger` command, configuration and data directories
@@ -612,19 +534,7 @@ See [release procedure](https://github.com/fbialogrecki/dj-digger/blob/main/docs
 [deck rule sources](https://github.com/fbialogrecki/dj-digger/blob/main/docs/implementation/deck-sources.md).
 
 
-### Responsive views and analysis validation
-
-The normal 80×24 view keeps local BPM, Key and Time visible. Secondary columns
-fold away without changing your column preferences or sort. Press **F4** for a
-summary of the loaded view; folder counts explicitly describe the loaded page.
-Settings group Appearance, Files, Accounts and Gates into tabs, with Save/Cancel
-always available. Account actions take effect immediately; cancelling preferences
-does not undo a login or profile reset.
-
-Export dialogs keep their main actions visible. Target-profile compatibility is
-expandable, while the review describes the actual planned file set. Replacement
-warnings stay next to the execution controls. **Ctrl+K** shows whether each local
-BPM/key value comes from a manual override, an estimate or a file tag.
+### Analysis validation
 
 For a repeatable raw-analysis benchmark, use a fresh output directory:
 

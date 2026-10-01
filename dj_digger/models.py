@@ -1,7 +1,7 @@
 """Shared data structures.
 
 Lives in its own module so ``soundcloud``, ``links`` and
-``tui`` can all speak the same vocabulary without importing each other.
+``gui`` can all speak the same vocabulary without importing each other.
 """
 
 import shlex
@@ -27,8 +27,6 @@ def parse_tags(tag_list: str) -> list[str]:
         return tag_list.replace('"', " ").split()
 
 
-
-
 class Cancelled(Exception):
     """Raised inside long-running work when its cancel event was set.
 
@@ -38,8 +36,12 @@ class Cancelled(Exception):
     """
 
 
+def is_cancelled(cancel: threading.Event | None) -> bool:
+    return cancel is not None and cancel.is_set()
+
+
 def check_cancelled(cancel: threading.Event | None) -> None:
-    if cancel is not None and cancel.is_set():
+    if is_cancelled(cancel):
         raise Cancelled()
 
 def track_key(value) -> str:
@@ -98,13 +100,6 @@ class Track:
         """The API says the artist currently offers a concrete download URL."""
 
         return self.free_download and bool(self.download_url)
-
-    @property
-    def duration_label(self) -> str:
-        if self.duration <= 0:
-            return ""
-        seconds = round(self.duration / 1000)
-        return f"{seconds // 60}:{seconds % 60:02d}"
 
     @property
     def label(self) -> str:

@@ -165,26 +165,51 @@ def headed_user_agent(playwright: Any) -> str:
     composed from a throwaway launch's version, once per process.
     """
 
-    global _headed_user_agent
     if _headed_user_agent is None:
         browser = playwright.chromium.launch(headless=True, chromium_sandbox=True)
         try:
-            major = str(browser.version).split(".", 1)[0]
+            _compose_user_agent(browser.version)
         finally:
             browser.close()
-        platform = _USER_AGENT_PLATFORMS.get(sys.platform, "X11; Linux x86_64")
-        _headed_user_agent = (
-            f"Mozilla/5.0 ({platform}) AppleWebKit/537.36 (KHTML, like Gecko) "
-            f"Chrome/{major}.0.0.0 Safari/537.36"
-        )
     return _headed_user_agent
 
 
-def _launch_options(playwright: Any, headless: bool) -> dict[str, Any]:
+async def headed_user_agent_async(playwright: Any) -> str:
+    """``headed_user_agent`` for the async API."""
+
+    if _headed_user_agent is None:
+        browser = await playwright.chromium.launch(headless=True, chromium_sandbox=True)
+        try:
+            _compose_user_agent(browser.version)
+        finally:
+            await browser.close()
+    return _headed_user_agent
+
+
+def _compose_user_agent(version: Any) -> None:
+    global _headed_user_agent
+    major = str(version).split(".", 1)[0]
+    platform = _USER_AGENT_PLATFORMS.get(sys.platform, "X11; Linux x86_64")
+    _headed_user_agent = (
+        f"Mozilla/5.0 ({platform}) AppleWebKit/537.36 (KHTML, like Gecko) "
+        f"Chrome/{major}.0.0.0 Safari/537.36"
+    )
+
+
+def _launch_options(user_agent: str | None) -> dict[str, Any]:
     options = dict(LAUNCH_OPTIONS)
-    if headless:
-        options["user_agent"] = headed_user_agent(playwright)
+    if user_agent:
+        options["user_agent"] = user_agent
     return options
+
+
+def _retry_launch(exc: Exception, attempt: int) -> None:
+    """Return to try again after a wait while the profile is still locked; raise otherwise."""
+
+    if _profile_locked(exc) and attempt < PROFILE_LOCK_ATTEMPTS:
+        LOGGER.debug("Browser profile still locked, retrying (%d)", attempt)
+        return
+    raise classify_launch_error(exc) from exc
 
 
 @contextmanager
@@ -209,21 +234,19 @@ def sync_browser_context(
 
     with sync_playwright() as playwright:
         _require_chromium(playwright)
+        options = _launch_options(headed_user_agent(playwright) if headless else None)
         for attempt in range(1, PROFILE_LOCK_ATTEMPTS + 1):
             try:
                 context = playwright.chromium.launch_persistent_context(
                     str(profile or store_profile_path()),
                     headless=headless,
                     accept_downloads=accept_downloads,
-                    **_launch_options(playwright, headless),
+                    **options,
                 )
                 break
             except Exception as exc:
-                if _profile_locked(exc) and attempt < PROFILE_LOCK_ATTEMPTS:
-                    LOGGER.debug("Browser profile still locked, retrying (%d)", attempt)
-                    time.sleep(PROFILE_LOCK_WAIT)
-                    continue
-                raise classify_launch_error(exc) from exc
+                _retry_launch(exc, attempt)
+                time.sleep(PROFILE_LOCK_WAIT)
         context.set_default_timeout(ACTION_TIMEOUT_MS)
         try:
             yield context
@@ -238,7 +261,7 @@ async def launch_persistent_context(
     *,
     headless: bool = True,
 ) -> Any:
-    """The async twin, for the cart session on Textual's loop.
+    """The async twin, for the cart session on the caller's event loop.
 
     Headless by default: the store work happens out of sight, and a window is
     opened separately (see ``launch_viewer``) only when there is something to
@@ -248,21 +271,20 @@ async def launch_persistent_context(
     if not headless:
         require_display()
     _require_chromium(playwright)
+    # A hidden cart context would otherwise announce itself to the stores as HeadlessChrome.
+    options = _launch_options(await headed_user_agent_async(playwright) if headless else None)
     for attempt in range(1, PROFILE_LOCK_ATTEMPTS + 1):
         try:
             context = await playwright.chromium.launch_persistent_context(
                 str(profile or store_profile_path()),
                 headless=headless,
                 accept_downloads=False,
-                **LAUNCH_OPTIONS,
+                **options,
             )
             break
         except Exception as exc:
-            if _profile_locked(exc) and attempt < PROFILE_LOCK_ATTEMPTS:
-                LOGGER.debug("Store profile still locked, retrying (%d)", attempt)
-                await asyncio.sleep(PROFILE_LOCK_WAIT)
-                continue
-            raise classify_launch_error(exc) from exc
+            _retry_launch(exc, attempt)
+            await asyncio.sleep(PROFILE_LOCK_WAIT)
     context.set_default_timeout(ACTION_TIMEOUT_MS)
     return context
 

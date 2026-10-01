@@ -39,6 +39,7 @@ from .media import (
     signature,
 )
 from .models import Cancelled, check_cancelled
+from .private_json import write_json_atomic
 
 
 @dataclass(frozen=True)
@@ -378,13 +379,8 @@ def prepare(item: Item, profile: Profile, target: Path, *, cancel=None) -> dict:
 
 
 def _save_report(path: Path, report):
-    temporary = path.with_suffix('.tmp')
-    with temporary.open('w', encoding='utf-8') as output:
-        json.dump(report, output, ensure_ascii=False, indent=2)
-        output.flush()
-        os.fsync(output.fileno())
-    os.replace(temporary, path)
-    fsync_directory(path.parent)
+    # Not private: the report sits in the user's export folder, beside the music.
+    write_json_atomic(path, report, private=False, ensure_ascii=False, durable=True)
 
 
 def _replace_one(db, media_id: str, item: Item, result: Path, *, protected=lambda: (), failpoint=lambda phase: None, operation_id=None):
@@ -469,78 +465,90 @@ def _checkpoint_copy(plan, db, report):
     db.record_media_operation(plan.id, {**report, 'kind': 'copy', 'stage': stage})
 
 
+def _open_copy_journal(plan: ExportPlan, db, report, resume) -> dict:
+    """Start or reopen the copy journal; return the already completed results by source."""
+    folder = Path(plan.folder)
+    completed = {}
+    if resume:
+        previous = db.media_operations().get(plan.id, {})
+        if previous.get('kind') != 'copy' or json.dumps(previous.get('plan'), sort_keys=True) != json.dumps(asdict(plan), sort_keys=True):
+            raise MediaError('No matching trusted journal for this export')
+        completed = {result['source']: result for result in previous.get('results', []) if result.get('status') == 'complete'}
+        if not folder.is_dir():
+            raise MediaError('Export folder is unavailable; reconnect its volume')
+    else:
+        folder.mkdir(parents=True, exist_ok=False)
+    db.record_media_operation(plan.id, {**report, 'kind': 'copy', 'stage': 'copy'})
+    return completed
+
+
+def _export_item(plan: ExportPlan, db, index, item: Item, report, completed, cancel, protected, progress) -> bool:
+    """Export one item into the report; False once cancelled."""
+    temporary = None
+    working_directory = None
+    commit_started = False
+    try:
+        check_cancelled(cancel)
+        if item.source in completed:
+            previous = completed[item.source]
+            if digest(Path(item.destination), cancel) != previous.get('sha256'):
+                raise MediaError('Previously exported file changed; preserved for inspection')
+            report['results'].append(previous)
+            return True
+        if item.action == 'exception':
+            raise MediaError(item.reason)
+        target = Path(item.destination)
+        if plan.mode == 'replace' and item.action == 'copy':
+            if signature(Path(item.source)) != item.signature or digest(Path(item.source), cancel) != item.sha256:
+                raise MediaError('Source changed since review')
+            pcm_summary(Path(item.source), cancel=cancel)
+            report['results'].append({'source': item.source, 'status': 'unchanged'})
+            return True
+        target.parent.mkdir(parents=True, exist_ok=True)
+        working_directory = Path(tempfile.mkdtemp(prefix=f'.dj-digger-{plan.id}-', dir=target.parent))
+        temporary = working_directory / target.name
+        operation_id = uuid.uuid4().hex
+        if plan.mode == 'replace':
+            record = db.register_media(str(Path(item.source).resolve()), item.signature)
+            db.record_media_operation(operation_id, dict(stage='preparing', source=item.source, target=item.destination,
+                result=str(temporary), original=str(Path(item.source).with_name(f'.{Path(item.source).name}.{operation_id}.original')),
+                media_id=record['id'], old_hash=item.sha256, new_hash=''))
+        details = prepare(item, plan.profile, temporary, cancel=cancel)
+        check_cancelled(cancel)
+        if plan.mode == 'replace':
+            commit_started = True
+            replace_one(db, record['id'], item, temporary, protected=protected, operation_id=operation_id)
+        else:
+            if target.exists():
+                raise MediaError('Destination already exists')
+            install_new(temporary, target)
+            fsync_directory(target.parent)
+            source_record = db.register_media(str(Path(item.source).resolve()), item.signature)
+            db.register_media(str(target), signature(target), parent_id=source_record['id'])
+        report['results'].append({'source': item.source, 'status': 'complete', 'sha256': digest(target), **details})
+    except Cancelled:
+        report['status'] = 'cancelled'
+        return False
+    except Exception as exc:
+        report['results'].append({'source': item.source, 'status': 'failed', 'error': str(exc)})
+    finally:
+        # A replacement journal may own this path after a failed commit.
+        if working_directory and (not commit_started or not temporary.exists()):
+            shutil.rmtree(working_directory)
+        progress(index + 1, len(plan.items))
+        if plan.mode == 'copy':
+            _checkpoint_copy(plan, db, report)
+    return True
+
+
 def execute(plan: ExportPlan, db, *, resume=False, cancel=None, protected=lambda: (), progress=lambda done, total: None):
     if plan.rules != RULE_VERSION:
         raise MediaError('Export rules changed; prepare a new plan')
     report = {'plan': asdict(plan), 'status': 'running', 'results': [], 'compatibility': plan.compatibility()}
-    folder = Path(plan.folder)
-    completed = {}
-    if plan.mode == 'copy':
-        if resume:
-            previous = db.media_operations().get(plan.id, {})
-            if previous.get('kind') != 'copy' or json.dumps(previous.get('plan'), sort_keys=True) != json.dumps(asdict(plan), sort_keys=True):
-                raise MediaError('No matching trusted journal for this export')
-            completed = {result['source']: result for result in previous.get('results', []) if result.get('status') == 'complete'}
-            if not folder.is_dir():
-                raise MediaError('Export folder is unavailable; reconnect its volume')
-        else:
-            folder.mkdir(parents=True, exist_ok=False)
-        db.record_media_operation(plan.id, {**report, 'kind': 'copy', 'stage': 'copy'})
+    completed = _open_copy_journal(plan, db, report, resume) if plan.mode == 'copy' else {}
     for index, item in enumerate(plan.items):
-        temporary = None
-        working_directory = None
-        commit_started = False
-        try:
-            check_cancelled(cancel)
-            if item.source in completed:
-                previous = completed[item.source]
-                if digest(Path(item.destination), cancel) != previous.get('sha256'):
-                    raise MediaError('Previously exported file changed; preserved for inspection')
-                report['results'].append(previous)
-                continue
-            if item.action == 'exception':
-                raise MediaError(item.reason)
-            target = Path(item.destination)
-            if plan.mode == 'replace' and item.action == 'copy':
-                if signature(Path(item.source)) != item.signature or digest(Path(item.source), cancel) != item.sha256:
-                    raise MediaError('Source changed since review')
-                pcm_summary(Path(item.source), cancel=cancel)
-                report['results'].append({'source': item.source, 'status': 'unchanged'})
-                continue
-            target.parent.mkdir(parents=True, exist_ok=True)
-            working_directory = Path(tempfile.mkdtemp(prefix=f'.dj-digger-{plan.id}-', dir=target.parent))
-            temporary = working_directory / target.name
-            operation_id = uuid.uuid4().hex
-            if plan.mode == 'replace':
-                record = db.register_media(str(Path(item.source).resolve()), item.signature)
-                db.record_media_operation(operation_id, dict(stage='preparing', source=item.source, target=item.destination,
-                    result=str(temporary), original=str(Path(item.source).with_name(f'.{Path(item.source).name}.{operation_id}.original')),
-                    media_id=record['id'], old_hash=item.sha256, new_hash=''))
-            details = prepare(item, plan.profile, temporary, cancel=cancel)
-            check_cancelled(cancel)
-            if plan.mode == 'replace':
-                commit_started = True
-                replace_one(db, record['id'], item, temporary, protected=protected, operation_id=operation_id)
-            else:
-                if target.exists():
-                    raise MediaError('Destination already exists')
-                install_new(temporary, target)
-                fsync_directory(target.parent)
-                source_record = db.register_media(str(Path(item.source).resolve()), item.signature)
-                db.register_media(str(target), signature(target), parent_id=source_record['id'])
-            report['results'].append({'source': item.source, 'status': 'complete', 'sha256': digest(target), **details})
-        except Cancelled:
-            report['status'] = 'cancelled'
+        if not _export_item(plan, db, index, item, report, completed, cancel, protected, progress):
             break
-        except Exception as exc:
-            report['results'].append({'source': item.source, 'status': 'failed', 'error': str(exc)})
-        finally:
-            # A replacement journal may own this path after a failed commit.
-            if working_directory and (not commit_started or not temporary.exists()):
-                shutil.rmtree(working_directory)
-            progress(index + 1, len(plan.items))
-            if plan.mode == 'copy':
-                _checkpoint_copy(plan, db, report)
     if report['status'] != 'cancelled':
         report['status'] = 'partial' if any(item['status'] == 'failed' for item in report['results']) else 'complete'
     completed_sources = {result['source'] for result in report['results']

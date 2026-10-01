@@ -1,14 +1,16 @@
 """Stream resolution and prepared media independent of table presentation."""
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
 from typing import Any, Protocol
 
 from ..models import Track
 from ..soundcloud_errors import SoundCloudError
 
 LOGGER = logging.getLogger(__name__)
+MAX_ARTWORK_BYTES = 4 * 1024 * 1024
 
 class SoundCloudPlayback(Protocol):
     session: Any
@@ -40,13 +42,14 @@ def _supported(item: dict) -> bool:
 @dataclass
 class Stream:
     url: str
-    waveform_url: str = ""
+    # SoundCloud's artwork at 500 px; empty when the upload has none.
+    artwork_url: str = ""
     duration: float = 0.0
     protocol: str = "progressive"
 
 
 def resolve_stream(client: SoundCloudPlayback, track_id: int) -> Stream:
-    """Signed MP3 URL and protocol, waveform URL and duration, from one refetch.
+    """Signed MP3 URL and protocol, artwork URL and duration, from one refetch.
 
     The payload is fetched fresh every time because ``track_authorization`` and
     the signature on the returned URL both expire. Duration comes from here too,
@@ -79,29 +82,49 @@ def resolve_stream(client: SoundCloudPlayback, track_id: int) -> Stream:
     milliseconds = payload.get("full_duration") or payload.get("duration") or 0
     return Stream(
         url=url,
-        waveform_url=payload.get("waveform_url") or "",
+        artwork_url=str(payload.get("artwork_url") or "").replace("-large.", "-t500x500."),
         duration=float(milliseconds) / 1000.0,
         protocol=chosen["format"]["protocol"],
     )
 
 
-@lru_cache(maxsize=256)
-def _cached_waveform(client: SoundCloudPlayback, waveform_url: str) -> tuple:
-    """Kept in memory for the session - 7 KB from a CDN is not worth a cache file."""
+# ponytail: artwork is SoundCloud user content, so it stays in this session's memory only (API terms §5).
+@lru_cache(maxsize=64)
+def remote_artwork(session, url: str) -> bytes:
+    """Artwork bytes from SoundCloud's CDN; the same host and redirect limits as the audio."""
 
+    from ..hls_audio import _get
+    response, _ = _get(session, url)
+    data = bytearray()
     try:
-        payload = client.session.get(waveform_url, timeout=15).json()
-    except Exception as exc:  # a missing waveform must not stop playback
-        LOGGER.debug("Could not read waveform %s: %s", waveform_url, exc)
-        return ()
-    samples = payload.get("samples")
-    return tuple(int(value) for value in samples) if isinstance(samples, list) else ()
+        for chunk in response.iter_content(64 * 1024):
+            data.extend(chunk)
+            if len(data) > MAX_ARTWORK_BYTES:
+                raise SoundCloudError("SoundCloud artwork is too large")
+    finally:
+        response.close()
+    return bytes(data)
 
 
-def fetch_waveform(client: SoundCloudPlayback, waveform_url: str) -> list[int]:
-    if not waveform_url:
-        return []
-    return list(_cached_waveform(client, waveform_url))
+def track_waveform(db, track: Track, source, cancel=None) -> list[int]:
+    """The track's envelope, at most 1024 peaks, computed here from its audio:
+    the local file, or the stream once ``source`` holds all of it. Kept in the
+    library after the first computation."""
+
+    from .. import local_audio
+    from ..media import signature
+    mark = signature(Path(track.local_path)) if track.local_path else ""
+    cached = db.waveform(track.key, mark)
+    if cached is not None:
+        return cached
+    if track.local_path:
+        samples = local_audio.waveform(Path(track.local_path), cancel)
+    else:
+        data = source.whole(cancel) if hasattr(source, "whole") else None
+        samples = local_audio.encoded_waveform(data) if data else []
+    if samples:
+        db.save_waveform(track.key, mark, samples)
+    return samples
 
 
 @dataclass
@@ -110,7 +133,6 @@ class Prepared:
 
     track: Track
     stream: Stream
-    waveform: list[int] = field(default_factory=list)
     # An HTTP source already filling with audio, or None if miniaudio is absent.
     source: object = None
 

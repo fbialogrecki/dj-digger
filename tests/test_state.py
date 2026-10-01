@@ -110,9 +110,6 @@ def test_a_set_updates_the_cache_and_the_database(tmp_path):
     assert fresh.get("1") == SKIP
     assert fresh.local_file("2") == str(tmp_path / "two.wav")
 
-    assert state.clear_local_file("2") is True
-    assert state.get("2") == NEW
-    assert state.clear_local_file("2") is False
 
 
 def test_status_and_provenance_rollback_together(tmp_path, monkeypatch):

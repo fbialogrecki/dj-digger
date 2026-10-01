@@ -513,6 +513,58 @@ class SoundCloudClient:
 
         return tracks[:limit] if limit is not None else tracks
 
+    def _collect_user(self, url, base_url, collection, payload, limit, on_progress, cancel, on_tracks) -> Crate:
+        username = payload.get("username") or base_url
+        user_id = payload.get("id")
+        if not user_id:
+            raise SoundCloudError(f"Resolved {base_url} to a user without an id")
+        endpoint = collection or "tracks"
+        title = f"{username} - {endpoint}"
+        tracks = self._paginate(
+            (f"/stream/users/{user_id}/reposts" if endpoint == "reposts"
+             else f"/users/{user_id}/{endpoint}"),
+            limit=limit,
+            on_progress=on_progress,
+            cancel=cancel,
+            on_batch=on_tracks and (lambda part: on_tracks(Crate(source=url, tracks=part, title=title))),
+        )
+        return Crate(
+            source=url,
+            tracks=tracks,
+            title=title,
+            declared_count=len(tracks),
+        )
+
+    def _collect_track(self, url, payload) -> Crate:
+        return Crate(
+            source=url,
+            tracks=[Track.from_api(payload)],
+            title=payload.get("title") or url,
+            declared_count=1,
+        )
+
+    def _collect_playlist(self, url, payload, limit, on_progress, cancel, on_tracks) -> Crate:
+        track_ids = [
+            item["id"]
+            for item in payload["tracks"]
+            if isinstance(item, dict) and isinstance(item.get("id"), int)
+        ]
+        declared = payload.get("track_count") or len(track_ids)
+        if limit is not None:
+            track_ids = track_ids[:limit]
+        title = payload.get("title") or url
+        tracks = self.hydrate_tracks(
+            track_ids, on_progress=on_progress, cancel=cancel,
+            on_batch=on_tracks and (lambda part: on_tracks(Crate(source=url, tracks=part, title=title, declared_count=declared))),
+        )
+        return Crate(
+            source=url,
+            tracks=tracks,
+            title=title,
+            declared_count=declared,
+            provider_id=payload.get("id"),
+        )
+
     def collect(
         self,
         url: str,
@@ -530,57 +582,11 @@ class SoundCloudClient:
         kind = payload.get("kind")
 
         if kind == "user":
-            username = payload.get("username") or base_url
-            user_id = payload.get("id")
-            if not user_id:
-                raise SoundCloudError(f"Resolved {base_url} to a user without an id")
-            endpoint = collection or "tracks"
-            title = f"{username} - {endpoint}"
-            tracks = self._paginate(
-                (f"/stream/users/{user_id}/reposts" if endpoint == "reposts"
-                 else f"/users/{user_id}/{endpoint}"),
-                limit=limit,
-                on_progress=on_progress,
-                cancel=cancel,
-                on_batch=on_tracks and (lambda part: on_tracks(Crate(source=url, tracks=part, title=title))),
-            )
-            return Crate(
-                source=url,
-                tracks=tracks,
-                title=title,
-                declared_count=len(tracks),
-            )
-
+            return self._collect_user(url, base_url, collection, payload, limit, on_progress, cancel, on_tracks)
         if kind == "track":
-            return Crate(
-                source=url,
-                tracks=[Track.from_api(payload)],
-                title=payload.get("title") or url,
-                declared_count=1,
-            )
-
-        raw_tracks = payload.get("tracks")
-        if isinstance(raw_tracks, list):
-            track_ids = [
-                item["id"]
-                for item in raw_tracks
-                if isinstance(item, dict) and isinstance(item.get("id"), int)
-            ]
-            declared = payload.get("track_count") or len(track_ids)
-            if limit is not None:
-                track_ids = track_ids[:limit]
-            title = payload.get("title") or url
-            tracks = self.hydrate_tracks(
-                track_ids, on_progress=on_progress, cancel=cancel,
-                on_batch=on_tracks and (lambda part: on_tracks(Crate(source=url, tracks=part, title=title, declared_count=declared))),
-            )
-            return Crate(
-                source=url,
-                tracks=tracks,
-                title=title,
-                declared_count=declared,
-                provider_id=payload.get("id"),
-            )
+            return self._collect_track(url, payload)
+        if isinstance(payload.get("tracks"), list):
+            return self._collect_playlist(url, payload, limit, on_progress, cancel, on_tracks)
 
         raise SoundCloudError(
             f"Nothing diggable behind that link (SoundCloud calls it '{kind}'). "

@@ -7,6 +7,7 @@ from urllib.parse import urljoin, urlsplit
 import requests
 
 from .http import MAX_REDIRECTS, REDIRECT_STATUSES
+from .models import is_cancelled
 from .soundcloud_errors import SoundCloudError
 
 MAX_MANIFEST_BYTES = 1024 * 1024
@@ -124,6 +125,13 @@ class HlsSourceMixin:
                 self._response = None
                 self._done = True
                 self._condition.notify_all()
+
+    def whole(self, cancel=None):
+        """Every segment once they have all arrived, for the waveform; None after a failure."""
+        with self._condition:
+            while not (self._done or self._closed or is_cancelled(cancel)):
+                self._condition.wait(.2)
+            return bytes(self._buffer) if self._done and not self._error and not self._closed else None
 
     def read(self, num_bytes):
         if num_bytes <= 0:

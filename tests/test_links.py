@@ -203,30 +203,6 @@ def test_a_used_up_free_download_is_not_offered():
     assert categories_for(track) == ["bandcamp"]
 
 
-def test_group_by_track_puts_the_best_link_first():
-    track = Track(
-        title="Everywhere",
-        permalink_url="https://soundcloud.com/a/b",
-        purchase_url="https://hypeddit.com/x/y",
-        description="also at https://label.bandcamp.com/album/x",
-    )
-    other = Track(title="Alone", permalink_url="https://soundcloud.com/c/d")
-    groups = links.group_by_track(links.categorise_all([track, other]))
-    assert [[record.category for record in group] for group in groups] == [
-        ["bandcamp", "gate"],
-        ["no-link"],
-    ]
-
-
-def test_group_by_track_keeps_the_order_tracks_arrived_in():
-    tracks = [
-        Track(title=str(index), permalink_url=f"https://soundcloud.com/a/{index}")
-        for index in range(5)
-    ]
-    groups = links.group_by_track(links.categorise_all(tracks))
-    assert [group[0].track.title for group in groups] == ["0", "1", "2", "3", "4"]
-
-
 @pytest.mark.parametrize(
     "url,expected",
     [

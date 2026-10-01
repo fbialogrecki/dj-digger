@@ -28,19 +28,6 @@ class OperationHandle:
     lane: Literal['main', 'scan'] = 'main'
     state: Literal['running', 'cancelling', 'finished'] = 'running'
 
-    def describe(self) -> str:
-        parts = [self.name]
-        if self.total:
-            parts.append(f'{self.done}/{self.total}')
-        elif self.done:
-            parts.append(str(self.done))
-        if self.failed:
-            parts.append(f'{self.failed} failed')
-        if self.detail:
-            parts.append(self.detail)
-        parts.append('stopping' if self.state == 'cancelling' else '^X stop')
-        return ' · '.join(parts)
-
 
 class OperationCoordinator:
     """Two independent slots; cancellation requests never release a slot."""

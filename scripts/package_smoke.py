@@ -33,7 +33,7 @@ def main():
             subprocess.run(['uv', 'pip', 'install', '--python', str(python), str(options.legacy_wheel.resolve())], check=True, env=env)
             subprocess.run(['uv', 'pip', 'uninstall', '--python', str(python), 'dj-soundcloud-digger'], check=True, env=env)
         subprocess.run(['uv', 'pip', 'install', '--python', str(python), str(wheel)], check=True, env=env)
-        subprocess.run([str(python), '-c', 'import dj_digger.cli; import dj_digger.tui; import dj_digger.analysis'], check=True, cwd=root, env=env)
+        subprocess.run([str(python), '-c', 'import dj_digger.cli; import dj_digger.analysis'], check=True, cwd=root, env=env)
         # A plain wheel install must include the native audio decoder, without extras.
         subprocess.run([str(python), '-c', '''
 import wave

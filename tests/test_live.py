@@ -52,8 +52,8 @@ def test_batch_hydration_still_caps_at_fifty():
         client.close()
 
 
-def test_a_track_still_offers_a_plain_mp3_and_a_waveform():
-    """Audio preview rests on both of these; SoundCloud could drop either."""
+def test_a_track_still_offers_a_plain_mp3():
+    """Audio preview rests on this; SoundCloud could drop it."""
 
     client = soundcloud.SoundCloudClient()
     try:
@@ -66,11 +66,9 @@ def test_a_track_still_offers_a_plain_mp3_and_a_waveform():
         }
         assert "progressive" in protocols, f"only got {protocols}"
         assert payload.get("track_authorization")
-        assert payload.get("waveform_url", "").startswith("https://")
 
         stream = playback.resolve_stream(client, track_id)
         assert stream.url.startswith("https://")
-        assert len(playback.fetch_waveform(client, stream.waveform_url)) > 100
     finally:
         client.close()
 

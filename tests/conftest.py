@@ -38,13 +38,6 @@ class FakeResponse:
             raise ValueError("no json")
         return self._payload
 
-# Land animations on their final value at once rather than over 200ms. Textual
-# reads this when it is imported, so it has to be set before anything pulls it
-# in - a test that had to wait out an animation is a test that fails on a loaded
-# machine.
-os.environ.setdefault("TEXTUAL_ANIMATIONS", "none")
-
-
 @pytest.fixture(autouse=True)
 def isolate_user_data(tmp_path, monkeypatch):
     """Never let a test read or write the real crate library or status file.
@@ -54,9 +47,8 @@ def isolate_user_data(tmp_path, monkeypatch):
     construction - so without this a test run edits the developer's own settings
     and can pick up their live OAuth token.
 
-    And the scan folders, because the crate browser starts a library scan on
-    mount. Left alone it defaults to ~/Music and ~/Downloads, so every test that
-    opens the app would walk the developer's actual music collection.
+    And the scan folders: left alone they default to ~/Music and ~/Downloads, so
+    a test that scans would walk the developer's actual music collection.
     """
 
     # Not "music": macOS and Windows have case-insensitive filesystems, so this
@@ -74,8 +66,6 @@ def isolate_user_data(tmp_path, monkeypatch):
     # browser profile, cart diagnostics - lands under tmp_path as well; a test
     # run once left eight diagnostics folders in the developer's real data dir.
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "xdg-cache"))
-    from dj_digger.tui.local import LocalController
-    monkeypatch.setattr(LocalController, "mounts", staticmethod(lambda: []))
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "xdg-data"))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg-config"))
     from dj_digger import paths
@@ -92,23 +82,6 @@ def isolate_user_data(tmp_path, monkeypatch):
     for instance in list(db._DATABASES):
         instance.close()
     db._INSTANCES.clear()
-
-
-@pytest.fixture(autouse=True)
-def no_real_exit(monkeypatch):
-    """run_tui may end the process when a thread lingers; never from a test.
-
-    The exit codes are recorded rather than raised, so a test about that very
-    shutdown can read them back - and must clear what it expected, because
-    anything still in the list at teardown fails the test.
-    """
-
-    from dj_digger import tui
-
-    exits: list[int] = []
-    monkeypatch.setattr(tui, "HARD_EXIT", exits.append)
-    yield exits
-    assert exits == [], f"run_tui hard-exited with {exits}"
 
 
 def load_fixture(name: str) -> Any:

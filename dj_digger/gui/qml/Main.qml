@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Controls.impl
 import QtQuick.Layouts
 import QtQuick.Dialogs
+import QtQuick.Effects
 
 ApplicationWindow {
     id: root
@@ -46,81 +47,90 @@ ApplicationWindow {
         target: desktop.model
         function onStatusFlashed(keys) { if (root.motion) { root.flashKeys = keys; flashTimer.restart() } }
     }
-    // Normal colours remain visible at rest; only detected bass attacks add saturation.
-    readonly property bool live: !!desktop.audio.playing
-    // PCM has already entered the output queue. The offset compensates for the
-    // speaker buffer, independently of detection (View → Pulse timing).
-    property int pulseOffset: 70
-    // The pulse envelope: a hit rises to its peak over 25 ms, holds 40 ms and
-    // releases exponentially over a third of a beat (90-180 ms), so the glow
-    // breathes with the kick instead of strobing. Later hits hold the peak and
-    // never add up; hits under 100 ms apart merge into one swell.
+    // Normal colours remain visible at rest; only kicks light them up.
+    readonly property bool live: desktop.playing
+    // The light follows the kick level the player computes ahead of the speaker,
+    // sampled at the heard time: it jumps up with a kick at once and falls straight
+    // to dark within 150 ms, so every kick shows in proportion, none is missed, and
+    // the light goes out between kicks even at 174 BPM. Below 15 % nothing shows:
+    // even a faint neon tint reads as light.
+    readonly property real fall: 150
+    readonly property real gate: .15
+    // A frame reaches the eye two or three frames after it is computed (scene graph,
+    // compositor, monitor), so the light samples the level that much ahead.
+    readonly property real displayLead: .04
     property real flash: 0
-    property real peak: 0
-    property real peakAt: 0
-    property real peakFrom: 0
-    readonly property real glow: flash
-    readonly property real release: Math.max(90, Math.min(180, 300 * (desktop.beats.period || .5)))
+    readonly property real glow: Math.max(0, (flash - gate) / (1 - gate))
+    // Levels are copied once per change; the frame loop reads these, not the Python property.
+    property string kickKey: ""
+    property real kickStart: 0
+    property real kickStep: .01
+    property var kickLevels: []
+    Connections {
+        target: desktop
+        function onKicksChanged() {
+            root.kickKey = desktop.kicks.key || ""
+            root.kickStart = desktop.kicks.start || 0
+            root.kickStep = desktop.kicks.step || .01
+            root.kickLevels = desktop.kicks.levels || []
+        }
+    }
     readonly property bool pulsing: live && motion
+    // The track time reaching the speaker at clockAt, from the player's own
+    // measurement of what it has queued; -1 until the first snapshot.
     property real audioClock: -1
     property real clockAt: 0
     property real lastPosition: 0
     property string clockKey: ""
-    property real lastFired: -1
-    property real lastShown: -1
+    property real lastTick: 0
     // Heard audio time, interpolated every frame while pulsing; -1 falls back to the snapshot position.
     property real playhead: -1
-    onPulsingChanged: if (!pulsing) { peak = 0; flash = 0; audioClock = -1; playhead = -1 }
+    onPulsingChanged: if (!pulsing) { flash = 0; audioClock = -1; playhead = -1 }
     Connections {
         target: desktop
-        function onAudioChanged() { if (root.pulsing) root.syncClock(desktop.audio.position, Date.now()) }
+        function onAudioChanged() {
+            let audio = desktop.audio
+            if (root.pulsing) root.syncClock(audio.heard === undefined ? audio.position : audio.heard, audio.at ? audio.at * 1000 : Date.now(), audio.position)
+        }
     }
     FrameAnimation {
         running: root.pulsing && root.visibility !== Window.Minimized
         onTriggered: root.pulseTick(Date.now())
     }
-    function syncClock(position, now) {
+    // ``heard`` was the speaker's track time at ``at`` (ms since the epoch).
+    function syncClock(heard, at, position, now) {
+        now = now === undefined ? Date.now() : now
+        heard += (now - at) / 1000
         let predicted = audioClock + (now - clockAt) / 1000
-        let key = desktop.audio.key || ""
-        if (audioClock < 0 || key !== clockKey || Math.abs(position - predicted) > .15) {
-            audioClock = position
-            // Include the first queued attack, even when it arrived just before
-            // the first UI tick. pulseTick still rejects anything over 100 ms late.
-            if (key !== clockKey || Math.abs(position - lastPosition) > .15)
-                lastFired = position - pulseOffset / 1000 - .101
-            peak = 0; flash = 0; lastShown = -1
-            playhead = Math.max(0, position - pulseOffset / 1000)
+        let key = desktop.audioKey
+        // Another track or a seek starts over; small differences ease in.
+        let jumped = key !== clockKey || Math.abs(position - lastPosition) > .5
+        if (audioClock < 0 || jumped || Math.abs(heard - predicted) > .15) {
+            audioClock = heard
+            if (jumped) flash = 0
         } else {
-            audioClock = predicted + .25 * (position - predicted)
+            audioClock = predicted + .25 * (heard - predicted)
         }
+        playhead = Math.max(0, Math.min(position, audioClock))
         clockKey = key
         lastPosition = position
         clockAt = now
     }
+    // The kick level at a track time, between the 10 ms levels; 0 outside them.
+    function kickLevel(time) {
+        if (kickKey !== clockKey) return 0
+        let x = (time - kickStart) / kickStep, i = Math.floor(x), levels = kickLevels
+        if (i < 0 || i >= levels.length) return 0
+        return i + 1 < levels.length ? levels[i] + (levels[i + 1] - levels[i]) * (x - i) : levels[i]
+    }
     function pulseTick(now) {
         if (!pulsing || audioClock < 0) return
-        let heard = Math.min(lastPosition, audioClock + (now - clockAt) / 1000 - pulseOffset / 1000)
+        let heard = Math.min(lastPosition, audioClock + (now - clockAt) / 1000)
         playhead = Math.max(0, heard)
-        if (desktop.beats.key !== clockKey) return
-        let pulses = desktop.beats.pulses || [], due = -1
-        for (let i = 0; i < pulses.length; i++)
-            if (pulses[i][0] <= heard && pulses[i][0] > lastFired + .001) due = i
-        if (due >= 0) {
-            lastFired = pulses[due][0]
-            if (heard - lastFired <= .1) {
-                let amplitude = pulses[due][1]
-                // A hit within half a beat of the last one shown is the roll, not the kick.
-                if (lastShown >= 0 && lastFired - lastShown < .5 * (desktop.beats.period || .5)) amplitude *= .6
-                lastShown = lastFired
-                if (peak > 0 && now - peakAt < 100) peak = Math.max(peak, amplitude)
-                else { peakFrom = flash; peak = Math.max(amplitude, flash); peakAt = now }
-            }
-        }
-        if (peak <= 0) return
-        let age = now - peakAt
-        flash = age < 25 ? peakFrom + (peak - peakFrom) * age / 25
-              : age < 65 ? peak : peak * Math.exp(-(age - 65) / release)
-        if (age >= 65 && flash < .005) { flash = 0; peak = 0 }
+        let elapsed = Math.max(0, now - lastTick)
+        lastTick = now
+        flash = Math.max(kickLevel(heard + displayLead), flash - elapsed / fall)
+        if (flash < .005) flash = 0
     }
     // One shared sweep for every download fill, running only while something is busy.
     property real shimmerPhase: 0
@@ -136,7 +146,7 @@ ApplicationWindow {
     property var pendingQuestions: []
     property var messages: []
     property string errorMessage: ""
-    readonly property bool pauseTarget: !!desktop.audio.playing && (!hasSelection || desktop.model.firstSelectedKey === desktop.audio.key)
+    readonly property bool pauseTarget: desktop.playing && (!hasSelection || desktop.model.firstSelectedKey === desktop.audioKey)
     readonly property var defaultColumnWidths: [85, 150, 280, 85, 64, 64, 50, 95, 50, 140]
     property var columnWidths: defaultColumnWidths.slice()
     property var hiddenColumns: []
@@ -311,7 +321,6 @@ ApplicationWindow {
         if (s.sidebarVisible === false) sidebarVisible = false
         if (s.animations === false) animations = false
         keyNotation = s.keyNotation === "classic" ? "classic" : "camelot"
-        if (Number.isInteger(s.pulseOffset) && s.pulseOffset >= 0 && s.pulseOffset <= 400) pulseOffset = s.pulseOffset
         desktop.language(languageCode)
         table.forceActiveFocus()
     }
@@ -322,7 +331,7 @@ ApplicationWindow {
             for (let i = 0; i < 10; i++) if (i !== titleColumn && columnVisible(i)) columnWidths[i] = table.columnWidth(i)
             desktop.saveSettings({sidebarWidth: sidebar.width, sidebarVisible: sidebarVisible, width: width, height: height, language: languageCode,
                                   theme: themeChoice, columnWidths: columnWidths, hiddenColumns: hiddenColumns, columnOrder: columnOrder,
-                                  keyNotation: keyNotation, animations: animations, pulseOffset: pulseOffset})
+                                  keyNotation: keyNotation, animations: animations})
             desktop.close()
         }
     }
@@ -436,14 +445,6 @@ ApplicationWindow {
                 Action { text: qsTr("Classic (Am)"); checkable: true; checked: root.keyNotation === "classic"; ActionGroup.group: notationGroup; onTriggered: root.keyNotation = "classic" }
             }
             Action { id: animationsAction; text: qsTr("Animations"); checkable: true; onTriggered: root.animations = !root.animations }
-            // Tuned by ear while a track plays: the speaker delay differs per machine.
-            AppMenu {
-                title: qsTr("Pulse timing")
-                Action { text: qsTr("Delay: %1 ms").arg(root.pulseOffset); enabled: false }
-                Action { text: qsTr("Pulse earlier (−10 ms)"); enabled: root.pulseOffset > 0; onTriggered: root.pulseOffset = Math.max(0, root.pulseOffset - 10) }
-                Action { text: qsTr("Pulse later (+10 ms)"); enabled: root.pulseOffset < 400; onTriggered: root.pulseOffset = Math.min(400, root.pulseOffset + 10) }
-                Action { text: qsTr("Reset"); onTriggered: root.pulseOffset = 70 }
-            }
         }
         AppMenu {
             title: qsTr("Settings")
@@ -572,13 +573,15 @@ ApplicationWindow {
     }
     // One layer of waveform bars; the played layer is the same painting clipped to the progress.
     component WaveformBars: Canvas {
+        id: bars
         property bool played: false
-        property bool glow: false
-        onPaint: waveform.paintBars(getContext("2d"), width, height, played, glow)
-        onWidthChanged: requestPaint()
-        onHeightChanged: requestPaint()
+        onPaint: waveform.paintBars(getContext("2d"), width, height, played)
+        // A resize repaints once it settles; a window or sidebar drag would otherwise paint every frame.
+        Timer { id: settle; interval: 50; onTriggered: bars.requestPaint() }
+        onWidthChanged: settle.restart()
+        onHeightChanged: settle.restart()
         onVisibleChanged: requestPaint()
-        Connections { target: waveform; function onLevelsChanged() { requestPaint() } }
+        Connections { target: waveform; function onRepaint() { requestPaint() } }
         Connections { target: root; function onDarkChanged() { requestPaint() } }
     }
     // A rounded label for BPM and key; a key takes its Camelot hue, a match with the playing track gets a ring.
@@ -600,12 +603,23 @@ ApplicationWindow {
         ToolTip.visible: match && chipHover.hovered; ToolTip.text: qsTr("Mixes with the playing track")
         HoverHandler { id: chipHover }
     }
-    // Generated artwork, never fetched: a record on a gradient, both picked from the track key.
-    // The record turns while the track plays.
+    // A record on a gradient, both picked from the track key; the label carries the track's
+    // artwork (or the default cover) when there is one, turning with the record while it plays.
+    // Until the track is ready the sleeve and label are white and the record blank; then the
+    // colours, the picture and the code fade in.
     component Cover: Rectangle {
         id: cover
         property string seed: ""
         property bool spinning: false
+        property bool ready: true
+        property string artwork: ""
+        // A binding at first; the handler takes over from the first change.
+        property real reveal: ready ? 1 : 0
+        onReadyChanged: {
+            revealAnimation.stop()
+            if (ready && root.motion) revealAnimation.restart(); else reveal = ready ? 1 : 0
+        }
+        NumberAnimation { id: revealAnimation; target: cover; property: "reveal"; from: 0; to: 1; duration: 600; easing.type: Easing.InOutQuad }
         readonly property int hash: {
             let h = 7
             for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0
@@ -629,17 +643,28 @@ ApplicationWindow {
                 GradientStop { position: 1; color: root.peakColor(cover.tone(3)) }
             }
         }
+        Rectangle { objectName: "blankSleeve"; anchors.fill: parent; radius: parent.radius; color: "white"; opacity: 1 - cover.reveal }
         Item {
             id: disc
             width: parent.width * .84; height: width; anchors.centerIn: parent
             // Near-black vinyl; the label is darkened so it does not outshine the record.
             Rectangle { anchors.fill: parent; radius: width / 2; color: "#0c0c0e" }
             Rectangle { anchors.centerIn: parent; width: disc.width * .34; height: width; radius: width / 2; color: Qt.darker(cover.tone(5), 1.25) }
+            // Already cut to a circle by the backend, shown as it is: no tint, no overlay.
+            Image {
+                objectName: "labelArtwork"
+                anchors.centerIn: parent; width: disc.width * .34; height: width
+                source: cover.artwork; asynchronous: true; smooth: true; mipmap: true
+                opacity: status === Image.Ready ? 1 : 0
+                Behavior on opacity { enabled: root.motion; NumberAnimation { duration: 300 } }
+            }
+            Rectangle { anchors.centerIn: parent; width: disc.width * .34; height: width; radius: width / 2; color: "white"; opacity: 1 - cover.reveal }
             // A barcode of the track: radial strokes and dots from the label to the rim, laid out
             // from the key hash. Painted once per track; turning the record costs no repaint.
             Canvas {
                 objectName: "trackCode"
                 anchors.fill: parent
+                opacity: cover.reveal
                 property int code: cover.hash
                 onCodeChanged: requestPaint()
                 onWidthChanged: requestPaint()
@@ -683,6 +708,17 @@ ApplicationWindow {
             }
         }
     }
+    // The waveform rests in deep, saturated tones and lights up in neon on a kick,
+    // foot (raspberry side) to top (blue side). On the dark theme the neon is over
+    // twice as bright as the rest, so a kick reads as light, not as a change of hue
+    // (a light pastel rest looked lit and the kick looked like it went out), and
+    // neither is pastel. On the light theme the kick is the more vivid. No colour is
+    // a saturated red, the lit window is small (160 px), and the rest colours keep
+    // 3:1 against the panel.
+    readonly property color waveRestFoot: dark ? "#b8286a" : "#a8506f"
+    readonly property color waveRestTop: dark ? "#3a5fd6" : "#5577c9"
+    readonly property color waveNeonFoot: dark ? "#ff2fa8" : "#c8007f"
+    readonly property color waveNeonTop: dark ? "#1e9bff" : "#1f56ff"
     // The same hue, more saturated and lighter: a kick makes a colour glow without
     // washing it out. A red (from 70 % of linear R+G+B) only lightens, and less, so
     // the bordeaux end stays under the WCAG 2.3.1 red-flash threshold.
@@ -881,18 +917,23 @@ ApplicationWindow {
                 SplitView.fillWidth: true; SplitView.minimumWidth: 0
             Rectangle {
                 id: player
+                // The height switches at once: growing it frame by frame resized the cover and every
+                // waveform canvas on each frame. The artwork and waveform fade in instead.
                 Layout.fillWidth: true; Layout.preferredHeight: root.loaded ? 184 : 52
-                Behavior on Layout.preferredHeight { enabled: root.motion; NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
                 color: root.panel; radius: 6
                 RowLayout {
                     anchors.fill: parent; anchors.margins: 10; spacing: 12
                     Cover {
                         objectName: "cover"
                         // Transport controls come first; the artwork only takes room the panel can spare.
-                        visible: root.loaded && player.width >= 640
+                        opacity: root.loaded ? 1 : 0
+                        Behavior on opacity { enabled: root.motion; NumberAnimation { duration: 180 } }
+                        visible: root.loaded && opacity > 0 && player.width >= 640
                         Layout.fillHeight: true; Layout.preferredWidth: height
-                        seed: desktop.audio.key || ""
-                        spinning: !!desktop.audio.playing
+                        seed: desktop.audioKey
+                        spinning: desktop.playing
+                        ready: waveform.ready
+                        artwork: desktop.artwork
                     }
                 ColumnLayout {
                     Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumWidth: 0; spacing: 6
@@ -921,12 +962,52 @@ ApplicationWindow {
                     }
                     Item {
                         id: waveform; objectName: "waveform"
-                        visible: root.loaded
+                        opacity: root.loaded ? 1 : 0
+                        Behavior on opacity { enabled: root.motion; NumberAnimation { duration: 180 } }
+                        visible: root.loaded && opacity > 0
                         Layout.fillWidth: true; Layout.fillHeight: true
                         property var samples: desktop.waveform
                         property real position: desktop.audio.position || 0
                         readonly property real duration: desktop.audio.duration || 0
-                        property var levels: desktop.waveformLevels(samples, Math.max(1, Math.floor(width / 3)))
+                        // Recomputed when the bar count changes, not on every pixel of a resize.
+                        readonly property int columns: Math.max(1, Math.floor(width / 3))
+                        property var levels: desktop.waveformLevels(samples, columns)
+                        // The backend sends the waveform for every track, empty when there is none.
+                        readonly property bool ready: !!desktop.audioKey && desktop.waveformKey === desktop.audioKey
+                        // Until then the bars flicker as noise. A new track scatters the old waveform into the
+                        // noise, and the noise settles into the waveform once it lands: blend runs 0 → 1 from
+                        // the bars last painted (shown) to the new target.
+                        property real wander: 0
+                        property real blend: 1
+                        property var blendFrom: []
+                        property var shown: []
+                        signal repaint()
+                        onLevelsChanged: repaint()
+                        onWanderChanged: repaint()
+                        onBlendChanged: repaint()
+                        onReadyChanged: {
+                            blendAnimation.stop()
+                            blendFrom = shown
+                            if (root.motion) {
+                                blendAnimation.duration = ready ? 700 : 450
+                                blendAnimation.restart()
+                            } else blend = 1
+                        }
+                        NumberAnimation { id: blendAnimation; target: waveform; property: "blend"; from: 0; to: 1; easing.type: Easing.InOutCubic }
+                        Timer { interval: 33; repeat: true; running: !waveform.ready && waveform.visible && root.motion; onTriggered: waveform.wander += .033 }
+                        // Noise, not a wave: every bar has its own random height range, speeds and phases,
+                        // unrelated to its neighbours, so the bars rise and fall scattered.
+                        function noise(i, k) { let x = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453; return x - Math.floor(x) }
+                        function placeholder(i) {
+                            let v = .5 + .32 * Math.sin(wander * (2 + 6 * noise(i, 1)) + 6.283 * noise(i, 2))
+                                       + .18 * Math.sin(wander * (5 + 9 * noise(i, 3)) + 6.283 * noise(i, 4))
+                            return Math.max(.04, Math.min(.95, v * (.35 + .65 * noise(i, 5))))
+                        }
+                        function level(i) {
+                            let target = ready ? levels[i] || 0 : placeholder(i)
+                            if (blend >= 1 || i >= blendFrom.length) return target
+                            return blendFrom[i] + (target - blendFrom[i]) * blend
+                        }
                         // The bars are painted once per waveform; progress only moves a clip edge and the cursor, so
                         // position ticks and a drag cost no repaint. While scrubbing, the pointer's time
                         // shows; after release the target shows until the backend confirms it (or 1.5 s pass).
@@ -936,49 +1017,94 @@ ApplicationWindow {
                         readonly property real heard: root.playhead >= 0 ? root.playhead : position
                         readonly property real fraction: scrub >= 0 ? scrub : pending >= 0 ? pending : duration > 0 ? Math.min(1, heard / duration) : 0
                         onPositionChanged: if (pending >= 0 && Math.abs(position / Math.max(1, duration) - pending) < 0.02) pending = -1
-                        // A new waveform rises from the bottom.
-                        transform: Scale { id: waveformGrowth; origin.y: waveform.height }
-                        NumberAnimation { id: waveformRise; target: waveformGrowth; property: "yScale"; from: 0; to: 1; duration: 450; easing.type: Easing.OutCubic }
-                        onSamplesChanged: if (root.motion && samples.length) waveformRise.restart()
                         Timer { id: pendingTimer; interval: 1500; onTriggered: waveform.pending = -1 }
-                        function paintBars(ctx, width, height, played, glow) {
-                            ctx.reset()
-                            // Bordeaux at the foot of every bar rising into blue at the top of the panel;
-                            // the glow layer is the same gradient at its peak colours.
+                        function gradient(ctx, height, foot, top) {
                             let gradient = ctx.createLinearGradient(0, height, 0, 0)
-                            gradient.addColorStop(0, glow ? root.peakColor(root.accent2) : root.accent2)
-                            gradient.addColorStop(1, glow ? root.peakColor(root.accent) : root.accent)
-                            ctx.fillStyle = gradient
+                            gradient.addColorStop(0, foot)
+                            gradient.addColorStop(1, top)
+                            return gradient
+                        }
+                        function paintBars(ctx, width, height, played) {
+                            ctx.reset()
+                            // Raspberry at the foot of every bar rising into blue at the top of the panel.
+                            ctx.fillStyle = gradient(ctx, height, root.waveRestFoot, root.waveRestTop)
                             ctx.globalAlpha = played ? 1 : root.dark ? .38 : .45
-                            if (glow) {  // Light spills around the bars at the peak.
-                                ctx.shadowBlur = 12
-                                let halo = root.peakColor(root.accent)
-                                ctx.shadowColor = Qt.rgba(halo.r, halo.g, halo.b, .9)
-                            }
-                            let count = levels.length
+                            let count = columns, step = width / count, bar = Math.max(1, step - 1)
+                            let values = []
+                            for (let i = 0; i < count; i++) values.push(level(i))
+                            // What is on screen, for the next track change to scatter from.
+                            if (!played) shown = values
                             for (let i = 0; i < count; i++) {
-                                let h = Math.max(1, levels[i] * (height - 2))
-                                ctx.fillRect(i * width / count, height - h, Math.max(1, width / count - 1), h)
+                                let barHeight = Math.max(1, values[i] * (height - 2))
+                                ctx.fillRect(i * step, height - barHeight, bar, barHeight)
+                            }
+                        }
+                        // Only the bars under the neon window ending at the cursor, in neon, brightest
+                        // at the cursor and fading out to the left; ``left`` is the window's x.
+                        function paintNeon(ctx, left, width, height) {
+                            ctx.reset()
+                            ctx.fillStyle = gradient(ctx, height, root.waveNeonFoot, root.waveNeonTop)
+                            let count = columns, step = waveform.width / count, bar = Math.max(1, step - 1)
+                            for (let i = Math.max(0, Math.floor(left / step)); i < count && i * step < left + width; i++) {
+                                ctx.globalAlpha = Math.max(0, Math.min(1, (i * step + bar - left) / width))
+                                let barHeight = Math.max(1, level(i) * (height - 2))
+                                ctx.fillRect(i * step - left, height - barHeight, bar, barHeight)
                             }
                         }
                         // The unplayed region stays in shadow and never pulses.
                         WaveformBars { objectName: "unplayedBars"; anchors.fill: parent }
-                        // Only the played region crossfades to its peak colours on a kick.
+                        // Only the played region lights up on a kick, and only just behind the cursor.
                         Item {
-                            clip: true
+                            clip: true; visible: waveform.ready
                             anchors { top: parent.top; bottom: parent.bottom; left: parent.left }
                             width: waveform.fraction * waveform.width
                             WaveformBars { objectName: "playedBars"; width: waveform.width; height: waveform.height; played: true }
-                            // The opaque played base keeps its normal colours under the flash.
-                            WaveformBars {
-                                objectName: "kickBars"; width: waveform.width; height: waveform.height; played: true; glow: true
-                                opacity: root.glow
+                            // The bars just behind the cursor, repainted only when the light comes on or
+                            // the cursor has moved on by a bar (a few times a second at most).
+                            Canvas {
+                                id: neonBars; objectName: "kickBars"
+                                width: 160; height: waveform.height
+                                // Drawn by the glow effect when there is one, which fades it itself.
+                                opacity: kickGlow.active ? 1 : root.glow
+                                visible: !kickGlow.active
+                                onPaint: waveform.paintNeon(getContext("2d"), x, width, height)
+                                property bool stale: true
+                                function follow() {
+                                    let left = waveform.fraction * waveform.width - width
+                                    if (stale || Math.abs(left - x) >= waveform.width / waveform.columns) {
+                                        x = left
+                                        stale = false
+                                        requestPaint()
+                                    }
+                                }
+                                Connections {
+                                    target: root
+                                    function onGlowChanged() { if (root.glow > 0) neonBars.follow() }
+                                    function onDarkChanged() { neonBars.stale = true }
+                                }
+                                Connections { target: waveform; function onRepaint() { neonBars.stale = true } }
+                                onHeightChanged: stale = true
+                            }
+                            // A real glow where the GPU draws it; the software renderer runs no shaders,
+                            // so there the neon colour alone carries the kick.
+                            Loader {
+                                id: kickGlow; objectName: "kickGlow"
+                                active: GraphicsInfo.api !== GraphicsInfo.Software && GraphicsInfo.api !== GraphicsInfo.Unknown
+                                x: neonBars.x; width: neonBars.width; height: neonBars.height
+                                sourceComponent: MultiEffect {
+                                    source: neonBars
+                                    visible: root.glow > .01; opacity: root.glow
+                                    autoPaddingEnabled: true; blurMax: 16
+                                    shadowEnabled: true; shadowColor: root.waveNeonTop; shadowBlur: .6
+                                    shadowHorizontalOffset: 0; shadowVerticalOffset: 0
+                                }
                             }
                         }
                         // Subpixel position: the playhead slides instead of stepping a pixel at a time.
                         Rectangle {
                             objectName: "cursor"; antialiasing: true
-                            x: Math.min(waveform.width - 2, waveform.fraction * waveform.width); width: 2; height: parent.height; color: root.fg
+                            x: Math.min(waveform.width - 2, waveform.fraction * waveform.width); width: 2; height: parent.height
+                            color: Qt.tint(root.fg, Qt.rgba(root.waveNeonTop.r, root.waveNeonTop.g, root.waveNeonTop.b, root.glow))
                         }
                         MouseArea {
                             id: waveformMouse
@@ -1193,7 +1319,7 @@ ApplicationWindow {
                         required property string camelot
                         required property int row
                         required property int column
-                        readonly property bool playing: desktop.audio.key === trackKey
+                        readonly property bool playing: desktop.audioKey === trackKey
                         implicitHeight: 34; implicitWidth: 100
                         color: chosen ? root.selection : (row % 2 ? root.panel : root.bg)
                         // Only the hover layer fades; theme and selection colours switch at once.
@@ -1529,7 +1655,7 @@ ApplicationWindow {
                         Label { text: modelData.label; textFormat: Text.PlainText; color: root.muted; visible: text.length > 0 && modelData.kind !== "bool" }
                         RowLayout {
                             Layout.fillWidth: true
-                            visible: ["text", "folder", "file", "savefile", "number"].indexOf(fieldItem.modelData.kind) >= 0
+                            visible: ["text", "folder", "file", "savefile", "image", "number"].indexOf(fieldItem.modelData.kind) >= 0
                             TextField {
                                 id: fieldInput
                                 Layout.fillWidth: true
@@ -1543,7 +1669,7 @@ ApplicationWindow {
                             }
                             Button {
                                 text: qsTr("Browse…")
-                                visible: ["folder", "file", "savefile"].indexOf(fieldItem.modelData.kind) >= 0
+                                visible: ["folder", "file", "savefile", "image"].indexOf(fieldItem.modelData.kind) >= 0
                                 onClicked: {
                                     if (fieldItem.modelData.kind === "folder") {
                                         fieldFolder.targetName = fieldItem.modelData.name
@@ -1551,6 +1677,8 @@ ApplicationWindow {
                                     } else {
                                         fieldFile.targetName = fieldItem.modelData.name
                                         fieldFile.fileMode = fieldItem.modelData.kind === "savefile" ? FileDialog.SaveFile : FileDialog.OpenFile
+                                        fieldFile.nameFilters = fieldItem.modelData.kind === "image" ? [qsTr("Images") + " (*.png *.jpg *.jpeg *.webp)", qsTr("All files") + " (*)"]
+                                                                                                      : ["JSON (*.json)", qsTr("All files") + " (*)"]
                                         fieldFile.open()
                                     }
                                 }

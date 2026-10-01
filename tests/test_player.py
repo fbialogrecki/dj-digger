@@ -1,15 +1,14 @@
 import array
 import threading
+from types import SimpleNamespace
 
 import pytest
 from helpers import drums
 
 from dj_digger import player, waveform
-from dj_digger.beats import KickDetector
 from dj_digger.models import Track
 from dj_digger.services import playback
 from dj_digger.soundcloud import SoundCloudError
-from dj_digger.tui import audio
 
 PROGRESSIVE = {"format": {"protocol": "progressive", "mime_type": "audio/mpeg"}, "url": "https://api/media/prog"}
 HLS = {"format": {"protocol": "hls", "mime_type": "audio/mpeg"}, "url": "https://api/media/hls"}
@@ -32,20 +31,13 @@ class FakeClient:
 
 
 
-def render_waveform(samples, width, played_fraction=0.0, rows=audio.WAVEFORM_ROWS):
-    """Compose the two real drawing stages the way the app does."""
-
-    return audio.paint_waveform(
-        audio.waveform_rows(samples, width, rows), played_fraction
-    )
-
 def playable_payload(**overrides):
     payload = {
         "id": 1,
         "policy": "ALLOW",
         "streamable": True,
         "track_authorization": "token-123",
-        "waveform_url": "https://wave.sndcdn.com/x.json",
+        "artwork_url": "https://i1.sndcdn.com/artworks-x-large.jpg",
         "media": {"transcodings": [HLS, PROGRESSIVE]},
     }
     payload.update(overrides)
@@ -118,7 +110,7 @@ def test_resolve_picks_progressive_and_passes_the_authorisation():
     stream = playback.resolve_stream(client, 1)
 
     assert stream.url == "https://cdn/a.mp3"
-    assert stream.waveform_url == "https://wave.sndcdn.com/x.json"
+    assert stream.artwork_url == "https://i1.sndcdn.com/artworks-x-t500x500.jpg"
     assert client.authorize_calls == [
         ("https://api/media/prog", {"track_authorization": "token-123"})
     ]
@@ -149,83 +141,40 @@ def test_resolve_complains_when_no_url_comes_back():
 # Waveform
 
 
-def test_the_waveform_is_squashed_to_the_asked_width():
-    samples = list(range(100))
-    for width in (20, 7):
-        rows = str(render_waveform(samples, width, rows=1)).split("\n")
-        assert [len(row) for row in rows] == [width]
 
 
-def test_the_waveform_fills_every_row_of_the_bar():
-    """One row of eight blocks is what made a loud master look like a rectangle."""
-
-    rows = str(render_waveform(list(range(50)), 12)).split("\n")
-    assert len(rows) == audio.WAVEFORM_ROWS
-    assert all(len(row) == 12 for row in rows)
 
 
-def test_the_bottom_row_fills_before_the_top():
-    rendered = str(render_waveform([0, 140], 2)).split("\n")
-    top, bottom = rendered[0], rendered[-1]
-    # Quiet column: nothing on top, nothing much at the bottom.
-    assert top[0] == " "
-    # Loud column: both rows full.
-    assert top[1] == "\u2588" and bottom[1] == "\u2588"
 
 
-def test_a_missing_waveform_draws_flat_lines():
-    rows = str(render_waveform([], 5)).split("\n")
-    assert rows == ["\u2500" * 5] * audio.WAVEFORM_ROWS
 
 
-def styled_width(text, style):
-    """How many characters carry a style, whatever it took to say so."""
-
-    return sum(span.end - span.start for span in text.spans if span.style == style)
 
 
-def test_the_played_part_is_styled_differently():
-    rendered = render_waveform([100] * 10, 10, played_fraction=0.5, rows=1)
-
-    assert styled_width(rendered, audio.PLAYED_STYLE) == 5
-    assert styled_width(rendered, audio.UNPLAYED_STYLE) == 5
-    played = [span for span in rendered.spans if span.style == audio.PLAYED_STYLE]
-    todo = [span for span in rendered.spans if span.style == audio.UNPLAYED_STYLE]
-    assert max(span.end for span in played) <= min(span.start for span in todo)
 
 
-@pytest.mark.parametrize("fraction,expected_played", [(0.0, 0), (0.5, 5), (1.0, 10)])
-def test_the_progress_boundary_follows_the_fraction(fraction, expected_played):
-    rendered = render_waveform([100] * 10, 10, played_fraction=fraction, rows=1)
-    assert styled_width(rendered, audio.PLAYED_STYLE) == expected_played
 
 
-def test_a_frame_costs_a_handful_of_spans_not_one_per_column():
-    """Thirty frames a second is only affordable because of this."""
-
-    rendered = render_waveform([100] * 400, 400, played_fraction=0.5)
-    assert len(rendered.spans) <= 3 * audio.WAVEFORM_ROWS
 
 
-def test_the_entire_played_waveform_has_one_stable_colour():
-    rendered = render_waveform([100] * 60, 60, played_fraction=0.5, rows=1)
-    assert styled_width(rendered, audio.PLAYED_STYLE) == 30
-    assert {span.style for span in rendered.spans} == {audio.PLAYED_STYLE, audio.UNPLAYED_STYLE}
 
 
-def test_a_fraction_outside_the_range_is_clamped():
-    for fraction in (-5.0, 7.0):
-        rendered = render_waveform([100] * 4, 4, played_fraction=fraction, rows=1)
-        assert len(str(rendered)) == 4
 
 
-def test_loud_and_quiet_samples_map_to_different_glyphs():
-    rendered = str(render_waveform([1, 140], 2, rows=1))
-    assert rendered[0] != rendered[1]
 
 
-def test_zero_width_is_not_a_crash():
-    assert str(render_waveform([1, 2, 3], 0)) == ""
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 def test_levels_are_measured_against_the_peak():
@@ -240,7 +189,6 @@ def test_a_loud_master_still_shows_shape():
     levels = waveform.column_levels(loud, 8)
     # The power curve has to spread the top of the range enough to see.
     assert max(levels) - min(levels) > 0.2
-    assert len(set(str(render_waveform(loud, 8, rows=1)))) > 2
 
 
 def test_a_track_with_no_dynamics_is_not_faked_into_having_some():
@@ -269,19 +217,25 @@ def test_column_levels_of_nothing():
     assert waveform.column_levels([1, 2], 0) == []
 
 
-def test_fetch_waveform_of_nothing_is_empty():
-    assert playback.fetch_waveform(FakeClient(), "") == []
+def test_artwork_comes_only_from_soundclouds_cdn_and_is_bounded(monkeypatch):
+    from types import SimpleNamespace
 
+    from dj_digger.soundcloud_errors import SoundCloudError
 
-# Clock
-
-
-@pytest.mark.parametrize(
-    "seconds,expected",
-    [(0, "0:00"), (5, "0:05"), (65, "1:05"), (432, "7:12"), (-3, "0:00")],
-)
-def test_format_time(seconds, expected):
-    assert audio.format_time(seconds) == expected
+    playback.remote_artwork.cache_clear()
+    requested = []
+    def get(url, **kwargs):
+        requested.append(url)
+        return SimpleNamespace(status_code=200, headers={}, close=lambda: None,
+                               iter_content=lambda size: iter([b"x" * 1024] * 5))
+    session = type("Session", (), {"get": staticmethod(get)})()
+    with pytest.raises(SoundCloudError, match="untrusted"):
+        playback.remote_artwork(session, "https://evil.example/a.jpg")
+    assert requested == []
+    assert playback.remote_artwork(session, "https://i1.sndcdn.com/a.jpg") == b"x" * 5120
+    monkeypatch.setattr(playback, "MAX_ARTWORK_BYTES", 2048)
+    with pytest.raises(SoundCloudError, match="too large"):
+        playback.remote_artwork(session, "https://i1.sndcdn.com/b.jpg")
 
 
 # Player state without an audio device
@@ -292,7 +246,6 @@ def test_a_fresh_player_reports_nothing_loaded():
     assert subject.loaded is None
     assert subject.position == 0.0
     assert subject.duration == 0.0
-    assert subject.fraction == 0.0
     assert subject.playing is False
 
 
@@ -359,7 +312,7 @@ def test_a_device_that_will_not_start_degrades_instead_of_crashing(monkeypatch):
     """Pressing play twice in quick succession was enough, and it took the app down.
 
     miniaudio raises its own numbered error out of ``device.start``, which the
-    interface catches nowhere - so it came out through Textual's message pump.
+    interface catches nowhere.
     """
 
     subject, device = loaded_player(monkeypatch)
@@ -675,6 +628,14 @@ def test_the_source_reads_the_bytes_in_order():
     assert source.offset == 8
 
 
+def test_the_whole_download_is_handed_over_only_when_it_is_complete():
+    """The waveform of a stream is computed from these bytes, never from part of them."""
+
+    assert player.HttpSourceMixin(FakeSession(b"0123456789", chunk_size=3), URL).whole() == b"0123456789"
+    assert unbuffered(FakeSession(b"0123456789")).whole() is None
+    assert player.HttpSourceMixin(HalfDeadSession(b"0123456789", 4), URL).whole() is None
+
+
 def test_the_source_keeps_pulling_on_a_short_read():
     """A socket answers short; the decoder reads a short answer as end of file."""
 
@@ -836,51 +797,12 @@ def test_audio_fades_in_after_every_start(monkeypatch):
     assert device.started_with.send(1024)[0] == 0
 
 
-def detect(audio, start=0.0):
-    detector = KickDetector()
-    return [kick for offset in range(0, len(audio), 4410)
-            for kick in detector.feed(audio[offset:offset + 4410], start + offset / 2 / 44100)]
-
-
-def test_kicks_are_found_on_time_through_a_roll():
-    beat = 60 / 128
-    four = [i * beat for i in range(8)]
-    eighths = [four[-1] + beat + i * beat / 2 for i in range(8)]
-    sixteenths = [eighths[-1] + beat / 2 + i * beat / 4 for i in range(16)]
-    truth = four + eighths + sixteenths
-    kicks = detect(drums(truth, truth[-1] + .5), start=30.0)
-    # Every hit once, within 10 ms, timed on the track rather than from the start of playback.
-    assert len(kicks) == len(truth)
-    assert all(abs(kick.time - 30.0 - t) < .01 for kick, t in zip(kicks, truth))
-    assert all(kick.strength > .5 for kick in kicks)
-
-
-def test_a_held_bass_or_silence_is_not_a_kick():
-    # Starting a held tone can produce one onset, but never repeated pulses.
-    held = detect(drums([], 3, bass=.5))
-    assert len(held) <= 1 and all(k.time <= .015 for k in held)
-    assert detect(array.array("h", bytes(44100 * 4))) == []
-    # A quiet kick after a loud drop still shows once the drop has been gone a few seconds.
-    loud, quiet = drums([0.0], 6), drums([0.0], 1)
-    quiet = array.array("h", (sample // 6 for sample in quiet))
-    assert len(detect(loud + quiet)) == 2
-
-
-def test_kicks_keep_time_with_the_start_each_chunk_is_given():
-    """A source can report fewer frames than it sent; the start of each chunk resyncs the clock."""
-    audio = drums([0.25, 1.25], 1.5)
-    detector = KickDetector()
-    kicks = detector.feed(audio[:44100], 10.0)
-    # The second second is said to start 0.5 s later than its samples would put it.
-    kicks += detector.feed(audio[44100:], 11.0)
-    assert [kick.time for kick in kicks] == pytest.approx([10.25, 11.75], abs=.015)
-
-
-def test_the_player_reads_detected_hits_around_its_position(monkeypatch):
+def test_the_player_reads_kick_levels_around_its_position(monkeypatch):
     subject, device = loaded_player(monkeypatch)
     subject.set_volume(1.0)
     beat = 60 / 128
-    audio = drums([i * beat for i in range(12)], 12 * beat)
+    kicks = [.25 + i * beat for i in range(12)]
+    audio = drums(kicks, 12 * beat)
 
     def decoder(frame):
         for offset in range(0, len(audio), 4410):
@@ -888,13 +810,139 @@ def test_the_player_reads_detected_hits_around_its_position(monkeypatch):
 
     monkeypatch.setattr(subject, "_open_stream", decoder)
     subject.play()
-    for _ in range(len(audio) // 4410 - 1):
+    for _ in range(len(audio) // 4410 - 10):
         device.started_with.send(2205)
-    pulses, period = subject.beats()
-    # From half a second behind the decoded position, which is fed but not yet heard.
-    assert pulses and pulses[0][0] >= subject.position - player.BEATS_BEHIND
-    assert all(abs(time / beat - round(time / beat)) * beat < .015 for time, _ in pulses)
-    assert period == pytest.approx(beat, abs=.02)
+    first, step, levels = subject.kicks()
+    # From a little behind the device position, which is heard later, to the
+    # decoded audio waiting ahead of it.
+    assert subject.position - player.LEVELS_BEHIND - step < first
+    assert first + len(levels) * step <= subject.position + player.LOOKAHEAD
+    assert first + len(levels) * step > subject.position + .1
+    times = [first + i * step for i, level in enumerate(levels) if level >= .9]
+    assert times and all(min(abs(t - k) for k in kicks) < .03 for t in times)
+
+
+def test_a_kick_is_known_before_the_device_takes_it(monkeypatch):
+    subject, device = loaded_player(monkeypatch)
+    audio = drums([.2], 1)
+
+    def decoder(frame):
+        for offset in range(0, len(audio), 4410):
+            yield audio[offset:offset + 4410]
+
+    monkeypatch.setattr(subject, "_open_stream", decoder)
+    subject.play()
+    device.started_with.send(2205)
+
+    # Ready about 0.2 s after it hits, within the 0.4 s decoded ahead of the device.
+    assert subject.position == pytest.approx(.05)
+    first, step, levels = subject.kicks()
+    peak = first + step * max(range(len(levels)), key=levels.__getitem__)
+    assert max(levels) >= .9 and peak == pytest.approx(.2, abs=.015)
+
+
+def test_the_heard_time_lags_the_device_by_what_it_has_queued(monkeypatch):
+    subject, device = loaded_player(monkeypatch)
+    clock = [100.0]
+    monkeypatch.setattr(player.time, "perf_counter", lambda: clock[0])
+    subject.play()
+    assert subject.heard() == 0
+    # The device takes 50 ms periods but plays them 60 ms later than they are handed.
+    for _ in range(10):
+        device.started_with.send(2205)
+        clock[0] += .05
+    clock[0] -= .05
+    handed = subject.position
+    queued = handed - (clock[0] - 100.0)
+    assert queued == pytest.approx(.05)
+    assert subject.heard() == pytest.approx(handed - queued - player.OUTPUT_LATENCY)
+    # It runs on in real time between callbacks, never past what was handed.
+    clock[0] += .02
+    assert subject.heard() == pytest.approx(handed - queued - player.OUTPUT_LATENCY + .02)
+    clock[0] += 5
+    assert subject.heard() == subject.position
+    # Paused, it is the position.
+    subject.pause()
+    assert subject.heard() == subject.position
+
+
+def test_a_device_slow_to_start_does_not_bring_the_heard_time_up_to_the_position(monkeypatch):
+    subject, device = loaded_player(monkeypatch)
+    clock = [100.0]
+    monkeypatch.setattr(player.time, "perf_counter", lambda: clock[0])
+    subject.play()
+    # A sleeping sink takes its first period at once and the next 0.2 s later,
+    # so "handed less elapsed" reads -0.15 s; what was just handed is still queued.
+    device.started_with.send(2205)
+    clock[0] += .2
+    for _ in range(10):
+        device.started_with.send(2205)
+        clock[0] += .05
+    clock[0] -= .05
+    assert subject.heard() == pytest.approx(subject.position - .05 - player.OUTPUT_LATENCY)
+
+
+def test_decoding_runs_ahead_while_the_position_follows_the_device(monkeypatch):
+    subject, device = loaded_player(monkeypatch)
+    requests = []
+
+    def recording():
+        requested = yield array.array("h", [100] * 2048)
+        while True:
+            requests.append(requested)
+            requested = yield array.array("h", [100] * 2 * requested)
+
+    monkeypatch.setattr(subject, "_open_stream", lambda _seek_frame: recording())
+    subject.play()
+
+    assert len(device.started_with.send(2205)) == 2205 * 2
+    assert 1024 + sum(requests) >= 2205 + player.LOOKAHEAD_FRAMES
+    assert max(requests) <= player.MAX_READ_FRAMES  # miniaudio refuses a larger read
+    assert subject.position == pytest.approx(2205 / 44100)
+
+
+def test_the_queued_tail_plays_out_before_the_track_finishes(monkeypatch):
+    subject, device = loaded_player(monkeypatch)
+
+    def finite():
+        yield array.array("h", [100] * 60000)
+
+    monkeypatch.setattr(subject, "_open_stream", lambda _seek_frame: finite())
+    subject.play()
+    played = 0
+    while True:
+        try:
+            played += len(device.started_with.send(2205))
+        except StopIteration:
+            break
+        assert subject.take_event() is None
+
+    assert played == 60000
+    assert subject.take_event().kind == "finished"
+
+
+def test_an_underrun_is_silence_that_neither_plays_padding_nor_moves_the_position(monkeypatch):
+    subject, device = loaded_player(monkeypatch)
+    subject.set_volume(1.0)
+    subject._source = source = SimpleNamespace(last_frames=0)
+    ready = []
+
+    def local():
+        # Like LocalSource.take: an underrun is padded with zeros and
+        # last_frames says how many frames are real.
+        requested = 1024
+        while True:
+            source.last_frames = real = min(requested, ready.pop(0) if ready else 0)
+            requested = (yield array.array("h", [100] * 2 * real + [0] * 2 * (requested - real))) or 1024
+
+    monkeypatch.setattr(subject, "_open_stream", lambda _seek_frame: local())
+    subject.play()
+
+    assert len(device.started_with.send(1024)) == 0 and subject.position == 0
+    ready.append(1024)
+    chunk = device.started_with.send(1024)
+    assert len(chunk) == 2048 and chunk[0] == 0 and min(chunk[player.FADE_SAMPLES:]) == 100
+    assert subject.position == pytest.approx(1024 / 44100)
 
 
 def test_the_byte_of_a_position_skips_the_id3_tag():
@@ -934,7 +982,7 @@ def test_a_seek_lands_on_time_at_any_position(monkeypatch, tmp_path):
     device = FakeDevice()
     monkeypatch.setattr(subject, "_device_for", lambda rate, channels: device)
     source = player.http_source_type(miniaudio)(FakeSession(path.read_bytes()), URL)
-    subject.load(Track(title="t", permalink_url="u"), playback.Stream(url=URL, duration=200.0), None, None, source)
+    subject.load(Track(title="t", permalink_url="u"), playback.Stream(url=URL, duration=200.0), None, source)
     subject.play()
     started = time.perf_counter()
     subject.seek(149.5)
@@ -946,3 +994,9 @@ def test_a_seek_lands_on_time_at_any_position(monkeypatch, tmp_path):
             break
         heard += len(chunk) // 2
     assert abs(149.5 + heard / 44100 - 150.0) < 0.1
+
+
+def test_volume_scaling_matches_the_per_sample_rescale():
+    chunk = array.array("h", [-32768, 32767, 0, -1, 1, 12345, -12345] * 50)
+    for volume in (0.0, 0.1, 0.33, 0.8, 0.998):
+        assert player.scale_volume(chunk, volume) == array.array("h", [int(s * volume) for s in chunk])

@@ -22,6 +22,8 @@ SolidCompression=yes
 WizardStyle=modern
 SetupIconFile=icon.ico
 UninstallDisplayIcon={app}\dj-digger-gui.exe
+; Tells Explorer to refresh its icon cache, so an upgrade with a new app icon updates existing shortcuts.
+ChangesAssociations=yes
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "polish"; MessagesFile: "compiler:Languages\Polish.isl"
