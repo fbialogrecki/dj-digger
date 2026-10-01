@@ -4,9 +4,9 @@
 - Document version: 1.1
 - Product version verified: 1.2.1 (working tree)
 - Owner: Filip Białogrecki
-- Updated: 2026-09-27
-- Document lines: <!-- SPEC TOTAL LINES -->1743<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1743<!-- END SPEC MAP LIMIT -->
+- Updated: 2026-10-01
+- Document lines: <!-- SPEC TOTAL LINES -->1791<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1791<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,64 +51,64 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 143–181 |
 | 2.1 | ↳ Problem and product boundary | 145–158 |
 | 2.2 | ↳ Execution modes | 159–181 |
-| 3 | User-visible capabilities | 182–883 |
+| 3 | User-visible capabilities | 182–919 |
 | 3.1 | ↳ Track collection | 184–209 |
 | 3.2 | ↳ Link classification and exports | 210–228 |
 | 3.3 | ↳ Track statuses | 229–237 |
-| 3.4 | ↳ Audio preview | 238–380 |
-| 3.5 | ↳ Downloads and local-file matching | 381–417 |
-| 3.6 | ↳ Store purchase assistance | 418–503 |
-| 3.7 | ↳ Local library, analysis and audio export | 504–660 |
-| 3.8 | ↳ Qt Quick desktop | 661–883 |
-| 4 | System context and data flow | 884–924 |
-| 4.1 | ↳ Context diagram | 886–908 |
-| 4.2 | ↳ Collection-to-library flow | 909–924 |
-| 5 | Repository layout and component ownership | 925–993 |
-| 5.1 | ↳ Entry, orchestration, and models | 927–938 |
-| 5.2 | ↳ Network and external-system adapters | 939–955 |
-| 5.3 | ↳ Persistence, local media, and UI | 956–993 |
-| 6 | Runtime architecture and environments | 994–1105 |
-| 6.1 | ↳ Runtime and dependencies | 996–1017 |
-| 6.2 | ↳ Concurrency and lifecycle | 1018–1085 |
-| 6.3 | ↳ Local paths and environment variables | 1086–1105 |
-| 7 | Data model and persistence | 1106–1210 |
-| 7.1 | ↳ Domain objects and identity | 1108–1122 |
-| 7.2 | ↳ SQLite schema and invariants | 1123–1174 |
-| 7.3 | ↳ Crate persistence and deletion | 1175–1190 |
-| 7.4 | ↳ Configuration and credential stores | 1191–1210 |
-| 8 | Public interfaces and contracts | 1211–1264 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1213–1237 |
-| 8.2 | ↳ JSON and CSV summary input | 1238–1253 |
-| 8.3 | ↳ URL-opening contract | 1254–1264 |
-| 9 | Authentication and authorization | 1265–1310 |
-| 9.1 | ↳ SoundCloud authentication | 1267–1289 |
-| 9.2 | ↳ Gate action consent | 1290–1310 |
-| 10 | External integrations | 1311–1455 |
-| 10.1 | ↳ SoundCloud API and media | 1313–1324 |
-| 10.2 | ↳ Link hubs and download gates | 1325–1394 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1333–1380 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1382–1387 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1389–1394 |
-| 10.3 | ↳ Browsers and clipboard | 1395–1406 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1407–1455 |
-| 11 | Security requirements and threat model | 1456–1510 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1458–1476 |
-| 11.2 | ↳ Secret and personal-data handling | 1477–1492 |
-| 11.3 | ↳ File and mutation safety | 1493–1510 |
-| 12 | Privacy, lifecycle, and retention | 1511–1557 |
-| 12.1 | ↳ Data stored locally | 1513–1535 |
-| 12.2 | ↳ Data sent to third parties | 1536–1547 |
-| 12.3 | ↳ User-controlled deletion | 1548–1557 |
-| 13 | Failure behavior and current limitations | 1558–1617 |
-| 13.1 | ↳ Error isolation and reporting | 1560–1579 |
-| 13.2 | ↳ Confirmed limitations | 1580–1617 |
-| 14 | Verification, CI, and release | 1618–1712 |
-| 14.1 | ↳ Offline and live test suites | 1620–1666 |
-| 14.2 | ↳ Continuous integration and publishing | 1667–1697 |
-| 14.3 | ↳ Specification-map verification | 1698–1712 |
-| 15 | Evidence and operational references | 1713–1743 |
-| 15.1 | ↳ Primary implementation evidence | 1715–1733 |
-| 15.2 | ↳ User and historical documentation | 1734–1743 |
+| 3.4 | ↳ Audio preview | 238–409 |
+| 3.5 | ↳ Downloads and local-file matching | 410–446 |
+| 3.6 | ↳ Store purchase assistance | 447–532 |
+| 3.7 | ↳ Local library, analysis and audio export | 533–689 |
+| 3.8 | ↳ Qt Quick desktop | 690–919 |
+| 4 | System context and data flow | 920–960 |
+| 4.1 | ↳ Context diagram | 922–944 |
+| 4.2 | ↳ Collection-to-library flow | 945–960 |
+| 5 | Repository layout and component ownership | 961–1029 |
+| 5.1 | ↳ Entry, orchestration, and models | 963–974 |
+| 5.2 | ↳ Network and external-system adapters | 975–991 |
+| 5.3 | ↳ Persistence, local media, and UI | 992–1029 |
+| 6 | Runtime architecture and environments | 1030–1141 |
+| 6.1 | ↳ Runtime and dependencies | 1032–1053 |
+| 6.2 | ↳ Concurrency and lifecycle | 1054–1121 |
+| 6.3 | ↳ Local paths and environment variables | 1122–1141 |
+| 7 | Data model and persistence | 1142–1246 |
+| 7.1 | ↳ Domain objects and identity | 1144–1158 |
+| 7.2 | ↳ SQLite schema and invariants | 1159–1210 |
+| 7.3 | ↳ Crate persistence and deletion | 1211–1226 |
+| 7.4 | ↳ Configuration and credential stores | 1227–1246 |
+| 8 | Public interfaces and contracts | 1247–1300 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1249–1273 |
+| 8.2 | ↳ JSON and CSV summary input | 1274–1289 |
+| 8.3 | ↳ URL-opening contract | 1290–1300 |
+| 9 | Authentication and authorization | 1301–1346 |
+| 9.1 | ↳ SoundCloud authentication | 1303–1325 |
+| 9.2 | ↳ Gate action consent | 1326–1346 |
+| 10 | External integrations | 1347–1491 |
+| 10.1 | ↳ SoundCloud API and media | 1349–1360 |
+| 10.2 | ↳ Link hubs and download gates | 1361–1430 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1369–1416 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1418–1423 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1425–1430 |
+| 10.3 | ↳ Browsers and clipboard | 1431–1442 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1443–1491 |
+| 11 | Security requirements and threat model | 1492–1546 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1494–1512 |
+| 11.2 | ↳ Secret and personal-data handling | 1513–1528 |
+| 11.3 | ↳ File and mutation safety | 1529–1546 |
+| 12 | Privacy, lifecycle, and retention | 1547–1593 |
+| 12.1 | ↳ Data stored locally | 1549–1571 |
+| 12.2 | ↳ Data sent to third parties | 1572–1583 |
+| 12.3 | ↳ User-controlled deletion | 1584–1593 |
+| 13 | Failure behavior and current limitations | 1594–1665 |
+| 13.1 | ↳ Error isolation and reporting | 1596–1615 |
+| 13.2 | ↳ Confirmed limitations | 1616–1665 |
+| 14 | Verification, CI, and release | 1666–1760 |
+| 14.1 | ↳ Offline and live test suites | 1668–1714 |
+| 14.2 | ↳ Continuous integration and publishing | 1715–1745 |
+| 14.3 | ↳ Specification-map verification | 1746–1760 |
+| 15 | Evidence and operational references | 1761–1791 |
+| 15.1 | ↳ Primary implementation evidence | 1763–1781 |
+| 15.2 | ↳ User and historical documentation | 1782–1791 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -244,9 +244,9 @@ audio is retained in memory, up to 64 MB per source (about six minutes); once
 that cap is reached the oldest audio more than 30 s behind the read head is
 dropped first. A seek into retained audio moves the read head without a new
 decoder; only a seek outside it starts FFmpeg again. A single decoder-control
-thread handles repeated seeks; old generations cannot fill the new buffer. The audio callback only consumes
-ready samples: underrun produces silence without advancing the media position,
-while EOF and decoder failures remain distinct. Playback sources hold leases
+thread handles repeated seeks; old generations cannot fill the new buffer. Its
+underrun is padding the player drops: the device hears silence and the media
+position does not advance, while EOF and decoder failures remain distinct. Playback sources hold leases
 until their decoder has actually stopped; prefetched files are also protected
 from replacement. Local waveforms are generated independently after playback has
 started, at most 1024 peaks, and kept in the library (§7.2).
@@ -284,61 +284,89 @@ ID3v2 tag, through a view of the source that starts there, instead of letting
 miniaudio decode every frame before the target; it takes about a millisecond at
 any position and lands within tens of milliseconds on constant-bitrate MP3.
 Other sources keep the decoder's frame seek. The output device uses 50 ms
-periods. Pause only stops the device, so resuming continues what it had queued;
-seek and stop close it and the next play opens a fresh one, so audio queued from
-the old position or track never plays after the jump. The first 10 ms after
-every start fade in. While audio is fed, `beats.py` detects bass transients from
-queued PCM before volume scaling. `KickDetector.feed(chunk, start)` takes the
-track time of the first frame, so its clock follows the playhead even when a
-source reports fewer frames than it sent. Every 10 ms it takes a 512-point
-Hann-windowed FFT of stereo PCM averaged down to 11.025 kHz (46 ms window).
-Channel powers are combined without cancelling opposite stereo phases. Positive
-spectral changes are measured against a five-bin frequency maximum of the
-previous spectrum, so moving bass harmonics contribute less than fresh attacks.
-The detector compares 30-180 Hz novelty with 180-1500 Hz novelty and energy.
-Its threshold follows the last 0.6 s of attacks rather than total bass loudness.
-A candidate must rise sharply and clear a small noise floor. A 0.5 % full-band
-rise, or a 30-180 Hz level at least 15 % above its lower value of the previous
-two hops, rejects constant-power sweeps; the bass-level rise keeps a kick whose
-click fades while its body swells, leaving full-band power flat. A large
-full-band attack can also confirm a weaker spectral change. The hit must be
-bass-led: at its attack (bass novelty at least half the 180-1500 Hz novelty and
-bass level at least a quarter of the 180-1500 Hz level) or at any hop of its
-body (bass level at least the 180-1500 Hz level), so a clap or snare on the kick
-does not hide it while a lone snare stays rejected. Neither a 10 %
-full-band rise nor a subsequent RMS decay is mandatory, allowing heavily
-limited kicks to register. Sub-bass-centred changes use stricter attack contrast;
-the relaxed threshold for overlapping roll attacks applies only above a 75 Hz
-novelty centroid and within 180 ms of a confirmed hit. Hits remain at least
-60 ms apart. A local peak is confirmed one analysis hop later and timestamped
-at the window centre. A stronger peak confirmed within 60 ms of a waiting hit
-takes over its time, and a waiting hit is held while the bass novelty is still
-rising above it (up to 80 ms after its attack), so the leading edge of a kick
-never stands in for its attack. The hit is then published four hops (40 ms) later with its
-`level`, the highest 30-180 Hz level from the attack through those hops, because
-a kick's body peaks 40-60 ms after its attack while a sidechained sub is still
-ducked, whereas a bass stab is loudest at its attack. There is no additional
-decay-confirmation wait.
-Output-buffer and UI delivery latency still depend on the device.
-Strength follows the square root of the attack's share of recent peak novelty.
-This is onset detection, not instrument separation: an abruptly started bass
-note can produce one pulse, percussive synth bass can resemble a kick, and
-masked kicks can still be missed. A held tone or changing pitch must not create
-an ongoing predicted roll.
+periods. The callback generator decodes 0.4 s ahead of the device (`LOOKAHEAD`)
+and hands the device only what it asks for; each decoder read is capped at
+16,384 frames, miniaudio's limit. Only real frames enter that queue: a local
+source's underrun padding is dropped, an empty queue plays silence, and the
+position (`_offset` plus frames handed to the device) advances only with real
+audio. Volume and the 10 ms fade-in after every start apply as frames leave the
+queue, so a volume change is heard at once. Pause only stops the device, so
+resuming continues what it had queued; seek and stop close it and the next play
+opens a fresh one, so audio queued from the old position or track never plays
+after the jump. The queue lives and dies with its generator.
 
-`PulseHistory` publishes an immutable, bounded history of detected hits, with
-no BPM warm-up, predicted grid or persistent roll charge. Each hit's amplitude
-is its `level` against a reference that is the loudest level of the last two
-bars (eight beats of the track's BPM when known, else 4 s; exponential decay,
-floored at a fixed noise level): `(level / reference - 0.6) / 0.4` clamped to
-0-1, so a bass stab at 75 % of the kick pulses at 0.4, one below 60 % is not
-published, and a quieter section regains full amplitude within two bars. The first detected
-kick is available after its short analysis window, without waiting for tempo; a break produces no invented
-beats, and rolls flash at their actual detected spacing. A new decoder or seek
-clears the history but keeps the reference; a pause retains queued audio and its hits.
-`Player.beats()` returns detected (track time, amplitude) pairs from 0.5 s behind
-the decoded position to that position, plus the seconds per beat: the track's
-BPM when known, else the median 0.25-1 s gap between recent hits, else 0.5.
+`beats.py` turns that decoded PCM, before volume scaling, into a kick level of
+0-1 every 10 ms (`KickEnergy`), one per track. The light follows this
+continuous level rather than yes/no kick decisions, so a missed decision can
+never stop it. `KickEnergy.feed(chunk, start)` takes contiguous stereo s16 PCM;
+the first call after `seeked()` sets the track time of its first frame. Every
+10 ms it takes a 512-point Hann-windowed FFT of the stereo PCM averaged down to
+11.025 kHz (46 ms window), combining channel powers without cancelling opposite
+stereo phases, and keeps 21-215 Hz (ten bins). Each bin's magnitude is compared
+with its median over the surrounding ±12 hops: what holds there (a sustained
+bass, its sidechain recovery, a pad) is the reference, and only the residual
+above it counts. The level of a hop is then built in four steps:
+- **Energy:** the residual summed over 40-130 Hz.
+- **Kick-likeness:** the energy is multiplied by a weight from 0.4 to 1, held
+  through the next 150 ms of the tail. The floor keeps fills, a filtered kick
+  and bass hits visible in proportion to their energy. The weight comes from the
+  cosine similarity of the residual's next eight hops to a kick fingerprint,
+  ramped:
+  - until the track's kick is learned, `GENERIC`, the mean fingerprint of five
+    synthetic kicks (plain, 808, clicky, driven, deep) computed at import,
+    ramped from 0.45 to 0.8;
+  - after that, the track's kick, ramped from 0.6 to 0.85.
+- **Loudness:** the weighted energy is compared with the loudest of the last
+  few seconds (3 s decay). It is never compared with less than 35 % of the
+  loudest of the last half minute (30 s decay), so a breakdown after a drop
+  glows dimmer than its kicks, nor with less than a fixed floor, so silence
+  stays dark.
+- **Curve:** a 10 % knee, then linear, so a low hit shows in proportion to its
+  share of the kick's weighted energy.
+
+Each level is timestamped at the window centre less 3 ms, where a kick's level
+peaks. It is ready about 0.2 s after its sound (DELAY = 19 hops), well inside
+the player's 0.4 s lookahead: through the player, levels reach about 0.18 s
+beyond the device position.
+
+The track's kick is learned from onsets:
+- An onset is the largest summed rise of the log residual within ±3 hops, at
+  least 2.6, from the 13th hop of an analysis on.
+- Onsets whose similarity to `GENERIC` is at least 0.6 join a pool of the last
+  16. Once five of them match each other at 0.92 or more, their mean becomes
+  the track's kick, but only if it drops in pitch: the band's centroid over the
+  first two hops at least 10 Hz above that of hops 4-6. A repeated bass note
+  matches itself as well as a kick does, but it does not drop in pitch, so a
+  bass line never becomes the track's kick.
+- An onset at 0.9 or more refines it (a 10 % moving mean). After 4 s without an
+  onset at 0.85 or more, a newly formed group may replace it, so a track that
+  changes its kick follows within a few bars.
+
+Learning only sharpens the weighting; kicks glow before it. Pads and held subs
+stay dark; kicks are the brightest, and other low hits (fills, a filtered kick,
+bass stabs, plucked bass) glow dimmer, in proportion.
+
+`KickEnergy` publishes one immutable snapshot of the last 3 s of levels. Its
+learned kick and loudness outlive a seek; `seeked()` clears the levels and
+restarts the analysis, and a pause retains queued audio and its levels.
+`Player.kicks()` returns `(time of the first level, seconds between levels,
+levels)`, the levels as plain Python floats (Qt cannot pass a numpy float to
+the window), from 0.3 s behind the device position to as far ahead as decoded audio
+waits. `Player.heard()` is the track time reaching the speaker, worked out as
+follows:
+- At every callback the player notes how much it has handed to the device since
+  the device started, less the time it has been playing. The median of the last
+  32 of these is what still waits in the device's buffers; it is 0.07 s until
+  four callbacks have been timed. It is never taken as less than what the last
+  callback handed over: a device that waits before its second callback (0.2 s
+  on a sleeping PipeWire sink) and every underrun make the measurement read
+  low, even negative.
+- From the position at the last callback it subtracts that queue and a further
+  0.02 s for the audio server's quantum and the sound card, then runs on in
+  real time. It never passes the handed position.
+- Each device start begins the measurement again. Paused, it is the position.
+
+On PipeWire with 50 ms periods the measured queue is about 50-70 ms.
 `services.playback.track_waveform()` returns a track's envelope from the library's
 `waveforms` table (§7.2) or computes it from the track's own audio and stores a
 non-empty result of 1024 peaks. A local file is decoded by FFmpeg at 4 kHz; a
@@ -374,7 +402,8 @@ or a missing track ID produces a user-visible degraded state rather than
 terminating the application. A device that fails after having worked is closed and
 rebuilt on the next attempt rather than disabling playback for the session.
 Decoder EOF and failures become generation-tagged playback events inside the
-audio callback, so neither escapes through CFFI. Events from a generator made
+audio callback once the queued lookahead has played out, so neither escapes
+through CFFI and the end of a track is never cut. Events from a generator made
 stale by stop, seek, unload, or a new load are ignored. At the end of the visible
 list the final track stays loaded; pressing play again starts it from the beginning.
 
@@ -666,45 +695,52 @@ sit above the virtualized track table beside it. Status is the first table colum
 appear only in local views. Transport buttons use SVG icons with accessible labels and tooltips. The window icon is the packaged application icon (`gui/qml/icons/app.png`, 256 px: a record carrying an artwork-style barcode seeded from `dj-digger`, with a white label, on a blue-to-bordeaux tile; `scripts/app_icon.py` draws it and writes the same design to the Windows `.ico` and macOS `.icns`), so the title bar and taskbar show it alongside the executable's shortcut icon. The desktop file name (the Wayland app_id) is `dj-digger`, so a Linux desktop entry named `dj-digger.desktop` supplies the dock name and icon of the open window; the repository does not ship that entry. The desktop waveform rises
 from the bottom edge of its panel, never mirrored, filling the space down to the
 transport row; the desktop uses the same averaged, normalized envelope and
-level curve in `waveform.py`. Desktop bars share one vertical gradient from
-bordeaux at the bottom to blue at the top of the panel; the unplayed layer draws
-it with reduced opacity (0.38 dark theme, 0.45 light theme), and a 2 px playhead
-in the foreground colour is placed at subpixel precision without a glow. While a track plays, a 25 ms backend tick sends a
-small audio snapshot and, when it differs from the last one sent, a `beats` event (key, pulses, period) containing actual
-hits from queued audio with their amplitudes and the seconds per beat. Table cells and transport state bind to the
+level curve in `waveform.py`. Desktop bars share one vertical gradient from a
+deep raspberry at the bottom to a deep blue at the top of the panel; the unplayed layer
+draws it with reduced opacity (0.38 dark theme, 0.45 light theme), and a 2 px
+playhead in the foreground colour is placed at subpixel precision. While a track plays, a 25 ms backend tick sends a
+small audio snapshot and, when it differs from the last one sent, a `kicks` event (key, start, step, levels) containing the
+kick levels around the device position, including those decoded but not yet heard. The snapshot carries `heard`, the
+track time reaching the speaker (`Player.heard()`), and `at`, the epoch time it was taken. Table cells and transport state bind to the
 bridge's `audioKey` and `playing`, which change only when the track or play state does, and the waveform bar levels
 are recomputed only when the bar count (one per 3 px) changes; bar canvases repaint 50 ms after a resize settles.
-The window schedules these as they are heard:
-- Clock: it follows audio position between ticks. A new key, resume or jump
-  over 150 ms re-anchors it; smaller differences ease by a quarter. Scheduling
-  never advances past the latest decoded position. While a track plays with
-  animations on, each frame also moves the playhead to this clock minus the
-  pulse timing, so it slides with the heard audio instead of stepping with the
+The window shows these as they are heard:
+- Clock: it starts from the snapshot's `heard`, advanced by the time since
+  `at`, so delivery delay does not make the light late. It runs in real time
+  between snapshots, never past the latest snapshot position; smaller
+  differences ease by a quarter, and one over 150 ms re-anchors it. There is
+  no delay setting. While a track plays with animations on, each frame also
+  moves the playhead to heard audio, so it slides instead of stepping with the
   snapshots; paused, or with animations off, it shows the snapshot position.
-- Flash: a `FrameAnimation` calls `pulseTick`. View → Pulse timing compensates
-  for the output queue (0-400 ms, default 70, in 10 ms steps; saved values remain
-  unchanged). A detected timestamp flashes at most once, including across a
-  pause/resume at the same position. Hits up to 100 ms late
-  can still flash, including the first queued attack; older hits are skipped.
-  Events from another track are ignored.
-- Envelope: one `flash` scalar (0-1) drives every glow. A hit rises from the
-  current value to its amplitude over 25 ms, holds 40 ms, then releases
-  exponentially with a time constant of 0.3 × the event's `period`, bounded to
-  90-180 ms, so the glow breathes with the kick and is nearly gone by the next
-  beat. A hit never adds to a running flash: it raises the peak at most. A hit
-  under 100 ms after the previous peak merges into it without a new attack, and
-  a hit within half a beat of the last one shown is scaled to 0.6, so kick rolls
-  read as one swell with the main kicks accented. A clock re-anchor clears the
-  envelope.
-- The waveform and the artwork keep their normal base colours, including
-  while paused. A hit crossfades the played region of the waveform and the
-  artwork backdrop toward their peak colours; the unplayed region never pulses.
-  Peak colours keep the hue with saturation + 0.3 and lightness + 0.06 (dark
-  theme) or + 0.08 (light theme); a red (linear R ≥ 70 % of R+G+B, the bordeaux
-  tones) only lightens, by 0.02 (dark) or 0.03 (light). The peak bars also carry
-  a halo in the peak accent colour, two translucent rims (3 px at 12 % and 1.5 px
-  at 22 % alpha) painted once with the layer; Canvas `shadowBlur` is not used,
-  since one blurred paint held the UI thread for about 1.5 s. The peak layers reach full opacity at `flash` = 1. Each palette tone's
+- Light: a `FrameAnimation` calls `pulseTick`, which samples the kick level
+  40 ms after heard audio (`displayLead`), interpolating between the 10 ms
+  levels, because a computed frame reaches the eye two or three frames later
+  (scene graph, compositor, monitor); levels of another track count as 0. A `flash` scalar (0-1) jumps up to the level at once and
+  otherwise falls in a straight line, from full to dark in 150 ms; `glow`, which
+  drives every light, is `flash` above a 15 % gate rescaled to 0-1, since even a
+  faint neon tint reads as light. So every kick shows in proportion, softer low
+  hits show dimmer and shorter, and the light goes out between kicks even at
+  174 BPM. A new track or a jump over 0.5 s clears it; a re-anchor alone does
+  not.
+- The waveform and the artwork keep their base colours at rest, including while
+  paused, and the unplayed region never pulses. With a kick, a neon window over
+  the played bars, 160 px ending at the cursor, fades in to `flash`: the same
+  gradient in neon, brightest at the cursor and fading out to the left. While
+  lit, it is moved and repainted only when the cursor has moved on by a bar.
+  Where the scene graph runs on the GPU, a `MultiEffect` (`QtQuick.Effects`)
+  adds a glow around those bars, a zero-offset shadow in the neon blue; the
+  software renderer runs no shaders, so there the colour alone carries the
+  kick. The cursor tints toward the neon blue with `flash`. On the dark theme
+  each neon colour is over twice as bright as its resting colour, so a kick
+  reads as light rather than a change of hue (a lighter pastel rest read as lit,
+  and the kick as the light going out), and both are saturated, rest at least
+  0.7 and neon at least 0.8 HSV saturation, not pastel; on the light theme the
+  neon is the more vivid. No waveform colour is a saturated red (linear R ≥ 80 % of R+G+B), the
+  lit window is small, and the resting colours keep 3:1 against the panel and
+  window background; the offline GUI test asserts these in both themes. The artwork backdrop crossfades toward peak colours
+  that keep the hue with saturation + 0.3 and lightness + 0.06 (dark theme)
+  or + 0.08 (light theme); a red (linear R ≥ 70 % of R+G+B, the bordeaux
+  tones) only lightens, by 0.02 (dark) or 0.03 (light). Each palette tone's
   base/peak pair stays under the WCAG 2.3.1 general flash threshold (relative
   luminance change below 0.1) and red flash threshold (red value change below
   20); the offline GUI test asserts both in both themes.
@@ -727,7 +763,7 @@ surface carries a barcode of the track: 18 to 27 radial marks spread evenly
 around the record, each placed at random within its own slot, spanning the
 whole groove, its inner or outer half, its middle, or its thirds with a gap,
 with dots, laid out by a seeded generator so a track always draws the same code. The record turns
-while the track plays; with each beat flash the backdrop gradient crossfades
+while the track plays; with the kick light the backdrop gradient crossfades
 toward its peak colours. The backdrop is never dimmed. The artwork is hidden when the panel is narrower
 than 640 px. These
 details arrive in a separate `nowPlaying` event when a track loads or its rows
@@ -756,8 +792,8 @@ event arrives the artwork shows a white backdrop and label on a blank record and
 noise, each rising and falling with its own random range, speed and phase, unrelated to its neighbours
 (about 30 repaints a second of the unplayed layer only). A track change scatters the bars on screen into
 that noise (450 ms); when the waveform arrives the bars settle from their current heights into the envelope (700 ms) while the key colours and the record code fade in
-(600 ms). Without animations the placeholder stands still and both switch at once. The waveform and artwork keep their base colours, and detected kick flashes
-are part of this motion. Theme changes and recycled table delegates
+(600 ms). Without animations the placeholder stands still and both switch at once. The waveform and artwork keep their base colours, and the kick light
+is part of this motion. Theme changes and recycled table delegates
 are not animated. Space always belongs to playback, wherever focus
 is, except while typing in a text field or inside a modal dialog: it starts the
 selected track, toggles it when it is the one loaded, or toggles the loaded track
@@ -811,7 +847,7 @@ selected rows pair their foreground with the selected background in both themes.
 Playlist and pinned-folder selection explicitly pair the accent background
 with selection text in both themes. At the 760×520 minimum window size, sidebar width is constrained to leave room for transport controls, volume is flexible, and the selection bar keeps to one icon-only row. The track table retains horizontal
 scrolling for columns that do not fit.
-Window dimensions, column widths, hidden columns, column order, sidebar width and visibility, language, theme, key notation, the animation switch and the pulse timing persist privately in `config_dir()/gui.json`; unknown keys are dropped when saving and values are validated when loading. The playback level is a shared `volume` field in the
+Window dimensions, column widths, hidden columns, column order, sidebar width and visibility, language, theme, key notation and the animation switch persist privately in `config_dir()/gui.json`; unknown keys (including the removed pulse timing) are dropped when saving and values are validated when loading. The playback level is a shared `volume` field in the
 common configuration: the runtime applies it when the player is created and
 saves it on shutdown, so the desktop starts at the level last set. Existing data, credentials and configuration paths stay
 unchanged on every platform.
@@ -977,7 +1013,7 @@ playback time and are not stored in the crate record.
   `logging_setup.py` owns private rotating logs and native-fault output rebinding;
   `analysis_report.py` owns the streamed last-analysis diagnostic file.
 - `player.py` owns buffering, decoding, byte-offset MP3 seeking and device
-  lifecycle; `beats.py` owns bass-transient detection and the bounded pulse history; `hls_audio.py` owns MP3 HLS buffering. `media.py` owns
+  lifecycle; `beats.py` owns the kick level analysis, the track's learned kick and the bounded level history; `hls_audio.py` owns MP3 HLS buffering. `media.py` owns
   FFmpeg/ffprobe invocation and PCM decoding; `local_audio.py` owns local playback
   sources and the cached envelope; `analysis.py` owns BPM/key analysis and
   key-name parsing (`key_names`). Stream resolution
@@ -1585,6 +1621,18 @@ as player events instead of escaping through Python-CFFI.
 - DNS names are not resolved and pinned by the automatic-fetch safety check.
 - SoundCloud playback supports progressive MP3 and MP3 HLS (up to 50 MiB).
   AAC/Opus HLS, encrypted streams and snippet-only tracks are not full previews.
+- The kick level weighs low hits by how much they sound like a kick, never
+  below 0.4: fills, a filtered kick and bass hits glow dimmer, in proportion; a
+  track with no kick at all glows on its low hits. A bass note hit together
+  with a kick blurs its fingerprint and dims it, and a long 808 over a
+  sidechained sub leaks the most light between kicks. Levels were tuned on
+  synthetic mixes and checked on nine tracks without human-labelled kick times.
+- `displayLead` (40 ms) is a constant for the display path; a slower monitor or
+  compositor still shows the light slightly late.
+- The output's own latency beyond the measured queue is a constant 0.02 s: an
+  output with more (Bluetooth headphones, roughly 120-220 ms) sees the light
+  early. Decoding runs on the audio callback; on a network slower than playback
+  it can wait for audio needed only 0.4 s later.
 - Bandcamp cart automation and Beatport release lookup support linked products
   only and depend on current store interfaces. A graphical session is required
   to show the completed cart, to finish items by hand, and for the Bandcamp

@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Controls.impl
 import QtQuick.Layouts
 import QtQuick.Dialogs
+import QtQuick.Effects
 
 ApplicationWindow {
     id: root
@@ -46,93 +47,90 @@ ApplicationWindow {
         target: desktop.model
         function onStatusFlashed(keys) { if (root.motion) { root.flashKeys = keys; flashTimer.restart() } }
     }
-    // Normal colours remain visible at rest; only detected bass attacks add saturation.
+    // Normal colours remain visible at rest; only kicks light them up.
     readonly property bool live: desktop.playing
-    // PCM has already entered the output queue. The offset compensates for the
-    // speaker buffer, independently of detection (View → Pulse timing).
-    property int pulseOffset: 70
-    // The pulse envelope: a hit rises to its peak over 25 ms, holds 40 ms and
-    // releases exponentially over a third of a beat (90-180 ms), so the glow
-    // breathes with the kick instead of strobing. Later hits hold the peak and
-    // never add up; hits under 100 ms apart merge into one swell.
+    // The light follows the kick level the player computes ahead of the speaker,
+    // sampled at the heard time: it jumps up with a kick at once and falls straight
+    // to dark within 150 ms, so every kick shows in proportion, none is missed, and
+    // the light goes out between kicks even at 174 BPM. Below 15 % nothing shows:
+    // even a faint neon tint reads as light.
+    readonly property real fall: 150
+    readonly property real gate: .15
+    // A frame reaches the eye two or three frames after it is computed (scene graph,
+    // compositor, monitor), so the light samples the level that much ahead.
+    readonly property real displayLead: .04
     property real flash: 0
-    property real peak: 0
-    property real peakAt: 0
-    property real peakFrom: 0
-    readonly property real glow: flash
-    // Pulses are copied once per change; the frame loop reads these, not the Python property.
-    property string beatKey: ""
-    property var beatPulses: []
-    property real beatPeriod: .5
+    readonly property real glow: Math.max(0, (flash - gate) / (1 - gate))
+    // Levels are copied once per change; the frame loop reads these, not the Python property.
+    property string kickKey: ""
+    property real kickStart: 0
+    property real kickStep: .01
+    property var kickLevels: []
     Connections {
         target: desktop
-        function onBeatsChanged() {
-            root.beatKey = desktop.beats.key || ""
-            root.beatPulses = desktop.beats.pulses || []
-            root.beatPeriod = desktop.beats.period || .5
+        function onKicksChanged() {
+            root.kickKey = desktop.kicks.key || ""
+            root.kickStart = desktop.kicks.start || 0
+            root.kickStep = desktop.kicks.step || .01
+            root.kickLevels = desktop.kicks.levels || []
         }
     }
-    readonly property real release: Math.max(90, Math.min(180, 300 * beatPeriod))
     readonly property bool pulsing: live && motion
+    // The track time reaching the speaker at clockAt, from the player's own
+    // measurement of what it has queued; -1 until the first snapshot.
     property real audioClock: -1
     property real clockAt: 0
     property real lastPosition: 0
     property string clockKey: ""
-    property real lastFired: -1
-    property real lastShown: -1
+    property real lastTick: 0
     // Heard audio time, interpolated every frame while pulsing; -1 falls back to the snapshot position.
     property real playhead: -1
-    onPulsingChanged: if (!pulsing) { peak = 0; flash = 0; audioClock = -1; playhead = -1 }
+    onPulsingChanged: if (!pulsing) { flash = 0; audioClock = -1; playhead = -1 }
     Connections {
         target: desktop
-        function onAudioChanged() { if (root.pulsing) root.syncClock(desktop.audio.position, Date.now()) }
+        function onAudioChanged() {
+            let audio = desktop.audio
+            if (root.pulsing) root.syncClock(audio.heard === undefined ? audio.position : audio.heard, audio.at ? audio.at * 1000 : Date.now(), audio.position)
+        }
     }
     FrameAnimation {
         running: root.pulsing && root.visibility !== Window.Minimized
         onTriggered: root.pulseTick(Date.now())
     }
-    function syncClock(position, now) {
+    // ``heard`` was the speaker's track time at ``at`` (ms since the epoch).
+    function syncClock(heard, at, position, now) {
+        now = now === undefined ? Date.now() : now
+        heard += (now - at) / 1000
         let predicted = audioClock + (now - clockAt) / 1000
         let key = desktop.audioKey
-        if (audioClock < 0 || key !== clockKey || Math.abs(position - predicted) > .15) {
-            audioClock = position
-            // Include the first queued attack, even when it arrived just before
-            // the first UI tick. pulseTick still rejects anything over 100 ms late.
-            if (key !== clockKey || Math.abs(position - lastPosition) > .15)
-                lastFired = position - pulseOffset / 1000 - .101
-            peak = 0; flash = 0; lastShown = -1
-            playhead = Math.max(0, position - pulseOffset / 1000)
+        // Another track or a seek starts over; small differences ease in.
+        let jumped = key !== clockKey || Math.abs(position - lastPosition) > .5
+        if (audioClock < 0 || jumped || Math.abs(heard - predicted) > .15) {
+            audioClock = heard
+            if (jumped) flash = 0
         } else {
-            audioClock = predicted + .25 * (position - predicted)
+            audioClock = predicted + .25 * (heard - predicted)
         }
+        playhead = Math.max(0, Math.min(position, audioClock))
         clockKey = key
         lastPosition = position
         clockAt = now
     }
+    // The kick level at a track time, between the 10 ms levels; 0 outside them.
+    function kickLevel(time) {
+        if (kickKey !== clockKey) return 0
+        let x = (time - kickStart) / kickStep, i = Math.floor(x), levels = kickLevels
+        if (i < 0 || i >= levels.length) return 0
+        return i + 1 < levels.length ? levels[i] + (levels[i + 1] - levels[i]) * (x - i) : levels[i]
+    }
     function pulseTick(now) {
         if (!pulsing || audioClock < 0) return
-        let heard = Math.min(lastPosition, audioClock + (now - clockAt) / 1000 - pulseOffset / 1000)
+        let heard = Math.min(lastPosition, audioClock + (now - clockAt) / 1000)
         playhead = Math.max(0, heard)
-        if (beatKey !== clockKey) return
-        let pulses = beatPulses, due = -1
-        for (let i = 0; i < pulses.length; i++)
-            if (pulses[i][0] <= heard && pulses[i][0] > lastFired + .001) due = i
-        if (due >= 0) {
-            lastFired = pulses[due][0]
-            if (heard - lastFired <= .1) {
-                let amplitude = pulses[due][1]
-                // A hit within half a beat of the last one shown is the roll, not the kick.
-                if (lastShown >= 0 && lastFired - lastShown < .5 * beatPeriod) amplitude *= .6
-                lastShown = lastFired
-                if (peak > 0 && now - peakAt < 100) peak = Math.max(peak, amplitude)
-                else { peakFrom = flash; peak = Math.max(amplitude, flash); peakAt = now }
-            }
-        }
-        if (peak <= 0) return
-        let age = now - peakAt
-        flash = age < 25 ? peakFrom + (peak - peakFrom) * age / 25
-              : age < 65 ? peak : peak * Math.exp(-(age - 65) / release)
-        if (age >= 65 && flash < .005) { flash = 0; peak = 0 }
+        let elapsed = Math.max(0, now - lastTick)
+        lastTick = now
+        flash = Math.max(kickLevel(heard + displayLead), flash - elapsed / fall)
+        if (flash < .005) flash = 0
     }
     // One shared sweep for every download fill, running only while something is busy.
     property real shimmerPhase: 0
@@ -323,7 +321,6 @@ ApplicationWindow {
         if (s.sidebarVisible === false) sidebarVisible = false
         if (s.animations === false) animations = false
         keyNotation = s.keyNotation === "classic" ? "classic" : "camelot"
-        if (Number.isInteger(s.pulseOffset) && s.pulseOffset >= 0 && s.pulseOffset <= 400) pulseOffset = s.pulseOffset
         desktop.language(languageCode)
         table.forceActiveFocus()
     }
@@ -334,7 +331,7 @@ ApplicationWindow {
             for (let i = 0; i < 10; i++) if (i !== titleColumn && columnVisible(i)) columnWidths[i] = table.columnWidth(i)
             desktop.saveSettings({sidebarWidth: sidebar.width, sidebarVisible: sidebarVisible, width: width, height: height, language: languageCode,
                                   theme: themeChoice, columnWidths: columnWidths, hiddenColumns: hiddenColumns, columnOrder: columnOrder,
-                                  keyNotation: keyNotation, animations: animations, pulseOffset: pulseOffset})
+                                  keyNotation: keyNotation, animations: animations})
             desktop.close()
         }
     }
@@ -448,14 +445,6 @@ ApplicationWindow {
                 Action { text: qsTr("Classic (Am)"); checkable: true; checked: root.keyNotation === "classic"; ActionGroup.group: notationGroup; onTriggered: root.keyNotation = "classic" }
             }
             Action { id: animationsAction; text: qsTr("Animations"); checkable: true; onTriggered: root.animations = !root.animations }
-            // Tuned by ear while a track plays: the speaker delay differs per machine.
-            AppMenu {
-                title: qsTr("Pulse timing")
-                Action { text: qsTr("Delay: %1 ms").arg(root.pulseOffset); enabled: false }
-                Action { text: qsTr("Pulse earlier (−10 ms)"); enabled: root.pulseOffset > 0; onTriggered: root.pulseOffset = Math.max(0, root.pulseOffset - 10) }
-                Action { text: qsTr("Pulse later (+10 ms)"); enabled: root.pulseOffset < 400; onTriggered: root.pulseOffset = Math.min(400, root.pulseOffset + 10) }
-                Action { text: qsTr("Reset"); onTriggered: root.pulseOffset = 70 }
-            }
         }
         AppMenu {
             title: qsTr("Settings")
@@ -586,8 +575,7 @@ ApplicationWindow {
     component WaveformBars: Canvas {
         id: bars
         property bool played: false
-        property bool glow: false
-        onPaint: waveform.paintBars(getContext("2d"), width, height, played, glow)
+        onPaint: waveform.paintBars(getContext("2d"), width, height, played)
         // A resize repaints once it settles; a window or sidebar drag would otherwise paint every frame.
         Timer { id: settle; interval: 50; onTriggered: bars.requestPaint() }
         onWidthChanged: settle.restart()
@@ -720,6 +708,17 @@ ApplicationWindow {
             }
         }
     }
+    // The waveform rests in deep, saturated tones and lights up in neon on a kick,
+    // foot (raspberry side) to top (blue side). On the dark theme the neon is over
+    // twice as bright as the rest, so a kick reads as light, not as a change of hue
+    // (a light pastel rest looked lit and the kick looked like it went out), and
+    // neither is pastel. On the light theme the kick is the more vivid. No colour is
+    // a saturated red, the lit window is small (160 px), and the rest colours keep
+    // 3:1 against the panel.
+    readonly property color waveRestFoot: dark ? "#b8286a" : "#a8506f"
+    readonly property color waveRestTop: dark ? "#3a5fd6" : "#5577c9"
+    readonly property color waveNeonFoot: dark ? "#ff2fa8" : "#c8007f"
+    readonly property color waveNeonTop: dark ? "#1e9bff" : "#1f56ff"
     // The same hue, more saturated and lighter: a kick makes a colour glow without
     // washing it out. A red (from 70 % of linear R+G+B) only lightens, and less, so
     // the bordeaux end stays under the WCAG 2.3.1 red-flash threshold.
@@ -1019,52 +1018,93 @@ ApplicationWindow {
                         readonly property real fraction: scrub >= 0 ? scrub : pending >= 0 ? pending : duration > 0 ? Math.min(1, heard / duration) : 0
                         onPositionChanged: if (pending >= 0 && Math.abs(position / Math.max(1, duration) - pending) < 0.02) pending = -1
                         Timer { id: pendingTimer; interval: 1500; onTriggered: waveform.pending = -1 }
-                        function paintBars(ctx, width, height, played, glow) {
-                            ctx.reset()
-                            // Bordeaux at the foot of every bar rising into blue at the top of the panel;
-                            // the glow layer is the same gradient at its peak colours.
+                        function gradient(ctx, height, foot, top) {
                             let gradient = ctx.createLinearGradient(0, height, 0, 0)
-                            gradient.addColorStop(0, glow ? root.peakColor(root.accent2) : root.accent2)
-                            gradient.addColorStop(1, glow ? root.peakColor(root.accent) : root.accent)
-                            ctx.fillStyle = gradient
+                            gradient.addColorStop(0, foot)
+                            gradient.addColorStop(1, top)
+                            return gradient
+                        }
+                        function paintBars(ctx, width, height, played) {
+                            ctx.reset()
+                            // Raspberry at the foot of every bar rising into blue at the top of the panel.
+                            ctx.fillStyle = gradient(ctx, height, root.waveRestFoot, root.waveRestTop)
                             ctx.globalAlpha = played ? 1 : root.dark ? .38 : .45
                             let count = columns, step = width / count, bar = Math.max(1, step - 1)
-                            let values = [], heights = []
+                            let values = []
                             for (let i = 0; i < count; i++) values.push(level(i))
-                            for (let i = 0; i < count; i++) heights.push(Math.max(1, values[i] * (height - 2)))
                             // What is on screen, for the next track change to scatter from.
                             if (!played) shown = values
-                            if (glow) {
-                                // Light spills around the bars at the peak: two widening translucent rims.
-                                // Not shadowBlur, which took the UI thread 1.5 s per paint.
-                                let halo = root.peakColor(root.accent)
-                                for (let rim of [[3, .12], [1.5, .22]]) {
-                                    ctx.fillStyle = Qt.rgba(halo.r, halo.g, halo.b, rim[1])
-                                    for (let i = 0; i < count; i++)
-                                        ctx.fillRect(i * step - rim[0], height - heights[i] - rim[0], bar + 2 * rim[0], heights[i] + rim[0])
-                                }
-                                ctx.fillStyle = gradient
+                            for (let i = 0; i < count; i++) {
+                                let barHeight = Math.max(1, values[i] * (height - 2))
+                                ctx.fillRect(i * step, height - barHeight, bar, barHeight)
                             }
-                            for (let i = 0; i < count; i++) ctx.fillRect(i * step, height - heights[i], bar, heights[i])
+                        }
+                        // Only the bars under the neon window ending at the cursor, in neon, brightest
+                        // at the cursor and fading out to the left; ``left`` is the window's x.
+                        function paintNeon(ctx, left, width, height) {
+                            ctx.reset()
+                            ctx.fillStyle = gradient(ctx, height, root.waveNeonFoot, root.waveNeonTop)
+                            let count = columns, step = waveform.width / count, bar = Math.max(1, step - 1)
+                            for (let i = Math.max(0, Math.floor(left / step)); i < count && i * step < left + width; i++) {
+                                ctx.globalAlpha = Math.max(0, Math.min(1, (i * step + bar - left) / width))
+                                let barHeight = Math.max(1, level(i) * (height - 2))
+                                ctx.fillRect(i * step - left, height - barHeight, bar, barHeight)
+                            }
                         }
                         // The unplayed region stays in shadow and never pulses.
                         WaveformBars { objectName: "unplayedBars"; anchors.fill: parent }
-                        // Only the played region crossfades to its peak colours on a kick.
+                        // Only the played region lights up on a kick, and only just behind the cursor.
                         Item {
                             clip: true; visible: waveform.ready
                             anchors { top: parent.top; bottom: parent.bottom; left: parent.left }
                             width: waveform.fraction * waveform.width
                             WaveformBars { objectName: "playedBars"; width: waveform.width; height: waveform.height; played: true }
-                            // The opaque played base keeps its normal colours under the flash.
-                            WaveformBars {
-                                objectName: "kickBars"; width: waveform.width; height: waveform.height; played: true; glow: true
-                                opacity: root.glow
+                            // The bars just behind the cursor, repainted only when the light comes on or
+                            // the cursor has moved on by a bar (a few times a second at most).
+                            Canvas {
+                                id: neonBars; objectName: "kickBars"
+                                width: 160; height: waveform.height
+                                // Drawn by the glow effect when there is one, which fades it itself.
+                                opacity: kickGlow.active ? 1 : root.glow
+                                visible: !kickGlow.active
+                                onPaint: waveform.paintNeon(getContext("2d"), x, width, height)
+                                property bool stale: true
+                                function follow() {
+                                    let left = waveform.fraction * waveform.width - width
+                                    if (stale || Math.abs(left - x) >= waveform.width / waveform.columns) {
+                                        x = left
+                                        stale = false
+                                        requestPaint()
+                                    }
+                                }
+                                Connections {
+                                    target: root
+                                    function onGlowChanged() { if (root.glow > 0) neonBars.follow() }
+                                    function onDarkChanged() { neonBars.stale = true }
+                                }
+                                Connections { target: waveform; function onRepaint() { neonBars.stale = true } }
+                                onHeightChanged: stale = true
+                            }
+                            // A real glow where the GPU draws it; the software renderer runs no shaders,
+                            // so there the neon colour alone carries the kick.
+                            Loader {
+                                id: kickGlow; objectName: "kickGlow"
+                                active: GraphicsInfo.api !== GraphicsInfo.Software && GraphicsInfo.api !== GraphicsInfo.Unknown
+                                x: neonBars.x; width: neonBars.width; height: neonBars.height
+                                sourceComponent: MultiEffect {
+                                    source: neonBars
+                                    visible: root.glow > .01; opacity: root.glow
+                                    autoPaddingEnabled: true; blurMax: 16
+                                    shadowEnabled: true; shadowColor: root.waveNeonTop; shadowBlur: .6
+                                    shadowHorizontalOffset: 0; shadowVerticalOffset: 0
+                                }
                             }
                         }
                         // Subpixel position: the playhead slides instead of stepping a pixel at a time.
                         Rectangle {
                             objectName: "cursor"; antialiasing: true
-                            x: Math.min(waveform.width - 2, waveform.fraction * waveform.width); width: 2; height: parent.height; color: root.fg
+                            x: Math.min(waveform.width - 2, waveform.fraction * waveform.width); width: 2; height: parent.height
+                            color: Qt.tint(root.fg, Qt.rgba(root.waveNeonTop.r, root.waveNeonTop.g, root.waveNeonTop.b, root.glow))
                         }
                         MouseArea {
                             id: waveformMouse

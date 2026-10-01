@@ -375,7 +375,7 @@ will then remain manual.
 
 - **In-memory SoundCloud preview**: Decodes progressive MP3 or MP3 HLS via `miniaudio`. HLS buffering is limited to 50 MiB; audio is not saved to disk.
 - **Prefetch and automatic advance**: Prepares the next visible track during the final 20 seconds and advances at the end of playback. Network and device conditions can still cause buffering.
-- **Waveform**: Played and unplayed regions are drawn in the desktop player; the desktop can flash on detected kicks (animation switch in its settings). Local-file waveforms are generated separately and cached.
+- **Waveform**: Played and unplayed regions are drawn in the desktop player; the desktop glows with the kick drum's level, not the bass line, computed from audio decoded ahead of the speaker (animation switch in its settings). Local-file waveforms are generated separately and cached.
 - **Availability errors**: SoundCloud account/region restrictions, missing streams and unsupported formats are reported separately. A public track page does not guarantee an available stream.
 
 ---

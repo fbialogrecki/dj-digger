@@ -1,11 +1,11 @@
 import array
 import threading
+from types import SimpleNamespace
 
 import pytest
 from helpers import drums
 
 from dj_digger import player, waveform
-from dj_digger.beats import KickDetector
 from dj_digger.models import Track
 from dj_digger.services import playback
 from dj_digger.soundcloud import SoundCloudError
@@ -797,51 +797,12 @@ def test_audio_fades_in_after_every_start(monkeypatch):
     assert device.started_with.send(1024)[0] == 0
 
 
-def detect(audio, start=0.0):
-    detector = KickDetector()
-    return [kick for offset in range(0, len(audio), 4410)
-            for kick in detector.feed(audio[offset:offset + 4410], start + offset / 2 / 44100)]
-
-
-def test_kicks_are_found_on_time_through_a_roll():
-    beat = 60 / 128
-    four = [i * beat for i in range(8)]
-    eighths = [four[-1] + beat + i * beat / 2 for i in range(8)]
-    sixteenths = [eighths[-1] + beat / 2 + i * beat / 4 for i in range(16)]
-    truth = four + eighths + sixteenths
-    kicks = detect(drums(truth, truth[-1] + .5), start=30.0)
-    # Every hit once, within 10 ms, timed on the track rather than from the start of playback.
-    assert len(kicks) == len(truth)
-    assert all(abs(kick.time - 30.0 - t) < .01 for kick, t in zip(kicks, truth))
-    assert all(kick.strength > .5 for kick in kicks)
-
-
-def test_a_held_bass_or_silence_is_not_a_kick():
-    # Starting a held tone can produce one onset, but never repeated pulses.
-    held = detect(drums([], 3, bass=.5))
-    assert len(held) <= 1 and all(k.time <= .015 for k in held)
-    assert detect(array.array("h", bytes(44100 * 4))) == []
-    # A quiet kick after a loud drop still shows once the drop has been gone a few seconds.
-    loud, quiet = drums([0.0], 6), drums([0.0], 1)
-    quiet = array.array("h", (sample // 6 for sample in quiet))
-    assert len(detect(loud + quiet)) == 2
-
-
-def test_kicks_keep_time_with_the_start_each_chunk_is_given():
-    """A source can report fewer frames than it sent; the start of each chunk resyncs the clock."""
-    audio = drums([0.25, 1.25], 1.5)
-    detector = KickDetector()
-    kicks = detector.feed(audio[:44100], 10.0)
-    # The second second is said to start 0.5 s later than its samples would put it.
-    kicks += detector.feed(audio[44100:], 11.0)
-    assert [kick.time for kick in kicks] == pytest.approx([10.25, 11.75], abs=.015)
-
-
-def test_the_player_reads_detected_hits_around_its_position(monkeypatch):
+def test_the_player_reads_kick_levels_around_its_position(monkeypatch):
     subject, device = loaded_player(monkeypatch)
     subject.set_volume(1.0)
     beat = 60 / 128
-    audio = drums([i * beat for i in range(12)], 12 * beat)
+    kicks = [.25 + i * beat for i in range(12)]
+    audio = drums(kicks, 12 * beat)
 
     def decoder(frame):
         for offset in range(0, len(audio), 4410):
@@ -849,13 +810,139 @@ def test_the_player_reads_detected_hits_around_its_position(monkeypatch):
 
     monkeypatch.setattr(subject, "_open_stream", decoder)
     subject.play()
-    for _ in range(len(audio) // 4410 - 1):
+    for _ in range(len(audio) // 4410 - 10):
         device.started_with.send(2205)
-    pulses, period = subject.beats()
-    # From half a second behind the decoded position, which is fed but not yet heard.
-    assert pulses and pulses[0][0] >= subject.position - player.BEATS_BEHIND
-    assert all(abs(time / beat - round(time / beat)) * beat < .015 for time, _ in pulses)
-    assert period == pytest.approx(beat, abs=.02)
+    first, step, levels = subject.kicks()
+    # From a little behind the device position, which is heard later, to the
+    # decoded audio waiting ahead of it.
+    assert subject.position - player.LEVELS_BEHIND - step < first
+    assert first + len(levels) * step <= subject.position + player.LOOKAHEAD
+    assert first + len(levels) * step > subject.position + .1
+    times = [first + i * step for i, level in enumerate(levels) if level >= .9]
+    assert times and all(min(abs(t - k) for k in kicks) < .03 for t in times)
+
+
+def test_a_kick_is_known_before_the_device_takes_it(monkeypatch):
+    subject, device = loaded_player(monkeypatch)
+    audio = drums([.2], 1)
+
+    def decoder(frame):
+        for offset in range(0, len(audio), 4410):
+            yield audio[offset:offset + 4410]
+
+    monkeypatch.setattr(subject, "_open_stream", decoder)
+    subject.play()
+    device.started_with.send(2205)
+
+    # Ready about 0.2 s after it hits, within the 0.4 s decoded ahead of the device.
+    assert subject.position == pytest.approx(.05)
+    first, step, levels = subject.kicks()
+    peak = first + step * max(range(len(levels)), key=levels.__getitem__)
+    assert max(levels) >= .9 and peak == pytest.approx(.2, abs=.015)
+
+
+def test_the_heard_time_lags_the_device_by_what_it_has_queued(monkeypatch):
+    subject, device = loaded_player(monkeypatch)
+    clock = [100.0]
+    monkeypatch.setattr(player.time, "perf_counter", lambda: clock[0])
+    subject.play()
+    assert subject.heard() == 0
+    # The device takes 50 ms periods but plays them 60 ms later than they are handed.
+    for _ in range(10):
+        device.started_with.send(2205)
+        clock[0] += .05
+    clock[0] -= .05
+    handed = subject.position
+    queued = handed - (clock[0] - 100.0)
+    assert queued == pytest.approx(.05)
+    assert subject.heard() == pytest.approx(handed - queued - player.OUTPUT_LATENCY)
+    # It runs on in real time between callbacks, never past what was handed.
+    clock[0] += .02
+    assert subject.heard() == pytest.approx(handed - queued - player.OUTPUT_LATENCY + .02)
+    clock[0] += 5
+    assert subject.heard() == subject.position
+    # Paused, it is the position.
+    subject.pause()
+    assert subject.heard() == subject.position
+
+
+def test_a_device_slow_to_start_does_not_bring_the_heard_time_up_to_the_position(monkeypatch):
+    subject, device = loaded_player(monkeypatch)
+    clock = [100.0]
+    monkeypatch.setattr(player.time, "perf_counter", lambda: clock[0])
+    subject.play()
+    # A sleeping sink takes its first period at once and the next 0.2 s later,
+    # so "handed less elapsed" reads -0.15 s; what was just handed is still queued.
+    device.started_with.send(2205)
+    clock[0] += .2
+    for _ in range(10):
+        device.started_with.send(2205)
+        clock[0] += .05
+    clock[0] -= .05
+    assert subject.heard() == pytest.approx(subject.position - .05 - player.OUTPUT_LATENCY)
+
+
+def test_decoding_runs_ahead_while_the_position_follows_the_device(monkeypatch):
+    subject, device = loaded_player(monkeypatch)
+    requests = []
+
+    def recording():
+        requested = yield array.array("h", [100] * 2048)
+        while True:
+            requests.append(requested)
+            requested = yield array.array("h", [100] * 2 * requested)
+
+    monkeypatch.setattr(subject, "_open_stream", lambda _seek_frame: recording())
+    subject.play()
+
+    assert len(device.started_with.send(2205)) == 2205 * 2
+    assert 1024 + sum(requests) >= 2205 + player.LOOKAHEAD_FRAMES
+    assert max(requests) <= player.MAX_READ_FRAMES  # miniaudio refuses a larger read
+    assert subject.position == pytest.approx(2205 / 44100)
+
+
+def test_the_queued_tail_plays_out_before_the_track_finishes(monkeypatch):
+    subject, device = loaded_player(monkeypatch)
+
+    def finite():
+        yield array.array("h", [100] * 60000)
+
+    monkeypatch.setattr(subject, "_open_stream", lambda _seek_frame: finite())
+    subject.play()
+    played = 0
+    while True:
+        try:
+            played += len(device.started_with.send(2205))
+        except StopIteration:
+            break
+        assert subject.take_event() is None
+
+    assert played == 60000
+    assert subject.take_event().kind == "finished"
+
+
+def test_an_underrun_is_silence_that_neither_plays_padding_nor_moves_the_position(monkeypatch):
+    subject, device = loaded_player(monkeypatch)
+    subject.set_volume(1.0)
+    subject._source = source = SimpleNamespace(last_frames=0)
+    ready = []
+
+    def local():
+        # Like LocalSource.take: an underrun is padded with zeros and
+        # last_frames says how many frames are real.
+        requested = 1024
+        while True:
+            source.last_frames = real = min(requested, ready.pop(0) if ready else 0)
+            requested = (yield array.array("h", [100] * 2 * real + [0] * 2 * (requested - real))) or 1024
+
+    monkeypatch.setattr(subject, "_open_stream", lambda _seek_frame: local())
+    subject.play()
+
+    assert len(device.started_with.send(1024)) == 0 and subject.position == 0
+    ready.append(1024)
+    chunk = device.started_with.send(1024)
+    assert len(chunk) == 2048 and chunk[0] == 0 and min(chunk[player.FADE_SAMPLES:]) == 100
+    assert subject.position == pytest.approx(1024 / 44100)
 
 
 def test_the_byte_of_a_position_skips_the_id3_tag():

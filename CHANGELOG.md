@@ -38,29 +38,27 @@
   playing header with generated record artwork carrying a barcode of the track,
   BPM and key chips with Camelot notation (View → Key notation) and harmonic and
   tempo match rings, and animations that View → Animations turns off.
-- The desktop waveform and record backdrop keep their normal colours, also
-  while paused. Actual bass attacks add saturation on both sides of the
-  playhead, with the unplayed side remaining in shadow. Pulses start with the
-  first detected kick instead of waiting for a tempo grid, stop during breaks,
-  and follow fast kick rolls without a lingering glow. A short spectral detector
-  distinguishes bass movement from fresh attacks without requiring the RMS
-  rise and decay that missed heavily limited kicks. Flash intensity is reduced
-  by 40 % with a softer release. The detector remains an onset heuristic: an
-  abrupt bass note can still resemble a kick. View → Pulse timing
-  retains device calibration (70 ms by default); queued hits update every 25 ms.
-  Each pulse now carries an amplitude: a hit is weighed against the loudest
-  bass of the last two bars, so bass stabs between the kicks in a dubstep or
-  drum & bass drop pulse dimly or not at all while the kicks pulse fully, and
-  a quieter section regains its full pulse within two bars. The level is read
-  over the 40 ms after the attack, where a sidechained kick peaks. The glow is
-  an envelope rather than a flash: 25 ms up, a short hold, then a release of a
-  third of a beat, with rolls merging into one swell. Peak colours keep their
-  hue with more saturation and lightness and a soft halo instead of turning
-  neon, and stay under the WCAG flash thresholds, also at the bordeaux end. Only
-  the played part of the waveform pulses. Kicks carrying a loud click or a clap
-  on the same beat are no longer missed. The record is a flat near-black and
+- The desktop waveform and record backdrop glow with the kick drum: a
+  continuous kick level, every 10 ms, instead of yes/no flashes, so the light
+  never stops on a missed hit and keeps up at any tempo. The level is the
+  40-130 Hz energy rising above what holds there (a sustained bass, its
+  sidechain recovery, a pad), weighted by how much it sounds like a kick, first
+  a generic one, then the kick this track keeps repeating (learned from onsets
+  that drop in pitch, which a bass note does not), and compared with the
+  track's recent loudness, so breakdowns stay dark. The player decodes 0.4 s
+  ahead of the audio device and works out what the speaker plays from how much
+  it has queued, so the light is on time without a setting: View → Pulse timing
+  is gone; the light samples 40 ms ahead for the display's own delay. Kicks
+  are the brightest and fills, filtered kicks and bass hits glow dimmer, in
+  proportion. The light jumps up with a kick and falls to dark within 150 ms,
+  showing nothing below 15 %, so it goes out between kicks even at 174 BPM. The
+  played waveform rests in deep saturated tones and lights up in neon (over
+  twice as bright on the dark theme) just behind the playhead, with
+  a GPU glow where the scene graph has one; the playhead tints neon with it. The
+  record backdrop glows as before, and the record is a flat near-black that
   never pulses itself. The playhead slides with the heard audio instead of
-  stepping, without a glow.
+  stepping. `scripts/evaluate_kicks.py --audio` reports pulses and lit time per
+  15 s for your own files.
   Mute is a speaker icon that is struck through while muted.
 - New application icon: a record with a barcode like the track artwork, a white
   label and a blue-to-bordeaux tile, at 256 px for the window and Linux docks.

@@ -1,6 +1,5 @@
 """Offline contracts for the optional Qt desktop and its worker boundary."""
 import json
-import math
 import os
 import queue
 import subprocess
@@ -502,7 +501,7 @@ def test_replace_export_needs_no_destination_folder(backend, tmp_path, monkeypat
     assert not [path for path in tmp_path.rglob('dj-digger-*') if path.is_dir()]
 
 
-def test_playing_sends_the_beats_ahead(backend):
+def test_playing_sends_the_kick_levels_ahead(backend):
     import asyncio
     from types import SimpleNamespace
     worker, events = backend
@@ -513,8 +512,11 @@ def test_playing_sends_the_beats_ahead(backend):
         def __init__(self):
             self.loaded = SimpleNamespace(track=SimpleNamespace(key='k', label='K'))
 
-        def beats(self):
-            return [(10.2, 1.0), (10.7, .6)], .5
+        def heard(self):
+            return 9.93
+
+        def kicks(self):
+            return 9.7, .01, [0.0, .5, 1.0]
 
         def take_event(self):
             self.loaded = None  # One tick, then the loop ends.
@@ -522,7 +524,9 @@ def test_playing_sends_the_beats_ahead(backend):
     worker.services._player = Playing()
     try:
         asyncio.run_coroutine_threadsafe(worker.tick(), worker.loop).result(timeout=5)
-        assert wait_event(events, 'beats') == dict(key='k', pulses=[[10.2, 1.0], [10.7, .6]], period=.5)
+        audio = wait_event(events, 'audio')
+        assert audio['heard'] == 9.93 and abs(audio['at'] - time.time()) < 5
+        assert wait_event(events, 'kicks') == dict(key='k', start=9.7, step=.01, levels=[0.0, .5, 1.0])
     finally:
         worker.services._player = None
 
@@ -728,7 +732,7 @@ def test_presentation_settings_keep_only_known_keys(app, tmp_path):
 
     bridge = Bridge(None, backend_factory=PassiveBackend, home_path=tmp_path)
     bridge.saveSettings({'keyNotation': 'classic', 'animations': False, 'pulseOffset': 140, 'theme': 'dark', 'token': 'secret'})
-    assert bridge._settings == {'keyNotation': 'classic', 'animations': False, 'pulseOffset': 140, 'theme': 'dark'}
+    assert bridge._settings == {'keyNotation': 'classic', 'animations': False, 'theme': 'dark'}
 
 
 def test_summary_overwrite_needs_separate_confirmation(backend, tmp_path):
@@ -1043,7 +1047,7 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
         bridge.receive('audio', dict(key='w', title='Local fixture.wav', playing=True, position=3.2, duration=4))
         assert abs(canvas.property('fraction') - .8) < .01
         assert len(bridge.waveform) == 1024
-        # Detected hits are scheduled against queued audio, including the first kick.
+        # The light follows the kick levels the player computed ahead of the speaker.
         from PySide6.QtQml import QQmlEngine, QQmlExpression
         def qml(expression):
             result, _ = QQmlExpression(QQmlEngine.contextForObject(window), window, expression).evaluate()
@@ -1054,59 +1058,56 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
         assert find_item(canvas, 'unplayedBars').property('opacity') == 1
         cover = find_item(scene, 'cover')
         window.setProperty('animations', True)
-        window.setProperty('pulseOffset', 70)
-        qml('audioClock = -1; syncClock(.05, 0)')
-        bridge.receive('beats', dict(key='w', pulses=[[0, 1.0]], period=.5))
-        qml('pulseTick(10)')
+        # The snapshot says what reached the speaker and when; the clock runs from there.
+        qml('audioClock = -1; syncClock(1.0, 5000, 1.5, 5010)')
+        assert qml('audioClock') == pytest.approx(1.01) and qml('playhead') == pytest.approx(1.01)
+        # Levels every 10 ms from 1.0 s: a kick peaking at 1.09 s. The light samples
+        # them 40 ms ahead of the heard time, for the frames still on their way to the eye.
+        assert window.property('displayLead') == pytest.approx(.04)
+        bridge.receive('kicks', dict(key='w', start=1.0, step=.01, levels=[0] * 8 + [.5, 1, .6, .2] + [0] * 8))
+        qml('lastTick = 5010; pulseTick(5010)')
         assert window.property('flash') == 0
-        # The envelope rises to the peak over 25 ms and holds it for 40 ms.
-        qml('pulseTick(25); pulseTick(37.5)')
-        assert window.property('flash') == pytest.approx(.5)
-        qml('pulseTick(50)')
-        assert window.property('flash') == 1
-        assert played.property('opacity') == 1 and kick.property('opacity') == 1
+        # It jumps up with the kick, sampled between levels, and is never late;
+        # a faint level shows nothing.
+        qml('pulseTick(5035)')
+        assert window.property('flash') == pytest.approx(.25) and window.property('glow') == pytest.approx(.1 / .85)
+        qml('pulseTick(5039)')
+        assert window.property('flash') == pytest.approx(.45)
+        qml('pulseTick(5050)')
+        assert window.property('flash') == pytest.approx(1) and window.property('glow') == pytest.approx(1)
+        assert played.property('opacity') == 1 and kick.property('opacity') == pytest.approx(1)
         assert cover.property('opacity') == 1
-        # Then it releases over a third of a beat (150 ms at 120 BPM), never a cut.
-        qml('pulseTick(90)')
-        assert window.property('flash') == 1
-        qml('pulseTick(240)')
-        assert window.property('flash') == pytest.approx(math.exp(-1), abs=.01)
-        # Polling the same hit never retriggers it.
-        qml('peak = 0; flash = 0; pulseTick(260)')
+        # The neon window followed the cursor; no shader glow under the software renderer.
+        assert kick.property('width') == 160
+        assert kick.property('x') == pytest.approx(canvas.property('fraction') * canvas.width() - 160, abs=canvas.width() / qml('waveform.columns'))
+        assert find_item(canvas, 'kickGlow').property('active') is False
+        # Then it falls straight to dark within 150 ms, slower than the levels drop.
+        qml('pulseTick(5125)')
+        assert window.property('flash') == pytest.approx(.5) and window.property('glow') == pytest.approx(.35 / .85)
+        qml('pulseTick(5200)')
+        assert window.property('flash') == 0 and window.property('glow') == 0
+        # Levels of another track are ignored.
+        bridge.receive('kicks', dict(key='wrong', start=1.4, step=.01, levels=[1] * 30))
+        qml('pulseTick(6050)')
         assert window.property('flash') == 0
-        # Speaker delay still shifts the schedule. The late delivery of a real
-        # hit is accepted once within 100 ms; older hits and other tracks are ignored.
-        window.setProperty('pulseOffset', 100)
-        qml('audioClock = -1; syncClock(3.4, 0)')
-        bridge.receive('beats', dict(key='w', pulses=[[3.0, 1.0], [3.35, .8]], period=.5))
-        qml('pulseTick(20)')
+        # The clock never runs past the handed position (1.5 s here).
+        bridge.receive('kicks', dict(key='w', start=1.4, step=.01, levels=[1] * 30))
+        qml('pulseTick(6060)')
+        assert qml('playhead') == pytest.approx(1.5) and window.property('flash') == pytest.approx(1)
+        # A late snapshot re-anchors the clock without cutting the light; another track clears it.
+        qml('syncClock(1.4, 6070, 1.55, 6070)')
+        assert qml('audioClock') == pytest.approx(1.4) and window.property('flash') == pytest.approx(1)
+        qml('clockKey = "other"; syncClock(1.4, 6080, 1.55, 6080)')
         assert window.property('flash') == 0
-        qml('pulseTick(60); pulseTick(85)')
-        assert window.property('flash') == pytest.approx(.8)
-        qml('peak = 0; flash = 0; pulseTick(90)')
-        assert window.property('flash') == 0
-        bridge.receive('beats', dict(key='wrong', pulses=[[3.4, 1.0]], period=.5))
-        qml('pulseTick(100)')
-        assert window.property('flash') == 0
-        # A hit 50 ms after the last one is a roll: it holds the running peak instead of restarting it.
-        qml('peak = .8; peakAt = 60; flash = .8')
-        bridge.receive('beats', dict(key='w', pulses=[[3.4, 1.0]], period=.5))
-        qml('pulseTick(110)')
-        assert qml('lastFired') == 3.4 and window.property('flash') == pytest.approx(.8)
-        bridge.receive('beats', dict(key='w', pulses=[], period=.5))
+        bridge.receive('kicks', dict(key='w', start=0, step=.01, levels=[]))
         QTest.qWait(250)
-        assert kick.property('opacity') == 0  # No residual roll charge in the break.
+        assert kick.property('opacity') == 0  # Nothing lingers in a break.
         bridge.receive('audio', dict(key='w', title='Local fixture.wav', playing=False, position=3.2, duration=4))
         assert canvas.property('opacity') == 1 and cover.property('opacity') == 1
-        # Resume at the same queued position must not replay a hit already shown.
-        qml('lastPosition = 3.2; lastFired = 3.15')
-        bridge.receive('audio', dict(key='w', title='Local fixture.wav', playing=True, position=3.2, duration=4))
-        bridge.receive('beats', dict(key='w', pulses=[[3.15, 1.0]], period=.5))
-        qml('pulseTick(clockAt + 100)')
-        assert window.property('flash') == 0
         # While playing with motion on, the playhead follows the interpolated heard clock, at subpixel x.
-        qml('audioClock = 2; clockAt = 1000; lastPosition = 3; pulseOffset = 100')
-        qml('pulseTick(1350)')
+        bridge.receive('audio', dict(key='w', title='Local fixture.wav', playing=True, position=3.2, duration=4))
+        qml('audioClock = 2; clockAt = 1000; lastPosition = 3')
+        qml('pulseTick(1250)')
         assert window.property('playhead') == pytest.approx(2.25)
         assert canvas.property('fraction') == pytest.approx(2.25 / 4)
         cursor = find_item(canvas, 'cursor')
@@ -1129,6 +1130,24 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
                 assert abs(y1 - y0) < .1, (theme, tone)
                 assert not (red_base or red_peak) or abs(red1 - red0) < 20, (theme, tone)
         assert any(flash_luminance(qml(tone))[1] for tone in ('accent2', 'Qt.color("#b23755")'))  # The bound is exercised.
+        # A kick lights the waveform up: on the dark theme the neon is at least twice
+        # as bright as the muted rest (a lighter rest read as lit, and the kick as
+        # going out), on both themes it is more vivid, and no colour is a saturated
+        # red. The resting bars keep 3:1 against the surfaces behind them.
+        for theme in ('dark', 'light'):
+            window.setProperty('themeChoice', theme)
+            for side in ('Foot', 'Top'):
+                rest, neon = window.property(f'waveRest{side}'), window.property(f'waveNeon{side}')
+                (y0, red0, _), (y1, red1, _) = flash_luminance(rest), flash_luminance(neon)
+                assert not red0 and not red1, (theme, side)
+                assert neon.hsvSaturationF() > rest.hsvSaturationF(), (theme, side)
+                if theme == 'dark':
+                    assert y1 >= 2 * y0, side
+                    # Deep and neon, not pastel.
+                    assert rest.hsvSaturationF() >= .7 and neon.hsvSaturationF() >= .8, side
+                for surface in ('panel', 'bg'):
+                    y2 = flash_luminance(window.property(surface))[0]
+                    assert (max(y0, y2) + .05) / (min(y0, y2) + .05) >= 3, (theme, side, surface)
         window.setProperty('animations', False)
         bridge.receive('audio', dict(key='other', title='Other', playing=True, position=0, duration=4))
         assert bridge.waveform == []

@@ -803,8 +803,10 @@ class Backend:
     def publish_audio(self):
         # The per-tick snapshot stays small: the waveform travels separately and only when it changes.
         p = self.services.player
+        # ``heard`` is the track time reaching the speaker at ``at`` (epoch seconds),
+        # so the window can run its clock from there without the delivery delay.
         snapshot = dict(key=p.loaded.track.key, title=p.loaded.track.label, playing=p.playing, position=p.position,
-                        duration=p.duration) if p.loaded else {}
+                        duration=p.duration, heard=p.heard(), at=time.time()) if p.loaded else {}
         self.send('audio', snapshot)
         return snapshot
 
@@ -852,7 +854,7 @@ class Backend:
             self.prepared = prepared
 
     async def tick(self):
-        sent_beats = None
+        sent_kicks = None
         while not self.closing:
             async with self.player_lock:
                 p = self.services.player
@@ -860,13 +862,14 @@ class Backend:
                     break
                 snapshot = self.publish_audio()
                 if snapshot['playing']:
-                    # Detected hits in queued audio reach the window before the speakers.
-                    pulses, period = p.beats()
-                    beats = dict(key=snapshot['key'], pulses=[list(pulse) for pulse in pulses], period=period)
-                    # Forty ticks a second; only new hits are worth crossing to the window.
-                    if beats != sent_beats:
-                        sent_beats = beats
-                        self.send('beats', beats)
+                    # Kick levels come from decoded audio before the device takes it,
+                    # so they reach the window ahead of the speakers.
+                    start, step, levels = p.kicks()
+                    kicks = dict(key=snapshot['key'], start=start, step=step, levels=levels)
+                    # Forty ticks a second; only new levels are worth crossing to the window.
+                    if kicks != sent_kicks:
+                        sent_kicks = kicks
+                        self.send('kicks', kicks)
                 event = p.take_event()
             if (snapshot['playing'] and snapshot['duration'] - snapshot['position'] < 15
                     and self.prepared is None and (self.prefetch_task is None or self.prefetch_task.done())

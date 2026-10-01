@@ -14,11 +14,6 @@
     <message><source>Camelot (8A)</source><translation>Camelot (8A)</translation></message>
     <message><source>Classic (Am)</source><translation>Klasyczny (Am)</translation></message>
     <message><source>Animations</source><translation>Animacje</translation></message>
-    <message><source>Pulse timing</source><translation>Synchronizacja pulsowania</translation></message>
-    <message><source>Delay: %1 ms</source><translation>Opóźnienie: %1 ms</translation></message>
-    <message><source>Pulse earlier (−10 ms)</source><translation>Pulsuj wcześniej (−10 ms)</translation></message>
-    <message><source>Pulse later (+10 ms)</source><translation>Pulsuj później (+10 ms)</translation></message>
-    <message><source>Reset</source><translation>Przywróć domyślne</translation></message>
     <message><source>Mixes with the playing track</source><translation>Pasuje do granego utworu</translation></message>
     <message><source>Reset column order</source><translation>Przywróć kolejność kolumn</translation></message>
     <message><source>Fit column to contents</source><translation>Dopasuj kolumnę do zawartości</translation></message>

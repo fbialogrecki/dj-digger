@@ -20,8 +20,10 @@ that must never take the app down.
 
 import array
 import logging
+import statistics
 import threading
 import time
+from collections import deque
 from dataclasses import dataclass
 from functools import lru_cache
 from queue import Empty, SimpleQueue
@@ -29,7 +31,7 @@ from typing import Literal
 
 import numpy as np
 
-from .beats import CHANNELS, SAMPLE_RATE, KickDetector, PulseHistory
+from .beats import CHANNELS, SAMPLE_RATE, KickEnergy
 from .models import Track, is_cancelled
 from .services.playback import Stream
 
@@ -40,8 +42,18 @@ LOGGER = logging.getLogger(__name__)
 DEVICE_PERIOD_MS = 50
 # Audio starting mid-waveform clicks; the first 10 ms after every start fade in.
 FADE_SAMPLES = 441 * CHANNELS
-# Retain hits behind the decoded position: fed audio has not yet been heard.
-BEATS_BEHIND = 0.5
+# Kick levels kept behind the position handed to the device: it is heard later.
+LEVELS_BEHIND = 0.3
+# Seconds decoded ahead of the device, so kicks are known before they are heard.
+LOOKAHEAD = 0.4
+LOOKAHEAD_FRAMES = int(LOOKAHEAD * SAMPLE_RATE)
+# miniaudio's stream decoder refuses a larger read.
+MAX_READ_FRAMES = 16384
+# From leaving the backend's buffer to the speaker: a PipeWire quantum and the
+# sound card's own buffer. The part queued before it is measured while playing.
+OUTPUT_LATENCY = 0.02
+# Until enough device callbacks have been timed: 50-100 ms is typical.
+QUEUED_GUESS = 0.07
 DOWNLOAD_CHUNK = 64 * 1024
 # A two hour set is not a track, and a response that will not declare its size
 # could be anything. Both stream off the socket the way everything used to.
@@ -394,7 +406,10 @@ class Player:
         self._events: SimpleQueue[PlaybackEvent] = SimpleQueue()
         self._volume = 0.8
         self._muted = False
-        self._beats = PulseHistory()
+        self._kicks = KickEnergy()
+        self._queued = deque(maxlen=32)  # Seconds handed but not yet played, per callback.
+        self._clock = None  # (perf_counter, seconds handed) of the first callback since the device started.
+        self._handed = (0.0, 0.0, 0.0)  # (perf_counter, position, seconds handed) at the last callback.
         self.unavailable_reason: str | None = None
 
     def _device_for(self, sample_rate: int, channels: int):
@@ -467,8 +482,8 @@ class Player:
         self._session = session
         self._source = source
         self._loaded = Loaded(track=track, stream=stream)
-        # One pulse history per track; a new decoder clears it after a seek.
-        self._beats = PulseHistory(60 / track.bpm if track.bpm and track.bpm > 0 else None)
+        # One kick analysis per track; a new decoder restarts it after a seek.
+        self._kicks = KickEnergy()
         self._frames = 0
         self._offset = 0.0
         return self._loaded
@@ -506,49 +521,80 @@ class Player:
             self._source.close()
             self._source = None
 
-    def _feed(self, stream, generation: int, kicks: KickDetector):
+    def _feed(self, stream, generation: int, kicks: KickEnergy):
         # miniaudio sends a frame count into the callback generator, so the first
         # yield must happen before any decoding. It also makes an empty stream end
         # on the callback thread rather than raising while ``play`` primes us.
         required = yield b""
+        # Decoded audio waits LOOKAHEAD here before the device takes it, so the
+        # kick detector has judged a hit well before it is heard.
+        # ponytail: detection runs on the audio callback; when the network is
+        # slower than playback, it can wait for audio it needs only 0.4 s later.
+        # A decode thread, if underruns are ever measured.
+        queued = array.array("h")
+        decoded = self._offset  # Track time of the next decoded frame.
         first = True
         faded = 0
+        ended = None  # StopIteration at EOF, else the decoder's failure.
         while True:
             if generation != self._generation:
                 return
+            # miniaudio can send 0; asking the decoder for nothing reads as EOF.
+            frames = required or 1024
             try:
-                # miniaudio can send 0; asking the decoder for nothing reads as EOF.
-                frames = required or 1024
-                chunk = next(stream) if first else stream.send(frames)
-                first = False
-                if not len(chunk):
-                    raise StopIteration
-                start = self.position
-                self._frames += (self._source.last_frames if hasattr(self._source, "last_frames") else len(chunk) // CHANNELS)
-                kicks.feed(chunk, start)
-                volume = self.volume
-                # >= 0.999 rather than == 1.0: a float comparison guard, and at
-                # full volume the rescale is skipped entirely.
-                out = chunk if volume >= 0.999 else scale_volume(chunk, volume)
-                if faded < FADE_SAMPLES:
-                    out = array.array("h", out)  # A copy: the decoder may still own ``chunk``.
-                    count = min(len(out), FADE_SAMPLES - faded)
-                    for index in range(count):
-                        out[index] = int(out[index] * (faded + index) / FADE_SAMPLES)
-                    faded += count
-            except StopIteration:
-                if generation == self._generation:
-                    self._playing = False
-                    self._ended = True
-                    self._generator = None
-                    self._events.put(PlaybackEvent("finished", generation))
-                return
+                while ended is None and len(queued) < (frames + LOOKAHEAD_FRAMES) * CHANNELS:
+                    want = min(MAX_READ_FRAMES, frames + LOOKAHEAD_FRAMES - len(queued) // CHANNELS)
+                    chunk = next(stream) if first else stream.send(want)
+                    first = False
+                    if not len(chunk):
+                        raise StopIteration
+                    # A local source pads an underrun with silence: only its real
+                    # frames are music, and waiting for the rest is the device's job.
+                    real = getattr(self._source, "last_frames", len(chunk) // CHANNELS)
+                    if not real:
+                        break
+                    chunk = chunk[:real * CHANNELS]
+                    kicks.feed(chunk, decoded)
+                    decoded += real / SAMPLE_RATE
+                    queued.extend(chunk)
+                    if generation != self._generation:
+                        return
+            except StopIteration as exc:
+                ended = exc
             except Exception as exc:
+                ended = exc
+            count = min(frames * CHANNELS, len(queued))
+            if not count and ended is not None:
                 if generation == self._generation:
                     self._playing = False
                     self._generator = None
-                    self._events.put(PlaybackEvent("error", generation, str(exc)))
+                    if isinstance(ended, StopIteration):
+                        self._ended = True
+                        self._events.put(PlaybackEvent("finished", generation))
+                    else:
+                        self._events.put(PlaybackEvent("error", generation, str(ended)))
                 return
+            out = queued[:count]
+            del queued[:count]
+            self._frames += count // CHANNELS
+            volume = self.volume
+            # >= 0.999 rather than == 1.0: a float comparison guard, and at
+            # full volume the rescale is skipped entirely.
+            if volume < 0.999:
+                out = scale_volume(out, volume)
+            if faded < FADE_SAMPLES:
+                fade = min(len(out), FADE_SAMPLES - faded)
+                for index in range(fade):
+                    out[index] = int(out[index] * (faded + index) / FADE_SAMPLES)
+                faded += fade
+            now = time.perf_counter()
+            if self._clock is None:
+                self._clock = (now, self.position - count / CHANNELS / SAMPLE_RATE)
+            # Handed since the device started, less the time it has been playing:
+            # what still waits in the device's buffers.
+            self._queued.append(self.position - self._clock[1] - (now - self._clock[0]))
+            self._handed = (now, self.position, count / CHANNELS / SAMPLE_RATE)
+            # An empty answer plays as silence and leaves the position alone.
             required = yield out
 
     def _stop_device(self) -> None:
@@ -597,14 +643,18 @@ class Player:
             self._offset = self.position
             self._frames = 0
             self._generation += 1
-            # A new decoder must not replay hits from before a seek.
-            self._beats.seeked()
+            # A new decoder must not replay levels from before a seek.
+            self._kicks.seeked()
             self._generator = self._feed(
-                self._open_stream(int(self._offset * SAMPLE_RATE)), self._generation, KickDetector(self._beats)
+                self._open_stream(int(self._offset * SAMPLE_RATE)), self._generation, self._kicks
             )
             # miniaudio sends into the generator without priming it first, and
             # its own docstring says the caller must start it.
             next(self._generator)
+        # A started device fills its buffers anew: time them from its first callback.
+        self._clock = None
+        self._queued.clear()
+        self._handed = (0.0, 0.0, 0.0)
         # A very short or broken stream can finish before ``start`` returns, so
         # publish the intended state first and let the callback have the last word.
         self._playing = True
@@ -673,14 +723,28 @@ class Player:
     def toggle_mute(self) -> None:
         self._muted = not self._muted
 
-    def beats(self) -> tuple[list[tuple[float, float]], float]:
-        """Detected hits (track time, amplitude) in queued audio, plus seconds per beat.
+    def kicks(self) -> tuple[float, float, list[float]]:
+        """Kick levels around the device position: (time of the first, seconds apart, levels).
 
-        The window starts behind ``position`` because fed audio is heard later.
+        They start behind ``position``, because handed audio is heard later, and
+        reach as far ahead as decoded audio waits for the device.
         """
 
         position = self.position
-        return self._beats.pulses(position - BEATS_BEHIND, position)
+        return self._kicks.levels(position - LEVELS_BEHIND, position + LOOKAHEAD)
+
+    def heard(self) -> float:
+        """The track time reaching the speaker now: the handed position less what is queued."""
+
+        at, position, handed = self._handed
+        if not self._playing or not at:
+            return self.position
+        # The device still holds at least what it was just handed. The measurement
+        # reads lower, even negative, when the device waits before its second
+        # callback (0.2 s on a sleeping PipeWire sink) and after every underrun.
+        queued = max(handed, statistics.median(self._queued) if len(self._queued) >= 4 else QUEUED_GUESS)
+        heard = position - queued - OUTPUT_LATENCY + (time.perf_counter() - at)
+        return max(self._offset, min(self.position, heard))
 
     @property
     def level(self) -> float:
