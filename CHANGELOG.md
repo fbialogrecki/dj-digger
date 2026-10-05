@@ -1,5 +1,81 @@
 # Changelog
 
+## 1.4.0 — unreleased
+
+### Breaking
+
+- dj-digger no longer bundles, downloads or drives its own Chromium. Download
+  gates, store carts and the SoundCloud browser login now work through a
+  browser extension installed in your own Chrome, Chromium, Brave, Edge or
+  Firefox, so the browser extension is required for those three features.
+  Everything else (collecting, downloads over HTTP, playback, the local
+  library) is unchanged. `playwright` is no longer a dependency and the
+  desktop installers no longer carry a browser.
+- The old managed browser profiles are not used any more. `store-browser/` and
+  `soundcloud-browser/` stay in the data directory
+  (`~/.local/share/dj-digger`, or `$XDG_DATA_HOME/dj-digger`) and are never
+  deleted by the application; close dj-digger and delete them by hand to
+  reclaim the space. A Bandcamp guest cart left in the old `store-browser`
+  profile is not visible in your own browser; the cart now uses your browser's
+  Bandcamp session and cookies.
+- The desktop now takes the same data-directory lock as the CLI: a second
+  desktop, or any `dj-digger` command while the desktop is open, is refused
+  ("Another dj-digger instance is using this data directory").
+
+### Added
+
+- The dj-digger browser extension (Manifest V3, one code base for Chrome-family
+  browsers and Firefox), a `dj-digger-host` Native Messaging relay (a console
+  script, and a console executable beside the GUI in the installers) and the
+  channel between them and the app: a private local socket authenticated with
+  a key in `config_dir()/webext.json`. The extension only works on Hypeddit,
+  Bandcamp, Beatport and the SoundCloud sign-in page, only in tabs it opened,
+  never opens a checkout or payment page, and sends nothing to the network.
+- `dj-digger browser register` registers the host with the browsers it finds
+  (Chrome, Chromium, Brave, Edge, Firefox; Flatpak and Snap browsers are
+  reported as unsupported), copies the extension to the data directory's
+  `browser-extension/` folder and prints it for "Load unpacked" (Chrome, Edge,
+  Brave) or "Load Temporary Add-on" (Firefox). `dj-digger browser unregister`
+  removes the registration.
+- Desktop: a "Connect browser" dialog opens when a cart or the SoundCloud
+  login finds no extension (steps for both browser families, the extension
+  folder with Copy path, Check connection); Settings shows a "Browser
+  automation" row with the connected browser and extension version, or what is
+  missing; the Settings menu has "Connect browser…" and "Disconnect
+  browsers…" (the desktop registers again at its next start).
+
+### Changed
+
+- Hypeddit gates run in one work window of your browser: hidden (an unfocused
+  window) first, then the same window shown for the gates that need you; the
+  tabs of finished gates are closed and the rest are reloaded in place. Files
+  are taken from the browser's own download, one gate download at a time, and
+  a download the browser holds back (a "where to save" prompt, an unsafe-file
+  warning) is never accepted automatically.
+- Bandcamp carts and Beatport lookups use the same kind of window; the final
+  cart and the manual finish are shown in it, with no second browser or cookie
+  copy. Each new batch hides the window and closes the previous batch's cart
+  tabs. Saved cart diagnostics also lose e-mail addresses and are not
+  written for pages above 2 MB.
+- The SoundCloud login reads the `oauth_token` cookie from your browser (no
+  window when it is still valid) and otherwise opens the sign-in page in the
+  work window, waiting up to five minutes as before.
+- Gate social actions now act on the accounts you are logged in to in your
+  browser. A Connect step (Spotify, Deezer, Apple Music, Threads) you
+  authorised for Hypeddit once completes without a prompt, and Hypeddit may
+  then follow or save on your own account. The Settings text for "Allow
+  social actions", the README and the specification say so; turn the setting
+  off to click nothing.
+
+### Removed
+
+- Playwright, the bundled and downloaded Chromium (the "Download Chromium"
+  prompt), the application-managed SoundCloud and store browser profiles, the
+  separate cart viewer browser and the "Store accounts…" menu entry with its
+  Bandcamp login (guest carts are unchanged).
+- The `bandcamp_dom` and `shop_mutate` test markers and their tests; `shop_live`
+  now runs through the connected extension.
+
 ## 1.3.0 — 2026-10-05
 
 ### Added

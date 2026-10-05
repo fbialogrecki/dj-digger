@@ -1,6 +1,8 @@
 # Plan: rozszerzenie przeglądarki zamiast Playwright/Chromium
 
-- Status: **szkic do weryfikacji**, rewizja 2 po przeglądzie (nic nie jest jeszcze zaimplementowane)
+- Status: **wdrożone na branchu F1–F5, F7–F9**; F0 (spike) i F6 (koszyk Beatport) czekają na właściciela.
+  Poniżej plan z rewizji 2; opisy „dziś” w §1 dotyczą stanu sprzed zmiany. Zachowanie opisuje
+  `PROJECT-SPECIFICATION.md`.
 - Branch: `feat/browser-extension` (od `main` @ `1fe6060`, wersja 1.3.0); wydanie docelowe 1.4.0
 - Tryb wdrożenia: bezpośrednia zamiana, bez flag i bez równoległego backendu Playwright.
   Branch merguje się dopiero, gdy przejdzie pełna macierz testów z §8.
@@ -41,7 +43,7 @@ Publikacja w sklepach **nie** blokuje merge, ale jest otwartą decyzją przed wy
 
 | # | Użycie | Kod | Tryb | Co robi |
 |---|---|---|---|---|
-| U1 | Logowanie SoundCloud | `auth.login_with_chromium`, `_wait_for_oauth_cookie`; wywołania: `services/accounts.py:35`, `cli.py:399` | sync, headed, profil `soundcloud-browser` | otwiera `/signin` i czyta ciasteczko `oauth_token` |
+| U1 | Logowanie SoundCloud | `auth.login_with_browser` (wcześniej `login_with_chromium`), `_wait_for_oauth_cookie`; wywołania: `services/accounts.py:35`, `cli.py:399` | sync, headed, profil `soundcloud-browser` | otwiera `/signin` i czyta ciasteczko `oauth_token` |
 | U2 | Gate'y Hypeddit (fallback) | `gates/browser.py` (814 linii); wywołanie: `services/downloads.py:finish_gates` | sync, najpierw ukryty przebieg, potem widoczny; generatory round-robin; profil `soundcloud-browser` | przechodzi slajdy kroków, obsługuje popupy, łapie pobrania |
 | U3 | Koszyk Bandcamp | `services/purchases.py:CartBrowserSession`, `stores/bandcamp.py` | async, headless, profil `store-browser`; osobny widoczny „viewer” z kopią ciasteczek | preflight, rewalidacja, kliknięcie, 3-stopniowa weryfikacja (`asyncio.wait_for` na etap), diagnostyka, finisz ręczny, logowanie w Ustawieniach |
 | U4 | Lookup Beatport (release → track) | ten sam `CartBrowserSession` + `_page_products_async` → `store_parse.products_from_html` | async, headless | odczyt strony; 403 lub challenge daje wpis playlisty po metadanych |

@@ -2,11 +2,11 @@
 
 - Status: current implemented system
 - Document version: 1.1
-- Product version verified: 1.3.0 (working tree)
+- Product version verified: 1.4.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-10-05
-- Document lines: <!-- SPEC TOTAL LINES -->1857<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1857<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->2102<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->2102<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -45,70 +45,71 @@ subsection; ordinary emphasized text is never promoted into the map.
 <!-- BEGIN GENERATED SECTION MAP -->
 | § | Section | Lines |
 | --- | --- | --- |
-| 1 | Specification governance | 114–142 |
-| 1.1 | ↳ Authority and scope | 116–128 |
-| 1.2 | ↳ Update contract | 129–142 |
-| 2 | Product purpose and execution modes | 143–181 |
-| 2.1 | ↳ Problem and product boundary | 145–158 |
-| 2.2 | ↳ Execution modes | 159–181 |
-| 3 | User-visible capabilities | 182–980 |
-| 3.1 | ↳ Track collection | 184–209 |
-| 3.2 | ↳ Link classification and exports | 210–228 |
-| 3.3 | ↳ Track statuses | 229–239 |
-| 3.4 | ↳ Audio preview | 240–411 |
-| 3.5 | ↳ Downloads and local-file matching | 412–448 |
-| 3.6 | ↳ Store purchase assistance | 449–534 |
-| 3.7 | ↳ Local library, analysis and audio export | 535–706 |
-| 3.8 | ↳ Qt Quick desktop | 707–980 |
-| 4 | System context and data flow | 981–1021 |
-| 4.1 | ↳ Context diagram | 983–1005 |
-| 4.2 | ↳ Collection-to-library flow | 1006–1021 |
-| 5 | Repository layout and component ownership | 1022–1090 |
-| 5.1 | ↳ Entry, orchestration, and models | 1024–1035 |
-| 5.2 | ↳ Network and external-system adapters | 1036–1052 |
-| 5.3 | ↳ Persistence, local media, and UI | 1053–1090 |
-| 6 | Runtime architecture and environments | 1091–1202 |
-| 6.1 | ↳ Runtime and dependencies | 1093–1114 |
-| 6.2 | ↳ Concurrency and lifecycle | 1115–1182 |
-| 6.3 | ↳ Local paths and environment variables | 1183–1202 |
-| 7 | Data model and persistence | 1203–1309 |
-| 7.1 | ↳ Domain objects and identity | 1205–1219 |
-| 7.2 | ↳ SQLite schema and invariants | 1220–1272 |
-| 7.3 | ↳ Crate persistence and deletion | 1273–1288 |
-| 7.4 | ↳ Configuration and credential stores | 1289–1309 |
-| 8 | Public interfaces and contracts | 1310–1363 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1312–1336 |
-| 8.2 | ↳ JSON and CSV summary input | 1337–1352 |
-| 8.3 | ↳ URL-opening contract | 1353–1363 |
-| 9 | Authentication and authorization | 1364–1409 |
-| 9.1 | ↳ SoundCloud authentication | 1366–1388 |
-| 9.2 | ↳ Gate action consent | 1389–1409 |
-| 10 | External integrations | 1410–1554 |
-| 10.1 | ↳ SoundCloud API and media | 1412–1423 |
-| 10.2 | ↳ Link hubs and download gates | 1424–1493 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1432–1479 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1481–1486 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1488–1493 |
-| 10.3 | ↳ Browsers and clipboard | 1494–1505 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1506–1554 |
-| 11 | Security requirements and threat model | 1555–1612 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1557–1575 |
-| 11.2 | ↳ Secret and personal-data handling | 1576–1591 |
-| 11.3 | ↳ File and mutation safety | 1592–1612 |
-| 12 | Privacy, lifecycle, and retention | 1613–1659 |
-| 12.1 | ↳ Data stored locally | 1615–1637 |
-| 12.2 | ↳ Data sent to third parties | 1638–1649 |
-| 12.3 | ↳ User-controlled deletion | 1650–1659 |
-| 13 | Failure behavior and current limitations | 1660–1731 |
-| 13.1 | ↳ Error isolation and reporting | 1662–1681 |
-| 13.2 | ↳ Confirmed limitations | 1682–1731 |
-| 14 | Verification, CI, and release | 1732–1826 |
-| 14.1 | ↳ Offline and live test suites | 1734–1780 |
-| 14.2 | ↳ Continuous integration and publishing | 1781–1811 |
-| 14.3 | ↳ Specification-map verification | 1812–1826 |
-| 15 | Evidence and operational references | 1827–1857 |
-| 15.1 | ↳ Primary implementation evidence | 1829–1847 |
-| 15.2 | ↳ User and historical documentation | 1848–1857 |
+| 1 | Specification governance | 115–143 |
+| 1.1 | ↳ Authority and scope | 117–129 |
+| 1.2 | ↳ Update contract | 130–143 |
+| 2 | Product purpose and execution modes | 144–189 |
+| 2.1 | ↳ Problem and product boundary | 146–159 |
+| 2.2 | ↳ Execution modes | 160–189 |
+| 3 | User-visible capabilities | 190–1011 |
+| 3.1 | ↳ Track collection | 192–217 |
+| 3.2 | ↳ Link classification and exports | 218–236 |
+| 3.3 | ↳ Track statuses | 237–247 |
+| 3.4 | ↳ Audio preview | 248–419 |
+| 3.5 | ↳ Downloads and local-file matching | 420–458 |
+| 3.6 | ↳ Store purchase assistance | 459–547 |
+| 3.7 | ↳ Local library, analysis and audio export | 548–719 |
+| 3.8 | ↳ Qt Quick desktop | 720–1011 |
+| 4 | System context and data flow | 1012–1056 |
+| 4.1 | ↳ Context diagram | 1014–1040 |
+| 4.2 | ↳ Collection-to-library flow | 1041–1056 |
+| 5 | Repository layout and component ownership | 1057–1142 |
+| 5.1 | ↳ Entry, orchestration, and models | 1059–1070 |
+| 5.2 | ↳ Network and external-system adapters | 1071–1101 |
+| 5.3 | ↳ Persistence, local media, and UI | 1102–1142 |
+| 6 | Runtime architecture and environments | 1143–1281 |
+| 6.1 | ↳ Runtime and dependencies | 1145–1173 |
+| 6.2 | ↳ Concurrency and lifecycle | 1174–1249 |
+| 6.3 | ↳ Local paths and environment variables | 1250–1281 |
+| 7 | Data model and persistence | 1282–1391 |
+| 7.1 | ↳ Domain objects and identity | 1284–1298 |
+| 7.2 | ↳ SQLite schema and invariants | 1299–1351 |
+| 7.3 | ↳ Crate persistence and deletion | 1352–1367 |
+| 7.4 | ↳ Configuration and credential stores | 1368–1391 |
+| 8 | Public interfaces and contracts | 1392–1449 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1394–1422 |
+| 8.2 | ↳ JSON and CSV summary input | 1423–1438 |
+| 8.3 | ↳ URL-opening contract | 1439–1449 |
+| 9 | Authentication and authorization | 1450–1511 |
+| 9.1 | ↳ SoundCloud authentication | 1452–1481 |
+| 9.2 | ↳ Gate action consent | 1482–1511 |
+| 10 | External integrations | 1512–1722 |
+| 10.1 | ↳ SoundCloud API and media | 1514–1525 |
+| 10.2 | ↳ Link hubs and download gates | 1526–1614 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1534–1600 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1602–1607 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1609–1614 |
+| 10.3 | ↳ Browsers and clipboard | 1615–1674 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1675–1722 |
+| 11 | Security requirements and threat model | 1723–1824 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1725–1743 |
+| 11.2 | ↳ Secret and personal-data handling | 1744–1759 |
+| 11.3 | ↳ File and mutation safety | 1760–1781 |
+| 11.4 | ↳ Browser-extension trust boundary | 1782–1824 |
+| 12 | Privacy, lifecycle, and retention | 1825–1877 |
+| 12.1 | ↳ Data stored locally | 1827–1851 |
+| 12.2 | ↳ Data sent to third parties | 1852–1864 |
+| 12.3 | ↳ User-controlled deletion | 1865–1877 |
+| 13 | Failure behavior and current limitations | 1878–1969 |
+| 13.1 | ↳ Error isolation and reporting | 1880–1901 |
+| 13.2 | ↳ Confirmed limitations | 1902–1969 |
+| 14 | Verification, CI, and release | 1970–2068 |
+| 14.1 | ↳ Offline and live test suites | 1972–2020 |
+| 14.2 | ↳ Continuous integration and publishing | 2021–2053 |
+| 14.3 | ↳ Specification-map verification | 2054–2068 |
+| 15 | Evidence and operational references | 2069–2102 |
+| 15.1 | ↳ Primary implementation evidence | 2071–2092 |
+| 15.2 | ↳ User and historical documentation | 2093–2102 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -171,13 +172,20 @@ modes are implemented:
   always batch-opens its links (prompting for a category unless `--category` is
   given; `--skip`, `--limit` and `--no-open` apply).
 - `dj-digger auth ...` manages SoundCloud credentials.
+- `dj-digger browser register|unregister` registers or removes the Native
+  Messaging host of the browser extension and installs the extension files
+  (§10.3).
 - `python -m dj_digger` delegates to the same CLI entry point.
 - `dj-digger-gui`, installed with the `gui` extra, starts the independent
   PySide6/Qt Quick desktop entry point, the only interactive UI. CLI startup does not import Qt.
 
 The desktop is a local process. Network, disk scan, download, playback preparation,
 cart, and batch browser work are process-local background workers rather than a
-durable job queue.
+durable job queue. The desktop and every CLI command hold the same exclusive
+data-directory lock (§6.2), so the CLI does not run while the desktop is open.
+Download gates, store carts and the SoundCloud browser login drive the user's own
+browser through the dj-digger extension (§10.3); the application ships and
+downloads no browser.
 
 ## 3. User-visible capabilities
 
@@ -428,7 +436,9 @@ and the maximum body size is 2 GiB.
 Batch downloads use at most eight worker threads. Each gate flow uses its own HTTP
 session because cookies are flow state. Prerequisites such as a real profile,
 SoundCloud login, or manual Hypeddit browser completion are collected and retried
-at most once by the desktop flow. Completed downloads store their local path and mark
+at most once by the desktop flow. A file finished in the user's browser is copied
+out of the browser's download folder through the same validation and then deleted
+there (§10.2). Completed downloads store their local path and mark
 the track `got`.
 
 The local scanner recursively indexes configured directories for MP3, WAV, FLAC,
@@ -450,18 +460,19 @@ are eligible for clearing.
 
 Store assistance is explicitly initiated by the user. Bandcamp uses verified
 cart automation; Beatport produces a playlist for a supported transfer instead
-of attempting to log in or mutate a cart. The desktop owns one lazy persistent
-Chromium profile for its lifetime and drives it headless, out of sight, for
-product discovery, revalidation, and mutation with at most two managed work
-pages. A window appears only when there is something for the user: the
-completed cart view and the manual-finish step open a separate visible browser
-carrying the hidden session's cookies, so the profile is never switched
-between modes; a desktop display is needed for those two steps only. The
-Settings login opens the profile itself headed for the login and returns it to
-hidden use afterwards, retrying a still-locked profile a few times.
-Bandcamp cart continuity depends on the persistent cookie jar and does not
-require an account login. Settings can open or inspect the Bandcamp session and
-explicitly reset the dedicated store profile.
+of attempting to log in or mutate a cart. The work runs in the user's own
+browser through the extension (§10.3). The desktop owns one lazy work window of
+it for its lifetime, hidden (an unfocused normal window, not a headless
+browser) for product discovery, revalidation, and mutation with at most two
+work tabs. The window is shown only when there is something for the user: the
+completed cart view and the manual-finish step open as new tabs of that same
+window, which is brought forward. There is no second browser, cookie copy,
+application-owned profile or store login: the browser's own Bandcamp and Beatport
+sessions are used as they are, and Bandcamp cart continuity depends on the
+browser's cookie jar (a guest cart needs no account login). Each new batch hides
+the window again and closes the previous batch's final cart tabs. When no
+extension is connected, the batch stops and the desktop shows the Connect browser
+dialog (§3.8) before retrying.
 `P` opens every exact Beatport track page among the targeted rows in the
 configured regular browser (release links are counted and skipped), with the
 same confirmation threshold as bulk open, because Beatport carts are not
@@ -479,8 +490,8 @@ its verified minimum in store-declared steps only when the store exposes an
 editable price. The review table shrinks to preserve its action buttons in short
 terminals and accepts `Y`, `Enter`, or a button click to continue. A canonical
 Beatport `/track/<slug>/<numeric-id>` link becomes an exact playlist entry
-without starting Playwright. Release links use read-only lookup, retain an exact
-track URL when one is available, and fall back to artist/title metadata when a
+without opening a page. Release links use read-only lookup in the user's browser,
+retain an exact track URL when one is available, and fall back to artist/title metadata when a
 changed page or security challenge prevents exact discovery.
 
 Before each mutation the page is reloaded and product identity and price are
@@ -493,7 +504,9 @@ visible removable row with the same canonical host and path for 10 s, one
 reload check for 25 s) inside a 45-second budget, and an unverified result names
 the stage it gave up at. An unverified click or a structural failure saves a
 screenshot and a redacted page copy (script bodies and query strings removed)
-under `cart-diagnostics` in the data directory, keeping the last ten. After two
+under `cart-diagnostics` in the data directory, keeping the last ten (the page copy
+also has e-mail addresses removed and is omitted when the page exceeds 2,000,000
+bytes; the screenshot is best effort). After two
 unverified clicks in one store the batch stops clicking: the remaining products
 are opened with Buy expanded and the price filled, the desktop asks the user to
 press Add to cart themselves, and one read-only cart check per item records
@@ -914,16 +927,29 @@ unchanged on every platform.
 
 Desktop actions use the existing services for collection/refresh/profile import,
 summary import/export, playlists, status/undo, local folders/scanning, downloads,
-BPM/key analysis and overrides, reviewed audio export/recovery, SoundCloud login,
-store login and cart preflight. Browser links select one eligible destination per
+BPM/key analysis and overrides, reviewed audio export/recovery, SoundCloud login
+and cart preflight. Browser links select one eligible destination per
 track and honor the store filter. Bulk opening and destructive actions require
 confirmation; cart retry/manual completion and Soundiiz metadata transfer are
-explicit choices. Store accounts signs in to Bandcamp only; Beatport has no login
-because its path is the Soundiiz playlist. Settings shows an empty Email field while
-the reserved placeholder is configured, so saving never requires clearing it.
-Cancelling Store accounts or a cart is reported as cancelled, not as an error, and
-a missing Playwright Chromium is offered as a confirmed download before retrying
-once. Playing a track with no SoundCloud id reports that there is nothing to stream.
+explicit choices. There is no store login: the browser's own sessions are used, and
+Beatport has no login because its path is the Soundiiz playlist. Settings shows an
+empty Email field while the reserved placeholder is configured, so saving never
+requires clearing it. Its Browser automation row is read-only text with the state
+of the extension: browser name and extension version with "connected", "missing
+site access", "out of date: reload it", or "not connected". The social-actions
+description states that gates may follow, like, repost or comment, and connect
+Spotify, Deezer or Apple Music, on the accounts logged in to the user's browser
+(§9.2). The Settings menu offers Connect browser… and Disconnect browsers…. A cart
+batch or the SoundCloud login that finds no connected extension opens the Connect
+browser dialog and repeats the call after Check connection (cancelling it is
+reported as cancelled): it registers the host (§10.3), explains Load unpacked
+(Chrome, Edge, Brave: Developer mode) and Load Temporary Add-on with
+`manifest.json` (Firefox: `about:debugging`), shows the extension folder as a
+read-only path with a Copy path button, and lists registration notes such as
+unsupported Flatpak/Snap browsers. Form fields of kind `note` and `path` are
+read-only text. Disconnect browsers asks for confirmation and removes the host
+registration; the desktop registers again at its next start. Cancelling a cart is
+reported as cancelled, not as an error. Playing a track with no SoundCloud id reports that there is nothing to stream.
 Import saved summary asks for a JSON file. Export audio asks for decks in the
 same way, with one checkbox per deck group in two columns (a `checks` form
 field) and the last choice ticked, and its review
@@ -947,11 +973,16 @@ track keys. The existing operation coordinator admits a main operation and the
 independent scan lane. Cancellation waits for worker settlement; shutdown requests
 cancellation and applies the existing three-second emergency process cleanup
 policy. QML renders provider text as plain text, loads packaged QML, and does not
-embed a WebView; artwork reaches QML only as a data URL prepared by the backend. Managed Chromium remains a
-separate on-demand dependency for the existing provider flows.
+embed a WebView; artwork reaches QML only as a data URL prepared by the backend. Provider flows that need
+a browser use the user's own through the extension; the desktop bundles none. At startup the desktop takes the
+data-directory `InstanceLock` (§6.2), refusing a second desktop with a message on stderr and exit status 1, and
+the backend then opens the extension channel and registers the host in a background thread (§10.3); the packaged
+smoke start (`--smoke-test`) opens no socket and registers nothing.
 
-Windows packaging source builds an onedir GUI executable and a separate console
-analysis helper with explicit captured pipes and hidden subprocess windows.
+Windows packaging source builds an onedir GUI executable, a separate console
+analysis helper with explicit captured pipes and hidden subprocess windows, and a
+console `dj-digger-host` beside the GUI executable (a windowed executable has no
+stdio for Native Messaging); the extension files are collected as data.
 Frozen media tools resolve only from the application bundle and fail if missing;
 source installations retain normal executable discovery. The per-user Inno Setup
 recipe targets Windows 10 1809 (build 17763, `MinVersion=10.0.17763`, the oldest
@@ -960,21 +991,21 @@ does not delete application data on uninstall. It sets `ChangesAssociations=yes`
 so install and uninstall end with a shell notification that makes Explorer
 refresh cached icons; an upgrade that changes the app icon updates existing shortcuts. An installer mutex prevents
 replacement while desktop/helper processes hold it; it is not a cross-process
-single-instance or data lock. Platform acceptance status belongs in the desktop
+single-instance or data lock (the desktop takes its own, §6.2). Platform acceptance status belongs in the desktop
 implementation record, not an inference from the presence of these build recipes.
 
 macOS packaging builds separate native arm64 and x86_64 test DMGs on macOS 15
 runners. The shared PyInstaller specification creates `dj-digger.app`, including
 Python, Qt Quick, audio/analysis libraries, a separate analysis helper, bundled
-FFmpeg/ffprobe with collected dylibs, and Playwright Chromium. Frozen macOS tools
-and browsers resolve inside `Contents/Resources`; the analysis helper lives in
+FFmpeg/ffprobe with collected dylibs, and the extension files. Frozen macOS tools
+resolve inside `Contents/Resources`; the analysis helper and `dj-digger-host` live in
 `Contents/MacOS`. Missing bundled tools fail without searching system paths.
 The DMG contains an Applications shortcut and bilingual installation instructions.
 It requires macOS 15 or newer and uses only ad-hoc code signatures, without a
 Developer ID certificate, notarization, credentials, or automatic updates.
 The CI acceptance check mounts the image read-only, copies the app into a path
 with spaces, ejects the image, rejects external build-machine dylib references,
-and runs the packaged GUI/media/analysis/browser checks with an isolated user
+and runs the packaged GUI/media/analysis/extension checks with an isolated user
 profile and a system-only PATH. These checks do not certify Gatekeeper acceptance
 or interactive audio-device behavior on a user's Mac.
 
@@ -992,9 +1023,13 @@ flowchart LR
     ADAPTERS --> EXTERNAL[Third-party APIs and pages]
     SERVICES --> STATE[TrackState and crate repositories]
     STATE --> DB[(SQLite: one owning thread)]
-    SERVICES --> FILES[Validated HTTP / Chromium / local file publication]
+    SERVICES --> FILES[Validated HTTP / browser / local file publication]
     FILES --> MUSIC[Configured music and download folders]
-    SERVICES --> BROWSER[System browser / managed Chromium]
+    SERVICES --> BROWSER[System browser handoff]
+    SERVICES --> LINK[webext.link: private local socket]
+    LINK --> HOST[dj-digger-host relay, started by the browser]
+    HOST --> EXT[Extension in the user's browser: allowlist, own tabs]
+    EXT --> EXTERNAL
     CLI --> AUDIO[Playback service and audio engine]
     AUDIO --> ADAPTERS
 ```
@@ -1039,14 +1074,28 @@ playback time and are not stored in the crate record.
   pagination and media authorization. `files.py` owns validated HTTP/browser
   file publication and local copies under one filename lock.
 - `gates/hubs.py` inspects link hubs, `gates/providers.py` implements HTTP gate
-  protocols and `gates/browser.py` drives Hypeddit completion in Chromium.
-  `gate_models.py` owns their typed outcomes and inspection data.
+  protocols and `gates/browser.py` drives Hypeddit completion in the user's
+  browser through `webext.page`. `gate_models.py` owns their typed outcomes and
+  inspection data.
 - `http.py` owns URL/redirect validation; `browser.py` owns OS browser handoff
-  and WSL bridging. `browser_session.py` owns managed Chromium launch, profile
-  paths, display checks and installation.
+  and WSL bridging.
+- `webext/` owns browser automation. `link.py` is the application end of the
+  channel (`Listener`, `Connection`, `Session`, `ExtensionMissing`,
+  `ExtensionError`); `host.py` is the `dj-digger-host` Native Messaging relay;
+  `register.py` writes the host manifests (and Windows registry keys) and copies
+  the extension to `data_dir()/browser-extension/`; `page.py` is the only
+  consumer of the link and exposes blocking (`ExtensionContext`) and asyncio
+  (`AsyncExtensionContext`) pages, locators and downloads with the method names
+  and waiting semantics the gate, login and cart code uses. `webext/extension/`
+  is the MV3 extension shipped as package data: `manifest.json`,
+  `allowlist.json` (the single source of hosts and forbidden paths),
+  `background.js` (dispatcher and trust boundary), `dom.js` (locator engine),
+  `welcome.*` (status and host permissions) and `selftest.*` (manual `dom.js`
+  check). `auth.py`, `gates/browser.py`, `services/purchases.py` and
+  `stores/bandcamp.py` use `webext.page`; no other module talks to a browser.
 - `stores/bandcamp.py` owns Bandcamp selectors and page interaction.
   `services/purchases.py` owns batch approval, preflight, mutation and manual
-  completion, and Soundiiz handoff. `cart_models.py`, `store_urls.py`,
+  completion, the lazy work window of `CartBrowserSession`, and Soundiiz handoff. `cart_models.py`, `store_urls.py`,
   `store_match.py` and `store_parse.py` retain store data, URL checks, matching
   and HTML parsing. `beatport_playlist.py` owns Soundiiz metadata and transport.
 
@@ -1056,7 +1105,10 @@ playback time and are not stored in the crate record.
   `schema.py` recognizes and registers the 1.0 schema. `state.py` owns atomic
   status/provenance and committed caches. `crate_models.py` owns pure crate
   values/serialization; `services/library.py` owns interactive listing/loading/reset/deletion; `scanner.py` owns local media indexing and matching.
-- `services/runtime.py` is the lazy application composition root.
+- `services/runtime.py` is the lazy application composition root; its
+  `connect_browser()`, called only by the desktop, starts the extension `Listener`
+  and registers the host in a background thread. `instance.py` owns the
+  data-directory `InstanceLock`.
   Collection, downloads, library reconciliation, accounts, browser opening and
   purchases are services; none imports Qt. Operation admission and
   settlement live in `services/operations.py`, independently of execution.
@@ -1099,18 +1151,25 @@ configuration directories keep their names. Users uninstall `dj-soundcloud-digge
 before installing `dj-sc-digger`, because both distributions own the same module
 and command.
 The package requires Python 3.12 or newer and is built with Hatchling. Runtime
-dependencies are `requests`, `beautifulsoup4`, `rich`, `playwright`, `miniaudio`, and NumPy 2.x (the streaming spectral detector). The `play` extra is an empty compatibility
+dependencies are `requests`, `beautifulsoup4`, `rich`, `miniaudio`, and NumPy 2.x (the streaming spectral detector). The `play` extra is an empty compatibility
 alias. `librosa` is optional in the
 `analyze` extra and imports only in analysis workers. FFmpeg/ffprobe are external
 executables required only by local media inspection/playback/conversion/analysis. The `gui` extra adds PySide6 6.x (minimum 6.10). Desktop build tooling is isolated
 in the `desktop-build` dependency group. The `dev` extra adds
 `pytest` and `ruff`. There is no runtime JavaScript build, database
 server, container image, or infrastructure-as-code layer in the repository.
+The browser extension is plain JavaScript shipped as package data (an explicit
+`.gitignore` exception keeps it tracked); it has no build step. The package
+installs the `dj-digger-host` console script.
 
 The code has platform branches for Linux, macOS, Windows, and WSL. Browser
-availability and clipboard utilities are detected at runtime. Cart and managed
-Chromium flows require a desktop display; WSL requires a working graphical
-integration.
+availability and clipboard utilities are detected at runtime. Gates, carts and the
+SoundCloud browser login need the extension in the user's own Chrome, Chromium,
+Brave or Edge (Chromium 121 or newer) or Firefox 128 or newer; no browser is
+downloaded or bundled and no display is required beyond the browser's own window.
+Registration looks only at the profile directories of the operating system the
+application runs on, so under WSL it finds Linux browsers (WSLg) only; Flatpak and
+Snap browsers cannot start the host and are reported as unsupported (§13.2).
 
 ### 6.2 Concurrency and lifecycle
 
@@ -1129,12 +1188,18 @@ their original sequence, including repeated-key undo and cursor advance. A
 queued mark captures the playlist view generation before waiting and is dropped
 if that view changes. Sidebar loads have a separate request generation so a
 slower previous selection cannot replace the latest selected playlist.
-Another process writing the same database is not reconciled.
+Another process writing the same database is not reconciled. The desktop and every CLI command first take an exclusive `InstanceLock` on
+`data_dir()/instance.lock`, which the operating system releases after a crash, so
+one process at a time owns the database and the extension socket (including the
+removal of a stale socket file). A second desktop prints "Another dj-digger
+instance is using this data directory" and exits with status 1; a CLI command in
+that situation exits with status 2, so the CLI cannot run while the desktop is
+open. The runtime-test entry (`--runtime-test`) takes no lock.
 
 `OperationCoordinator` admits one main operation (dig/refresh, download, local
 copy, cart or bulk opening) and one independent scan, with no task queue or
-scheduler. Existing worker threads, thread pools and asynchronous Playwright
-execute the work. Each `OperationHandle` identifies progress, cancellation and
+scheduler. Existing worker threads, thread pools and the asynchronous
+browser-extension adapter execute the work. Each `OperationHandle` identifies progress, cancellation and
 settlement; cancellation leaves its slot occupied until workers and suboperations
 finish, including profile saves already in progress when cancellation arrives.
 Dialog callbacks retain the originating cancellation event.
@@ -1153,7 +1218,8 @@ individually. Painting retains the existing throttling and stable cursor.
 
 Hub expansion and download batches use eight threads. Hypeddit HTTP flows allow
 two concurrent requests per host; nested gates release the host limit before
-recursing. A persistent profile is never driven by concurrent Playwright threads.
+recursing. One gate batch at a time drives the extension's work window; a second
+batch started meanwhile fails its rows as unavailable.
 SoundCloud API and public transfer sessions are separate, and each gate flow has
 its own cookie jar. Retired clients remain open until their active workers settle.
 
@@ -1163,22 +1229,23 @@ processes are registered; emergency exit kills and reaps only owned media proces
 groups before exiting, including a spawned analyzer and its FFmpeg child. Asynchronous
 I/O waits for its thread to settle on cancellation. Prepared media is discarded;
 worker-owned clients/audio resources close after active workers, with SQLite
-last. Asynchronous Playwright close retains its five-second local timeout. The
+last. Closing the asynchronous work window retains its five-second local timeout. The
 three-second emergency exit guard starts during unmount, covering asyncio thread
 draining before `App.run()` returns; lingering non-daemon threads after return
 also have a bounded grace. SIGINT after restoring the terminal exits with status 130.
 Resources in use by an unfinished thread are not closed underneath it.
 
-Cart automation uses Playwright's asynchronous API on its own event loop,
-while one context at a
-time drives the persistent profile and all Playwright objects remain on their
-creating loop. One hidden persistent context serves the batch, and a separate
-visible browser (cookies copied from it) shows the final cart or the items to
-finish by hand; closing either keeps Playwright running for the next batch.
-Two queue consumers bound
+Cart automation uses the extension adapter's native asyncio flavour on its own
+event loop: a cancelled command is cancelled in the extension, and its tab stays
+busy until the extension answers, so commands of one tab never overlap. One lazily
+opened work window serves all batches of the desktop run; it is shown (not
+replaced) for the final cart or the items to finish by hand and hidden again by the
+next batch. Each session's `window.open` first closes any tabs an earlier session
+left in the extension. Two queue consumers bound
 read-only preflight concurrency; Bandcamp mutation is serial, while exact
-Beatport track links bypass Playwright and other Beatport results become local
-playlist entries.
+Beatport track links open no page and other Beatport results become local
+playlist entries. The blocking flavour (gates, login) dispatches the session's events
+on the calling thread.
 
 ### 6.3 Local paths and environment variables
 
@@ -1188,6 +1255,18 @@ Defaults follow XDG paths:
 - config: `$XDG_CONFIG_HOME/dj-digger` or `~/.config/dj-digger`;
 - cache: `$XDG_CACHE_HOME/dj-digger` or `~/.cache/dj-digger`.
 
+The extension channel adds `config_dir()/webext.json` (the shared key, §7.4),
+`data_dir()/instance.lock`, the extension copy `data_dir()/browser-extension/`
+and, on Windows, host manifests in `data_dir()/native-messaging/`. The socket is
+`$XDG_RUNTIME_DIR/dj-digger/webext.sock` (directory 0700, socket 0600; the
+directory must belong to the user), `data_dir()/run/webext.sock` when
+`XDG_RUNTIME_DIR` is unset, `/tmp/dj-digger-<uid>/webext.sock` when the path would
+reach 100 bytes, and the named pipe `\\.\pipe\dj-digger-<user>` on Windows. It does
+not depend on the data directory, so two desktops with different data directories
+on one account would share it (§13.2). Host manifests live in each browser's
+`NativeMessagingHosts` directory (Firefox: `~/.mozilla/native-messaging-hosts` and
+`~/.config/mozilla/native-messaging-hosts`) or under `HKCU\Software\<vendor>\NativeMessagingHosts`.
+
 Logs and the last analysis report use `$XDG_STATE_HOME/dj-digger` (default
 `~/.local/state/dj-digger`) on Linux, `%LOCALAPPDATA%/dj-digger/Logs` on Windows
 (fallback `~/AppData/Local/dj-digger/Logs`), and `~/Library/Logs/dj-digger` on macOS.
@@ -1195,7 +1274,7 @@ Existing data/config/cache paths are unchanged. `--log-file` overrides only the
 diagnostic log destination, not report storage.
 
 `SOUNDCLOUD_OAUTH_TOKEN` overrides stored SoundCloud credentials.
-`WSL_DISTRO_NAME` participates in WSL detection. `DJ_DIGGER_URL` is an
+`XDG_RUNTIME_DIR` locates the extension socket. `WSL_DISTRO_NAME` participates in WSL detection. `DJ_DIGGER_URL` is an
 internal environment handoff used to keep a URL out of PowerShell source text.
 `WSLVIEW_SKIP_VALIDATION_CHECK` is defaulted to `1` by the browser module.
 `DJ_DIGGER_LIVE_URL` is consumed only by the live test workflow/test fixture.
@@ -1266,7 +1345,7 @@ only those obsolete cache columns, preserving cached paths, mtimes, normalized
 stems, playlists, statuses, and file provenance; the backup retains all original
 columns and values. Failure rolls back the entire migration.
 Unknown/older/newer shapes are left untouched and
-raise `UnsupportedSchema`. A CLI instance lock protects the data directory;
+raise `UnsupportedSchema`. The instance lock (§6.2) protects the data directory;
 users must close older applications before upgrading. Downgrade requires an
 explicit backup restore. POSIX private file modes do not promise Windows ACLs.
 
@@ -1300,12 +1379,15 @@ The default email uses the reserved `.invalid` domain. A first missing config is
 created and marks the launch as first-run.
 
 `auth.json` stores a verified SoundCloud OAuth token with username and user ID.
-JSON writes use a 0600 temporary file, atomic replacement, and an
+`webext.json` stores `authkey`, 32 random bytes in hex that authenticate the
+application and `dj-digger-host` to each other; the application creates it, the
+host only reads it. JSON writes use a 0600 temporary file, atomic replacement, and an
 attempt to restrict the containing directory to 0700. The JSON link export and
 the audio-export report are written the same atomic way but readable as ordinary
-files (0644), without touching the permissions of the user's folder. Managed SoundCloud and
-store Chromium profiles are separate directories under the data path and are
-restricted to 0700 on non-Windows systems.
+files (0644), without touching the permissions of the user's folder. Releases before
+1.4 kept managed browser profiles (`soundcloud-browser/`, `store-browser/`) under the
+data path; nothing reads, creates or deletes them any more, and the user may delete
+them by hand.
 
 ## 8. Public interfaces and contracts
 
@@ -1329,6 +1411,10 @@ default). Open adds
 `--category`, `--skip`, `--limit`, `--no-open`, and a summary path.
 
 SoundCloud auth actions are `login [--token]`, `logout`, and `status`.
+`browser register` writes the host manifests, copies the extension and prints the
+folder to load (exit 1 when no supported browser was found); `browser unregister`
+removes the manifests and registry keys. Every command takes the instance lock
+first (§6.2).
 
 Success returns 0. An empty dig returns 1. Caught file, value, and runtime errors
 return 2. Keyboard interruption returns 130; Invalid argparse input exits through
@@ -1372,26 +1458,33 @@ header.
 
 Login first accepts a valid stored/environment token, then scans plaintext
 Firefox `moz_cookies` databases on Linux/macOS and mounted Windows profiles,
-then uses a dedicated Chromium profile, with a hidden manual token fallback in
-the CLI. A browser failure the application diagnoses itself (Chromium download
-failed, profile in use, no desktop display) is reported with that reason; any other
-browser failure keeps a generic message and logs only its exception type. Browser databases are copied to a private temporary file before reading.
+then asks the browser extension (§10.3), with a hidden manual token fallback in
+the CLI. The extension reads the one `oauth_token` cookie of the user's own
+browser; when that token verifies, no window opens. Otherwise
+`soundcloud.com/signin` opens in the extension's work window and the cookie is
+polled for up to five minutes, a rejected token being ignored until it changes.
+Without a connected extension the desktop opens the Connect browser dialog and the
+CLI says to run `dj-digger browser register`. A browser failure the application
+diagnoses itself (extension missing, browser or extension restarted) is reported
+with that reason; any other browser failure keeps a generic message and logs only
+its exception type. Browser databases are copied to a private temporary file before reading.
 Chromium-family cookie databases are not scanned because the values are
-encrypted. Candidate tokens are verified with SoundCloud `/me` before saving.
+encrypted; the extension reads the cookie through the browser instead. Candidate
+tokens are verified with SoundCloud `/me` before saving.
 
 `SOUNDCLOUD_OAUTH_TOKEN` has precedence and an invalid value blocks replacement
 until it is unset or changed. API credentials are read for each request and
 validated against the exact HTTPS API host before sending, with automatic
 redirects disabled. Login changes apply to subsequent requests without closing
-sessions under active transfers. Logout deletes `auth.json`; it does not delete the
-managed browser profile or an environment variable.
+sessions under active transfers. Logout deletes `auth.json`; it does not sign the
+browser out of SoundCloud or delete an environment variable.
 
 ### 9.2 Gate action consent
 
 The configuration flag `gate_social_actions` defaults to true and is user-editable
 in Settings. When false, Hypeddit gates declaring non-email steps fail with a
-typed `GateSocialActionsDisabled`, which the desktop hands to the private browser
-where the user completes the steps themselves; GateRush does not post the
+typed `GateSocialActionsDisabled`, which the desktop hands to the browser's
+work window where the user completes the steps themselves; GateRush does not post the
 configured comment. Gates that require a real email fail before submission while the
 reserved placeholder remains configured. Browser steps recheck current consent
 before each social action and re-read the profile before submission. Changing
@@ -1406,6 +1499,15 @@ their social links; Hypeddit clears its Spotify step through its own OAuth
 application and server session, which nothing done with a user's own Spotify
 login could satisfy. Deezer, Apple Music, Threads, CAPTCHA, and unknown steps require browser/manual
 completion rather than being simulated.
+
+The browser fallback acts in the accounts the user's browser is logged in to, with
+no application-owned profile. With `gate_social_actions` true, its Connect step
+(Spotify, Deezer, Apple Music, Threads) is clicked and its provider popup awaited:
+if the user once authorised the Hypeddit application at that provider, the popup
+returns without a prompt and Hypeddit can follow or save on the user's own
+account. There is no further consent prompt; Settings states this next to the flag.
+The provider's own consent screen (for example Agree) is never clicked by the
+program.
 
 ## 10. External integrations
 
@@ -1442,8 +1544,9 @@ profile, consent, provider login, CAPTCHA, unknown action, protocol change,
 rejection, transfer, and provider availability. Provider login, CAPTCHA,
 unknown action, protocol change, rejection, and disabled social actions fall
 back to the browser; a batch hands at most eight gates to it per run and leaves
-the rest new. Browser fallback uses the private SoundCloud Chromium profile,
-hidden first: a tab that Hypeddit sent to its hot-or-not poll instead of the
+the rest new. Browser fallback runs in one work window of the user's own browser,
+driven by the extension (§10.3), hidden first (an unfocused normal window, not a
+headless browser): a tab that Hypeddit sent to its hot-or-not poll instead of the
 gate (its habit for the first visit after a download) is pointed at the gate
 once more; when gate social actions are enabled it presses the gate's
 sidebar Download and walks the step slides it reveals, one current slide at a
@@ -1454,19 +1557,37 @@ twenty seconds, a popup back on a Hypeddit host being closed after two
 seconds; the email slide is filled with the configured real address, and with
 the configured name when the slide asks for one (`#email_name`); the
 download slide's button is clicked, after the `filedownloading` cookie a
-previous download left is cleared, since Hypeddit refuses the next gate
-while it is present. A row whose step only a person can finish
+previous download left is cleared through the extension's one cookie operation,
+since Hypeddit refuses the next gate while it is present. One gate's Download
+click is in flight at a time: the next waits until that row's tabs report a file,
+a block or a failure, or 15 seconds pass, because the extension attributes a file
+to the tab that had just fetched it. A row whose step only a person can finish
 (a provider still asking for a login, a CAPTCHA, a placeholder email, a name
-the profile lacks, a page without known controls) is deferred, and every deferred row of the batch is
-reopened in one visible window where the same driver runs with a five-minute
-provider wait and reports what stopped instead of failing the row. Suspended gate drivers are polled
-round-robin on the same Playwright-owning thread, so other tabs advance to their
+the profile lacks, a page without known controls, a download the browser
+holds back) is deferred. When the hidden pass ends, the tabs of settled rows and
+every popup are closed, each deferred row's tab is reloaded in place at its gate,
+and the same window is shown (not reopened): the driver runs again with a
+five-minute provider wait and reports what stopped instead of failing the row.
+Suspended gate drivers are polled round-robin on the calling thread, which also
+receives the adapter's events, so other tabs advance to their
 own login/manual step. Each driver retains its current slide and popup across
 polls, avoiding repeated Connect clicks or form submissions when it resumes.
 Nothing outside Hypeddit's page is ever clicked. A hidden pass always ends five
 minutes after its driving; a single gate's window has the same limit, a
-batch's window lasts as long as a tab stays open. Downloads are watched only
-in the tabs and popups the batch's own pages opened. Closing one tab does not
+batch's window lasts as long as a tab stays open. Downloads are accepted only for
+the tabs and popups the batch's own pages opened: the extension matches a
+response fetched in an owned tab to the URL of a new browser download and ignores
+a download it cannot attribute to exactly one tab, so a file is never given to a
+guessed row. The file is the browser's own download in its download folder; the
+application accepts it only for a download announced for an owned tab, requires a
+regular, non-symlink file within the size limit, copies it and asks the extension
+to delete the browser's file and history entry. A download the browser holds
+back, a "where to save" prompt (a filename still missing after five seconds) or a
+file it flags as unsafe, is never accepted: hidden, the row is deferred to the
+shown window; shown, it fails as a manual action with "nothing was kept". A
+download the browser reports as interrupted is a download failure. Without a
+connected extension every row is unavailable with an instruction to connect the
+browser. Closing one tab does not
 close the other gates: only an unfinished track with no remaining owned tab or
 popup receives a manual-action failure. A popup can finish its track after its
 parent tab closes, and already completed files keep their successful result.
@@ -1498,10 +1619,58 @@ path tries `wl-copy`, `xclip`, `xsel`, `pbcopy`, then Windows `clip.exe`, with a
 two-second timeout and no shell invocation. OSC 52 is not emitted because stdout
 belongs to the terminal.
 
-Playwright Chromium is a runtime dependency for Bandcamp carts, store product
-lookup, and managed gate browser completion. If the matching browser binary is
-missing, the desktop offers a user-confirmed
-`python -m playwright install chromium` operation.
+Bandcamp carts, Beatport lookup, Hypeddit browser completion and the SoundCloud
+browser login drive the user's own browser through the dj-digger extension (Chrome,
+Chromium, Brave, Edge 121 or newer; Firefox 128 or newer). The application
+downloads and bundles no browser and keeps no browser profile.
+
+The channel has three parts. The browser starts the Native Messaging host
+`com.github.fbialogrecki.djdigger` (`dj-digger-host`: a console script, and in
+frozen builds a console executable beside the GUI) and exchanges four-byte
+length-prefixed JSON frames over its stdin and stdout. The host relays them
+unchanged to the application's `multiprocessing.connection` socket (§6.3). It
+authenticates both ways with the HMAC challenge keyed by `webext.json`, and only
+`send_bytes`/`recv_bytes` with JSON are used, never the pickling `send`/`recv`
+(a test greps the package for them). The host exits when the browser closes its
+stdin, retries the application every second, replays the extension's cached
+`hello` to each new application connection and refuses application frames above
+1 MB. Requests are `{id, cmd, args}`, replies `{id, ok, result}` or `{id, ok,
+error: {code, message}}`, events `{event, ...}`. The extension's first frame is
+`hello` (browser, extension and browser versions, protocol 1, a per-start
+instance id, whether host permissions are granted).
+
+One automation batch is a session pinned to the connection it started on, chosen
+as the most recently active compatible one. A dropped connection or a new
+extension instance ends the session with "browser extension restarted"; it never
+moves to another browser. With no compatible `hello` within three seconds the
+application raises `ExtensionMissing` ("not connected", or "reload or update the
+extension" on a protocol mismatch). A command times out after 15 seconds
+(navigation 30); commands that wait for an element wait inside the extension for
+their own timeout and the application allows two seconds more. Commands for one
+tab run in order; cancelling sends `cancel`, which stops the wait in the extension.
+
+`webext.page` gives the sync and asyncio flavours the methods and semantics the
+code was written for: element waits in actions and reads, immediate `count` and
+`is_visible`, role queries that skip hidden elements, a forced click that still
+scrolls and sends pointer, mouse and click events at the element's centre, `fill`
+through the native value setter with `input` and `change` events, pages, popups
+(`opener`) and download, download-blocked and download-failed events. Regular
+expressions may carry only `re.IGNORECASE` and JavaScript-compatible syntax,
+`evaluate` accepts only the two Bandcamp page scripts (run as named read-only
+functions), and a page above 2,000,000 bytes is refused rather than returned.
+
+`register()` writes the host manifest for each browser whose profile directory
+exists, with `allowed_origins` for the Chromium family (the extension ID derived
+from the public `key` in its `manifest.json`) and `allowed_extensions`
+(`dj-digger@fbialogrecki.github.io`) for Firefox; on Windows it also writes the
+HKCU registry key, pointing at a manifest under `data_dir()`. Flatpak and Snap
+browsers are reported as unsupported and never written to. It also copies the
+extension to `data_dir()/browser-extension/` when the content hash of the folders
+differs. The desktop registers at every start in a background thread;
+`dj-digger browser register` does the same from a terminal, and `unregister`
+removes the manifests and registry keys until the next registration. The extension
+is installed by the user (Load unpacked, or Load Temporary Add-on in Firefox);
+`welcome.html` shows the link state and can request the host permissions again.
 
 ### 10.4 Bandcamp cart and Beatport playlists
 
@@ -1512,21 +1681,20 @@ Redirects are validated after navigation. HTML parsing is bounded at 2,000,000
 bytes. Matching compares normalized title, artist, version tokens, stable product
 IDs, availability, price, and currency.
 
-The dedicated browser uses one persistent profile, sandboxing where supported,
-and disabled downloads. Automated product work is headless, presenting the user
-agent of the same Chromium in a window (as the hidden gate browser does) rather than
-`HeadlessChrome`; a separate visible
-browser with the same cookies shows the finished cart and the manual-finish
-pages, and the profile is opened headed only for a user-requested Bandcamp
-login. Manual login receives up to five minutes. Production anti-bot challenges are
-not solvable in Playwright: Beatport login is therefore never attempted, and a
+The browser is the user's own, in its normal profile, driven through the
+extension (§10.3). Automated product work runs in the hidden work window; the
+finished cart and the manual-finish pages are new tabs of the same window, which is
+shown. The user's own Bandcamp and Beatport logins and cookies apply (a guest cart
+left by the `store-browser` profile of releases before 1.4 is not in the user's
+browser); the application offers no store login. Production anti-bot challenges are
+not solvable by automation: Beatport login is therefore never attempted, and a
 challenge during read-only lookup degrades to a metadata playlist entry instead
 of being looped or bypassed. A necessary-cookie Bandcamp choice may be recorded
 so its footer cannot cover exact purchase controls. Preflight, confirmation,
-immediate revalidation, and mutation reuse no more than two managed pages. The
-final display uses pages of the visible browser. Cart mutation is limited to an identified Bandcamp
-add-to-cart control; the code does not fill a password, choose payment details,
-or invoke checkout.
+immediate revalidation, and mutation reuse no more than two work tabs. Cart
+mutation is limited to an identified Bandcamp add-to-cart control; the code does
+not fill a password, choose payment details, or invoke checkout, and the extension
+itself refuses checkout navigation and payment-like clicks (§11.4).
 
 Beatport identity requires its numeric track ID; the canonical track slug is an
 additional exact title/version signal when a release-row label omits its remix.
@@ -1578,7 +1746,7 @@ parameters.
 Secrets and profile data are never stored in the repository by application code.
 Token/profile JSON writes are private-before-write temporary files followed by
 atomic replacement. Passwords are entered only in provider-owned browser pages;
-the SoundCloud managed login copies only the verified `oauth_token` to
+the SoundCloud browser login copies only the verified `oauth_token` to
 `auth.json`.
 
 Browser preferences cannot name arbitrary commands. Subprocess calls use
@@ -1594,7 +1762,7 @@ Rich representations. Worker descriptions never include token arguments.
 Download filenames are reduced to basenames, invalid platform characters are
 replaced, Windows reserved names are prefixed, and final names are selected under
 a process lock. HTTP and browser downloads use temporary files and atomic rename;
-partial files are removed on failure or cancellation. HTTP, Chromium and local
+partial files are removed on failure or cancellation. HTTP, browser and local
 copies share the name lock and check cancellation at final publication. Finished
 files are retained even when the subsequent library write fails;
 `PublishedFileUnrecorded` carries the published path and is never a transfer retry.
@@ -1608,7 +1776,51 @@ Declared and observed sizes are limited to
 Store-cart writes require exact-item preflight and immediate revalidation.
 Network write calls
 are not configured with automatic retry adapters when duplication could mutate
-third-party state.
+third-party state. In the browser, an owned tab that navigates (or is redirected)
+to a store checkout or payment path is closed by the extension itself (§11.4).
+
+### 11.4 Browser-extension trust boundary
+
+Automation drives the user's real, logged-in browser, so the extension, not the
+Python caller, enforces its own limits, whatever the application sends:
+
+- **Allowlist.** `allowlist.json` is the single source for `background.js`; a test
+  compares it with `links.HYPEDDIT_HOSTS`, `store_urls.STORE_HOSTS` and the
+  manifest's `host_permissions`. Only `https`, default port, no credentials:
+  `hypeddit.com` and `hypd.it` (also `www.`), `bandcamp.com` and `beatport.com`
+  with their subdomains, and `soundcloud.com` for `/signin` only (its tab is never
+  read or clicked). A navigation elsewhere is refused.
+- **Own tabs only.** Commands act on tabs the extension created and on popups of
+  those; the user's other tabs are never touched. Reading or clicking
+  (`dom.*`, `tab.html`, `tab.capture`) also needs the tab's current URL on the
+  allowlist, so provider popups are only closed and reported, never read or
+  clicked. URLs outside the allowlist are reduced to `https://<host>/` in events,
+  replies and error messages, so OAuth callbacks (`code=`, `state=`) never cross
+  the channel or reach a log.
+- **No checkout.** A navigation or redirect of an owned Bandcamp or Beatport tab to
+  `/checkout`, `/cart/checkout` or `/payment` closes the tab and is reported
+  (`forbidden_path`). Clicks are refused on elements whose accessible name matches
+  check out, pay, payment, purchase, place order, buy now or complete order,
+  except exactly "Buy Digital Track/Album" on Bandcamp. `fill` refuses password
+  inputs and `cc-*` payment fields.
+- **No remote code.** There is no `eval`; the only page-world functions are the
+  named read-only ones in `dom.js`, whose results are untrusted and capped at
+  100,000 bytes. The only input is the native port: the manifest has no
+  `externally_connectable`, there is no external-message handler and no page script
+  listens to `window.postMessage`. `welcome.html` can only request the host
+  permissions.
+- **Two cookie operations**, both hard-coded: read `oauth_token` of
+  `soundcloud.com`, delete `filedownloading` at the Hypeddit hosts. There is no
+  general cookie access.
+- **Downloads** are attributed to an owned tab by the response it fetched, matched
+  to the download's URL; an unattributable one is ignored, an unsafe or "where to
+  save" one is reported as blocked and never accepted, and the application deletes
+  the browser's file only after copying a download it was told about.
+- **Channel.** The socket directory is private to the user (§6.3), peers
+  authenticate with the key in `webext.json` (0600), and a web page has no route to
+  either. The extension makes no network request of its own.
+- **Logs and diagnostics** contain no query strings or cookie values; saved cart
+  pages also lose e-mail addresses, because they now come from a signed-in session.
 
 ## 12. Privacy, lifecycle, and retention
 
@@ -1616,11 +1828,13 @@ third-party state.
 
 The application stores crate track metadata and source URLs, status decisions,
 local media paths and filename-derived cache values, timestamps, configuration,
-credentials, a cached public SoundCloud client ID, and separate managed-browser
-profiles. A requested Beatport transfer also writes a plain-text playlist in the
+credentials, the extension channel key (`webext.json`), a cached public SoundCloud
+client ID, the copy of the extension and the browser host manifests (§10.3). No
+browser profile is kept: sessions live in the user's own browser. A requested Beatport transfer also writes a plain-text playlist in the
 configured crate download folder. Cart diagnostics (a screenshot, a redacted
 page copy, and a small JSON note per unverified click or structural failure,
-last ten kept) live under the data directory. Audio preview bytes are process
+last ten kept; e-mail addresses are removed from the page copy) live under the
+data directory. Audio preview bytes are process
 memory only, and so are SoundCloud artwork pictures (at most 64). The waveform
 envelope of every played track, which the application computes from the audio
 itself, remote or local, is kept in the library database (`waveforms`, 1024
@@ -1631,7 +1845,7 @@ local media, but credential-like values are redacted. Users can open the log
 directory from the application to inspect or remove diagnostic files.
 
 There is no implemented expiry or automatic retention period for the database,
-configuration, credentials, browser profiles, downloads, or cache. Crate deletion
+configuration, credentials, downloads, or cache. Crate deletion
 removes only that crate row. Missing scanned files remove cache/provenance records
 as described in §3.5.
 
@@ -1641,8 +1855,9 @@ SoundCloud receives public collection/media requests (including the artwork of a
 played track from its CDN) and, when configured, the OAuth token for authenticated API calls. Link hubs, gates, stores, and download
 hosts receive ordinary HTTP request metadata. A gate may receive the configured
 name, real email, and comment only in the provider flows described in §10.2.
-Store sites receive browser navigation, Bandcamp login performed by the
-user, and verified Bandcamp add-to-cart actions. Soundiiz receives no request
+Store sites receive navigation from the user's own signed-in browser session and
+verified Bandcamp add-to-cart actions; gate providers see the browser's accounts
+(§9.2). The extension sends nothing to any server. Soundiiz receives no request
 until the user chooses the Beatport playlist result; the application then sends
 the playlist title plus accepted track titles and artists to its public import
 endpoint and opens the temporary review URL returned by Soundiiz.
@@ -1650,10 +1865,13 @@ endpoint and opens the temporary review URL returned by Soundiiz.
 ### 12.3 User-controlled deletion
 
 `auth logout` deletes saved SoundCloud `auth.json`; crate deletion removes a
-crate row. A `spotify.json` left by a release before 1.0 is not read or deleted
-by the application. The repository provides
+crate row. `dj-digger browser unregister` (and Disconnect browsers in the desktop)
+removes the host manifests and registry keys; the extension is removed by the user
+in the browser. A `spotify.json` left by a release before 1.0, and the
+`soundcloud-browser/` and `store-browser/` profiles left by releases before 1.4, are
+not read or deleted by the application. The repository provides
 no command that deletes all database state, configuration, client-ID cache,
-managed browser profiles, downloads, generated Beatport playlists, or indexed
+downloads, generated Beatport playlists, or indexed
 source media in bulk. Explicit selected-file deletion is available in the local
 explorer, with confirmation; it does not provide a recycle-bin or undo operation.
 
@@ -1669,7 +1887,9 @@ fails loudly before any URL is opened.
 
 Gate failures remain typed so the desktop can distinguish a profile prompt,
 SoundCloud login, browser/manual completion, protocol failure, or terminal
-transfer error. Batch results group failures while preserving completed files.
+transfer error. A missing extension is `ExtensionMissing`: carts and login open the
+Connect browser dialog, gates report their rows unavailable, the CLI names
+`dj-digger browser register`. Batch results group failures while preserving completed files.
 Cart outcomes distinguish `added`, `already_in_cart`, `skipped`, and `failed`,
 carry a machine-readable cause, and expose retry only for failures before an
 uncertain click. Repeated batch failures are grouped in the error banner while
@@ -1683,7 +1903,8 @@ as player events instead of escaping through Python-CFFI.
 
 - Public SoundCloud collection depends on an undocumented API v2 contract and a
   client ID discovered from current web assets.
-- Browser-cookie auto-detection reads Firefox stores only.
+- Browser-cookie auto-detection reads Firefox stores only; the extension reads the
+  SoundCloud cookie of any browser it is installed in.
 - DNS names are not resolved and pinned by the automatic-fetch safety check.
 - SoundCloud playback supports progressive MP3 and MP3 HLS (up to 50 MiB).
   AAC/Opus HLS, encrypted streams and snippet-only tracks are not full previews.
@@ -1700,10 +1921,27 @@ as player events instead of escaping through Python-CFFI.
   early. Decoding runs on the audio callback; on a network slower than playback
   it can wait for audio needed only 0.4 s later.
 - Bandcamp cart automation and Beatport release lookup support linked products
-  only and depend on current store interfaces. A graphical session is required
-  to show the completed cart, to finish items by hand, and for the Bandcamp
-  login in Settings, not for lookup or the clicks themselves; on WSL that means
-  WSLg, and without one the additions are kept and the window is one warning.
+  only and depend on current store interfaces. They need the extension connected
+  in a running browser; the work window is shown for the completed cart and the
+  manual finish, and a failure to show it is one warning that keeps the additions.
+- The extension is installed unpacked by the user (Developer mode and Load
+  unpacked in Chrome, Edge and Brave; a temporary add-on in Firefox, removed when
+  Firefox restarts); the repository builds no store listing or signed package.
+  Flatpak and Snap browsers cannot start the host and are unsupported, and
+  private windows and Firefox containers are not used. The hidden work window is
+  an unfocused normal window, not a minimized one; whether a window manager raises
+  it is not controlled. Disconnect browsers lasts only until the next start,
+  which registers again. The extension socket path does not depend on the data
+  directory, so two desktops with different data directories on one account share
+  it and the later start replaces the earlier socket (the instance lock is per
+  data directory); the CLI and a second desktop are refused while one desktop
+  runs. Extension flows are verified offline against a protocol fake and, for
+  `dom.js`, by the manual `selftest.html` page; acceptance in real browsers is a
+  manual checklist (`docs/gui-e2e-checklist-pl.md`), not recorded here.
+- A browser download passes through the browser's own download folder before it is
+  copied, and the browser keeps that file if the extension could not delete it;
+  downloads the browser holds back (a save dialog, an unsafe-file warning) are
+  never accepted automatically.
 - Beatport cart mutation is not automated. Playlist creation needs a user-driven
   Soundiiz transfer, its public import handoff accepts at most 200 tracks, and
   catalog matches require review. Beatport pages may reject automated release
@@ -1733,8 +1971,8 @@ as player events instead of escaping through Python-CFFI.
 
 ### 14.1 Offline and live test suites
 
-The default pytest configuration excludes `live`, `shop_live`, `hypeddit_live`,
-`bandcamp_dom`, and `shop_mutate`. Its autouse fixture redirects config, auth, database, and scan
+The default pytest configuration excludes `live`, `shop_live`, and `hypeddit_live`.
+Its autouse fixture redirects config, auth, database, and scan
 folders to a temporary directory. Network interactions in offline tests use fake
 sessions or repository fixtures; the default requests transport is blocked by
 an autouse fixture. Player tests do not require a real output
@@ -1748,25 +1986,27 @@ uv run --extra dev ruff check .
 uv run --extra dev pytest -m live
 uv run --extra dev pytest -m shop_live
 uv run --extra dev pytest -m hypeddit_live
-uv run --extra dev pytest -m bandcamp_dom
-DJ_DIGGER_SHOP_MUTATE_URL=<name-your-price track> uv run --extra dev pytest -m shop_mutate
 ```
 
 The live SoundCloud suite checks client-ID discovery, long collection,
 50-ID hydration, media availability, and socket decoding. Store-live tests read
-public Bandcamp/Beatport pages without logging in or changing a cart.
+public Bandcamp/Beatport pages without logging in or changing a cart, through the
+connected browser extension: they skip without it and need the desktop closed,
+because they start their own extension listener.
 Hypeddit-live tests issue GET-only inspection and do not submit a profile,
-perform OAuth, resolve a download, or request a file. `bandcamp_dom` drives
-owner-recorded Bandcamp pages committed under `tests/fixtures/bandcamp/`
-in a real headless Chromium. Requests are fulfilled from recordings or aborted;
-the suite checks the selectors the cart relies on and skips if recordings or
-Playwright Chromium are unavailable. `shop_mutate` adds, verifies, and removes
-one name-your-price track in a throwaway profile and never approaches checkout.
+perform OAuth, resolve a download, or request a file. The recorded Bandcamp pages
+under `tests/fixtures/bandcamp/` serve offline parser tests only; no test starts a
+browser.
 
-Store sync-browser fixtures are function-scoped so they cannot retain a running
-sync Playwright loop during async tests. Tests resolve the installed browser cache
-before XDG isolation and honor PLAYWRIGHT_BROWSERS_PATH; profiles and user data
-remain isolated. Unavailable Hypeddit fixtures are skipped, not passed. The current
+The extension is covered offline by `tests/test_webext*.py`: Native Messaging
+framing and host exit, the listener with authentication, dropped connections and
+restarted instances, a source check that the pickling `send`/`recv` never appear in
+`dj_digger/webext/`, host registration under a temporary home, consistency of
+`allowlist.json` with the Python host lists and the manifest, and the page adapters
+against an in-process fake extension speaking the protocol (waits, cancellation,
+event order, truncation, redacted popup URLs). The JavaScript of `dom.js` has no
+automatic test: the extension's `selftest.html` runs synthetic cases in a browser.
+Unavailable Hypeddit fixtures are skipped, not passed. The current
 Lights On live fixture is album-only; moved-track recovery remains covered offline.
 
 `scripts/benchmark_analysis.py --output DIRECTORY` generates controlled silence,
@@ -1795,7 +2035,9 @@ The isolated package check verifies the reported version against the wheel name.
 Windows and macOS. It builds a Windows x64 installer and native macOS arm64 and
 x86_64 DMGs, verifies their bundled runtime and installation, and uploads test
 artifacts. These are unsigned desktop previews; physical-device and interactive
-acceptance remain separate from the automated checks. User installation steps
+acceptance remain separate from the automated checks. The frozen runtime smoke
+checks that the packaged extension files and relay import, starts no browser, and
+the installer tests assert that `dj-digger-host` sits beside the GUI executable. User installation steps
 and per-app security-warning guidance live in `docs/installation.md`.
 
 `.github/workflows/live.yml` runs the `live` marker weekly on Monday at 06:00 UTC
@@ -1837,6 +2079,9 @@ markers, unowned named blocks, or absent numbered headings are explicit errors.
   `dj_digger/config.py`, `dj_digger/scanner.py`, `dj_digger/services/library.py`.
 - Authentication and integrations: `dj_digger/auth.py`,
   `dj_digger/gates/`, `dj_digger/browser.py`, `dj_digger/services/purchases.py`.
+- Browser extension and its channel: `dj_digger/webext/` (including
+  `extension/allowlist.json`, `extension/background.js`), `dj_digger/instance.py`,
+  `packaging/host_entry.py`, `packaging/desktop.spec`.
 - Composition and operation settlement: `dj_digger/services/runtime.py`,
   `dj_digger/services/operations.py`, `dj_digger/services/downloads.py`.
 - UI and playback: `dj_digger/player.py`, `dj_digger/hls_audio.py`,

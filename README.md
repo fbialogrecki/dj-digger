@@ -194,7 +194,11 @@ XDG_DATA_HOME=/tmp/dj-dev XDG_CONFIG_HOME=/tmp/dj-dev XDG_CACHE_HOME=/tmp/dj-dev
 Download gates, store carts and the SoundCloud login are driven by a small
 extension in your own browser (Chrome, Edge, Brave, Chromium or Firefox). There is
 no managed browser to download, and the extension talks only to dj-digger on this
-computer. Connect it once:
+computer. Connect it once. The desktop does the registration itself at every start;
+its **Connect browser…** dialog (Settings menu, and opened by the first cart or
+SoundCloud login that needs it) shows the folder to load with a **Copy path** button and
+**Check connection**. From a terminal, with the desktop closed (a `dj-digger` command and
+the desktop cannot run together):
 
 ```bash
 dj-digger browser register
@@ -203,7 +207,8 @@ dj-digger browser register
 The command registers the native-messaging host with the browsers it finds and
 copies the extension to the `browser-extension/` folder of the dj-digger data
 directory (`~/.local/share/dj-digger`, or `$XDG_DATA_HOME/dj-digger`), printing the
-exact path. Then, in the browser:
+exact path. Browsers installed as Flatpak or Snap cannot start the host and are
+reported as unsupported. Then, in the browser:
 
 - **Chrome, Edge, Brave, Chromium:** open `chrome://extensions` (`edge://extensions`,
   `brave://extensions`), turn on **Developer mode**, choose **Load unpacked** and select
@@ -214,8 +219,9 @@ exact path. Then, in the browser:
   restarts).
 
 Open the extension's welcome page to grant the site permissions it asks for. To
-disconnect, run `dj-digger browser unregister`; the extension itself is removed
-from the browser's extensions page.
+disconnect, run `dj-digger browser unregister` or use **Disconnect browsers…** in the
+desktop's Settings menu (the desktop registers again at its next start); the extension
+itself is removed from the browser's extensions page.
 
 Releases before 1.4 kept managed browser profiles in the data directory. They are no
 longer used and are never deleted automatically. To reclaim the space, close
@@ -335,8 +341,8 @@ added to the default cart in one action.
 Only canonical Bandcamp and Beatport HTTPS domains are inspected. Custom artist
 domains remain outside this version. The feature depends on the stores' and
 Soundiiz's public import interface; use it in line with their terms. Showing
-the completed Bandcamp cart or opening its manual session needs a graphical
-session; WSL users need WSLg or another working display.
+the completed Bandcamp cart brings your browser's work window forward; the browser
+must run where dj-digger runs (under WSL, a Linux browser through WSLg).
 
 For a timestamped diagnostic log, run:
 
@@ -368,10 +374,9 @@ The desktop opens the same choice automatically when a download needs SoundCloud
 Cancelling leaves the track untouched. A successful login updates credentials for subsequent API requests and retries
 the waiting track once. Existing transfers keep their resources until they finish.
 
-SoundCloud's private browser profile lives in
-`~/.local/share/dj-digger/soundcloud-browser`; its verified API credential lives
-in the owner-only `~/.config/dj-digger/auth.json` (the standard XDG environment
-variables override both base directories).
+The verified SoundCloud API credential lives in the owner-only
+`~/.config/dj-digger/auth.json` (the standard XDG environment variables override
+the base directory).
 If `SOUNDCLOUD_OAUTH_TOKEN` is set, it deliberately overrides that file; an
 invalid value must be unset or updated before the CLI wizard can replace a login.
 
@@ -400,7 +405,7 @@ asking you to sign in, a CAPTCHA, a missing email or name - opens a window, wher
 and after the one that needs you. Sign in to Spotify there once and later
 gates finish out of sight. Nothing outside the Hypeddit page is clicked.
 The extension works in the accounts your browser is signed in to, so a Connect step
-that was authorized once before acts on that account. Disable **gate social actions**
+that was authorized once before acts on that account. Turn off **Allow social actions**
 in Settings to keep the program from reporting or clicking any social step at all. Gates requiring those actions
 will then remain manual.
 

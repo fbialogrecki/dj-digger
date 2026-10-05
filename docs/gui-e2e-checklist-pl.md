@@ -6,6 +6,8 @@ To instrukcja testów, **nie raport z ich wykonania**. Checkbox zaznaczaj dopier
 
 Podstawa: odpowiednie sekcje `PROJECT-SPECIFICATION.md`, zapytania do graphify oraz bieżący kod QML, bridge, backendu i wspólnych usług. Graf ma 3723 węzły i pochodzi z 09.09.2026; służył do nawigacji, nie do potwierdzania działania ani kompletności nowszego GUI. Zapytania obejmowały słownik `bridge backend settings download playback export cart local analysis playlist gate soundcloud`. Istotne węzły: `Bridge` (`dj_digger/gui/bridge.py`, graf: `L28`), `Backend` (`dj_digger/gui/backend.py`, graf: `L19`), `ApplicationServices`, `DownloadWorkflow`, `LocalLibrary`, `CartRequest` i `CartPlan`. Bieżące lokalizacje są w źródłach na końcu dokumentu.
 
+Aktualizacja dla 1.4.0: bramki, koszyki i logowanie SoundCloud działają przez rozszerzenie w Twojej przeglądarce, a nie przez Chromium aplikacji (kroki SHOP-01, AUTH-01/02, GATE-05…08 i nowa sekcja 21 z macierzą W1–W14 z `docs/implementation/browser-extension-plan.md` §8). Te kroki wymagają przeglądarki z rozszerzeniem; Flatpak i Snap nie są obsługiwane.
+
 Pliki GUI oraz sprawdzone usługi w zainstalowanym pakiecie 1.2.0 są identyczne z tym checkoutem. Opisy działania poniżej wynikają z kodu; nie potwierdzają aktualnej dostępności SoundCloud, bramek ani sklepów.
 
 ## Jak przeprowadzić testy
@@ -32,6 +34,8 @@ dj-digger-gui
 ```
 
 W `Settings → Preferences…` ustaw folder pobierania na `~/dj-digger-e2e/downloads`, a foldery skanowania i przypięte na `~/dj-digger-e2e/media`. **Zastąp domyślne foldery skanowania**, bo profil testowy nadal domyślnie wskazuje rzeczywiste Music i Downloads. Eksplorator też może je pokazywać; do prób wybieraj dodany folder testowy. Izolacja XDG nie izoluje kont w Twojej zwykłej przeglądarce ani koszyków na serwerach sklepów.
+
+**Rozszerzenie a profil testowy.** Host `dj-digger-host` uruchamia przeglądarka. Czyta on klucz `webext.json` z `config_dir()` **własnego** środowiska, a gniazdo leży w `$XDG_RUNTIME_DIR` i jest jedno na konto (nie zależy od `XDG_DATA_HOME`). Przy izolowanym `XDG_CONFIG_HOME` połączenie z rozszerzeniem nie przejdzie uwierzytelnienia. Do kroków z przeglądarką (AUTH-01, GATE, SHOP, sekcja 21) zamknij zwykłe dj-digger i uruchom GUI bez nadpisywania `XDG_CONFIG_HOME` (możesz izolować `XDG_DATA_HOME`, `XDG_CACHE_HOME`, `XDG_STATE_HOME`; wtedy folder rozszerzenia to `$XDG_DATA_HOME/dj-digger/browser-extension`, a okno `Connect browser` pokaże go z przyciskiem `Copy path`). Ustawienia zapisane w tym przebiegu trafiają do prawdziwej konfiguracji, więc zanotuj poprzednie wartości i przywróć je po testach. Alternatywa: uruchom przeglądarkę z identycznymi zmiennymi `XDG_*` (zacznie wtedy od świeżego profilu, bez rozszerzenia i bez Twoich logowań).
 
 W polu e-mail domyślne `dj-digger@example.invalid` jest celowo nieprawidłowe. Do zapisu preferencji bez bramek wyczyść to pole; do testów wymagających e-maila podaj własny prawidłowy adres.
 
@@ -106,8 +110,8 @@ Do TABLE-17 możesz zapisać poniższy tekst jako `~/dj-digger-e2e/summaries/lit
 
 ## 4. Import playlist całego profilu i konto SoundCloud
 
-- [ ] **AUTH-01 — Logowanie.** `Settings → Sign in to SoundCloud` → zaloguj się w otwartej dedykowanej przeglądarce. Oczekiwane: powrót do gotowego GUI i potwierdzenie zalogowania; zweryfikuj sesję przez import własnej prywatnej playlisty lub oficjalny download.
-- [ ] **AUTH-02 — Przerwane logowanie.** Rozpocznij logowanie, zamknij jego okno lub anuluj operację w GUI. Oczekiwane: aplikacja nie pozostaje zajęta bez końca i można spróbować ponownie.
+- [ ] **AUTH-01 — Logowanie.** `Settings → Sign in to SoundCloud`. Jeśli Firefox lub przeglądarka z rozszerzeniem ma ważną sesję SoundCloud, token zostaje zapisany bez okna logowania; w przeciwnym razie w oknie roboczym otwiera się karta `soundcloud.com/signin` i logujesz się w niej. Oczekiwane: powrót do gotowego GUI i potwierdzenie zalogowania; zweryfikuj sesję przez import własnej prywatnej playlisty lub oficjalny download.
+- [ ] **AUTH-02 — Przerwane logowanie.** Rozpocznij logowanie (wylogowana przeglądarka) i anuluj operację w GUI. Oczekiwane: aplikacja nie pozostaje zajęta i można spróbować ponownie. Samo zamknięcie karty logowania nie przerywa oczekiwania; kończy je dopiero limit 5 minut albo Cancel.
 - [ ] **AUTH-03 — Publiczny import profilu.** `Library → Import profile playlists…` → własny lub dostępny profil, private wyłączone. Oczekiwane: osobne playlisty w panelu i komunikat z liczbą oraz ścieżką raportu `profile-import-*.json`.
 - [ ] **AUTH-04 — Porównanie profilu.** Porównaj zaimportowane publiczne playlisty, kolejność i liczby utworów z profilem. Powtórz import. Oczekiwane: brak powielania tych samych playlist; raport odróżnia sukces od niepełnej odpowiedzi.
 - [ ] **AUTH-05 — Prywatne playlisty właściciela.** Zaloguj się jako właściciel OWN i zaznacz `Include private playlists`. Oczekiwane: import własnych prywatnych playlist, o ile API udostępnia komplet danych. Wynik wymaga rzeczywistego konta właściciela.
@@ -219,7 +223,7 @@ Do TABLE-17 możesz zapisać poniższy tekst jako `~/dj-digger-e2e/summaries/lit
 - [ ] **GATE-02 — Prosty Hypeddit.** D na bramce bez ręcznego kroku. Oczekiwane: dozwolone rozwiązanie bramki, plik przechodzi zwykłą walidację i uzyskuje got; podgląd HTML nie jest wynikiem.
 - [ ] **GATE-03 — Brak profilu i e-mail.** Na bramce wymagającej profilu rozpocznij bez prawdziwego e-maila, anuluj ustawienia; potem powtórz z własnym poprawnym adresem. Oczekiwane: brak wysyłki placeholdera; po prawidłowym profilu próba może być wznowiona.
 - [ ] **GATE-04 — Wyłączone kroki społecznościowe.** Wyłącz zgodę, uruchom bramkę deklarującą takie kroki. Oczekiwane: automatyka nie traktuje starej zgody jako aktualnej; pojawia się odmowa albo ręczna ścieżka. Nie wykonuj ręcznie działań, których nie chcesz.
-- [ ] **GATE-05 — CAPTCHA/nieobsługiwany krok.** Użyj bramki wymagającej człowieka. Oczekiwane: dedykowane widoczne okno, możliwość samodzielnego ukończenia lub przerwania, bez pozorowania rozwiązanej CAPTCHA.
+- [ ] **GATE-05 — CAPTCHA/nieobsługiwany krok.** Użyj bramki wymagającej człowieka. Oczekiwane: okno robocze rozszerzenia pojawia się na wierzchu (to samo, w którym działał ukryty przebieg), możliwość samodzielnego ukończenia lub przerwania, bez pozorowania rozwiązanej CAPTCHA.
 - [ ] **GATE-06 — Wiele kart ręcznych.** Uruchom kilka bramek z ręcznymi krokami. Ukończ jedną, zamknij drugą, pozostaw trzecią. Oczekiwane: zamknięcie jednej nie niszczy pozostałych; pobrany plik zachowuje sukces, zamknięta niedokończona ścieżka ma właściwy wynik.
 - [ ] **GATE-07 — Popup i karta nadrzędna.** Jeśli bramka otworzyła własny popup, zamknij kartę nadrzędną i spróbuj ukończyć w popupie. Oczekiwane: wynik należy do właściwego utworu, o ile popup nadal jest częścią tego procesu; brak przejmowania pobrań z obcych kart.
 - [ ] **GATE-08 — Anulowanie ręcznej partii.** Cancel w GUI podczas ręcznego okna. Oczekiwane: ukończone pliki zachowane; reszta anulowana, a nie uznana za udane pobranie; okno/operacja daje się zakończyć.
@@ -227,6 +231,7 @@ Do TABLE-17 możesz zapisać poniższy tekst jako `~/dj-digger-e2e/summaries/lit
 - [ ] **GATE-10 — Pozostałe resolvery.** Osobno sprawdź dostępne darmowe przykłady ToneDen, Droploud, GateRush, MediaFire, Dropbox i Google Drive. Dla każdego zapisz: plik pobrany i odtwarzalny / blokada dostawcy / błąd. GateRush może przesłać e-mail i włączony komentarz.
 - [ ] **GATE-11 — Zmieniona/niedostępna bramka.** Użyj wygasłego lub odrzuconego źródła. Oczekiwane: wyjaśnienie awarii lub ręczna ścieżka, nigdy „sukces” bez pliku. Nie uznawaj pojedynczego błędu antybotowego za dowód awarii wszystkich bramek.
 - [ ] **GATE-12 — Powrót z bramki.** Po darmowym pobraniu wróć do GUI, odtwórz wynik lokalnie, uruchom aplikację ponownie. Oczekiwane: trwały status i dostępna lokalna ścieżka, bez potrzeby ponownego przechodzenia bramki dla tej kopii.
+- [ ] **GATE-13 — Akcje na kontach z przeglądarki.** Przy włączonym `Allow social actions` uruchom bramkę z krokiem Connect (Spotify, Deezer, Apple Music lub Threads) w przeglądarce zalogowanej u dostawcy, który kiedyś autoryzował Hypeddit. Oczekiwane: Connect przechodzi bez pytania, a Hypeddit może wykonać follow/save na Twoim koncie (opis tego skutku jest w Settings przy przełączniku). Powtórz z wyłączonym przełącznikiem: żaden krok społecznościowy nie jest klikany, bramka idzie do okna roboczego. Zgody dostawcy (np. Agree) klika człowiek; użyj konta, na którym follow/save nie szkodzi.
 
 ## 13. BPM, tonacja i ręczne poprawki
 
@@ -286,7 +291,7 @@ Do TABLE-17 możesz zapisać poniższy tekst jako `~/dj-digger-e2e/summaries/lit
 
 Przed testem zapisz obecny stan koszyka. Nie używaj produktów, których przypadkowe dodanie utrudni Ci rozpoznanie wcześniejszej zawartości. Celem jest koszyk/plan i ich poprawne wyniki; **nigdy finalizacja zamówienia**.
 
-- [ ] **SHOP-01 — Konta sklepowe.** Settings → Store accounts. Oczekiwane: dedykowana przeglądarka tylko dla Bandcamp, możliwość logowania i zamknięcia procesu; Cancel kończy się neutralnym „Cancelled”, nie czerwonym błędem. Bez Chromium w profilu: pytanie o jednorazowe pobranie, po zgodzie ponowienie. Bez samoczynnego zakupu; nie wymagaj logowania ani koszyka Beatport.
+- [ ] **SHOP-01 — Połączenie przeglądarki.** Wyłącz rozszerzenie w przeglądarce i wybierz C na pozycji Bandcamp. Oczekiwane: dialog `Connect browser` (status „Not connected…", kroki dla Chrome/Edge/Brave i Firefoksa, folder rozszerzenia z przyciskiem `Copy path`); po włączeniu rozszerzenia `Check connection` wznawia ten sam koszyk. Cancel w dialogu kończy się neutralnym „Cancelled", nie czerwonym błędem. Nie ma już `Store accounts…` ani logowania Bandcamp w aplikacji: koszyk używa sesji z Twojej przeglądarki, a koszyk gościa też działa. Bez samoczynnego zakupu; nie wymagaj logowania ani koszyka Beatport.
 - [ ] **SHOP-02 — Pojedynczy Bandcamp.** Zaznacz jeden SHOP o stałej cenie, C → sprawdź Review cart → Continue. Oczekiwane: poprawny produkt i zweryfikowany wynik dodania albo wyraźna odmowa. Sprawdź dokładny utwór/wydanie w koszyku, **zatrzymaj się przed Checkout**.
 - [ ] **SHOP-03 — Już w koszyku.** Ponów C na tym samym produkcie. Oczekiwane: rozpoznanie istniejącej pozycji, bez niekontrolowanych ponownych dodawań i bez uznawania produktu za pobrane audio.
 - [ ] **SHOP-04 — Plan grupy i deselect.** Zaznacz kilka produktów → C → Review cart; odznacz jeden, zatwierdź pozostałe. Oczekiwane: odznaczony nie jest dodawany; sprawdź wyniki i rzeczywisty koszyk, bez płatności.
@@ -318,6 +323,7 @@ Przed testem zapisz obecny stan koszyka. Nie używaj produktów, których przypa
 - [ ] **ERR-08 — Zamknięcie z pytaniem.** Zamknij aplikację przy otwartym potwierdzeniu lub formularzu. Oczekiwane: nie zatwierdza automatycznie operacji i daje się ponownie uruchomić.
 - [ ] **ERR-09 — Utrata sieci.** Odłącz sieć, otwórz zapisaną playlistę i lokalny folder, odtwórz lokalny plik; następnie wykonaj akcję wymagającą sieci. Oczekiwane: lokalne operacje działają, sieciowa kończy się wyjaśnionym błędem; po przywróceniu sieci można ponowić.
 - [ ] **ERR-10 — Dłuższa sesja.** Przez 30–60 min przełączaj playlisty/foldery, odtwarzaj, filtruj i pobieraj. Oczekiwane: brak narastającego opóźnienia, lawiny okien/procesów i utraty reakcji. Zapisz użycie RAM na początku i końcu; nie stosuj wymyślonego twardego limitu wydajności.
+- [ ] **ERR-11 — Jedna instancja.** Przy otwartym GUI uruchom drugie `dj-digger-gui` i w terminalu dowolne `dj-digger` (np. `dj-digger auth status`). Oczekiwane: drugie GUI kończy się komunikatem „Another dj-digger instance is using this data directory"; polecenie CLI kończy się tym samym komunikatem i kodem 2; pierwsze GUI działa dalej. Po zamknięciu GUI polecenie CLI działa. Nie dotyczy dwóch profili z różnym `XDG_DATA_HOME` (patrz „Rozszerzenie a profil testowy”: gniazdo rozszerzenia jest wspólne).
 
 ## 19. Dodatkowa akceptacja platformy i granice ręcznych prób
 
@@ -341,6 +347,27 @@ Poniższe przebiegi spinają pojedyncze przypadki. Zaliczenie osobnych przycisk�
 - [ ] **E2E-06 — Odporność na przerwanie.** Duży lokalny folder → eksport Copy → Cancel po części wyników → zamknij → uruchom → Resume export → sprawdź kompletność → odtwórz wynik → przejrzyj diagnostykę.
 - [ ] **E2E-07 — Biblioteka i wymiana linków.** Dodaj P1/P2 → statusy → eksport wybranego zestawu do JSON/CSV → import JSON → porównanie → usunięcie testowego wiersza z zapisanej playlisty → refresh → restore → restart → kontrola trwałości.
 
+## 21. Rozszerzenie przeglądarki — macierz akceptacji 1.4.0 (W1–W14)
+
+Wiersze z `docs/implementation/browser-extension-plan.md` §8. Na Fedorze (Chrome i Firefox z RPM) wszystkie; na Windows 10/11 (Chrome, Edge, Firefox) i macOS (Chrome, Firefox) co najmniej W1, W2, W4, W8 i W11. Warunki wstępne: sekcja „Rozszerzenie a profil testowy”, dane GATE i SHOP, konta, na których możesz bezpiecznie wykonać follow/save i dodać do koszyka. Przed pierwszym wierszem zamknij zwykłe dj-digger.
+
+- [ ] **W1 — Pierwsze uruchomienie bez rozszerzenia.** Uruchom GUI w przeglądarce bez rozszerzenia i użyj `Settings → Connect browser…` (albo C). Oczekiwane: dialog `Connect browser`; po załadowaniu rozszerzenia (Chrome/Edge/Brave: Developer mode → Load unpacked; Firefox: `about:debugging` → Load Temporary Add-on → `manifest.json`) `Check connection` daje `hello` w ≤ 3 s; wiersz `Browser automation` w Settings pokazuje przeglądarkę i wersję rozszerzenia oraz „connected” (albo „missing site access”).
+- [ ] **W2 — Logowanie SoundCloud przy zalogowanej przeglądarce.** Zaloguj się na soundcloud.com w przeglądarce z rozszerzeniem, wyloguj dj-digger (`Sign out…`), potem `Sign in to SoundCloud…`. Oczekiwane: token zapisany bez okna logowania.
+- [ ] **W3 — Logowanie SoundCloud przy wylogowanej przeglądarce.** Wyloguj się z soundcloud.com w przeglądarce i powtórz. Oczekiwane: karta `/signin` w oknie roboczym; po zalogowaniu token zapisany i okno robocze zamknięte.
+- [ ] **W4 — Partia 5 bramek Hypeddit (e-mail, click-through).** Użyj własnego e-maila w Settings. Oczekiwane: wszystkie pliki pobrane w ukrytym przebiegu, każdy pod właściwym utworem; pliki w folderze playlisty; brak kopii w folderze Pobrane przeglądarki.
+- [ ] **W5 — Bramka z CAPTCHA i z pierwszą zgodą Spotify (Agree klika człowiek).** Oczekiwane: okno robocze pokazuje tylko odroczone karty (bez duplikatów, karty rozstrzygniętych bramek zamknięte); po akcji człowieka plik pobrany. Sprawdź też pobranie, które przeglądarka wstrzymuje (pytanie „gdzie zapisać” lub ostrzeżenie o niebezpiecznym pliku): nigdy nie jest przyjmowane samo, w ukrytym przebiegu wiersz trafia do okna, w oknie kończy się błędem „nothing was kept”.
+- [ ] **W6 — Koszyk Bandcamp: 3 pozycje, w tym jedna name-your-price z podniesioną ceną.** Oczekiwane: weryfikacja; karta koszyka na wierzchu; nic nie kliknięte poza add-to-cart. Ręczna próba wejścia w `/checkout` z karty roboczej jest blokowana (karta się zamyka). **Zatrzymaj się przed Checkout.**
+- [ ] **W7 — Koszyk Beatport: 3 pozycje z ID + 1 bez ID.** Oczekiwane docelowo: 3 w koszyku Beatport, 1 w playliście/Soundiiz. **Wstrzymane:** koszyk Beatport (faza F6 planu) nie jest zaimplementowany; dziś pozycje Beatport trafiają do playlisty/Soundiiz (jak SHOP-13/14). Do czasu F6 oznacz `NIE TESTOWANO`.
+- [ ] **W8 — Zamknięcie aplikacji w trakcie / zamknięcie przeglądarki w trakcie / przeładowanie rozszerzenia w trakcie** (partia gate'ów lub koszyka, osobno). Oczekiwane: brak zawieszenia; wiersze z jasnym błędem („browser extension restarted” lub rozłączenie); proces `dj-digger-host` kończy się po zamknięciu przeglądarki; po testach brak osieroconych procesów `dj-digger-host` (`pgrep -a dj-digger-host`).
+- [ ] **W9 — Anulowanie partii gate'ów i koszyka (także w trakcie etapu weryfikacji).** Oczekiwane: jak w GATE-08 i SHOP-11; brak nakładających się poleceń na karcie.
+- [ ] **W10 — Instalacja z wheela na czystym systemie bez Chromium.** Oczekiwane: brak pobierania przeglądarki; brak `playwright` w zależnościach pakietu (`pip show dj-sc-digger` / `uv.lock`); w pakiecie jest skrypt `dj-digger-host` i folder `webext/extension`.
+- [ ] **W11 — `selftest.html` w Chrome i Firefoksie.** Otwórz `chrome-extension://klkgfigjpjkhjdiddhdadbkoeclhejni/selftest.html` (ID jest stałe, z klucza w manifeście) albo w Firefoksie adres `moz-extension://<Internal UUID z about:debugging>/selftest.html`. Oczekiwane: każda linia kończy się PASS.
+- [ ] **W12 — Dwie przeglądarki z rozszerzeniem jednocześnie.** Oczekiwane: partia zostaje w przeglądarce, w której się zaczęła (nowa sesja wybiera ostatnio aktywną); Settings pokazują aktywną.
+- [ ] **W13 — Odebranie uprawnień do hostów w Firefoksie (`about:addons`).** Oczekiwane: Settings pokazują „missing site access”; polecenia dają czytelny błąd zamiast zawieszenia; `welcome.html` pozwala przywrócić dostęp (`Grant site access`).
+- [ ] **W14 — `dj-digger browser unregister` (albo `Disconnect browsers…`).** Przy zamkniętym GUI w terminalu. Oczekiwane: manifesty hosta (i wpisy rejestru na Windows) usunięte; rozszerzenie pokazuje „not connected”. Przy `Disconnect browsers…` w GUI rejestracja wraca przy następnym starcie aplikacji.
+
+Dodatkowo: `npx web-ext lint` w `dj_digger/webext/extension` bez błędów (lokalnie, przed podpisem XPI) i zielony domyślny pytest w CI na trzech systemach.
+
 ## Znane różnice, żeby nie testować funkcji, których GUI nie udostępnia
 
 | Obszar | Co rzeczywiście wynika z kodu |
@@ -356,6 +383,7 @@ Poniższe przebiegi spinają pojedyncze przypadki. Zaliczenie osobnych przycisk�
 | Potwierdzenie koszyka | GUI przekazuje callback wyświetlający Review cart również dla pojedynczego Bandcamp. Opis skróconej ścieżki pojedynczego produktu w specyfikacji nie oznacza pominięcia tego dialogu GUI. Dokładne linki Beatport mogą od razu przejść do wyników playlisty bez zmiany koszyka. |
 | Wynik koszyka | GUI składa tekst z `status` i `reason`; nie należy wymagać bogatego, przetłumaczonego ekranu wyników. |
 | Wynik downloadu | GUI obsługuje postęp i błędy pojedynczych plików, ale nie prezentuje wszystkich summary/status/deferred zdarzeń workflow. |
+| Beatport | Brak koszyka Beatport: dokładne pozycje idą do playlisty/Soundiiz (wiersz W7 czeka na fazę F6). |
 | Wylogowanie | W menu jest wylogowanie SoundCloud, nie ogólne wyczyszczenie wszystkich profili/cookies/kont. |
 | Skróty | Korzystaj z Help → Keyboard shortcuts w GUI. Np. E oznacza edycję BPM/Key, Shift+E eksport linków, P poprzedni utwór. |
 | Wygląd/metadata | Rok/label/gatunek mogą być puste w lokalnym widoku mimo istnienia tagów; `media_track()` obecnie mapuje przede wszystkim artist/title, duration, BPM i key. |
@@ -394,6 +422,7 @@ Nie umieszczaj w zgłoszeniu haseł, tokenów, cookies ani nieprzejrzanych danyc
 | Analiza i eksport | Specyfikacja §3.7; `dj_digger/gui/backend.py:368`, `:401`, `:426`, `:764`, `:857`; `dj_digger/decks.py:69`; `dj_digger/export.py` |
 | JSON/CSV i błędy importu | Specyfikacja §8.2; `dj_digger/gui/backend.py:792`, `:801`; `dj_digger/links.py:417` |
 | Koszyki i Soundiiz | Specyfikacja §3.6, §10.4, §13.2; `dj_digger/gui/backend.py:871`; `dj_digger/services/purchases.py:438`, `:805`, `:1000` |
+| Rozszerzenie, kanał i granice zaufania | Specyfikacja §10.3, §11.4, §13.2; `dj_digger/webext/`; `dj_digger/gui/backend.py` (`connect_browser`, `with_extension`) |
 | Preferences i logi | `dj_digger/gui/backend.py:525`, `:758`; `dj_digger/gui/bridge.py:270`; `dj_digger/paths.py:13` |
 | Dotychczasowe testy jako pomoc w doborze przypadków | [tests/test_gui.py](../tests/test_gui.py), [opis implementacji desktopu](implementation/qt-quick-desktop.md) — nie były uruchamiane w ramach przygotowania tej listy |
 | Ograniczenia grafu | [docs/graph-notes.md](graph-notes.md), [graf JSON](../graphify-out/graph.json) — graf nie jest dowodem zachowania QML |
