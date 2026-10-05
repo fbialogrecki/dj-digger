@@ -102,7 +102,7 @@ class LinkPageInspection:
 
 @dataclass(frozen=True)
 class HypedditBrowserBatchResult:
-    """Files and typed failures produced by one shared Chromium context."""
+    """Files and typed failures produced by one shared browser window."""
 
     completed: tuple[tuple[str, Path], ...] = ()
     failures: tuple[tuple[str, GateError], ...] = ()

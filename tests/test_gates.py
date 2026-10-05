@@ -8,6 +8,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from dj_digger import gate_models
+from dj_digger.automation_errors import AutomationError
 from dj_digger.config import DEFAULT_NAME
 from dj_digger.gates import browser as gate_browser
 from dj_digger.gates import hubs as gate_hubs
@@ -20,6 +21,7 @@ from dj_digger.gates.providers import (
     resolve_toneden_download_url,
 )
 from dj_digger.models import Track
+from dj_digger.webext.link import ExtensionMissing
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -594,12 +596,10 @@ def test_hypeddit_page_redirect_to_localhost_is_blocked_before_second_get():
     assert session.get.call_count == 1
 
 
-def test_hypeddit_fallback_shares_the_soundcloud_browser_profile_lock(tmp_path):
-    from dj_digger import auth
-
-    assert auth.BROWSER_PROFILE_LOCK.acquire(blocking=False)
+def test_only_one_hypeddit_browser_batch_runs_at_a_time(tmp_path):
+    assert gate_browser._BATCH_LOCK.acquire(blocking=False)
     try:
-        with pytest.raises(gate_models.GateUnavailable, match="profile is already in use"):
+        with pytest.raises(gate_models.GateUnavailable, match="already running"):
             gate_browser.download_hypeddit_in_browser(
                 Track(title="T", permalink_url="https://soundcloud.com/a/t"),
                 "https://hypeddit.com/track/x",
@@ -607,7 +607,7 @@ def test_hypeddit_fallback_shares_the_soundcloud_browser_profile_lock(tmp_path):
                 None,
             )
     finally:
-        auth.BROWSER_PROFILE_LOCK.release()
+        gate_browser._BATCH_LOCK.release()
 
 
 def test_hypeddit_browser_batch_uses_one_context_and_maps_each_tab_download(
@@ -666,7 +666,7 @@ def test_hypeddit_browser_batch_uses_one_context_and_maps_each_tab_download(
         contexts.append(context)
         yield context
 
-    monkeypatch.setattr("dj_digger.browser_session.sync_browser_context", browser_context)
+    monkeypatch.setattr("dj_digger.webext.page.session", browser_context)
     tracks = [
         Track(
             id=index,
@@ -778,12 +778,14 @@ class _GatePage:
         self.steps = list(steps)
         self.index = 0
         self.clicked = []
+        self.history = []  # the click logs of earlier loads of this tab
+        self.closed = False
         self.email = None
         self.name = None
         self.asks_name = asks_name
         self.polls = 0
         self.popups = []
-        self.pending = {n: 1 for n, kind in enumerate(self.steps) if kind in _CLICK_STEPS}
+        self.pending = self._fresh_pending()
         self.spotify_signed_in = spotify_signed_in
         self.callback_closes = callback_closes
         self.captcha = captcha
@@ -792,10 +794,22 @@ class _GatePage:
         self.late_popup = late_popup
         self.opening = None
 
+    def _fresh_pending(self):
+        return {n: 1 for n, kind in enumerate(self.steps) if kind in _CLICK_STEPS}
+
     def on(self, event, callback):
         self.handlers[event] = callback
 
+    def close(self):
+        self.closed = True
+        if self in self.context.pages:
+            self.context.pages.remove(self)
+
     def goto(self, url, **_kwargs):
+        if self.clicked:  # a reload starts the gate over
+            self.history.append(self.clicked)
+            self.clicked, self.index, self.captcha_shown = [], 0, False
+            self.pending = self._fresh_pending()
         self.visited.append(url)
         if self.detours:
             self.detours -= 1
@@ -807,7 +821,7 @@ class _GatePage:
         return self.url != _HOT_OR_NOT
 
     def is_closed(self):
-        return False
+        return self.closed
 
     @property
     def kind(self):
@@ -900,11 +914,16 @@ class _GatePage:
 
 
 class _GateContext:
-    def __init__(self, page_factory, clock, *, attended):
+    def __init__(self, page_factory, clock, *, attended, launches=None):
         self.factory = page_factory
         self.clock = clock
         self.attended = attended
+        self.launches = launches
+        self.shows = 0
+        self.closed_at_show = []
+        self.made = []  # every tab ever opened, closed ones too
         self.pages = [page_factory(self)]
+        self.made += self.pages
         self.handlers = {}
         self.cookies = set()
 
@@ -914,27 +933,40 @@ class _GateContext:
     def new_page(self):
         page = self.factory(self)
         self.pages.append(page)
+        self.made.append(page)
         self.handlers["page"](page)
         return page
+
+    def show(self):
+        self.shows += 1
+        self.closed_at_show = [page for page in self.made if getattr(page, "closed", False)]
+        self.attended = True
+        if self.launches is not None:
+            self.launches.append((False, self))
+
+    @property
+    def visible(self):
+        return self.attended
 
     def clear_cookies(self, *, name):
         self.cookies.discard(name)
 
 
 def _gate_browser(monkeypatch, page_factory):
-    """Every context the batch opens, as (headless, context), on a clock the fakes advance."""
+    """The window's states, as (hidden, context): one entry when it opened and one
+    more when it was shown - the same context - on a clock the fakes advance."""
 
     clock = {"t": 0.0}
     monkeypatch.setattr(gate_browser, "_now", lambda: clock["t"])
     launches = []
 
     @contextmanager
-    def browser_context(_profile, *, accept_downloads=False, headless=False):
-        context = _GateContext(page_factory, clock, attended=not headless)
-        launches.append((headless, context))
+    def session(visible=False, listener=None):
+        context = _GateContext(page_factory, clock, attended=visible, launches=launches)
+        launches.append((not visible, context))
         yield context
 
-    monkeypatch.setattr("dj_digger.browser_session.sync_browser_context", browser_context)
+    monkeypatch.setattr("dj_digger.webext.page.session", session)
     return launches
 
 
@@ -1032,14 +1064,15 @@ def test_a_provider_that_wants_a_login_moves_the_gate_to_a_window(tmp_path, monk
     )
 
     assert [headless for headless, _context in launches] == [True, False]
-    hidden = launches[0][1].pages[0]
-    assert hidden.kind == "sp" and hidden.clicked[-1][1] == gate_browser.GATE_CONNECT_BUTTON
+    assert launches[0][1] is launches[1][1] and launches[0][1].shows == 1
+    page = launches[0][1].pages[0]
+    assert page.history[0][-1][1] == gate_browser.GATE_CONNECT_BUTTON
+    assert page.visited == ["https://hypeddit.com/track/seven"] * 2, "reloaded in place"
     assert messages[0] == (
         "Opening the browser window for 1 gate: accounts.spotify.com wants you to sign in"
     )
     assert "Complete accounts.spotify.com in the browser window" in messages[1]
-    window = launches[1][1].pages[0]
-    assert [selector for _kind, selector in window.clicked] == _WALKED, (
+    assert [selector for _kind, selector in page.clicked] == _WALKED, (
         "the steps before and after the login are still walked for the person"
     )
     assert path.read_bytes() == b"RIFF-gate"
@@ -1050,6 +1083,10 @@ def test_every_gate_reaches_login_before_waiting_for_the_person(tmp_path, monkey
         def __init__(self, context):
             super().__init__(context, spotify_signed_in=False)
             self.connected_at = None
+
+        def goto(self, url, **kwargs):
+            self.connected_at = None  # a reload starts the gate over
+            super().goto(url, **kwargs)
 
         def click(self, selector, slide):
             if selector == gate_browser.GATE_CONNECT_BUTTON:
@@ -1271,6 +1308,205 @@ def test_unknown_gate_dom_is_handed_to_the_window(tmp_path, monkeypatch):
         "Opening the browser window for 1 gate: the gate page has no step controls this program knows"
     ]
     assert path.read_bytes() == b"RIFF-bare"
+
+
+def _tracks(*ids):
+    return [Track(id=i, title=f"Track {i}", permalink_url=f"https://soundcloud.com/a/{i}") for i in ids]
+
+
+def test_the_visible_pass_keeps_the_window_and_reloads_only_the_deferred_tab(tmp_path, monkeypatch):
+    made = iter(range(10))
+
+    def page_factory(ctx):  # the second gate wants a Spotify login nobody is typing
+        if next(made) == 1:
+            return _GatePage(ctx, steps=("sp", "dw"), spotify_signed_in=False)
+        return _GatePage(ctx, steps=("email", "dw"))
+
+    launches = _gate_browser(monkeypatch, page_factory)
+    messages = []
+    tracks = _tracks(1, 2, 3)
+
+    result = gate_browser.download_hypeddit_batch_in_browser(
+        [(track, f"https://hypeddit.com/track/{track.id}") for track in tracks],
+        tmp_path, None, config=_DJ, status=messages.append,
+    )
+
+    assert [hidden for hidden, _context in launches] == [True, False]
+    context = launches[0][1]
+    assert launches[1][1] is context and context.shows == 1
+    first, deferred, third = context.made
+    assert len(context.made) == 3, "no tab is opened twice"
+    assert context.closed_at_show == [first, third], "settled tabs are closed before the window shows"
+    assert [page for page in context.pages if isinstance(page, _GatePage)] == [deferred]
+    assert deferred.visited == ["https://hypeddit.com/track/2"] * 2, "reloaded in place"
+    assert first.visited == ["https://hypeddit.com/track/1"]
+    assert third.visited == ["https://hypeddit.com/track/3"]
+    assert len(deferred.popups) == 2 and deferred.popups[0].closed, "the stale login popup was closed, a new one opened"
+    assert result.failures == () and not result.cancelled
+    assert sorted(key for key, _path in result.completed) == ["1", "2", "3"]
+    assert messages[0].startswith("Opening the browser window for 1 gate: accounts.spotify.com")
+
+
+class _SlowDownloadPage(_GatePage):
+    """A gate whose Download answers a few polls after the click, like a real transfer."""
+
+    arrives_after = 3
+    never = False
+
+    def click(self, selector, slide):
+        if selector != gate_browser.HYPEDDIT_DOWNLOAD_BUTTON:
+            return super().click(selector, slide)
+        context = self.context
+        context.clicks.append((self, context.clock["t"]))
+        if not self.never and any(not page.never for page, _due in context.in_flight):
+            context.overlap = True  # recorded, not asserted: a click swallows exceptions
+        if not self.never:
+            context.in_flight.append((self, context.ticks + self.arrives_after))
+
+    def wait_for_timeout(self, milliseconds):
+        super().wait_for_timeout(milliseconds)
+        context = self.context
+        context.ticks += 1
+        for entry in list(context.in_flight):
+            page, due = entry
+            if context.ticks >= due:
+                context.in_flight.remove(entry)
+                key = page.url.rsplit("/", 1)[-1]
+                page.handlers["download"](_download(f"{key}.wav", f"RIFF-{key}".encode()))
+
+
+def _slow_batch(monkeypatch, tmp_path, page_factory, ids):
+    launches = _gate_browser(monkeypatch, page_factory)
+    original = _GateContext.__init__
+
+    def init(self, *args, **kwargs):
+        self.clicks, self.ticks, self.in_flight, self.overlap = [], 0, [], False
+        original(self, *args, **kwargs)
+
+    monkeypatch.setattr(_GateContext, "__init__", init)
+    result = gate_browser.download_hypeddit_batch_in_browser(
+        [(track, f"https://hypeddit.com/track/{track.id}") for track in _tracks(*ids)],
+        tmp_path, None, config=_DJ,
+    )
+    return launches[0][1], result
+
+
+def test_a_gate_waits_for_the_download_in_flight_before_clicking_its_own(tmp_path, monkeypatch):
+    context, result = _slow_batch(
+        monkeypatch, tmp_path, lambda ctx: _SlowDownloadPage(ctx, steps=("dw",)), (1, 2, 3)
+    )
+
+    assert result.failures == ()
+    assert not context.overlap, "a Download was pressed while another gate's was still coming"
+    assert sorted((key, path.read_bytes()) for key, path in result.completed) == [
+        ("1", b"RIFF-1"), ("2", b"RIFF-2"), ("3", b"RIFF-3"),
+    ]
+    assert len(context.clicks) == 3, "each Download is pressed once, one after the other"
+
+
+def test_a_download_that_never_reports_holds_the_others_for_fifteen_seconds(tmp_path, monkeypatch):
+    class Page(_SlowDownloadPage):
+        def __init__(self, context):
+            super().__init__(context, steps=("dw",))
+            self.never = not context.made  # the first gate's download goes missing
+
+    context, result = _slow_batch(monkeypatch, tmp_path, Page, (1, 2))
+
+    (silent, silent_at), (other, other_at) = context.clicks
+    assert silent.never and not other.never
+    assert other_at - silent_at >= gate_browser.DOWNLOAD_TURN_SECONDS
+    assert [key for key, _path in result.completed] == ["2"]
+    assert [key for key, _error in result.failures] == ["1"]
+
+
+class _DownloadEventPage(_GatePage):
+    """A gate whose Download ends with whichever event the test names."""
+
+    def __init__(self, context, event, payload, *, when=lambda context: True):
+        super().__init__(context, steps=("dw",))
+        self.event, self.payload, self.when = event, payload, when
+
+    def click(self, selector, slide):
+        if selector == gate_browser.HYPEDDIT_DOWNLOAD_BUTTON and self.when(self.context):
+            self.clicked.append((self.kind, selector))
+            self.handlers[self.event](self.payload)
+            return
+        super().click(selector, slide)
+
+
+def test_a_download_the_browser_holds_back_waits_for_the_window(tmp_path, monkeypatch):
+    held = {"downloadId": 4, "tabId": 9, "reason": "save_as_dialog"}
+    launches = _gate_browser(
+        monkeypatch,
+        lambda ctx: _DownloadEventPage(
+            ctx, "download_blocked", held, when=lambda context: not context.attended
+        ),
+    )
+    messages = []
+
+    path = gate_browser.download_hypeddit_in_browser(
+        _track(), _GATE, tmp_path, None, status=messages.append, config=_DJ
+    )
+
+    assert [hidden for hidden, _context in launches] == [True, False]
+    assert messages == [
+        "Opening the browser window for 1 gate: the browser is asking where to save the download"
+    ]
+    assert path.read_bytes() == b"RIFF-gate"
+
+
+def test_a_download_still_held_back_at_the_window_is_reported_not_accepted(tmp_path, monkeypatch):
+    held = {"downloadId": 4, "tabId": 9, "reason": "danger: file"}
+    launches = _gate_browser(
+        monkeypatch, lambda ctx: _DownloadEventPage(ctx, "download_blocked", held)
+    )
+    messages = []
+
+    with pytest.raises(gate_models.GateManualActionRequired, match="flagged the download as unsafe"):
+        gate_browser.download_hypeddit_in_browser(
+            _track(), _GATE, tmp_path, None, status=messages.append, config=_DJ
+        )
+
+    assert [hidden for hidden, _context in launches] == [True, False]
+    assert messages[-1] == "Seven: the browser flagged the download as unsafe; nothing was kept"
+    assert list(tmp_path.glob("*.wav")) == []
+
+
+def test_a_download_that_fails_in_the_browser_is_a_download_error(tmp_path, monkeypatch):
+    failed = {"downloadId": 4, "error": "NETWORK_FAILED"}
+    launches = _gate_browser(
+        monkeypatch, lambda ctx: _DownloadEventPage(ctx, "download_failed", failed)
+    )
+
+    with pytest.raises(gate_models.GateDownloadError, match="NETWORK_FAILED"):
+        gate_browser.download_hypeddit_in_browser(_track(), _GATE, tmp_path, None, config=_DJ)
+
+    assert [hidden for hidden, _context in launches] == [True], "a failed transfer is not deferred"
+
+
+@pytest.mark.parametrize(
+    ("error", "wanted"),
+    [
+        (
+            ExtensionMissing("The dj-digger browser extension is not connected"),
+            "Connect the dj-digger browser extension",
+        ),
+        (AutomationError("browser extension restarted"), "browser extension restarted"),
+    ],
+)
+def test_without_a_connected_browser_every_row_is_unavailable(tmp_path, monkeypatch, error, wanted):
+    def session(*_args, **_kwargs):
+        raise error
+
+    monkeypatch.setattr("dj_digger.webext.page.session", session)
+    items = [(track, f"https://hypeddit.com/track/{track.id}") for track in _tracks(1, 2)]
+
+    result = gate_browser.download_hypeddit_batch_in_browser(items, tmp_path, None)
+
+    assert result.completed == () and not result.cancelled
+    assert [key for key, _error in result.failures] == ["1", "2"]
+    assert all(isinstance(failure, gate_models.GateUnavailable) for _key, failure in result.failures)
+    assert all(wanted in str(failure) for _key, failure in result.failures)
 
 
 @pytest.mark.parametrize('closed', ['first', 'other', 'completed', 'parent_with_popup', 'window'])

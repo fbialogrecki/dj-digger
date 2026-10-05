@@ -4,6 +4,7 @@ Extracts direct file download URLs from gate pages without requiring manual
 social media login steps.
 """
 
+import threading
 import time
 import urllib.parse
 from collections.abc import Callable, Generator
@@ -12,7 +13,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from dj_digger import automation_errors
 from dj_digger.gate_models import (
     GateDownloadError,
     GateError,
@@ -24,10 +24,13 @@ from dj_digger.gate_models import (
     HypedditBrowserBatchResult,
 )
 
+from ..automation_errors import AutomationError
 from ..config import DEFAULT_NAME
 from ..http import is_fetchable
 from ..links import host_of, is_hypeddit_url
 from ..models import Cancelled, is_cancelled
+from ..webext import page as webpage
+from ..webext.link import ExtensionMissing
 from .providers import (
     CLICK_THROUGH_STEPS,
     DIRECT_STEP,
@@ -81,17 +84,22 @@ CALLBACK_LINGER_SECONDS = 2.0
 # How long a Connect gets to show its popup: the page opens it in the click,
 # but it reaches the client a moment later.
 POPUP_GRACE_SECONDS = 3.0
-# The slide's links are clicked without Playwright's hit-target check: on the
-# live gate it reports the links' own container as intercepting the pointer,
-# although the link is what sits at that point. The click still lands as a
-# real mouse event where the link is.
+# The slide's links are clicked without a hit-target check: on the live gate
+# one reported the links' own container as intercepting the pointer, although
+# the link is what sits at that point. The click still lands as a mouse
+# event where the link is.
 _CLICK = {"timeout": 15_000, "force": True}
 StatusCallback = Callable[[str], None]
 # The step driver's own way of saying the person gave up, told apart from a
 # gate step it could not finish.
 CANCELLED = "cancelled"
+# How long one gate's download click keeps the others from clicking theirs
+# when its tab reports neither a file, a block nor a failure.
+DOWNLOAD_TURN_SECONDS = 15.0
 # Patched by tests that want the waits to pass without sleeping.
 _now = time.monotonic
+# One gate batch at a time: they share the browser extension's single work window.
+_BATCH_LOCK = threading.Lock()
 
 
 class _NeedsPerson(GateManualActionRequired):
@@ -102,7 +110,7 @@ class _NeedsPerson(GateManualActionRequired):
 class _Slide:
     """The current step slide, with what it was when it was looked at.
 
-    A Playwright locator resolves afresh on every use, so the kind and group
+    A locator resolves afresh on every use, so the kind and group
     are read once here; after the step the page's current slide is compared
     against ``group`` to see that it moved on.
     """
@@ -123,6 +131,8 @@ def _drive_gate_steps(
     name: str | None,
     attended: bool,
     config=None,
+    turn: "_DownloadTurn | None" = None,
+    key: str = "",
 ) -> Generator[None, None, bool]:
     """Walk the gate's step slides the way a fan does, then press its Download.
 
@@ -160,7 +170,7 @@ def _drive_gate_steps(
         guard()
         kind = slide.kind
         if kind == DIRECT_STEP:
-            if not _click_gate_download(page):
+            if not (yield from _click_gate_download(page, turn=turn, key=key, cancel=cancel)):
                 raise _NeedsPerson("the gate's download button is not where it was")
             return True
         if kind in GATE_CONNECT_STEPS:
@@ -268,7 +278,7 @@ def _connect_provider(
 
 
 def _opener(page: Any) -> Any | None:
-    """The page that opened this one. Playwright's ``opener`` is a method."""
+    """The page that opened this one. The adapter's ``opener`` is a method."""
 
     try:
         opener = page.opener
@@ -343,16 +353,55 @@ def _page_closed(page: Any) -> bool:
         return False
 
 
-def _click_gate_download(page: Any) -> bool:
+class _DownloadTurn:
+    """One gate's download click in flight at a time (plan D5).
+
+    The extension attributes a file to the tab that had just fetched it, and
+    Hypeddit refuses the next gate while the previous download's cookie is
+    set, so a click waits its turn. The turn is held from the click until
+    that row's tabs report a file, a block or a failure, or
+    ``DOWNLOAD_TURN_SECONDS`` pass.
+    """
+
+    def __init__(self) -> None:
+        self.holder: str | None = None
+        self.since = 0.0
+
+    def acquire(self, key: str, page: Any, cancel: Any) -> Generator[None, None, None]:
+        while self.holder not in (None, key) and _now() - self.since < DOWNLOAD_TURN_SECONDS:
+            if is_cancelled(cancel):
+                raise GateManualActionRequired(CANCELLED)
+            page.wait_for_timeout(250)
+            yield  # Let the gate that holds the turn advance.
+        self.holder, self.since = key, _now()
+
+    def release(self, key: str) -> None:
+        if self.holder == key:
+            self.holder = None
+
+
+def _click_gate_download(
+    page: Any, *, turn: _DownloadTurn | None = None, key: str = "", cancel: Any = None
+) -> Generator[None, None, bool]:
+    """Press the gate's Download once it is this row's turn; False if there is no button."""
+
     try:
         button = page.locator(HYPEDDIT_DOWNLOAD_BUTTON).first
         if not button.is_visible():
             return False
+    except Exception as exc:
+        LOGGER.debug("Gate download button not found: %s", type(exc).__name__)
+        return False
+    if turn is not None:
+        yield from turn.acquire(key, page, cancel)
+    try:
         page.context.clear_cookies(name=GATE_DOWNLOAD_COOKIE)
         button.click(**_CLICK)
         return True
     except Exception as exc:
         LOGGER.debug("Gate download button not clicked: %s", type(exc).__name__)
+        if turn is not None:
+            turn.release(key)
         return False
 
 
@@ -380,7 +429,7 @@ def download_hypeddit_in_browser(
     status: StatusCallback | None = None,
     config: Any | None = None,
 ) -> Path:
-    """Finish a provider-owned Hypeddit flow in the private browser.
+    """Finish a provider-owned Hypeddit flow in the browser.
 
     With ``social`` the gate's own steps are walked and provider windows are
     waited out; without it the page is only watched. A batch of one: the
@@ -427,9 +476,11 @@ class _TabWatch:
     """Binds each tab's download event back to the row that opened the tab.
 
     A provider popup belongs to the tab that opened it, so its download is
-    that tab's too; a tab nobody here opened is not watched at all. A row the
-    hidden browser could not finish is ``deferred`` with the reason, settled
-    for that pass and opened again in front of a person.
+    that tab's too; a tab nobody here opened is not watched at all. Ownership
+    comes only from the page an event arrived on: the extension reports just the
+    downloads it attributed to one of this batch's tabs, and nothing here guesses
+    for the rest. A row the hidden browser could not finish is ``deferred`` with
+    the reason, settled for that pass and opened again in front of a person.
     """
 
     def __init__(
@@ -447,14 +498,13 @@ class _TabWatch:
         self.failures = failures
         self.completed: dict[str, Path] = {}
         self.deferred: dict[str, str] = {}
+        self.tabs: dict[str, Any] = {}  # each row's own tab; its popups are only owned
+        self.turn = _DownloadTurn()
+        # Set by each pass: who is at the window, and where to tell them.
+        self.attended = False
+        self.status: StatusCallback | None = None
         self._watched: set[int] = set()
         self._owners: dict[int, str] = {}
-
-    def reset_tabs(self) -> None:
-        """Forget the previous context's pages before a new one is opened."""
-
-        self._watched.clear()
-        self._owners.clear()
 
     def settled(self, key: str) -> bool:
         return key in self.completed or key in self.failures or key in self.deferred
@@ -467,6 +517,7 @@ class _TabWatch:
         return str(getattr(track, "label", None) or key)
 
     def save(self, key: str, download: Any) -> None:
+        self.turn.release(key)
         if self.settled(key) or is_cancelled(self.cancel):
             return
         from .. import files
@@ -481,6 +532,36 @@ class _TabWatch:
         except Exception as exc:
             self.failures[key] = GateDownloadError(str(exc))
 
+    def blocked(self, key: str, item: Any) -> None:
+        """The browser would not take the download by itself (a "where to save"
+        dialog or an unsafe-file warning); it is never accepted automatically.
+        Hidden, the row waits for the window; at the window it is reported."""
+
+        self.turn.release(key)
+        if self.settled(key) or is_cancelled(self.cancel):
+            return
+        reason = str(item.get("reason") or "") if isinstance(item, dict) else ""
+        why = (
+            "the browser is asking where to save the download"
+            if reason == "save_as_dialog"
+            else "the browser flagged the download as unsafe"
+        )
+        if not self.attended:
+            self.deferred[key] = why
+            return
+        if self.status is not None:
+            self.status(f"{self.label(key)}: {why}; nothing was kept")
+        self.failures[key] = GateManualActionRequired(f"{why}; nothing was kept")
+
+    def download_failed(self, key: str, item: Any) -> None:
+        self.turn.release(key)
+        if self.settled(key) or is_cancelled(self.cancel):
+            return
+        error = str(item.get("error") or "") if isinstance(item, dict) else ""
+        self.failures[key] = GateDownloadError(
+            f"the browser could not finish the download: {error or 'interrupted'}"
+        )
+
     def watch(self, page: Any, key: str) -> None:
         marker = id(page)
         if marker in self._watched:
@@ -488,6 +569,8 @@ class _TabWatch:
         self._watched.add(marker)
         self._owners[marker] = key
         page.on("download", lambda download, owner=key: self.save(owner, download))
+        page.on("download_blocked", lambda item, owner=key: self.blocked(owner, item))
+        page.on("download_failed", lambda item, owner=key: self.download_failed(owner, item))
         page.on("popup", lambda popup, owner=key: self.watch(popup, owner))
 
     def watch_popup(self, page: Any) -> None:
@@ -523,32 +606,52 @@ def _open_gate_tabs(
     """One watched tab per row, every one created before the first navigation.
 
     A slow page therefore cannot serialize the user's whole queue into one
-    short-lived context per track. Navigation stops early when the batch is
-    cancelled; ``_await_downloads`` then records the cancellation.
+    short-lived window per track. A row that already has its tab (the visible
+    pass after a hidden one) is pointed at its gate again in place. Navigation
+    stops early when the batch is cancelled; ``_await_downloads`` then records
+    the cancellation.
     """
 
-    existing = list(context.pages)
+    spare = [page for page in context.pages if id(page) not in watch._owners]
     pages: list[tuple[str, Any]] = []
-    for index, key in enumerate(pending):
-        page = existing[index] if index < len(existing) else context.new_page()
-        watch.watch(page, key)
+    for key in pending:
+        page = watch.tabs.get(key)
+        if page is None or _page_closed(page):
+            page = spare.pop(0) if spare else context.new_page()
+            watch.watch(page, key)
+            watch.tabs[key] = page
         pages.append((key, page))
 
     for key, page in pages:
         if is_cancelled(watch.cancel):
             break
-        _track, url = pending[key]
-        try:
-            page.goto(url, wait_until="domcontentloaded", timeout=30_000)
-            if not is_hypeddit_url(str(page.url)):
-                watch.failures[key] = GateProtocolChanged(
-                    "Hypeddit redirected outside its canonical hosts"
-                )
-        except Exception as exc:
-            watch.failures[key] = GateUnavailable(
-                f"Could not open Hypeddit in Chromium: {exc}"
-            )
+        _goto_gate(page, key, watch)
     return pages
+
+
+def _goto_gate(page: Any, key: str, watch: _TabWatch) -> None:
+    _track, url = watch.pending[key]
+    try:
+        page.goto(url, wait_until="domcontentloaded", timeout=30_000)
+        if not is_hypeddit_url(str(page.url)):
+            watch.failures[key] = GateProtocolChanged(
+                "Hypeddit redirected outside its canonical hosts"
+            )
+    except Exception as exc:
+        watch.failures[key] = GateUnavailable(f"Could not open Hypeddit in the browser: {exc}")
+
+
+def _close_settled_tabs(context: Any, watch: _TabWatch) -> None:
+    """Between the hidden and the visible pass: close the tabs of rows that are
+    settled, and every popup, so the window shows only what still needs a person."""
+
+    for page in list(context.pages):
+        key = watch._owners.get(id(page))
+        if key is None or _page_closed(page):
+            continue
+        if watch.settled(key) or page is not watch.tabs.get(key):
+            with suppress(Exception):
+                page.close()
 
 
 def _drive_tab(
@@ -578,7 +681,8 @@ def _drive_tab(
             _track, url = watch.pending[key]
             page.goto(url, wait_until="domcontentloaded", timeout=30_000)
         if not (yield from _drive_gate_steps(
-            context, page, watch.cancel, status, social=social, email=email, name=name, attended=attended, config=watch.config
+            context, page, watch.cancel, status, social=social, email=email, name=name,
+            attended=attended, config=watch.config, turn=watch.turn, key=key,
         )) and not attended:
             raise _NeedsPerson("the gate page has no step controls this program knows")
     except (GateSocialActionsDisabled, GateProfileRequired) as exc:
@@ -616,7 +720,7 @@ def _drive_tabs(
 ) -> bool:
     """Round-robin every unsettled tab's driver until each is done. True if cancelled."""
 
-    # Playwright stays on its owning thread. Suspended drivers retain their
+    # The adapter dispatches events on its owning thread. Suspended drivers retain their
     # current step and popup so round-robin polling never repeats a Connect.
     drivers = {key: _drive_tab(context, key, page, watch, status, social=social,
                               email=email, name=name, attended=attended)
@@ -698,6 +802,7 @@ def _await_downloads(
 
 
 def _browser_pass(
+    context: Any,
     watch: _TabWatch,
     rows: dict[str, tuple[Any, str]],
     status: StatusCallback | None,
@@ -708,38 +813,69 @@ def _browser_pass(
     name: str | None,
     time_limit: float | None,
 ) -> bool:
-    """Open ``rows`` in one context, hidden or in a window, and see them through.
+    """See ``rows`` through in the batch's one work window, hidden or shown.
 
     True when the batch was cancelled. A hidden pass always has a time limit:
-    nobody can close its tabs.
+    nobody can close its tabs. Browser failures propagate to the batch.
     """
 
-    from .. import auth, browser_session
+    watch.attended, watch.status = not hidden, status
+    watch.turn.holder = None
+    pages = _open_gate_tabs(context, rows, watch)
+    return _await_downloads(
+        context,
+        pages,
+        watch,
+        status,
+        social=social,
+        email=email,
+        name=name,
+        attended=not hidden,
+        time_limit=PROVIDER_WAIT_SECONDS if hidden else time_limit,
+    )
 
-    watch.reset_tabs()
+
+def _browser_batch(
+    watch: _TabWatch,
+    pending: dict[str, tuple[Any, str]],
+    status: StatusCallback | None,
+    *,
+    social: bool,
+    email: str | None,
+    name: str | None,
+    time_limit: float | None,
+) -> bool:
+    """Run the hidden pass and, for what it deferred, the visible one, in ONE
+    extension window: it is shown, not reopened (plan W3). True when cancelled."""
+
     try:
-        with browser_session.sync_browser_context(
-            auth.soundcloud_browser_profile_path(), accept_downloads=True, headless=hidden
-        ) as context:
+        with webpage.session(visible=False) as context:
             context.on("page", watch.watch_popup)
-            pages = _open_gate_tabs(context, rows, watch)
-            return _await_downloads(
-                context,
-                pages,
-                watch,
-                status,
-                social=social,
-                email=email,
-                name=name,
-                attended=not hidden,
-                time_limit=PROVIDER_WAIT_SECONDS if hidden else time_limit,
+            cancelled = _browser_pass(
+                context, watch, pending, status,
+                hidden=True, social=social, email=email, name=name, time_limit=None,
             )
-    except automation_errors.ChromiumMissing:
-        error = GateUnavailable("Playwright Chromium is not installed")
-    except automation_errors.AutomationError as exc:
+            if watch.deferred and not cancelled:
+                reasons, watch.deferred = watch.deferred, {}
+                if status is not None:
+                    status(_needs_you(reasons))
+                _close_settled_tabs(context, watch)
+                context.show()
+                cancelled = _browser_pass(
+                    context, watch, {key: pending[key] for key in reasons}, status,
+                    hidden=False, social=social, email=email, name=name, time_limit=time_limit,
+                )
+            return cancelled
+    except ExtensionMissing as exc:
+        error = GateUnavailable(
+            f"{exc}. Connect the dj-digger browser extension in your browser, then try again"
+        )
+    except AutomationError as exc:
         error = GateUnavailable(str(exc))
-    for key in rows:
-        if not watch.settled(key):
+    # The window is gone: nothing unfinished (deferred rows included) can continue.
+    watch.deferred.clear()
+    for key in pending:
+        if key not in watch.completed and key not in watch.failures:
             watch.failures[key] = error
     return False
 
@@ -760,13 +896,14 @@ def download_hypeddit_batch_in_browser(
     config: Any | None = None,
     time_limit: float | None = None,
 ) -> HypedditBrowserBatchResult:
-    """Finish every manual Hypeddit gate in the private profile, hidden first.
+    """Finish every manual Hypeddit gate through the browser extension, hidden first.
 
-    Each gate opens as a tab of one hidden Chromium and has its steps walked
-    (see ``_drive_gate_steps``). Rows that stop at something only a person
-    can do - a provider asking for a login, a CAPTCHA, an email the profile
-    lacks - are opened again together in a visible window, where the same
-    driver carries on around the person. Without a ``time_limit`` (seconds)
+    Each gate opens as a tab of one work window, not shown, and has its steps
+    walked (see ``_drive_gate_steps``). Rows that stop at something only a
+    person can do - a provider asking for a login, a CAPTCHA, an email the
+    profile lacks, a download the browser holds back - keep their tab, reloaded
+    in place, while the window is shown and the same driver carries on around
+    the person; every other tab is closed. Without a ``time_limit`` (seconds)
     that window stays as long as a tab stays open.
     """
 
@@ -776,38 +913,22 @@ def download_hypeddit_batch_in_browser(
             failures=tuple(failures.items()), cancelled=cancelled
         )
 
-    from .. import auth
-
     email, name = _gate_email(config), _gate_name(config)
     watch = _TabWatch(pending, directory, cancel, failures, config_or_default(config))
-    if not auth.BROWSER_PROFILE_LOCK.acquire(blocking=False):
-        error = GateUnavailable("The private browser profile is already in use")
+    if not _BATCH_LOCK.acquire(blocking=False):
+        error = GateUnavailable("Another browser gate batch is already running")
         watch.failures.update({key: error for key in pending})
         return watch.result(cancelled=False)
     try:
-        cancelled = _browser_pass(
-            watch, pending, status, hidden=True, social=social, email=email, name=name, time_limit=None
+        cancelled = _browser_batch(
+            watch, pending, status, social=social, email=email, name=name, time_limit=time_limit
         )
-        if watch.deferred and not cancelled:
-            reasons, watch.deferred = watch.deferred, {}
-            if status is not None:
-                status(_needs_you(reasons))
-            cancelled = _browser_pass(
-                watch,
-                {key: pending[key] for key in reasons},
-                status,
-                hidden=False,
-                social=social,
-                email=email,
-                name=name,
-                time_limit=time_limit,
-            )
         if cancelled:
             watch.deferred.clear()
         else:
             watch.fail_deferred("browser tab closed before the download finished")
     finally:
-        auth.BROWSER_PROFILE_LOCK.release()
+        _BATCH_LOCK.release()
 
     return watch.result(cancelled)
 
