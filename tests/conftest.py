@@ -1,6 +1,4 @@
 import json
-import os
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -10,15 +8,6 @@ from dj_digger import auth, config, db
 from dj_digger.models import Track
 
 FIXTURES = Path(__file__).parent / "fixtures"
-# Resolve the installed binary cache before per-test XDG isolation. Profiles,
-# downloads and application credentials still belong exclusively to tmp_path.
-if sys.platform == "darwin":
-    _browser_cache = Path.home() / "Library/Caches/ms-playwright"
-elif sys.platform == "win32":
-    _browser_cache = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData/Local")) / "ms-playwright"
-else:
-    _browser_cache = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "ms-playwright"
-os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", str(_browser_cache))
 
 
 class FakeResponse:
@@ -115,7 +104,7 @@ def playlist_payload() -> dict[str, Any]:
 @pytest.fixture(autouse=True)
 def offline_requests_only(request, monkeypatch):
     """An omitted fake must fail locally instead of reaching a provider."""
-    if any(request.node.get_closest_marker(name) for name in ("live", "shop_live", "hypeddit_live", "shop_mutate")):
+    if any(request.node.get_closest_marker(name) for name in ("live", "shop_live", "hypeddit_live")):
         return
     import requests
     def blocked(*args, **kwargs):

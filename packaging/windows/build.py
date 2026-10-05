@@ -57,8 +57,8 @@ def main():
                 (bundle / 'licenses/ffmpeg' / name).write_bytes(source.read(member))
     if not all((bundle / 'tools' / name).is_file() for name in ('ffmpeg.exe', 'ffprobe.exe')):
         raise RuntimeError('FFmpeg archive did not contain both tools')
-    env = dict(os.environ, PLAYWRIGHT_BROWSERS_PATH=str(bundle / 'browsers'))
-    subprocess.run([sys.executable, '-m', 'playwright', 'install', 'chromium'], env=env, check=True)
+    if not (bundle / 'dj-digger-host.exe').is_file():
+        raise RuntimeError('Bundle is missing the browser-extension host next to dj-digger-gui.exe')
     versions = {}
     for distribution in importlib.metadata.distributions():
         name = distribution.metadata['Name']

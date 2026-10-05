@@ -31,9 +31,8 @@ def main():
     resources = bundle / 'Contents/Resources'
     if any('qtwebengine' in path.name.lower() or 'qt6webengine' in path.name.lower() for path in bundle.rglob('*')):
         raise RuntimeError('Unexpected embedded Qt WebEngine in desktop bundle')
-    # Keep Playwright's native browser bundle and its existing internal layout.
-    env = dict(os.environ, PLAYWRIGHT_BROWSERS_PATH=str(resources / 'browsers'))
-    subprocess.run([sys.executable, '-m', 'playwright', 'install', 'chromium'], env=env, check=True)
+    if not (bundle / 'Contents/MacOS/dj-digger-host').is_file():
+        raise RuntimeError('Bundle is missing the browser-extension host beside dj-digger-gui')
     versions = {}
     for distribution in importlib.metadata.distributions():
         name = distribution.metadata['Name']
@@ -65,7 +64,7 @@ def main():
                 'dependencies': versions, 'tools': tools}
     (resources / 'build-manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
     # PyInstaller signs native code ad-hoc. Reseal the outer app after adding
-    # resources; do not replace Chromium's nested signatures or use credentials.
+    # resources; do not use credentials.
     subprocess.run(['codesign', '--force', '--sign', '-', '--timestamp=none', str(bundle)], check=True)
     subprocess.run(['codesign', '--verify', '--deep', '--strict', str(bundle)], check=True)
     output = ROOT / 'dist/installer'

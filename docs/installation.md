@@ -145,6 +145,44 @@ Report the exact message instead of using commands to remove security checks.
 Apple's [guide to opening apps safely](https://support.apple.com/en-gb/102445)
 includes screenshots and explains the different warnings.
 
+## Connect your browser
+
+Download gates, store carts and the SoundCloud login work through the dj-digger
+extension in your own browser; the app downloads no browser of its own. The first
+time one of those features needs it, the app shows the steps. In short:
+
+1. Open dj-digger once, then (from a terminal, or the **Connect browser** dialog)
+   register it with your browsers. In a terminal this is `dj-digger browser register`.
+2. **Chrome, Edge, Brave:** open the extensions page, turn on **Developer mode**,
+   choose **Load unpacked** and select the `browser-extension` folder inside the
+   dj-digger data folder (the app and the command both print its exact location).
+3. **Firefox:** install the signed extension file when the release provides one, or
+   for a trial use `about:debugging#/runtime/this-firefox` → **Load Temporary
+   Add-on** → `manifest.json` from that folder (removed when Firefox restarts).
+
+To disconnect, run `dj-digger browser unregister` or use **Disconnect browsers** in
+Settings.
+
+### Old browser profiles
+
+Earlier versions kept private browser profiles in the data folder. They are no
+longer used and the app never deletes them. To free the space, close dj-digger and
+delete the `store-browser` and `soundcloud-browser` folders from the data folder
+by hand.
+
+### For the project owner: lint and sign the Firefox extension
+
+Run these from `dj_digger/webext/extension`. Node is needed only here; CI does not
+use it. Signing needs the owner's AMO account and API keys, so it is a manual step.
+
+```bash
+npx web-ext lint
+npx web-ext sign --channel=unlisted
+```
+
+Provide the keys through the `WEB_EXT_API_KEY` and `WEB_EXT_API_SECRET` environment
+variables, never in the repository or on the command line.
+
 ## Updating or removing the app
 
 **Updates are manual for these previews.** Close dj-digger before updating.

@@ -8,11 +8,11 @@ where an implementation change belongs.
 ## Composition and execution
 
 `services/runtime.py:ApplicationServices` composes lazy application resources.
-Constructing it imports no Qt, opens no database/device and launches no
-Chromium. The CLI and desktop obtain the same lazy collection service there; collection
+Constructing it imports no Qt, opens no database/device and opens no
+browser connection. The CLI and desktop obtain the same lazy collection service there; collection
 read/persist operations do not require UI.
 Synchronous requests remain in threads;
-store Playwright remains asynchronous on its creating loop.
+the store browser adapter remains asynchronous on its creating loop.
 
 `OperationCoordinator` has one main slot and one scan slot. Handles identify
 progress and settlement. It does not run tasks, schedule retries or persist a
@@ -66,7 +66,7 @@ schema as version 1 only after a private, integrity-checked SQLite API backup
 fail without repair. Reopening version 1 creates no new backup. Backups are
 retained; restoration is a user decision.
 
-HTTP, Chromium and local copies share validated temporary-file publication and
+HTTP, browser-extension downloads and local copies share validated temporary-file publication and
 a filename lock. Publication and SQLite are separate effects:
 `PublishedFileUnrecorded` identifies a completed file whose status write failed.
 The file remains, transfer retry is forbidden, and other completed batch files

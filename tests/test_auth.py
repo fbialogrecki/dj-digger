@@ -158,16 +158,6 @@ def test_saving_a_token_leaves_no_temporary_behind(tmp_path, monkeypatch):
         assert os.stat(auth_file.parent).st_mode & 0o777 == 0o700
 
 
-def test_soundcloud_browser_profile_is_private_and_separate(tmp_path, monkeypatch):
-    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
-
-    profile = auth.soundcloud_browser_profile_path()
-
-    assert profile == tmp_path / "dj-digger" / "soundcloud-browser"
-    if os.name == "posix":
-        assert os.stat(profile).st_mode & 0o777 == 0o700
-
-
 def _verify(monkeypatch, accepted, saved):
     monkeypatch.setattr(
         auth,
@@ -270,19 +260,6 @@ def test_cancelling_while_waiting_for_the_sign_in_raises_cancelled(monkeypatch):
 
     with pytest.raises(auth.SoundCloudAuthCancelled):
         auth.login_with_browser("client", cancel=cancel)
-
-
-def test_browser_login_does_not_touch_the_browser_profile(monkeypatch):
-    saved = []
-    _browser(monkeypatch, _Context(["token"]))
-    _verify(monkeypatch, {"token"}, saved)
-    monkeypatch.setattr(
-        auth,
-        "soundcloud_browser_profile_path",
-        lambda: pytest.fail("login must not use the managed profile"),
-    )
-
-    assert auth.login_with_browser("client")[0] == "token"
 
 
 def test_a_missing_extension_tells_the_user_to_connect_it(monkeypatch):

@@ -1,16 +1,15 @@
-# Recorded Bandcamp pages for the DOM contract tests
+# Recorded Bandcamp pages (reference snapshots)
 
-`tests/test_bandcamp_dom.py` (marker `bandcamp_dom`) drives these files in a
-real headless Chromium with every network request answered from disk, so the
-selectors the cart relies on are checked against the page as Bandcamp actually
-renders it, without touching the store. The test skips when the files are
-absent or Playwright Chromium is unavailable. This folder includes the three
-owner-recorded page states and their source URL; the procedure below describes
-how to replace the recordings.
+The recorded pages are reference snapshots of the page states the Bandcamp cart
+relies on, kept for manual checking of the extension's selectors (for example
+against `dom.js`) without touching the store. No automated test loads them since
+the Playwright-based `bandcamp_dom` marker was removed. This folder includes the
+three owner-recorded page states and their source URL; the procedure below
+describes how to replace the recordings.
 
 ## Recording
 
-Use a fresh private Chromium profile, logged out of Bandcamp, on a track with
+Use a fresh private browser window, logged out of Bandcamp, on a track with
 seller-approved name-your-price pricing (so no money is involved), and save
 `document.documentElement.outerHTML` from the DevTools console at each state:
 
@@ -34,7 +33,7 @@ Then, for every file:
   ```
 
 - note the product URL the pages came from in `product_url.txt` (one line),
-  so the test can route requests for it.
+  so tests can match requests for it.
 
 Afterwards remove the track from your cart by hand; the recording never
 touches the cart automatically.

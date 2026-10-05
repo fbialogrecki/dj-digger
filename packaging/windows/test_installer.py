@@ -25,6 +25,7 @@ def main():
         for _ in range(2):  # initial install and upgrade/reinstall
             subprocess.run(command, env=env, check=True, timeout=180)
             assert (destination / 'dj-digger-gui.exe').is_file()
+            assert (destination / 'dj-digger-host.exe').is_file()
             assert sentinel.read_text(encoding='utf-8') == 'preserve this data'
         subprocess.run([sys.executable, 'scripts/gui_smoke.py', str(destination / 'dj-digger-gui.exe'), '--runtime'],
                        env=env, check=True, timeout=240)

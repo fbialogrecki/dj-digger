@@ -53,8 +53,9 @@ uv run --extra gui --extra analyze dj-digger-gui
 ```
 
 Install FFmpeg/ffprobe separately when running from source. Existing CLI
-commands, library and account files remain available. Chromium starts only for
-provider flows that need it; bundling it increases installer size.
+commands, library and account files remain available. Download gates, store
+carts and the SoundCloud login drive your own browser through the dj-digger
+extension; see [Connect your browser](#connect-your-browser).
 
 Desktop keyboard shortcuts: `a` adds a playlist, `o`/`Enter` opens links,
 `d` downloads, `g`/`k`/`u` mark got/skipped/untouched, `/` searches, `h` hides
@@ -103,7 +104,7 @@ for commands, coverage and remaining platform checks.
   `~/.local/share/dj-digger/digger.db`.
 - **Cross-playlist track memory**: A decision made for a SoundCloud track applies
   when that track appears in another playlist.
-- **🔓 Download Gate Automation**: Resolves follow-to-download gates (Hypeddit, ToneDen, GateRush, Droploud) through their supported download flows. SoundCloud, Instagram, YouTube and similar link steps are click-through markers: the app does not call their follow, like, repost, comment APIs or open external social links to simulate a click. A gate may receive the name or email configured in Settings when its manifest requires them. Spotify steps are reported like the other click-throughs: Hypeddit clears them through its own Spotify app, so no Spotify login is needed or used. CAPTCHA and unknown provider steps remain manual in the private Chromium profile. Gate automation remains subject to the provider's terms.
+- **🔓 Download Gate Automation**: Resolves follow-to-download gates (Hypeddit, ToneDen, GateRush, Droploud) through their supported download flows. SoundCloud, Instagram, YouTube and similar link steps are click-through markers: the app does not call their follow, like, repost, comment APIs or open external social links to simulate a click. A gate may receive the name or email configured in Settings when its manifest requires them. Spotify steps are reported like the other click-throughs: Hypeddit clears them through its own Spotify app, so no Spotify login is needed or used. CAPTCHA and unknown provider steps remain manual in your browser. Gate automation remains subject to the provider's terms.
 - **🔗 Link-Hub Expansion**: A purchase link that turns out to be a list of shops rather than a download—an ampsuite release page, a gate running in smart-link mode—is opened, and the Bandcamp and Beatport links behind it are added to the track directly instead of a `gate` badge.
 - **🛒 Store Purchase Assistance**: An optional, user-triggered flow verifies Bandcamp additions and prepares Beatport tracks as an importable playlist. Login, playlist transfer, and checkout stay manual.
 - **🆕 New Since Last Refresh**: Refreshing a playlist marks whatever it gained with `NEW` and sorts it to the top.
@@ -182,8 +183,44 @@ XDG_DATA_HOME=/tmp/dj-dev XDG_CONFIG_HOME=/tmp/dj-dev XDG_CACHE_HOME=/tmp/dj-dev
 > Local audio inspection, playback, analysis and export also require **FFmpeg
 > and ffprobe** installed separately and available on `PATH`.
 >
-> Store-cart support is included. On the first `c` or `C`, the app asks before
-> downloading its matching Chromium build automatically.
+> Download gates, store carts and the SoundCloud login need the browser extension
+> (Chrome, Edge, Brave or Firefox); nothing is downloaded for them. See
+> [Connect your browser](#connect-your-browser).
+
+---
+
+## 🌐 Connect your browser
+
+Download gates, store carts and the SoundCloud login are driven by a small
+extension in your own browser (Chrome, Edge, Brave, Chromium or Firefox). There is
+no managed browser to download, and the extension talks only to dj-digger on this
+computer. Connect it once:
+
+```bash
+dj-digger browser register
+```
+
+The command registers the native-messaging host with the browsers it finds and
+copies the extension to the `browser-extension/` folder of the dj-digger data
+directory (`~/.local/share/dj-digger`, or `$XDG_DATA_HOME/dj-digger`), printing the
+exact path. Then, in the browser:
+
+- **Chrome, Edge, Brave, Chromium:** open `chrome://extensions` (`edge://extensions`,
+  `brave://extensions`), turn on **Developer mode**, choose **Load unpacked** and select
+  that `browser-extension/` folder.
+- **Firefox:** install the signed extension file when the release provides one, or for
+  a trial open `about:debugging#/runtime/this-firefox`, choose **Load Temporary
+  Add-on** and select `browser-extension/manifest.json` (it is removed when Firefox
+  restarts).
+
+Open the extension's welcome page to grant the site permissions it asks for. To
+disconnect, run `dj-digger browser unregister`; the extension itself is removed
+from the browser's extensions page.
+
+Releases before 1.4 kept managed browser profiles in the data directory. They are no
+longer used and are never deleted automatically. To reclaim the space, close
+dj-digger and delete the `store-browser/` and `soundcloud-browser/` folders there
+yourself.
 
 ---
 
@@ -230,18 +267,14 @@ Links are parsed and categorized using strict domain-boundary matching:
 
 ### Bandcamp carts and Beatport playlists
 
-The desktop cart actions do the product checks and the cart clicks in a hidden
-Chromium; nothing pops up while it works. A window appears only when there is
-something for you: the completed Bandcamp cart, or items left to finish by
-hand. That window is a separate browser carrying the same cookies, so the
-hidden session is never disturbed. A desktop display is needed for those
-moments only (WSL users need WSLg); without one the additions still stand and
-the result screen says the window could not be shown. If the matching browser
-build is absent, the app asks before downloading it in the background and then
-resumes the cart preflight. The app uses a dedicated persistent browser profile,
-separate from your everyday browser. A Bandcamp account is not required for its
-cookie-backed cart; opening a manual Bandcamp session in Settings is optional.
-Beatport login is never attempted there. The app never reads or fills your
+The desktop cart actions do the product checks and the cart clicks in a separate
+work window of your own browser, driven by the dj-digger extension; the browser's
+Bandcamp and Beatport sessions are used as they are. The window stays out of the
+way while it works and comes to the front only when there is something for you:
+the completed Bandcamp cart, or items left to finish by hand. If the extension is
+not connected, the app says so and shows the steps in
+[Connect your browser](#connect-your-browser). A Bandcamp account is not required
+for its cookie-backed cart. The app never reads or fills your
 password, chooses a payment method, or completes checkout.
 
 - The single-track cart action resolves the selected track, then adds it to Bandcamp or prepares it for
@@ -295,7 +328,7 @@ separator has no surrounding spaces. Exact Beatport track URLs are preferred in 
 file and replace stored release links so later imports can reuse them. Release links and blocked public pages
 are looked up for the exact title/remix and fall back to cleaned `artist - title`, which
 Soundiiz presents for review before writing the Beatport playlist. Already-exact
-numeric track URLs bypass Chromium. Old `pro.beatport.com` links are automatically
+numeric track URLs never open a page. Old `pro.beatport.com` links are automatically
 rewritten and saved under `www.beatport.com`. In Beatport DJ, that playlist can then be
 added to the default cart in one action.
 
@@ -317,10 +350,11 @@ uv run dj-digger --log-level DEBUG --log-file /tmp/dj-digger-cart.log
 
 Some artist-provided SoundCloud downloads require a logged-in account even when
 the track is public. Run `dj-digger auth login`: an existing valid login or a
-readable Firefox session is used first, otherwise dj-digger opens a dedicated
-Playwright Chromium profile and waits up to five minutes for you to log in. Only
-the verified `oauth_token` cookie is copied to dj-digger; passwords and other
-cookies are not written to its credential file. If Chromium cannot start, the
+readable Firefox session is used first, otherwise the dj-digger browser extension
+reads the `oauth_token` cookie of your own browser, opening the SoundCloud sign-in
+page in its work window and waiting up to five minutes if you are not logged in.
+Only the verified `oauth_token` cookie is copied to dj-digger; passwords and other
+cookies are not written to its credential file. If no browser is connected, the
 command offers a hidden token-paste fallback:
 
 ```bash
@@ -355,18 +389,19 @@ Releases before 1.0 asked for a Spotify developer app and stored a login in
 `~/.config/dj-digger/spotify.json`; that file is no longer read, and you can
 delete it yourself.
 
-When a gate ends up in the private Chromium profile (a refusal, a CAPTCHA, a
-provider login), a hidden browser walks the gate's own step slides for you:
+When a gate ends up in the browser (a refusal, a CAPTCHA, a
+provider login), the extension walks the gate's own step slides for you in a work window:
 it ticks the follow and like links (closing the provider pages they open,
 unread), presses the Connect of a Spotify step - whose login popup comes back
-by itself once you have signed in to Spotify in that profile - fills the email
+by itself once you have signed in to Spotify in your browser - fills the email
 slide with the address from Settings (and the name, when the gate asks for
 one), and presses Download. Only a step no program can do alone - a provider
 asking you to sign in, a CAPTCHA, a missing email or name - opens a window, where the same driver keeps walking the steps before
 and after the one that needs you. Sign in to Spotify there once and later
 gates finish out of sight. Nothing outside the Hypeddit page is clicked.
-Disable **gate social actions** in Settings to keep the program from
-reporting or clicking any social step at all. Gates requiring those actions
+The extension works in the accounts your browser is signed in to, so a Connect step
+that was authorized once before acts on that account. Disable **gate social actions**
+in Settings to keep the program from reporting or clicking any social step at all. Gates requiring those actions
 will then remain manual.
 
 ---

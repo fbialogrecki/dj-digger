@@ -1,4 +1,4 @@
-"""Validated file publication shared by HTTP, Chromium and local copies."""
+"""Validated file publication shared by HTTP, browser and local copies."""
 
 import os
 import re
@@ -183,7 +183,7 @@ def _keep_download(temporary: Path, track: Track, directory: Path, suffix: str, 
 
 
 def save_browser_download(download: Any, track: Track, directory: Path, cancel=None) -> Path:
-    """Validate and atomically keep a Playwright download."""
+    """Validate and atomically keep a browser-extension download (``webext.page.Download``)."""
 
     directory = Path(directory)
     suggested = Path(str(getattr(download, "suggested_filename", "") or ""))

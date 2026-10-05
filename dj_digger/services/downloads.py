@@ -118,7 +118,7 @@ class FileBatchResult:
 
 # Classification and summary order in one place. GateProfileRequired is
 # deliberately absent - it pauses for configuration instead of failing.
-# How many gates one batch hands to the private browser. Each open tab waits
+# How many gates one batch hands to the browser extension. Each open tab waits
 # up to five minutes for its download; a playlist of refused gates must not
 # become fifty tabs. The rest are left new for another run.
 BROWSER_BATCH_MAX = 8

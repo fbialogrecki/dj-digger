@@ -51,6 +51,8 @@ def main():
         assert not info.get('LSBackgroundOnly', False)
         executable = installed / 'Contents/MacOS' / info['CFBundleExecutable']
         assert executable.is_file()
+        assert (executable.parent / 'dj-digger-host').is_file()
+        assert any(installed.rglob('webext/extension/manifest.json'))
         assert platform.machine() in subprocess.check_output(['lipo', '-archs', str(executable)], text=True).split()
         check_dependencies(installed)
         subprocess.run(['codesign', '--verify', '--deep', '--strict', str(installed)], check=True)

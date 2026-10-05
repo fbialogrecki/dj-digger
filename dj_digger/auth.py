@@ -14,14 +14,13 @@ import tempfile
 import time
 from contextlib import closing
 from pathlib import Path
-from threading import Event, Lock
+from threading import Event
 from typing import Any
 
 import requests
 
 from dj_digger import automation_errors
 
-from . import browser_session
 from .http import USER_AGENT
 from .paths import config_dir
 from .private_json import write_private_json
@@ -34,7 +33,6 @@ AUTH_FILE = CONFIG_DIR / "auth.json"
 LOGGER = logging.getLogger(__name__)
 SOUNDCLOUD_URL = "https://soundcloud.com"
 SOUNDCLOUD_SIGN_IN_URL = f"{SOUNDCLOUD_URL}/signin"
-BROWSER_PROFILE_LOCK = Lock()
 
 
 class SoundCloudAuthError(RuntimeError):
@@ -43,12 +41,6 @@ class SoundCloudAuthError(RuntimeError):
 
 class SoundCloudAuthCancelled(SoundCloudAuthError):
     """The user cancelled an in-progress SoundCloud login."""
-
-
-def soundcloud_browser_profile_path() -> Path:
-    """Return the private app-managed browser profile used only for SoundCloud."""
-
-    return browser_session.profile_path("soundcloud-browser")
 
 
 def get_stored_token() -> str | None:

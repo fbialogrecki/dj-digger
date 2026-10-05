@@ -3,7 +3,6 @@
 import asyncio
 from collections.abc import Iterator
 from decimal import Decimal
-from pathlib import Path
 from typing import Any
 
 import pytest
@@ -11,39 +10,21 @@ import pytest
 from dj_digger import links, store_parse, store_urls
 from dj_digger.models import Track
 from dj_digger.stores import bandcamp as bandcamp_adapter
+from dj_digger.webext import link
+from dj_digger.webext import page as webpage
 
 pytestmark = pytest.mark.shop_live
 
 
 @pytest.fixture
-def store_context(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Any]:
-    sync_api = pytest.importorskip(
-        "playwright.sync_api", reason="Playwright is required for store contract tests"
-    )
-    profile = Path(tmp_path_factory.mktemp("shop-live-profile"))
+def store_context() -> Iterator[Any]:
+    """The user's own browser through the extension; needs the app closed and the extension connected."""
+
     try:
-        with sync_api.sync_playwright() as playwright:
-            try:
-                context = playwright.chromium.launch_persistent_context(
-                    str(profile),
-                    headless=True,
-                    locale="en-US",
-                    accept_downloads=False,
-                    chromium_sandbox=True,
-                )
-            except sync_api.Error as exc:
-                if "executable doesn't exist" in str(exc).lower():
-                    pytest.skip(
-                        "run 'uv run python -m playwright install chromium' "
-                        "to enable shop_live tests"
-                    )
-                raise
-            try:
-                yield context
-            finally:
-                context.close()
-    finally:
-        assert profile.is_dir()
+        with webpage.session(visible=False) as context:
+            yield context
+    except link.ExtensionMissing:
+        pytest.skip("connect the dj-digger browser extension to run shop_live tests")
 
 
 def _public_html(context: Any, url: str, store: str) -> str:
@@ -77,14 +58,9 @@ def test_bandcamp_album_only_track_contract(store_context: Any) -> None:
 
 
 def test_bandcamp_async_adapter_resolves_current_dom_without_cart_mutation() -> None:
-    async_api = pytest.importorskip(
-        "playwright.async_api", reason="Playwright is required for store contract tests"
-    )
-
     async def check() -> None:
-        async with async_api.async_playwright() as playwright:
-            browser = await playwright.chromium.launch(headless=True)
-            page = await browser.new_page(locale="en-US", accept_downloads=False)
+        async with webpage.async_session(visible=False) as context:
+            page = await context.new_page()
             try:
                 item = await bandcamp_adapter._resolve_cart_item_async(
                     page,
@@ -99,25 +75,23 @@ def test_bandcamp_async_adapter_resolves_current_dom_without_cart_mutation() -> 
                     asyncio.Event(),
                 )
             finally:
-                await browser.close()
+                await page.close()
         assert item.product_url.endswith("/track/remember")
         assert item.product_id == "3157363108"
         assert item.currency == "GBP"
         assert item.price > 0
         assert item.already_in_cart is False
 
-    asyncio.run(check())
+    try:
+        asyncio.run(check())
+    except link.ExtensionMissing:
+        pytest.skip("connect the dj-digger browser extension to run shop_live tests")
 
 
 def test_bandcamp_async_adapter_prefers_current_track_price_over_download_action() -> None:
-    async_api = pytest.importorskip(
-        "playwright.async_api", reason="Playwright is required for store contract tests"
-    )
-
     async def check() -> None:
-        async with async_api.async_playwright() as playwright:
-            browser = await playwright.chromium.launch(headless=True)
-            page = await browser.new_page(locale="en-US", accept_downloads=False)
+        async with webpage.async_session(visible=False) as context:
+            page = await context.new_page()
             try:
                 item = await bandcamp_adapter._resolve_cart_item_async(
                     page,
@@ -132,13 +106,16 @@ def test_bandcamp_async_adapter_prefers_current_track_price_over_download_action
                     asyncio.Event(),
                 )
             finally:
-                await browser.close()
+                await page.close()
         assert item.product_url.endswith("/track/fractals")
         assert item.product_title == "Fractals"
         assert item.price == Decimal("1.99")
         assert item.currency == "GBP"
 
-    asyncio.run(check())
+    try:
+        asyncio.run(check())
+    except link.ExtensionMissing:
+        pytest.skip("connect the dj-digger browser extension to run shop_live tests")
 
 
 def test_bandcamp_moved_lights_on_is_now_album_only(store_context: Any) -> None:
