@@ -99,15 +99,36 @@ def test_auth_subcommand_parsing():
     assert args.auth_action == "logout"
 
 
-def test_soundcloud_login_opens_managed_chromium_after_detection_fails(
-    monkeypatch, capsys
+@pytest.fixture
+def listener(monkeypatch):
+    """No real socket: a fake Listener, and a record of ``webpage.set_listener`` calls."""
+
+    calls = []
+
+    class FakeListener:
+        def __enter__(self):
+            calls.append("start")
+            return self
+
+        def __exit__(self, *_exc):
+            calls.append("close")
+
+    monkeypatch.setattr(cli.link, "Listener", FakeListener)
+    monkeypatch.setattr(
+        cli.webpage, "set_listener", lambda value: calls.append("set" if value else "reset")
+    )
+    return calls
+
+
+def test_soundcloud_login_opens_the_browser_after_detection_fails(
+    monkeypatch, capsys, listener
 ):
     monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: True)
     monkeypatch.setattr(cli.auth_module, "get_stored_token", lambda: None)
     monkeypatch.setattr(cli.auth_module, "auto_detect_and_verify", lambda _id: None)
     monkeypatch.setattr(
         cli.auth_module,
-        "login_with_chromium",
+        "login_with_browser",
         lambda client_id, **_kwargs: ("secret", "DJ Test", 42),
     )
     monkeypatch.setattr(
@@ -120,17 +141,18 @@ def test_soundcloud_login_opens_managed_chromium_after_detection_fails(
     output = capsys.readouterr().out
     assert "DJ Test" in output
     assert "secret" not in output
+    assert listener == ["start", "set", "reset", "close"]
 
 
 def test_soundcloud_login_uses_hidden_manual_fallback_when_browser_cannot_start(
-    monkeypatch, capsys
+    monkeypatch, capsys, listener
 ):
     monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: True)
     monkeypatch.setattr(cli.auth_module, "get_stored_token", lambda: None)
     monkeypatch.setattr(cli.auth_module, "auto_detect_and_verify", lambda _id: None)
     monkeypatch.setattr(
         cli.auth_module,
-        "login_with_chromium",
+        "login_with_browser",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(
             cli.auth_module.SoundCloudAuthError("browser unavailable")
         ),
@@ -159,7 +181,7 @@ def test_soundcloud_login_does_not_wait_for_browser_without_a_tty(monkeypatch):
     monkeypatch.setattr(cli.auth_module, "auto_detect_and_verify", lambda _id: None)
     monkeypatch.setattr(
         cli.auth_module,
-        "login_with_chromium",
+        "login_with_browser",
         lambda *_args, **_kwargs: pytest.fail("must not open interactive browser"),
     )
     monkeypatch.setattr(
@@ -178,7 +200,7 @@ def test_invalid_soundcloud_environment_override_is_reported_before_wizard(
     monkeypatch.setattr(cli.auth_module, "verify_token", lambda *_args: None)
     monkeypatch.setattr(
         cli.auth_module,
-        "login_with_chromium",
+        "login_with_browser",
         lambda *_args, **_kwargs: pytest.fail("shadowed login must not be offered"),
     )
     monkeypatch.setattr(

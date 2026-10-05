@@ -32,7 +32,7 @@ class AccountService:
             with self.worker_scope():
                 try:
                     if method == "browser":
-                        result = auth.login_with_chromium(self.client_id(), cancel=cancel, status=status)
+                        result = auth.login_with_browser(self.client_id(), cancel=cancel, status=status)
                     else:
                         result = auth.verify_and_save(token, self.client_id())
                     return AuthenticationResult(token=result[0])

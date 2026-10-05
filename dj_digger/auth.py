@@ -25,12 +25,15 @@ from . import browser_session
 from .http import USER_AGENT
 from .paths import config_dir
 from .private_json import write_private_json
+from .webext import link
+from .webext import page as webpage
 
 CONFIG_DIR = config_dir()
 AUTH_FILE = CONFIG_DIR / "auth.json"
 
 LOGGER = logging.getLogger(__name__)
-SOUNDCLOUD_SIGN_IN_URL = "https://soundcloud.com/signin"
+SOUNDCLOUD_URL = "https://soundcloud.com"
+SOUNDCLOUD_SIGN_IN_URL = f"{SOUNDCLOUD_URL}/signin"
 BROWSER_PROFILE_LOCK = Lock()
 
 
@@ -225,19 +228,24 @@ def _oauth_cookie(cookies: list[dict[str, Any]]) -> str:
 
 
 def _wait_for_oauth_cookie(
-    context: Any, client_id: str, timeout: float, cancel: Event, status: Any
+    context: Any,
+    client_id: str,
+    timeout: float,
+    cancel: Event,
+    status: Any,
+    rejected_tokens: set[str] | None = None,
 ) -> tuple[str, str, int]:
-    """Watch the sign-in tab until a verified ``oauth_token`` appears, then save it."""
+    """Show the work window on the sign-in page until a verified ``oauth_token`` appears."""
 
-    page = context.pages[0] if context.pages else context.new_page()
-    page.goto(SOUNDCLOUD_SIGN_IN_URL)
+    rejected_tokens = set() if rejected_tokens is None else rejected_tokens
+    context.show()
+    context.new_page().goto(SOUNDCLOUD_SIGN_IN_URL)
     deadline = time.monotonic() + timeout
-    status("Log in to SoundCloud in Chromium. Waiting for completion…")
-    rejected_tokens: set[str] = set()
+    status("Log in to SoundCloud in your browser. Waiting for completion…")
     while time.monotonic() < deadline:
         if cancel.wait(0.25):
             raise SoundCloudAuthCancelled("SoundCloud login was cancelled.")
-        token = _oauth_cookie(context.cookies(["https://soundcloud.com"]))
+        token = _oauth_cookie(context.cookies([SOUNDCLOUD_URL]))
         if token and token not in rejected_tokens:
             status("Verifying the SoundCloud login…")
             try:
@@ -246,7 +254,7 @@ def _wait_for_oauth_cookie(
                 rejected_tokens.add(token)
                 status(
                     "That SoundCloud session is no longer valid. Log in again "
-                    "in Chromium…"
+                    "in your browser…"
                 )
     raise SoundCloudAuthError(
         f"SoundCloud login timed out after {timeout / 60:g} minutes; "
@@ -254,51 +262,49 @@ def _wait_for_oauth_cookie(
     )
 
 
-def login_with_chromium(
+def login_with_browser(
     client_id: str,
     *,
     timeout: float = 300.0,
     cancel: Event | None = None,
     status=None,
 ) -> tuple[str, str, int]:
-    """Open an isolated browser and persist only its verified ``oauth_token``.
+    """Take the SoundCloud login from the user's own browser and persist only its
+    verified ``oauth_token``.
 
-    The persistent Chromium profile keeps the browser login across runs, while
-    ``auth.json`` receives only the single cookie needed by the API. Passwords
-    and unrelated cookies never cross this boundary.
+    The browser extension reads the one cookie; if it is already there and valid
+    no window is shown, otherwise the sign-in page opens in the work window.
+    Passwords and unrelated cookies never cross this boundary.
     """
 
     cancel = cancel or Event()
     status = status or (lambda _message: None)
     if cancel.is_set():
         raise SoundCloudAuthCancelled("SoundCloud login was cancelled.")
-    if not BROWSER_PROFILE_LOCK.acquire(blocking=False):
-        raise SoundCloudAuthError("The private browser profile is already in use.")
 
     try:
-        status("Opening the private SoundCloud browser…")
-
-        def run_browser(profile: Path) -> tuple[str, str, int]:
-            with browser_session.sync_browser_context(profile) as context:
-                return _wait_for_oauth_cookie(context, client_id, timeout, cancel, status)
-
-        try:
-            profile = soundcloud_browser_profile_path()
-            try:
-                return run_browser(profile)
-            except automation_errors.ChromiumMissing:
-                status("Installing the matching Playwright Chromium build…")
-                browser_session.install_chromium(cancel)
-                return run_browser(profile)
-        except (SoundCloudAuthError, KeyboardInterrupt):
-            raise
-        except automation_errors.AutomationError as exc:
-            # Written by this application (install failed, profile in use, no display).
-            raise SoundCloudAuthError(str(exc)) from exc
-        except Exception as exc:
-            # Do not include the browser exception: Playwright diagnostics can echo
-            # page state and must not become a path by which credentials reach logs.
-            LOGGER.warning("SoundCloud login browser failed: %s", type(exc).__name__)
-            raise SoundCloudAuthError("Could not start the SoundCloud login browser.") from exc
-    finally:
-        BROWSER_PROFILE_LOCK.release()
+        status("Looking for a SoundCloud login in your browser…")
+        with webpage.session(visible=False) as context:
+            rejected: set[str] = set()
+            if token := _oauth_cookie(context.cookies([SOUNDCLOUD_URL])):
+                try:
+                    return verify_and_save(token, client_id)
+                except SoundCloudAuthError:
+                    rejected.add(token)
+            return _wait_for_oauth_cookie(context, client_id, timeout, cancel, status, rejected)
+    except (SoundCloudAuthError, KeyboardInterrupt):
+        raise
+    except link.ExtensionMissing as exc:
+        raise SoundCloudAuthError(
+            "Connect the dj-digger browser extension to your browser first "
+            "(desktop: Connect browser; terminal: 'dj-digger browser register'), "
+            "then log in again."
+        ) from exc
+    except automation_errors.AutomationError as exc:
+        # Written by this application (browser or extension restarted, ...).
+        raise SoundCloudAuthError(str(exc)) from exc
+    except Exception as exc:
+        # Do not include the browser exception: page diagnostics can echo
+        # page state and must not become a path by which credentials reach logs.
+        LOGGER.warning("SoundCloud login browser failed: %s", type(exc).__name__)
+        raise SoundCloudAuthError("Could not use your browser for the SoundCloud login.") from exc

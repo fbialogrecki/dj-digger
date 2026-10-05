@@ -6,23 +6,57 @@ from threading import Event
 import pytest
 from conftest import FakeResponse
 
-from dj_digger import auth, automation_errors, browser_session, private_json
+from dj_digger import auth, automation_errors, private_json
+
+
+class _Page:
+    def __init__(self):
+        self.visited = []
+
+    def goto(self, url, **_kwargs):
+        self.visited.append(url)
+
+
+class _Context:
+    """The work window of ``webpage.session``: cookies, new_page, show."""
+
+    def __init__(self, tokens=()):
+        self.tokens = iter(tokens)
+        self.last = None
+        self.shown = False
+        self.page = _Page()
+
+    def cookies(self, urls):
+        assert urls == ["https://soundcloud.com"]
+        self.last = next(self.tokens, self.last)
+        return [{"name": "oauth_token", "value": self.last}] if self.last else []
+
+    def new_page(self):
+        assert self.shown, "the window must be shown before the sign-in page opens"
+        return self.page
+
+    def show(self):
+        self.shown = True
 
 
 def _browser(monkeypatch, context):
-    """The private browser opens on ``context``; the profile path is ignored."""
+    """``webpage.session`` yields ``context``; the opened visibility is recorded."""
+
+    opened = []
 
     @contextmanager
-    def sync_browser_context(_profile, **_kwargs):
+    def session(visible=False, listener=None):
+        opened.append(visible)
         yield context
 
-    monkeypatch.setattr(browser_session, "sync_browser_context", sync_browser_context)
+    monkeypatch.setattr(auth.webpage, "session", session)
+    return opened
 
 
 def _no_browser(monkeypatch):
     monkeypatch.setattr(
-        browser_session,
-        "sync_browser_context",
+        auth.webpage,
+        "session",
         lambda *_args, **_kwargs: pytest.fail("browser was opened"),
     )
 
@@ -39,16 +73,6 @@ def test_private_json_writer_is_atomic_and_owner_only(tmp_path):
     if os.name == "posix":
         assert os.stat(target).st_mode & 0o777 == 0o600
         assert os.stat(target.parent).st_mode & 0o777 == 0o700
-
-
-def test_chromium_login_refuses_a_busy_private_profile(monkeypatch):
-    _no_browser(monkeypatch)
-    assert auth.BROWSER_PROFILE_LOCK.acquire(blocking=False)
-    try:
-        with pytest.raises(auth.SoundCloudAuthError, match="profile is already in use"):
-            auth.login_with_chromium("client")
-    finally:
-        auth.BROWSER_PROFILE_LOCK.release()
 
 
 def test_get_stored_token_from_env(monkeypatch):
@@ -144,79 +168,85 @@ def test_soundcloud_browser_profile_is_private_and_separate(tmp_path, monkeypatc
         assert os.stat(profile).st_mode & 0o777 == 0o700
 
 
-def test_browser_login_reads_only_oauth_token_and_saves_after_verification(monkeypatch):
-    saved = []
-
-    class Page:
-        def goto(self, url, **_kwargs):
-            assert url == auth.SOUNDCLOUD_SIGN_IN_URL
-
-    class Context:
-        pages = [Page()]
-
-        def cookies(self, urls):
-            assert urls == ["https://soundcloud.com"]
-            return [
-                {"name": "session", "value": "do-not-read"},
-                {"name": "oauth_token", "value": "secret-token"},
-            ]
-
-    _browser(monkeypatch, Context())
+def _verify(monkeypatch, accepted, saved):
     monkeypatch.setattr(
         auth,
         "verify_token",
-        lambda token, client_id: {"username": "DJ", "id": 7}
-        if (token, client_id) == ("secret-token", "client")
-        else None,
+        lambda token, _client_id: {"username": "DJ", "id": 7} if token in accepted else None,
     )
     monkeypatch.setattr(auth, "save_token", lambda *args: saved.append(args))
 
-    result = auth.login_with_chromium("client", cancel=Event())
+
+def test_a_token_already_in_the_browser_is_saved_without_showing_a_window(monkeypatch):
+    saved = []
+    context = _Context(["secret-token"])
+    opened = _browser(monkeypatch, context)
+    _verify(monkeypatch, {"secret-token"}, saved)
+
+    result = auth.login_with_browser("client", cancel=Event())
 
     assert result == ("secret-token", "DJ", 7)
     assert saved == [("secret-token", "DJ", 7)]
+    assert opened == [False] and not context.shown and context.page.visited == []
 
 
-def test_rejected_browser_cookie_is_ignored_until_login_changes_it(monkeypatch):
-    cookies = iter(["rejected", "working"])
+def test_browser_login_reads_only_oauth_token_after_the_sign_in_page(monkeypatch):
     saved = []
 
-    class Context:
-        pages = [type("Page", (), {"goto": lambda self, *_args, **_kwargs: None})()]
+    class Context(_Context):
+        def cookies(self, urls):
+            super().cookies(urls)
+            return [
+                {"name": "session", "value": "do-not-read"},
+                *([{"name": "oauth_token", "value": "secret-token"}] if self.shown else []),
+            ]
 
-        def cookies(self, _urls):
-            return [{"name": "oauth_token", "value": next(cookies)}]
+    context = Context()
+    _browser(monkeypatch, context)
+    _verify(monkeypatch, {"secret-token"}, saved)
 
-    _browser(monkeypatch, Context())
-    monkeypatch.setattr(
-        auth,
-        "verify_token",
-        lambda token, _client_id: {"username": "DJ", "id": 4}
-        if token == "working"
-        else None,
-    )
-    monkeypatch.setattr(auth, "save_token", lambda *args: saved.append(args))
+    result = auth.login_with_browser("client", cancel=Event())
 
-    result = auth.login_with_chromium("client", cancel=Event())
+    assert result == ("secret-token", "DJ", 7)
+    assert saved == [("secret-token", "DJ", 7)]
+    assert context.page.visited == [auth.SOUNDCLOUD_SIGN_IN_URL]
 
-    assert result == ("working", "DJ", 4)
-    assert saved == [("working", "DJ", 4)]
+
+def test_a_rejected_browser_token_is_ignored_until_login_changes_it(monkeypatch):
+    saved, messages = [], []
+    context = _Context(["stale", "stale", "working"])
+    _browser(monkeypatch, context)
+    _verify(monkeypatch, {"working"}, saved)
+
+    result = auth.login_with_browser("client", cancel=Event(), status=messages.append)
+
+    assert result == ("working", "DJ", 7)
+    assert saved == [("working", "DJ", 7)]
+    assert context.shown
+    assert not any("no longer valid" in message for message in messages)  # the stale one was only skipped
+    assert all("Chromium" not in message for message in messages)
+
+
+def test_a_token_rejected_after_sign_in_is_reported_and_not_retried(monkeypatch):
+    saved, messages = [], []
+    context = _Context([None, "bad", "bad", "working"])
+    _browser(monkeypatch, context)
+    _verify(monkeypatch, {"working"}, saved)
+
+    result = auth.login_with_browser("client", cancel=Event(), status=messages.append)
+
+    assert result[0] == "working"
+    assert sum("no longer valid" in message for message in messages) == 1
 
 
 def test_browser_login_times_out_without_saving_any_cookie(monkeypatch):
-    class Context:
-        pages = [type("Page", (), {"goto": lambda self, *_args, **_kwargs: None})()]
-
-        def cookies(self, _urls):
-            return []
-
-    _browser(monkeypatch, Context())
+    _browser(monkeypatch, _Context())
     monkeypatch.setattr(
         auth, "save_token", lambda *_args: pytest.fail("missing token was saved")
     )
 
     with pytest.raises(auth.SoundCloudAuthError, match="timed out"):
-        auth.login_with_chromium("client", timeout=0)
+        auth.login_with_browser("client", timeout=0)
 
 
 def test_browser_login_honours_cancellation_before_opening_browser(monkeypatch):
@@ -225,75 +255,68 @@ def test_browser_login_honours_cancellation_before_opening_browser(monkeypatch):
     cancel.set()
 
     with pytest.raises(auth.SoundCloudAuthCancelled):
-        auth.login_with_chromium("client", cancel=cancel)
+        auth.login_with_browser("client", cancel=cancel)
 
 
-def test_browser_profile_permission_failure_is_a_safe_auth_error(monkeypatch):
+def test_cancelling_while_waiting_for_the_sign_in_raises_cancelled(monkeypatch):
+    _browser(monkeypatch, _Context())
+
+    class Cancel(Event):
+        def wait(self, _timeout=None):
+            self.set()
+            return True
+
+    cancel = Cancel()
+
+    with pytest.raises(auth.SoundCloudAuthCancelled):
+        auth.login_with_browser("client", cancel=cancel)
+
+
+def test_browser_login_does_not_touch_the_browser_profile(monkeypatch):
+    saved = []
+    _browser(monkeypatch, _Context(["token"]))
+    _verify(monkeypatch, {"token"}, saved)
     monkeypatch.setattr(
         auth,
         "soundcloud_browser_profile_path",
-        lambda: (_ for _ in ()).throw(PermissionError("private filesystem detail")),
+        lambda: pytest.fail("login must not use the managed profile"),
     )
 
-    _no_browser(monkeypatch)
-    with pytest.raises(auth.SoundCloudAuthError, match="Could not start") as caught:
-        auth.login_with_chromium("client")
-
-    assert "private filesystem detail" not in str(caught.value)
+    assert auth.login_with_browser("client")[0] == "token"
 
 
-def test_browser_login_installs_missing_playwright_chromium_once(monkeypatch):
-    attempts = []
-    installs = []
-
-    class Context:
-        pages = [type("Page", (), {"goto": lambda self, *_args, **_kwargs: None})()]
-
-        def cookies(self, _urls):
-            return [{"name": "oauth_token", "value": "token"}]
-
+def test_a_missing_extension_tells_the_user_to_connect_it(monkeypatch):
     @contextmanager
-    def browser_context(_profile):
-        attempts.append(True)
-        if len(attempts) == 1:
-            raise automation_errors.ChromiumMissing("missing")
-        yield Context()
-
-    monkeypatch.setattr(browser_session, "sync_browser_context", browser_context)
-    monkeypatch.setattr(browser_session, "install_chromium", lambda cancel: installs.append(cancel))
-    monkeypatch.setattr(
-        auth, "verify_and_save", lambda token, client_id: (token, "DJ", 1)
-    )
-
-    assert auth.login_with_chromium("client") == ("token", "DJ", 1)
-    assert len(attempts) == 2
-    assert len(installs) == 1
-
-
-def test_browser_login_names_its_own_failure_but_hides_browser_text(monkeypatch, caplog):
-    installs = []
-
-    @contextmanager
-    def missing(_profile):
-        raise automation_errors.ChromiumMissing("missing")
+    def session(**_kwargs):
+        raise auth.link.ExtensionMissing("not connected")
         yield
 
-    def failed_install(cancel):
-        installs.append(cancel)
-        raise automation_errors.AutomationError("Chromium installation failed; run 'playwright install chromium'")
+    monkeypatch.setattr(auth.webpage, "session", session)
 
-    monkeypatch.setattr(browser_session, "sync_browser_context", missing)
-    monkeypatch.setattr(browser_session, "install_chromium", failed_install)
-    with pytest.raises(auth.SoundCloudAuthError, match="Chromium installation failed"):
-        auth.login_with_chromium("client")
+    with pytest.raises(auth.SoundCloudAuthError, match="Connect the dj-digger browser extension"):
+        auth.login_with_browser("client")
 
+
+def test_an_application_diagnosed_failure_is_reported_with_its_reason(monkeypatch):
     @contextmanager
-    def crashed(_profile):
+    def session(**_kwargs):
+        raise automation_errors.AutomationError("browser extension restarted")
+        yield
+
+    monkeypatch.setattr(auth.webpage, "session", session)
+
+    with pytest.raises(auth.SoundCloudAuthError, match="browser extension restarted"):
+        auth.login_with_browser("client")
+
+
+def test_browser_login_hides_unexpected_browser_text(monkeypatch, caplog):
+    @contextmanager
+    def crashed(**_kwargs):
         raise RuntimeError("page secret")
         yield
 
-    monkeypatch.setattr(browser_session, "sync_browser_context", crashed)
-    with pytest.raises(auth.SoundCloudAuthError, match="Could not start") as caught:
-        auth.login_with_chromium("client")
+    monkeypatch.setattr(auth.webpage, "session", crashed)
+    with pytest.raises(auth.SoundCloudAuthError, match="Could not use your browser") as caught:
+        auth.login_with_browser("client")
     assert "page secret" not in str(caught.value) and "page secret" not in caplog.text
     assert "RuntimeError" in caplog.text

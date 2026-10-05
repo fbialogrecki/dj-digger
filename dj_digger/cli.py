@@ -34,6 +34,8 @@ from .logging_setup import configure_logging
 from .models import Crate, LinkRecord
 from .services import collection as dig_module
 from .services.runtime import ApplicationServices
+from .webext import link
+from .webext import page as webpage
 
 SUBCOMMANDS = {"dig", "open", "auth", "browser"}
 HELP_FLAGS = {"-h", "--help", "-v", "--version"}
@@ -435,11 +437,17 @@ def _login_interactively(console: Console) -> int:
             return 1
 
         try:
-            _, username, user_id = auth_module.login_with_chromium(
-                client.client_id,
-                status=lambda message: console.print(message),
-            )
-        except auth_module.SoundCloudAuthError as exc:
+            # InstanceLock (held by main) makes this process the only listener owner.
+            with link.Listener() as listener:
+                webpage.set_listener(listener)
+                try:
+                    _, username, user_id = auth_module.login_with_browser(
+                        client.client_id,
+                        status=lambda message: console.print(message),
+                    )
+                finally:
+                    webpage.set_listener(None)
+        except (auth_module.SoundCloudAuthError, OSError) as exc:  # OSError: no listener socket
             console.print(f"[yellow]{exc}[/yellow]")
             token = getpass.getpass(
                 "Paste oauth_token instead (input is hidden; blank cancels): "
