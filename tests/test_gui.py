@@ -944,6 +944,8 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
     (home / 'Music' / 'Only hidden' / '.private').mkdir(parents=True)
     (home / 'Music' / 'Only audio').mkdir()
     (home / 'Music' / 'Only audio' / 'track.wav').write_bytes(b'audio')
+    # Music of its own, so a click on the root opens it whether or not its check has finished.
+    (home / 'Music' / 'loose.mp3').write_bytes(b'')
     (home / 'Sets').mkdir()
     (home / 'hidden-from-folder-tree.wav').write_bytes(b'')
     engine = QQmlApplicationEngine()
@@ -1046,17 +1048,19 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
         staged.mkdir()
         (staged / 'new.flac').write_bytes(b'')
         child = staged.rename(home / 'Music' / 'Only audio' / 'New folder')
+        # Asked of the model: filtering can rebuild the tree's delegates while this waits.
+        only_audio = str(home / 'Music' / 'Only audio')
         deadline = time.monotonic() + 5
-        while not leaf.property('hasChildren') and time.monotonic() < deadline:
+        while not bridge.directoryHasChildren(only_audio) and time.monotonic() < deadline:
             QTest.qWait(10)
-        assert leaf.property('hasChildren')
+        assert bridge.directoryHasChildren(only_audio)
         (home / 'Music' / 'Only audio' / 'Empty').rmdir()
         (child / 'new.flac').unlink()
         child.rmdir()
         deadline = time.monotonic() + 5
-        while leaf.property('hasChildren') and time.monotonic() < deadline:
+        while bridge.directoryHasChildren(only_audio) and time.monotonic() < deadline:
             QTest.qWait(10)
-        assert not leaf.property('hasChildren')
+        assert not bridge.directoryHasChildren(only_audio)
         painted = QSignalSpy(window.frameSwapped)
         window.update()
         assert painted.wait(3000)  # Use the settled delegate geometry for the next click.
