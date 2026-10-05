@@ -1044,13 +1044,22 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
         assert not leaf.property('indicator').isVisible()
         # A folder arriving with music in it shows up; an empty one never does.
         (home / 'Music' / 'Only audio' / 'Empty').mkdir()
+        # One change at a time: Windows can fold two quick changes into one notification,
+        # and Qt may read the folder between them.
+        empty = bridge._directories.index(str(home / 'Music' / 'Only audio' / 'Empty'))
+        deadline = time.monotonic() + 10
+        while not empty.isValid() and time.monotonic() < deadline:
+            QTest.qWait(10)
+            empty = bridge._directories.index(str(home / 'Music' / 'Only audio' / 'Empty'))
+        assert empty.isValid() and not bridge.directoryHasChildren(str(home / 'Music' / 'Only audio'))
+        QTest.qWait(500)  # Let that change's notification and re-read finish before the next one.
         staged = tmp_path / 'New folder'
         staged.mkdir()
         (staged / 'new.flac').write_bytes(b'')
         child = staged.rename(home / 'Music' / 'Only audio' / 'New folder')
         # Asked of the model: filtering can rebuild the tree's delegates while this waits.
         only_audio = str(home / 'Music' / 'Only audio')
-        deadline = time.monotonic() + 5
+        deadline = time.monotonic() + 10
         while not bridge.directoryHasChildren(only_audio) and time.monotonic() < deadline:
             QTest.qWait(10)
         assert bridge.directoryHasChildren(only_audio)
