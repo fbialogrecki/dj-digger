@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>dj-digger self-test</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font: 15px/1.5 system-ui, sans-serif; margin: 1rem; }
+    #results { font-family: ui-monospace, monospace; white-space: pre-wrap; }
+    .pass { color: #0a7d2c; }
+    .fail { color: #c0182b; font-weight: 600; }
+    #fixture { border: 1px dashed gray; padding: .5rem; margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>dom.js self-test</h1>
+  <p>Runs the locator engine against a synthetic page. Every line must say PASS.</p>
+  <div id="results"></div>
+  <div id="fixture"></div>
+  <script src="dom.js"></script>
+  <script src="selftest.js"></script>
+</body>
+</html>

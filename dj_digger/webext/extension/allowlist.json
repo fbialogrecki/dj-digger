@@ -1,0 +1,38 @@
+{
+  "schemes": ["https"],
+  "groups": {
+    "hypeddit": {
+      "hosts": ["hypeddit.com", "hypd.it"],
+      "www": true,
+      "subdomains": false,
+      "forbiddenPaths": []
+    },
+    "bandcamp": {
+      "hosts": ["bandcamp.com"],
+      "www": false,
+      "subdomains": true,
+      "forbiddenPaths": ["/checkout", "/cart/checkout", "/payment"]
+    },
+    "beatport": {
+      "hosts": ["beatport.com"],
+      "www": false,
+      "subdomains": true,
+      "forbiddenPaths": ["/checkout", "/cart/checkout", "/payment"]
+    },
+    "soundcloud": {
+      "hosts": ["soundcloud.com"],
+      "www": false,
+      "subdomains": false,
+      "allowedPaths": ["/signin"],
+      "dom": false,
+      "forbiddenPaths": []
+    }
+  },
+  "clickDenylist": {
+    "pattern": "\\b(check ?out|pay|payment|purchase|place order|buy now|complete order)\\b",
+    "flags": "i",
+    "exceptions": [
+      {"host": "bandcamp.com", "pattern": "^buy digital (?:track|album)$", "flags": "i"}
+    ]
+  }
+}
