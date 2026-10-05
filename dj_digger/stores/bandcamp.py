@@ -256,18 +256,13 @@ async def _bandcamp_dom_products(page: Any) -> list[StoreProduct]:
                 currency,
             )
 
-    anchors = page.locator('a[href*="/track/"]')
     try:
-        count = min(await anchors.count(), 500)
+        anchors = await page.locator('a[href*="/track/"]').all_texts_and_attrs(["href"], limit=500)
     except Exception:
-        count = 0
-    for index in range(count):
-        anchor = anchors.nth(index)
-        try:
-            href = await anchor.get_attribute("href")
-            title = (await anchor.inner_text()).strip()[:500]
-        except Exception:
-            continue
+        anchors = []
+    for anchor in anchors:
+        href = anchor["attrs"].get("href")
+        title = anchor["text"].strip()[:500]
         url = urljoin(page.url, href or "").split("#", 1)[0]
         if title and is_store_url(url, "bandcamp") and "/track/" in urlparse(url).path:
             products.setdefault(url, StoreProduct("bandcamp", url, "", title))
@@ -315,13 +310,13 @@ async def _bandcamp_search_candidates_async(
 
     tracks: dict[str, StoreProduct] = {}
     albums: dict[str, None] = {}
-    for index in range(min(await anchors.count(), 40)):
-        anchor = anchors.nth(index)
-        try:
-            href = await anchor.get_attribute("href") or ""
-            lines = [line.strip() for line in (await anchor.inner_text()).splitlines() if line.strip()]
-        except Exception:
-            continue
+    try:
+        suggestions = await anchors.all_texts_and_attrs(["href"], limit=40)
+    except Exception:
+        suggestions = []
+    for suggestion in suggestions:
+        href = suggestion["attrs"].get("href") or ""
+        lines = [line.strip() for line in suggestion["text"].splitlines() if line.strip()]
         parsed = urlparse(urljoin(page.url, href))
         url = urlunparse(("https", parsed.hostname or "", parsed.path, "", "", ""))
         if not lines or not is_store_url(url, "bandcamp"):

@@ -1061,8 +1061,10 @@ def test_bandcamp_storefront_search_moves_to_the_global_homepage(monkeypatch):
         async def count(self):
             return 1
 
-        def nth(self, _index):
-            return Anchor()
+        async def all_texts_and_attrs(self, attrs, text=True, limit=500):
+            assert attrs == ["href"]
+            return [{"attrs": {"href": await Anchor().get_attribute("href")},
+                     "text": await Anchor().inner_text()}]
 
     class Page:
         url = "https://label.bandcamp.com/"
