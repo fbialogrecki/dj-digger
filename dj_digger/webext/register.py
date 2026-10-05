@@ -92,16 +92,29 @@ def host_executable() -> Path:
     raise RegistrationError(f"Cannot find the {name} executable next to {sys.executable}")
 
 
+def _digest(directory: Path) -> str | None:
+    """SHA-256 over the relative paths and bytes of every file, ``None`` when unreadable."""
+
+    sha = hashlib.sha256()
+    try:
+        for path in sorted(p for p in directory.rglob("*") if p.is_file()):
+            sha.update(path.relative_to(directory).as_posix().encode() + b"\0")
+            sha.update(path.read_bytes() + b"\0")
+    except OSError:
+        return None
+    return sha.hexdigest()
+
+
 def sync_extension() -> Path:
-    """Copy the packaged extension to ``data_dir()/browser-extension`` when its version differs (D10)."""
+    """Copy the packaged extension to ``data_dir()/browser-extension`` when its content differs (D10).
+
+    Content, not ``manifest.json``'s version: a changed script under the same
+    version must still reach the copy the browser loads.
+    """
 
     destination = data_dir() / "browser-extension"
-    version = read_extension_manifest()["version"]
-    try:
-        current = json.loads((destination / "manifest.json").read_text(encoding="utf-8")).get("version")
-    except (OSError, ValueError, AttributeError):
-        current = None
-    if current == version:
+    read_extension_manifest()  # fail before touching the copy when the source is broken
+    if _digest(destination) == _digest(EXTENSION_SOURCE):
         return destination
     destination.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix="browser-extension-", dir=destination.parent))

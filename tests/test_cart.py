@@ -767,9 +767,6 @@ def test_preflight_failure_is_logged_without_url_query_credentials(monkeypatch, 
 
 
 def test_bandcamp_preflight_does_not_require_an_account_login(monkeypatch):
-    async def no_login(*_args, **_kwargs):
-        pytest.fail("Bandcamp cart cookies must not be gated on account login")
-
     async def resolve(_page, candidate, store, url, _cancel):
         return replace(
             resolved_item(store),
@@ -779,7 +776,6 @@ def test_bandcamp_preflight_does_not_require_an_account_login(monkeypatch):
             product_url=url,
         )
 
-    monkeypatch.setattr(bandcamp_adapter, "_ensure_logins_async", no_login)
     monkeypatch.setattr(bandcamp_adapter, "_resolve_cart_item_async", resolve)
     session = cart.CartBrowserSession()
 
@@ -892,9 +888,6 @@ def test_a_lost_window_is_replaced_and_its_pages_forgotten(opened_contexts):
 
 
 def test_beatport_preflight_reads_public_metadata_before_requesting_login(monkeypatch):
-    async def no_login(*_args, **_kwargs):
-        pytest.fail("preflight must not enter the Beatport login challenge")
-
     async def resolve(_page, candidate, store, url, _cancel):
         return replace(
             resolved_item(store, price="2.49", currency="EUR"),
@@ -908,7 +901,6 @@ def test_beatport_preflight_reads_public_metadata_before_requesting_login(monkey
         track("Signal"),
         (("beatport", "https://www.beatport.com/track/signal/1"),),
     )
-    monkeypatch.setattr(bandcamp_adapter, "_ensure_logins_async", no_login)
     monkeypatch.setattr(bandcamp_adapter, "_resolve_cart_item_async", resolve)
     session = cart.CartBrowserSession()
 
@@ -1500,46 +1492,6 @@ def test_raised_bandcamp_price_is_never_ignored_when_the_field_disappears(
         asyncio.run(bandcamp_adapter._add_to_cart_async(Page(), item, asyncio.Event()))
 
 
-def test_login_challenge_is_detected_once_without_a_verification_loop():
-    class Response:
-        status = 403
-
-    class ChallengePage:
-        url = "https://www.beatport.com/"
-        content_calls = 0
-        focused = 0
-
-        async def goto(self, url, **_kwargs):
-            self.url = url
-            return Response()
-
-        async def content(self):
-            self.content_calls += 1
-            return "<title>Just a moment...</title>Performing security verification"
-
-        async def bring_to_front(self):
-            self.focused += 1
-
-        def get_by_role(self, *_args, **_kwargs):
-            class NoBanner:
-                @property
-                def first(self):
-                    return self
-
-                async def wait_for(self, **_kwargs):
-                    raise RuntimeError("no cookie banner on a challenge page")
-
-            return NoBanner()
-
-    page = ChallengePage()
-
-    with pytest.raises(cart_models.SecurityChallengeBlocked, match="stopped safely"):
-        asyncio.run(bandcamp_adapter._ensure_logins_async({"bandcamp": page}, asyncio.Event()))
-
-    assert page.content_calls == 1
-    assert page.focused == 1
-
-
 def test_beatport_becomes_playlist_while_bandcamp_continues_without_login(
     monkeypatch,
 ):
@@ -1557,9 +1509,6 @@ def test_beatport_becomes_playlist_while_bandcamp_continues_without_login(
     async def approve(candidate):
         return candidate
 
-    async def no_login(*_args, **_kwargs):
-        pytest.fail("the Beatport playlist flow must not attempt managed login")
-
     async def execute(store, items, *_args):
         assert store == "bandcamp"
         assert items == [bandcamp]
@@ -1573,7 +1522,6 @@ def test_beatport_becomes_playlist_while_bandcamp_continues_without_login(
     monkeypatch.setattr(session, "_preflight", preflight)
     monkeypatch.setattr(session, "_execute_store", execute)
     monkeypatch.setattr(session, "_open_final_carts", final)
-    monkeypatch.setattr(bandcamp_adapter, "_ensure_logins_async", no_login)
 
     outcome = asyncio.run(
         session.run_batch(
@@ -1743,23 +1691,6 @@ def test_a_new_batch_hides_the_window_the_carts_were_shown_in(opened_contexts):
     context = asyncio.run(scenario())
 
     assert not context.visible and context.hides == 1
-
-
-def test_setup_logins_shows_the_window_logs_in_and_steps_aside(monkeypatch, opened_contexts):
-    session = cart.CartBrowserSession()
-    seen = []
-
-    async def logins(pages, _cancel, _progress=None):
-        seen.append((dict(pages), opened_contexts[0].visible))
-
-    monkeypatch.setattr(bandcamp_adapter, "_ensure_logins_async", logins)
-
-    asyncio.run(session.setup_logins(("beatport", "bandcamp", "bandcamp"), asyncio.Event()))
-
-    (pages, visible), = seen
-    assert list(pages) == ["bandcamp"] and visible, "only Bandcamp has a login; shown while waiting"
-    context = opened_contexts[0]
-    assert not context.visible and context.pages[0].closed
 
 
 def test_final_cart_view_failure_keeps_verified_results(monkeypatch):

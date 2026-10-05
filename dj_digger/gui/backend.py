@@ -1,5 +1,6 @@
 """Desktop orchestration. Qt receives detached values, never service objects."""
 import asyncio
+import contextlib
 import json
 import logging
 import stat
@@ -27,9 +28,11 @@ LOGGER = logging.getLogger(__name__)
 
 
 class Backend:
-    def __init__(self, emit, services_factory=ApplicationServices):
+    def __init__(self, emit, services_factory=ApplicationServices, connect_browser=False):
         self.emit = emit
         self.factory = services_factory
+        # Only the desktop, holding the instance lock, opens the extension channel.
+        self.connect_browser_link = connect_browser
         self.loop = asyncio.new_event_loop()
         self.thread = threading.Thread(target=self._run, name='gui-backend')
         self.ready = threading.Event()
@@ -123,7 +126,7 @@ class Backend:
                 return validate(answer)
             except ValueError as exc:
                 error = str(exc)
-                fields = [dict(f, value=answer.get(f['name'], f['value'])) for f in fields]
+                fields = [f if f['kind'] == 'note' else dict(f, value=answer.get(f['name'], f['value'])) for f in fields]
 
     async def io(self, function, *args, **kwargs):
         return await self.services.io(function, *args, **kwargs)
@@ -139,6 +142,11 @@ class Backend:
                 self.services.downloads
                 self.services.accounts
                 self.services.opening
+                if self.connect_browser_link:
+                    try:
+                        await self.io(self.services.connect_browser)
+                    except Exception as exc:
+                        LOGGER.warning('Browser extension channel unavailable: %s', log_safe_text(exc))
                 self.local = LocalLibrary(self.services.state.db)
                 from ..export import recover
                 messages = await self.io(recover, self.services.state.db)
@@ -707,10 +715,13 @@ class Backend:
             answer['default_artwork'] = answer['default_artwork'].strip()
             if answer['default_artwork'] and not Path(answer['default_artwork']).expanduser().is_file():
                 raise ValueError('The default cover is not a file')
+            answer.pop('browser_status', None)
             for name in ('scan_directories', 'pinned_directories', 'hidden_directories', 'custom_comments'):
                 answer[name] = [line.strip() for line in answer[name].splitlines() if line.strip()]
             return answer
-        answer = await self.form('Settings', 'Gates may submit your name and email. Social actions may follow, repost or comment on your behalf.',
+        status, status_args = self.browser_status()
+        answer = await self.form('Settings', 'Gates may submit your name and email. Social actions may follow, like, repost or comment, '
+                                 'and connect Spotify, Deezer or Apple Music, on the accounts logged in to your browser.',
                                  [field('download_directory', 'Download folder', config.download_directory, 'folder'),
                                   field('user_name', 'Name', config.user_name), field('user_email', 'Email', config.user_email if config.has_real_email() else ''),
                                   field('gate_social_actions', 'Allow social actions', config.gate_social_actions, 'bool'),
@@ -718,6 +729,7 @@ class Backend:
                                   field('pinned_directories', 'Pinned folders (one per line)', '\n'.join(config.pinned_directories), 'multiline'),
                                   field('hidden_directories', 'Hidden folders (one per line)', '\n'.join(config.hidden_directories), 'multiline'),
                                   field('default_artwork', 'Default cover (tracks without artwork)', config.default_artwork, 'image'),
+                                  dict(field('browser_status', 'Browser automation', status, 'note'), args=status_args),
                                   field('browser', 'Browser', config.browser if any(config.browser == v for v, _ in choices) else '', 'choice',
                                         [['', 'System default'], *[[value, label] for value, label in choices]]),
                                   field('custom_comments', 'Gate comments (one per line)', '\n'.join(config.custom_comments), 'multiline')],
@@ -728,7 +740,8 @@ class Backend:
 
     async def authenticate(self, cancel):
         self.services.accounts.begin_authentication()
-        result = await self.io(self.services.accounts.authenticate, 'browser', '', cancel, lambda text: None)
+        result = await self.with_extension(
+            lambda: self.io(self.services.accounts.authenticate, 'browser', '', cancel, lambda text: None), cancel)
         if result.error:
             raise ValueError(result.error)
         if result.token:
@@ -1130,7 +1143,7 @@ class Backend:
             async def manual(items):
                 await self.ask('Finish in browser', '\n'.join(i.track_label for i in items), cancel=handle.cancel)
                 return True
-            outcome = await self.with_chromium(lambda: session.run_batch(requests, handle.cancel, approve=approve, manual=manual), handle)
+            outcome = await self.with_extension(lambda: session.run_batch(requests, handle.cancel, approve=approve, manual=manual), handle.cancel)
             while True:
                 if source and outcome.beatport_playlist_ready:
                     await self.io(self.services.library.remember_beatport, source, source_generation, outcome)
@@ -1164,34 +1177,73 @@ class Backend:
                     continue
                 retry = [replace(request, links=tuple((store, url) for store, url in request.links
                          if (request.track.key, store) in outcome.retryable_targets)) for request in requests]
-                outcome = await self.with_chromium(lambda: session.run_batch([request for request in retry if request.links], handle.cancel,
-                                                                             approve=approve, manual=manual), handle)
+                outcome = await self.with_extension(lambda: session.run_batch([request for request in retry if request.links], handle.cancel,
+                                                                             approve=approve, manual=manual), handle.cancel)
             await self.refresh_rows()
         await self.job('Preparing cart', work)
 
-    async def action_store_login(self, values):
-        async def work(handle):
-            # Beatport has no cart to sign in to; its handoff is a public Soundiiz playlist.
-            await self.with_chromium(lambda: self.services.cart.setup_logins(('bandcamp',), handle.cancel), handle)
-            self.send('message', {'text': 'Bandcamp session is ready'})
-        await self.job('Store accounts', work)
+    def browser_status(self):
+        """The extension's state as a translatable template and its arguments."""
+        link = self.services.browser_link
+        connections = link.connections() if link is not None else []
+        if not connections:
+            return 'Not connected: install the dj-digger extension in your browser', []
+        best = max(connections, key=lambda c: (c.compatible, c.last_active))
+        if not best.compatible:
+            return 'The extension is out of date: reload it in your browser', []
+        hello = best.hello
+        args = [str(hello.get('browser') or 'browser').capitalize(), str(hello.get('version') or '?')]
+        if hello.get('permissions') is False:
+            return '{0}, extension {1}: missing site access, allow it in the extension settings', args
+        return '{0}, extension {1}: connected', args
 
-    async def with_chromium(self, call, handle):
-        """Store browsers need Playwright Chromium; offer its one-time download."""
-        from ..automation_errors import AutomationError, ChromiumMissing
+    async def connect_browser(self, cancel=None):
+        """Explain how to load the extension, then wait for it to say hello after "Check connection"."""
+        from ..webext import link, register
+        notes, folder = [], ''
         try:
-            return await call()
-        except ChromiumMissing:
-            await self.ask('Download Chromium', 'Store carts need Playwright Chromium. Download it now? '
-                           'This is a one-time download for the installed Playwright version.', cancel=handle.cancel, ok='Download')
-        from ..browser_session import install_chromium
-        try:
-            await self.io(install_chromium, handle.cancel)
-        except AutomationError:
-            if handle.cancel.is_set():
-                raise Cancelled() from None
-            raise
-        return await call()
+            registration = await self.io(register.register)
+            folder, notes = str(registration.extension_dir), registration.notes
+        except register.RegistrationError as exc:
+            notes = [str(exc)]
+        if not folder:
+            from ..paths import data_dir
+            folder = str(data_dir() / 'browser-extension')
+        status, args = self.browser_status()
+        fields = [dict(field('status', 'Status', status, 'note'), args=args),
+                  field('chrome', 'Chrome, Edge, Brave', 'Open the extensions page, switch on Developer mode, '
+                        'choose Load unpacked and select the folder below.', 'note'),
+                  field('firefox', 'Firefox', 'Open about:debugging, choose This Firefox, then Load Temporary Add-on '
+                        'and select manifest.json in the folder below.', 'note'),
+                  field('folder', 'Extension folder', folder, 'path')]
+        if notes:
+            fields.insert(1, field('notes', 'Notes', '\n'.join(notes), 'note'))
+        await self.ask('Connect browser', 'dj-digger controls your own browser through an extension, so it works with '
+                       'the accounts you are logged in to.', fields, cancel, ok='Check connection')
+        if self.services.browser_link is not None:
+            with contextlib.suppress(link.ExtensionMissing):
+                await self.io(self.services.browser_link.connection, 5)
+
+    async def with_extension(self, call, cancel):
+        """Browser automation needs the extension; until it says hello, show how to connect and retry."""
+        from ..webext.link import ExtensionMissing
+        while True:
+            try:
+                return await call()
+            except ExtensionMissing:
+                await self.connect_browser(cancel)
+
+    async def action_connect_browser(self, values):
+        await self.connect_browser()
+        self.send('message', dict(zip(('text', 'args'), self.browser_status())))
+
+    async def action_disconnect_browsers(self, values):
+        from ..webext import register
+        await self.ask('Disconnect browsers', 'Remove dj-digger from the browsers it was registered with. '
+                       'The extension stays installed but reports that the app is missing; dj-digger '
+                       'registers again the next time it starts.', ok='Disconnect')
+        removed = await self.io(register.unregister)
+        self.send('message', {'text': 'Browsers disconnected: {0}', 'args': [len(removed)]})
 
     def close(self):
         self.loop.call_soon_threadsafe(lambda: self.loop.create_task(self._close()))

@@ -178,10 +178,6 @@
       <translation>Przygotuj koszyk / playlistę Beatport</translation>
     </message>
     <message>
-      <source>Store accounts</source>
-      <translation>Konta sklepowe</translation>
-    </message>
-    <message>
       <source>Restore removed tracks</source>
       <translation>Przywróć usunięte utwory</translation>
     </message>
@@ -442,7 +438,6 @@
     <message><source>Prepare cart for all visible…</source><translation>Przygotuj koszyk dla wszystkich widocznych…</translation></message>
     <message><source>Prepare cart / Beatport playlist…</source><translation>Przygotuj koszyk / playlistę Beatport…</translation></message>
     <message><source>Sign in to SoundCloud…</source><translation>Zaloguj do SoundCloud…</translation></message>
-    <message><source>Store accounts…</source><translation>Konta sklepowe…</translation></message>
     <message><source>Search artist, title, genre, tag or label</source><translation>Szukaj po wykonawcy, tytule, gatunku, tagu lub wytwórni</translation></message>
     <message><source>Found in your local files</source><translation>Znaleziono w Twoich plikach lokalnych</translation></message>
     <message><source>Track name</source><translation>Nazwa utworu</translation></message>
@@ -461,6 +456,29 @@
     <message><source>Show owned and skipped tracks</source><translation>Pokaż posiadane i pominięte utwory</translation></message>
     <message><source>Hide owned and skipped tracks</source><translation>Ukryj posiadane i pominięte utwory</translation></message>
     <message><source>Play the selected track</source><translation>Odtwórz zaznaczony utwór</translation></message>
+    <message><source>Connect browser…</source><translation>Połącz przeglądarkę…</translation></message>
+    <message><source>Disconnect browsers…</source><translation>Odłącz przeglądarki…</translation></message>
+    <message><source>Copy path</source><translation>Kopiuj ścieżkę</translation></message>
+    <message><source>Connect browser</source><translation>Połącz przeglądarkę</translation></message>
+    <message><source>dj-digger controls your own browser through an extension, so it works with the accounts you are logged in to.</source><translation>dj-digger steruje Twoją własną przeglądarką przez rozszerzenie, więc działa na kontach, na których jesteś zalogowany.</translation></message>
+    <message><source>Check connection</source><translation>Sprawdź połączenie</translation></message>
+    <message><source>Status</source><translation>Status</translation></message>
+    <message><source>Notes</source><translation>Uwagi</translation></message>
+    <message><source>Chrome, Edge, Brave</source><translation>Chrome, Edge, Brave</translation></message>
+    <message><source>Firefox</source><translation>Firefox</translation></message>
+    <message><source>Extension folder</source><translation>Folder rozszerzenia</translation></message>
+    <message><source>Open the extensions page, switch on Developer mode, choose Load unpacked and select the folder below.</source><translation>Otwórz stronę rozszerzeń, włącz tryb dewelopera, wybierz „Załaduj rozpakowane” i wskaż poniższy folder.</translation></message>
+    <message><source>Open about:debugging, choose This Firefox, then Load Temporary Add-on and select manifest.json in the folder below.</source><translation>Otwórz about:debugging, wybierz „Ten Firefox”, następnie „Załaduj tymczasowy dodatek” i wskaż plik manifest.json w poniższym folderze.</translation></message>
+    <message><source>Not connected: install the dj-digger extension in your browser</source><translation>Niepołączono: zainstaluj rozszerzenie dj-digger w przeglądarce</translation></message>
+    <message><source>The extension is out of date: reload it in your browser</source><translation>Rozszerzenie jest nieaktualne: przeładuj je w przeglądarce</translation></message>
+    <message><source>{0}, extension {1}: connected</source><translation>{0}, rozszerzenie {1}: połączone</translation></message>
+    <message><source>{0}, extension {1}: missing site access, allow it in the extension settings</source><translation>{0}, rozszerzenie {1}: brak dostępu do stron, zezwól na niego w ustawieniach rozszerzenia</translation></message>
+    <message><source>Browser automation</source><translation>Automatyzacja przeglądarki</translation></message>
+    <message><source>Disconnect browsers</source><translation>Odłącz przeglądarki</translation></message>
+    <message><source>Remove dj-digger from the browsers it was registered with. The extension stays installed but reports that the app is missing; dj-digger registers again the next time it starts.</source><translation>Usuń dj-digger z przeglądarek, w których był zarejestrowany. Rozszerzenie zostaje zainstalowane, ale zgłasza brak aplikacji; dj-digger zarejestruje się ponownie przy następnym uruchomieniu.</translation></message>
+    <message><source>Disconnect</source><translation>Odłącz</translation></message>
+    <message><source>Browsers disconnected: {0}</source><translation>Odłączono przeglądarki: {0}</translation></message>
+    <message><source>Gates may submit your name and email. Social actions may follow, like, repost or comment, and connect Spotify, Deezer or Apple Music, on the accounts logged in to your browser.</source><translation>Bramki mogą wysyłać Twoje imię i adres e-mail. Akcje społecznościowe mogą obserwować, lubić, udostępniać lub komentować oraz łączyć Spotify, Deezer lub Apple Music na kontach zalogowanych w Twojej przeglądarce.</translation></message>
   </context>
   <context>
     <name>Bridge</name>
@@ -786,10 +804,6 @@
       <translation>Zezwalaj na działania społecznościowe</translation>
     </message>
     <message>
-      <source>Gates may submit your name and email. Social actions may follow, repost or comment on your behalf.</source>
-      <translation>Bramki mogą przesłać Twoje imię i e-mail. Działania społecznościowe mogą obserwować, repostować lub komentować w Twoim imieniu.</translation>
-    </message>
-    <message>
       <source>Analyze folder</source>
       <translation>Analizuj folder</translation>
     </message>
@@ -812,10 +826,6 @@
     <message>
       <source>Prepare cart / Beatport playlist</source>
       <translation>Przygotuj koszyk / playlistę Beatport</translation>
-    </message>
-    <message>
-      <source>Store accounts</source>
-      <translation>Konta sklepowe</translation>
     </message>
     <message>
       <source>Permanently delete files</source>
@@ -930,20 +940,8 @@
       <translation>Eksport: {0}; brakujących plików: {1}; {2}: {3}</translation>
     </message>
     <message>
-      <source>Bandcamp session is ready</source>
-      <translation>Sesja Bandcamp jest gotowa</translation>
-    </message>
-    <message>
       <source>No track id, so there is nothing to stream</source>
       <translation>Brak identyfikatora utworu, więc nie ma czego odtworzyć</translation>
-    </message>
-    <message>
-      <source>Download Chromium</source>
-      <translation>Pobierz Chromium</translation>
-    </message>
-    <message>
-      <source>Store carts need Playwright Chromium. Download it now? This is a one-time download for the installed Playwright version.</source>
-      <translation>Koszyki sklepów wymagają Playwright Chromium. Pobrać go teraz? To jednorazowe pobranie dla zainstalowanej wersji Playwright.</translation>
     </message>
     <message>
       <source>Soundiiz accepts at most 200 tracks; the playlist file was saved to {0}</source>
@@ -1102,7 +1100,6 @@
     <message><source>Prepare cart for all visible…</source><translation>Przygotuj koszyk dla wszystkich widocznych…</translation></message>
     <message><source>Prepare cart / Beatport playlist…</source><translation>Przygotuj koszyk / playlistę Beatport…</translation></message>
     <message><source>Sign in to SoundCloud…</source><translation>Zaloguj do SoundCloud…</translation></message>
-    <message><source>Store accounts…</source><translation>Konta sklepowe…</translation></message>
     <message><source>Search artist, title, genre, tag or label</source><translation>Szukaj po wykonawcy, tytule, gatunku, tagu lub wytwórni</translation></message>
     <message><source>Found in your local files</source><translation>Znaleziono w Twoich plikach lokalnych</translation></message>
     <message><source>Track name</source><translation>Nazwa utworu</translation></message>
@@ -1121,6 +1118,28 @@
     <message><source>Show owned and skipped tracks</source><translation>Pokaż posiadane i pominięte utwory</translation></message>
     <message><source>Hide owned and skipped tracks</source><translation>Ukryj posiadane i pominięte utwory</translation></message>
     <message><source>Play the selected track</source><translation>Odtwórz zaznaczony utwór</translation></message>
+    <message><source>Connect browser…</source><translation>Połącz przeglądarkę…</translation></message>
+    <message><source>Disconnect browsers…</source><translation>Odłącz przeglądarki…</translation></message>
+    <message><source>Copy path</source><translation>Kopiuj ścieżkę</translation></message>
+    <message><source>Connect browser</source><translation>Połącz przeglądarkę</translation></message>
+    <message><source>dj-digger controls your own browser through an extension, so it works with the accounts you are logged in to.</source><translation>dj-digger steruje Twoją własną przeglądarką przez rozszerzenie, więc działa na kontach, na których jesteś zalogowany.</translation></message>
+    <message><source>Check connection</source><translation>Sprawdź połączenie</translation></message>
+    <message><source>Notes</source><translation>Uwagi</translation></message>
+    <message><source>Chrome, Edge, Brave</source><translation>Chrome, Edge, Brave</translation></message>
+    <message><source>Firefox</source><translation>Firefox</translation></message>
+    <message><source>Extension folder</source><translation>Folder rozszerzenia</translation></message>
+    <message><source>Open the extensions page, switch on Developer mode, choose Load unpacked and select the folder below.</source><translation>Otwórz stronę rozszerzeń, włącz tryb dewelopera, wybierz „Załaduj rozpakowane” i wskaż poniższy folder.</translation></message>
+    <message><source>Open about:debugging, choose This Firefox, then Load Temporary Add-on and select manifest.json in the folder below.</source><translation>Otwórz about:debugging, wybierz „Ten Firefox”, następnie „Załaduj tymczasowy dodatek” i wskaż plik manifest.json w poniższym folderze.</translation></message>
+    <message><source>Not connected: install the dj-digger extension in your browser</source><translation>Niepołączono: zainstaluj rozszerzenie dj-digger w przeglądarce</translation></message>
+    <message><source>The extension is out of date: reload it in your browser</source><translation>Rozszerzenie jest nieaktualne: przeładuj je w przeglądarce</translation></message>
+    <message><source>{0}, extension {1}: connected</source><translation>{0}, rozszerzenie {1}: połączone</translation></message>
+    <message><source>{0}, extension {1}: missing site access, allow it in the extension settings</source><translation>{0}, rozszerzenie {1}: brak dostępu do stron, zezwól na niego w ustawieniach rozszerzenia</translation></message>
+    <message><source>Browser automation</source><translation>Automatyzacja przeglądarki</translation></message>
+    <message><source>Disconnect browsers</source><translation>Odłącz przeglądarki</translation></message>
+    <message><source>Remove dj-digger from the browsers it was registered with. The extension stays installed but reports that the app is missing; dj-digger registers again the next time it starts.</source><translation>Usuń dj-digger z przeglądarek, w których był zarejestrowany. Rozszerzenie zostaje zainstalowane, ale zgłasza brak aplikacji; dj-digger zarejestruje się ponownie przy następnym uruchomieniu.</translation></message>
+    <message><source>Disconnect</source><translation>Odłącz</translation></message>
+    <message><source>Browsers disconnected: {0}</source><translation>Odłączono przeglądarki: {0}</translation></message>
+    <message><source>Gates may submit your name and email. Social actions may follow, like, repost or comment, and connect Spotify, Deezer or Apple Music, on the accounts logged in to your browser.</source><translation>Bramki mogą wysyłać Twoje imię i adres e-mail. Akcje społecznościowe mogą obserwować, lubić, udostępniać lub komentować oraz łączyć Spotify, Deezer lub Apple Music na kontach zalogowanych w Twojej przeglądarce.</translation></message>
   </context>
   <context>
     <name>TrackModel</name>
@@ -1429,10 +1448,6 @@
       <translation>Zezwalaj na działania społecznościowe</translation>
     </message>
     <message>
-      <source>Gates may submit your name and email. Social actions may follow, repost or comment on your behalf.</source>
-      <translation>Bramki mogą przesłać Twoje imię i e-mail. Działania społecznościowe mogą obserwować, repostować lub komentować w Twoim imieniu.</translation>
-    </message>
-    <message>
       <source>Analyze folder</source>
       <translation>Analizuj folder</translation>
     </message>
@@ -1455,10 +1470,6 @@
     <message>
       <source>Prepare cart / Beatport playlist</source>
       <translation>Przygotuj koszyk / playlistę Beatport</translation>
-    </message>
-    <message>
-      <source>Store accounts</source>
-      <translation>Konta sklepowe</translation>
     </message>
     <message>
       <source>Permanently delete files</source>
@@ -1573,20 +1584,8 @@
       <translation>Eksport: {0}; brakujących plików: {1}; {2}: {3}</translation>
     </message>
     <message>
-      <source>Bandcamp session is ready</source>
-      <translation>Sesja Bandcamp jest gotowa</translation>
-    </message>
-    <message>
       <source>No track id, so there is nothing to stream</source>
       <translation>Brak identyfikatora utworu, więc nie ma czego odtworzyć</translation>
-    </message>
-    <message>
-      <source>Download Chromium</source>
-      <translation>Pobierz Chromium</translation>
-    </message>
-    <message>
-      <source>Store carts need Playwright Chromium. Download it now? This is a one-time download for the installed Playwright version.</source>
-      <translation>Koszyki sklepów wymagają Playwright Chromium. Pobrać go teraz? To jednorazowe pobranie dla zainstalowanej wersji Playwright.</translation>
     </message>
     <message>
       <source>Soundiiz accepts at most 200 tracks; the playlist file was saved to {0}</source>
@@ -1665,7 +1664,6 @@
     <message><source>Prepare cart for all visible…</source><translation>Przygotuj koszyk dla wszystkich widocznych…</translation></message>
     <message><source>Prepare cart / Beatport playlist…</source><translation>Przygotuj koszyk / playlistę Beatport…</translation></message>
     <message><source>Sign in to SoundCloud…</source><translation>Zaloguj do SoundCloud…</translation></message>
-    <message><source>Store accounts…</source><translation>Konta sklepowe…</translation></message>
     <message><source>Search artist, title, genre, tag or label</source><translation>Szukaj po wykonawcy, tytule, gatunku, tagu lub wytwórni</translation></message>
     <message><source>Found in your local files</source><translation>Znaleziono w Twoich plikach lokalnych</translation></message>
     <message><source>Track name</source><translation>Nazwa utworu</translation></message>
@@ -1684,5 +1682,27 @@
     <message><source>Show owned and skipped tracks</source><translation>Pokaż posiadane i pominięte utwory</translation></message>
     <message><source>Hide owned and skipped tracks</source><translation>Ukryj posiadane i pominięte utwory</translation></message>
     <message><source>Play the selected track</source><translation>Odtwórz zaznaczony utwór</translation></message>
+    <message><source>Connect browser…</source><translation>Połącz przeglądarkę…</translation></message>
+    <message><source>Disconnect browsers…</source><translation>Odłącz przeglądarki…</translation></message>
+    <message><source>Copy path</source><translation>Kopiuj ścieżkę</translation></message>
+    <message><source>Connect browser</source><translation>Połącz przeglądarkę</translation></message>
+    <message><source>dj-digger controls your own browser through an extension, so it works with the accounts you are logged in to.</source><translation>dj-digger steruje Twoją własną przeglądarką przez rozszerzenie, więc działa na kontach, na których jesteś zalogowany.</translation></message>
+    <message><source>Check connection</source><translation>Sprawdź połączenie</translation></message>
+    <message><source>Notes</source><translation>Uwagi</translation></message>
+    <message><source>Chrome, Edge, Brave</source><translation>Chrome, Edge, Brave</translation></message>
+    <message><source>Firefox</source><translation>Firefox</translation></message>
+    <message><source>Extension folder</source><translation>Folder rozszerzenia</translation></message>
+    <message><source>Open the extensions page, switch on Developer mode, choose Load unpacked and select the folder below.</source><translation>Otwórz stronę rozszerzeń, włącz tryb dewelopera, wybierz „Załaduj rozpakowane” i wskaż poniższy folder.</translation></message>
+    <message><source>Open about:debugging, choose This Firefox, then Load Temporary Add-on and select manifest.json in the folder below.</source><translation>Otwórz about:debugging, wybierz „Ten Firefox”, następnie „Załaduj tymczasowy dodatek” i wskaż plik manifest.json w poniższym folderze.</translation></message>
+    <message><source>Not connected: install the dj-digger extension in your browser</source><translation>Niepołączono: zainstaluj rozszerzenie dj-digger w przeglądarce</translation></message>
+    <message><source>The extension is out of date: reload it in your browser</source><translation>Rozszerzenie jest nieaktualne: przeładuj je w przeglądarce</translation></message>
+    <message><source>{0}, extension {1}: connected</source><translation>{0}, rozszerzenie {1}: połączone</translation></message>
+    <message><source>{0}, extension {1}: missing site access, allow it in the extension settings</source><translation>{0}, rozszerzenie {1}: brak dostępu do stron, zezwól na niego w ustawieniach rozszerzenia</translation></message>
+    <message><source>Browser automation</source><translation>Automatyzacja przeglądarki</translation></message>
+    <message><source>Disconnect browsers</source><translation>Odłącz przeglądarki</translation></message>
+    <message><source>Remove dj-digger from the browsers it was registered with. The extension stays installed but reports that the app is missing; dj-digger registers again the next time it starts.</source><translation>Usuń dj-digger z przeglądarek, w których był zarejestrowany. Rozszerzenie zostaje zainstalowane, ale zgłasza brak aplikacji; dj-digger zarejestruje się ponownie przy następnym uruchomieniu.</translation></message>
+    <message><source>Disconnect</source><translation>Odłącz</translation></message>
+    <message><source>Browsers disconnected: {0}</source><translation>Odłączono przeglądarki: {0}</translation></message>
+    <message><source>Gates may submit your name and email. Social actions may follow, like, repost or comment, and connect Spotify, Deezer or Apple Music, on the accounts logged in to your browser.</source><translation>Bramki mogą wysyłać Twoje imię i adres e-mail. Akcje społecznościowe mogą obserwować, lubić, udostępniać lub komentować oraz łączyć Spotify, Deezer lub Apple Music na kontach zalogowanych w Twojej przeglądarce.</translation></message>
   </context>
 </TS>

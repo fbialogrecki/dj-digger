@@ -39,7 +39,6 @@ from ..cart_models import (
 )
 from ..links import redact_url
 from ..store_urls import (
-    STORE_LOGIN,
     _direct_beatport_track_url,
     canonical_store_url,
 )
@@ -360,34 +359,6 @@ class CartBrowserSession:
                     await context.close(reason="dj-digger cart session closed")
             self._owned_pages.clear()
             self._cart_pages.clear()
-
-    async def setup_logins(
-        self,
-        stores: Iterable[str],
-        cancel: asyncio.Event,
-        progress: ProgressCallback | None = None,
-    ) -> None:
-        # Only stores with a login page; Beatport is reached through Soundiiz instead.
-        wanted = tuple(dict.fromkeys(store for store in stores if store in STORE_LOGIN))
-        if not wanted:
-            return
-        async with self._lock:
-            # The person signs in in the window, so it comes on screen for as
-            # long as that takes and steps aside again afterwards.
-            context = await self._shown_context()
-            pages: list[Any] = []
-            try:
-                for _ in wanted:
-                    pages.append(await context.new_page())
-                await bandcamp._ensure_logins_async(
-                    dict(zip(wanted, pages, strict=True)), cancel, progress
-                )
-            finally:
-                for page in pages:
-                    with contextlib.suppress(Exception):
-                        await page.close()
-                with contextlib.suppress(Exception):
-                    await context.hide()
 
     async def _preflight_one(
         self,

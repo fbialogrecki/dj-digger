@@ -550,19 +550,23 @@ def test_register_and_unregister_on_windows_with_a_fake_registry(sandbox, monkey
     assert fake.values == {} and not chrome_manifest.exists()
 
 
-def test_extension_copy_is_refreshed_only_when_the_version_changes(sandbox):
+def test_extension_copy_is_refreshed_when_its_content_differs(sandbox):
     home, source, *_ = sandbox
     destination = register.sync_extension()
     assert (destination / "background.js").read_text() == "// x"
-    (destination / "background.js").write_text("// local edit")
-    register.sync_extension()  # same version: untouched
-    assert (destination / "background.js").read_text() == "// local edit"
-    manifest = json.loads((source / "manifest.json").read_text())
-    (source / "manifest.json").write_text(json.dumps({**manifest, "version": "1.0.1"}))
+    mark = (destination / "manifest.json").stat().st_mtime_ns
+    register.sync_extension()  # identical content: untouched
+    assert (destination / "manifest.json").stat().st_mtime_ns == mark
+    # Same manifest version, changed script: the browser must still get the new file.
     (source / "background.js").write_text("// y")
     register.sync_extension()
     assert (destination / "background.js").read_text() == "// y"
-    assert json.loads((destination / "manifest.json").read_text())["version"] == "1.0.1"
+    # A hand-edited or damaged copy is restored, and a new file arrives too.
+    (destination / "background.js").write_text("// local edit")
+    (source / "extra.js").write_text("// z")
+    register.sync_extension()
+    assert (destination / "background.js").read_text() == "// y"
+    assert (destination / "extra.js").read_text() == "// z"
     assert not list(destination.parent.glob("browser-extension*.old"))
     assert [p.name for p in destination.parent.iterdir()] == ["browser-extension"]
 

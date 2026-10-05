@@ -4,6 +4,7 @@
 def main():
     import os
     import sys
+    from functools import partial
     from pathlib import Path
 
     try:
@@ -15,11 +16,9 @@ def main():
         print('Install the desktop extra: pip install "dj-digger[gui,analyze]"', file=sys.stderr)
         return 1
     from ..logging_setup import close_logging, configure_logging
+    from .backend import Backend
     from .bridge import Bridge
 
-    if getattr(sys, 'frozen', False):
-        from ..bundled import resource_root
-        os.environ['PLAYWRIGHT_BROWSERS_PATH'] = str(resource_root() / 'browsers')
     # Libraries sometimes write diagnostics directly when pythonw has no streams.
     for name in ('stdout', 'stderr'):
         if getattr(sys, name) is None:
@@ -28,6 +27,14 @@ def main():
         from .runtime_smoke import run
         run(sys.argv[sys.argv.index('--runtime-test') + 1])
         return 0
+    # The CLI takes the same lock: one process owns the data directory and the extension socket.
+    from ..instance import InstanceLock
+    from ..paths import data_dir
+    try:
+        lock = InstanceLock(data_dir() / 'instance.lock')
+    except RuntimeError as exc:
+        print(exc, file=sys.stderr)
+        return 1
     QQuickStyle.setStyle('Basic')
     app = QGuiApplication(sys.argv)
     app.setApplicationName('dj-digger')
@@ -41,7 +48,8 @@ def main():
     install_guard = hold()
     configure_logging('INFO')
     engine = QQmlApplicationEngine()
-    bridge = Bridge(engine)
+    # CI smoke uses isolated HOME/XDG and never opens sockets or registers browsers.
+    bridge = Bridge(engine, backend_factory=partial(Backend, connect_browser='--smoke-test' not in sys.argv))
     engine.rootContext().setContextProperty('desktop', bridge)
     engine.rootContext().setContextProperty('systemLanguage', 'pl' if QLocale.system().name().startswith('pl') else 'en')
     bridge.closed.connect(lambda: app.exit(0))
@@ -53,6 +61,7 @@ def main():
         import shiboken6
         shiboken6.delete(engine)
         close_logging()
+        lock.close()
         if install_guard:
             import ctypes
             ctypes.windll.kernel32.CloseHandle(ctypes.c_void_p(install_guard))
@@ -79,6 +88,7 @@ def main():
         import shiboken6
         shiboken6.delete(engine)
         close_logging()
+        lock.close()
         if install_guard:
             import ctypes
             ctypes.windll.kernel32.CloseHandle(ctypes.c_void_p(install_guard))

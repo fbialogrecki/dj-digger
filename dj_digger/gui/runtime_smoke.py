@@ -8,7 +8,6 @@ from pathlib import Path
 
 def run(directory):
     import miniaudio
-    from playwright.sync_api import sync_playwright
 
     from .. import __version__
     from ..analysis import analyze_spawned
@@ -27,13 +26,9 @@ def run(directory):
     assert len(miniaudio.decode_file(str(source)).samples) > 0
     result = analyze_spawned(source)
     assert result['sha256'] and result['parameters']['rate'] == 22050
-    with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(headless=True)
-        try:
-            page = browser.new_page()
-            page.route('**/*', lambda route: route.abort())
-            page.set_content('<title>Offline bundled browser</title>')
-            assert page.title() == 'Offline bundled browser'
-        finally:
-            browser.close()
-    (root / 'runtime-smoke.json').write_text(json.dumps({'probe': True, 'decode': True, 'analysis': True, 'browser': True}), encoding='utf-8')
+    # The packaged extension and its relay must be present; no browser is started.
+    from ..webext import host, link, register
+    extension_ids = register.extension_ids(register.read_extension_manifest())
+    assert all(extension_ids) and (register.EXTENSION_SOURCE / 'allowlist.json').is_file()
+    assert callable(host.main) and link.PROTOCOL
+    (root / 'runtime-smoke.json').write_text(json.dumps({'probe': True, 'decode': True, 'analysis': True, 'extension': True}), encoding='utf-8')

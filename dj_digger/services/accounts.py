@@ -7,6 +7,7 @@ from threading import Event, Lock
 from .. import auth, browser
 from ..config import DEFAULT_EMAIL
 from ..diagnostics import log_safe_text
+from ..webext.link import ExtensionMissing
 
 
 @dataclass(frozen=True)
@@ -39,6 +40,8 @@ class AccountService:
                 except auth.SoundCloudAuthCancelled:
                     return AuthenticationResult()
                 except auth.SoundCloudAuthError as exc:
+                    if isinstance(exc.__cause__, ExtensionMissing):
+                        raise exc.__cause__  # the desktop offers to connect the browser
                     return AuthenticationResult(error=log_safe_text(exc))
         finally:
             self._auth_settled.set()

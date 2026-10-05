@@ -488,8 +488,10 @@ ApplicationWindow {
             Action { text: qsTr("Preferences…"); shortcut: "Shift+S"; onTriggered: desktop.action("settings") }
             AppSeparator {}
             Action { text: qsTr("Sign in to SoundCloud…"); enabled: !desktop.busy; onTriggered: desktop.action("login") }
-            Action { text: qsTr("Store accounts…"); enabled: !desktop.busy; onTriggered: desktop.action("store_login") }
             Action { text: qsTr("Sign out…"); onTriggered: desktop.action("logout") }
+            AppSeparator {}
+            Action { text: qsTr("Connect browser…"); onTriggered: desktop.action("connect_browser") }
+            Action { text: qsTr("Disconnect browsers…"); onTriggered: desktop.action("disconnect_browsers") }
         }
         AppMenu {
             title: qsTr("Help")
@@ -1980,6 +1982,24 @@ ApplicationWindow {
                                         fieldFile.open()
                                     }
                                 }
+                            }
+                        }
+                        // Read-only text the person can select; a path also gets a button that copies it.
+                        RowLayout {
+                            visible: fieldItem.modelData.kind === "note" || fieldItem.modelData.kind === "path"
+                            Layout.fillWidth: true
+                            TextEdit {
+                                Layout.fillWidth: true
+                                text: String(fieldItem.modelData.value); textFormat: TextEdit.PlainText
+                                readOnly: true; selectByMouse: true; wrapMode: TextEdit.Wrap
+                                color: root.fg; font: Qt.application.font
+                                Accessible.name: fieldItem.modelData.label; Accessible.role: Accessible.StaticText
+                            }
+                            Button {
+                                objectName: "copy-" + fieldItem.modelData.name
+                                text: qsTr("Copy path")
+                                visible: fieldItem.modelData.kind === "path"
+                                onClicked: desktop.copyText(String(fieldItem.modelData.value))
                             }
                         }
                         RowLayout {

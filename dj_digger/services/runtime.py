@@ -3,9 +3,10 @@
 import asyncio
 import logging
 from contextlib import contextmanager
-from threading import Condition
+from threading import Condition, Thread
 
 from ..config import AppConfig
+from ..diagnostics import log_safe_text
 from ..models import Cancelled
 from ..state import TrackState
 from .downloads import DownloadService
@@ -27,6 +28,7 @@ class ApplicationServices:
         self._client = None
         self._player = None
         self._cart = None
+        self.browser_link = None
         self._condition = Condition()
         self._active = 0
         self._closing = False
@@ -115,6 +117,27 @@ class ApplicationServices:
             self._cart = CartBrowserSession()
         return self._cart
 
+    def connect_browser(self):
+        """Listen for the browser extension and register its host (blocking disk work).
+
+        Only the desktop calls this, after taking ``InstanceLock``; registration
+        runs in the background and a failure is logged, never fatal.
+        """
+        from ..webext import link, page, register
+
+        listener = link.Listener()
+        listener.start()
+        page.set_listener(listener)
+        self.browser_link = listener
+
+        def run():
+            try:
+                register.register()
+            except Exception as exc:
+                LOGGER.warning("Browser extension registration failed: %s", log_safe_text(exc))
+
+        Thread(target=run, name="webext-register", daemon=True).start()
+
     @contextmanager
     def worker(self):
         with self._condition:
@@ -192,6 +215,11 @@ class ApplicationServices:
             self._close_resource(self._player)
         from ..local_audio import close_all
         close_all()
+        if self.browser_link is not None:
+            from ..webext import page
+            page.set_listener(None)
+            self._close_resource(self.browser_link)
+            self.browser_link = None
         if self._client is not None:
             self._close_resource(self._client)
             self._client = None

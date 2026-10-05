@@ -704,8 +704,7 @@ ALL_PATTERNS = BANDCAMP_PATTERNS + GATE_PATTERNS
 def test_the_walker_finds_the_bandcamp_patterns():
     sources = {pattern.pattern for pattern in BANDCAMP_PATTERNS}
     assert {r"^accept necessary only$", r"^buy digital (?:track|album)$", r"^add to cart$",
-            r"^(remove|x)$", r"^buy the full digital album$", r"^(collection|wishlist|log out)$",
-            r"^(?:log ?in|sign in)$"} <= sources
+            r"^(remove|x)$", r"^buy the full digital album$"} <= sources
 
 
 @pytest.mark.parametrize("pattern", ALL_PATTERNS, ids=[p.pattern for p in ALL_PATTERNS])

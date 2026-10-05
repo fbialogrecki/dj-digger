@@ -50,7 +50,6 @@ from ..store_parse import (
 )
 from ..store_urls import (
     STORE_HOME,
-    STORE_LOGIN,
     canonical_store_url,
     is_store_url,
 )
@@ -58,7 +57,6 @@ from ..webext.page import ACTION_TIMEOUT_MS
 
 LOGGER = logging.getLogger(__name__)
 NAVIGATION_TIMEOUT_MS = 30_000
-LOGIN_TIMEOUT_SECONDS = 300
 BANDCAMP_CART_URL = "https://bandcamp.com/cart"
 
 
@@ -447,89 +445,6 @@ async def _page_products_async(
                 f"{store} product structure changed or is unavailable"
             ) from last_error
         await asyncio.sleep(0.2)
-
-
-async def _login_visible_async(page: Any) -> bool:
-    login_name = re.compile(r"^(?:log ?in|sign in)$", re.IGNORECASE)
-    try:
-        for locator in _role_pair(page, login_name):
-            if await _visible_async(locator):
-                return True
-    except Exception:
-        return True
-    return False
-
-
-async def _is_logged_in_async(page: Any, store: str) -> bool:
-    if store != "bandcamp":
-        # Beatport is never logged into: its anti-bot challenge stops an
-        # automated browser at the door, and the app builds a playlist instead.
-        return False
-    if not is_store_url(page.url, store) or await _login_visible_async(page):
-        return False
-    names = re.compile(r"^(collection|wishlist|log out)$", re.IGNORECASE)
-    return await _first_visible_async(*_role_pair(page, names)) is not None
-
-
-async def _login_complete_async(page: Any, store: str) -> bool:
-    if await _is_logged_in_async(page, store):
-        return True
-    return (
-        store == "bandcamp"
-        and urlparse(page.url).path in ("", "/")
-        and not await _login_visible_async(page)
-    )
-
-
-async def _raise_if_security_challenge_async(page: Any, store: str) -> None:
-    try:
-        content = await page.content()
-        products_from_html(content, page.url, store)
-    except SecurityChallengeBlocked as exc:
-        await _surface_challenge_async(page, store, "Store login blocked by security challenge")
-        raise SecurityChallengeBlocked(
-            f"{store.capitalize()} security verification rejects automated browsers; "
-            "automatic login was stopped safely"
-        ) from exc
-    except AutomationError:
-        # Login pages are not product pages. Only the explicit challenge signal
-        # matters here; missing product metadata is expected.
-        pass
-
-
-async def _ensure_logins_async(
-    pages: dict[str, Any], cancel: asyncio.Event, progress: ProgressCallback | None = None
-) -> None:
-    pending: dict[str, Any] = {}
-    for store, page in pages.items():
-        _async_cancelled(cancel)
-        _emit_progress(progress, CartProgress("login", 0, len(pages), store=store))
-        await _navigate_async(page, STORE_HOME[store], store)
-        await _raise_if_security_challenge_async(page, store)
-        if await _is_logged_in_async(page, store):
-            LOGGER.info("Store login already active: store=%s", store)
-            continue
-        await _navigate_async(page, STORE_LOGIN[store], store)
-        await _raise_if_security_challenge_async(page, store)
-        if not await _login_complete_async(page, store):
-            LOGGER.info("Waiting for manual store login: store=%s", store)
-            pending[store] = page
-
-    deadline = time.monotonic() + LOGIN_TIMEOUT_SECONDS
-    while pending and time.monotonic() < deadline:
-        _async_cancelled(cancel)
-        for store, page in tuple(pending.items()):
-            if page.is_closed():
-                raise AutomationError(f"{store} login window was closed")
-            await _raise_if_security_challenge_async(page, store)
-            if is_store_url(page.url, store) and await _login_complete_async(page, store):
-                LOGGER.info("Store login completed: store=%s", store)
-                del pending[store]
-        if pending:
-            await asyncio.sleep(0.25)
-    if pending:
-        stores = " and ".join(sorted(pending))
-        raise AutomationError(f"timed out waiting for manual {stores} login")
 
 
 BUY_CONTROL = re.compile(r"^buy digital (?:track|album)$", re.IGNORECASE)

@@ -215,6 +215,8 @@ class Bridge(QObject):
             for item in values['fields']:
                 item['label'] = self.tr(item['label'])
                 item['options'] = [[value, self.tr(label)] for value, label in item.get('options', [])]
+                if item['kind'] == 'note':
+                    item['value'] = self.tr(item['value']).format(*item['args']) if 'args' in item else self.tr(item['value'])
             self.question.emit(values)
         elif kind == 'dismiss':
             self.dismiss.emit(values['id'])
@@ -321,6 +323,10 @@ class Bridge(QObject):
     def copy(self):
         rows = [r for r in self.table.visible if r['key'] in self.table.selected]
         QGuiApplication.clipboard().setText('\n'.join(r['artist'] + ' — ' + r['title'] for r in rows))
+
+    @Slot(str)
+    def copyText(self, text):
+        QGuiApplication.clipboard().setText(text)
 
     @Slot(int)
     def step(self, direction):

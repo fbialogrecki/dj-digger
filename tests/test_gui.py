@@ -412,82 +412,221 @@ def test_add_playlist_lists_the_import_at_once_and_fills_it_as_tracks_arrive(bac
     assert progress[0] == dict(stage='Fetching tracks', done=1, total=2) and progress[-1] == {}
 
 
-def test_store_accounts_sign_in_to_bandcamp_only(backend):
-    worker, events = backend
-    received = []
-
-    class Cart:
-        async def setup_logins(self, stores, cancel):
-            received.append(tuple(stores))
-        async def close(self):
-            pass
-
-    worker.services._cart = Cart()
-    worker.submit('store_login', {})
-    assert wait_event(events, 'message')['text'] == 'Bandcamp session is ready'
-    assert received == [('bandcamp',)]
-
-
-def store_login_with(worker, setup_logins):
-    worker.services._cart = type('Cart', (), {'setup_logins': setup_logins, 'close': lambda self: asyncio_noop()})()
-    worker.submit('store_login', {})
-
-
-async def asyncio_noop():
-    pass
-
-
 def next_of(events, *kinds):
     while (event := events.get(timeout=10))[0] not in kinds:
         pass
     return event
 
 
-def test_cancelled_store_login_is_not_an_error(backend):
-    from dj_digger.cart_models import CartCancelled
+class FakeLink:
+    """A listener stand-in: the browsers that said hello, and a connection() that records waits."""
+
+    def __init__(self, *hellos):
+        self.waited = []
+        self._connections = [type('Connection', (), dict(compatible=h.get('protocol') == 1, last_active=i, hello=h))()
+                             for i, h in enumerate(hellos)]
+
+    def connections(self):
+        return self._connections
+
+    def connection(self, timeout):
+        self.waited.append(timeout)
+
+    def close(self):
+        pass
+
+
+@pytest.fixture
+def extension(backend, tmp_path, monkeypatch):
+    """The Connect-browser dialog without touching the real HOME: a fake registration."""
+    from dj_digger.webext import register
+    folder = tmp_path / 'browser-extension'
+    monkeypatch.setattr(register, 'register', lambda: register.Registration(extension_dir=folder, notes=['No browser']))
+    removed = []
+    monkeypatch.setattr(register, 'unregister', lambda: removed.append(1) or ['manifest.json'])
     worker, events = backend
-    async def setup_logins(self, stores, cancel):
-        raise CartCancelled('cart operation was cancelled')
-    store_login_with(worker, setup_logins)
-    assert next_of(events, 'message', 'error') == ('message', {'text': 'Cancelled'})
+    worker.services.browser_link = FakeLink()
+    return worker, events, folder, removed
 
 
-@pytest.mark.parametrize('choice', ['download', 'decline', 'cancel during download'])
-def test_missing_chromium_is_offered_as_a_download(backend, monkeypatch, choice):
-    from dj_digger.automation_errors import AutomationError, ChromiumMissing
-    worker, events = backend
-    calls, installs = [], []
-    async def setup_logins(self, stores, cancel):
-        calls.append(stores)
-        if len(calls) == 1:
-            raise ChromiumMissing('Chromium is required')
-    def install(cancel):
-        installs.append(cancel)
-        if choice == 'cancel during download':
-            cancel.set()
-            raise AutomationError('cart operation was cancelled')
-    monkeypatch.setattr('dj_digger.browser_session.install_chromium', install)
-    store_login_with(worker, setup_logins)
-    question = next_of(events, 'question')[1]
-    assert question['title'] == 'Download Chromium'
-    worker.answer(question['id'], None if choice == 'decline' else {})
-    kind, value = next_of(events, 'message', 'error')
-    if choice == 'download':
-        assert value['text'] == 'Bandcamp session is ready' and len(calls) == 2 and len(installs) == 1
-    else:
-        assert (kind, value['text']) == ('message', 'Cancelled') and len(calls) == 1
-        assert len(installs) == (choice != 'decline')
-
-
-def test_store_login_skips_stores_without_a_login_page(monkeypatch):
+def run_in(worker, coroutine):
     import asyncio
+    return asyncio.run_coroutine_threadsafe(coroutine, worker.loop)
 
+
+@pytest.mark.parametrize('choice', ['check', 'cancel'])
+def test_missing_extension_shows_the_connect_dialog_and_retries(extension, choice):
+    from dj_digger.models import Cancelled
+    from dj_digger.webext.link import ExtensionMissing
+    worker, events, folder, _ = extension
+    calls = []
+
+    async def call():
+        calls.append(1)
+        if len(calls) == 1:
+            raise ExtensionMissing('The dj-digger browser extension is not connected')
+        return 'done'
+
+    result = run_in(worker, worker.with_extension(call, threading.Event()))
+    question = next_of(events, 'question')[1]
+    assert question['title'] == 'Connect browser' and question['ok'] == 'Check connection'
+    fields = {f['name']: f for f in question['fields']}
+    assert fields['status']['value'] == 'Not connected: install the dj-digger extension in your browser'
+    assert fields['folder'] == dict(fields['folder'], kind='path', value=str(folder))
+    assert fields['notes']['value'] == 'No browser'
+    assert {'chrome', 'firefox'} <= set(fields) and 'Chromium' not in str(question)
+    worker.answer(question['id'], {} if choice == 'check' else None)
+    if choice == 'cancel':
+        with pytest.raises(Cancelled):
+            result.result(timeout=10)
+        assert len(calls) == 1
+    else:
+        assert result.result(timeout=10) == 'done' and len(calls) == 2
+        assert worker.services.browser_link.waited == [5], 'the retry waits for the extension to say hello'
+
+
+def test_login_without_the_extension_offers_to_connect_it_and_retries(extension):
+    from dj_digger.services.accounts import AuthenticationResult
+    from dj_digger.webext.link import ExtensionMissing
+    worker, events, *_ = extension
+    calls = []
+
+    def authenticate(method, token, cancel, status):
+        calls.append(method)
+        if len(calls) == 1:
+            raise ExtensionMissing('not connected')
+        return AuthenticationResult(token='secret')
+
+    worker.services.accounts.authenticate = authenticate
+    worker.services.adopt_login = lambda token: True
+    worker.submit('login', {})
+    question = next_of(events, 'question')[1]
+    assert question['title'] == 'Connect browser'
+    worker.answer(question['id'], {})
+    assert next_of(events, 'message', 'error')[1]['text'] == 'Signed in' and calls == ['browser', 'browser']
+
+
+def test_an_unconnected_extension_surfaces_from_the_account_service():
+    from contextlib import nullcontext
+
+    from dj_digger import auth
+    from dj_digger.services.accounts import AccountService
+    from dj_digger.webext.link import ExtensionMissing
+
+    def login(*_args, **_kwargs):
+        try:
+            raise ExtensionMissing('not connected')
+        except ExtensionMissing as exc:
+            raise auth.SoundCloudAuthError('Connect the dj-digger browser extension') from exc
+
+    accounts = AccountService(None, lambda: 'id', nullcontext)
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(auth, 'login_with_browser', login)
+        with pytest.raises(ExtensionMissing):
+            accounts.authenticate('browser', '', threading.Event(), lambda _text: None)
+    assert accounts._auth_settled.is_set()
+
+
+@pytest.mark.parametrize('hellos, status', [
+    ([], 'Not connected: install the dj-digger extension in your browser'),
+    ([dict(browser='chrome', version='0.3.1', protocol=1, permissions=True)], 'Chrome, extension 0.3.1: connected'),
+    ([dict(browser='firefox', version='0.3.1', protocol=1, permissions=False)],
+     'Firefox, extension 0.3.1: missing site access, allow it in the extension settings'),
+    ([dict(browser='chrome', version='0.1.0', protocol=0)], 'The extension is out of date: reload it in your browser'),
+])
+def test_settings_show_the_browser_automation_status(extension, tmp_path, hellos, status):
+    worker, events, *_ = extension
+    worker.services.browser_link = FakeLink(*hellos)
+    worker.submit('settings', {})
+    question = wait_event(events, 'question')
+    assert 'accounts logged in to your browser' in question['body'] and 'Deezer' in question['body']
+    note = next(f for f in question['fields'] if f['name'] == 'browser_status')
+    assert (note['kind'], note['label'], note['value'].format(*note.get('args', []))) == ('note', 'Browser automation', status)
+    answer = {f['name']: f['value'] for f in question['fields']}
+    worker.answer(question['id'], dict(answer, download_directory=str(tmp_path)))
+    wait_event(events, 'sidebar')
+    assert not hasattr(worker.services.config, 'browser_status'), 'a read-only row is not a preference'
+    assert 'browser_status' not in json.loads((tmp_path / 'config.json').read_text())
+
+
+def test_settings_status_survives_a_rejected_save(extension, tmp_path):
+    worker, events, *_ = extension
+    worker.submit('settings', {})
+    question = wait_event(events, 'question')
+    answer = {f['name']: f['value'] for f in question['fields']}
+    worker.answer(question['id'], dict(answer, user_email='nope', download_directory=str(tmp_path)))
+    retry = wait_event(events, 'question')
+    assert retry['error'] == 'Enter a valid email'
+    assert next(f for f in retry['fields'] if f['name'] == 'browser_status') == next(f for f in question['fields'] if f['name'] == 'browser_status')
+
+
+@pytest.mark.parametrize('confirm', [True, False])
+def test_disconnecting_browsers_asks_first(extension, confirm):
+    worker, events, _, removed = extension
+    worker.submit('disconnect_browsers', {})
+    question = wait_event(events, 'question')
+    assert question['title'] == 'Disconnect browsers' and question['ok'] == 'Disconnect' and not removed
+    worker.answer(question['id'], {} if confirm else None)
+    message = next_of(events, 'message', 'error')[1]
+    if confirm:
+        assert removed and message == {'text': 'Browsers disconnected: {0}', 'args': [1]}
+    else:
+        assert not removed and message['text'] == 'Cancelled'
+
+
+def test_store_login_is_gone():
+    from dj_digger.gui import backend as gui_backend
     from dj_digger.services.purchases import CartBrowserSession
-    session = CartBrowserSession()
-    async def launch():
-        raise AssertionError('no browser for a store without a login page')
-    monkeypatch.setattr(session, '_ensure_context', launch)
-    asyncio.run(session.setup_logins(('beatport',), asyncio.Event()))
+    assert not hasattr(gui_backend.Backend, 'action_store_login')
+    assert not hasattr(gui_backend.Backend, 'with_chromium') and not hasattr(CartBrowserSession, 'setup_logins')
+
+
+def test_the_desktop_listens_for_the_extension_and_registers_the_host(tmp_path, monkeypatch):
+    from dj_digger.webext import link, page, register
+    started, listeners = threading.Event(), []
+
+    class Listener:
+        def __init__(self):
+            self.state = []
+            listeners.append(self)
+
+        def start(self):
+            self.state.append('start')
+
+        def close(self):
+            self.state.append('close')
+
+    monkeypatch.setattr(link, 'Listener', Listener)
+    monkeypatch.setattr(register, 'register', started.set)
+    chosen = []
+    monkeypatch.setattr(page, 'set_listener', chosen.append)
+    services = ApplicationServices(state=TrackState(tmp_path / 'test.sqlite'), config=AppConfig(tmp_path / 'config.json'))
+    services.connect_browser()
+    assert started.wait(5), 'registration runs in the background'
+    assert chosen == [listeners[0]] and services.browser_link is listeners[0]
+    services.stop()
+    assert listeners[0].state == ['start', 'close'] and chosen[-1] is None and services.browser_link is None
+
+
+def test_the_backend_opens_the_extension_channel_only_when_asked(tmp_path, monkeypatch):
+    for name in ('XDG_DATA_HOME', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'XDG_STATE_HOME'):
+        monkeypatch.setenv(name, str(tmp_path / name))
+    connected = []
+
+    class Services(ApplicationServices):
+        def connect_browser(self):
+            connected.append(1)
+
+    for enabled in (False, True):
+        events = queue.Queue()
+        worker = Backend(lambda kind, value: events.put((kind, value)),
+                         lambda: Services(state=TrackState(tmp_path / 'test.sqlite'), config=AppConfig(tmp_path / 'config.json')),
+                         connect_browser=enabled)
+        worker.submit('start')
+        wait_event(events, 'ready')
+        worker.close()
+        worker.thread.join(timeout=10)
+    assert connected == [1]
 
 
 def test_replace_export_needs_no_destination_folder(backend, tmp_path, monkeypatch):
@@ -1548,6 +1687,16 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
         QTest.mouseClick(window, Qt.LeftButton, pos=boxes[2].mapToScene(QPointF(8, boxes[2].height() / 2)).toPoint())
         settle()
         assert qml('JSON.stringify(dialog.values.decks)') == '["1","2"]'
+        qml('dialog.close()')
+        settle()
+        # Read-only status text is translated with its arguments; a path can be copied.
+        bridge.receive('question', dict(id='q3', title='Connect browser', body='', ok='Check connection', fields=[
+            dict(name='status', label='Status', kind='note', value='{0}, extension {1}: connected', args=['Chrome', '0.3.1'], options=[]),
+            dict(name='folder', label='Extension folder', kind='path', value='/data/browser-extension', options=[])]))
+        settle()
+        assert 'rozszerzenie 0.3.1: po' in qml('dialog.fields[0].value')
+        click(find(window.contentItem(), 'copy-folder'))
+        assert QGuiApplication.clipboard().text() == '/data/browser-extension'
         qml('dialog.close()')
         settle()
         for theme in ('light', 'dark'):

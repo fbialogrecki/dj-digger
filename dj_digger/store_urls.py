@@ -15,11 +15,6 @@ STORE_HOME = {
 }
 
 
-STORE_LOGIN = {
-    "bandcamp": "https://bandcamp.com/login",
-}
-
-
 def _store_origin(url: str, store: str) -> tuple[ParseResult, str, int | None] | None:
     """The parsed URL, its host and port when it sits on the store's own domain.
 
