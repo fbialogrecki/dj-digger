@@ -44,6 +44,7 @@ gui = [
 
 [project.scripts]
 dj-digger = "dj_digger.cli:main"
+dj-digger-host = "dj_digger.webext.host:main"
 
 [project.gui-scripts]
 dj-digger-gui = "dj_digger.gui:main"

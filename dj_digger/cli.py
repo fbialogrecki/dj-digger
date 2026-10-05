@@ -35,7 +35,7 @@ from .models import Crate, LinkRecord
 from .services import collection as dig_module
 from .services.runtime import ApplicationServices
 
-SUBCOMMANDS = {"dig", "open", "auth"}
+SUBCOMMANDS = {"dig", "open", "auth", "browser"}
 HELP_FLAGS = {"-h", "--help", "-v", "--version"}
 LOG_LEVELS = ["CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"]
 
@@ -79,6 +79,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_dig_command(subparsers)
     _add_open_command(subparsers)
     _add_auth_command(subparsers)
+    _add_browser_command(subparsers)
     return parser
 
 
@@ -171,6 +172,21 @@ def _add_auth_command(subparsers) -> None:
     auth_sub.add_parser("status", help="Show current authentication status.")
 
     _add_shared_arguments(auth_cmd)
+
+
+def _add_browser_command(subparsers) -> None:
+    browser_cmd = subparsers.add_parser(
+        "browser",
+        help="Connect or disconnect the dj-digger browser extension.",
+    )
+    browser_sub = browser_cmd.add_subparsers(dest="browser_action", required=True)
+    browser_sub.add_parser(
+        "register", help="Register the native messaging host and install the extension files."
+    )
+    browser_sub.add_parser(
+        "unregister", help="Remove the native messaging host registration."
+    )
+    _add_shared_arguments(browser_cmd)
 
 
 def inject_default_command(argv: Sequence[str]) -> list[str]:
@@ -314,6 +330,29 @@ def handle_open(args: argparse.Namespace) -> int:
     return 0
 
 
+def handle_browser(args: argparse.Namespace) -> int:
+    from .webext import register
+
+    console = Console()
+
+    def show(text: str) -> None:
+        console.print(text, markup=False, highlight=False)
+
+    if args.browser_action == "unregister":
+        removed = register.unregister()
+        for item in removed:
+            show(f"Removed {item}")
+        show("Browser registration removed." if removed else "Nothing was registered.")
+        return 0
+    result = register.register()
+    for item in result.written:
+        show(f"Registered {item}")
+    for note in result.notes:
+        show(f"Note: {note}")
+    show(f"Load the unpacked extension from: {result.extension_dir}")
+    return 0 if result.written else 1
+
+
 def handle_auth(args: argparse.Namespace) -> int:
     console = Console()
     # No action given means status; argparse leaves auth_action as None then.
@@ -444,6 +483,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return handle_open(args)
         if args.command == "auth":
             return handle_auth(args)
+        if args.command == "browser":
+            return handle_browser(args)
     except dig_module.TargetNotFound as exc:
         raise SystemExit(str(exc)) from exc
     except (FileNotFoundError, ValueError, RuntimeError) as exc:

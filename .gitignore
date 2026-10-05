@@ -4,6 +4,9 @@
 *.html
 graphify-out/
 
+# The browser extension ships as package data: un-ignore it so git and hatch (wheel) keep it.
+!dj_digger/webext/extension/**
+
 # Test fixtures are real API payloads and have to be committed.
 !tests/fixtures/*.json
 !tests/fixtures/*.html
