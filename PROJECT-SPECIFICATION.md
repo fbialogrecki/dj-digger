@@ -2,11 +2,11 @@
 
 - Status: current implemented system
 - Document version: 1.1
-- Product version verified: 1.2.1 (working tree)
+- Product version verified: 1.3.0 (working tree)
 - Owner: Filip Białogrecki
-- Updated: 2026-10-01
-- Document lines: <!-- SPEC TOTAL LINES -->1791<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->1791<!-- END SPEC MAP LIMIT -->
+- Updated: 2026-10-05
+- Document lines: <!-- SPEC TOTAL LINES -->1857<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->1857<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,64 +51,64 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 143–181 |
 | 2.1 | ↳ Problem and product boundary | 145–158 |
 | 2.2 | ↳ Execution modes | 159–181 |
-| 3 | User-visible capabilities | 182–919 |
+| 3 | User-visible capabilities | 182–980 |
 | 3.1 | ↳ Track collection | 184–209 |
 | 3.2 | ↳ Link classification and exports | 210–228 |
-| 3.3 | ↳ Track statuses | 229–237 |
-| 3.4 | ↳ Audio preview | 238–409 |
-| 3.5 | ↳ Downloads and local-file matching | 410–446 |
-| 3.6 | ↳ Store purchase assistance | 447–532 |
-| 3.7 | ↳ Local library, analysis and audio export | 533–689 |
-| 3.8 | ↳ Qt Quick desktop | 690–919 |
-| 4 | System context and data flow | 920–960 |
-| 4.1 | ↳ Context diagram | 922–944 |
-| 4.2 | ↳ Collection-to-library flow | 945–960 |
-| 5 | Repository layout and component ownership | 961–1029 |
-| 5.1 | ↳ Entry, orchestration, and models | 963–974 |
-| 5.2 | ↳ Network and external-system adapters | 975–991 |
-| 5.3 | ↳ Persistence, local media, and UI | 992–1029 |
-| 6 | Runtime architecture and environments | 1030–1141 |
-| 6.1 | ↳ Runtime and dependencies | 1032–1053 |
-| 6.2 | ↳ Concurrency and lifecycle | 1054–1121 |
-| 6.3 | ↳ Local paths and environment variables | 1122–1141 |
-| 7 | Data model and persistence | 1142–1246 |
-| 7.1 | ↳ Domain objects and identity | 1144–1158 |
-| 7.2 | ↳ SQLite schema and invariants | 1159–1210 |
-| 7.3 | ↳ Crate persistence and deletion | 1211–1226 |
-| 7.4 | ↳ Configuration and credential stores | 1227–1246 |
-| 8 | Public interfaces and contracts | 1247–1300 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1249–1273 |
-| 8.2 | ↳ JSON and CSV summary input | 1274–1289 |
-| 8.3 | ↳ URL-opening contract | 1290–1300 |
-| 9 | Authentication and authorization | 1301–1346 |
-| 9.1 | ↳ SoundCloud authentication | 1303–1325 |
-| 9.2 | ↳ Gate action consent | 1326–1346 |
-| 10 | External integrations | 1347–1491 |
-| 10.1 | ↳ SoundCloud API and media | 1349–1360 |
-| 10.2 | ↳ Link hubs and download gates | 1361–1430 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1369–1416 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1418–1423 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1425–1430 |
-| 10.3 | ↳ Browsers and clipboard | 1431–1442 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1443–1491 |
-| 11 | Security requirements and threat model | 1492–1546 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1494–1512 |
-| 11.2 | ↳ Secret and personal-data handling | 1513–1528 |
-| 11.3 | ↳ File and mutation safety | 1529–1546 |
-| 12 | Privacy, lifecycle, and retention | 1547–1593 |
-| 12.1 | ↳ Data stored locally | 1549–1571 |
-| 12.2 | ↳ Data sent to third parties | 1572–1583 |
-| 12.3 | ↳ User-controlled deletion | 1584–1593 |
-| 13 | Failure behavior and current limitations | 1594–1665 |
-| 13.1 | ↳ Error isolation and reporting | 1596–1615 |
-| 13.2 | ↳ Confirmed limitations | 1616–1665 |
-| 14 | Verification, CI, and release | 1666–1760 |
-| 14.1 | ↳ Offline and live test suites | 1668–1714 |
-| 14.2 | ↳ Continuous integration and publishing | 1715–1745 |
-| 14.3 | ↳ Specification-map verification | 1746–1760 |
-| 15 | Evidence and operational references | 1761–1791 |
-| 15.1 | ↳ Primary implementation evidence | 1763–1781 |
-| 15.2 | ↳ User and historical documentation | 1782–1791 |
+| 3.3 | ↳ Track statuses | 229–239 |
+| 3.4 | ↳ Audio preview | 240–411 |
+| 3.5 | ↳ Downloads and local-file matching | 412–448 |
+| 3.6 | ↳ Store purchase assistance | 449–534 |
+| 3.7 | ↳ Local library, analysis and audio export | 535–706 |
+| 3.8 | ↳ Qt Quick desktop | 707–980 |
+| 4 | System context and data flow | 981–1021 |
+| 4.1 | ↳ Context diagram | 983–1005 |
+| 4.2 | ↳ Collection-to-library flow | 1006–1021 |
+| 5 | Repository layout and component ownership | 1022–1090 |
+| 5.1 | ↳ Entry, orchestration, and models | 1024–1035 |
+| 5.2 | ↳ Network and external-system adapters | 1036–1052 |
+| 5.3 | ↳ Persistence, local media, and UI | 1053–1090 |
+| 6 | Runtime architecture and environments | 1091–1202 |
+| 6.1 | ↳ Runtime and dependencies | 1093–1114 |
+| 6.2 | ↳ Concurrency and lifecycle | 1115–1182 |
+| 6.3 | ↳ Local paths and environment variables | 1183–1202 |
+| 7 | Data model and persistence | 1203–1309 |
+| 7.1 | ↳ Domain objects and identity | 1205–1219 |
+| 7.2 | ↳ SQLite schema and invariants | 1220–1272 |
+| 7.3 | ↳ Crate persistence and deletion | 1273–1288 |
+| 7.4 | ↳ Configuration and credential stores | 1289–1309 |
+| 8 | Public interfaces and contracts | 1310–1363 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1312–1336 |
+| 8.2 | ↳ JSON and CSV summary input | 1337–1352 |
+| 8.3 | ↳ URL-opening contract | 1353–1363 |
+| 9 | Authentication and authorization | 1364–1409 |
+| 9.1 | ↳ SoundCloud authentication | 1366–1388 |
+| 9.2 | ↳ Gate action consent | 1389–1409 |
+| 10 | External integrations | 1410–1554 |
+| 10.1 | ↳ SoundCloud API and media | 1412–1423 |
+| 10.2 | ↳ Link hubs and download gates | 1424–1493 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1432–1479 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1481–1486 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1488–1493 |
+| 10.3 | ↳ Browsers and clipboard | 1494–1505 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1506–1554 |
+| 11 | Security requirements and threat model | 1555–1612 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1557–1575 |
+| 11.2 | ↳ Secret and personal-data handling | 1576–1591 |
+| 11.3 | ↳ File and mutation safety | 1592–1612 |
+| 12 | Privacy, lifecycle, and retention | 1613–1659 |
+| 12.1 | ↳ Data stored locally | 1615–1637 |
+| 12.2 | ↳ Data sent to third parties | 1638–1649 |
+| 12.3 | ↳ User-controlled deletion | 1650–1659 |
+| 13 | Failure behavior and current limitations | 1660–1731 |
+| 13.1 | ↳ Error isolation and reporting | 1662–1681 |
+| 13.2 | ↳ Confirmed limitations | 1682–1731 |
+| 14 | Verification, CI, and release | 1732–1826 |
+| 14.1 | ↳ Offline and live test suites | 1734–1780 |
+| 14.2 | ↳ Continuous integration and publishing | 1781–1811 |
+| 14.3 | ↳ Specification-map verification | 1812–1826 |
+| 15 | Evidence and operational references | 1827–1857 |
+| 15.1 | ↳ Primary implementation evidence | 1829–1847 |
+| 15.2 | ↳ User and historical documentation | 1848–1857 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -228,8 +228,10 @@ JSON summaries; YAML input is rejected with an explicit legacy-format error.
 
 ### 3.3 Track statuses
 
-Statuses are `new`, `opened`, `skip`, and `got`. Opening a link promotes `new` to
-`opened`. User marks are global by stable track key, so they appear across playlists.
+Statuses are `new`, `played`, `opened`, `skip`, and `got`. Starting a track in the
+desktop player promotes `new` to `played` (`TrackState.mark_played`, stored in
+`track_states` like the others; never over another status). Opening a link promotes
+`new` or `played` to `opened`. `played` is not handled: Hide handled keeps it. User marks are global by stable track key, so they appear across playlists.
 Playlist refresh preserves locally removed track keys, marks newly arrived keys,
 and sorts those arrivals above older active tracks while retaining source order
 within each group.
@@ -545,6 +547,21 @@ Names load before metadata; no audio analysis or content hashing
 runs just because a directory is opened. At most 1000 immediate subdirectories
 are shown per expanded tree node; additional paths can be entered directly.
 Local rows do not require a `LinkRecord`. `ctrl+l` creates/appends a local playlist.
+A local track's name is its file name on disk without the extension, never a tag
+title. Its artist is, in order, the one set by hand (`manual_json` `artist`), the
+file's artist tag, or the text before the first ` - ` of the file name unless that
+is only digits (`local_library.filename_artist`). Once a file was inspected, its genre
+comes from the `genre` tag, its year from the first of `date`, `year`, `originaldate`,
+`original_year` that starts with a year from 1900 to 2100, and its label from `label`,
+`publisher` (ID3 TPUB) or `organization`. Audio files are `.wav`, `.aif`, `.aiff`,
+`.mp3`, `.flac`, `.fla`, `.m4a` and `.aac`; `.mp4` is left out as video. `LocalLibrary.rename` gives a file
+a new name in its folder and keeps its extension: the name must be one visible path
+component of at most 240 UTF-8 bytes; symbolic links, files changed since they were
+indexed and files the player has loaded or prefetched are refused; the rename never
+replaces a file (a hard link that fails on an existing name, then unlink; on disks
+without hard links an existence check before `os.rename`). `Database.rename_media`
+moves the record's path and signature and carries the analysis, the cached waveform,
+`track_local_files` provenance and crate `local_path` values along.
 Automatic scans skip inaccessible folders without an error banner; explicitly
 opening an inaccessible folder reports the access error.
 The clickable footer switches to local actions for folder/local-playlist views:
@@ -695,8 +712,9 @@ sit above the virtualized track table beside it. Status is the first table colum
 appear only in local views. Transport buttons use SVG icons with accessible labels and tooltips. The window icon is the packaged application icon (`gui/qml/icons/app.png`, 256 px: a record carrying an artwork-style barcode seeded from `dj-digger`, with a white label, on a blue-to-bordeaux tile; `scripts/app_icon.py` draws it and writes the same design to the Windows `.ico` and macOS `.icns`), so the title bar and taskbar show it alongside the executable's shortcut icon. The desktop file name (the Wayland app_id) is `dj-digger`, so a Linux desktop entry named `dj-digger.desktop` supplies the dock name and icon of the open window; the repository does not ship that entry. The desktop waveform rises
 from the bottom edge of its panel, never mirrored, filling the space down to the
 transport row; the desktop uses the same averaged, normalized envelope and
-level curve in `waveform.py`. Desktop bars share one vertical gradient from a
-deep raspberry at the bottom to a deep blue at the top of the panel; the unplayed layer
+level curve in `waveform.py`. Desktop bars share one vertical gradient from the
+first to the second resting colour of the colour pair chosen in View → Colours,
+bottom to top of the panel; the unplayed layer
 draws it with reduced opacity (0.38 dark theme, 0.45 light theme), and a 2 px
 playhead in the foreground colour is placed at subpixel precision. While a track plays, a 25 ms backend tick sends a
 small audio snapshot and, when it differs from the last one sent, a `kicks` event (key, start, step, levels) containing the
@@ -716,41 +734,48 @@ The window shows these as they are heard:
   40 ms after heard audio (`displayLead`), interpolating between the 10 ms
   levels, because a computed frame reaches the eye two or three frames later
   (scene graph, compositor, monitor); levels of another track count as 0. A `flash` scalar (0-1) jumps up to the level at once and
-  otherwise falls in a straight line, from full to dark in 150 ms; `glow`, which
-  drives every light, is `flash` above a 15 % gate rescaled to 0-1, since even a
-  faint neon tint reads as light. So every kick shows in proportion, softer low
+  otherwise dies away like a lamp, exponentially with a 75 ms time constant
+  (`decay`); `glow`, which drives every light, is `flash` above a 15 % gate
+  rescaled to 0-1, since even a faint neon tint reads as light, so a full kick
+  is dark again within 150 ms. So every kick shows in proportion, softer low
   hits show dimmer and shorter, and the light goes out between kicks even at
   174 BPM. A new track or a jump over 0.5 s clears it; a re-anchor alone does
   not.
 - The waveform and the artwork keep their base colours at rest, including while
-  paused, and the unplayed region never pulses. With a kick, a neon window over
-  the played bars, 160 px ending at the cursor, fades in to `flash`: the same
-  gradient in neon, brightest at the cursor and fading out to the left. While
-  lit, it is moved and repainted only when the cursor has moved on by a bar.
+  paused, and the unplayed region never pulses. With a kick the whole played
+  side, every bar left of the cursor, fades in to `flash` in the same gradient
+  in neon: a full-width neon copy of the bars, painted once per waveform, colour
+  pair and size, clipped with the played bars at the cursor.
   Where the scene graph runs on the GPU, a `MultiEffect` (`QtQuick.Effects`)
-  adds a glow around those bars, a zero-offset shadow in the neon blue; the
+  adds a glow around those bars, a zero-offset shadow in the pair's second neon colour; the
   software renderer runs no shaders, so there the colour alone carries the
-  kick. The cursor tints toward the neon blue with `flash`. On the dark theme
+  kick. The cursor tints toward that neon colour with `flash`. On the dark theme
   each neon colour is over twice as bright as its resting colour, so a kick
   reads as light rather than a change of hue (a lighter pastel rest read as lit,
   and the kick as the light going out), and both are saturated, rest at least
   0.7 and neon at least 0.8 HSV saturation, not pastel; on the light theme the
-  neon is the more vivid. No waveform colour is a saturated red (linear R ≥ 80 % of R+G+B), the
-  lit window is small, and the resting colours keep 3:1 against the panel and
-  window background; the offline GUI test asserts these in both themes. The artwork backdrop crossfades toward peak colours
+  neon is the more vivid. No waveform colour is a saturated red (linear R ≥ 80 % of R+G+B), and
+  the resting colours keep 3:1 against the panel and
+  window background; the offline GUI test asserts these for every pair in both themes. The artwork backdrop crossfades toward peak colours
   that keep the hue with saturation + 0.3 and lightness + 0.06 (dark theme)
   or + 0.08 (light theme); a red (linear R ≥ 70 % of R+G+B, the bordeaux
-  tones) only lightens, by 0.02 (dark) or 0.03 (light). Each palette tone's
+  tones) only lightens, by 0.02 (dark) or 0.03 (light). When that step would
+  raise relative luminance by more than 0.08 (bright greens, yellows, cyans),
+  the saturation and lightness steps are scaled back by 0.08 / gain. Each backdrop tone's
   base/peak pair stays under the WCAG 2.3.1 general flash threshold (relative
   luminance change below 0.1) and red flash threshold (red value change below
-  20); the offline GUI test asserts both in both themes.
+  20); the offline GUI test asserts both for every pair in both themes.
 - Disabling animations stops flashes and clears the clock.
 
 The loaded track fills a Now playing header in the player panel: a large title,
-the artist, BPM and key chips, and generated artwork: a record on
-a two-tone gradient with normal blue/bordeaux swatches (no darkened variants),
-both picked from a hash of the track key. The record is a flat near-black
-(`#0c0c0e`) with a label in the hashed tone darkened by 25 %; the record never
+beneath it the artist followed directly by the BPM and key chips, and generated artwork: a record on a backdrop
+that is always the two resting colours of the chosen pair, laid out from a hash
+of the track key by a seeded generator (mulberry32): a linear blend at a random
+angle, each end held for a random stretch, plus a radial pool of one of the two
+colours at a random spot, so tracks differ only in layout. It is painted on a
+`Canvas` once per track, pair, theme and size; the kick layer is a second
+canvas with the same layout in the peak colours. The record is a flat near-black
+(`#0c0c0e`) with a label in one of the two colours (chosen by the hash) darkened by 25 %; the record never
 pulses. The label carries the track's artwork when there is one (SoundCloud
 artwork, or a local file's embedded or folder picture), else the default cover
 chosen in Settings, else stays the plain tone. The backend cuts the picture's
@@ -763,8 +788,8 @@ surface carries a barcode of the track: 18 to 27 radial marks spread evenly
 around the record, each placed at random within its own slot, spanning the
 whole groove, its inner or outer half, its middle, or its thirds with a gap,
 with dots, laid out by a seeded generator so a track always draws the same code. The record turns
-while the track plays; with the kick light the backdrop gradient crossfades
-toward its peak colours. The backdrop is never dimmed. The artwork is hidden when the panel is narrower
+while the track plays; with the kick light the backdrop crossfades toward its
+peak colours. The backdrop is never dimmed. The artwork is hidden when the panel is narrower
 than 640 px. These
 details arrive in a separate `nowPlaying` event when a track loads or its rows
 refresh (for example after analysis or an edit), not in the position snapshots.
@@ -778,16 +803,29 @@ one decimal place when fractional. Keys are parsed from common spellings (`Am`,
 `A minor`, `Amin`, `8A`, enharmonic sharps/flats) by `analysis.key_names`, shown
 in Camelot or classic notation (View → Key notation, default Camelot), sorted
 around the Camelot wheel with unrecognised keys last, and tinted with one of
-twelve wheel hues. A key chip is ringed when it mixes harmonically with the
+twelve wheel hues 30° apart in OKLCH (lightness 0.70, chroma 0.15, 1 at 180°),
+lighter for B keys. A key chip is ringed in the text colour, never a key hue, when it mixes harmonically with the
 playing track (same key, one step around the wheel, or the relative
 major/minor) and a BPM chip when it is within 3 % of the playing tempo; the
 playing row itself is never ringed.
 Motion is on by default and View → Animations turns all of it off: rows fade to
-a hover surface; a status change flashes its rows (success colour for owned,
+a hover surface; a status change other than to `played` flashes its rows (success colour for owned,
 muted for skipped, accent otherwise; not for more than 100 rows at once, and also after a sort or
 filter rebuilt the rows); download fills carry a sweeping highlight only while
-an operation runs; the play button pops when its icon changes; the player panel
-switches height at once and its artwork and waveform fade in (180 ms). Until the loaded track's waveform
+an operation runs; the play button pops when its icon changes. The player panel
+keeps its full height from startup: with nothing loaded the record stands on the
+pair's colours with a white label and no code, the waveform shows the loading noise
+drifting about eight times slower, with no cursor, seeking or hover time, and the
+transport row asks to select a track. The volume slider fills a 4 px track with the
+pair's rest colours, foot to top across the whole track, and has a 12 px knob in the
+text colour (14 px while hovered or dragged). Moving bars (the noise and the blends into and
+out of it) advance on every displayed frame by that frame's duration and are drawn
+as GPU-batched rectangles: the rest gradient at the unplayed opacity under panel-coloured
+covers above each bar and in its gap, heights set once per frame in whole device
+pixels from per-bar constants computed once per bar count; the canvas paints only the
+settled waveform; the played and kick layers stay hidden until the bars settle and are then
+painted again. The motion stops while minimized, and the idle drift also rests
+while the window is not active. Until the loaded track's waveform
 event arrives the artwork shows a white backdrop and label on a blank record and the bars flicker as
 noise, each rising and falling with its own random range, speed and phase, unrelated to its neighbours
 (about 30 repaints a second of the unplayed layer only). A track change scatters the bars on screen into
@@ -795,29 +833,41 @@ that noise (450 ms); when the waveform arrives the bars settle from their curren
 (600 ms). Without animations the placeholder stands still and both switch at once. The waveform and artwork keep their base colours, and the kick light
 is part of this motion. Theme changes and recycled table delegates
 are not animated. Space always belongs to playback, wherever focus
-is, except while typing in a text field or inside a modal dialog: it starts the
-selected track, toggles it when it is the one loaded, or toggles the loaded track
-when nothing is selected. The transport Play button uses the same selection
-rule, and its icon/label describe the selected target rather than a different
-loaded track. The read-only folder explorer starts with the system Downloads and
+is, except while typing in a text field or inside a modal dialog: while a track
+is loaded it only pauses or resumes that track, whatever is selected; with nothing
+loaded (at startup or after Stop) it starts the selected track. Enter in the track
+list starts the selected track (double click too). The transport Play button
+follows Space, and its icon/label show Pause exactly while the loaded track plays. The read-only folder explorer starts with the system Downloads and
 Music locations from `QStandardPaths`, plus previously saved additional folders.
 The home directory is not a default root. “Add folder…” (also Ctrl+O) validates,
 saves, and opens a chosen directory using `pinned_directories`; duplicates are
-shown only once. Each root has a native Qt `TreeView` backed by the shared `gui/directories.py` `DirectoryModel`/`QFileSystemModel`. Both sidebar sections use a left-aligned uppercase header with a “+” button (Add playlist, Add folder…) instead of full-width buttons under the lists. Root rows and tree rows share one 28 px row style: a small chevron that turns when expanded, a folder icon, 16 px indentation per level, a hover surface and the accent selection background; rows without visible subfolders show no chevron. Native hidden directories
+shown only once. Each root has a native Qt `TreeView` backed by the shared `gui/directories.py` `DirectoryModel`/`QFileSystemModel`
+through `MusicFolders`, a filter proxy that lists only folders holding audio (the formats and partial-file rule of the folder page) in them or below them.
+Two worker threads check each folder breadth-first, skipping dot entries and symbolic links and giving up as "no music" after 20000 entries;
+a folder shows once its check finds audio, folders without music of their own are checked again every 30 s, and roots and the folders above them always show.
+The check tells a folder holding audio itself from one whose audio is only in folders below it; clicking a root or tree row of the second kind
+expands or collapses it in the tree instead of opening an empty list (an unchecked folder opens as before). Right-clicking a root or tree row
+opens a menu with Open and Hide folder; a hidden folder, root or not, is saved in `hidden_directories`, leaves the tree with everything
+below it, and comes back by removing it from Settings → Preferences → Hidden folders (one per line). Both sidebar sections, Playlists and Folders, have a centred uppercase header; right under the last entry of each list sits a full-width, rectangular, borderless row with a centred muted “+” (Add playlist, Add folder…, named in its tooltip and accessible name) that lights only on hover and scrolls with the list. Root rows and tree rows share one 28 px row style: a small chevron that turns when expanded, a folder icon, 16 px indentation per level, a hover surface and the accent selection background; rows without visible subfolders show no chevron. Native hidden directories
 and dot-prefixed directories are excluded, including on Windows. Qt background
 enumeration checks visible subdirectories before showing an expansion arrow;
 folders with only files or hidden subfolders remain selectable leaves.
 Large expanded roots have a bounded, scrollable tree viewport. Selecting a folder opens its tracks in the paged table, and the page range appears only for folders above one page. Root and tree rows highlight only the folder whose tracks are loaded (paths compared after normalization), so opening a playlist clears the folder highlight. It provides
 search, store filtering with per-store counts derived from the loaded view,
 hide-handled filtering, stable-key selection, numeric sorting with a header
-arrow, resizable columns, keyboard navigation and native clipboard copying. The title column absorbs the remaining width so status and store columns stay on screen at the default window size, unless the user has dragged or fitted it. Dragging a header divider resizes that column and the width provider honours the explicit width. Double-clicking a divider fits the column to its widest visible value or header; the divider strip does not sort. Right-clicking a header opens a column menu with Fit column to contents, Fit all columns, Reset column widths, Reset column order and a checkable entry per column; the title column cannot be hidden and BPM/key stay unavailable outside local views. Dragging a header moves the column; delegates, widths and sorting keep their logical column, and the visual order is restored at startup. Rows are never reordered: every model reset drops the row mapping that Qt 6.11 freezes when a column moves, which otherwise aborted the app when a larger view loaded, while the column order stays. Status cells use the status glyphs, followed by a word except for `new`
-(`·`, `○ Opened`, `✓ Got`, `✗ Skipped`), coloured muted for new and skipped,
-success for owned and warning for opened. Store cells render badges, except
-`no-link`, which is plain muted text; local files and the playing track carry markers, a
+arrow, resizable columns, keyboard navigation and native clipboard copying. The title column is headed Track name and absorbs the remaining width up to the pane's right edge (the scroll bar floats over it) so status and store columns stay on screen at the default window size, unless the user has dragged or fitted it. Default widths are status 110, artist 150, genre 85, BPM and key 64, year 58, label 95, time 70 and stores 140; status, BPM, key, year and time never go below 104, 56, 56, 58 and 70 px, whatever width was saved or dragged. Dragging a header divider resizes that column and the width provider honours the explicit width. Double-clicking a divider fits the column to its widest visible value or header; the divider strip does not sort. Right-clicking a header opens a column menu with Fit column to contents, Fit all columns, Reset column widths, Reset column order and a checkable entry per column; the title column cannot be hidden and BPM/key stay unavailable outside local views. Dragging a header moves the column; delegates, widths and sorting keep their logical column, and the visual order is restored at startup. Rows are never reordered: every model reset drops the row mapping that Qt 6.11 freezes when a column moves, which otherwise aborted the app when a larger view loaded, while the column order stays. Status cells read `New`, nothing for `played`, `○ Opened`, `✓ Got` and `✗ Skipped`,
+coloured in the text colour for new, muted for skipped, success for owned and warning for opened.
+Durations read m:ss, or h:mm:ss from an hour, in the table and the transport. Store cells render one badge style
+for every store, with download gates in the warning colour; `no-link` leaves the cell empty. Outside local views a
+folder icon (tooltip “Found in your local files”) before the name marks a track with a local file, and the playing
+track carries “▶”. In local views a double click on the artist or the name, or F2 for the name, edits it in place:
+Enter or leaving the field saves, Esc cancels and no shortcut fires while typing; a new name renames the file
+(see §3.7) and re-reads the artist from it, and an empty artist goes back to the tag or the file name. A double
+click on any other cell plays the track. The keyboard row carries one accent outline around the whole row. A
 continuous progress fill spans the full row background while downloading, with
 the percentage in the Status column and text drawn above the fill. The fill
 follows column widths and horizontal scrolling; selection remains visible in
-both themes. The search field spans the full width of the track pane. Beneath it one toolbar row holds, whenever a view is loaded, flat icon buttons for Open links, Download, Mark owned, Skip, Analyze BPM / key (local views only) and More actions, followed by the store filter and Hide handled; buttons that need a selection are disabled without one. More actions opens the row context menu without the entries already on the toolbar. In both forms the menu shows BPM/key editing, audio export and file deletion only in local views and Remove from playlist only in playlist views. Below 1040 px of toolbar width these buttons show icons only; tooltips name the action and its shortcut. A status bar spans the whole window below the sidebar and the table with visible/total/owned/skipped counts on the left, the busy indicator, a Cancel button during operations and the last message; during a playlist import the message shows the stage with done / total counts beside a progress bar, at most ten updates a second. Add playlist asks to paste a link to a SoundCloud playlist and re-opens with an error until the text is a soundcloud.com link. The import is listed at the top of the playlist sidebar at once, with a spinner and the link as its name until SoundCloud reports the title, and cannot be opened from there; the table opens on it and fills batch by batch in playlist order. These provisional rows are not saved: when the import succeeds they are replaced by the saved playlist, and when it fails, is cancelled or finds nothing the view is withdrawn and the sidebar entry disappears. Refresh keeps the current rows until the new ones are saved. The menus are Library, Tracks (open, download, status, undo, remove), Playback, Tools (BPM/key analysis and overrides, audio export, file deletion, link export, cart), View (search, hide handled, select all, sidebar, language, theme, key notation, animations), Settings (preferences, accounts) and Help. Every menu entry, including the row and playlist context menus, uses one layout: a fixed check column, the label and the shortcut in the muted color, and menus size to their widest entry after retranslation. Space is the shortcut of the Play / pause action. Single-key shortcuts (add, refresh, open, download, got/skip/reset, undo, remove, search, hide handled, seek, next/previous, volume, mute, sidebar) and are listed in a generated Help dialog; they are suppressed while text fields or modal dialogs have focus. Actions that need a selection are disabled without one;
+both themes. The player card, search field, toolbar and table share one 8 px right margin. The search field spans the full width of the track pane, with rounded corners and the toolbar buttons' faint outline on the window background (accent while focused), and shows `/`, its shortcut, as a key at its right end while empty and unfocused. Dialog field outlines, checkbox frames and scroll handles use the `border` colour (palette `mid`), at least 3:1 against both surfaces; menu separators stay in the quieter `alternate` colour. Beneath it one toolbar row holds, whenever a view is loaded, icon buttons for Open links, Download, Mark owned, Skip, Analyze BPM / key (local views only) and More actions, each a 32 px tile with a faint outline, transparent until hovered, with 6 px between tiles, followed by the store filter (playlist views, after a divider); buttons that need a selection are disabled without one. Hide handled sits alone at the right end as a toggle button: an open eye with “Hide handled” while every track shows, a struck-through eye with “Show handled” on the selection colour with an accent outline while owned and skipped tracks are hidden (otherwise styled like the other tiles); its tooltip says what a click does and names H. The buttons use the same `Action` objects as the shortcuts, so their tooltips name the key that works. A right click on a row and More actions open the same menu, which leaves out everything the toolbar offers: Play (Enter), Reset status, Copy artist and title, BPM/key editing, audio export and file deletion (local views only), Prepare cart and Remove from playlist (playlist views only). Below 1040 px of toolbar width these buttons show icons only; tooltips name the action and its shortcut. A status bar spans the whole window below the sidebar and the table with visible/total/owned/skipped counts on the left, the busy indicator, a Cancel button during operations and the last message; during a playlist import the message shows the stage with done / total counts beside a progress bar, at most ten updates a second. Add playlist asks to paste a link to a SoundCloud playlist and re-opens with an error until the text is a soundcloud.com link. The import is listed at the top of the playlist sidebar at once, with a spinner and the link as its name until SoundCloud reports the title, and cannot be opened from there; the table opens on it and fills batch by batch in playlist order. These provisional rows are not saved: when the import succeeds they are replaced by the saved playlist, and when it fails, is cancelled or finds nothing the view is withdrawn and the sidebar entry disappears. Refresh keeps the current rows until the new ones are saved. The menu bar holds only actions with no button elsewhere: Library (import profile playlists, import saved summary; refresh, restore removed tracks; pin folder, scan local library, analyze folder, resume export; quit), Tracks (select all, undo status change; open, download and cart for all visible; save local playlist, export links), View (sidebar; language, theme, colours, key notation; animations), Settings (preferences, Shift+S; SoundCloud sign-in, store accounts, sign out) and Help. Actions the toolbar, the row menu, the player or the sidebar already offer (open, download, mark owned, skip, reset, BPM/key analysis and editing, cart, remove, play/pause, stop, previous/next, seek, volume, mute, add playlist, add folder, delete playlist, search, hide handled) are window-level `Action`s outside the menus, so their shortcuts still work, and the Help dialog lists them under Selected tracks, Playback and Other. Entries that open a dialog or a sign-in end in “…”; Delete playlist sits after a separator in the playlist menu. Every menu entry, including the row and playlist context menus, uses one layout: a fixed check column, the label and the shortcut in the muted color, and menus size to their widest entry after retranslation. Space is the shortcut of the Play / pause action. Single-key shortcuts (add, refresh, open, download, got/skip/reset, undo, remove, search, hide handled, seek, next/previous, volume, mute, sidebar) and Shift+S for Preferences are listed in a generated Help dialog; they are suppressed while text fields or modal dialogs have focus. Actions that need a selection are disabled without one;
 whole-view variants (open all visible, download all visible, cart for all
 visible) are separate explicit commands, and bulk opening asks above twenty
 links. Errors appear in a separate, dismissible banner with a
@@ -840,14 +890,24 @@ closes: an invalid answer re-opens the same dialog with the entered values and
 the error message instead of discarding the input.
 Language selection supports English and Polish UI catalogs; provider diagnostics
 and some service-generated summaries retain their original text. Themes support
-system, light and dark, with the current language, theme, key notation, sidebar
+system, light and dark; View → Colours picks the pair that paints the waveform
+and artwork backdrop (magenta and blue, the default; green and yellow; purple and
+orange; cyan and magenta; crimson and ice blue; gold and chrome; violet and gold;
+teal and coral; emerald and pink; jade and raspberry; rose and mint; lime and
+violet; acid and ultraviolet; amber and teal; copper and cyan; blue and orange;
+sky and lemon; indigo and lime), each with its own dark and light theme values.
+The light theme's resting colours are as light as 3:1 against the window
+background allows (relative luminance about 0.21-0.25), lighter than the dark
+theme's except where the dark rest is already above that limit (yellow), and
+saturated, so they do not read as muddy on white. The
+current language, theme, colour pair, key notation, sidebar
 and animation state checked in the menus. The application palette covers alternating folder rows,
 input placeholders, control indicators, disabled text, popup states and tooltips;
 selected rows pair their foreground with the selected background in both themes.
 Playlist and pinned-folder selection explicitly pair the accent background
 with selection text in both themes. At the 760×520 minimum window size, sidebar width is constrained to leave room for transport controls, volume is flexible, and the selection bar keeps to one icon-only row. The track table retains horizontal
 scrolling for columns that do not fit.
-Window dimensions, column widths, hidden columns, column order, sidebar width and visibility, language, theme, key notation and the animation switch persist privately in `config_dir()/gui.json`; unknown keys (including the removed pulse timing) are dropped when saving and values are validated when loading. The playback level is a shared `volume` field in the
+Window dimensions, column widths, hidden columns, column order, sidebar width and visibility, language, theme, colour pair (`colors`), key notation and the animation switch persist privately in `config_dir()/gui.json`; unknown keys (including the removed pulse timing) are dropped when saving and values are validated when loading. The playback level is a shared `volume` field in the
 common configuration: the runtime applies it when the player is created and
 saves it on shutdown, so the desktop starts at the level last set. Existing data, credentials and configuration paths stay
 unchanged on every platform.
@@ -894,7 +954,8 @@ Windows packaging source builds an onedir GUI executable and a separate console
 analysis helper with explicit captured pipes and hidden subprocess windows.
 Frozen media tools resolve only from the application bundle and fail if missing;
 source installations retain normal executable discovery. The per-user Inno Setup
-recipe targets Windows 11 x64, creates Start-menu/optional desktop shortcuts and
+recipe targets Windows 10 1809 (build 17763, `MinVersion=10.0.17763`, the oldest
+Windows Qt 6.11–6.12 support) and Windows 11 on x64, creates Start-menu/optional desktop shortcuts and
 does not delete application data on uninstall. It sets `ChangesAssociations=yes`,
 so install and uninstall end with a shell notification that makes Explorer
 refresh cached icons; an upgrade that changes the app icon updates existing shortcuts. An installer mutex prevents
@@ -1179,7 +1240,8 @@ clearing provenance resets `got` only when that mark depended on the file.
 Schema 2 additionally contains `media_files`, `media_analysis`, ordered
 `local_playlist_items`, `playlist_aliases`, `media_operations`, and `media_roots`.
 Local playlist JSON keeps user edits while memberships refer to centrally stored
-file records; `LibraryService.load` hydrates metadata and analysis on demand.
+file records; `media_analysis.manual_json` holds the values set by hand (`bpm`, `key`,
+`artist`), and changing one keeps the others; `LibraryService.load` hydrates metadata and analysis on demand.
 Export copies have separate file IDs and a parent-file reference. Replacement
 preserves file identity and manual values. Confirmed same-inode renames on the
 same filesystem can relocate the record; similar titles never merge versions.
@@ -1228,7 +1290,8 @@ track states, credentials, downloads, or source media.
 
 `config.json` contains `user_name`, `user_email`, custom gate comments, scan
 directories, browser choice, download directory, `gate_social_actions`,
-and local preferences including `pinned_directories` and
+and local preferences including `pinned_directories`, `hidden_directories` (folders
+the desktop's folder tree leaves out) and
 `export_decks`, the decks of the last audio export in deck order (unknown names
 dropped, every deck when none remain), and `default_artwork`, the path of a
 picture for the record label of tracks without artwork (empty for none; Settings
@@ -1536,6 +1599,9 @@ copies share the name lock and check cancellation at final publication. Finished
 files are retained even when the subsequent library write fails;
 `PublishedFileUnrecorded` carries the published path and is never a transfer retry.
 Downloads have no filesystem/SQLite transaction or recovery journal; local replacement uses the journal in §3.7.
+Renaming a local file from the table (§3.7) stays in its folder, refuses links, changed and loaded files, and never
+replaces an existing file except on disks without hard links, where a file created between the check and the rename
+could be replaced.
 Declared and observed sizes are limited to
 2 GiB, and HTML bodies are rejected.
 

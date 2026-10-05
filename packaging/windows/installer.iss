@@ -11,7 +11,8 @@ DefaultGroupName=dj-digger
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-MinVersion=10.0.22000
+; Windows 10 1809 (build 17763) is the oldest Windows Qt 6.11 and 6.12 support; Qt 6.13 drops Windows 10.
+MinVersion=10.0.17763
 CloseApplications=no
 RestartApplications=no
 AppMutex=dj-digger-desktop-install

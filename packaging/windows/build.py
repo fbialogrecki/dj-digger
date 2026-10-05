@@ -29,6 +29,10 @@ def main():
     if sys.platform != 'win32':
         raise SystemExit('Build the Windows installer on Windows x64.')
     os.chdir(ROOT)
+    # installer.iss admits Windows 10 1809+, which Qt supports only up to 6.12.
+    qt = tuple(int(part) for part in importlib.metadata.version('PySide6').split('.')[:2])
+    if qt >= (6, 13):
+        raise RuntimeError('Qt 6.13 drops Windows 10: raise MinVersion in installer.iss and the docs, or keep PySide6 below 6.13')
     tools = json.loads((ROOT / 'packaging/windows/tools.json').read_text())
     staging = ROOT / 'build/desktop-tools'
     staging.mkdir(parents=True, exist_ok=True)

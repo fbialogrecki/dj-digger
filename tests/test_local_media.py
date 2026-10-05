@@ -86,6 +86,75 @@ def test_delete_rejects_changed_and_leased_files(tmp_path, db):
     assert path.read_bytes() == b'new content'
 
 
+def test_local_names_are_the_file_and_the_artist_comes_from_it(tmp_path, db):
+    from dj_digger.services.local_library import filename_artist
+    assert filename_artist('PYREZ - Radiohead - Everything') == 'PYREZ'
+    assert filename_artist('01 - Intro') == '' and filename_artist('Nico_Stojan_2013') == ''
+    path = tmp_path / 'Night Marks - Experience_2013.wav'
+    path.write_bytes(b'fixture')
+    track = LocalLibrary(db).register(path)
+    # The name is the file's name, untouched; the artist is read off it until one is set.
+    assert (track.title, track.artist) == ('Night Marks - Experience_2013', 'Night Marks')
+    db.set_media_manual(track.local_id, {'artist': 'Karmasound', 'bpm': 120})
+    assert media_track(db, db.media(track.local_id)).artist == 'Karmasound'
+    # Genre, year and label come from the tags once the file was inspected.
+    tags = {'genre': 'Melodic House', 'date': '2013-05-01', 'publisher': 'Watergate'}
+    assert db.update_media_metadata(track.local_id, signature(path), {'duration': 1, 'tags': tags})
+    tagged = media_track(db, db.media(track.local_id))
+    assert (tagged.genre, tagged.release_year, tagged.label_name) == ('Melodic House', 2013, 'Watergate')
+
+
+def test_a_folder_counts_as_music_only_for_audio_never_video(tmp_path):
+    import threading
+
+    pytest.importorskip('PySide6')
+    from dj_digger.gui.directories import NESTED, NONE, OWN, has_audio
+    stop = threading.Event()
+    (tmp_path / 'videos').mkdir()
+    (tmp_path / 'videos' / 'clip.mp4').write_bytes(b'')
+    assert has_audio(str(tmp_path / 'videos'), stop) == NONE
+    (tmp_path / 'set' / 'cd1').mkdir(parents=True)
+    (tmp_path / 'set' / 'cd1' / 'a.mp3').write_bytes(b'')
+    assert has_audio(str(tmp_path / 'set'), stop) == NESTED
+    assert has_audio(str(tmp_path / 'set' / 'cd1'), stop) == OWN
+
+
+def test_a_rename_keeps_identity_and_values_and_never_replaces_a_file(tmp_path, db):
+    from dj_digger.local_audio import LEASE_LOCK, LEASES
+    from dj_digger.media import MediaError
+    path = tmp_path / 'Song - Artist.wav'
+    path.write_bytes(b'fixture')
+    (tmp_path / 'Taken.wav').write_bytes(b'other')
+    library = LocalLibrary(db)
+    track = library.register(path)
+    db.set_media_manual(track.local_id, {'bpm': 128})
+    db.save_analysis(track.local_id, signature(path), 'test', {'key': 'Am'})
+    db.save_waveform(track.key, signature(path), [1, 2, 3])
+    db.set_track_local_file('sc:1', str(path.resolve()))
+    for name in ('', '  ', '../escape', 'a/b', '.hidden', 'x' * 300, 'Taken'):
+        with pytest.raises(MediaError):
+            library.rename(track, name)
+    assert path.read_bytes() == b'fixture' and (tmp_path / 'Taken.wav').read_bytes() == b'other'
+    with LEASE_LOCK:
+        LEASES[path] = 1
+    try:
+        with pytest.raises(MediaError, match='Stop playback'):
+            library.rename(track, 'Artist - Song')
+    finally:
+        with LEASE_LOCK:
+            LEASES.pop(path)
+    renamed = library.rename(track, ' Artist - Song ')
+    assert renamed == (tmp_path / 'Artist - Song.wav').resolve() and not path.exists()
+    assert renamed.read_bytes() == b'fixture'
+    moved = media_track(db, db.media(track.local_id))
+    assert (moved.title, moved.artist, moved.bpm, moved.key_signature) == ('Artist - Song', 'Artist', 128, 'Am')
+    assert db.waveform(track.key, signature(renamed)) == [1, 2, 3]
+    assert db.all_track_local_files()['sc:1'] == str(renamed)
+    # The old selection is gone; renaming it again is refused rather than guessed.
+    with pytest.raises((MediaError, OSError)):
+        library.rename(track, 'Again')
+
+
 def symlink(link, target):
     try:
         link.symlink_to(target)

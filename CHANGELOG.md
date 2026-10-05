@@ -1,6 +1,71 @@
 # Changelog
 
-## Unreleased
+## 1.3.0 — 2026-10-05
+
+### Added
+
+- View → Colours: the desktop waveform and artwork backdrop take one colour
+  pair (magenta and blue, green and yellow, purple and orange, cyan and
+  magenta, crimson and ice blue, gold and chrome, violet and gold, teal and
+  coral, emerald and pink, jade and raspberry, rose and mint, lime and violet,
+  acid and ultraviolet, amber and teal, copper and cyan, blue and orange, sky
+  and lemon, indigo and lime), each with dark and light theme values; the light
+  theme values are as light and saturated as 3:1 against the window allows. The backdrop is always the
+  pair's two colours, laid out per track from the track key.
+- Desktop folder views: double-click the artist or the track name (or press
+  F2) to edit it in place. A new name renames the file on disk, keeping its
+  extension, analysis, waveform and links; it never replaces another file and
+  is refused while the file is loaded in the player.
+- A `played` status: starting a track takes its `New` away. Tracks you have not
+  heard yet read `New` in the Status column.
+- In playlists, a folder icon before the name marks tracks found in your local
+  files.
+
+### Changed
+
+- Local tracks are named after their file on disk; the artist comes from a
+  hand-set value, the artist tag, or the text before the first ` - ` of the
+  file name.
+- The sidebar folder tree lists only folders with music in them or below them.
+- The sidebar headers (Playlists, Folders — formerly Local files) are centred,
+  and each list ends in a quiet full-width "+" row right under its last entry.
+- The player shows from startup: before a track loads, a plain record with a
+  white label on the colour pair and slowly drifting waveform noise. The noise
+  moves smoothly with the display's frame rate and is drawn by the GPU; it
+  rests while the window is in the background.
+- Right-click a folder in the sidebar to hide it (Settings → Preferences →
+  Hidden folders brings it back). Clicking a folder whose music is only in its
+  subfolders expands it instead of opening an empty list.
+- Folder views show genre, year and label again, read from the files' tags.
+  `.mp4` files no longer count as audio.
+- Hide handled is an eye toggle at the right end of the toolbar; the toolbar
+  buttons are separate tiles with a faint outline.
+- The volume slider fills in the chosen colour pair and has a smaller knob.
+- The Windows installer runs on Windows 10 version 1809 or newer as well as
+  Windows 11; it used to refuse every Windows 10.
+- Space only pauses or resumes the loaded track, whatever is selected; Enter
+  starts the selected track (it used to open links, which stay on O). With
+  nothing loaded, Space still starts the selected track.
+- The row menu (right click or More actions) no longer repeats the toolbar.
+- The search field has the same faint outline as the toolbar buttons.
+- The menu bar keeps only actions with no button elsewhere (Library, Tracks,
+  View, Settings, Help); the Playback and Tools menus are gone, and their
+  shortcuts still work and are listed in Help → Keyboard shortcuts.
+  Preferences moved from S to Shift+S.
+- The Title column is now Track name. Status, year and time are never cut
+  short, and times from an hour read h:mm:ss.
+- BPM and key chips sit next to the artist in the player; the match ring is the
+  text colour, and the twelve key colours are spaced evenly in OKLCH.
+- One badge style for every store (download gates in the warning colour);
+  `no-link` leaves the cell empty. The keyboard row has a single outline.
+- The search field has rounded corners and a `/` key hint; dialog checkbox and
+  field outlines meet 3:1 contrast. The player, search, toolbar
+  and table share one right edge.
+
+- On a kick the whole played side of the waveform lights up, not only a short
+  stretch behind the cursor.
+- The kick light dies away like a lamp (exponentially, 75 ms time constant)
+  instead of falling in a straight line; it is still dark within 150 ms.
 
 ### Removed
 

@@ -536,6 +536,24 @@ class Database:
             return bool(changed)
 
     @owned
+    def rename_media(self, media_id, old_path, new_path, old_signature, new_signature):
+        """The same file under a new name: its analysis, waveform and links follow it."""
+        with self.connection(write=True) as conn:
+            if not conn.execute('UPDATE media_files SET path=?,signature=? WHERE id=? AND path=?',
+                                (new_path, new_signature, media_id, old_path)).rowcount:
+                raise ValueError('Media identity changed before rename commit')
+            conn.execute('UPDATE media_analysis SET signature=? WHERE media_id=? AND signature=?', (new_signature, media_id, old_signature))
+            conn.execute('UPDATE waveforms SET signature=? WHERE key=? AND signature=?', (new_signature, 'local:' + media_id, old_signature))
+            conn.execute('UPDATE track_local_files SET path=? WHERE path=?', (new_path, old_path))
+            conn.execute('DELETE FROM local_files WHERE path=?', (old_path,))
+            for row in conn.execute("SELECT source,record_json FROM crates WHERE instr(record_json,?) > 0", (json.dumps(old_path, ensure_ascii=False)[1:-1],)).fetchall():
+                raw = json.loads(row['record_json'])
+                for track in raw.get('tracks', []):
+                    if track.get('local_path') == old_path:
+                        track['local_path'] = new_path
+                self.save_crate(raw)
+
+    @owned
     def observe_root(self, path, device, inode):
         with self.connection(write=True) as conn:
             old = conn.execute('SELECT device,inode FROM media_roots WHERE path=?', (path,)).fetchone()

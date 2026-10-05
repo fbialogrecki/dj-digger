@@ -14,6 +14,25 @@
     <message><source>Camelot (8A)</source><translation>Camelot (8A)</translation></message>
     <message><source>Classic (Am)</source><translation>Klasyczny (Am)</translation></message>
     <message><source>Animations</source><translation>Animacje</translation></message>
+    <message><source>Colours</source><translation>Kolory</translation></message>
+    <message><source>Magenta and blue</source><translation>Magenta i niebieski</translation></message>
+    <message><source>Green and yellow</source><translation>Zielony i żółty</translation></message>
+    <message><source>Purple and orange</source><translation>Fioletowy i pomarańczowy</translation></message>
+    <message><source>Cyan and magenta</source><translation>Cyjan i magenta</translation></message>
+    <message><source>Crimson and ice blue</source><translation>Karmin i lodowy błękit</translation></message>
+    <message><source>Gold and chrome</source><translation>Złoto i chrom</translation></message>
+    <message><source>Violet and gold</source><translation>Fiolet i złoto</translation></message>
+    <message><source>Teal and coral</source><translation>Morski i koral</translation></message>
+    <message><source>Emerald and pink</source><translation>Szmaragd i róż</translation></message>
+    <message><source>Jade and raspberry</source><translation>Jadeit i malina</translation></message>
+    <message><source>Rose and mint</source><translation>Róż i mięta</translation></message>
+    <message><source>Lime and violet</source><translation>Limonka i fiolet</translation></message>
+    <message><source>Acid and ultraviolet</source><translation>Kwas i ultrafiolet</translation></message>
+    <message><source>Amber and teal</source><translation>Bursztyn i morski</translation></message>
+    <message><source>Copper and cyan</source><translation>Miedź i cyjan</translation></message>
+    <message><source>Blue and orange</source><translation>Niebieski i pomarańczowy</translation></message>
+    <message><source>Sky and lemon</source><translation>Niebo i cytryna</translation></message>
+    <message><source>Indigo and lime</source><translation>Indygo i limonka</translation></message>
     <message><source>Mixes with the playing track</source><translation>Pasuje do granego utworu</translation></message>
     <message><source>Reset column order</source><translation>Przywróć kolejność kolumn</translation></message>
     <message><source>Fit column to contents</source><translation>Dopasuj kolumnę do zawartości</translation></message>
@@ -414,6 +433,34 @@
       <source>OK</source>
       <translation>OK</translation>
     </message>
+    <message><source>Selected tracks</source><translation>Zaznaczone utwory</translation></message>
+    <message><source>Other</source><translation>Inne</translation></message>
+    <message><source>Rename file (folder views)</source><translation>Zmień nazwę pliku (widoki folderów)</translation></message>
+    <message><source>Edit artist or track name (folder views)</source><translation>Edytuj wykonawcę lub nazwę utworu (widoki folderów)</translation></message>
+    <message><source>Restore removed tracks…</source><translation>Przywróć usunięte utwory…</translation></message>
+    <message><source>Resume export…</source><translation>Wznów eksport…</translation></message>
+    <message><source>Prepare cart for all visible…</source><translation>Przygotuj koszyk dla wszystkich widocznych…</translation></message>
+    <message><source>Prepare cart / Beatport playlist…</source><translation>Przygotuj koszyk / playlistę Beatport…</translation></message>
+    <message><source>Sign in to SoundCloud…</source><translation>Zaloguj do SoundCloud…</translation></message>
+    <message><source>Store accounts…</source><translation>Konta sklepowe…</translation></message>
+    <message><source>Search artist, title, genre, tag or label</source><translation>Szukaj po wykonawcy, tytule, gatunku, tagu lub wytwórni</translation></message>
+    <message><source>Found in your local files</source><translation>Znaleziono w Twoich plikach lokalnych</translation></message>
+    <message><source>Track name</source><translation>Nazwa utworu</translation></message>
+    <message><source>New</source><translation>Nowy</translation></message>
+    <message><source>Enter a file name without slashes that does not start with a dot</source><translation>Podaj nazwę pliku bez ukośników, która nie zaczyna się od kropki</translation></message>
+    <message><source>The file name is too long</source><translation>Nazwa pliku jest za długa</translation></message>
+    <message><source>Stop playback before renaming a loaded or prefetched file</source><translation>Zatrzymaj odtwarzanie przed zmianą nazwy wczytanego lub buforowanego pliku</translation></message>
+    <message><source>A file with this name already exists</source><translation>Plik o tej nazwie już istnieje</translation></message>
+    <message><source>Unknown field</source><translation>Nieznane pole</translation></message>
+    <message><source>File changed since selection; select it again</source><translation>Plik zmienił się od zaznaczenia; zaznacz go ponownie</translation></message>
+    <message><source>Select the original file rather than a symbolic link</source><translation>Wybierz oryginalny plik zamiast dowiązania symbolicznego</translation></message>
+    <message><source>Folders</source><translation>Foldery</translation></message>
+    <message><source>Hide folder</source><translation>Ukryj folder</translation></message>
+    <message><source>Hidden folders (one per line)</source><translation>Ukryte foldery (jeden na wiersz)</translation></message>
+    <message><source>Show handled</source><translation>Pokaż obsłużone</translation></message>
+    <message><source>Show owned and skipped tracks</source><translation>Pokaż posiadane i pominięte utwory</translation></message>
+    <message><source>Hide owned and skipped tracks</source><translation>Ukryj posiadane i pominięte utwory</translation></message>
+    <message><source>Play the selected track</source><translation>Odtwórz zaznaczony utwór</translation></message>
   </context>
   <context>
     <name>Bridge</name>
@@ -1046,6 +1093,34 @@
       <source>Replacing originals permanently removes them after verification.</source>
       <translation>Zastąpienie oryginałów trwale usuwa je po weryfikacji.</translation>
     </message>
+    <message><source>Selected tracks</source><translation>Zaznaczone utwory</translation></message>
+    <message><source>Other</source><translation>Inne</translation></message>
+    <message><source>Rename file (folder views)</source><translation>Zmień nazwę pliku (widoki folderów)</translation></message>
+    <message><source>Edit artist or track name (folder views)</source><translation>Edytuj wykonawcę lub nazwę utworu (widoki folderów)</translation></message>
+    <message><source>Restore removed tracks…</source><translation>Przywróć usunięte utwory…</translation></message>
+    <message><source>Resume export…</source><translation>Wznów eksport…</translation></message>
+    <message><source>Prepare cart for all visible…</source><translation>Przygotuj koszyk dla wszystkich widocznych…</translation></message>
+    <message><source>Prepare cart / Beatport playlist…</source><translation>Przygotuj koszyk / playlistę Beatport…</translation></message>
+    <message><source>Sign in to SoundCloud…</source><translation>Zaloguj do SoundCloud…</translation></message>
+    <message><source>Store accounts…</source><translation>Konta sklepowe…</translation></message>
+    <message><source>Search artist, title, genre, tag or label</source><translation>Szukaj po wykonawcy, tytule, gatunku, tagu lub wytwórni</translation></message>
+    <message><source>Found in your local files</source><translation>Znaleziono w Twoich plikach lokalnych</translation></message>
+    <message><source>Track name</source><translation>Nazwa utworu</translation></message>
+    <message><source>New</source><translation>Nowy</translation></message>
+    <message><source>Enter a file name without slashes that does not start with a dot</source><translation>Podaj nazwę pliku bez ukośników, która nie zaczyna się od kropki</translation></message>
+    <message><source>The file name is too long</source><translation>Nazwa pliku jest za długa</translation></message>
+    <message><source>Stop playback before renaming a loaded or prefetched file</source><translation>Zatrzymaj odtwarzanie przed zmianą nazwy wczytanego lub buforowanego pliku</translation></message>
+    <message><source>A file with this name already exists</source><translation>Plik o tej nazwie już istnieje</translation></message>
+    <message><source>Unknown field</source><translation>Nieznane pole</translation></message>
+    <message><source>File changed since selection; select it again</source><translation>Plik zmienił się od zaznaczenia; zaznacz go ponownie</translation></message>
+    <message><source>Select the original file rather than a symbolic link</source><translation>Wybierz oryginalny plik zamiast dowiązania symbolicznego</translation></message>
+    <message><source>Folders</source><translation>Foldery</translation></message>
+    <message><source>Hide folder</source><translation>Ukryj folder</translation></message>
+    <message><source>Hidden folders (one per line)</source><translation>Ukryte foldery (jeden na wiersz)</translation></message>
+    <message><source>Show handled</source><translation>Pokaż obsłużone</translation></message>
+    <message><source>Show owned and skipped tracks</source><translation>Pokaż posiadane i pominięte utwory</translation></message>
+    <message><source>Hide owned and skipped tracks</source><translation>Ukryj posiadane i pominięte utwory</translation></message>
+    <message><source>Play the selected track</source><translation>Odtwórz zaznaczony utwór</translation></message>
   </context>
   <context>
     <name>TrackModel</name>
@@ -1581,5 +1656,33 @@
       <source>✗ Skipped</source>
       <translation>✗ Pominięty</translation>
     </message>
+    <message><source>Selected tracks</source><translation>Zaznaczone utwory</translation></message>
+    <message><source>Other</source><translation>Inne</translation></message>
+    <message><source>Rename file (folder views)</source><translation>Zmień nazwę pliku (widoki folderów)</translation></message>
+    <message><source>Edit artist or track name (folder views)</source><translation>Edytuj wykonawcę lub nazwę utworu (widoki folderów)</translation></message>
+    <message><source>Restore removed tracks…</source><translation>Przywróć usunięte utwory…</translation></message>
+    <message><source>Resume export…</source><translation>Wznów eksport…</translation></message>
+    <message><source>Prepare cart for all visible…</source><translation>Przygotuj koszyk dla wszystkich widocznych…</translation></message>
+    <message><source>Prepare cart / Beatport playlist…</source><translation>Przygotuj koszyk / playlistę Beatport…</translation></message>
+    <message><source>Sign in to SoundCloud…</source><translation>Zaloguj do SoundCloud…</translation></message>
+    <message><source>Store accounts…</source><translation>Konta sklepowe…</translation></message>
+    <message><source>Search artist, title, genre, tag or label</source><translation>Szukaj po wykonawcy, tytule, gatunku, tagu lub wytwórni</translation></message>
+    <message><source>Found in your local files</source><translation>Znaleziono w Twoich plikach lokalnych</translation></message>
+    <message><source>Track name</source><translation>Nazwa utworu</translation></message>
+    <message><source>New</source><translation>Nowy</translation></message>
+    <message><source>Enter a file name without slashes that does not start with a dot</source><translation>Podaj nazwę pliku bez ukośników, która nie zaczyna się od kropki</translation></message>
+    <message><source>The file name is too long</source><translation>Nazwa pliku jest za długa</translation></message>
+    <message><source>Stop playback before renaming a loaded or prefetched file</source><translation>Zatrzymaj odtwarzanie przed zmianą nazwy wczytanego lub buforowanego pliku</translation></message>
+    <message><source>A file with this name already exists</source><translation>Plik o tej nazwie już istnieje</translation></message>
+    <message><source>Unknown field</source><translation>Nieznane pole</translation></message>
+    <message><source>File changed since selection; select it again</source><translation>Plik zmienił się od zaznaczenia; zaznacz go ponownie</translation></message>
+    <message><source>Select the original file rather than a symbolic link</source><translation>Wybierz oryginalny plik zamiast dowiązania symbolicznego</translation></message>
+    <message><source>Folders</source><translation>Foldery</translation></message>
+    <message><source>Hide folder</source><translation>Ukryj folder</translation></message>
+    <message><source>Hidden folders (one per line)</source><translation>Ukryte foldery (jeden na wiersz)</translation></message>
+    <message><source>Show handled</source><translation>Pokaż obsłużone</translation></message>
+    <message><source>Show owned and skipped tracks</source><translation>Pokaż posiadane i pominięte utwory</translation></message>
+    <message><source>Hide owned and skipped tracks</source><translation>Ukryj posiadane i pominięte utwory</translation></message>
+    <message><source>Play the selected track</source><translation>Odtwórz zaznaczony utwór</translation></message>
   </context>
 </TS>

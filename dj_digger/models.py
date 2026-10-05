@@ -10,10 +10,12 @@ from dataclasses import dataclass, field
 from typing import Any, Self
 
 NEW = "new"
+# Heard in the desktop player but not decided on yet; no longer new, never handled.
+PLAYED = "played"
 OPENED = "opened"
 SKIP = "skip"
 GOT = "got"
-STATUSES = (NEW, OPENED, SKIP, GOT)
+STATUSES = (NEW, PLAYED, OPENED, SKIP, GOT)
 
 def parse_tags(tag_list: str) -> list[str]:
     """Split SoundCloud's tag_list, where multi-word tags are quoted."""

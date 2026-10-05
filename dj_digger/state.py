@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .db import database
-from .models import GOT, NEW, OPENED, STATUSES
+from .models import GOT, NEW, OPENED, PLAYED, STATUSES
 
 
 @dataclass(frozen=True)
@@ -91,10 +91,20 @@ class TrackState:
         """A completed browser handoff never replaces a later got/skip decision."""
         with self._lock:
             self._load()
-            if self.get(key) == NEW:
+            if self.get(key) in (NEW, PLAYED):
                 self.db.set_track_state(key, OPENED, None)
                 self._remember(key, OPENED)
                 self._files.pop(str(key), None)
+
+    def mark_played(self, key: str) -> bool:
+        """Playing a new track takes its "new" away; any other status stays. True if it changed."""
+        with self._lock:
+            self._load()
+            if self.get(key) != NEW:
+                return False
+            self.db.set_track_status(key, PLAYED)
+            self._remember(key, PLAYED)
+            return True
 
     def _remember(self, key: str, status: str) -> None:
         self._revisions[str(key)] = self._revisions.get(str(key), 0) + 1
