@@ -12,7 +12,6 @@ from typing import Any
 from dj_digger.automation_errors import AutomationError
 
 from ..beatport_playlist import _beatport_playlist_result
-from ..browser_session import ACTION_TIMEOUT_MS, launch_persistent_context, launch_viewer
 from ..cart_models import (
     MANUAL_AFTER_UNVERIFIED,
     MANUAL_TABS_MAX,
@@ -45,6 +44,8 @@ from ..store_urls import (
     canonical_store_url,
 )
 from ..stores import bandcamp
+from ..webext import page as webpage
+from ..webext.link import ExtensionMissing
 
 LOGGER = logging.getLogger(__name__)
 
@@ -85,10 +86,13 @@ def _preflight_failure(
 
     Beatport is never a failure: its lookup is best effort and the playlist
     matches by artist and title instead - unless the person stopped the batch
-    or a manual step timed out, which end every store the same way.
+    or a manual step timed out, or the browser extension is missing, which end
+    every store the same way.
     """
 
-    if store == "beatport" and not isinstance(exc, (UserActionTimeout, CartCancelled)):
+    if store == "beatport" and not isinstance(
+        exc, (UserActionTimeout, CartCancelled, ExtensionMissing)
+    ):
         reason = str(exc) if isinstance(exc, SecurityChallengeBlocked) else BEATPORT_BY_TITLE
         # A link that redirected off Beatport is not one worth keeping.
         kept_url = "" if isinstance(exc, UnsafeRedirect) else url
@@ -289,129 +293,54 @@ async def _manual_result(
 
 
 class CartBrowserSession:
-    """One lazy Playwright context shared by all cart batches in a desktop run.
+    """One lazy work window of the browser extension shared by all cart batches.
 
-    The work - product lookup, revalidation, the cart clicks - runs headless on
-    the persistent profile, out of the user's way. A window opens only when
-    there is something for them to do or see: the finished cart, or items to
-    finish by hand. That window is a separate browser carrying the session's
-    cookies (``browser_session.launch_viewer``), because relaunching the one
-    profile from headless to headed raced Chromium's lock and lost batches.
+    The work - product lookup, revalidation, the cart clicks - runs in a hidden
+    window of the person's own browser. The same window is shown when there is
+    something for them to do or see: the finished cart, items to finish by
+    hand, or a login. There is no second browser and no cookie copying.
     """
 
-    def __init__(self, profile: Path | None = None) -> None:
-        self.profile = profile
-        self._playwright = None
-        self._context = None
-        # The visible browser and its context, once something needed showing.
-        self._viewer: tuple[Any, Any] | None = None
+    def __init__(self) -> None:
+        self._context: Any = None
         self._owned_pages: list[Any] = []
         self._cart_pages: dict[str, Any] = {}
         self._lock = asyncio.Lock()
+        self._open_lock = asyncio.Lock()
 
     def _context_closed(self, _context: Any) -> None:
         self._context = None
         self._owned_pages.clear()
         self._cart_pages.clear()
 
-    async def _playwright_handle(self) -> Any:
-        try:
-            from playwright.async_api import async_playwright
-        except ImportError as exc:
-            raise AutomationError(
-                "the required Playwright dependency is missing; reinstall dj-sc-digger"
-            ) from exc
-        if self._playwright is None:
-            self._playwright = await async_playwright().start()
-        return self._playwright
-
     async def _ensure_context(self) -> Any:
-        if self._context is not None and not self._context.is_closed():
-            return self._context
-        playwright = await self._playwright_handle()
-        context = await launch_persistent_context(playwright, self.profile, headless=True)
-        context.on("close", self._context_closed)
-        self._context = context
-        self._owned_pages = list(context.pages[:1])
-        for page in self._owned_pages:
-            self._instrument_page(page)
-        LOGGER.info("Store browser session ready: pages=%d", len(self._owned_pages))
+        # Several workers may ask at once after a lost window; only one opens it.
+        async with self._open_lock:
+            if self._context is not None and not self._context.is_closed():
+                return self._context
+            context = await webpage.AsyncExtensionContext.open(visible=False)
+            context.on("close", self._context_closed)
+            self._context = context
+            self._owned_pages = []
+            LOGGER.info("Store browser session ready")
+            return context
+
+    async def _shown_context(self) -> Any:
+        """The same window, brought on screen."""
+
+        context = await self._ensure_context()
+        await context.show()
         return context
-
-    def _instrument_page(self, page: Any) -> Any:
-        def response_received(response: Any) -> None:
-            status = getattr(response, "status", 0)
-            if status >= 400:
-                LOGGER.debug(
-                    "Store browser HTTP error: status=%s url=%s",
-                    status,
-                    redact_url(getattr(response, "url", "")),
-                )
-
-        def console_message(message: Any) -> None:
-            kind = getattr(message, "type", "")
-            if kind not in {"error", "warning"}:
-                return
-            location = getattr(message, "location", {}) or {}
-            LOGGER.debug(
-                "Store browser console message: type=%s source=%s",
-                kind,
-                redact_url(str(location.get("url") or "")),
-            )
-
-        try:
-            page.on("response", response_received)
-            page.on("console", console_message)
-            page.on(
-                "crash",
-                lambda *_args: LOGGER.warning("Store browser page crashed"),
-            )
-        except Exception:
-            # Minimal fake pages in tests do not implement Playwright events.
-            pass
-        return page
-
-    async def _viewer_context(self) -> Any:
-        """The visible browser context, opened on first need with the session's cookies."""
-
-        if self._viewer is not None:
-            browser, context = self._viewer
-            try:
-                if browser.is_connected():
-                    return context
-            except Exception:
-                pass
-            self._viewer = None
-        cookies: list[dict[str, Any]] = []
-        if self._context is not None and not self._context.is_closed():
-            try:
-                cookies = await self._context.cookies()
-            except Exception:
-                cookies = []
-        playwright = await self._playwright_handle()
-        browser, context = await launch_viewer(playwright, cookies)
-        self._viewer = (browser, context)
-        try:
-            browser.on("disconnected", lambda *_args: setattr(self, "_viewer", None))
-        except Exception:
-            pass
-        return context
-
-    async def _close_viewer(self) -> None:
-        viewer, self._viewer = self._viewer, None
-        self._cart_pages.clear()
-        if viewer is None:
-            return
-        browser, _context = viewer
-        with contextlib.suppress(Exception):
-            await browser.close()
 
     async def _work_pages(self, count: int = 2) -> list[Any]:
         context = await self._ensure_context()
+        if context.visible:
+            # A new batch works out of the way again; the carts stay in their tabs.
+            with contextlib.suppress(Exception):
+                await context.hide()
         pages = [page for page in self._owned_pages if not page.is_closed()]
         while len(pages) < count:
-            page = self._instrument_page(await context.new_page())
-            pages.append(page)
+            pages.append(await context.new_page())
         self._owned_pages = pages
         return pages[:count]
 
@@ -419,28 +348,18 @@ class CartBrowserSession:
         context = await self._ensure_context()
         with contextlib.suppress(Exception):
             await old.close()
-        new = self._instrument_page(await context.new_page())
+        new = await context.new_page()
         self._owned_pages = [new if page is old else page for page in self._owned_pages]
         return new
 
-    async def _close_context(self) -> None:
-        """Close the browser window; Playwright itself stays up for the next one."""
-
-        context, self._context = self._context, None
-        if context is not None:
-            with contextlib.suppress(Exception):
-                await context.close(reason="dj-digger cart session closed")
-        self._owned_pages.clear()
-        self._cart_pages.clear()
-
     async def close(self) -> None:
         async with self._lock:
-            await self._close_context()
-            await self._close_viewer()
-            if self._playwright is not None:
+            context, self._context = self._context, None
+            if context is not None:
                 with contextlib.suppress(Exception):
-                    await self._playwright.stop()
-                self._playwright = None
+                    await context.close(reason="dj-digger cart session closed")
+            self._owned_pages.clear()
+            self._cart_pages.clear()
 
     async def setup_logins(
         self,
@@ -453,20 +372,22 @@ class CartBrowserSession:
         if not wanted:
             return
         async with self._lock:
-            # A login needs the real profile on screen, so the hidden context
-            # steps aside and the profile is opened headed for as long as the
-            # login takes; the next batch reopens it hidden.
-            await self._close_context()
-            playwright = await self._playwright_handle()
-            context = await launch_persistent_context(playwright, self.profile, headless=False)
-            pages = [self._instrument_page(await context.new_page()) for _ in wanted]
+            # The person signs in in the window, so it comes on screen for as
+            # long as that takes and steps aside again afterwards.
+            context = await self._shown_context()
+            pages: list[Any] = []
             try:
+                for _ in wanted:
+                    pages.append(await context.new_page())
                 await bandcamp._ensure_logins_async(
                     dict(zip(wanted, pages, strict=True)), cancel, progress
                 )
             finally:
+                for page in pages:
+                    with contextlib.suppress(Exception):
+                        await page.close()
                 with contextlib.suppress(Exception):
-                    await context.close(reason="dj-digger login finished")
+                    await context.hide()
 
     async def _preflight_one(
         self,
@@ -693,10 +614,9 @@ class CartBrowserSession:
     ) -> tuple[Any, list[CartItem]]:
         """A visible page on the store's cart, and the verified items it fails to show."""
 
-        # Shown in the visible browser, which carries the session's cookies;
-        # the hidden context stays as it is.
-        viewer = await self._viewer_context()
-        page = self._instrument_page(await viewer.new_page())
+        # A new tab of the same window, which is shown for it.
+        context = await self._shown_context()
+        page = await context.new_page()
         await bandcamp._navigate_async(page, bandcamp.BANDCAMP_CART_URL, store)
         missing: list[CartItem] = []
 
@@ -720,6 +640,10 @@ class CartBrowserSession:
     ) -> tuple[tuple[str, ...], tuple[CartResult, ...]]:
         opened: list[str] = []
         warnings: list[CartResult] = []
+        # The carts of an earlier batch share the window; this batch's replace them.
+        for stale in self._cart_pages.values():
+            with contextlib.suppress(Exception):
+                await stale.close()
         self._cart_pages.clear()
         targets: dict[str, list[CartItem]] = defaultdict(list)
         for source in (successful, keep_open or {}):
@@ -891,13 +815,13 @@ class CartBrowserSession:
     async def _stage_manual_page(self, context: Any, item: CartItem) -> Any:
         """A visible tab on the product, Buy control expanded and the price filled in."""
 
-        page = self._instrument_page(await context.new_page())
+        page = await context.new_page()
         try:
             await bandcamp._navigate_async(page, item.product_url, item.store)
             await bandcamp._dismiss_bandcamp_cookie_banner(page)
             price_input = await bandcamp._expand_buy_async(page, force=True)
             if price_input is not None:
-                await price_input.fill(format(item.price, "f"), timeout=ACTION_TIMEOUT_MS)
+                await price_input.fill(format(item.price, "f"), timeout=webpage.ACTION_TIMEOUT_MS)
         except Exception as exc:
             LOGGER.debug(
                 "Manual staging could not prepare %r: %s", item.track_label, type(exc).__name__
@@ -924,7 +848,7 @@ class CartBrowserSession:
             return []
         bandcamp._emit_progress(progress, CartProgress("manual", 0, len(items)))
         try:
-            context = await self._viewer_context()
+            context = await self._shown_context()
         except AutomationError as exc:
             return [_failed(item, f"could not open a browser window: {exc}", "cart_unverified") for item in items]
         staged: list[tuple[CartItem, Any]] = []
@@ -959,9 +883,11 @@ class CartBrowserSession:
 
     async def focus_carts(self) -> None:
         async with self._lock:
-            for page in self._cart_pages.values():
-                if not page.is_closed():
-                    await page.bring_to_front()
+            pages = [page for page in self._cart_pages.values() if not page.is_closed()]
+            if pages and self._context is not None:
+                await self._context.show()
+            for page in pages:
+                await page.bring_to_front()
 
 
 async def prepare_playlist(requests, outcome, title, directory, browser, *, io=asyncio.to_thread):

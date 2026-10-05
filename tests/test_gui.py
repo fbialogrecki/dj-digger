@@ -486,7 +486,7 @@ def test_store_login_skips_stores_without_a_login_page(monkeypatch):
     session = CartBrowserSession()
     async def launch():
         raise AssertionError('no browser for a store without a login page')
-    monkeypatch.setattr(session, '_playwright_handle', launch)
+    monkeypatch.setattr(session, '_ensure_context', launch)
     asyncio.run(session.setup_logins(('beatport',), asyncio.Event()))
 
 

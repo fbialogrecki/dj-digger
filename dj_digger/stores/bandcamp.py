@@ -17,7 +17,6 @@ from urllib.parse import urljoin, urlparse, urlunparse
 from dj_digger.automation_errors import AutomationError
 from dj_digger.diagnostics import log_safe_text
 
-from ..browser_session import ACTION_TIMEOUT_MS
 from ..cart_models import (
     CART_DIAGNOSTICS_KEEP,
     VERIFY_STAGES,
@@ -55,6 +54,7 @@ from ..store_urls import (
     canonical_store_url,
     is_store_url,
 )
+from ..webext.page import ACTION_TIMEOUT_MS
 
 LOGGER = logging.getLogger(__name__)
 NAVIGATION_TIMEOUT_MS = 30_000
@@ -935,13 +935,17 @@ async def _add_to_cart_async(page: Any, item: CartItem, cancel: asyncio.Event) -
 
 _SCRIPT_BODY = re.compile(r"<script\b[^>]*>.*?</script>", re.IGNORECASE | re.DOTALL)
 _QUERY_STRING = re.compile(r"\?[^\s\"'<>]*")
+# The diagnostics now come from the user's own signed-in browser, so an account's e-mail
+# address can be on the page.
+_EMAIL = re.compile(r"[\w.+%-]+@[\w-]+(?:\.[\w-]+)+")
 
 
 def redact_diagnostic_html(html_text: str) -> str:
-    """What is safe to keep of a page: no script bodies, no query strings, bounded."""
+    """What is safe to keep of a page: no script bodies, query strings or e-mail addresses, bounded."""
 
     text = _SCRIPT_BODY.sub("<script></script>", html_text or "")
     text = _QUERY_STRING.sub("?<redacted>", text)
+    text = _EMAIL.sub("<email>", text)
     return text[:MAX_HTML_BYTES]
 
 

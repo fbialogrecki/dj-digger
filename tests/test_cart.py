@@ -2,16 +2,21 @@ import asyncio
 import html
 import json
 import logging
+import threading
 from dataclasses import replace
 from decimal import Decimal
 
 import pytest
+from test_webext_page import HOLD, address, private_home  # noqa: F401
+from test_webext_page import world as webext_world  # noqa: F401  (fixture, requested by name)
 
 from dj_digger import automation_errors, cart_models, store_match, store_parse, store_urls
 from dj_digger.diagnostics import log_safe_text
 from dj_digger.models import Track
 from dj_digger.services import purchases as cart
 from dj_digger.stores import bandcamp as bandcamp_adapter
+from dj_digger.webext import page as webpage
+from dj_digger.webext.link import ExtensionMissing
 
 
 @pytest.mark.parametrize(
@@ -785,68 +790,105 @@ def test_bandcamp_preflight_does_not_require_an_account_login(monkeypatch):
     assert len(plan.items) == 1
 
 
-def test_cart_session_relaunches_the_same_profile_visible_only_when_requested(
-    tmp_path, monkeypatch
-):
-    import playwright.async_api
+class FakePage:
+    def __init__(self, context):
+        self.context = context
+        self.url = "about:blank"
+        self.closed = False
+        self.focused = 0
 
-    executable = tmp_path / "chromium"
-    executable.touch()
-    monkeypatch.setenv("DISPLAY", ":test")
-    # The user agent lookup launches a throwaway browser; this test is about the context.
-    monkeypatch.setattr("dj_digger.browser_session._headed_user_agent", "Mozilla/5.0 test")
-    calls = []
+    def is_closed(self):
+        return self.closed
+
+    async def close(self):
+        self.closed = True
+
+    async def bring_to_front(self):
+        self.focused += 1
+
+
+class FakeContext:
+    """What AsyncExtensionContext offers the cart session: one window, shown or hidden."""
+
+    def __init__(self):
+        self.visible = False
+        self.closed = False
+        self.pages = []
+        self.shows = 0
+        self.hides = 0
+        self.listeners = {}
+
+    def on(self, event, callback):
+        self.listeners.setdefault(event, []).append(callback)
+
+    def is_closed(self):
+        return self.closed
+
+    async def new_page(self):
+        page = FakePage(self)
+        self.pages.append(page)
+        return page
+
+    async def show(self):
+        self.visible = True
+        self.shows += 1
+
+    async def hide(self):
+        self.visible = False
+        self.hides += 1
+
+    async def close(self, reason=None):
+        self.closed = True
+        for callback in self.listeners.get("close", ()):
+            callback(self)
+
+
+@pytest.fixture
+def opened_contexts(monkeypatch):
+    """Every window the session opens, in order; nothing reaches a browser."""
+
     contexts = []
 
-    class Context:
-        def __init__(self):
-            self.pages = [object()]
-            self.closed = False
+    async def open_context(visible=False, listener=None):
+        context = FakeContext()
+        context.visible = visible
+        contexts.append(context)
+        return context
 
-        def is_closed(self):
-            return self.closed
+    monkeypatch.setattr(cart.webpage.AsyncExtensionContext, "open", open_context)
+    return contexts
 
-        def set_default_timeout(self, _timeout):
-            pass
 
-        def on(self, _event, _callback):
-            pass
-
-        async def close(self, **_kwargs):
-            self.closed = True
-
-    class Chromium:
-        executable_path = str(executable)
-
-        async def launch_persistent_context(self, profile, **options):
-            context = Context()
-            calls.append((profile, options["headless"]))
-            contexts.append(context)
-            return context
-
-    class Playwright:
-        chromium = Chromium()
-
-        async def stop(self):
-            pass
-
-    class Starter:
-        async def start(self):
-            return Playwright()
-
-    monkeypatch.setattr(playwright.async_api, "async_playwright", Starter)
-    profile = tmp_path / "store-browser"
-    session = cart.CartBrowserSession(profile)
+def test_cart_session_opens_one_hidden_window_and_reuses_it(opened_contexts):
+    session = cart.CartBrowserSession()
 
     async def scenario():
         await session._ensure_context()
         await session._ensure_context()
+        pages = await session._work_pages(2)
+        again = await session._work_pages(2)
+        assert pages == again
         await session.close()
 
     asyncio.run(scenario())
 
-    assert calls == [(str(profile), True)], "one hidden context, reused, never relaunched"
-    assert contexts[0].closed
+    assert len(opened_contexts) == 1, "one window, reused, never reopened"
+    assert not opened_contexts[0].shows
+    assert opened_contexts[0].closed
+
+
+def test_a_lost_window_is_replaced_and_its_pages_forgotten(opened_contexts):
+    session = cart.CartBrowserSession()
+
+    async def scenario():
+        await session._work_pages(2)
+        await opened_contexts[0].close()  # the browser went away
+        assert session._owned_pages == []
+        await session._work_pages(2)
+
+    asyncio.run(scenario())
+
+    assert len(opened_contexts) == 2
 
 
 def test_beatport_preflight_reads_public_metadata_before_requesting_login(monkeypatch):
@@ -1616,30 +1658,9 @@ def test_unverified_bandcamp_click_is_kept_open_for_manual_inspection(monkeypatc
     assert outcome.cart_stores == ("bandcamp",)
 
 
-def test_final_bandcamp_cart_is_the_first_visible_work_page(monkeypatch):
+def test_final_bandcamp_cart_is_shown_in_the_same_window(monkeypatch, opened_contexts):
     item = resolved_item("bandcamp")
     session = cart.CartBrowserSession()
-    launches = []
-
-    class Page:
-        url = "about:blank"
-        focused = 0
-
-        async def bring_to_front(self):
-            self.focused += 1
-
-        def is_closed(self):
-            return False
-
-    page = Page()
-
-    class Viewer:
-        async def new_page(self):
-            launches.append("viewer page")
-            return page
-
-    async def viewer_context():
-        return Viewer()
 
     async def navigate(_page, url, _store):
         _page.url = url
@@ -1651,20 +1672,26 @@ def test_final_bandcamp_cart_is_the_first_visible_work_page(monkeypatch):
     async def contains(_page, _item):
         return True
 
-    monkeypatch.setattr(session, "_viewer_context", viewer_context)
     monkeypatch.setattr(bandcamp_adapter, "_navigate_async", navigate)
     monkeypatch.setattr(bandcamp_adapter, "_open_bandcamp_cart_async", opened)
     monkeypatch.setattr(bandcamp_adapter, "_bandcamp_cart_contains_async", contains)
 
-    stores, warnings = asyncio.run(
-        session._open_final_carts({"bandcamp": [item]})
-    )
+    async def scenario():
+        work = await session._work_pages(2)
+        stores, warnings = await session._open_final_carts({"bandcamp": [item]})
+        return work, stores, warnings
 
-    assert launches == ["viewer page"]
+    work, stores, warnings = asyncio.run(scenario())
+
+    assert len(opened_contexts) == 1, "no second browser"
+    context = opened_contexts[0]
+    cart_page = session._cart_pages["bandcamp"]
+    assert cart_page.context is context and cart_page not in work
+    assert context.visible and context.shows == 1
     assert stores == ("bandcamp",)
     assert not warnings
-    assert page.url == bandcamp_adapter.BANDCAMP_CART_URL
-    assert page.focused == 1
+    assert cart_page.url == bandcamp_adapter.BANDCAMP_CART_URL
+    assert cart_page.focused == 1
 
 
 def test_existing_bandcamp_item_is_checked_in_the_global_cart(monkeypatch):
@@ -1688,41 +1715,51 @@ def test_existing_bandcamp_item_is_checked_in_the_global_cart(monkeypatch):
     assert page.url == bandcamp_adapter.BANDCAMP_CART_URL
 
 
-def test_the_viewer_carries_the_hidden_sessions_cookies(monkeypatch):
+def test_showing_the_carts_again_focuses_their_tabs_in_the_same_window(opened_contexts):
     session = cart.CartBrowserSession()
-    launched = []
 
-    class HiddenContext:
-        def is_closed(self):
-            return False
+    async def scenario():
+        context = await session._ensure_context()
+        page = await context.new_page()
+        session._cart_pages["bandcamp"] = page
+        await session.focus_carts()
+        return page
 
-        async def cookies(self):
-            return [{"name": "client_id", "value": "abc", "domain": ".bandcamp.com", "path": "/"}]
+    page = asyncio.run(scenario())
 
-    class Browser:
-        def is_connected(self):
-            return True
+    assert len(opened_contexts) == 1
+    assert opened_contexts[0].visible and page.focused == 1
 
-        def on(self, *_args):
-            pass
 
-    async def viewer(playwright, cookies):
-        launched.append(cookies)
-        return Browser(), object()
+def test_a_new_batch_hides_the_window_the_carts_were_shown_in(opened_contexts):
+    session = cart.CartBrowserSession()
 
-    async def playwright_handle():
-        return object()
+    async def scenario():
+        context = await session._shown_context()
+        assert context.visible
+        await session._work_pages(2)
+        return context
 
-    session._context = HiddenContext()
-    monkeypatch.setattr(session, "_playwright_handle", playwright_handle)
-    monkeypatch.setattr(cart, "launch_viewer", viewer)
+    context = asyncio.run(scenario())
 
-    asyncio.run(session._viewer_context())
-    asyncio.run(session._viewer_context())
+    assert not context.visible and context.hides == 1
 
-    assert launched == [[{"name": "client_id", "value": "abc", "domain": ".bandcamp.com", "path": "/"}]], (
-        "one window, reused, with the hidden session's cookies"
-    )
+
+def test_setup_logins_shows_the_window_logs_in_and_steps_aside(monkeypatch, opened_contexts):
+    session = cart.CartBrowserSession()
+    seen = []
+
+    async def logins(pages, _cancel, _progress=None):
+        seen.append((dict(pages), opened_contexts[0].visible))
+
+    monkeypatch.setattr(bandcamp_adapter, "_ensure_logins_async", logins)
+
+    asyncio.run(session.setup_logins(("beatport", "bandcamp", "bandcamp"), asyncio.Event()))
+
+    (pages, visible), = seen
+    assert list(pages) == ["bandcamp"] and visible, "only Bandcamp has a login; shown while waiting"
+    context = opened_contexts[0]
+    assert not context.visible and context.pages[0].closed
 
 
 def test_final_cart_view_failure_keeps_verified_results(monkeypatch):
@@ -1745,12 +1782,12 @@ def test_final_cart_view_failure_keeps_verified_results(monkeypatch):
         return [cart_models.CartResult(item.track_key, item.track_label, store, "added")]
 
     async def no_window():
-        raise automation_errors.AutomationError("Store cart needs a desktop window; on WSL, enable WSLg")
+        raise automation_errors.AutomationError("the window could not be shown")
 
     monkeypatch.setattr(session, "_work_pages", pages)
     monkeypatch.setattr(session, "_preflight", preflight)
     monkeypatch.setattr(session, "_execute_store", execute)
-    monkeypatch.setattr(session, "_viewer_context", no_window)
+    monkeypatch.setattr(session, "_shown_context", no_window)
 
     outcome = asyncio.run(
         session.run_batch((request("bandcamp"),), asyncio.Event(), approve=approve)
@@ -1822,6 +1859,34 @@ def test_diagnostics_strip_query_strings_and_scripts(tmp_path, monkeypatch):
     meta = json.loads((folder / "meta.json").read_text())
     assert "fan_id" not in meta["product_url"] and meta["code"] == "cart_unverified"
     assert (folder / "page.png").exists()
+
+
+def test_diagnostics_redact_email_addresses_of_the_signed_in_account():
+    html_text = (
+        '<a href="mailto:dj.name+x@example.co.uk">dj.name+x@example.co.uk</a>'
+        '<span data-fan="&quot;fan@mail.example&quot;">Signed in as Fan_1@Mail.example.</span>'
+    )
+
+    redacted = bandcamp_adapter.redact_diagnostic_html(html_text)
+
+    assert "@" not in redacted
+    assert redacted.count("<email>") == 4
+    assert "Signed in as <email>." in redacted
+
+
+def test_diagnostics_survive_a_screenshot_the_hidden_window_cannot_take(tmp_path, monkeypatch):
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+
+    class HiddenPage(DiagnosticPage):
+        async def screenshot(self, path, full_page=False):
+            raise automation_errors.AutomationError("the window is not visible")
+
+    folder = asyncio.run(
+        bandcamp_adapter.save_cart_diagnostics(HiddenPage(), "bandcamp", HiddenPage.url, "x")
+    )
+
+    assert folder is not None and (folder / "page.html").exists()
+    assert not (folder / "page.png").exists()
 
 
 def test_diagnostics_keep_only_the_last_ten(tmp_path, monkeypatch):
@@ -1936,7 +2001,7 @@ def test_manual_completion_records_manual_results_without_clicking(monkeypatch):
         added.extend(items)  # "the person pressed Add to cart"
         return True
 
-    monkeypatch.setattr(session, "_viewer_context", context)
+    monkeypatch.setattr(session, "_shown_context", context)
     monkeypatch.setattr(bandcamp_adapter, "_navigate_async", navigate)
     monkeypatch.setattr(bandcamp_adapter, "_dismiss_bandcamp_cookie_banner", banner)
     monkeypatch.setattr(bandcamp_adapter, "_first_visible_async", nothing_visible)
@@ -2004,3 +2069,72 @@ def test_soundiiz_limit_is_reported_apart_from_import_failures(tmp_path, monkeyp
     exported = asyncio.run(prepare_playlist((), None, "Big", tmp_path, ""))
     assert exported.limit_exceeded and exported.import_failed
     assert len(exported.path.read_text(encoding="utf-8").splitlines()) == 201
+
+
+def test_a_missing_extension_is_reported_and_never_becomes_a_beatport_playlist(monkeypatch):
+    missing = ExtensionMissing("The dj-digger browser extension is not connected")
+
+    async def no_extension(visible=False, listener=None):
+        raise missing
+
+    monkeypatch.setattr(cart.webpage.AsyncExtensionContext, "open", no_extension)
+    release = cart_models.CartRequest(
+        track("Signal"), (("beatport", "https://www.beatport.com/release/signal/1"),)
+    )
+    session = cart.CartBrowserSession()
+
+    async def approve(_plan):
+        pytest.fail("nothing was looked up")
+
+    with pytest.raises(ExtensionMissing, match="not connected") as caught:
+        asyncio.run(session.run_batch((release,), asyncio.Event(), approve=approve))
+
+    assert isinstance(caught.value, automation_errors.AutomationError)
+    result = cart._preflight_failure(
+        release, "Artist - Signal", "beatport", release.links[0][1], missing
+    )
+    assert (result.status, result.code) == ("failed", "browser_failure")
+    assert "not connected" in result.reason
+
+
+def test_a_cancelled_verification_stage_does_not_overlap_the_next_one(monkeypatch, request):
+    """Real adapter, fake extension: stage two is only sent once stage one's late reply is in."""
+
+    listener, ext = request.getfixturevalue("webext_world")
+    item = resolved_item("bandcamp")
+    monkeypatch.setattr(
+        bandcamp_adapter, "VERIFY_STAGES", (("count", 0.05), ("sidecart", 2.0), ("reload", 0.05))
+    )
+    late = threading.Event()
+    overlapped = []
+    ext.handlers["dom.text"] = lambda args: HOLD  # the count stage hangs
+    ext.handlers["dom.count"] = lambda args: overlapped.append(not late.is_set()) or 1
+
+    async def count(page):
+        await page.locator("#cart-count").inner_text()
+
+    async def contains(page, _item):
+        return await page.locator("#side-cart .item").count() > 0
+
+    monkeypatch.setattr(bandcamp_adapter, "_bandcamp_cart_count_async", count)
+    monkeypatch.setattr(bandcamp_adapter, "_bandcamp_cart_contains_async", contains)
+
+    async def scenario():
+        async with webpage.async_session(False, listener) as context:
+            page = await context.new_page()
+
+            async def release_late_reply():
+                await asyncio.sleep(0.3)
+                late.set()
+                ext.fail(ext.commands("dom.text")[0]["id"], "cancelled", "command cancelled")
+
+            releasing = asyncio.ensure_future(release_late_reply())
+            outcome = await bandcamp_adapter._verify_bandcamp_click_async(page, item, 0)
+            await releasing
+            return outcome
+
+    outcome = asyncio.run(scenario())
+
+    assert outcome.verified and outcome.stage == "sidecart"
+    assert overlapped == [False], "the sidecart command waited for the cancelled stage's reply"
+    assert len(ext.cancels) == 1
