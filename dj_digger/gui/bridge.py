@@ -21,7 +21,7 @@ from PySide6.QtGui import QGuiApplication
 from ..paths import config_dir
 from ..private_json import write_private_json
 from .backend import Backend
-from .directories import DirectoryModel
+from .directories import DirectoryModel, MusicFolders
 from .model import TrackModel
 
 
@@ -49,6 +49,7 @@ class Bridge(QObject):
         self._view = dict(title='', generation=0)
         self._sidebar = []
         self._pinned = []
+        self._hidden = []
         self._level = 'info'
         self._default_roots = [
             str(Path(home_path) / name) if home_path is not None else
@@ -57,6 +58,8 @@ class Bridge(QObject):
                                    ('Music', QStandardPaths.MusicLocation))
         ]
         self._directories = DirectoryModel(self)
+        # The sidebar tree shows only folders with music in them or below them.
+        self._folders = MusicFolders(self._directories, self)
         self._roots = []
         self._refresh_roots()
         self._folder = dict(path='', offset=0, total=0, directories=[])
@@ -84,7 +87,7 @@ class Bridge(QObject):
     view = Property('QVariantMap', lambda self: self._view, notify=changed)
     playlists = Property('QVariantList', lambda self: self._sidebar, notify=playlistsChanged)
     level = Property(str, lambda self: self._level, notify=changed)
-    directoryModel = Property(QObject, lambda self: self._directories, constant=True)
+    directoryModel = Property(QObject, lambda self: self._folders, constant=True)
     directoryRoots = Property('QVariantList', lambda self: self._roots, notify=rootsChanged)
     folder = Property('QVariantMap', lambda self: self._folder, notify=changed)
     # Ten position ticks a second must not re-evaluate every view binding, nor carry the waveform.
@@ -117,7 +120,7 @@ class Bridge(QObject):
                 continue
             path = str(Path(path).expanduser().absolute())
             identity = os.path.normcase(os.path.normpath(path))
-            if identity in seen or Path(path).name.startswith('.'):
+            if identity in seen or Path(path).name.startswith('.') or self._folders.is_hidden(path):
                 continue
             model_index = self._directories.setRootPath(path)
             if self._directories.fileInfo(model_index).isHidden():
@@ -126,6 +129,7 @@ class Bridge(QObject):
             roots.append(dict(path=path, kind=('downloads', 'music')[index] if index < 2 else 'custom'))
         if roots != self._roots:
             self._roots = roots
+            self._folders.set_roots([root['path'] for root in roots])
             self.rootsChanged.emit()
 
     @Slot(str, object)
@@ -146,6 +150,7 @@ class Bridge(QObject):
         elif kind == 'sidebar':
             self._sidebar = values['items']
             self._pinned = values.get('pinned', [])
+            self._folders.set_hidden(values.get('hidden', []))
             self._refresh_roots()
             self.playlistsChanged.emit()
         elif kind == 'folder':
@@ -246,6 +251,11 @@ class Bridge(QObject):
     def load(self, source):
         self.backend.submit('load', {'source': source})
 
+    @Slot(str, str, str)
+    def rename(self, key, field, value):
+        """Edit a local file's name (renamed on disk) or artist from the table."""
+        self.backend.submit('rename', dict(keys=[key], field=field, value=value, generation=self._view['generation']))
+
     @Slot(str)
     def deletePlaylist(self, source):
         self.backend.submit('delete_playlist', {'source': source})
@@ -258,12 +268,22 @@ class Bridge(QObject):
 
     @Slot(str, result=QModelIndex)
     def directoryIndex(self, path):
-        return self._directories.index(path)
+        return self._folders.mapFromSource(self._directories.index(path))
 
     @Slot(str, result=bool)
     def directoryHasChildren(self, path):
-        index = self._directories.index(path)
-        return index.isValid() and self._directories.hasChildren(index)
+        index = self.directoryIndex(path)
+        return index.isValid() and self._folders.hasChildren(index)
+
+    @Slot(str, result=bool)
+    def folderNeedsExpand(self, path):
+        """True for a folder whose music is all in folders below it: a click opens it in the tree."""
+        from .directories import NESTED
+        return self._folders.music(self.localPath(path)) == NESTED
+
+    @Slot(str)
+    def hideFolder(self, path):
+        self.backend.submit('hide_folder', {'path': self.localPath(path)})
 
     @Slot(str)
     def addFolder(self, path):
@@ -271,8 +291,8 @@ class Bridge(QObject):
 
     @Slot(QModelIndex)
     def openDirectory(self, index):
-        if index.isValid() and index.model() is self._directories:
-            self.openFolder(self._directories.filePath(index), 0)
+        if index.isValid() and index.model() is self._folders:
+            self.openFolder(self._folders.path(index), 0)
 
     @Slot('QVariantList', int, result='QVariantList')
     def waveformLevels(self, samples, width):
@@ -343,13 +363,14 @@ class Bridge(QObject):
     def saveSettings(self, values):
         # Only this fixed presentation shape is persisted; no service preferences.
         allowed = {'width', 'height', 'language', 'theme', 'sidebarWidth', 'sidebarVisible', 'columnWidths', 'hiddenColumns', 'columnOrder',
-                   'keyNotation', 'animations'}
+                   'keyNotation', 'animations', 'colors'}
         self._settings = {k: v for k, v in values.items() if k in allowed}
 
     @Slot()
     def close(self):
         if self._close_timer is not None:
             return
+        self._folders.stop()
         def deadline():
             logging.getLogger(__name__).warning('Desktop shutdown exceeded the existing three-second grace')
             from ..media_processes import terminate_owned

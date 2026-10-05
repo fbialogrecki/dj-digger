@@ -30,7 +30,7 @@ The downloads include the components needed to run the app.
 
 | Your computer | What to download |
 | --- | --- |
-| Windows 11, 64-bit Intel or AMD | File ending in `windows-x64-test.exe` |
+| Windows 10 (version 1809 or newer) or Windows 11, 64-bit Intel or AMD | File ending in `windows-x64-test.exe` |
 | Mac with an Apple M-series chip, macOS 15 or newer | File ending in `macos-arm64-test.dmg` |
 | Mac with an Intel processor, macOS 15 or newer | File ending in `macos-x86_64-test.dmg` |
 
@@ -45,11 +45,13 @@ third-party download sites or files forwarded by someone else.
 
 ### 1. Check your computer
 
-You need **Windows 11 on a 64-bit Intel or AMD PC**. Windows 10 and Windows on
-ARM are not supported by this installer.
+You need **Windows 10 (version 1809 or newer) or Windows 11 on a 64-bit Intel or
+AMD PC**. Older Windows 10 versions and Windows on ARM are not supported by this
+installer.
 
 If you are unsure, open **Settings → System → About** and look at **System type**
-and **Windows specifications**. The system type should mention an x64-based
+and **Windows specifications** (on Windows 10 the **Version** there must be 1809 or
+a later one, such as 1903, 20H2 or 22H2). The system type should mention an x64-based
 processor.
 
 ### 2. Run the installer

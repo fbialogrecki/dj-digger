@@ -1,5 +1,7 @@
 """Offline contracts for the optional Qt desktop and its worker boundary."""
+import itertools
 import json
+import math
 import os
 import queue
 import subprocess
@@ -68,11 +70,17 @@ def test_table_longest_visible_text_and_header_names(app):
     model.replace([row('1', 'Short', 99), row('2', 'A much longer title', 120.5), row('3', 'Mid', 100)])
     assert model.longestText(2) == 'A much longer title'
     assert model.longestText(4) == '120.5'
-    assert model.longestText(0) == '·'
+    assert model.longestText(0) == 'New'
+    # A played track says nothing until it is decided on; long mixes count hours.
+    played = [row('1', 'Short', 99), dict(row('2', 'Mix', 120), status='played', duration=8408000)]
+    model.replace(played)
+    assert model.data(model.index(1, 0)) == '' and model.data(model.index(1, 8)) == '2:20:08'
+    assert model.data(model.index(0, 8)) == '1:00'
     model.filter('short', '', False)
     assert model.longestText(2) == 'Short'
     assert model.longestText(42) == '' and model.longestText(-1) == ''
     assert model.headerName(9) == 'Stores' and model.headerName(10) == ''
+    assert model.headerName(2) == 'Track name'
     assert TrackModel().longestText(2) == ''
 
 
@@ -114,6 +122,32 @@ def test_backend_empty_folder_and_shutdown(backend, tmp_path):
     wait_event(events, 'closed')
     worker.thread.join(timeout=2)
     assert not worker.thread.is_alive()
+
+
+def test_a_folder_row_is_renamed_on_disk_and_its_artist_set_in_place(backend, tmp_path):
+    worker, events = backend
+    folder = tmp_path / 'music'
+    folder.mkdir()
+    (folder / 'Song - Artist.wav').write_bytes(b'fixture')
+    worker.submit('folder', {'path': str(folder)})
+    view = wait_event(events, 'view')
+    [first] = view['rows']
+    assert (first['title'], first['artist'], first['status'], first['local']) == ('Song - Artist', 'Song', 'new', True)
+    wait_event(events, 'rows')  # The folder's metadata pass, which must not undo the edits below.
+    target = dict(keys=[first['key']], generation=view['generation'])
+    worker.submit('rename', dict(target, field='title', value='Artist - Song'))
+    [renamed] = wait_event(events, 'rows')['rows']
+    assert (renamed['key'], renamed['title'], renamed['artist']) == (first['key'], 'Artist - Song', 'Artist')
+    assert sorted(p.name for p in folder.iterdir()) == ['Artist - Song.wav']
+    worker.submit('rename', dict(target, field='artist', value='Someone Else'))
+    assert wait_event(events, 'rows')['rows'][0]['artist'] == 'Someone Else'
+    worker.submit('rename', dict(target, field='artist', value=''))
+    assert wait_event(events, 'rows')['rows'][0]['artist'] == 'Artist'
+    worker.submit('rename', dict(target, field='title', value='../outside'))
+    while (event := events.get(timeout=10))[0] != 'error':
+        pass
+    assert 'file name' in event[1]['text']
+    assert sorted(p.name for p in folder.iterdir()) == ['Artist - Song.wav']
 
 
 def test_added_folder_is_opened_and_saved_without_duplicates(backend, tmp_path):
@@ -731,8 +765,8 @@ def test_presentation_settings_keep_only_known_keys(app, tmp_path):
             pass
 
     bridge = Bridge(None, backend_factory=PassiveBackend, home_path=tmp_path)
-    bridge.saveSettings({'keyNotation': 'classic', 'animations': False, 'pulseOffset': 140, 'theme': 'dark', 'token': 'secret'})
-    assert bridge._settings == {'keyNotation': 'classic', 'animations': False, 'theme': 'dark'}
+    bridge.saveSettings({'keyNotation': 'classic', 'animations': False, 'pulseOffset': 140, 'theme': 'dark', 'colors': 'green-yellow', 'token': 'secret'})
+    assert bridge._settings == {'keyNotation': 'classic', 'animations': False, 'theme': 'dark', 'colors': 'green-yellow'}
 
 
 def test_summary_overwrite_needs_separate_confirmation(backend, tmp_path):
@@ -901,6 +935,11 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
     home = tmp_path / 'home'
     (home / 'Downloads').mkdir(parents=True)
     (home / 'Music' / 'House' / 'Deep').mkdir(parents=True)
+    (home / 'Music' / 'House' / 'Deep' / 'set.mp3').write_bytes(b'')
+    (home / 'Music' / 'No music' / 'Notes').mkdir(parents=True)
+    (home / 'Music' / 'No music' / 'Notes' / 'readme.txt').write_text('')
+    (home / 'Music' / 'Only partial').mkdir()
+    (home / 'Music' / 'Only partial' / ('track.' + '0' * 32 + '.partial.mp3')).write_bytes(b'')
     (home / 'Music' / '.hidden').mkdir()
     (home / 'Music' / 'Only hidden' / '.private').mkdir(parents=True)
     (home / 'Music' / 'Only audio').mkdir()
@@ -920,12 +959,28 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
         # Geometry and colours are asserted as they settle, without transitions in between.
         window.setProperty('animations', False)
         bridge.receive('ready', {})
+        # Before anything plays the record already stands on the pair's colours, with a white
+        # label and no code, and the waveform drifts as slow noise with no cursor.
+        def named(name):
+            return window.findChild(QQuickItem, name)
+        window.setWidth(1200)  # The artwork shows from a 640 px player panel.
+        painted = QSignalSpy(window.frameSwapped)
+        window.update()
+        assert painted.wait(3000)
+        assert named('cover').isVisible() and named('cover').property('idle') is True
+        assert named('blankSleeve').property('opacity') == 0 and named('whiteLabel').property('opacity') == 1
+        assert named('trackCode').property('opacity') == 0
+        assert named('waveform').isVisible() and not named('cursor').isVisible()
+        # Moving bars are rectangles; the canvas waits for a settled waveform.
+        assert named('noiseBars').isVisible() and not named('unplayedBars').isVisible()
         bridge.receive('audio', dict(key='w', title='Local fixture.wav', playing=True, position=1, duration=4))
+        assert named('cover').property('idle') is False and named('cursor').isVisible()
         # Until its waveform arrives the track shows placeholder bars and a blank record.
         loading, blank = window.findChild(QQuickItem, 'waveform'), window.findChild(QQuickItem, 'cover')
         assert not loading.property('ready') and blank.property('reveal') == 0
         bridge.receive('waveform', dict(key='w', samples=[1000] * 512 + [200] * 512))
         assert loading.property('ready') and blank.property('reveal') == 1
+        assert named('unplayedBars').isVisible() and not named('noiseBars').isVisible()
         # Artwork of another track is ignored; the loaded track's goes on the label as it is.
         from PySide6.QtCore import QBuffer, QByteArray
         from PySide6.QtGui import QColor, QImage
@@ -957,6 +1012,7 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
                                          dict(path=str(home / 'Music'), kind='music')]
         assert find_item(scene, 'directory-Sets') is None
         assert find_item(scene, 'addFolder').property('text') == 'Add folder…'
+        assert find_item(scene, 'addPlaylist').property('text') == 'Add playlist'
         painted = QSignalSpy(window.frameSwapped)
         window.update()
         assert painted.wait(3000)
@@ -977,19 +1033,25 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
         while (find_item(tree, 'directory-House') is None
                or not find_item(tree, 'directory-House').property('hasChildren')) and time.monotonic() < deadline:
             QTest.qWait(10)
-        assert tree.property('rows') == 3
-        assert find_item(tree, 'directory-.hidden') is None
-        for name in ('Only audio', 'Only hidden'):
-            leaf = find_item(tree, 'directory-' + name)
-            assert leaf is not None and not leaf.property('hasChildren')
-            assert not leaf.property('indicator').isVisible()
-        child = home / 'Music' / 'Only audio' / 'New folder'
-        child.mkdir()
+        # Only folders with music in them or below them are listed.
+        assert tree.property('rows') == 2
+        for name in ('.hidden', 'Only hidden', 'No music', 'Only partial'):
+            assert find_item(tree, 'directory-' + name) is None
         leaf = find_item(tree, 'directory-Only audio')
+        assert leaf is not None and not leaf.property('hasChildren')
+        assert not leaf.property('indicator').isVisible()
+        # A folder arriving with music in it shows up; an empty one never does.
+        (home / 'Music' / 'Only audio' / 'Empty').mkdir()
+        staged = tmp_path / 'New folder'
+        staged.mkdir()
+        (staged / 'new.flac').write_bytes(b'')
+        child = staged.rename(home / 'Music' / 'Only audio' / 'New folder')
         deadline = time.monotonic() + 5
         while not leaf.property('hasChildren') and time.monotonic() < deadline:
             QTest.qWait(10)
         assert leaf.property('hasChildren')
+        (home / 'Music' / 'Only audio' / 'Empty').rmdir()
+        (child / 'new.flac').unlink()
         child.rmdir()
         deadline = time.monotonic() + 5
         while leaf.property('hasChildren') and time.monotonic() < deadline:
@@ -1077,15 +1139,19 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
         assert window.property('flash') == pytest.approx(1) and window.property('glow') == pytest.approx(1)
         assert played.property('opacity') == 1 and kick.property('opacity') == pytest.approx(1)
         assert cover.property('opacity') == 1
-        # The neon window followed the cursor; no shader glow under the software renderer.
-        assert kick.property('width') == 160
-        assert kick.property('x') == pytest.approx(canvas.property('fraction') * canvas.width() - 160, abs=canvas.width() / qml('waveform.columns'))
+        assert find_item(cover, 'coverGlow').property('opacity') == pytest.approx(1)
+        # The neon covers the whole played side: full-width bars under the played clip, which
+        # ends at the cursor; no shader glow under the software renderer.
+        assert kick.property('width') == canvas.width() and kick.property('x') == 0
+        assert kick.parentItem() is played.parentItem()
+        assert played.parentItem().width() == pytest.approx(canvas.property('fraction') * canvas.width())
         assert find_item(canvas, 'kickGlow').property('active') is False
-        # Then it falls straight to dark within 150 ms, slower than the levels drop.
+        # Then it dies away like a lamp, by e every 75 ms, slower than the levels drop,
+        # and is under the gate within 150 ms.
         qml('pulseTick(5125)')
-        assert window.property('flash') == pytest.approx(.5) and window.property('glow') == pytest.approx(.35 / .85)
+        assert window.property('flash') == pytest.approx(math.exp(-1)) and window.property('glow') == pytest.approx((math.exp(-1) - .15) / .85)
         qml('pulseTick(5200)')
-        assert window.property('flash') == 0 and window.property('glow') == 0
+        assert window.property('flash') == pytest.approx(math.exp(-2)) and window.property('glow') == 0
         # Levels of another track are ignored.
         bridge.receive('kicks', dict(key='wrong', start=1.4, step=.01, levels=[1] * 30))
         qml('pulseTick(6050)')
@@ -1120,34 +1186,43 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
         def flash_luminance(color):
             r, g, b = [c / 12.92 if c <= .04045 else ((c + .055) / 1.055) ** 2.4 for c in (color.redF(), color.greenF(), color.blueF())]
             return .2126 * r + .7152 * g + .0722 * b, r / (r + g + b) >= .8, (r - g - b) * 320
-        for theme in ('dark', 'light'):
-            window.setProperty('themeChoice', theme)
-            for tone in ('accent', 'accent2', 'silver', 'Qt.color("#4368ba")', 'Qt.color("#b23755")'):
-                base, peak = qml(tone), qml(f'peakColor({tone})')
-                assert peak.hslHueF() == pytest.approx(base.hslHueF(), abs=.01)
-                assert peak.hslSaturationF() >= base.hslSaturationF() - .01 and peak.lightnessF() > base.lightnessF()
-                (y0, red_base, red0), (y1, red_peak, red1) = flash_luminance(base), flash_luminance(peak)
-                assert abs(y1 - y0) < .1, (theme, tone)
-                assert not (red_base or red_peak) or abs(red1 - red0) < 20, (theme, tone)
-        assert any(flash_luminance(qml(tone))[1] for tone in ('accent2', 'Qt.color("#b23755")'))  # The bound is exercised.
+        pairs = qml('Object.keys(colorPairs).join(",")').split(',')
+        assert pairs[0] == 'magenta-blue' and len(pairs) >= 4
+        for pair in pairs:
+            window.setProperty('colorPair', pair)
+            for theme in ('dark', 'light'):
+                window.setProperty('themeChoice', theme)
+                for tone in ('waveRestFoot', 'waveRestTop', 'accent2'):
+                    base, peak = qml(tone), qml(f'peakColor({tone})')
+                    assert peak.hslHueF() == pytest.approx(base.hslHueF(), abs=.01)
+                    assert peak.hslSaturationF() >= base.hslSaturationF() - .01 and peak.lightnessF() > base.lightnessF()
+                    (y0, red_base, red0), (y1, red_peak, red1) = flash_luminance(base), flash_luminance(peak)
+                    assert abs(y1 - y0) < .1, (pair, theme, tone)
+                    assert not (red_base or red_peak) or abs(red1 - red0) < 20, (pair, theme, tone)
+        assert flash_luminance(qml('accent2'))[1]  # The red bound is exercised.
         # A kick lights the waveform up: on the dark theme the neon is at least twice
         # as bright as the muted rest (a lighter rest read as lit, and the kick as
         # going out), on both themes it is more vivid, and no colour is a saturated
         # red. The resting bars keep 3:1 against the surfaces behind them.
-        for theme in ('dark', 'light'):
+        for pair, theme in itertools.product(pairs, ('dark', 'light')):
+            window.setProperty('colorPair', pair)
             window.setProperty('themeChoice', theme)
+            # The backdrop is always the pair's two resting colours; only their layout is per track.
+            backdrop = find_item(cover, 'coverBackdrop')
+            assert (backdrop.property('first'), backdrop.property('second')) == (window.property('waveRestFoot'), window.property('waveRestTop'))
             for side in ('Foot', 'Top'):
                 rest, neon = window.property(f'waveRest{side}'), window.property(f'waveNeon{side}')
                 (y0, red0, _), (y1, red1, _) = flash_luminance(rest), flash_luminance(neon)
-                assert not red0 and not red1, (theme, side)
-                assert neon.hsvSaturationF() > rest.hsvSaturationF(), (theme, side)
+                assert not red0 and not red1, (pair, theme, side)
+                assert neon.hsvSaturationF() > rest.hsvSaturationF(), (pair, theme, side)
                 if theme == 'dark':
-                    assert y1 >= 2 * y0, side
+                    assert y1 >= 2 * y0, (pair, side)
                     # Deep and neon, not pastel.
-                    assert rest.hsvSaturationF() >= .7 and neon.hsvSaturationF() >= .8, side
+                    assert rest.hsvSaturationF() >= .7 and neon.hsvSaturationF() >= .8, (pair, side)
                 for surface in ('panel', 'bg'):
                     y2 = flash_luminance(window.property(surface))[0]
-                    assert (max(y0, y2) + .05) / (min(y0, y2) + .05) >= 3, (theme, side, surface)
+                    assert (max(y0, y2) + .05) / (min(y0, y2) + .05) >= 3, (pair, theme, side, surface)
+        window.setProperty('colorPair', 'magenta-blue')
         window.setProperty('animations', False)
         bridge.receive('audio', dict(key='other', title='Other', playing=True, position=0, duration=4))
         assert bridge.waveform == []
@@ -1189,18 +1264,45 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
             search.setProperty('enabled', False)
             assert contrast(search.property('color'), search.property('background').property('color')) >= 4.5
             search.setProperty('enabled', True)
-        # Folder rows highlight the loaded folder only; loading a playlist clears them.
+        # A folder whose music is all in subfolders opens and closes in the tree instead of as an empty list.
         house = find_item(tree, 'directory-House')
+        assert bridge.folderNeedsExpand(str(home / 'Music' / 'House'))
+        assert not bridge.folderNeedsExpand(str(home / 'Music' / 'Only audio'))
+        calls, rows = len(bridge.backend.calls), tree.property('rows')
         point = house.mapToScene(QPointF(house.width() - 20, house.height() / 2)).toPoint()
+        def rows_become(count):
+            deadline = time.monotonic() + 5
+            while tree.property('rows') != count and time.monotonic() < deadline:
+                QTest.qWait(10)  # TreeView applies a collapse on its next polish.
+            return tree.property('rows') == count
+        QTest.mouseClick(window, Qt.LeftButton, pos=point)
+        assert rows_become(rows - 1) and len(bridge.backend.calls) == calls
+        QTest.mouseClick(window, Qt.LeftButton, pos=point)
+        assert rows_become(rows) and len(bridge.backend.calls) == calls
+        # Folder rows highlight the loaded folder only; loading a playlist clears them.
+        own = find_item(tree, 'directory-Only audio')
+        point = own.mapToScene(QPointF(own.width() - 20, own.height() / 2)).toPoint()
         QTest.mouseClick(window, Qt.LeftButton, pos=point)
         folder_call = bridge.backend.calls[-1]
-        assert folder_call[0] == 'folder' and Path(folder_call[1]['path']) == home / 'Music' / 'House'
-        bridge.receive('folder', {'path': str(home / 'Music' / 'House'), 'offset': 0, 'total': 0})
-        bridge.receive('view', dict(title=str(home / 'Music' / 'House'), source='', local=True, generation=2, rows=[]))
-        assert house.property('highlighted') is True
-        assert find_item(tree, 'directory-Deep').property('highlighted') is False
-        bridge.receive('view', dict(title='Playlist', source='sc:1', local=False, generation=3, rows=[]))
+        assert folder_call[0] == 'folder' and Path(folder_call[1]['path']) == home / 'Music' / 'Only audio'
+        bridge.receive('folder', {'path': str(home / 'Music' / 'Only audio'), 'offset': 0, 'total': 0})
+        bridge.receive('view', dict(title=str(home / 'Music' / 'Only audio'), source='', local=True, generation=2, rows=[]))
+        assert own.property('highlighted') is True
         assert house.property('highlighted') is False
+        bridge.receive('view', dict(title='Playlist', source='sc:1', local=False, generation=3, rows=[]))
+        assert own.property('highlighted') is False
+        # A right click offers to hide a folder; once the backend saved it, the tree leaves it out.
+        QTest.mouseClick(window, Qt.RightButton, pos=house.mapToScene(QPointF(house.width() - 20, house.height() / 2)).toPoint())
+        assert qml('folderMenu.visible') is True and Path(qml('folderMenu.path')) == home / 'Music' / 'House'
+        qml('folderMenu.itemAt(2).triggered(); folderMenu.close()')
+        assert bridge.backend.calls[-1][0] == 'hide_folder' and Path(bridge.backend.calls[-1][1]['path']) == home / 'Music' / 'House'
+        bridge.receive('sidebar', {'items': [], 'pinned': [], 'hidden': [str(home / 'Music' / 'House')]})
+        deadline = time.monotonic() + 5
+        while tree.property('rows') != 1 and time.monotonic() < deadline:
+            QTest.qWait(10)
+        # Only "Only audio" is left: House and the Deep folder inside it are gone.
+        assert tree.property('rows') == 1 and find_item(tree, 'directory-Only audio').isVisible()
+        bridge.receive('sidebar', {'items': [], 'pinned': [], 'hidden': []})
         assert bridge.samePath(str(home / 'Music' / './House'), str(home / 'Music' / 'House'))
         assert not bridge.samePath('', str(home / 'Music'))
         assert not errors
@@ -1257,10 +1359,16 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
         bridge.receive('audio', dict(key='a', title='Alpha', playing=True, duration=180, position=30))
         bridge.table.select(1)
         play = window.findChild(QQuickItem, 'playPause')
-        assert not window.property('pauseTarget')
+        # With a track loaded, Play and Space only pause or resume it, whatever is selected;
+        # Enter starts the selected track.
+        assert window.property('pauseTarget')
         click(play)
-        assert bridge.backend.calls[-1][0] == 'play'
-        assert bridge.backend.calls[-1][1]['keys'] == ['b']
+        assert bridge.backend.calls[-1] == ('transport', {'operation': 'toggle', 'value': 0.0})
+        window.findChild(QQuickItem, 'trackTable').forceActiveFocus()
+        QTest.keyClick(window, Qt.Key_Space)
+        assert bridge.backend.calls[-1] == ('transport', {'operation': 'toggle', 'value': 0.0})
+        QTest.keyClick(window, Qt.Key_Return)
+        assert bridge.backend.calls[-1][0] == 'play' and bridge.backend.calls[-1][1]['keys'] == ['b']
         # Mute is a speaker icon that is struck through while muted; its name stays accessible.
         from PySide6.QtQml import QQmlEngine, QQmlExpression
         mute = window.findChild(QQuickItem, 'muteButton')
@@ -1273,13 +1381,13 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
         assert mute.property('text') == 'Wyłącz wyciszenie'
         click(mute)
         assert mute_icon().endswith('icons/volume.svg')
-        bridge.table.select(0)
-        assert window.property('pauseTarget')
+        # With nothing loaded, Play starts the selected track.
+        bridge.receive('audio', {})
+        assert not window.property('pauseTarget')
         click(play)
-        assert bridge.backend.calls[-1][1]['keys'] == ['a']
+        assert bridge.backend.calls[-1][0] == 'play' and bridge.backend.calls[-1][1]['keys'] == ['b']
+        bridge.receive('audio', dict(key='a', title='Alpha', playing=True, duration=180, position=30))
         bridge.table.clearSelection()
-        click(play)
-        assert bridge.backend.calls[-1] == ('transport', {'operation': 'toggle', 'value': 0.0})
         # The action buttons are present as soon as a view is loaded and enable with a selection.
         actions = window.findChild(QQuickItem, 'trackActions')
         assert actions.isVisible()
@@ -1294,37 +1402,78 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
         def menu_entries():
             return [qml(f'contextMenu.itemAt({i}).text') for i in range(int(qml('contextMenu.count')))
                     if qml(f'contextMenu.itemAt({i}).height') > 0 and qml(f'contextMenu.itemAt({i}).text')]
-        qml('contextMenu.fromToolbar = true; contextMenu.open()')
+        # A right click and "More actions" show one menu, without anything the toolbar already offers.
+        qml('contextMenu.open()')
         settle()
-        assert menu_entries() == ['Odtwórz / pauza', 'Resetuj status', 'Kopiuj artystę i tytuł', 'Edytuj BPM / tonację…',
-                                  'Eksportuj audio…', 'Przygotuj koszyk / playlistę Beatport', 'Usuń pliki…']
+        assert menu_entries() == ['Odtwórz', 'Resetuj status', 'Kopiuj artystę i tytuł', 'Edytuj BPM / tonację…',
+                                  'Eksportuj audio…', 'Przygotuj koszyk / playlistę Beatport…', 'Usuń pliki…']
         qml('contextMenu.close()')
         bridge.receive('view', dict(title='Playlist', source='sc:1', local=False, generation=2, rows=[row('a', 'Alpha'), row('b', 'Beta')]))
         bridge.table.select(1)
-        qml('contextMenu.fromToolbar = false; contextMenu.open()')
+        qml('contextMenu.open()')
         settle()
-        assert menu_entries() == ['Odtwórz / pauza', 'Otwórz linki', 'Pobierz', 'Oznacz jako posiadane', 'Pomiń', 'Resetuj status',
-                                  'Kopiuj artystę i tytuł', 'Przygotuj koszyk / playlistę Beatport', 'Usuń z playlisty…']
+        assert menu_entries() == ['Odtwórz', 'Resetuj status', 'Kopiuj artystę i tytuł', 'Przygotuj koszyk / playlistę Beatport…',
+                                  'Usuń z playlisty…']
         qml('contextMenu.close()')
         bridge.receive('view', dict(title='Local', source='fixture', local=True, generation=3, rows=[row('a', 'Alpha'), row('b', 'Beta')]))
         bridge.table.select(1)
         settle()
-        # Menus are grouped by task and every entry shows its shortcut in one column.
+        # The menu bar holds only what has no button elsewhere; every entry shows its shortcut in one column.
         titles = [qml(f'menuBar.menuAt({i}).title') for i in range(int(qml('menuBar.count')))]
-        assert titles == ['Biblioteka', 'Utwory', 'Odtwarzanie', 'Narzędzia', 'Widok', 'Ustawienia', 'Pomoc']
-        assert qml('menuBar.menuAt(1).itemAt(0).text') == 'Otwórz linki'
-        assert qml('menuBar.menuAt(1).itemAt(0).shortcutText') == 'O'
-        assert qml('menuBar.menuAt(2).itemAt(0).shortcutText') == 'Space'
-        assert qml('menuBar.menuAt(4).itemAt(1).checkable') is True
-        assert qml('menuBar.menuAt(1).itemAt(0).leftPadding') == qml('menuBar.menuAt(4).itemAt(1).leftPadding')
-        assert qml('contextMenu.itemAt(0).shortcutText') == 'Space'
+        assert titles == ['Biblioteka', 'Utwory', 'Widok', 'Ustawienia', 'Pomoc']
+        entries = [qml(f'menuBar.menuAt({m}).actionAt({i}) ? menuBar.menuAt({m}).actionAt({i}).text : ""')
+                   for m in range(len(titles)) for i in range(int(qml(f'menuBar.menuAt({m}).count')))]
+        for duplicate in ('Otwórz linki', 'Pobierz', 'Oznacz jako posiadane', 'Pomiń', 'Odtwórz / pauza', 'Szukaj', 'Ukryj obsłużone'):
+            assert duplicate not in entries
+        assert qml('menuBar.menuAt(1).itemAt(0).text') == 'Zaznacz wszystko'
+        assert qml('menuBar.menuAt(1).itemAt(0).shortcutText') == 'Ctrl+A'
+        assert qml('menuBar.menuAt(3).itemAt(0).shortcutText') == 'Shift+S'
+        assert qml('menuBar.menuAt(2).itemAt(0).checkable') is True
+        assert qml('menuBar.menuAt(1).itemAt(0).leftPadding') == qml('menuBar.menuAt(2).itemAt(0).leftPadding')
+        assert qml('contextMenu.itemAt(0).shortcutText') == 'Enter'
+        # Keys of actions that left the menus still work and are still listed, with the toolbar naming them too.
+        assert open_links.property('keys') == 'O'
+        bridge.backend.calls.clear()
+        table = window.findChild(QQuickItem, 'trackTable')
+        table.forceActiveFocus()
+        QTest.keyClick(window, Qt.Key_K)
+        assert bridge.backend.calls[-1][0] == 'mark' and bridge.backend.calls[-1][1]['status'] == 'skip'
+        listed = qml('shortcutList()')
+        assert '  K\tPomiń' in listed and '  Space\tOdtwórz / pauza' in listed and '  Shift+S\tPreferencje…' in listed
+        # In a folder view a double click edits the name in place; typing never fires a shortcut,
+        # Enter saves and Esc cancels.
+        settle()
+        name = table.mapToScene(QPointF(qml('table.columnWidth(0) + table.columnWidth(1)') + 30, 17)).toPoint()
+        QTest.mouseDClick(window, Qt.LeftButton, pos=name)
+        settle()
+        assert find(window.contentItem(), 'cellEditor') is not None
+        bridge.backend.calls.clear()
+        for char in 'Artist - Song':
+            QTest.keyClick(window, char)
+        QTest.keyClick(window, Qt.Key_Return)
+        settle()
+        assert bridge.backend.calls == [('rename', dict(keys=['a'], field='title', value='Artist - Song', generation=3))]
+        assert find(window.contentItem(), 'cellEditor') is None
+        artist = table.mapToScene(QPointF(qml('table.columnWidth(0)') + 30, 17)).toPoint()
+        QTest.mouseDClick(window, Qt.LeftButton, pos=artist)
+        settle()
+        for char in 'Nobody':
+            QTest.keyClick(window, char)
+        QTest.keyClick(window, Qt.Key_Escape)
+        settle()
+        # Esc only cancels the edit; it does not go on to clear the selection.
+        assert bridge.table.keys() == ['a']
+        assert bridge.backend.calls == [('rename', dict(keys=['a'], field='title', value='Artist - Song', generation=3))]
+        assert find(window.contentItem(), 'cellEditor') is None
         # Columns: a dragged or fitted width wins over the saved one, the divider fits on
         # double-click without sorting, and the header menu toggles visibility.
         settle()
         qml('table.setColumnWidth(1, 222); table.forceLayout()')
         assert qml('table.columnWidth(1)') == 222
-        qml('fitColumn(3)')
-        assert qml('table.columnWidth(3)') == qml('contentWidth(3)') > 40
+        window.setWidth(1400)
+        settle()
+        qml('fitColumn(9)')
+        assert qml('table.columnWidth(9)') == qml('contentWidth(9)') > 40
         short_title_width = qml('contentWidth(2)')
         bridge.table.update_rows([row('a', 'A much longer track title that needs a wider column')])
         assert qml('contentWidth(2)') > short_title_width
@@ -1338,16 +1487,22 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
         QTest.mouseClick(window, Qt.RightButton, pos=middle)
         settle()
         assert qml('columnMenu.visible') is True and qml('columnMenu.column') == 1
-        genre = window.findChild(QObject, 'column-3')
-        assert genre.property('text') == 'Gatunek' and genre.property('checked') is True
+        stores = window.findChild(QObject, 'column-9')
+        assert stores.property('text') == 'Sklepy' and stores.property('checked') is True
         assert window.findChild(QObject, 'column-2').property('enabled') is False
+        # Genre, year and label show in folder views too, filled from the files' tags.
+        assert window.findChild(QObject, 'column-3').property('enabled') is True
         qml('columnMenu.close()')
-        qml('toggleColumn(3)')
+        qml('toggleColumn(9)')
         # Unloaded (zero-width) columns report -1 from TableView.
-        assert qml('table.columnWidth(3)') <= 0 and genre.property('checked') is False
-        assert window.property('hiddenColumns').toVariant() == [3]
-        qml('toggleColumn(3); resetColumnWidths()')
-        assert qml('table.columnWidth(3)') == 85 and qml('table.columnWidth(1)') == 150
+        assert qml('table.columnWidth(9)') <= 0 and stores.property('checked') is False
+        assert window.property('hiddenColumns').toVariant() == [9]
+        qml('toggleColumn(9); resetColumnWidths()')
+        assert qml('table.columnWidth(9)') == 140 and qml('table.columnWidth(1)') == 150
+        # A narrower width saved by an older version never cuts statuses or times short.
+        qml('table.setColumnWidth(0, 60); table.setColumnWidth(8, 40); table.forceLayout()')
+        assert qml('table.columnWidth(0)') == 104 and qml('table.columnWidth(8)') == 70
+        qml('resetColumnWidths()')
         assert window.property('hiddenColumns').toVariant() == []
         # Columns can be reordered; the order is tracked for persistence and can be reset.
         qml('table.moveColumn(0, 2)')
@@ -1426,6 +1581,20 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
         click(window.findChild(QQuickItem, 'dismissError'))
         assert not banner.isVisible()
         assert 'Unable to load track.' in str(window.property('messages').toVariant())
+        # With motion on, the played layer waits for the bars to settle from the noise and is then
+        # painted again; it once kept the first frame of the blend, noise over the waveform.
+        window.setProperty('animations', True)
+        bridge.receive('audio', dict(key='blend', title='Blend', playing=True, position=10, duration=100))
+        bridge.receive('waveform', dict(key='blend', samples=[900] * 1024))
+        waveform, played = window.findChild(QQuickItem, 'waveform'), window.findChild(QQuickItem, 'playedBars')
+        assert waveform.property('moving') and not played.parentItem().isVisible()
+        from PySide6.QtCore import SIGNAL
+        repainted = QSignalSpy(waveform, SIGNAL('repaint()'))
+        deadline = time.monotonic() + 5
+        while waveform.property('moving') and time.monotonic() < deadline:
+            QTest.qWait(20)
+        assert not waveform.property('moving') and played.parentItem().isVisible() and repainted.count() >= 1
+        window.setProperty('animations', False)
         assert not warnings
     finally:
         shiboken6.delete(engine)

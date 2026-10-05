@@ -2,10 +2,17 @@
 from PySide6.QtCore import Property, QAbstractTableModel, QModelIndex, Qt, Signal, Slot
 
 COLUMNS = ('status', 'artist', 'title', 'genre', 'bpm', 'keySignature', 'year', 'label', 'duration', 'stores')
-HEADERS = ('Status', 'Artist', 'Title', 'Genre', 'BPM', 'Key', 'Year', 'Label', 'Time', 'Stores')
+HEADERS = ('Status', 'Artist', 'Track name', 'Genre', 'BPM', 'Key', 'Year', 'Label', 'Time', 'Stores')
 # Bulk status changes skip the row flash: a hundred rows lighting up is noise, not feedback.
 FLASH_LIMIT = 100
-STATUS_LABELS = {'new': '\u00b7', 'opened': '\u25cb Opened', 'got': '\u2713 Got', 'skip': '\u2717 Skipped'}
+# A played track has nothing to say until it is decided on.
+STATUS_LABELS = {'new': 'New', 'played': '', 'opened': '\u25cb Opened', 'got': '\u2713 Got', 'skip': '\u2717 Skipped'}
+
+
+def clock(seconds):
+    """m:ss, or h:mm:ss from an hour: a two-hour mix reads 2:20:08, not 140:08."""
+    hours, rest = divmod(int(seconds), 3600)
+    return f'{hours}:{rest // 60:02d}:{rest % 60:02d}' if hours else f'{rest // 60}:{rest % 60:02d}'
 
 
 def camelot_order(row):
@@ -78,10 +85,12 @@ class TrackModel(QAbstractTableModel):
             name = COLUMNS[index.column()]
             value = row.get(name, '')
             if name == 'status':
-                return f"{self.progress[row['key']] * 100:.0f}%" if row['key'] in self.progress else self.tr(STATUS_LABELS.get(value, value))
+                if row['key'] in self.progress:
+                    return f"{self.progress[row['key']] * 100:.0f}%"
+                label = STATUS_LABELS.get(value, value)
+                return self.tr(label) if label else ''
             if name == 'duration':
-                seconds = int(value or 0) // 1000
-                return f'{seconds//60}:{seconds%60:02d}'
+                return clock(int(value or 0) // 1000)
             if name == 'bpm' and value != '':
                 return f'{float(value):.1f}'.removesuffix('.0')
             if name == 'keySignature':
@@ -124,7 +133,8 @@ class TrackModel(QAbstractTableModel):
             self.replace(rows)
             return
         changed.update(a['key'] for a, b in zip(self.rows, rows) if a != b)
-        flashed = {b['key']: b['status'] for a, b in zip(self.rows, rows) if a['status'] != b['status']}
+        # Starting a track takes its "new" away; that is not a decision worth a flash.
+        flashed = {b['key']: b['status'] for a, b in zip(self.rows, rows) if a['status'] != b['status'] and b['status'] != 'played'}
         self.rows = rows
         if self.hide or self.search or self.store or self.sort_column >= 0:
             self.refilter(stores=True)

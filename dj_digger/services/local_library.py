@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 from ..media import FORMATS, MediaError, probe, signature
-from ..models import Track, check_cancelled
+from ..models import Track, _year, check_cancelled
 
 PAGE_SIZE = 250
 
@@ -20,6 +20,11 @@ def _is_audio_entry(entry):
 
 def media_analysis_values(db, record: dict) -> dict:
     """Resolve each displayed value with its source; presentation only, never serialized."""
+    return _media_values(db, record)[0]
+
+
+def _media_values(db, record: dict):
+    """The resolved BPM and key with their sources, and the artist: set by hand, else tagged."""
     metadata = json.loads(record['metadata_json'])
     values = db.media_values(record['id'])
     manual = json.loads(values.get('manual_json', '{}'))
@@ -38,17 +43,39 @@ def media_analysis_values(db, record: dict) -> dict:
             if candidates.get(field):
                 resolved[field] = (candidates[field], source)
                 break
-    return resolved
+    return resolved, str(manual.get('artist') or tags.get('artist') or '')
+
+
+def filename_artist(stem: str) -> str:
+    """"Artist - Title" names carry the artist before the first dash; a track number is not one."""
+    artist, dash, _ = stem.partition(' - ')
+    artist = artist.strip()
+    return artist if dash and artist and not artist.isdigit() else ''
 
 
 def media_track(db, record: dict) -> Track:
+    # The name is the file's own name on disk, so renaming it in the table renames the file.
     metadata = json.loads(record['metadata_json'])
+    resolved, artist = _media_values(db, record)
+    stem = Path(record['path']).stem
+    # Tag names as FFprobe reports them, lower-cased: ID3 TPUB is "publisher", Vorbis has LABEL or ORGANIZATION.
     tags = metadata.get('tags', {})
-    resolved = media_analysis_values(db, record)
-    return Track(title=tags.get('title') or Path(record['path']).stem,
-                 permalink_url='', artist=tags.get('artist', ''), local_id=record['id'],
-                 local_path=record['path'], duration=int(metadata.get('duration', 0) * 1000),
-                 bpm=resolved['bpm'][0], key_signature=resolved['key'][0])
+    year = next((y for name in ('date', 'year', 'originaldate', 'original_year') if (y := _year(str(tags.get(name) or '')))), None)
+    label = next((str(tags[name]).strip() for name in ('label', 'publisher', 'organization') if str(tags.get(name) or '').strip()), '')
+    return Track(title=stem, permalink_url='', artist=artist or filename_artist(stem),
+                 local_id=record['id'], local_path=record['path'], duration=int(metadata.get('duration', 0) * 1000),
+                 bpm=resolved['bpm'][0], key_signature=resolved['key'][0],
+                 genre=str(tags.get('genre') or '').strip(), release_year=year, label_name=label)
+
+
+def valid_file_name(name: str) -> str:
+    """A new name for a file in the same folder: one visible path component, nothing else."""
+    name = name.strip()
+    if not name or name in {'.', '..'} or name.startswith('.') or any(c in name for c in '/\\\0'):
+        raise MediaError('Enter a file name without slashes that does not start with a dot')
+    if len(name.encode('utf-8')) > 240:
+        raise MediaError('The file name is too long')
+    return name
 
 
 def media_tracks(db, media_ids) -> dict[str, Track]:
@@ -91,6 +118,42 @@ class LocalLibrary:
                     self.db.mark_media_deleted(media_id, str(resolved))
                 except Exception as exc:
                     raise MediaError('File deleted, but the library could not be updated; reopen its folder') from exc
+
+    def rename(self, track, name: str) -> Path:
+        """Give a local file a new name in its folder, keeping its extension; never replaces a file."""
+        from ..local_audio import LEASE_LOCK, LEASES
+        name = valid_file_name(name)
+        path = Path(track.local_path)
+        if path.is_symlink():
+            raise MediaError('Select the original file rather than a symbolic link')
+        with LEASE_LOCK:
+            old = path.resolve(strict=True)
+            record = self.db.media(track.local_id)
+            if record is None or record['path'] != str(old) or signature(old) != record['signature']:
+                raise MediaError('File changed since selection; select it again')
+            # The player and the prefetch read the file by name while they hold it.
+            if old in LEASES or path in LEASES:
+                raise MediaError('Stop playback before renaming a loaded or prefetched file')
+            new = old.with_name(name + old.suffix)
+            if new == old:
+                return old
+            if new.exists() and not os.path.samefile(old, new):
+                raise MediaError('A file with this name already exists')
+            try:
+                # A hard link fails rather than replace a file created since the check.
+                os.link(old, new)
+            except FileExistsError:
+                if not os.path.samefile(old, new):
+                    raise MediaError('A file with this name already exists') from None
+                os.rename(old, new)  # Only the letter case changed, on a case-insensitive disk.
+            except OSError:
+                # ponytail: check-then-rename on disks without hard links (FAT, exFAT); a file
+                # appearing between the check and the rename would be replaced.
+                os.rename(old, new)
+            else:
+                os.unlink(old)
+            self.db.rename_media(record['id'], str(old), str(new), record['signature'], signature(new))
+        return new
 
     def _deletable(self, media_id, path: Path, expected: str) -> Path:
         """Call with LEASE_LOCK held; loaded and prefetched audio is protected."""

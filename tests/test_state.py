@@ -126,3 +126,17 @@ def test_status_and_provenance_rollback_together(tmp_path, monkeypatch):
     assert state.local_file('one') is None
     assert state.db.all_track_statuses() == {'one': 'skip'}
     assert state.db.all_track_local_files() == {}
+
+
+def test_playing_takes_new_away_but_never_a_decision(tmp_path):
+    from dj_digger.models import OPENED, PLAYED
+    path = tmp_path / "digger.db"
+    state = TrackState(path)
+    assert state.mark_played("1") and state.get("1") == PLAYED
+    assert not state.mark_played("1")
+    assert TrackState(path).get("1") == PLAYED
+    state.set("2", SKIP)
+    assert not state.mark_played("2") and state.get("2") == SKIP
+    # Opening a played track's links still records the handoff.
+    state.mark_opened("1")
+    assert state.get("1") == OPENED

@@ -1,5 +1,6 @@
 """Desktop orchestration. Qt receives detached values, never service objects."""
 import asyncio
+import json
 import logging
 import stat
 import threading
@@ -175,7 +176,8 @@ class Backend:
         pending = [self.importing] if self.importing else []
         self.send('sidebar', {'items': pending + [item for item in self.saved_playlists
                                                   if not pending or item['source'] != pending[0]['source']],
-                              'pinned': list(self.services.config.pinned_directories)})
+                              'pinned': list(self.services.config.pinned_directories),
+                              'hidden': list(self.services.config.hidden_directories)})
 
     async def publish(self, tracks, title, generation):
         from ..rows import Row
@@ -192,7 +194,7 @@ class Backend:
         return dict(key=t.key, title=t.title, artist=t.artist, genre=t.genre_label,
                     bpm=t.bpm or '', keySignature=t.key_signature, classicKey=classic, camelot=camelot, year=t.release_year or '',
                     label=t.label_name, duration=t.duration, status=self.services.state.get(t.key),
-                    stores=', '.join(row.categories), local=bool(t.local_id), path=t.local_path or self.preview_paths.get(t.key, ''),
+                    stores=', '.join(row.categories), local=bool(t.local_path), path=t.local_path or self.preview_paths.get(t.key, ''),
                     search=row.haystack)
 
     async def refresh_rows(self):
@@ -252,6 +254,7 @@ class Backend:
         if not any(track.duration == 0 for track in tracks):
             return
         hydrated = []
+        shown = {track.key: (track.local_path, track.title, track.artist) for track in tracks}
         for track in tracks:
             if generation != self.generation:
                 return
@@ -263,6 +266,12 @@ class Backend:
             hydrated.append(track)
         from ..rows import Row
         if generation == self.generation:
+            # A row renamed or given an artist meanwhile keeps that edit over this older reading.
+            current = {row.track.key: row.track for row in self.rows}
+            def newest(track):
+                now = current.get(track.key)
+                return now if now and (now.local_path, now.title, now.artist) != shown[track.key] else track
+            hydrated = [newest(track) for track in hydrated]
             # Same files in the same order: an update, not a new view, so the table keeps its state.
             self.rows = [Row(i, t, links.categorise(t)) for i, t in enumerate(hydrated)]
             self.send_rows(generation)
@@ -522,8 +531,43 @@ class Backend:
                                    [field('bpm', 'BPM', str(track.bpm or ''), 'number'),
                                     field('key', 'Key', track.key_signature if track.key_signature in KEYS else '', 'choice',
                                           [['', ''], *[[k, f'{k} / {camelot(k)}'] for k in KEYS]])], validate, ok='Save')
-        await self.io(self.services.state.db.set_media_manual, track.local_id, {k: v for k, v in {'bpm': bpm, 'key': key}.items() if v})
+        await self.update_manual(track.local_id, bpm=bpm, key=key)
         await self.refresh_rows()
+
+    async def update_manual(self, media_id, **values):
+        """Change some manual values of a local file; an empty value goes back to tags or analysis."""
+        db = self.services.state.db
+        manual = json.loads((await self.io(db.media_values, media_id)).get('manual_json') or '{}')
+        for name, value in values.items():
+            if value:
+                manual[name] = value
+            else:
+                manual.pop(name, None)
+        await self.io(db.set_media_manual, media_id, manual)
+
+    async def action_rename(self, values):
+        """Edit a local file's name (renaming it on disk) or its artist, from the table."""
+        from ..services.local_library import media_track
+        rows = self.targets(values)
+        if len(rows) != 1 or not rows[0].track.local_id:
+            return
+        track, value = rows[0].track, str(values.get('value', ''))
+        if values.get('field') == 'title':
+            await self.io(self.local.rename, track, value)
+        elif values.get('field') == 'artist':
+            await self.update_manual(track.local_id, artist=value.strip())
+        else:
+            raise ValueError('Unknown field')
+        # A new name can also bring a new artist, read off it until one is set by hand.
+        fresh = media_track(self.services.state.db, await self.io(self.services.state.db.media, track.local_id))
+        changes = dict(title=fresh.title, artist=fresh.artist, local_path=fresh.local_path)
+        for row in self.rows:
+            if row.track.key == track.key:
+                row.track = replace(row.track, **changes)
+                player = self.services.player
+                if player.loaded and player.loaded.track.key == track.key:
+                    self.publish_now_playing(row.track)
+        self.send_rows(values['generation'])
 
     async def action_export(self, values):
         from ..export import execute, plan_export
@@ -663,7 +707,7 @@ class Backend:
             answer['default_artwork'] = answer['default_artwork'].strip()
             if answer['default_artwork'] and not Path(answer['default_artwork']).expanduser().is_file():
                 raise ValueError('The default cover is not a file')
-            for name in ('scan_directories', 'pinned_directories', 'custom_comments'):
+            for name in ('scan_directories', 'pinned_directories', 'hidden_directories', 'custom_comments'):
                 answer[name] = [line.strip() for line in answer[name].splitlines() if line.strip()]
             return answer
         answer = await self.form('Settings', 'Gates may submit your name and email. Social actions may follow, repost or comment on your behalf.',
@@ -672,6 +716,7 @@ class Backend:
                                   field('gate_social_actions', 'Allow social actions', config.gate_social_actions, 'bool'),
                                   field('scan_directories', 'Scan folders (one per line)', '\n'.join(config.scan_directories), 'multiline'),
                                   field('pinned_directories', 'Pinned folders (one per line)', '\n'.join(config.pinned_directories), 'multiline'),
+                                  field('hidden_directories', 'Hidden folders (one per line)', '\n'.join(config.hidden_directories), 'multiline'),
                                   field('default_artwork', 'Default cover (tracks without artwork)', config.default_artwork, 'image'),
                                   field('browser', 'Browser', config.browser if any(config.browser == v for v, _ in choices) else '', 'choice',
                                         [['', 'System default'], *[[value, label] for value, label in choices]]),
@@ -748,6 +793,9 @@ class Backend:
                 await self.io(player.play)
                 self.publish_audio()
                 self.publish_now_playing()
+            # Heard once, a track is no longer new.
+            if await self.io(self.services.state.mark_played, track.key):
+                self.send_rows(self.generation)
         finally:
             if prepared.source is not None:
                 await self.io(prepared.close)
@@ -997,6 +1045,13 @@ class Backend:
     async def pin(self, path):
         folders = list(dict.fromkeys([*self.services.config.pinned_directories, str(path)]))
         await self.io(self.services.accounts.save_preferences, {'pinned_directories': folders})
+        await self.sidebar()
+
+    async def action_hide_folder(self, values):
+        """Leave a folder out of the folder tree; Settings lists it to bring it back."""
+        path = str(Path(values['path']).expanduser().absolute())
+        folders = list(dict.fromkeys([*self.services.config.hidden_directories, path]))
+        await self.io(self.services.accounts.save_preferences, {'hidden_directories': folders})
         await self.sidebar()
 
     async def action_pin(self, values):

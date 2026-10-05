@@ -12,8 +12,9 @@ from pathlib import Path
 from .media_processes import kill_tree, register, unregister
 from .models import check_cancelled
 
+# .mp4 is left out: in a music folder it is a video far more often than a track.
 FORMATS = {'.wav': 'wav', '.aif': 'aiff', '.aiff': 'aiff', '.mp3': 'mp3',
-           '.flac': 'flac', '.fla': 'flac', '.m4a': 'mov', '.aac': 'aac', '.mp4': 'mov'}
+           '.flac': 'flac', '.fla': 'flac', '.m4a': 'mov', '.aac': 'aac'}
 
 
 class MediaError(RuntimeError):

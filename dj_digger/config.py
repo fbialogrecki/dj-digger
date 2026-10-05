@@ -38,6 +38,7 @@ PERSISTED_FIELDS = (
     "download_directory",
     "gate_social_actions",
     "pinned_directories",
+    "hidden_directories",
     "volume",
     "export_decks",
     "default_artwork",
@@ -80,6 +81,8 @@ class AppConfig:
         # rather than a line in somebody else's source.
         self.gate_social_actions: bool = True
         self.pinned_directories: list[str] = []
+        # Folders the desktop's folder tree leaves out, chosen from its context menu.
+        self.hidden_directories: list[str] = []
         # Playback level shared by every player; mute is not kept.
         self.volume: float = 0.8
         # Decks the last audio export was for, in deck order; the export format follows from them.
@@ -117,6 +120,7 @@ class AppConfig:
                 if "gate_social_actions" in raw:
                     self.gate_social_actions = bool(raw["gate_social_actions"])
                 self.pinned_directories = [str(value) for value in raw.get('pinned_directories', []) if isinstance(value, str)] if isinstance(raw.get('pinned_directories'), list) else []
+                self.hidden_directories = [str(value) for value in raw.get('hidden_directories', []) if isinstance(value, str)] if isinstance(raw.get('hidden_directories'), list) else []
                 if isinstance(raw.get("volume"), (int, float)) and not isinstance(raw.get("volume"), bool):
                     self.volume = max(0.0, min(1.0, float(raw["volume"])))
                 decks = raw.get("export_decks")

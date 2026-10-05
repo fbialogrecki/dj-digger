@@ -87,7 +87,7 @@ uv run --extra gui python scripts/gui_benchmark.py
 These are table-model timings, not rendering latency or whole-app memory
 measurements. No claim about RAM savings versus TUI or browser apps follows.
 
-Before treating this as a supported desktop release, verify on real Windows 11,
+Before treating this as a supported desktop release, verify on real Windows 10 (1809+) and 11,
 Linux and macOS: audible playback/device changes, physical mouse/keyboard and
 screen-reader navigation, high-DPI/multiple monitors, large-library scrolling,
 installer shortcuts, locked-file handling and upgrades from the prior installed

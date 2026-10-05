@@ -31,7 +31,7 @@ dj-digger-gui                                                    # interactive d
 
 | Your computer | Installation guide |
 | --- | --- |
-| Windows 11 — Intel or AMD, 64-bit | [Install on Windows](docs/installation.md#windows) |
+| Windows 10 (1809 or newer) or 11 — Intel or AMD, 64-bit | [Install on Windows](docs/installation.md#windows) |
 | macOS 15 or newer — Apple Silicon or Intel | [Install on Mac](docs/installation.md#mac) |
 
 > **Preview downloads:** dj-digger is a free, open-source hobby project. These
@@ -62,7 +62,7 @@ handled tracks, `[`/`]` seek, `n`/`p` step tracks, `m` mutes, `Ctrl+B` toggles
 the sidebar and `?` shows the full generated list. Commands that need a selection
 stay disabled without one; "all visible" variants are separate menu entries.
 
-The `Desktop tests and test installers` workflow builds an offline Windows 11
+The `Desktop tests and test installers` workflow builds an offline Windows 10/11
 x64 test installer and macOS 15+ DMGs for Apple Silicon (`arm64`) and Intel
 (`x86_64`). For installation and first-launch warnings, see the
 [desktop installation guide](docs/installation.md). See the
@@ -113,8 +113,8 @@ for commands, coverage and remaining platform checks.
 
 ## 📦 Installation
 
-**Version 1.2.1 is available on [PyPI](https://pypi.org/project/dj-sc-digger/1.2.1/)
-and [GitHub Releases](https://github.com/fbialogrecki/dj-digger/releases/tag/v1.2.1).**
+**Version 1.3.0 is available on [PyPI](https://pypi.org/project/dj-sc-digger/1.3.0/)
+and [GitHub Releases](https://github.com/fbialogrecki/dj-digger/releases/tag/v1.3.0).**
 Install the package `dj-sc-digger`; launch it with `dj-digger`.
 
 Upgrading from `dj-soundcloud-digger`? Follow the
