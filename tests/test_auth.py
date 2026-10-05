@@ -12,9 +12,13 @@ from dj_digger import auth, automation_errors, private_json
 class _Page:
     def __init__(self):
         self.visited = []
+        self.closed = False
 
     def goto(self, url, **_kwargs):
         self.visited.append(url)
+
+    def is_closed(self):
+        return self.closed
 
 
 class _Context:
@@ -24,7 +28,11 @@ class _Context:
         self.tokens = iter(tokens)
         self.last = None
         self.shown = False
+        self.closed = False
         self.page = _Page()
+
+    def is_closed(self):
+        return self.closed
 
     def cookies(self, urls):
         assert urls == ["https://soundcloud.com"]
@@ -237,6 +245,40 @@ def test_browser_login_times_out_without_saving_any_cookie(monkeypatch):
 
     with pytest.raises(auth.SoundCloudAuthError, match="timed out"):
         auth.login_with_browser("client", timeout=0)
+
+
+@pytest.mark.parametrize("what", ["page", "context"])
+def test_closing_the_sign_in_tab_or_window_stops_the_wait(monkeypatch, what):
+    class Context(_Context):
+        def cookies(self, urls):
+            result = super().cookies(urls)
+            if self.shown:  # the user closes the sign-in tab (or its window) while the wait runs
+                (self.page if what == "page" else self).closed = True
+            return result
+
+    _browser(monkeypatch, Context())
+    monkeypatch.setattr(auth, "save_token", lambda *_args: pytest.fail("nothing to save"))
+    started = auth.time.monotonic()
+
+    with pytest.raises(auth.SoundCloudAuthError, match="sign-in tab was closed; no credentials were saved"):
+        auth.login_with_browser("client", timeout=300)
+
+    assert auth.time.monotonic() - started < 5  # not the five-minute timeout
+
+
+def test_a_token_that_appears_as_the_tab_closes_is_still_used(monkeypatch):
+    saved = []
+
+    class Context(_Context):
+        def cookies(self, urls):
+            if self.shown:
+                self.page.closed = True
+            return [{"name": "oauth_token", "value": "secret-token"}] if self.shown else []
+
+    _browser(monkeypatch, Context())
+    _verify(monkeypatch, {"secret-token"}, saved)
+
+    assert auth.login_with_browser("client")[0] == "secret-token"
 
 
 def test_browser_login_honours_cancellation_before_opening_browser(monkeypatch):

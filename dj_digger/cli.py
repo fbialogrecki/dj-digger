@@ -28,6 +28,7 @@ from rich.table import Table
 from . import __version__, links, soundcloud
 from . import auth as auth_module
 from . import browser as browser_module
+from .automation_errors import AutomationError
 from .config import AppConfig
 from .diagnostics import log_safe_text
 from .logging_setup import configure_logging
@@ -447,7 +448,7 @@ def _login_interactively(console: Console) -> int:
                     )
                 finally:
                     webpage.set_listener(None)
-        except (auth_module.SoundCloudAuthError, OSError) as exc:  # OSError: no listener socket
+        except (auth_module.SoundCloudAuthError, AutomationError, OSError) as exc:  # no listener socket
             console.print(f"[yellow]{exc}[/yellow]")
             token = getpass.getpass(
                 "Paste oauth_token instead (input is hidden; blank cancels): "

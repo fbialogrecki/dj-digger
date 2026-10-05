@@ -494,6 +494,7 @@ class _Context:
         self._blocked: set[int] = set()
         self._closed = False
         self._visible = False
+        self._window_id: int | None = None  # this session's own work window (several may be open)
 
     # -- state -------------------------------------------------------------------
 
@@ -550,7 +551,9 @@ class _Context:
                 page._url = str(item.get("url") or page._url)
             case "tab.removed" if page is not None:
                 page._mark_closed()
-            case "tab.error":
+            case "window.removed" if self._window_id is not None and item.get("windowId") == self._window_id:
+                self._finish()  # closed by hand (or by window.close): the tabs were reported already
+            case "tab.error" if page is not None:  # every session of the connection gets the event
                 LOGGER.warning("webext tab refused: %s", item.get("code"))
             case "download.created" if page is not None and isinstance(item.get("downloadId"), int):
                 self._downloads[item["downloadId"]] = page
@@ -587,8 +590,10 @@ class _Context:
         error = PageTimeout if exc.code == "timeout" else PageError
         raise error(exc.code, str(exc)) from None
 
-    def _opened(self, visible: bool) -> Callable:
-        def post(_result: Any) -> None:
+    def _opened(self, visible: bool, *, new_window: bool = False) -> Callable:
+        def post(result: Any) -> None:
+            if new_window:
+                self._window_id = int(result["windowId"])
             self._visible = bool(visible)
 
         return post
@@ -599,10 +604,11 @@ class _Context:
         return page
 
     def _new_page(self) -> _Cmd:
-        return _Cmd("tab.new", {}, post=self._registered)
+        return _Cmd("tab.new", {"windowId": self._window_id}, post=self._registered)
 
     def _set_visible(self, visible: bool) -> _Cmd:
-        return _Cmd("window.show" if visible else "window.hide", {}, post=self._opened(visible))
+        return _Cmd("window.show" if visible else "window.hide", {"windowId": self._window_id},
+                    post=self._opened(visible))
 
     def _show(self) -> _Cmd:
         return self._set_visible(True)
@@ -647,8 +653,9 @@ def _listener_for(listener: Listener | None) -> Listener:
         if _default_listener is None:
             # ponytail: started on first use; callers hold the InstanceLock (link.py) and
             # nothing closes it - set_listener() when an owner wants to manage it
-            _default_listener = Listener()
-            _default_listener.start()
+            listener = Listener()
+            listener.start()  # may refuse (another app owns the socket): then keep none
+            _default_listener = listener
         return _default_listener
 
 
@@ -667,7 +674,7 @@ class ExtensionContext(_Context):
     def open(cls, visible: bool = False, listener: Listener | None = None) -> ExtensionContext:
         context = cls(_listener_for(listener).session())
         try:
-            context._run(_Cmd("window.open", {"visible": bool(visible)}, post=context._opened(visible)))
+            context._run(_Cmd("window.open", {"visible": bool(visible)}, post=context._opened(visible, new_window=True)))
         except BaseException:
             context._finish()
             raise
@@ -723,8 +730,9 @@ class ExtensionContext(_Context):
     def close(self, reason: str | None = None) -> None:
         if self._closed:
             return
-        with contextlib.suppress(AutomationError):  # best effort: the browser may be gone
-            self._session.request("window.close", {}, CLOSE_TIMEOUT_S)
+        if self._window_id is not None:
+            with contextlib.suppress(AutomationError):  # best effort: the browser may be gone
+                self._session.request("window.close", {"windowId": self._window_id}, CLOSE_TIMEOUT_S)
         self._finish()
 
 
@@ -749,7 +757,8 @@ class AsyncExtensionContext(_Context):
         try:
             while (item := session.next_event(0)) is not None:  # arrived before on_event was set
                 context._dispatch(item)
-            await context._run(_Cmd("window.open", {"visible": bool(visible)}, post=context._opened(visible)))
+            await context._run(
+                _Cmd("window.open", {"visible": bool(visible)}, post=context._opened(visible, new_window=True)))
         except BaseException:
             context._finish()
             raise
@@ -799,17 +808,19 @@ class AsyncExtensionContext(_Context):
     async def close(self, reason: str | None = None) -> None:
         if self._closed:
             return
-        try:
-            _, future = self._session.submit("window.close", {})
-            await asyncio.wait_for(asyncio.wrap_future(future), CLOSE_TIMEOUT_S)
-        except (AutomationError, TimeoutError):  # best effort: the browser may be gone
-            pass
+        if self._window_id is not None:
+            try:
+                _, future = self._session.submit("window.close", {"windowId": self._window_id})
+                await asyncio.wait_for(asyncio.wrap_future(future), CLOSE_TIMEOUT_S)
+            except (AutomationError, TimeoutError):  # best effort: the browser may be gone
+                pass
         self._finish()
 
 
 @contextmanager
 def session(visible: bool = False, listener: Listener | None = None) -> Iterator[ExtensionContext]:
-    """One work window for a batch; leaving the block closes its tabs and the window."""
+    """One work window for a batch; leaving the block closes its tabs and the window (only its own:
+    other sessions keep theirs)."""
 
     context = ExtensionContext.open(visible, listener)
     try:

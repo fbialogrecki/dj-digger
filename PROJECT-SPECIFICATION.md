@@ -5,8 +5,8 @@
 - Product version verified: 1.4.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-10-05
-- Document lines: <!-- SPEC TOTAL LINES -->2102<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->2102<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->2129<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->2129<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -67,49 +67,49 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 5.1 | ↳ Entry, orchestration, and models | 1059–1070 |
 | 5.2 | ↳ Network and external-system adapters | 1071–1101 |
 | 5.3 | ↳ Persistence, local media, and UI | 1102–1142 |
-| 6 | Runtime architecture and environments | 1143–1281 |
+| 6 | Runtime architecture and environments | 1143–1288 |
 | 6.1 | ↳ Runtime and dependencies | 1145–1173 |
-| 6.2 | ↳ Concurrency and lifecycle | 1174–1249 |
-| 6.3 | ↳ Local paths and environment variables | 1250–1281 |
-| 7 | Data model and persistence | 1282–1391 |
-| 7.1 | ↳ Domain objects and identity | 1284–1298 |
-| 7.2 | ↳ SQLite schema and invariants | 1299–1351 |
-| 7.3 | ↳ Crate persistence and deletion | 1352–1367 |
-| 7.4 | ↳ Configuration and credential stores | 1368–1391 |
-| 8 | Public interfaces and contracts | 1392–1449 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1394–1422 |
-| 8.2 | ↳ JSON and CSV summary input | 1423–1438 |
-| 8.3 | ↳ URL-opening contract | 1439–1449 |
-| 9 | Authentication and authorization | 1450–1511 |
-| 9.1 | ↳ SoundCloud authentication | 1452–1481 |
-| 9.2 | ↳ Gate action consent | 1482–1511 |
-| 10 | External integrations | 1512–1722 |
-| 10.1 | ↳ SoundCloud API and media | 1514–1525 |
-| 10.2 | ↳ Link hubs and download gates | 1526–1614 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1534–1600 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1602–1607 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1609–1614 |
-| 10.3 | ↳ Browsers and clipboard | 1615–1674 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1675–1722 |
-| 11 | Security requirements and threat model | 1723–1824 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1725–1743 |
-| 11.2 | ↳ Secret and personal-data handling | 1744–1759 |
-| 11.3 | ↳ File and mutation safety | 1760–1781 |
-| 11.4 | ↳ Browser-extension trust boundary | 1782–1824 |
-| 12 | Privacy, lifecycle, and retention | 1825–1877 |
-| 12.1 | ↳ Data stored locally | 1827–1851 |
-| 12.2 | ↳ Data sent to third parties | 1852–1864 |
-| 12.3 | ↳ User-controlled deletion | 1865–1877 |
-| 13 | Failure behavior and current limitations | 1878–1969 |
-| 13.1 | ↳ Error isolation and reporting | 1880–1901 |
-| 13.2 | ↳ Confirmed limitations | 1902–1969 |
-| 14 | Verification, CI, and release | 1970–2068 |
-| 14.1 | ↳ Offline and live test suites | 1972–2020 |
-| 14.2 | ↳ Continuous integration and publishing | 2021–2053 |
-| 14.3 | ↳ Specification-map verification | 2054–2068 |
-| 15 | Evidence and operational references | 2069–2102 |
-| 15.1 | ↳ Primary implementation evidence | 2071–2092 |
-| 15.2 | ↳ User and historical documentation | 2093–2102 |
+| 6.2 | ↳ Concurrency and lifecycle | 1174–1253 |
+| 6.3 | ↳ Local paths and environment variables | 1254–1288 |
+| 7 | Data model and persistence | 1289–1398 |
+| 7.1 | ↳ Domain objects and identity | 1291–1305 |
+| 7.2 | ↳ SQLite schema and invariants | 1306–1358 |
+| 7.3 | ↳ Crate persistence and deletion | 1359–1374 |
+| 7.4 | ↳ Configuration and credential stores | 1375–1398 |
+| 8 | Public interfaces and contracts | 1399–1456 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1401–1429 |
+| 8.2 | ↳ JSON and CSV summary input | 1430–1445 |
+| 8.3 | ↳ URL-opening contract | 1446–1456 |
+| 9 | Authentication and authorization | 1457–1520 |
+| 9.1 | ↳ SoundCloud authentication | 1459–1490 |
+| 9.2 | ↳ Gate action consent | 1491–1520 |
+| 10 | External integrations | 1521–1743 |
+| 10.1 | ↳ SoundCloud API and media | 1523–1534 |
+| 10.2 | ↳ Link hubs and download gates | 1535–1623 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1543–1609 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1611–1616 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1618–1623 |
+| 10.3 | ↳ Browsers and clipboard | 1624–1695 |
+| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1696–1743 |
+| 11 | Security requirements and threat model | 1744–1846 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1746–1764 |
+| 11.2 | ↳ Secret and personal-data handling | 1765–1780 |
+| 11.3 | ↳ File and mutation safety | 1781–1802 |
+| 11.4 | ↳ Browser-extension trust boundary | 1803–1846 |
+| 12 | Privacy, lifecycle, and retention | 1847–1899 |
+| 12.1 | ↳ Data stored locally | 1849–1873 |
+| 12.2 | ↳ Data sent to third parties | 1874–1886 |
+| 12.3 | ↳ User-controlled deletion | 1887–1899 |
+| 13 | Failure behavior and current limitations | 1900–1996 |
+| 13.1 | ↳ Error isolation and reporting | 1902–1923 |
+| 13.2 | ↳ Confirmed limitations | 1924–1996 |
+| 14 | Verification, CI, and release | 1997–2095 |
+| 14.1 | ↳ Offline and live test suites | 1999–2047 |
+| 14.2 | ↳ Continuous integration and publishing | 2048–2080 |
+| 14.3 | ↳ Specification-map verification | 2081–2095 |
+| 15 | Evidence and operational references | 2096–2129 |
+| 15.1 | ↳ Primary implementation evidence | 2098–2119 |
+| 15.2 | ↳ User and historical documentation | 2120–2129 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -1190,8 +1190,9 @@ if that view changes. Sidebar loads have a separate request generation so a
 slower previous selection cannot replace the latest selected playlist.
 Another process writing the same database is not reconciled. The desktop and every CLI command first take an exclusive `InstanceLock` on
 `data_dir()/instance.lock`, which the operating system releases after a crash, so
-one process at a time owns the database and the extension socket (including the
-removal of a stale socket file). A second desktop prints "Another dj-digger
+one process at a time owns the database. The extension socket is per account, not
+per data directory, so the application also refuses to start listening when
+another dj-digger answers on it (§6.3). A second desktop prints "Another dj-digger
 instance is using this data directory" and exits with status 1; a CLI command in
 that situation exits with status 2, so the CLI cannot run while the desktop is
 open. The runtime-test entry (`--runtime-test`) takes no lock.
@@ -1218,8 +1219,8 @@ individually. Painting retains the existing throttling and stable cursor.
 
 Hub expansion and download batches use eight threads. Hypeddit HTTP flows allow
 two concurrent requests per host; nested gates release the host limit before
-recursing. One gate batch at a time drives the extension's work window; a second
-batch started meanwhile fails its rows as unavailable.
+recursing. One gate batch runs at a time; a second batch started meanwhile fails its
+rows as unavailable.
 SoundCloud API and public transfer sessions are separate, and each gate flow has
 its own cookie jar. Retired clients remain open until their active workers settle.
 
@@ -1240,8 +1241,11 @@ event loop: a cancelled command is cancelled in the extension, and its tab stays
 busy until the extension answers, so commands of one tab never overlap. One lazily
 opened work window serves all batches of the desktop run; it is shown (not
 replaced) for the final cart or the items to finish by hand and hidden again by the
-next batch. Each session's `window.open` first closes any tabs an earlier session
-left in the extension. Two queue consumers bound
+next batch. Every session owns its own work window (`window.open` always creates a
+new one), so the cart session, a gate batch and a SoundCloud login can be open at
+once and closing one never closes another's pages. If the user closes a work window
+by hand, its pages are closed, its context's `close` callbacks fire, and the cart
+session opens a new window for the next batch. Two queue consumers bound
 read-only preflight concurrency; Bandcamp mutation is serial, while exact
 Beatport track links open no page and other Beatport results become local
 playlist entries. The blocking flavour (gates, login) dispatches the session's events
@@ -1262,8 +1266,11 @@ and, on Windows, host manifests in `data_dir()/native-messaging/`. The socket is
 directory must belong to the user), `data_dir()/run/webext.sock` when
 `XDG_RUNTIME_DIR` is unset, `/tmp/dj-digger-<uid>/webext.sock` when the path would
 reach 100 bytes, and the named pipe `\\.\pipe\dj-digger-<user>` on Windows. It does
-not depend on the data directory, so two desktops with different data directories
-on one account would share it (§13.2). Host manifests live in each browser's
+not depend on the data directory, so before binding the application connects to an
+existing socket file: one that answers means another dj-digger owns it and
+`Listener.start()` raises "another dj-digger is already connected to the browser
+extension" (a second Windows pipe server of that name is denied likewise); only a
+socket that refuses the connection is a crash leftover and is unlinked (§13.2). Host manifests live in each browser's
 `NativeMessagingHosts` directory (Firefox: `~/.mozilla/native-messaging-hosts` and
 `~/.config/mozilla/native-messaging-hosts`) or under `HKCU\Software\<vendor>\NativeMessagingHosts`.
 
@@ -1463,6 +1470,8 @@ the CLI. The extension reads the one `oauth_token` cookie of the user's own
 browser; when that token verifies, no window opens. Otherwise
 `soundcloud.com/signin` opens in the extension's work window and the cookie is
 polled for up to five minutes, a rejected token being ignored until it changes.
+Closing the sign-in tab (or the work window) before a token appears ends the wait
+at once with "The SoundCloud sign-in tab was closed; no credentials were saved."
 Without a connected extension the desktop opens the Connect browser dialog and the
 CLI says to run `dj-digger browser register`. A browser failure the application
 diagnoses itself (extension missing, browser or extension restarted) is reported
@@ -1649,6 +1658,18 @@ extension" on a protocol mismatch). A command times out after 15 seconds
 their own timeout and the application allows two seconds more. Commands for one
 tab run in order; cancelling sends `cancel`, which stops the wait in the extension.
 
+Several sessions may be open at once, each with its own work window.
+`window.open {visible}` always creates a new window and returns `{windowId}`;
+`window.show`, `window.hide`, `window.close` and `tab.new` take that `windowId`
+(an unknown one is `no_window`, and `window.close` of one that is gone is quietly
+accepted). A tab belongs to the window that opened it and a popup to its opener's
+window, wherever the browser places it. `window.close` closes only that window's
+tabs and sends `tab.removed {tabId}` for each owned tab it closed, then
+`window.removed {windowId}`; a window the user closes by hand produces the same
+events. The adapter keeps its `windowId`, ignores events for other windows and
+tabs, and on `window.removed` closes its pages and fires its `close` callbacks.
+Events are delivered to every session of a connection and filtered there.
+
 `webext.page` gives the sync and asyncio flavours the methods and semantics the
 code was written for: element waits in actions and reads, immediate `count` and
 `is_visible`, role queries that skip hidden elements, a forced click that still
@@ -1791,7 +1812,8 @@ Python caller, enforces its own limits, whatever the application sends:
   with their subdomains, and `soundcloud.com` for `/signin` only (its tab is never
   read or clicked). A navigation elsewhere is refused.
 - **Own tabs only.** Commands act on tabs the extension created and on popups of
-  those; the user's other tabs are never touched. Reading or clicking
+  those, and on the work windows it created (never on a window id it did not
+  create); the user's other tabs and windows are never touched. Reading or clicking
   (`dom.*`, `tab.html`, `tab.capture`) also needs the tab's current URL on the
   allowlist, so provider popups are only closed and reported, never read or
   clicked. URLs outside the allowlist are reduced to `https://<host>/` in events,
@@ -1932,10 +1954,15 @@ as player events instead of escaping through Python-CFFI.
   an unfocused normal window, not a minimized one; whether a window manager raises
   it is not controlled. Disconnect browsers lasts only until the next start,
   which registers again. The extension socket path does not depend on the data
-  directory, so two desktops with different data directories on one account share
-  it and the later start replaces the earlier socket (the instance lock is per
-  data directory); the CLI and a second desktop are refused while one desktop
-  runs. Extension flows are verified offline against a protocol fake and, for
+  directory (the instance lock is per data directory), so a second desktop or CLI
+  login with a different data directory on one account cannot use the extension
+  while the first owns the socket: it is refused with "another dj-digger is already
+  connected to the browser extension" and the live socket is left alone (the CLI
+  login falls back to the hidden token prompt); the CLI and a second desktop with
+  the same data directory are refused while one desktop runs. A work window left by
+  a crashed application is closed when the relay reports the application gone (its
+  next retry, about a second later) or when the extension restarts; a restart faster
+  than that leaves the window for the user to close. Extension flows are verified offline against a protocol fake and, for
   `dom.js`, by the manual `selftest.html` page; acceptance in real browsers is a
   manual checklist (`docs/gui-e2e-checklist-pl.md`), not recorded here.
 - A browser download passes through the browser's own download folder before it is

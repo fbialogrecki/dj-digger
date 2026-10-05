@@ -229,9 +229,10 @@ pozostaje zajęta do czasu odpowiedzi na anulowaną komendę (K2).
 
 | Komenda | Argumenty | Wynik / uwagi |
 |---|---|---|
-| `window.open` | `visible` | `windowId`; jedno okno robocze na sesję |
-| `window.show` / `window.hide` | | przejście ukryty ↔ widoczny (D3) |
-| `tab.new` | `url?` | `tabId` (karta staje się „własna”) |
+| `window.open` | `visible` | `windowId`; zawsze NOWE okno, jedno na sesję (kilka sesji naraz) |
+| `window.show` / `window.hide` | `windowId` | przejście ukryty ↔ widoczny (D3) |
+| `window.close` | `windowId` | zamyka tylko karty tego okna: `tab.removed` dla każdej i `window.removed {windowId}` (tak samo, gdy użytkownik zamknie okno ręcznie) |
+| `tab.new` | `windowId, url?` | `tabId` (karta staje się „własna”) |
 | `tab.goto` | `tabId, url, timeoutMs` | `{url, status}`. Gotowość z `webNavigation.onDOMContentLoaded` (frameId 0), status z `webRequest.onCompleted` (`main_frame`, ostatni po przekierowaniach), błąd z `webNavigation.onErrorOccurred`. Listenery rejestrowane przed `tabs.update`. Odmowa, gdy URL spoza allowlisty |
 | `tab.reload` | `tabId, timeoutMs` | jak `tab.goto` |
 | `tab.close`, `tab.info` | `tabId` | działają na **każdej** własnej karcie i popupie, także spoza allowlisty; `info` dla hosta spoza allowlisty zwraca tylko host (W5, W6) |

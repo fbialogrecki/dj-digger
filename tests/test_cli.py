@@ -175,6 +175,32 @@ def test_soundcloud_login_uses_hidden_manual_fallback_when_browser_cannot_start(
     assert "pasted-token" not in output
 
 
+def test_soundcloud_login_falls_back_when_another_app_owns_the_extension_socket(
+    monkeypatch, capsys
+):
+    class Taken:
+        def __enter__(self):
+            raise cli.AutomationError("another dj-digger is already connected to the browser extension")
+
+        def __exit__(self, *_exc):
+            return None
+
+    monkeypatch.setattr(cli.link, "Listener", Taken)
+    monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(cli.auth_module, "get_stored_token", lambda: None)
+    monkeypatch.setattr(cli.auth_module, "auto_detect_and_verify", lambda _id: None)
+    monkeypatch.setattr(cli.getpass, "getpass", lambda _prompt: "pasted-token")
+    monkeypatch.setattr(
+        cli.auth_module, "verify_and_save", lambda token, client_id: (token, "Manual DJ", 8)
+    )
+    monkeypatch.setattr(
+        cli.soundcloud.SoundCloudClient, "client_id", property(lambda _self: "client-id")
+    )
+
+    assert cli.handle_auth(argparse.Namespace(auth_action="login", token=None)) == 0
+    assert "another dj-digger is already connected" in capsys.readouterr().out
+
+
 def test_soundcloud_login_does_not_wait_for_browser_without_a_tty(monkeypatch):
     monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: False)
     monkeypatch.setattr(cli.auth_module, "get_stored_token", lambda: None)

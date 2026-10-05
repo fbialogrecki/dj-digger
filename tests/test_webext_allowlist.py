@@ -195,3 +195,14 @@ def test_no_remote_code_and_one_input_channel(path):
 @pytest.mark.parametrize("path", JS_FILES, ids=lambda p: p.name)
 def test_javascript_parses(path):
     subprocess.run(["node", "--check", str(path)], check=True, capture_output=True, timeout=30)
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
+def test_background_keeps_one_work_window_per_session():
+    """The real background.js on a fake browser: sessions never touch each other's window."""
+
+    harness = Path(__file__).parent / "js" / "background_harness.js"
+    result = subprocess.run(
+        ["node", str(harness), str(EXTENSION)], capture_output=True, text=True, timeout=60
+    )
+    assert result.returncode == 0, result.stderr

@@ -349,6 +349,29 @@ def test_stale_socket_file_is_replaced(address):
         client.close()
 
 
+def test_a_live_socket_is_never_taken_over(listener, address):
+    if not POSIX:
+        pytest.skip("unix sockets only")
+    client = connect(address)
+    with pytest.raises(AutomationError, match="another dj-digger is already connected"):
+        link.Listener(address, KEY).start()
+    assert os.path.exists(address)  # the first owner keeps its socket ...
+    assert listener.connection(2).hello["browser"] == "chrome"  # ... and its connections
+    session = listener.session(2)
+    client.send_bytes(json.dumps({"event": "tab.removed", "tabId": 1}).encode())
+    assert session.next_event(2) == {"event": "tab.removed", "tabId": 1}
+    client.close()
+
+
+def test_a_second_pipe_server_is_reported_as_another_app(address, monkeypatch):
+    def denied(*_args):
+        raise PermissionError("first pipe instance exists")
+
+    monkeypatch.setattr(link.mpc, "Listener", denied)
+    with pytest.raises(AutomationError, match="another dj-digger is already connected"):
+        link.Listener(link.PIPE_PREFIX + "dj-digger-test", KEY).start()
+
+
 def test_oversized_command_is_refused_locally(listener, address):
     client = connect(address)
     session = listener.session(2)

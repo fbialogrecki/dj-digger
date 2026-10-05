@@ -231,7 +231,8 @@ def _wait_for_oauth_cookie(
 
     rejected_tokens = set() if rejected_tokens is None else rejected_tokens
     context.show()
-    context.new_page().goto(SOUNDCLOUD_SIGN_IN_URL)
+    page = context.new_page()
+    page.goto(SOUNDCLOUD_SIGN_IN_URL)
     deadline = time.monotonic() + timeout
     status("Log in to SoundCloud in your browser. Waiting for completion…")
     while time.monotonic() < deadline:
@@ -248,6 +249,11 @@ def _wait_for_oauth_cookie(
                     "That SoundCloud session is no longer valid. Log in again "
                     "in your browser…"
                 )
+        elif page.is_closed() or context.is_closed():
+            # The cookie read above delivered the browser's events, so a closed tab or work window is seen here.
+            raise SoundCloudAuthError(
+                "The SoundCloud sign-in tab was closed; no credentials were saved."
+            )
     raise SoundCloudAuthError(
         f"SoundCloud login timed out after {timeout / 60:g} minutes; "
         "no credentials were saved."

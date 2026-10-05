@@ -67,7 +67,9 @@ crate-digging headless CLI and Qt Quick desktop (`dj-digger-gui`).
 - `dj_digger/db.py`, `schema.py`, `state.py`, `scanner.py`, `config.py`: SQLite
   state, crates, local-file matching, and preferences.
 - `dj_digger/auth.py`, `spotify.py`, `gates/`, `stores/`, `http.py`, `browser.py`: external
-  authentication, gate/store integrations, browser handoff, and cart safety.
+  authentication, gate/store integrations, URL handoff to the user's browser, and cart safety.
+- `dj_digger/webext/`: the browser extension (`extension/`), its native-host relay, the app-side
+  socket `link.py`, and the Playwright-shaped page adapter that gates, login, and cart drive.
 - `tests/`: offline suite plus explicitly marked live contract checks.
 - `.github/workflows/`: CI, scheduled live monitoring, and PyPI publishing.
 
@@ -95,10 +97,12 @@ crate-digging headless CLI and Qt Quick desktop (`dj-digger-gui`).
 - Do not publish, deploy, create a release, run production migrations, or invoke
   live/write-capable third-party flows unless the user explicitly requests it.
 - Do not delete or rewrite user databases, config, credentials, managed browser
-  profiles, downloads, or music files.
+  profiles left by older versions, the user's browser data, downloads, or music files.
 - Do not run live pytest markers as part of the default verification command.
 - Do not weaken URL, credential, file-download, gate-consent, or cart-mutation
   boundaries to make a test pass.
+- Never broaden `allowlist.json`/`host_permissions`, or add remote code, external
+  messaging, or generic cookie access to the extension, without an explicit user request.
 
 ## Verification
 

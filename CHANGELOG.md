@@ -59,7 +59,14 @@
   written for pages above 2 MB.
 - The SoundCloud login reads the `oauth_token` cookie from your browser (no
   window when it is still valid) and otherwise opens the sign-in page in the
-  work window, waiting up to five minutes as before.
+  work window, waiting up to five minutes as before; closing that sign-in
+  tab ends the wait at once and saves nothing.
+- Every automation run (cart, gate batch, SoundCloud login) has its own work
+  window, so one no longer closes another's pages; a window you close by hand
+  is reopened for the next cart batch. A second dj-digger (for example with
+  another data directory) no longer takes over the extension socket of a
+  running one and is told "another dj-digger is already connected to the
+  browser extension".
 - Gate social actions now act on the accounts you are logged in to in your
   browser. A Connect step (Spotify, Deezer, Apple Music, Threads) you
   authorised for Hypeddit once completes without a prompt, and Hypeddit may

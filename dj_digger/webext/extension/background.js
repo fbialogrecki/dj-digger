@@ -83,33 +83,47 @@ function navigable(url) {
 
 // ---------------------------------------------------------------- registry of owned tabs
 
-const owned = new Map(); // tabId -> {popup}
+// One work window per session; several sessions (cart, gate batch, sign-in) run at once, each in its
+// own window, and a command only ever touches the window and tabs of its own windowId.
+const windows = new Map(); // windowId -> {visible, spare}; spare = blank tab reused by the first tab.new
+const owned = new Map(); // tabId -> {popup, windowId}; a popup belongs to its opener's window
 const downloads = new Map(); // attributed downloadId -> tabId
-let win = null; // {id, visible}
-let spare = null; // blank tab of a fresh window, reused by the first tab.new
+const closing = new Set(); // tabs the checkout guard is already closing
 const persist = () =>
   api.storage.session
-    .set({ djdRegistry: { win, spare, owned: [...owned], downloads: [...downloads] } })
+    .set({ djdRegistry: { windows: [...windows], owned: [...owned], downloads: [...downloads] } })
     .catch(() => {});
 const setStatus = (s) => api.storage.session.set({ djdStatus: { instance: INSTANCE, since: Date.now(), ...s } }).catch(() => {});
 
+// A restarted background has a new INSTANCE, so the app has ended every session of the old one: the
+// windows it left behind belong to nobody and are closed (a window of a live session is never here).
 async function restore() {
   const { djdRegistry: r } = await api.storage.session.get("djdRegistry");
   if (!r) return;
-  for (const [id, v] of r.owned) {
-    if (await api.tabs.get(id).catch(() => null)) owned.set(id, v);
-  }
-  if (r.win && (await api.windows.get(r.win.id).catch(() => null))) win = r.win;
-  if (owned.has(r.spare)) spare = r.spare;
-  for (const [id, tabId] of r.downloads) downloads.set(id, tabId);
-}
-async function closeAll() {
-  const ids = [...owned.keys()];
-  owned.clear();
-  win = null;
-  spare = null;
-  for (const id of ids) await api.tabs.remove(id).catch(() => {});
+  for (const [id] of r.owned ?? []) await api.tabs.remove(id).catch(() => {});
+  for (const [id] of r.windows ?? []) await api.windows.remove(id).catch(() => {});
+  for (const [id, tabId] of r.downloads ?? []) downloads.set(id, tabId);
   persist();
+}
+function workWindow(windowId) {
+  const w = windows.get(windowId);
+  if (!w) throw new Err("no_window", "no such work window, call window.open first");
+  return w;
+}
+// Ends one work window: its tabs (popups elsewhere included) are closed and reported with tab.removed,
+// then window.removed. Used for window.close, a window the user closed by hand and app-offline.
+async function dropWindow(windowId) {
+  if (!windows.delete(windowId)) return; // not ours, or already dropped: never touch it
+  const ids = [...owned].filter(([, v]) => v.windowId === windowId).map(([id]) => id);
+  for (const id of ids) {
+    owned.delete(id);
+    closing.delete(id);
+    emit({ event: "tab.removed", tabId: id });
+  }
+  emit({ event: "window.removed", windowId });
+  persist();
+  await Promise.all(ids.map((id) => api.tabs.remove(id).catch(() => {})));
+  await api.windows.remove(windowId).catch(() => {}); // already gone is fine
 }
 function need(tabId) {
   if (!owned.has(tabId)) throw new Err("not_owned", "tab is not owned by dj-digger");
@@ -204,6 +218,11 @@ function enqueue(tabId, job) {
 
 function onMessage(m) {
   if (!m || typeof m !== "object") return;
+  if (m.event === "app-offline") {
+    // the relay lost the app: its sessions are over, leave no work window behind
+    for (const id of [...windows.keys()]) dropWindow(id);
+    return;
+  }
   if (m.cmd === "cancel") {
     running.get(m.args?.id)?.abort();
     return send({ id: m.id, ok: true, result: null });
@@ -314,51 +333,54 @@ async function navigate(tabId, start, timeoutMs, ctx) {
   }
 }
 
+const gone = () => {
+  throw new Err("no_window", "work window is gone, call window.open again");
+};
 const domCommand = (op) => (a, ctx) => runDom(op, a, ctx);
 const commands = {
   async "window.open"({ visible }) {
-    await closeAll(); // leftovers of a session that never ended
+    // always a NEW window: the windows of other sessions are none of its business
     const w = await api.windows.create({ url: "about:blank", ...(visible ? { focused: true } : hiddenProps()) });
-    win = { id: w.id, visible: !!visible };
-    spare = (w.tabs ?? (await api.tabs.query({ windowId: w.id })))[0].id;
-    owned.set(spare, { popup: false });
+    const spare = (w.tabs ?? (await api.tabs.query({ windowId: w.id })))[0].id;
+    windows.set(w.id, { visible: !!visible, spare });
+    owned.set(spare, { popup: false, windowId: w.id });
     persist();
     return { windowId: w.id };
   },
-  async "window.show"() {
-    if (!win) throw new Err("no_window", "no work window");
-    await api.windows.update(win.id, { state: "normal", focused: true });
-    win.visible = true;
+  async "window.show"({ windowId }) {
+    const w = workWindow(windowId);
+    await api.windows.update(windowId, { state: "normal", focused: true }).catch(gone);
+    w.visible = true;
     persist();
     return null;
   },
-  async "window.hide"() {
-    if (!win) throw new Err("no_window", "no work window");
-    await api.windows.update(win.id, { state: HIDDEN_STATE, ...hiddenProps() });
-    win.visible = false;
+  async "window.hide"({ windowId }) {
+    const w = workWindow(windowId);
+    await api.windows.update(windowId, { state: HIDDEN_STATE, ...hiddenProps() }).catch(gone);
+    w.visible = false;
     persist();
     return null;
   },
-  async "window.close"() {
-    await closeAll(); // not in plan section 3: ends a session (closing the last tab would also do it)
+  async "window.close"({ windowId }) {
+    await dropWindow(windowId); // not in plan section 3: ends a session; unknown or closed already is fine
     return null;
   },
-  async "tab.new"({ url }) {
+  async "tab.new"({ windowId, url }) {
     const target = url ? navigable(url) : "about:blank";
-    if (!win) throw new Err("no_window", "call window.open first");
+    const w = workWindow(windowId);
     let tab;
     try {
-      if (spare !== null) {
-        const id = spare;
-        spare = null;
+      if (w.spare !== null) {
+        const id = w.spare;
+        w.spare = null;
         tab = target === "about:blank" ? await api.tabs.get(id) : await api.tabs.update(id, { url: target });
       } else {
-        tab = await api.tabs.create({ windowId: win.id, url: target, active: false });
+        tab = await api.tabs.create({ windowId, url: target, active: false });
       }
     } catch {
       throw new Err("no_window", "work window is gone, call window.open again");
     }
-    owned.set(tab.id, { popup: false });
+    owned.set(tab.id, { popup: false, windowId });
     persist();
     return { tabId: tab.id };
   },
@@ -449,7 +471,7 @@ const on = (event, fn, ...extra) => event.addListener((...a) => ready.then(() =>
 on(api.tabs.onCreated, (tab) => {
   const opener = tab.openerTabId;
   if (opener == null || !owned.has(opener) || owned.has(tab.id)) return; // popup of an own tab
-  owned.set(tab.id, { popup: true });
+  owned.set(tab.id, { popup: true, windowId: owned.get(opener).windowId });
   persist();
   emit({ event: "tab.created", tabId: tab.id, openerTabId: opener, url: safeUrl(tab.pendingUrl || tab.url || "") });
 });
@@ -458,20 +480,14 @@ on(api.tabs.onUpdated, (tabId, change) => {
 });
 on(api.tabs.onRemoved, (tabId) => {
   if (!owned.delete(tabId)) return;
-  if (spare === tabId) spare = null;
+  for (const w of windows.values()) if (w.spare === tabId) w.spare = null;
   closing.delete(tabId);
   persist();
   emit({ event: "tab.removed", tabId });
 });
-on(api.windows.onRemoved, (windowId) => {
-  if (win?.id === windowId) {
-    win = null;
-    spare = null;
-  }
-});
+on(api.windows.onRemoved, dropWindow); // closed by hand: same events as window.close
 
 // Checkout guard: an own tab heading to a forbidden path is closed and reported.
-const closing = new Set();
 function guard(d) {
   if (!owned.has(d.tabId) || closing.has(d.tabId)) return;
   const u = parse(d.url);

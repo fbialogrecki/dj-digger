@@ -10,9 +10,10 @@ Only ``send_bytes``/``recv_bytes`` plus JSON are used on the sockets. The
 pickling ``send``/``recv`` would turn a leaked authkey into code execution, and
 a test greps this package for them.
 
-Callers must hold ``InstanceLock`` (``dj_digger/instance.py``, taken in
-``cli.main`` and the GUI) before ``Listener.start()``: a stale socket file left
-by a crash is unlinked before ``bind``, which is only safe with a single owner.
+Callers hold ``InstanceLock`` (``dj_digger/instance.py``, taken in ``cli.main``
+and the GUI), but that lock is per data directory while the socket is per
+account. So ``Listener.start()`` unlinks an old socket file only when nothing
+answers on it and refuses with an ``AutomationError`` when another app does.
 
 Typical use by an adapter::
 
@@ -36,6 +37,7 @@ import os
 import queue
 import re
 import secrets
+import socket
 import stat
 import threading
 import time
@@ -59,6 +61,7 @@ RESTARTED = "browser extension restarted"
 SOCKET_PATH_LIMIT = 100  # sun_path is 104 bytes on macOS, 108 on Linux
 PIPE_PREFIX = "\\\\.\\pipe\\"
 SOCKET_NAME = "webext.sock"
+ANOTHER_APP = "another dj-digger is already connected to the browser extension"
 
 
 class ExtensionMissing(AutomationError):
@@ -117,11 +120,25 @@ def _prepare_directory(address: str) -> None:
     if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid():
         raise AutomationError("Refusing a socket directory that is not owned by this user")
     os.chmod(directory, 0o700)
-    try:  # a crash left the old socket behind; the InstanceLock holder owns it
-        if stat.S_ISSOCK(os.lstat(address).st_mode):
-            os.unlink(address)
+    try:
+        if not stat.S_ISSOCK(os.lstat(address).st_mode):
+            return
     except FileNotFoundError:
+        return
+    # Another app (a second data directory, a test fixture) may be listening: only a socket
+    # that refuses connections is a crash leftover. Anything else, a busy listener included, stays.
+    probe = socket.socket(socket.AF_UNIX)
+    try:
+        probe.settimeout(1.0)
+        probe.connect(address)
+    except (ConnectionRefusedError, FileNotFoundError):
+        os.unlink(address)
+        return
+    except OSError:
         pass
+    finally:
+        probe.close()
+    raise AutomationError(ANOTHER_APP)
 
 
 def _settle(future: Future, *, result: Any = None, error: BaseException | None = None) -> None:
@@ -350,8 +367,8 @@ class Connection:
         elif "event" in frame:
             with self._lock:
                 sessions = list(self._sessions)
-            # ponytail: every event goes to every session of this connection;
-            # adapters filter by tabId. Per-session routing if two ever overlap.
+            # ponytail: every event goes to every session of this connection (several run at
+            # once); adapters filter by tabId / windowId. Per-session routing if that gets costly.
             for session in sessions:
                 session._deliver(frame)
 
@@ -402,7 +419,14 @@ class Listener:
             _prepare_directory(self.address)
         self._closing = False
         # No authkey here: Connection._run does the (mutual) handshake itself.
-        self._listener = mpc.Listener(self.address, family)
+        try:
+            self._listener = mpc.Listener(self.address, family)
+        except PermissionError as exc:
+            if family != "AF_PIPE":
+                raise
+            # ponytail: multiprocessing creates the first pipe instance with FILE_FLAG_FIRST_PIPE_INSTANCE,
+            # so a second server of that name is denied; not testable on Linux beyond this mapping
+            raise AutomationError(ANOTHER_APP) from exc
         if family == "AF_UNIX":
             try:
                 os.chmod(self.address, 0o600)

@@ -64,9 +64,9 @@ class FakeExtension:
         self._changed = threading.Condition()
         self.requests: list[dict] = []
         self.cancels: list[int] = []
-        tabs = itertools.count(100)
+        tabs, windows = itertools.count(100), itertools.count(1)
         self.handlers = {
-            "window.open": lambda args: {"windowId": 1},
+            "window.open": lambda args: {"windowId": next(windows)},
             "window.close": lambda args: None,
             "tab.new": lambda args: {"tabId": next(tabs)},
         }
@@ -772,6 +772,127 @@ def test_a_failing_window_open_raises_and_leaves_nothing_behind(world):
     with pytest.raises(webpage.PageError):
         webpage.ExtensionContext.open(False, listener)
     assert listener.connections()[0]._sessions == []
+
+
+# -- several sessions at once: one work window each ---------------------------------------
+
+
+def test_every_session_commands_only_its_own_window(world):
+    listener, ext = world
+    ext.handlers["window.show"] = lambda a: None
+    ext.handlers["window.hide"] = lambda a: None
+    with webpage.session(False, listener) as first, webpage.session(True, listener) as second:
+        ids = [r["args"] for r in ext.commands("window.open")]
+        assert ids == [{"visible": False}, {"visible": True}]  # opening one never closes the other
+        assert not ext.commands("window.close")
+        a, b = first._window_id, second._window_id
+        assert a != b
+        first.new_page()
+        second.new_page()
+        first.show()
+        second.hide()
+        assert [r["args"] for r in ext.commands("tab.new")] == [{"windowId": a}, {"windowId": b}]
+        assert [r["args"] for r in ext.commands("window.show")] == [{"windowId": a}]
+        assert [r["args"] for r in ext.commands("window.hide")] == [{"windowId": b}]
+        first.close()
+        assert [r["args"] for r in ext.commands("window.close")] == [{"windowId": a}]
+        assert first.is_closed() and not second.is_closed()
+        survivor = second.new_page()  # the other session still works
+        assert ext.commands("tab.new")[-1]["args"] == {"windowId": b} and not survivor.is_closed()
+    assert [r["args"] for r in ext.commands("window.close")] == [{"windowId": a}, {"windowId": b}]
+
+
+def test_a_window_removed_event_closes_only_the_context_it_names(world):
+    listener, ext = world
+    with webpage.session(False, listener) as first, webpage.session(False, listener) as second:
+        page = second.new_page()
+        ext.emit("window.removed", windowId=first._window_id)
+        ext.emit("window.removed")  # malformed: no id
+        ext.emit("tab.error", tabId=424242, code="forbidden_path")  # somebody else's tab: ignored
+        first._wait(0.1)
+        second._wait(0.1)
+        assert first.is_closed()  # its own window id: the one the browser reported
+        assert not second.is_closed() and not page.is_closed()
+
+
+def _window_closed_by_hand(ext, context, *tabs):
+    for tab_id in tabs:
+        ext.emit("tab.removed", tabId=tab_id)
+    ext.emit("window.removed", windowId=context._window_id)
+
+
+def test_a_window_closed_by_hand_closes_the_pages_and_fires_close_once(world):
+    listener, ext = world
+    with webpage.session(False, listener) as context, webpage.session(False, listener) as other:
+        page, bystander = context.new_page(), other.new_page()
+        closes, page_closes = [], []
+        context.on("close", closes.append)
+        page.on("close", page_closes.append)
+        ext.emit("tab.created", tabId=600, openerTabId=page._tab_id, url="https://hypeddit.com/")
+        _window_closed_by_hand(ext, context, page._tab_id)  # the popup is reported by window.removed alone
+        context._wait(0.15)
+        assert context.is_closed() and page.is_closed() and context.pages == []
+        assert closes == [context] and page_closes == [page]
+        with pytest.raises(AutomationError, match="closed"):
+            page.wait_for_timeout(10)
+        other._wait(0.1)
+        assert not other.is_closed() and not bystander.is_closed()
+    ext.wait_for("window.close", 1)
+    assert [r["args"] for r in ext.commands("window.close")] == [{"windowId": other._window_id}]
+    assert closes == [context]  # leaving the block did not fire it again
+
+
+def test_window_close_reports_its_tabs_and_the_async_context_follows(world):
+    listener, ext = world
+
+    def closing(args):
+        ext.emit("tab.removed", tabId=args["windowId"] * 1000)
+        ext.emit("window.removed", windowId=args["windowId"])
+
+    ext.handlers["window.close"] = closing
+    ext.handlers["tab.new"] = lambda a: {"tabId": a["windowId"] * 1000}
+
+    async def scenario():
+        context = await webpage.AsyncExtensionContext.open(False, listener)
+        page = await context.new_page()
+        closes = []
+        context.on("close", closes.append)
+        await context.close()
+        await asyncio.sleep(0.1)  # the late events find a closed context
+        assert page.is_closed() and context.is_closed() and closes == [context]
+
+    asyncio.run(scenario())
+
+
+def test_the_cart_session_reopens_its_window_after_it_was_closed(world):
+    from dj_digger.services.purchases import CartBrowserSession
+
+    listener, ext = world
+    webpage.set_listener(listener)
+
+    async def scenario():
+        cart = CartBrowserSession()
+        first = await cart._ensure_context()
+        pages = await cart._work_pages(2)
+        assert first is await cart._ensure_context() and len(pages) == 2
+        ext.emit("window.removed", windowId=first._window_id)  # the user closed the work window
+        for _ in range(100):
+            if first.is_closed():
+                break
+            await asyncio.sleep(0.02)
+        assert first.is_closed() and all(page.is_closed() for page in pages)
+        assert cart._context is None and cart._owned_pages == []
+        again = await cart._ensure_context()
+        assert again is not first and again._window_id != first._window_id
+        assert [page.is_closed() for page in await cart._work_pages(2)] == [False, False]
+        await cart.close()
+
+    try:
+        asyncio.run(scenario())
+    finally:
+        webpage.set_listener(None)
+    assert len(ext.commands("window.open")) == 2
+    assert [r["args"] for r in ext.commands("window.close")] == [{"windowId": 2}]
 
 
 def _product_page(ext):
