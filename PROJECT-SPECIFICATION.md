@@ -5,8 +5,8 @@
 - Product version verified: 1.4.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-10-07
-- Document lines: <!-- SPEC TOTAL LINES -->2146<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->2146<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->2151<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->2151<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,65 +51,65 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 144–189 |
 | 2.1 | ↳ Problem and product boundary | 146–159 |
 | 2.2 | ↳ Execution modes | 160–189 |
-| 3 | User-visible capabilities | 190–1021 |
+| 3 | User-visible capabilities | 190–1026 |
 | 3.1 | ↳ Track collection | 192–217 |
 | 3.2 | ↳ Link classification and exports | 218–236 |
 | 3.3 | ↳ Track statuses | 237–247 |
 | 3.4 | ↳ Audio preview | 248–419 |
 | 3.5 | ↳ Downloads and local-file matching | 420–458 |
-| 3.6 | ↳ Store purchase assistance | 459–557 |
-| 3.7 | ↳ Local library, analysis and audio export | 558–729 |
-| 3.8 | ↳ Qt Quick desktop | 730–1021 |
-| 4 | System context and data flow | 1022–1066 |
-| 4.1 | ↳ Context diagram | 1024–1050 |
-| 4.2 | ↳ Collection-to-library flow | 1051–1066 |
-| 5 | Repository layout and component ownership | 1067–1153 |
-| 5.1 | ↳ Entry, orchestration, and models | 1069–1080 |
-| 5.2 | ↳ Network and external-system adapters | 1081–1112 |
-| 5.3 | ↳ Persistence, local media, and UI | 1113–1153 |
-| 6 | Runtime architecture and environments | 1154–1297 |
-| 6.1 | ↳ Runtime and dependencies | 1156–1184 |
-| 6.2 | ↳ Concurrency and lifecycle | 1185–1262 |
-| 6.3 | ↳ Local paths and environment variables | 1263–1297 |
-| 7 | Data model and persistence | 1298–1407 |
-| 7.1 | ↳ Domain objects and identity | 1300–1314 |
-| 7.2 | ↳ SQLite schema and invariants | 1315–1367 |
-| 7.3 | ↳ Crate persistence and deletion | 1368–1383 |
-| 7.4 | ↳ Configuration and credential stores | 1384–1407 |
-| 8 | Public interfaces and contracts | 1408–1465 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1410–1438 |
-| 8.2 | ↳ JSON and CSV summary input | 1439–1454 |
-| 8.3 | ↳ URL-opening contract | 1455–1465 |
-| 9 | Authentication and authorization | 1466–1529 |
-| 9.1 | ↳ SoundCloud authentication | 1468–1499 |
-| 9.2 | ↳ Gate action consent | 1500–1529 |
-| 10 | External integrations | 1530–1757 |
-| 10.1 | ↳ SoundCloud API and media | 1532–1543 |
-| 10.2 | ↳ Link hubs and download gates | 1544–1632 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1552–1618 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1620–1625 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1627–1632 |
-| 10.3 | ↳ Browsers and clipboard | 1633–1704 |
-| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 1705–1757 |
-| 11 | Security requirements and threat model | 1758–1861 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1760–1778 |
-| 11.2 | ↳ Secret and personal-data handling | 1779–1794 |
-| 11.3 | ↳ File and mutation safety | 1795–1816 |
-| 11.4 | ↳ Browser-extension trust boundary | 1817–1861 |
-| 12 | Privacy, lifecycle, and retention | 1862–1914 |
-| 12.1 | ↳ Data stored locally | 1864–1888 |
-| 12.2 | ↳ Data sent to third parties | 1889–1901 |
-| 12.3 | ↳ User-controlled deletion | 1902–1914 |
-| 13 | Failure behavior and current limitations | 1915–2013 |
-| 13.1 | ↳ Error isolation and reporting | 1917–1938 |
-| 13.2 | ↳ Confirmed limitations | 1939–2013 |
-| 14 | Verification, CI, and release | 2014–2112 |
-| 14.1 | ↳ Offline and live test suites | 2016–2064 |
-| 14.2 | ↳ Continuous integration and publishing | 2065–2097 |
-| 14.3 | ↳ Specification-map verification | 2098–2112 |
-| 15 | Evidence and operational references | 2113–2146 |
-| 15.1 | ↳ Primary implementation evidence | 2115–2136 |
-| 15.2 | ↳ User and historical documentation | 2137–2146 |
+| 3.6 | ↳ Store purchase assistance | 459–562 |
+| 3.7 | ↳ Local library, analysis and audio export | 563–734 |
+| 3.8 | ↳ Qt Quick desktop | 735–1026 |
+| 4 | System context and data flow | 1027–1071 |
+| 4.1 | ↳ Context diagram | 1029–1055 |
+| 4.2 | ↳ Collection-to-library flow | 1056–1071 |
+| 5 | Repository layout and component ownership | 1072–1158 |
+| 5.1 | ↳ Entry, orchestration, and models | 1074–1085 |
+| 5.2 | ↳ Network and external-system adapters | 1086–1117 |
+| 5.3 | ↳ Persistence, local media, and UI | 1118–1158 |
+| 6 | Runtime architecture and environments | 1159–1302 |
+| 6.1 | ↳ Runtime and dependencies | 1161–1189 |
+| 6.2 | ↳ Concurrency and lifecycle | 1190–1267 |
+| 6.3 | ↳ Local paths and environment variables | 1268–1302 |
+| 7 | Data model and persistence | 1303–1412 |
+| 7.1 | ↳ Domain objects and identity | 1305–1319 |
+| 7.2 | ↳ SQLite schema and invariants | 1320–1372 |
+| 7.3 | ↳ Crate persistence and deletion | 1373–1388 |
+| 7.4 | ↳ Configuration and credential stores | 1389–1412 |
+| 8 | Public interfaces and contracts | 1413–1470 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1415–1443 |
+| 8.2 | ↳ JSON and CSV summary input | 1444–1459 |
+| 8.3 | ↳ URL-opening contract | 1460–1470 |
+| 9 | Authentication and authorization | 1471–1534 |
+| 9.1 | ↳ SoundCloud authentication | 1473–1504 |
+| 9.2 | ↳ Gate action consent | 1505–1534 |
+| 10 | External integrations | 1535–1762 |
+| 10.1 | ↳ SoundCloud API and media | 1537–1548 |
+| 10.2 | ↳ Link hubs and download gates | 1549–1637 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1557–1623 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1625–1630 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1632–1637 |
+| 10.3 | ↳ Browsers and clipboard | 1638–1709 |
+| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 1710–1762 |
+| 11 | Security requirements and threat model | 1763–1866 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1765–1783 |
+| 11.2 | ↳ Secret and personal-data handling | 1784–1799 |
+| 11.3 | ↳ File and mutation safety | 1800–1821 |
+| 11.4 | ↳ Browser-extension trust boundary | 1822–1866 |
+| 12 | Privacy, lifecycle, and retention | 1867–1919 |
+| 12.1 | ↳ Data stored locally | 1869–1893 |
+| 12.2 | ↳ Data sent to third parties | 1894–1906 |
+| 12.3 | ↳ User-controlled deletion | 1907–1919 |
+| 13 | Failure behavior and current limitations | 1920–2018 |
+| 13.1 | ↳ Error isolation and reporting | 1922–1943 |
+| 13.2 | ↳ Confirmed limitations | 1944–2018 |
+| 14 | Verification, CI, and release | 2019–2117 |
+| 14.1 | ↳ Offline and live test suites | 2021–2069 |
+| 14.2 | ↳ Continuous integration and publishing | 2070–2102 |
+| 14.3 | ↳ Specification-map verification | 2103–2117 |
+| 15 | Evidence and operational references | 2118–2151 |
+| 15.1 | ↳ Primary implementation evidence | 2120–2141 |
+| 15.2 | ↳ User and historical documentation | 2142–2151 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -492,10 +492,15 @@ terminals and accepts `Y`, `Enter`, or a button click to continue. A canonical
 Beatport `/track/<slug>/<numeric-id>` link is exact by its ID and is read on its own
 page; a release link is read in the user's browser and the track is matched in
 its page code (never by searching Beatport by artist and title). Beatport reads
-its price, version and artists from the add control's label (`Add track 'T' (Mix) by A
-to cart. Price: $1.49`), takes the control of that product's own row or, on a track
-page, the main control outside the recommendation rows, and tells a real cart row
-(one with a "Move to cart" control) from a recommendation. Not being signed in
+its price, version and artists from the page's server-rendered data (`__NEXT_DATA__`),
+which is there before the page hydrates and keeps the price once the track is in the
+cart, and from the add control's label (`Add track 'T' (Mix) by A to cart. Price:
+$1.49`); it takes the control of that product's own row or, on a track page, the main
+control outside the recommendation rows. A control reading `Track 'T' is already in
+your cart` marks the item as already in the cart; otherwise the cart page decides
+(`/cart` moves on to `/cart/cart/<id>` client-side, the rows render after the header
+counter), telling a real cart row (one with a "Move to cart" control) from a
+recommendation. Not being signed in
 (`/cart` redirects to the home page), a security challenge, or no exact ID in the
 page code makes the item a playlist entry that keeps an exact track URL when there
 is one, with artist/title metadata otherwise.

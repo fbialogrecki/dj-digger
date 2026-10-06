@@ -217,6 +217,17 @@ async function start(fake = fakeBrowser()) {
   assert.ok(second.wins.has(mine.windowId) && second.tabs.has(mine.id)); // the user's window stays
   assert.deepEqual([second.session.djdRegistry.windows, second.session.djdRegistry.owned], [[], []]);
 
+  // an aborted navigation superseded by the site's next one that loads is a success (Beatport)
+  x = await start();
+  const nw = (await x.call("window.open", {})).result.windowId;
+  const nt = (await x.call("tab.new", { windowId: nw })).result.tabId;
+  const going = x.call("tab.goto", { tabId: nt, url: "https://www.beatport.com/track/a/1" });
+  await tick();
+  x.e["webNavigation.onErrorOccurred"].fire({ tabId: nt, frameId: 0, error: "net::ERR_ABORTED" });
+  x.e["webNavigation.onCommitted"].fire({ tabId: nt, frameId: 0 });
+  x.e["webNavigation.onDOMContentLoaded"].fire({ tabId: nt, frameId: 0 });
+  assert.equal((await going).ok, true);
+
   // a download from a CDN webRequest never saw is the own tab's whose origin is its referrer
   x = await start();
   const w = (await x.call("window.open", {})).result.windowId;

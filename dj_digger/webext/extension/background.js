@@ -307,12 +307,13 @@ async function runDom(op, a, ctx) {
 
 // Navigation: listeners go in before the navigation starts. Ready = DOMContentLoaded of the
 // top frame after its commit; status = last main_frame onCompleted; errors from webNavigation.
+const ABORT_GRACE_MS = 3000;
 async function navigate(tabId, start, timeoutMs, ctx) {
   const st = { committed: false, dcl: false, status: null, error: null };
   const top = (d) => d.tabId === tabId && d.frameId === 0;
   const onCommitted = (d) => top(d) && (st.committed = true);
   const onDcl = (d) => top(d) && st.committed && (st.dcl = true);
-  const onError = (d) => top(d) && (st.error = d.error);
+  const onError = (d) => top(d) && Object.assign(st, { error: d.error, errorAt: Date.now() });
   const onCompleted = (d) => (st.status = d.statusCode);
   const filter = { urls: manifest.host_permissions, tabId, types: ["main_frame"] };
   api.webNavigation.onCommitted.addListener(onCommitted);
@@ -321,8 +322,12 @@ async function navigate(tabId, start, timeoutMs, ctx) {
   api.webRequest.onCompleted.addListener(onCompleted, filter);
   try {
     await start();
-    await pollUntil(() => st.error || st.dcl, timeoutMs, ctx.signal, "page load");
-    if (st.error) throw new Err("navigation_failed", st.error);
+    // An aborted navigation is often just superseded by the site's own next one (Beatport track to
+    // track): wait a little for that one to load before reporting the abort.
+    const settled = () =>
+      st.dcl || (st.error && (st.error !== "net::ERR_ABORTED" || Date.now() - st.errorAt > ABORT_GRACE_MS));
+    await pollUntil(settled, timeoutMs, ctx.signal, "page load");
+    if (!st.dcl) throw new Err("navigation_failed", st.error);
     if (st.status === null) await sleep(300); // onCompleted can trail DOMContentLoaded
     return { url: safeUrl(currentUrl(await getTab(tabId))), status: st.status };
   } finally {

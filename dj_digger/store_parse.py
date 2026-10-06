@@ -168,6 +168,9 @@ def products_from_html(html: str, page_url: str, store: str) -> list[StoreProduc
         by_id[product.product_id] = product
 
     if store == "beatport":
+        for product_id, product in _beatport_data_products(soup, page_url).items():
+            earlier = by_id.get(product_id)
+            by_id[product_id] = product.merged_over(earlier) if earlier else product
         for product_id, product in _beatport_anchor_products(soup, page_url).items():
             by_id.setdefault(product_id, product)
 
@@ -203,11 +206,76 @@ def _bandcamp_tralbum_products(
     return by_id, _decimal(current.get("minimum_price"))
 
 
+def beatport_title(name: str, mix: str | None) -> str:
+    """A Beatport title as SoundCloud writes it: the default mix is left out."""
+
+    return f"{name} ({mix})" if mix and mix.casefold() != "original mix" else name
+
+
+def _beatport_data_products(soup: Any, page_url: str) -> dict[str, StoreProduct]:
+    """Tracks from the page's server-rendered data (``__NEXT_DATA__``).
+
+    Unlike the add controls, it is there before the page hydrates and still has
+    the price once the track is in the cart (the control then states none).
+    Release rows and recommendations are whole track objects; a track page's
+    own track is split over ``pageProps.track`` (price, mix, artists) and the
+    ``track_name`` of its details.
+    """
+
+    script = soup.find("script", id="__NEXT_DATA__")
+    try:
+        data = json.loads(script.string or "") if script else None
+    except ValueError:
+        return {}
+
+    def product(url: str, product_id: str, node: dict, name: Any) -> StoreProduct | None:
+        price = node.get("price")
+        if not (isinstance(price, dict) and isinstance(name, str) and name and product_id.isdigit()):
+            return None
+        artists = ", ".join(
+            str(a.get("name")) for a in node.get("artists") or [] if isinstance(a, dict) and a.get("name")
+        )
+        currency = str(price.get("code") or price.get("currency") or "").upper()
+        return StoreProduct(
+            "beatport", url, product_id, beatport_title(name, node.get("mix_name")), artists,
+            _decimal(price.get("value")), currency,
+        )
+
+    by_id: dict[str, StoreProduct] = {}
+    stack, details = [data], {}
+    while stack:
+        node = stack.pop()
+        if isinstance(node, list):
+            stack.extend(node)
+            continue
+        if not isinstance(node, dict):
+            continue
+        stack.extend(node.values())
+        if isinstance(node.get("track_id"), int):
+            details[str(node["track_id"])] = node.get("track_name")
+        slug = node.get("slug")
+        if isinstance(node.get("id"), int) and "mix_name" in node and isinstance(slug, str):
+            url = f"https://www.beatport.com/track/{slug}/{node['id']}"
+            found = product(url, str(node["id"]), node, node.get("name")) if is_store_url(url, "beatport") else None
+            if found is not None:
+                by_id[found.product_id] = found
+    page_id = _beatport_track_id(page_url) if "/track/" in urlparse(page_url).path else ""
+    own = ((data or {}).get("props") or {}).get("pageProps", {}).get("track") if isinstance(data, dict) else None
+    if page_id and isinstance(own, dict):
+        url = urlparse(page_url)._replace(query="", fragment="").geturl()
+        found = product(url, page_id, own, own.get("name") or details.get(page_id))
+        if found is not None:
+            by_id[page_id] = found
+    return by_id
+
+
 def _beatport_anchor_products(soup: Any, page_url: str) -> dict[str, StoreProduct]:
     """Track products scraped straight off Beatport anchors."""
 
     by_id: dict[str, StoreProduct] = {}
     for anchor in soup.find_all("a", href=True):
+        if str(anchor.get("href")).startswith("#"):
+            continue  # "Skip to main content" points into the page itself
         url = urljoin(page_url, str(anchor.get("href") or "")).split("#", 1)[0]
         if not is_store_url(url, "beatport") or "/track/" not in urlparse(url).path:
             continue

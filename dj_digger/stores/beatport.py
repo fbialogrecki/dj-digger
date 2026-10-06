@@ -23,7 +23,7 @@ from ..cart_models import (
     VerifyOutcome,
 )
 from ..store_match import _normalise
-from ..store_parse import _currency_from_text, _decimal
+from ..store_parse import _currency_from_text, _decimal, beatport_title
 from ..store_urls import _beatport_track_id
 from ..webext.page import ACTION_TIMEOUT_MS
 from . import bandcamp
@@ -31,14 +31,16 @@ from . import bandcamp
 BEATPORT_CART_URL = "https://www.beatport.com/cart"
 # Release rows (narrow windows render list items) and the cart page's rows.
 ROWS = '[data-testid="tracks-table-row"], [data-testid="tracks-list-item"]'
-ADD = 'button[aria-label^="Add track"]'
+# The add control, or what it turns into once the track is in the cart.
+ADD = 'button[aria-label^="Add track"], button[aria-label$="is already in your cart"]'
 # A track page's own control; the recommendations below it are rows with theirs.
-MAIN_ADD = ADD + ':not([data-testid="tracks-table-row"] *):not([data-testid="tracks-list-item"] *)'
+MAIN_ADD = f':is({ADD}):not([data-testid="tracks-table-row"] *):not([data-testid="tracks-list-item"] *)'
 CART_LINK = 'a[data-testid="header-mainnav-link-cart"]'
 # A real cart row has a "Move to cart" control; a recommendation has "Add track ...".
 CART_ROW_MARK = '[aria-label="Move to cart"]'
 # Add track 'SPACESHIP' (Original Mix) by Artist, Other to cart. Price: $1.49
 ADD_LABEL = re.compile(r"Add track '(.*)'(?: \((.*)\))? by (.*) to cart\. Price: (.+)", re.DOTALL)
+IN_CART_LABEL = re.compile(r"Track '.*' is already in your cart", re.DOTALL)
 MAX_ROWS = 200
 
 
@@ -52,10 +54,7 @@ def parse_add_label(label: str) -> tuple[str, str, Decimal, str] | None:
     if match is None or price is None or not currency:
         return None
     title, version, artist, _price = match.groups()
-    # SoundCloud titles leave the default mix out, like the release's own anchors do.
-    if version and version.casefold() != "original mix":
-        title = f"{title} ({version})"
-    return title, artist, price, currency
+    return beatport_title(title, version), artist, price, currency
 
 
 def _on_track_page(page: Any, product_id: str) -> bool:
@@ -148,18 +147,46 @@ async def _cart_rows(page: Any, product_id: str) -> tuple[bool, int]:
     return False, real
 
 
+async def _in_cart_here(page: Any, product_id: str) -> bool:
+    """Whether the product's own page says it is in the cart.
+
+    Only a yes counts: before the page hydrates the control offers "Add" either way.
+    """
+
+    if not _on_track_page(page, product_id):
+        return False
+    found = await add_control_async(page, product_id)
+    return bool(found and IN_CART_LABEL.fullmatch(found[1].strip()))
+
+
+async def _open_cart(page: Any) -> None:
+    """The cart page; /cart moves on to /cart/cart/<id> client-side, or home when signed out."""
+
+    await bandcamp._navigate_async(page, BEATPORT_CART_URL, "beatport")
+
+    async def settled() -> bool:
+        return urlparse(page.url).path != "/cart"
+
+    await bandcamp._poll_async(settled, 8.0)
+    if not urlparse(page.url).path.startswith("/cart/"):
+        raise NotLoggedIn("not logged in to Beatport")
+
+
 async def cart_contains_async(page: Any, item: CartItem, *, navigate: bool = True) -> bool:
     """Whether the signed-in account's cart holds the item; NotLoggedIn when it is not signed in."""
 
     if navigate:
-        await bandcamp._navigate_async(page, BEATPORT_CART_URL, "beatport")
-        if not urlparse(page.url).path.startswith("/cart"):
-            raise NotLoggedIn("not logged in to Beatport")
-    deadline = time.monotonic() + 3.0
+        if await _in_cart_here(page, item.product_id):
+            return True
+        await _open_cart(page)
+    count = await cart_count_async(page)
+    if count == 0:
+        return False
+    deadline = time.monotonic() + 8.0
     while True:
         found, real = await _cart_rows(page, item.product_id)
-        # A rendered list without the item is the answer; an empty one may still be loading.
-        if found or real or time.monotonic() >= deadline:
+        # The rows render after the counter; stop once all of them are there.
+        if found or (real and real >= (count or 1)) or time.monotonic() >= deadline:
             return found
         await asyncio.sleep(0.2)
 
@@ -209,7 +236,7 @@ async def verify_click_async(
         return await bandcamp._poll_async(grew, stages["count"])
 
     async def by_cart() -> bool:
-        await bandcamp._navigate_async(page, BEATPORT_CART_URL, "beatport")
+        await _open_cart(page)
         return await cart_contains_async(page, item, navigate=False)
 
     for name, check, seconds in (

@@ -82,6 +82,10 @@ class Shop:
             return read("release_page.html")
         if url == TRACK:
             text = read("track_page.html").replace("Price: $1.49", f"Price: {self.price}", 1)
+            if self.in_cart:  # the control then names no price; the page data still does
+                text = text.replace(
+                    f"Add track 'Signal' (Original Mix) by Test Artist to cart. Price: {self.price}",
+                    "Track 'Signal' is already in your cart", 1)
             return text.replace("Open cart, 0 items", f"Open cart, {self.count} items")
         if url == CART:
             return read("cart_page.html" if self.in_cart else "cart_page_without_item.html")
@@ -166,6 +170,16 @@ def test_track_page_main_button_is_chosen_over_look_alike_recommendations():
     # a direct link needs no title match: the id in the link is the product
     _page, item = resolve(Shop(), TRACK, "Some Other Title")
     assert (item.product_id, str(item.price)) == ("100001", "1.49")
+
+
+def test_a_track_already_in_the_cart_is_told_by_its_page_and_keeps_the_data_price():
+    shop = Shop()
+    shop.in_cart = True
+
+    page, item = resolve(shop, TRACK)
+
+    assert item.already_in_cart and (str(item.price), item.currency) == ("1.49", "USD")
+    assert page.url == TRACK  # its own control said so; the cart page was not needed
 
 
 def test_not_logged_in_is_a_playlist_fallback_that_keeps_an_exact_link():
