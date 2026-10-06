@@ -14,7 +14,7 @@ const ACTION_TIMEOUT_MS = 15000;
 const GOTO_TIMEOUT_MS = 30000;
 // Window used for the hidden pass. ponytail: spike R2 decides between "normal" (unfocused)
 // and "minimized", which throttles timers.
-const HIDDEN_STATE = "normal";
+const HIDDEN_STATE = "minimized"; // spike R2 on Wayland: an unfocused window still pops up
 const hiddenProps = () => (HIDDEN_STATE === "normal" ? { focused: false } : { state: HIDDEN_STATE });
 
 class Err extends Error {
@@ -337,11 +337,16 @@ const gone = () => {
   throw new Err("no_window", "work window is gone, call window.open again");
 };
 const domCommand = (op) => (a, ctx) => runDom(op, a, ctx);
+// Own tabs never make a sound: SoundCloud popups autoplay (spike R1).
+const mute = (tabId) => api.tabs.update(tabId, { muted: true }).catch(() => {});
 const commands = {
   async "window.open"({ visible }) {
     // always a NEW window: the windows of other sessions are none of its business
     const w = await api.windows.create({ url: "about:blank", ...(visible ? { focused: true } : hiddenProps()) });
+    // Wayland ignores focused:false and may map a window before minimizing it (spike R2)
+    if (!visible) await api.windows.update(w.id, hiddenProps()).catch(() => {});
     const spare = (w.tabs ?? (await api.tabs.query({ windowId: w.id })))[0].id;
+    mute(spare);
     windows.set(w.id, { visible: !!visible, spare });
     owned.set(spare, { popup: false, windowId: w.id });
     persist();
@@ -382,6 +387,7 @@ const commands = {
     }
     owned.set(tab.id, { popup: false, windowId });
     persist();
+    mute(tab.id);
     return { tabId: tab.id };
   },
   async "tab.goto"({ tabId, url, timeoutMs }, ctx) {
@@ -471,8 +477,14 @@ const on = (event, fn, ...extra) => event.addListener((...a) => ready.then(() =>
 on(api.tabs.onCreated, (tab) => {
   const opener = tab.openerTabId;
   if (opener == null || !owned.has(opener) || owned.has(tab.id)) return; // popup of an own tab
-  owned.set(tab.id, { popup: true, windowId: owned.get(opener).windowId });
+  const windowId = owned.get(opener).windowId;
+  owned.set(tab.id, { popup: true, windowId });
   persist();
+  mute(tab.id);
+  // a popup window of a hidden session is hidden too
+  if (tab.windowId !== windowId && windows.get(windowId)?.visible === false) {
+    api.windows.update(tab.windowId, hiddenProps()).catch(() => {});
+  }
   emit({ event: "tab.created", tabId: tab.id, openerTabId: opener, url: safeUrl(tab.pendingUrl || tab.url || "") });
 });
 on(api.tabs.onUpdated, (tabId, change) => {
@@ -520,10 +532,18 @@ function block(downloadId, tabId, reason) {
   blocked.add(downloadId);
   emit({ event: "download.blocked", downloadId, tabId, reason });
 }
-on(api.downloads.onCreated, (item) => {
-  const tabs = new Set(
+on(api.downloads.onCreated, async (item) => {
+  let tabs = new Set(
     recent.filter((r) => Date.now() - r.t < 60000 && (r.url === item.url || r.url === item.finalUrl)).map((r) => r.tabId)
   );
+  // Spike R5: a gate's file comes from a CDN outside host_permissions, so webRequest never
+  // sees it. Fall back to the page that started it: the one own (non-popup) tab on the
+  // referrer's allowlisted origin. The referrer is often cut to the origin, so match that.
+  const from = parse(item.referrer || "");
+  if (!tabs.size && from && groupOf(from)) {
+    const own = [...owned].filter(([, o]) => !o.popup).map(([id]) => api.tabs.get(id).catch(() => null));
+    tabs = new Set((await Promise.all(own)).filter((t) => t && parse(t.url)?.origin === from.origin).map((t) => t.id));
+  }
   if (tabs.size !== 1) return; // not attributable: ignored, never reported as a row's file
   const [tabId] = tabs;
   downloads.set(item.id, tabId);

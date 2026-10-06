@@ -177,6 +177,9 @@ def work_window(rig: Rig, visible: bool):
 def open_tab(rig: Rig, url: str) -> None:
     rig.tab = rig.call("tab.new", windowId=rig.window)["tabId"]
     result = rig.call("tab.goto", tabId=rig.tab, url=url, timeoutMs=30000)
+    if "/hot-or-not/" in str(result.get("url")):
+        # Hypeddit's first visit after a download lands on its poll; the app goes back once too.
+        result = rig.call("tab.goto", tabId=rig.tab, url=url, timeoutMs=30000)
     say(f"loaded: status={result.get('status')} url={result.get('url')}")
 
 

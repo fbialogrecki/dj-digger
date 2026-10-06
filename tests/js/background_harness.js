@@ -64,7 +64,10 @@ function fakeBrowser() {
         return { id, tabs: [newTab(id)] };
       },
       get: async (id) => (wins.has(id) ? { id } : Promise.reject(new Error("no window"))),
-      update: async (id) => (wins.has(id) ? { id } : Promise.reject(new Error("no window"))),
+      update: async (id, props) => {
+        calls.push(["windows.update", id, JSON.parse(JSON.stringify(props))]);
+        return wins.has(id) ? { id } : Promise.reject(new Error("no window"));
+      },
       remove: async (id) => {
         calls.push(["windows.remove", id]);
         if (!wins.has(id)) throw new Error("no window");
@@ -81,7 +84,7 @@ function fakeBrowser() {
         if (!wins.has(windowId)) throw new Error("no window");
         return newTab(windowId, { url });
       },
-      update: async (id, { url }) => Object.assign(tabs.get(id), url ? { url } : {}),
+      update: async (id, { url, muted }) => Object.assign(tabs.get(id), url ? { url } : {}, muted ? { muted } : {}),
       remove: async (id) => {
         calls.push(["tabs.remove", id]);
         if (!tabs.has(id)) throw new Error("no tab");
@@ -99,7 +102,7 @@ function fakeBrowser() {
       .map((n) => [n, e["webNavigation." + n]])),
     webRequest: Object.fromEntries(["onResponseStarted", "onBeforeRedirect", "onCompleted"]
       .map((n) => [n, e["webRequest." + n]])),
-    downloads: { onCreated: e["downloads.onCreated"], onChanged: e["downloads.onChanged"] },
+    downloads: { onCreated: e["downloads.onCreated"], onChanged: e["downloads.onChanged"], search: async () => [] },
     cookies: {},
   };
   return { api, e, port, sent, calls, tabs, wins, newTab, session };
@@ -137,7 +140,8 @@ async function start(fake = fakeBrowser()) {
   const a = (await x.call("window.open", { visible: false })).result.windowId;
   const b = (await x.call("window.open", { visible: true })).result.windowId;
   assert.notEqual(a, b);
-  assert.deepEqual(x.calls, []);
+  assert.deepEqual(x.calls, [["windows.update", a, { state: "minimized" }]]); // hidden one minimized again
+  x.calls.length = 0;
   const ta = (await x.call("tab.new", { windowId: a })).result.tabId;
   const tb = (await x.call("tab.new", { windowId: b, url: "https://bandcamp.com/" })).result.tabId;
   const tb2 = (await x.call("tab.new", { windowId: b })).result.tabId;
@@ -155,6 +159,9 @@ async function start(fake = fakeBrowser()) {
   await tick();
   assert.deepEqual(x.events("tab.created").map((m) => [m.tabId, m.openerTabId]), [[stray.id, ta]]);
   assert.equal((await x.call("tab.info", { tabId: stray.id })).ok, true);
+  // own tabs are muted, and a hidden session's popup window is minimized
+  assert.ok([ta, tb, tb2, stray.id].every((id) => x.tabs.get(id).muted));
+  assert.deepEqual(x.calls.filter((c) => c[1] === 77), [["windows.update", 77, { state: "minimized" }]]);
   x.wins.add(78);
   const user = x.newTab(78); // the user's own window and tab: never ours
   assert.equal((await x.call("tab.close", { tabId: user.id })).error.code, "not_owned");
@@ -209,6 +216,20 @@ async function start(fake = fakeBrowser()) {
   assert.ok(!second.wins.has(e1) && !second.tabs.has(t1));
   assert.ok(second.wins.has(mine.windowId) && second.tabs.has(mine.id)); // the user's window stays
   assert.deepEqual([second.session.djdRegistry.windows, second.session.djdRegistry.owned], [[], []]);
+
+  // a download from a CDN webRequest never saw is the own tab's whose origin is its referrer
+  x = await start();
+  const w = (await x.call("window.open", {})).result.windowId;
+  const gate = (await x.call("tab.new", { windowId: w })).result.tabId;
+  x.tabs.get(gate).url = "https://hypeddit.com/1rjvpc";
+  x.e["downloads.onCreated"].fire({ id: 7, url: "https://cdn.example/f.mp3", referrer: "https://hypeddit.com/", danger: "safe" });
+  await tick();
+  assert.deepEqual(x.events("download.created").map((m) => [m.downloadId, m.tabId]), [[7, gate]]);
+  // a referrer off the allowlist, or no own tab on its origin, is not attributed
+  x.e["downloads.onCreated"].fire({ id: 8, url: "https://cdn.example/g.mp3", referrer: "https://cdn.example/", danger: "safe" });
+  x.e["downloads.onCreated"].fire({ id: 9, url: "https://cdn.example/h.mp3", referrer: "https://bandcamp.com/", danger: "safe" });
+  await tick();
+  assert.equal(x.events("download.created").length, 1);
   console.log("ok");
 })().catch((error) => {
   console.error(error);
