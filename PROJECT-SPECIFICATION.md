@@ -4,9 +4,9 @@
 - Document version: 1.1
 - Product version verified: 1.4.0 (working tree)
 - Owner: Filip Białogrecki
-- Updated: 2026-10-05
-- Document lines: <!-- SPEC TOTAL LINES -->2129<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->2129<!-- END SPEC MAP LIMIT -->
+- Updated: 2026-10-07
+- Document lines: <!-- SPEC TOTAL LINES -->2146<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->2146<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,65 +51,65 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 144–189 |
 | 2.1 | ↳ Problem and product boundary | 146–159 |
 | 2.2 | ↳ Execution modes | 160–189 |
-| 3 | User-visible capabilities | 190–1011 |
+| 3 | User-visible capabilities | 190–1021 |
 | 3.1 | ↳ Track collection | 192–217 |
 | 3.2 | ↳ Link classification and exports | 218–236 |
 | 3.3 | ↳ Track statuses | 237–247 |
 | 3.4 | ↳ Audio preview | 248–419 |
 | 3.5 | ↳ Downloads and local-file matching | 420–458 |
-| 3.6 | ↳ Store purchase assistance | 459–547 |
-| 3.7 | ↳ Local library, analysis and audio export | 548–719 |
-| 3.8 | ↳ Qt Quick desktop | 720–1011 |
-| 4 | System context and data flow | 1012–1056 |
-| 4.1 | ↳ Context diagram | 1014–1040 |
-| 4.2 | ↳ Collection-to-library flow | 1041–1056 |
-| 5 | Repository layout and component ownership | 1057–1142 |
-| 5.1 | ↳ Entry, orchestration, and models | 1059–1070 |
-| 5.2 | ↳ Network and external-system adapters | 1071–1101 |
-| 5.3 | ↳ Persistence, local media, and UI | 1102–1142 |
-| 6 | Runtime architecture and environments | 1143–1288 |
-| 6.1 | ↳ Runtime and dependencies | 1145–1173 |
-| 6.2 | ↳ Concurrency and lifecycle | 1174–1253 |
-| 6.3 | ↳ Local paths and environment variables | 1254–1288 |
-| 7 | Data model and persistence | 1289–1398 |
-| 7.1 | ↳ Domain objects and identity | 1291–1305 |
-| 7.2 | ↳ SQLite schema and invariants | 1306–1358 |
-| 7.3 | ↳ Crate persistence and deletion | 1359–1374 |
-| 7.4 | ↳ Configuration and credential stores | 1375–1398 |
-| 8 | Public interfaces and contracts | 1399–1456 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1401–1429 |
-| 8.2 | ↳ JSON and CSV summary input | 1430–1445 |
-| 8.3 | ↳ URL-opening contract | 1446–1456 |
-| 9 | Authentication and authorization | 1457–1520 |
-| 9.1 | ↳ SoundCloud authentication | 1459–1490 |
-| 9.2 | ↳ Gate action consent | 1491–1520 |
-| 10 | External integrations | 1521–1743 |
-| 10.1 | ↳ SoundCloud API and media | 1523–1534 |
-| 10.2 | ↳ Link hubs and download gates | 1535–1623 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1543–1609 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1611–1616 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1618–1623 |
-| 10.3 | ↳ Browsers and clipboard | 1624–1695 |
-| 10.4 | ↳ Bandcamp cart and Beatport playlists | 1696–1743 |
-| 11 | Security requirements and threat model | 1744–1846 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1746–1764 |
-| 11.2 | ↳ Secret and personal-data handling | 1765–1780 |
-| 11.3 | ↳ File and mutation safety | 1781–1802 |
-| 11.4 | ↳ Browser-extension trust boundary | 1803–1846 |
-| 12 | Privacy, lifecycle, and retention | 1847–1899 |
-| 12.1 | ↳ Data stored locally | 1849–1873 |
-| 12.2 | ↳ Data sent to third parties | 1874–1886 |
-| 12.3 | ↳ User-controlled deletion | 1887–1899 |
-| 13 | Failure behavior and current limitations | 1900–1996 |
-| 13.1 | ↳ Error isolation and reporting | 1902–1923 |
-| 13.2 | ↳ Confirmed limitations | 1924–1996 |
-| 14 | Verification, CI, and release | 1997–2095 |
-| 14.1 | ↳ Offline and live test suites | 1999–2047 |
-| 14.2 | ↳ Continuous integration and publishing | 2048–2080 |
-| 14.3 | ↳ Specification-map verification | 2081–2095 |
-| 15 | Evidence and operational references | 2096–2129 |
-| 15.1 | ↳ Primary implementation evidence | 2098–2119 |
-| 15.2 | ↳ User and historical documentation | 2120–2129 |
+| 3.6 | ↳ Store purchase assistance | 459–557 |
+| 3.7 | ↳ Local library, analysis and audio export | 558–729 |
+| 3.8 | ↳ Qt Quick desktop | 730–1021 |
+| 4 | System context and data flow | 1022–1066 |
+| 4.1 | ↳ Context diagram | 1024–1050 |
+| 4.2 | ↳ Collection-to-library flow | 1051–1066 |
+| 5 | Repository layout and component ownership | 1067–1153 |
+| 5.1 | ↳ Entry, orchestration, and models | 1069–1080 |
+| 5.2 | ↳ Network and external-system adapters | 1081–1112 |
+| 5.3 | ↳ Persistence, local media, and UI | 1113–1153 |
+| 6 | Runtime architecture and environments | 1154–1297 |
+| 6.1 | ↳ Runtime and dependencies | 1156–1184 |
+| 6.2 | ↳ Concurrency and lifecycle | 1185–1262 |
+| 6.3 | ↳ Local paths and environment variables | 1263–1297 |
+| 7 | Data model and persistence | 1298–1407 |
+| 7.1 | ↳ Domain objects and identity | 1300–1314 |
+| 7.2 | ↳ SQLite schema and invariants | 1315–1367 |
+| 7.3 | ↳ Crate persistence and deletion | 1368–1383 |
+| 7.4 | ↳ Configuration and credential stores | 1384–1407 |
+| 8 | Public interfaces and contracts | 1408–1465 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1410–1438 |
+| 8.2 | ↳ JSON and CSV summary input | 1439–1454 |
+| 8.3 | ↳ URL-opening contract | 1455–1465 |
+| 9 | Authentication and authorization | 1466–1529 |
+| 9.1 | ↳ SoundCloud authentication | 1468–1499 |
+| 9.2 | ↳ Gate action consent | 1500–1529 |
+| 10 | External integrations | 1530–1757 |
+| 10.1 | ↳ SoundCloud API and media | 1532–1543 |
+| 10.2 | ↳ Link hubs and download gates | 1544–1632 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1552–1618 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1620–1625 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1627–1632 |
+| 10.3 | ↳ Browsers and clipboard | 1633–1704 |
+| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 1705–1757 |
+| 11 | Security requirements and threat model | 1758–1861 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1760–1778 |
+| 11.2 | ↳ Secret and personal-data handling | 1779–1794 |
+| 11.3 | ↳ File and mutation safety | 1795–1816 |
+| 11.4 | ↳ Browser-extension trust boundary | 1817–1861 |
+| 12 | Privacy, lifecycle, and retention | 1862–1914 |
+| 12.1 | ↳ Data stored locally | 1864–1888 |
+| 12.2 | ↳ Data sent to third parties | 1889–1901 |
+| 12.3 | ↳ User-controlled deletion | 1902–1914 |
+| 13 | Failure behavior and current limitations | 1915–2013 |
+| 13.1 | ↳ Error isolation and reporting | 1917–1938 |
+| 13.2 | ↳ Confirmed limitations | 1939–2013 |
+| 14 | Verification, CI, and release | 2014–2112 |
+| 14.1 | ↳ Offline and live test suites | 2016–2064 |
+| 14.2 | ↳ Continuous integration and publishing | 2065–2097 |
+| 14.3 | ↳ Specification-map verification | 2098–2112 |
+| 15 | Evidence and operational references | 2113–2146 |
+| 15.1 | ↳ Primary implementation evidence | 2115–2136 |
+| 15.2 | ↳ User and historical documentation | 2137–2146 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -459,8 +459,9 @@ are eligible for clearing.
 ### 3.6 Store purchase assistance
 
 Store assistance is explicitly initiated by the user. Bandcamp uses verified
-cart automation; Beatport produces a playlist for a supported transfer instead
-of attempting to log in or mutate a cart. The work runs in the user's own
+cart automation; Beatport uses the same verified cart when the browser is signed in
+to Beatport with an exact track ID and otherwise produces a playlist for a supported
+transfer. The application never logs in to either store. The work runs in the user's own
 browser through the extension (§10.3). The desktop owns one lazy work window of
 it for its lifetime, hidden (an unfocused normal window, not a headless
 browser) for product discovery, revalidation, and mutation with at most two
@@ -475,8 +476,7 @@ extension is connected, the batch stops and the desktop shows the Connect browse
 dialog (§3.8) before retrying.
 `P` opens every exact Beatport track page among the targeted rows in the
 configured regular browser (release links are counted and skipped), with the
-same confirmation threshold as bulk open, because Beatport carts are not
-automated. With no store filter, Bandcamp is preferred and Beatport is the
+same confirmation threshold as bulk open. With no store filter, Bandcamp is preferred and Beatport is the
 business-level fallback. When both filters are explicitly active, the desktop emits independent
 requests so a successful Bandcamp addition does not remove that track from the
 Beatport playlist.
@@ -489,16 +489,24 @@ screen. The user may deselect items and press `E` to raise a Bandcamp price from
 its verified minimum in store-declared steps only when the store exposes an
 editable price. The review table shrinks to preserve its action buttons in short
 terminals and accepts `Y`, `Enter`, or a button click to continue. A canonical
-Beatport `/track/<slug>/<numeric-id>` link becomes an exact playlist entry
-without opening a page. Release links use read-only lookup in the user's browser,
-retain an exact track URL when one is available, and fall back to artist/title metadata when a
-changed page or security challenge prevents exact discovery.
+Beatport `/track/<slug>/<numeric-id>` link is exact by its ID and is read on its own
+page; a release link is read in the user's browser and the track is matched in
+its page code (never by searching Beatport by artist and title). Beatport reads
+its price, version and artists from the add control's label (`Add track 'T' (Mix) by A
+to cart. Price: $1.49`), takes the control of that product's own row or, on a track
+page, the main control outside the recommendation rows, and tells a real cart row
+(one with a "Move to cart" control) from a recommendation. Not being signed in
+(`/cart` redirects to the home page), a security challenge, or no exact ID in the
+page code makes the item a playlist entry that keeps an exact track URL when there
+is one, with artist/title metadata otherwise.
 
 Before each mutation the page is reloaded and product identity and price are
 compared with the preflight snapshot. Ambiguous matches, version mismatch,
 changed price or product identity, unavailable controls, external redirects, or
 failed cart verification skip or fail the affected item. An add is not retried
-when its verification is uncertain. Bandcamp verification runs three stages on
+when its verification is uncertain. Beatport verification reads the header cart
+counter (5 s), then the cart page (25 s), inside the same 45-second budget.
+Bandcamp verification runs three stages on
 their own clocks (the cart count for 5 s, the real side-cart control requiring a
 visible removable row with the same canonical host and path for 10 s, one
 reload check for 25 s) inside a 45-second budget, and an unverified result names
@@ -510,7 +518,8 @@ bytes; the screenshot is best effort). After two
 unverified clicks in one store the batch stops clicking: the remaining products
 are opened with Buy expanded and the price filled, the desktop asks the user to
 press Add to cart themselves, and one read-only cart check per item records
-`manual` or a manual failure. The result screen offers the same for items a
+`manual` or a manual failure (Beatport pages are opened as they are; there is
+nothing to expand). The result screen offers the same for items a
 batch left uncertain. A user-raised price is filled into Bandcamp's current price input
 or fails before the add click; it is never silently discarded. A still-uncertain
 page remains open for manual inspection. The flow leaves verified carts open for
@@ -520,8 +529,9 @@ verified additions. Mutation is serial within each store,
 cancellation after a click waits for one bounded verification, and repeated
 structural failures open a per-store circuit breaker without
 navigating the rest of the queue. Results group identical root causes and mark
-only failures that are safe to retry. Approved Beatport items and safe Beatport
-lookup fallbacks are reported as playlist-ready, not as cart failures. The
+only failures that are safe to retry. Beatport items that could not be put in the cart (not signed in, challenge, no
+exact ID) and safe Beatport lookup fallbacks are reported as playlist-ready, not
+as cart failures; the result log shows "in Beatport cart" apart from "to playlist". The
 result action writes a new, non-overwriting plain-text playlist in the playlist's
 download folder and copies its entries to the clipboard. It also sends the
 accepted titles and artists, with Beatport preset as the destination, to
@@ -932,7 +942,7 @@ and cart preflight. Browser links select one eligible destination per
 track and honor the store filter. Bulk opening and destructive actions require
 confirmation; cart retry/manual completion and Soundiiz metadata transfer are
 explicit choices. There is no store login: the browser's own sessions are used, and
-Beatport has no login because its path is the Soundiiz playlist. Settings shows an
+neither store has a login: the Beatport cart needs the browser signed in to Beatport, else its path is the Soundiiz playlist. Settings shows an
 empty Email field while the reserved placeholder is configured, so saving never
 requires clearing it. Its Browser automation row is read-only text with the state
 of the extension: browser name and extension version with "connected", "missing
@@ -1092,8 +1102,9 @@ playback time and are not stored in the crate record.
   `background.js` (dispatcher and trust boundary), `dom.js` (locator engine),
   `welcome.*` (status and host permissions) and `selftest.*` (manual `dom.js`
   check). `auth.py`, `gates/browser.py`, `services/purchases.py` and
-  `stores/bandcamp.py` use `webext.page`; no other module talks to a browser.
-- `stores/bandcamp.py` owns Bandcamp selectors and page interaction.
+  `stores/bandcamp.py` and `stores/beatport.py` use `webext.page`; no other module talks to a browser.
+- `stores/bandcamp.py` owns Bandcamp selectors and the shared page steps; `stores/beatport.py`
+  owns Beatport's add control, header counter and cart-page checks.
   `services/purchases.py` owns batch approval, preflight, mutation and manual
   completion, the lazy work window of `CartBrowserSession`, and Soundiiz handoff. `cart_models.py`, `store_urls.py`,
   `store_match.py` and `store_parse.py` retain store data, URL checks, matching
@@ -1246,9 +1257,7 @@ new one), so the cart session, a gate batch and a SoundCloud login can be open a
 once and closing one never closes another's pages. If the user closes a work window
 by hand, its pages are closed, its context's `close` callbacks fire, and the cart
 session opens a new window for the next batch. Two queue consumers bound
-read-only preflight concurrency; Bandcamp mutation is serial, while exact
-Beatport track links open no page and other Beatport results become local
-playlist entries. The blocking flavour (gates, login) dispatches the session's events
+read-only preflight concurrency; cart mutation is serial within each store (Bandcamp and Beatport each use one work tab). The blocking flavour (gates, login) dispatches the session's events
 on the calling thread.
 
 ### 6.3 Local paths and environment variables
@@ -1693,7 +1702,7 @@ removes the manifests and registry keys until the next registration. The extensi
 is installed by the user (Load unpacked, or Load Temporary Add-on in Firefox);
 `welcome.html` shows the link state and can request the host permissions again.
 
-### 10.4 Bandcamp cart and Beatport playlists
+### 10.4 Bandcamp and Beatport carts, Beatport playlists
 
 Only canonical HTTPS store domains, no embedded credentials, and port 443/default
 are accepted. A plain HTTP link is upgraded to HTTPS only after the exact store
@@ -1708,19 +1717,24 @@ finished cart and the manual-finish pages are new tabs of the same window, which
 shown. The user's own Bandcamp and Beatport logins and cookies apply (a guest cart
 left by the `store-browser` profile of releases before 1.4 is not in the user's
 browser); the application offers no store login. Production anti-bot challenges are
-not solvable by automation: Beatport login is therefore never attempted, and a
+not solvable by automation: neither store's login is ever attempted, and a
 challenge during read-only lookup degrades to a metadata playlist entry instead
 of being looped or bypassed. A necessary-cookie Bandcamp choice may be recorded
 so its footer cannot cover exact purchase controls. Preflight, confirmation,
 immediate revalidation, and mutation reuse no more than two work tabs. Cart
-mutation is limited to an identified Bandcamp add-to-cart control; the code does
+mutation is limited to an identified Bandcamp or Beatport add-to-cart control (Beatport:
+the `Add track` button of the exact product, never `Choose a cart for this item`); the code does
 not fill a password, choose payment details, or invoke checkout, and the extension
 itself refuses checkout navigation and payment-like clicks (§11.4).
 
 Beatport identity requires its numeric track ID; the canonical track slug is an
 additional exact title/version signal when a release-row label omits its remix.
-Direct track URLs are sanitized and kept without a browser lookup, while release
-links are revalidated on the selected track page. Accepted Beatport hosts,
+Direct track URLs are sanitized and read on their own page by the ID in the link,
+while release links are revalidated on the selected track page by ID and title/version.
+The Beatport cart is `/cart`, which redirects to `/cart/cart/<id>` when signed in and
+to the home page when not (treated as not logged in); its rows and the recommendations
+are both `tracks-list-item`, and only a row with a "Move to cart" control counts as
+in the cart. Accepted Beatport hosts,
 including the retired `pro.beatport.com`, are canonicalized to
 `https://www.beatport.com` while preserving the path and safe query; this
 canonical host is also persisted when a playlist is prepared. Bandcamp prefers a numeric ID
@@ -1820,7 +1834,8 @@ Python caller, enforces its own limits, whatever the application sends:
   replies and error messages, so OAuth callbacks (`code=`, `state=`) never cross
   the channel or reach a log.
 - **No checkout.** A navigation or redirect of an owned Bandcamp or Beatport tab to
-  `/checkout`, `/cart/checkout` or `/payment` closes the tab and is reported
+  `/checkout`, `/cart/checkout` or `/payment` (Beatport also `/account/billing` and
+`/subscriptions/billing`) closes the tab and is reported
   (`forbidden_path`). Clicks are refused on elements whose accessible name matches
   check out, pay, payment, purchase, place order, buy now or complete order,
   except exactly "Buy Digital Track/Album" on Bandcamp. `fill` refuses password
@@ -1942,7 +1957,7 @@ as player events instead of escaping through Python-CFFI.
   output with more (Bluetooth headphones, roughly 120-220 ms) sees the light
   early. Decoding runs on the audio callback; on a network slower than playback
   it can wait for audio needed only 0.4 s later.
-- Bandcamp cart automation and Beatport release lookup support linked products
+- Bandcamp and Beatport cart automation and Beatport release lookup support linked products
   only and depend on current store interfaces. They need the extension connected
   in a running browser; the work window is shown for the completed cart and the
   manual finish, and a failure to show it is one warning that keeps the additions.
@@ -1969,14 +1984,16 @@ as player events instead of escaping through Python-CFFI.
   copied, and the browser keeps that file if the extension could not delete it;
   downloads the browser holds back (a save dialog, an unsafe-file warning) are
   never accepted automatically.
-- Beatport cart mutation is not automated. Playlist creation needs a user-driven
-  Soundiiz transfer, its public import handoff accepts at most 200 tracks, and
+- Beatport cart mutation needs the browser signed in to Beatport and an exact track
+  ID; the click-denylist (§11.4) refuses a title containing a word like "pay" or
+  "purchase" (the item then fails as unverified, never clicks checkout). Playlist
+  creation needs a user-driven Soundiiz transfer, its public import handoff accepts at most 200 tracks, and
   catalog matches require review. Beatport pages may reject automated release
   lookup with HTTP 403; those entries use cleaned SoundCloud metadata instead of
   inventing and persisting an exact URL. Beatport DJ and checkout remain outside
   the application.
-- Bandcamp cart and Beatport playlist transfer remain separate purchase steps. A
-  provider change may prevent the final Bandcamp cart view from exposing every
+- Bandcamp and Beatport carts, and the Beatport playlist transfer, remain separate purchase steps. A
+  provider change may prevent the final cart view from exposing every
   individually verified addition; this is reported without repeating any cart
   click.
 - Bandcamp autocomplete can recover many moved or cross-label products, but it

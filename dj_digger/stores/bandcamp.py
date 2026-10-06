@@ -50,6 +50,8 @@ from ..store_parse import (
 )
 from ..store_urls import (
     STORE_HOME,
+    _beatport_track_id,
+    _direct_beatport_track_url,
     canonical_store_url,
     is_store_url,
 )
@@ -428,6 +430,11 @@ async def _page_products_async(
                     product if earlier is None else product.merged_over(earlier)
                 )
             products = list(by_identity.values())
+        if store == "beatport":
+            # ponytail: beatport imports this module, so it is imported at call time
+            from . import beatport
+
+            products = await beatport.with_labels_async(page, products)
         if products:
             LOGGER.debug(
                 "Cart products found: store=%s count=%d url=%s",
@@ -716,6 +723,10 @@ async def _cart_contains_async(
     page: Any, item: CartItem, cancel: asyncio.Event, *, navigate: bool = True
 ) -> bool:
     _async_cancelled(cancel)
+    if item.store == "beatport":
+        from . import beatport
+
+        return await beatport.cart_contains_async(page, item, navigate=navigate)
     if item.store != "bandcamp":
         raise StoreStructureError(f"{item.store} carts are not automated")
     if navigate:
@@ -740,15 +751,29 @@ async def _resolve_cart_item_async(
         )
     else:
         await _navigate_async(page, source_url, store)
-        chosen = match_product(
-            track, await _page_products_async(page, store, cancel)
-        )
+        products = await _page_products_async(page, store, cancel)
+        # A direct track link is exact by its id; otherwise the track is matched in the page code.
+        direct = _direct_beatport_track_url(source_url) if store == "beatport" else None
+        if direct is None:
+            chosen = match_product(track, products)
+        else:
+            chosen = next(
+                (p for p in products if p.product_id == _beatport_track_id(direct)), None
+            )
+            if chosen is None:
+                raise ProductUnavailable("linked Beatport track is not on its page")
     if urlparse(page.url).path != urlparse(chosen.url).path:
         await _navigate_async(page, chosen.url, store)
         products = await _page_products_async(page, store, cancel)
-        verified = match_product(track, products)
-        if chosen.product_id and verified.product_id != chosen.product_id:
-            raise UnsafeMatch(f"{store} track identity changed after release lookup")
+        if store == "beatport":
+            # The track page lists recommendations with look-alike titles: only the id counts.
+            verified = next((p for p in products if p.product_id == chosen.product_id), None)
+            if verified is None or _normalise(verified.title) != _normalise(chosen.title):
+                raise UnsafeMatch("beatport track title or version changed after release lookup")
+        else:
+            verified = match_product(track, products)
+            if chosen.product_id and verified.product_id != chosen.product_id:
+                raise UnsafeMatch(f"{store} track identity changed after release lookup")
         chosen = verified
     quote = await _quote_async(page, store, chosen)
     unresolved = CartItem(
@@ -766,8 +791,6 @@ async def _resolve_cart_item_async(
         quote.step,
         quote.editable,
     )
-    if store == "beatport":
-        return unresolved
     return replace(unresolved, already_in_cart=await _cart_contains_async(
         page, unresolved, cancel
     ))
@@ -826,6 +849,10 @@ async def _add_to_cart_async(page: Any, item: CartItem, cancel: asyncio.Event) -
         item.product_url
     ).path:
         raise StoreStructureError(f"{item.store} product page changed before the cart click")
+    if item.store == "beatport":
+        from . import beatport
+
+        return await beatport.add_to_cart_async(page, item, cancel)
     if item.store != "bandcamp":
         raise StoreStructureError(f"{item.store} carts are not automated")
     price_input = await _expand_buy_async(page, force=False)

@@ -940,27 +940,27 @@ def test_beatport_lookup_failure_still_prepares_a_metadata_playlist(monkeypatch)
     )
 
 
-def test_direct_beatport_track_becomes_a_playlist_without_starting_chromium(
-    monkeypatch,
-):
+def test_direct_beatport_track_without_a_login_stays_an_exact_playlist_entry(monkeypatch):
     candidate = cart_models.CartRequest(
         track("Signal"),
         (("beatport", "https://www.beatport.com/track/signal/987?token=secret"),),
     )
     session = cart.CartBrowserSession()
 
-    async def no_pages(*_args, **_kwargs):
-        pytest.fail("an exact Beatport track URL must not start Chromium")
+    async def pages(_count=2):
+        return [object(), object()]
+
+    async def logged_out(*_args, **_kwargs):
+        raise cart_models.NotLoggedIn("not logged in to Beatport")
 
     async def no_approval(_plan):
-        pytest.fail("playlist preparation remains the explicit user approval")
+        pytest.fail("a playlist entry needs no cart approval")
 
-    monkeypatch.setattr(session, "_work_pages", no_pages)
+    monkeypatch.setattr(session, "_work_pages", pages)
+    monkeypatch.setattr(bandcamp_adapter, "_resolve_cart_item_async", logged_out)
 
     outcome = asyncio.run(
-        session.run_batch(
-            (candidate,), asyncio.Event(), approve=no_approval
-        )
+        session.run_batch((candidate,), asyncio.Event(), approve=no_approval)
     )
 
     assert outcome.results == (
@@ -1175,7 +1175,7 @@ def test_bandcamp_autocomplete_album_is_bounded_and_inspected_for_exact_track(
     ]
 
 
-def test_beatport_release_resolution_keeps_the_exact_track_without_opening_cart(
+def test_beatport_release_resolution_keeps_the_exact_track_and_checks_the_cart(
     monkeypatch,
 ):
     candidate = track("Signal (Rido Remix)")
@@ -1204,13 +1204,13 @@ def test_beatport_release_resolution_keeps_the_exact_track_without_opening_cart(
     async def quote(*_args):
         return cart_models.PriceQuote("EUR", Decimal("2.49"), Decimal("2.49"))
 
-    async def no_cart(*_args, **_kwargs):
-        pytest.fail("Beatport playlist lookup must not inspect the cart")
+    async def in_cart(*_args, **_kwargs):
+        return True
 
     monkeypatch.setattr(bandcamp_adapter, "_navigate_async", navigate)
     monkeypatch.setattr(bandcamp_adapter, "_page_products_async", products)
     monkeypatch.setattr(bandcamp_adapter, "_quote_async", quote)
-    monkeypatch.setattr(bandcamp_adapter, "_cart_contains_async", no_cart)
+    monkeypatch.setattr(bandcamp_adapter, "_cart_contains_async", in_cart)
 
     item = asyncio.run(
         bandcamp_adapter._resolve_cart_item_async(
@@ -1223,7 +1223,7 @@ def test_beatport_release_resolution_keeps_the_exact_track_without_opening_cart(
     )
 
     assert item.product_url == product.url
-    assert not item.already_in_cart
+    assert item.already_in_cart
 
 
 def test_beatport_release_rejects_a_different_mix_on_the_target_page(monkeypatch):
@@ -1257,7 +1257,7 @@ def test_beatport_release_rejects_a_different_mix_on_the_target_page(monkeypatch
     monkeypatch.setattr(bandcamp_adapter, "_navigate_async", navigate)
     monkeypatch.setattr(bandcamp_adapter, "_page_products_async", products)
 
-    with pytest.raises(cart_models.UnsafeMatch, match="version"):
+    with pytest.raises(cart_models.UnsafeMatch, match="title or version"):
         asyncio.run(
             bandcamp_adapter._resolve_cart_item_async(
                 page,
@@ -1492,13 +1492,12 @@ def test_raised_bandcamp_price_is_never_ignored_when_the_field_disappears(
         asyncio.run(bandcamp_adapter._add_to_cart_async(Page(), item, asyncio.Event()))
 
 
-def test_beatport_becomes_playlist_while_bandcamp_continues_without_login(
-    monkeypatch,
-):
+def test_beatport_and_bandcamp_are_added_serially_per_store_without_a_playlist(monkeypatch):
     bandcamp = resolved_item("bandcamp")
     beatport = resolved_item("beatport", price="2.49", currency="EUR")
     plan = cart_models.CartPlan((bandcamp, beatport))
     session = cart.CartBrowserSession()
+    executed = []
 
     async def pages(_count=2):
         return [object(), object()]
@@ -1510,13 +1509,12 @@ def test_beatport_becomes_playlist_while_bandcamp_continues_without_login(
         return candidate
 
     async def execute(store, items, *_args):
-        assert store == "bandcamp"
-        assert items == [bandcamp]
-        return [cart_models.CartResult("10", bandcamp.track_label, store, "added")]
+        executed.append((store, items))
+        return [cart_models.CartResult("10", items[0].track_label, store, "added")]
 
     async def final(successful, _uncertain=None):
-        assert successful == {"bandcamp": [bandcamp]}
-        return ("bandcamp",), ()
+        assert successful == {"bandcamp": [bandcamp], "beatport": [beatport]}
+        return ("bandcamp", "beatport"), ()
 
     monkeypatch.setattr(session, "_work_pages", pages)
     monkeypatch.setattr(session, "_preflight", preflight)
@@ -1531,15 +1529,12 @@ def test_beatport_becomes_playlist_while_bandcamp_continues_without_login(
         )
     )
 
-    assert any(
-        result.status == "added" and result.store == "bandcamp"
-        for result in outcome.results
-    )
-    playlist = next(result for result in outcome.results if result.code == "playlist_ready")
-    assert playlist.store == "beatport"
-    assert playlist.status == "playlist_ready"
-    assert playlist.url == beatport.product_url
-    assert outcome.beatport_playlist_ready
+    assert executed == [("bandcamp", [bandcamp]), ("beatport", [beatport])]
+    assert {result.store for result in outcome.results if result.status == "added"} == {
+        "bandcamp",
+        "beatport",
+    }
+    assert not outcome.beatport_playlist_ready
 
 
 def test_retry_targets_do_not_repeat_a_successful_store_for_the_same_track():

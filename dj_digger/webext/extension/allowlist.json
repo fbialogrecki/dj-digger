@@ -17,7 +17,7 @@
       "hosts": ["beatport.com"],
       "www": false,
       "subdomains": true,
-      "forbiddenPaths": ["/checkout", "/cart/checkout", "/payment"]
+      "forbiddenPaths": ["/checkout", "/cart/checkout", "/payment", "/account/billing", "/subscriptions/billing"]
     },
     "soundcloud": {
       "hosts": ["soundcloud.com"],

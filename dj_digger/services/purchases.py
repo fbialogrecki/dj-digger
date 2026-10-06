@@ -42,7 +42,7 @@ from ..store_urls import (
     _direct_beatport_track_url,
     canonical_store_url,
 )
-from ..stores import bandcamp
+from ..stores import bandcamp, beatport
 from ..webext import page as webpage
 from ..webext.link import ExtensionMissing
 
@@ -63,6 +63,19 @@ def _request_failed(request: CartRequest, store: str, reason: str, code: CartRes
 
 
 BEATPORT_BY_TITLE = "Beatport will match this track by artist and title"
+BEATPORT_EXACT = "ready for Beatport playlist transfer"
+
+
+def _beatport_fallback(request: CartRequest, label: str, url: str, reason: str = "") -> CartResult:
+    """The playlist entry for a Beatport link that did not become a cart item.
+
+    An exact track link stays exact; the rest is matched by artist and title there.
+    """
+
+    exact = _direct_beatport_track_url(url)
+    return _beatport_playlist_result(
+        request, label, reason or (BEATPORT_EXACT if exact else BEATPORT_BY_TITLE), exact or url
+    )
 
 
 # How a failed preflight lookup is reported, by its most specific exception
@@ -92,10 +105,10 @@ def _preflight_failure(
     if store == "beatport" and not isinstance(
         exc, (UserActionTimeout, CartCancelled, ExtensionMissing)
     ):
-        reason = str(exc) if isinstance(exc, SecurityChallengeBlocked) else BEATPORT_BY_TITLE
+        reason = str(exc) if isinstance(exc, SecurityChallengeBlocked) else ""
         # A link that redirected off Beatport is not one worth keeping.
         kept_url = "" if isinstance(exc, UnsafeRedirect) else url
-        return _beatport_playlist_result(request, label, reason, kept_url)
+        return _beatport_fallback(request, label, kept_url, reason)
     spec = next(
         (_PREFLIGHT_FAILURES[cls] for cls in type(exc).__mro__ if cls in _PREFLIGHT_FAILURES),
         None,
@@ -155,33 +168,6 @@ class _StructureFailures:
         self._seen.pop(store, None)
 
 
-def _split_direct_beatport(
-    requests: tuple[CartRequest, ...],
-) -> tuple[list[CartResult], list[CartRequest]]:
-    """Beatport-only requests with a track URL need no browser: playlist entries at once."""
-
-    direct: list[CartResult] = []
-    pending: list[CartRequest] = []
-    for request in requests:
-        direct_url = (
-            _direct_beatport_track_url(request.links[0][1])
-            if len(request.links) == 1 and request.links[0][0] == "beatport"
-            else None
-        )
-        if direct_url is None:
-            pending.append(request)
-            continue
-        result = _beatport_playlist_result(
-            request,
-            _display_text(request.track.label),
-            "ready for Beatport playlist transfer",
-            direct_url,
-        )
-        direct.append(result)
-        bandcamp._log_cart_result("playlist", result)
-    return direct, pending
-
-
 def _partition_outcomes(
     approved: CartPlan, results: list[CartResult]
 ) -> tuple[dict[str, list[CartItem]], dict[str, list[CartItem]]]:
@@ -230,28 +216,6 @@ def _merge_manual(
     return [
         result for result in results if (result.track_key, result.store) not in settled_keys
     ] + settled
-
-
-def _playlist_results(by_store: dict[str, list[CartItem]]) -> list[CartResult]:
-    """Approved Beatport items leave the cart work and become playlist entries."""
-
-    if "beatport" not in by_store:
-        return []
-    playlist_items = [
-        CartResult(
-            item.track_key,
-            item.track_label,
-            "beatport",
-            "playlist_ready",
-            "ready for Beatport playlist transfer",
-            "playlist_ready",
-            item.product_url,
-        )
-        for item in by_store.pop("beatport")
-    ]
-    for result in playlist_items:
-        bandcamp._log_cart_result("playlist", result)
-    return playlist_items
 
 
 def _log_batch_summary(outcome: CartBatchOutcome) -> None:
@@ -381,7 +345,7 @@ class CartBrowserSession:
         for store, url in request.links:
             if store in failures.broken:
                 if store == "beatport":
-                    return _beatport_playlist_result(request, label, BEATPORT_BY_TITLE, url), page
+                    return _beatport_fallback(request, label, url), page
                 return _request_failed(
                     request, store, "store automation stopped after repeated structural failures", "store_structure"
                 ), page
@@ -398,7 +362,7 @@ class CartBrowserSession:
                     )
             except ProductUnavailable as exc:
                 if store == "beatport":
-                    return _beatport_playlist_result(request, label, BEATPORT_BY_TITLE, url), page
+                    return _beatport_fallback(request, label, url), page
                 unavailable.append(str(exc))
                 continue
             except Exception as exc:
@@ -409,7 +373,7 @@ class CartBrowserSession:
                         label,
                         type(exc).__name__,
                     )
-                elif isinstance(exc, StoreStructureError) and store != "beatport":
+                elif isinstance(exc, StoreStructureError):
                     failures.record(store, str(exc), request.track.key)
                 return _preflight_failure(request, label, store, url, exc), page
             failures.clear(store)
@@ -504,13 +468,17 @@ class CartBrowserSession:
             )
             if isinstance(ready, CartResult):
                 return ready, unverified
-            count_before = (
-                await bandcamp._bandcamp_cart_count_async(page) if store == "bandcamp" else None
-            )
+            count_before = await (
+                bandcamp._bandcamp_cart_count_async if store == "bandcamp" else beatport.cart_count_async
+            )(page)
             await bandcamp._add_to_cart_async(page, ready, cancel)
             clicked = True
             outcome = await asyncio.wait_for(
-                bandcamp._verify_bandcamp_click_async(page, ready, count_before),
+                (
+                    bandcamp._verify_bandcamp_click_async
+                    if store == "bandcamp"
+                    else beatport.verify_click_async
+                )(page, ready, count_before),
                 timeout=VERIFY_BUDGET_SECONDS,
             )
             if outcome.verified:
@@ -588,13 +556,21 @@ class CartBrowserSession:
         # A new tab of the same window, which is shown for it.
         context = await self._shown_context()
         page = await context.new_page()
-        await bandcamp._navigate_async(page, bandcamp.BANDCAMP_CART_URL, store)
+        beatport_cart = store == "beatport"
+        await bandcamp._navigate_async(
+            page, beatport.BEATPORT_CART_URL if beatport_cart else bandcamp.BANDCAMP_CART_URL, store
+        )
         missing: list[CartItem] = []
 
         async def all_shown() -> bool:
             nonlocal missing
             present = await asyncio.gather(
-                *(bandcamp._bandcamp_cart_contains_async(page, item) for item in verified)
+                *(
+                    beatport.cart_contains_async(page, item, navigate=False)
+                    if beatport_cart
+                    else bandcamp._bandcamp_cart_contains_async(page, item)
+                    for item in verified
+                )
             )
             missing = [
                 item for item, found in zip(verified, present, strict=True) if not found
@@ -633,7 +609,7 @@ class CartBrowserSession:
                     warnings.append(
                         CartResult(
                             "",
-                            "Bandcamp cart view",
+                            f"{store.capitalize()} cart view",
                             store,
                             "failed",
                             f"final cart view did not expose {len(missing)} verified item(s)",
@@ -664,8 +640,7 @@ class CartBrowserSession:
 
     async def _preflight_batch(
         self,
-        direct_results: list[CartResult],
-        pending_requests: list[CartRequest],
+        requests: list[CartRequest],
         pages: list[Any],
         cancel: asyncio.Event,
         progress: ProgressCallback | None,
@@ -674,18 +649,17 @@ class CartBrowserSession:
 
         try:
             plan = await self._preflight(
-                tuple(pending_requests), pages, cancel, progress
+                tuple(requests), pages, cancel, progress
             )
         except UserActionTimeout as exc:
             return CartBatchOutcome(
-                tuple(direct_results) + tuple(
+                tuple(
                     _request_failed(
                         request, request.links[0][0] if request.links else "", str(exc), "user_action_timeout"
                     )
-                    for request in pending_requests
+                    for request in requests
                 )
             )
-        plan = CartPlan(plan.items, tuple(direct_results) + plan.results)
         if cancel.is_set():
             cancelled = tuple(_cancelled_result(item) for item in plan.items)
             return CartBatchOutcome(plan.results + cancelled, cancelled=True)
@@ -715,14 +689,12 @@ class CartBrowserSession:
         by_store: dict[str, list[CartItem]] = defaultdict(list)
         for item in approved.items:
             by_store[item.store].append(item)
-        # Pages are assigned before Beatport leaves by_store, so the order counts.
         store_pages = {
             store: pages[index]
             for index, store in enumerate(by_store)
         }
         progress_state = [0]
         all_results = list(approved.results)
-        all_results.extend(_playlist_results(by_store))
         tasks = [
             self._execute_store(
                 store,
@@ -762,17 +734,8 @@ class CartBrowserSession:
         async with self._lock:
             LOGGER.info("Cart batch started: tracks=%d", len(request_list))
             bandcamp._emit_progress(progress, CartProgress("starting", 0, len(request_list)))
-            direct_results, pending_requests = _split_direct_beatport(request_list)
-            if not pending_requests:
-                bandcamp._emit_progress(
-                    progress,
-                    CartProgress("ready", len(request_list), len(request_list)),
-                )
-                return CartBatchOutcome(tuple(direct_results))
             pages = await self._work_pages(2)
-            plan = await self._preflight_batch(
-                direct_results, pending_requests, pages, cancel, progress
-            )
+            plan = await self._preflight_batch(list(request_list), pages, cancel, progress)
             if isinstance(plan, CartBatchOutcome):
                 return plan
             bandcamp._emit_progress(progress, CartProgress("approval", 0, len(plan.items)))
@@ -789,10 +752,11 @@ class CartBrowserSession:
         page = await context.new_page()
         try:
             await bandcamp._navigate_async(page, item.product_url, item.store)
-            await bandcamp._dismiss_bandcamp_cookie_banner(page)
-            price_input = await bandcamp._expand_buy_async(page, force=True)
-            if price_input is not None:
-                await price_input.fill(format(item.price, "f"), timeout=webpage.ACTION_TIMEOUT_MS)
+            if item.store == "bandcamp":
+                await bandcamp._dismiss_bandcamp_cookie_banner(page)
+                price_input = await bandcamp._expand_buy_async(page, force=True)
+                if price_input is not None:
+                    await price_input.fill(format(item.price, "f"), timeout=webpage.ACTION_TIMEOUT_MS)
         except Exception as exc:
             LOGGER.debug(
                 "Manual staging could not prepare %r: %s", item.track_label, type(exc).__name__

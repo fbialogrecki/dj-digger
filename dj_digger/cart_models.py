@@ -23,6 +23,10 @@ class UnsafeMatch(RuntimeError):
     """The candidates are too ambiguous to mutate a cart safely."""
 
 
+class NotLoggedIn(ProductUnavailable, AutomationError):
+    """The store shows the cart only to a signed-in account; Beatport falls back to the playlist."""
+
+
 class StoreStructureError(AutomationError):
     """A store page no longer exposes the bounded identity/control contract."""
 

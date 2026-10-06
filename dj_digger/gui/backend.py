@@ -1154,7 +1154,7 @@ class Backend:
                     options.append(['manual', 'Finish in browser'])
                 if outcome.retryable_targets:
                     options.append(['retry', 'Retry failed items'])
-                answer = await self.ask('Cart results', '', [field('results', '', '\n'.join(r.track_label + ': ' + r.status + ' ' + r.reason for r in outcome.results), 'log'),
+                answer = await self.ask('Cart results', '', [field('results', '', '\n'.join(r.track_label + ': ' + result_status(r) + ' ' + r.reason for r in outcome.results), 'log'),
                                                             field('next', 'Next step', 'close', 'choice', options)], handle.cancel, ok='Continue')
                 answer = {answer['next']: True}
                 if answer.get('focus'):
@@ -1282,6 +1282,13 @@ def export_notice(report):
         reason += f' (+{len(failed) - 1})'
     args += [log_safe_text(Path(first['source']).name), reason]
     return ('error' if report['status'] == 'partial' else 'message'), {'text': 'Export: {0}; missing files: {1}; {2}: {3}', 'args': args}
+
+
+def result_status(result):
+    """A cart result's status as the results log shows it: in a store's cart apart from to a playlist."""
+    if result.status in ('added', 'already_in_cart'):
+        return ('in ' if result.status == 'added' else 'already in ') + (result.store or 'store').capitalize() + ' cart'
+    return 'to playlist' if result.status == 'playlist_ready' else result.status
 
 
 def reviewed_cart(plan, answer):

@@ -44,6 +44,16 @@
   missing; the Settings menu has "Connect browser…" and "Disconnect
   browsers…" (the desktop registers again at its next start).
 
+- Beatport tracks now go into your real Beatport cart when your browser is signed
+  in to Beatport: the exact track comes from a direct track link or from the
+  release page's own rows (never from a search by artist and title), its title,
+  version and price are revalidated before the click, the add is verified by the
+  header counter and the cart page, and an uncertain click is never repeated.
+  Not signed in, a security challenge or no exact match keeps the Soundiiz
+  playlist path. The results list shows "in Beatport cart" apart from "to
+  playlist". The extension also refuses `/account/billing` and
+  `/subscriptions/billing` on Beatport.
+
 ### Changed
 
 - Hypeddit gates run in one work window of your browser: hidden (an unfocused
