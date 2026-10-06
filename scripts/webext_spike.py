@@ -114,6 +114,7 @@ class Rig:
         self.args = args
         self.hello = hello or {}
         self.tab: int | None = None
+        self.window: int | None = None
         self.clicked_at: float | None = None
         self.stop = threading.Event()
 
@@ -163,18 +164,18 @@ class Rig:
 
 @contextlib.contextmanager
 def work_window(rig: Rig, visible: bool):
-    rig.call("window.open", visible=visible)
+    rig.window = rig.call("window.open", visible=visible)["windowId"]
     threading.Thread(target=rig.pump, daemon=True).start()
     try:
         yield
     finally:
         rig.stop.set()
         if not rig.args.keep:
-            rig.attempt("window.close")
+            rig.attempt("window.close", windowId=rig.window)
 
 
 def open_tab(rig: Rig, url: str) -> None:
-    rig.tab = rig.call("tab.new")["tabId"]
+    rig.tab = rig.call("tab.new", windowId=rig.window)["tabId"]
     result = rig.call("tab.goto", tabId=rig.tab, url=url, timeoutMs=30000)
     say(f"loaded: status={result.get('status')} url={result.get('url')}")
 
@@ -201,7 +202,7 @@ def idle(rig: Rig) -> None:
             if line in ("quit", "q", "exit"):
                 return
             if line in ("show", "hide"):
-                rig.call(f"window.{line}")
+                rig.call(f"window.{line}", windowId=rig.window)
             elif line == "info" and rig.tab is not None:
                 rig.call("tab.info", tabId=rig.tab)
             elif line == "timers" and rig.tab is not None:
@@ -230,11 +231,11 @@ def cmd_open(rig: Rig, args: argparse.Namespace) -> None:
 
 
 def cmd_window(rig: Rig, args: argparse.Namespace) -> None:
-    rig.attempt(f"window.{args.action}")
+    rig.attempt(f"window.{args.action}", windowId=args.window_id)
 
 
 def cmd_close(rig: Rig, args: argparse.Namespace) -> None:
-    rig.attempt("window.close")
+    rig.attempt("window.close", windowId=args.window_id)
 
 
 def _locate(*css: str) -> list:
@@ -482,7 +483,9 @@ def build_parser() -> argparse.ArgumentParser:
     store_p.add_argument("--save", metavar="PATH", help="write the page HTML (emails scrubbed) to PATH")
     win = add("window", cmd_window, help="show or hide the leftover work window (after --keep)")
     win.add_argument("action", choices=["show", "hide"])
-    add("close", cmd_close, help="close the leftover work window")
+    win.add_argument("window_id", type=int, help="windowId printed by window.open")
+    close_p = add("close", cmd_close, help="close the leftover work window")
+    close_p.add_argument("window_id", type=int, help="windowId printed by window.open")
     return parser
 
 

@@ -71,10 +71,10 @@ def test_every_subcommand_parses():
     gate = parse(["probe-gate", "https://hypeddit.com/x", "--email", "a@b.c", "--name", "N"])
     assert (gate.email, gate.name, gate.visible) == ("a@b.c", "N", False)
     assert parse(["probe-store", "https://bandcamp.com/x", "--save", "p.html"]).save == "p.html"
-    assert parse(["window", "show"]).action == "show"
-    assert parse(["close"]).func is spike.cmd_close
+    assert parse(["window", "show", "5"]).action == "show"
+    assert parse(["close", "5"]).func is spike.cmd_close
     with pytest.raises(SystemExit):
-        parse(["window", "explode"])
+        parse(["window", "explode", "5"])
 
 
 def test_hello_never_prints_the_token(capsys):
@@ -134,3 +134,10 @@ def test_missing_extension_is_reported_not_raised(monkeypatch):
     monkeypatch.setattr(spike.time, "sleep", lambda s: None)
     with pytest.raises(link.ExtensionMissing):
         spike.pick(Empty(), None, 0)
+
+
+def test_window_commands_carry_the_window_id():
+    session = run(["open", "https://hypeddit.com/x"])
+    sent = {cmd: args for cmd, args in session.calls}
+    assert sent["tab.new"] == {"windowId": 1}
+    assert sent["window.close"] == {"windowId": 1}
