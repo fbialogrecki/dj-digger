@@ -110,6 +110,21 @@ const cases = {
     same(await value("click", [{ css: "#b" }]), true);
     same(seen, ["pointerdown", "mousedown", "pointerup", "mouseup", "click"]);
   },
+  async "click on a new-tab or javascript: link runs the page's handler, not the link"() {
+    set('<a id="l" href="https://example.com/" target="_blank">Follow</a><a id="j" href="javascript:void(0)">Go</a>');
+    const defaults = [];
+    let handled = 0;
+    for (const id of ["l", "j"]) document.getElementById(id).addEventListener("click", () => handled++);
+    const watch = (e) => defaults.push(e); // read after dispatch, once dom.js's own listener ran
+    window.addEventListener("click", watch);
+    try {
+      same(await value("click", [{ css: "#l" }]), true);
+      same(await value("click", [{ css: "#j" }]), true);
+    } finally {
+      window.removeEventListener("click", watch);
+    }
+    same([handled, defaults.map((e) => e.defaultPrevented)], [2, [true, true]]);
+  },
   async "click waits for a disabled button to be enabled"() {
     set('<button id="b" disabled>Later</button>');
     let clicks = 0;

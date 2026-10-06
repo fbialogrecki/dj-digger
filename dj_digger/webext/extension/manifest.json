@@ -4,6 +4,7 @@
   "version": "1.4.0",
   "description": "Lets the dj-digger desktop app drive download gates and store carts in your own browser.",
   "minimum_chrome_version": "121",
+  "icons": {"16": "icons/icon-16.png", "32": "icons/icon-32.png", "48": "icons/icon-48.png", "128": "icons/icon-128.png"},
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuqsMkkWZbbQqh5LZX3rZrDKFQz3fEx5A/RynG4jmQlGD9tquLI539iph7sdTGqzvIMz+/l7AaiIyfX6AYMRirnwk7Ji6S0ueFfBEW4G6tugFrJvSIW0gmfFc/tmnCK+ucszL2Iu9UIZ0Vtn0wG6lh/o/att3WY6M8yaxzW9Wb+uM7gfjxPGTAoUtb32FVDEWuZH5olxgwG9L77Zx5sTA/HV/mE3sBj5DkWv6uCcixe8mr9G0hXo2GBTJCGbL31EhrMTKofIql7sPNS3Xs/uQhIFeWlnutee/TWLI0G2cv2DEC0VtmHEU+mSOfDRcd9g2DBdALGSDVDIEd+Y/DnXLswIDAQAB",
   "browser_specific_settings": {
     "gecko": {"id": "dj-digger@fbialogrecki.github.io", "strict_min_version": "128.0"}

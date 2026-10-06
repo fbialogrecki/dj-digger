@@ -5,8 +5,8 @@
 - Product version verified: 1.4.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-10-07
-- Document lines: <!-- SPEC TOTAL LINES -->2151<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->2151<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->2154<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->2154<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -91,25 +91,25 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 10.2 · block | ↳ ↳ Network-write boundary | 1632–1637 |
 | 10.3 | ↳ Browsers and clipboard | 1638–1709 |
 | 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 1710–1762 |
-| 11 | Security requirements and threat model | 1763–1866 |
+| 11 | Security requirements and threat model | 1763–1869 |
 | 11.1 | ↳ Untrusted URLs and SSRF boundary | 1765–1783 |
 | 11.2 | ↳ Secret and personal-data handling | 1784–1799 |
 | 11.3 | ↳ File and mutation safety | 1800–1821 |
-| 11.4 | ↳ Browser-extension trust boundary | 1822–1866 |
-| 12 | Privacy, lifecycle, and retention | 1867–1919 |
-| 12.1 | ↳ Data stored locally | 1869–1893 |
-| 12.2 | ↳ Data sent to third parties | 1894–1906 |
-| 12.3 | ↳ User-controlled deletion | 1907–1919 |
-| 13 | Failure behavior and current limitations | 1920–2018 |
-| 13.1 | ↳ Error isolation and reporting | 1922–1943 |
-| 13.2 | ↳ Confirmed limitations | 1944–2018 |
-| 14 | Verification, CI, and release | 2019–2117 |
-| 14.1 | ↳ Offline and live test suites | 2021–2069 |
-| 14.2 | ↳ Continuous integration and publishing | 2070–2102 |
-| 14.3 | ↳ Specification-map verification | 2103–2117 |
-| 15 | Evidence and operational references | 2118–2151 |
-| 15.1 | ↳ Primary implementation evidence | 2120–2141 |
-| 15.2 | ↳ User and historical documentation | 2142–2151 |
+| 11.4 | ↳ Browser-extension trust boundary | 1822–1869 |
+| 12 | Privacy, lifecycle, and retention | 1870–1922 |
+| 12.1 | ↳ Data stored locally | 1872–1896 |
+| 12.2 | ↳ Data sent to third parties | 1897–1909 |
+| 12.3 | ↳ User-controlled deletion | 1910–1922 |
+| 13 | Failure behavior and current limitations | 1923–2021 |
+| 13.1 | ↳ Error isolation and reporting | 1925–1946 |
+| 13.2 | ↳ Confirmed limitations | 1947–2021 |
+| 14 | Verification, CI, and release | 2022–2120 |
+| 14.1 | ↳ Offline and live test suites | 2024–2072 |
+| 14.2 | ↳ Continuous integration and publishing | 2073–2105 |
+| 14.3 | ↳ Specification-map verification | 2106–2120 |
+| 15 | Evidence and operational references | 2121–2154 |
+| 15.1 | ↳ Primary implementation evidence | 2123–2144 |
+| 15.2 | ↳ User and historical documentation | 2145–2154 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -1837,7 +1837,10 @@ Python caller, enforces its own limits, whatever the application sends:
   allowlist, so provider popups are only closed and reported, never read or
   clicked. URLs outside the allowlist are reduced to `https://<host>/` in events,
   replies and error messages, so OAuth callbacks (`code=`, `state=`) never cross
-  the channel or reach a log.
+  the channel or reach a log. Every owned tab is muted. A `dom.click` on a link that
+  opens a new tab (`target=_blank`) or a `javascript:` URL lets the page's own
+  handlers run and then cancels the link's default, so a gate's follow step is
+  ticked without opening (and autoplaying) the artist's SoundCloud page.
 - **No checkout.** A navigation or redirect of an owned Bandcamp or Beatport tab to
   `/checkout`, `/cart/checkout` or `/payment` (Beatport also `/account/billing` and
 `/subscriptions/billing`) closes the tab and is reported

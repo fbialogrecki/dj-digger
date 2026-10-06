@@ -2,8 +2,8 @@
 
 A record carrying the same kind of barcode the desktop draws on a track's
 artwork, with a white label, on a blue-to-bordeaux tile. Writes the window icon
-(``dj_digger/gui/qml/icons/app.png``), the Windows ``icon.ico`` and the macOS
-``icon.icns``. Run with the desktop extra:
+(``dj_digger/gui/qml/icons/app.png``), the Windows ``icon.ico``, the macOS
+``icon.icns`` and the browser extension's icons. Run with the desktop extra:
 
     uv run --extra gui python scripts/app_icon.py
 """
@@ -29,6 +29,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SEED = 'dj-digger'
 BLUE, BORDEAUX = QColor('#2f63ea'), QColor('#c02a4e')
 ICO_SIZES = (16, 24, 32, 48, 64, 128, 256)
+EXTENSION_SIZES = (16, 32, 48, 128)
 ICNS_TYPES = ((b'icp4', 16), (b'icp5', 32), (b'icp6', 64), (b'ic07', 128), (b'ic08', 256), (b'ic09', 512), (b'ic10', 1024))
 
 
@@ -130,10 +131,12 @@ def icns(images: list[tuple[bytes, bytes]]) -> bytes:
 
 def main() -> int:
     app = QGuiApplication.instance() or QGuiApplication(sys.argv)
-    rendered = {size: png(draw(size)) for size in {*ICO_SIZES, *(size for _, size in ICNS_TYPES)}}
+    rendered = {size: png(draw(size)) for size in {*ICO_SIZES, *EXTENSION_SIZES, *(size for _, size in ICNS_TYPES)}}
     (ROOT / 'dj_digger/gui/qml/icons/app.png').write_bytes(rendered[256])
     (ROOT / 'packaging/windows/icon.ico').write_bytes(ico({size: rendered[size] for size in ICO_SIZES}))
     (ROOT / 'packaging/macos/icon.icns').write_bytes(icns([(kind, rendered[size]) for kind, size in ICNS_TYPES]))
+    for size in EXTENSION_SIZES:
+        (ROOT / f'dj_digger/webext/extension/icons/icon-{size}.png').write_bytes(rendered[size])
     del app
     return 0
 

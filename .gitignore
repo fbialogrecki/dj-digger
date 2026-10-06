@@ -12,6 +12,7 @@ graphify-out/
 !tests/fixtures/*.html
 !tests/fixtures/bandcamp/*.html
 !tests/fixtures/hypeddit/*.html
+!tests/fixtures/beatport/*.html
 
 __pycache__/
 *.py[cod]

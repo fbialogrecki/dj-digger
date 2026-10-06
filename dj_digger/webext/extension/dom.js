@@ -184,7 +184,18 @@
       fire(el, "mousedown", { ...base, buttons: 1 });
       fire(el, "pointerup", { ...base, buttons: 0 });
       fire(el, "mouseup", { ...base, buttons: 0 });
-      fire(el, "click", { ...base, buttons: 0 });
+      // A link's own default after the page's handlers ran: a new tab (Hypeddit's follow links open
+      // the artist on SoundCloud, which autoplays) or a javascript: URL the extension's CSP refuses.
+      // The page has done its part by then (the step is ticked), so neither is followed.
+      const a = el.closest("a[href]");
+      const stop = (e) => e.target === el && e.preventDefault();
+      const quiet = a && (a.target === "_blank" || /^javascript:/i.test(a.getAttribute("href")));
+      if (quiet) window.addEventListener("click", stop);
+      try {
+        fire(el, "click", { ...base, buttons: 0 });
+      } finally {
+        if (quiet) window.removeEventListener("click", stop);
+      }
     };
     const fill = (el, value) => {
       const proto =
