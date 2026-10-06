@@ -514,6 +514,45 @@ w §9). W przeciwnym razie wracamy do decyzji.
     przeładowane, brak duplikatów);
   - pobranie bez jednoznacznego przypisania daje błąd ręczny, a nie zły plik.
 
+### F4b. Ukryty przebieg Hypeddit w dokumencie offscreen (decyzja właściciela 2026-10-07)
+
+Powód: na GNOME/Wayland okno robocze nie daje się ukryć (`focused:false` i `minimized` są
+ignorowane, spike R2). Spike R2b pokazał, że gate działa w ramce dokumentu offscreen: strona
+jest `visible`, timery nie są dławione, `hasStorageAccess() = true`, pobranie przychodzi
+z `referrer: https://hypeddit.com/`. Hypeddit nie wysyła `X-Frame-Options`/`frame-ancestors`.
+Zakres: tylko gate'y Hypeddit w Chromium. Firefox (bez `chrome.offscreen`) i wszystko poza
+Hypeddit zostaje przy oknie roboczym.
+
+- [ ] Rozszerzenie:
+  - uprawnienie `offscreen`; `offscreen.html`/`offscreen.js` trzymają po jednej ramce na kartę;
+  - `window.open {visible:false, offscreen:true}` tworzy sesję offscreen (wirtualne
+    `windowId`) albo odpowiada `offscreen:false`, gdy przeglądarka tego nie umie;
+  - `tab.new` w takiej sesji daje wirtualną kartę (ujemne `tabId`) = ramkę; obsługiwane
+    `tab.goto`/`tab.reload`/`tab.info`/`tab.close`/`tab.html`/`dom.*`; `tab.focus`,
+    `tab.capture` i `window.show` dają czytelny błąd `offscreen`;
+  - `dom.js` w ramce jako content script rejestrowany dynamicznie tylko na czas sesji
+    (`scripting.registerContentScripts`, `allFrames`, wyłącznie hosty Hypeddit), aktywny tylko
+    wtedy, gdy `location.ancestorOrigins` wskazuje origin rozszerzenia; w kartach użytkownika
+    nic nie robi;
+  - kanał ramka → background: `runtime.onConnect` przyjmuje port tylko z ramki bez `tab`
+    (dokument offscreen), z URL-em na allowliście Hypeddit i z nonce'em ramki nadanym przez
+    `offscreen.js`; wszystko inne jest rozłączane. Dane z ramki pozostają niezaufane;
+  - pobrania: przypisanie po `referrer` obejmuje wirtualne karty (URL z ostatniego raportu ramki);
+  - restart service workera i `app-offline` zamykają dokument offscreen jak okna.
+- [ ] Aplikacja (`webext/page.py`, `gates/browser.py`):
+  - `session(visible=False, offscreen=True)`; gdy odpowiedź mówi `offscreen:false`, zwykłe
+    okno jak dziś;
+  - ukryty przebieg partii gate'ów idzie w offscreen; wiersze odroczone (CAPTCHA, Connect/OAuth,
+    zgoda Spotify, `download.blocked`) przechodzą do widocznego okna roboczego otwieranego
+    dopiero wtedy, z kartą na URL gate'u;
+  - w offscreen nie klika się przycisków Connect (popup OAuth byłby oknem) — taki wiersz od
+    razu jest odroczony.
+- [ ] Testy: harness (sesja offscreen, wirtualne karty, odrzucenie portu spoza dokumentu
+      offscreen i spoza allowlisty, przypisanie pobrania), testy adaptera i `tests/test_gates.py`
+      (offscreen → widoczne okno dla odroczonych, brak offscreen → okno), test granic
+      bezpieczeństwa zaktualizowany o jeden dozwolony kanał `onConnect`.
+- [ ] Spec §10.2, §11.4, §13.2; CHANGELOG.
+
 ### F5. Koszyk Bandcamp i lookup Beatport (U3, U4)
 
 - [ ] `CartBrowserSession`:
