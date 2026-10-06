@@ -1,6 +1,6 @@
 # Plan: rozszerzenie przeglądarki zamiast Playwright/Chromium
 
-- Status: **wdrożone na branchu F1–F5, F7–F9**; F0 (spike) i F6 (koszyk Beatport) czekają na właściciela.
+- Status: **wdrożone na branchu F1–F5, F7–F9**; F6 (koszyk Beatport) wdrożony offline, czeka na akceptację na żywo (W7); F0 (spike) czeka na właściciela.
   Poniżej plan z rewizji 2; opisy „dziś” w §1 dotyczą stanu sprzed zmiany. Zachowanie opisuje
   `PROJECT-SPECIFICATION.md`.
 - Branch: `feat/browser-extension` (od `main` @ `1fe6060`, wersja 1.3.0); wydanie docelowe 1.4.0
@@ -539,26 +539,27 @@ w §9). W przeciwnym razie wracamy do decyzji.
 
 ### F6. Koszyk Beatport (nowość, D7)
 
-- [ ] Rozwiązywanie produktu bez zmian w logice: direct link bez przeglądarki; link release'u
+- [x] Rozwiązywanie produktu bez zmian w logice: direct link bez przeglądarki; link release'u
       to `_page_products_async` + `match_product` na stronie otwartej przez rozszerzenie.
       `__NEXT_DATA__` w `store_parse.py` tylko wtedy, gdy wymaga tego R4. Żadnej ścieżki
-      wyszukiwania.
-- [ ] `stores/beatport.py`, symetrycznie do Bandcampa, w minimalnym zakresie z R4:
+      wyszukiwania. Odstępstwo: direct link też otwiera stronę (zalogowanie i cena są znane
+      dopiero z przeglądarki); bez logowania zostaje dokładny wpis playlisty.
+- [x] `stores/beatport.py`, symetrycznie do Bandcampa, w minimalnym zakresie z R4:
   - `_beatport_cart_contains_async`: strona koszyka, anchor z tym samym numerycznym ID tracka;
   - `_add_to_cart_async`: rewalidacja ID, tytułu, wersji i ceny z preflightu, potem klik
     kontrolki „Add to cart” zidentyfikowanej w R4;
   - weryfikacja: licznik koszyka, potem strona koszyka, w budżecie czasowym jak Bandcamp.
     Niepewna weryfikacja nie powtarza kliknięcia (spec §3.6).
-- [ ] `services/purchases.py`:
+- [x] `services/purchases.py`:
   - Beatport przestaje być wycinany przez `_playlist_results` i `_split_direct_beatport`
     dla pozycji z dokładnym ID i zalogowanym użytkownikiem;
   - wykonanie seryjne per sklep, circuit breaker i diagnostyka jak dla Bandcampa;
   - `_preflight_failure` dla Beatportu: challenge, brak logowania lub brak dokładnego ID
     w kodzie strony daje istniejący `_beatport_playlist_result` (fallback Soundiiz bez zmian).
-- [ ] `allowlist.json`: `forbiddenPaths` dla Beatportu z R4.
-- [ ] GUI: wynik pokazuje „w koszyku Beatport” oraz osobno „do playlisty” dla reszty. Akcja
+- [x] `allowlist.json`: `forbiddenPaths` dla Beatportu z R4.
+- [x] GUI: wynik pokazuje „w koszyku Beatport” oraz osobno „do playlisty” dla reszty. Akcja
       `P` (otwieranie stron Beatport) zostaje.
-- [ ] Testy: fałszywe strony z fixtures R4 (`tests/fixtures/beatport/`), w tym zmiana ceny,
+- [x] Testy: fałszywe strony z fixtures R4 (`tests/fixtures/beatport/`), w tym zmiana ceny,
       brak logowania, niepewna weryfikacja i fallback do playlisty.
 
 ### F7. GUI: onboarding, zgoda i sprzątanie
