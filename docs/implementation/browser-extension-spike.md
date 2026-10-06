@@ -4,8 +4,9 @@
 - Plan: `docs/implementation/browser-extension-plan.md`, §6 „F0”, ryzyka §9 R1–R6
 - Narzędzie: `scripts/webext_spike.py` (stdlib, wyrzucane po spike'u)
 - Czas: około godziny, jeśli R1 i R5 zrobisz jednym przebiegiem (patrz „Plan godziny”)
-- Kto uruchamia: **tylko właściciel**, w swoich zalogowanych przeglądarkach (Chrome i Firefox
-  na Fedorze). Agent niczego z tego nie uruchamia (AGENTS.md: żadnych żywych, zapisujących
+- Kto uruchamia: **tylko właściciel**, w swojej zalogowanej przeglądarce na Fedorze.
+- Zakres (decyzja 2026-10-06): **tylko Chrome**. Kolumny i kroki dla Firefoksa są odłożone
+  (Firefox: selftest ALL PASS, ładowanie przez `web-ext run` działa; reszta nietestowana). Agent niczego z tego nie uruchamia (AGENTS.md: żadnych żywych, zapisujących
   przepływów bez wyraźnej prośby).
 
 Wyniki wklej do tabel w tym pliku (albo odeślij je w czacie w tej samej kolejności). **Nie wklejaj**

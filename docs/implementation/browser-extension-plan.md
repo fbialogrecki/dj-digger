@@ -648,8 +648,11 @@ uv run --extra dev pytest
 
 ## 8. Macierz akceptacji (warunek merge)
 
-Na Fedorze (Chrome RPM i Firefox RPM) wszystkie wiersze. Na Windows 10/11 (Chrome i Edge,
-Firefox) i macOS (Chrome, Firefox) co najmniej W1, W2, W4, W8 i W11.
+**Priorytet: przeglądarki z rodziny Chromium (decyzja właściciela 2026-10-06).** Na Fedorze
+(Chrome) wszystkie wiersze. Na Windows 10/11 (Chrome i Edge) i macOS (Chrome) co najmniej W1,
+W2, W4, W8 i W11. Firefox zostaje w kodzie (jedna baza kodu), ale jego testy są odłożone
+i nie blokują merge; sprawdzono tylko W11 (`selftest.html`: ALL PASS) i ładowanie przez
+`web-ext run`.
 
 | # | Scenariusz | Oczekiwane |
 |---|---|---|
@@ -704,6 +707,10 @@ Dodatkowo: `npx web-ext lint` bez błędów, a domyślny pytest zielony w CI na 
 6. **Akcje na prawdziwych kontach (K6, D9):** bez nowego ustawienia i bez dodatkowego pytania.
    Zachowanie jak dziś, sterowane `gate_social_actions`; skutek jawnie opisany w Ustawieniach,
    spec, README i CHANGELOG.
+
+8. **Priorytet przeglądarek (2026-10-06):** rodzina Chromium (Chrome, Edge, Brave). Firefox
+   pozostaje wspierany w kodzie, ale bez testów akceptacyjnych na tym etapie; spike F0 robimy
+   tylko w Chrome.
 
 ### Otwarte
 
