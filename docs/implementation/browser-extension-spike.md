@@ -520,16 +520,16 @@ Ręcznie w DevTools (zalogowany, własne konto):
 **Kryterium przejścia F0 (plan §6):** R1, R5 i R6 działają albo mają potwierdzone obejście; w przeciwnym razie
 wracamy do decyzji (D1–D5).
 
-## Wyniki: podsumowanie (wypełnij na końcu)
+## Wyniki: podsumowanie
 
 | Ryzyko | Wynik (OK / obejście / problem) | Decyzja |
 |---|---|---|
-| R1 | | |
-| R2 | | |
-| R3 | | |
-| R4 | | |
-| R5 | | |
-| R6 | | |
-| W11 (`selftest.html`) | | |
+| R1 | **OK.** Na bramce `1rjvpc` syntetyczne kliknięcia przechodzą cały gate: `a.undone` odhacza kroki (3→0), Next przesuwa slajd od razu, Download pobiera plik. Popupy SoundCloud otwierają się (`tab.created` z `openerTabId`) i **same odtwarzają muzykę**. Spotify Connect nie był jeszcze sprawdzony. | F4 bez zmian. Wszystkie karty rozszerzenia są wyciszane (`mute`), a popupy ukrytej sesji minimalizowane (e370bc1). |
+| R2 | **Problem na GNOME/Wayland.** `focused:false` nie ukrywa okna, a `state:"minimized"` (przy tworzeniu i ponownie przez `windows.update`) jest ignorowane: okno robocze i popupy są widoczne przez cały przebieg. Timery nie są dławione (2,02 s na 2 s), bo okno faktycznie nie jest zminimalizowane. To znane ograniczenie: Chromium ignoruje `state` przy `windows.create` na Linuksie, a protokół xdg-shell nie potwierdza minimalizacji. | Trwa próba R2b: gate w ramce dokumentu offscreen (Hypeddit i Bandcamp nie wysyłają `X-Frame-Options`/`frame-ancestors`; Beatport `deny`, SoundCloud `SAMEORIGIN`). Do decyzji właściciela, jeśli R2b zawiedzie: karta w tle w oknie użytkownika albo przebieg widoczny. |
+| R3 | **OK (Chromium RPM).** Host rejestruje się, `hello` w kilka sekund, uprawnienia nadane, odczyt tokenu SoundCloud działa. Zakończenie hosta po zamknięciu przeglądarki jeszcze niesprawdzone. Firefox odłożony (decyzja 8). | bez zmian |
+| R4 | **Częściowo.** Wylogowany: strona release'u (`/release/<slug>/<id>`) ma wiersze `[data-testid="tracks-table-row"]` z anchorem `/track/<slug>/<id>` i przyciskiem `button[aria-label^="Add track"]`, np. `Add track 'SPACESHIP' (Original Mix) by Niereich to cart. Price: $1.49` (tytuł, wersja, artyści i cena w jednym `aria-label`). Obok strzałka `Choose a cart for this item` (wiele koszyków). Parser aplikacji (`products_from_html`) wyciąga 5 produktów z ID z samych anchorów; `ld+json` brak, `__NEXT_DATA__` niepotrzebne. Strona tracka: główny przycisk to `Add track …` **poza** `tracks-table-row` (w wierszach są rekomendacje). `/cart` bez logowania przekierowuje na `/?next=/cart`. Nie sprawdzono: koszyka po zalogowaniu, licznika, ścieżek checkoutu i samego kliknięcia (wymaga logowania i zgody właściciela). | Rozwiązywanie produktu bez zmian (anchory). Selektor kliknięcia: `aria-label` z rewalidacją tytułu/wersji/ceny. Reszta F6 czeka na test zalogowany. |
+| R5 | **OK po poprawce.** Plik idzie z CDN spoza `host_permissions`, więc `webRequest` go nie widzi i pobranie nie było przypisane (aplikacja by czekała). Poprawka: przypisanie po `referrer` do jedynej własnej karty na tym samym dozwolonym origin (e370bc1). Potem `download.created` po 1,2–1,7 s i `download.done` po 2,8–3 s, `danger: safe`, `audio/mpeg`. Pierwsze wejście po pobraniu przekierowuje na `/hot-or-not/…` (aplikacja już to obsługuje). | `host_permissions` bez zmian (bez dopisywania CDN). |
+| R6 | **Nie sprawdzono.** Kliknięcie „add to cart” na żywym koncie wymaga zgody właściciela. | test w macierzy W6 |
+| W11 (`selftest.html`) | **OK** w Chrome i Firefoksie (ALL PASS). | bez zmian |
 
-Środowisko: Fedora ___, sesja ___ / ___, Chrome ___, Firefox ___, data ___.
+Środowisko: Fedora 44, GNOME / Wayland, Chromium 154 (RPM), Firefox (tylko W11), data 2026-10-06.
