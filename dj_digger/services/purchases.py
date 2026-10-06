@@ -557,9 +557,10 @@ class CartBrowserSession:
         context = await self._shown_context()
         page = await context.new_page()
         beatport_cart = store == "beatport"
-        await bandcamp._navigate_async(
-            page, beatport.BEATPORT_CART_URL if beatport_cart else bandcamp.BANDCAMP_CART_URL, store
-        )
+        if beatport_cart:
+            await beatport.open_cart(page)  # /cart reaches the account's cart client-side
+        else:
+            await bandcamp._navigate_async(page, bandcamp.BANDCAMP_CART_URL, store)
         missing: list[CartItem] = []
 
         async def all_shown() -> bool:

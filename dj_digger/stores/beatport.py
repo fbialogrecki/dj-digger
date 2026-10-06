@@ -42,6 +42,7 @@ CART_ROW_MARK = '[aria-label="Move to cart"]'
 ADD_LABEL = re.compile(r"Add track '(.*)'(?: \((.*)\))? by (.*) to cart\. Price: (.+)", re.DOTALL)
 IN_CART_LABEL = re.compile(r"Track '.*' is already in your cart", re.DOTALL)
 MAX_ROWS = 200
+CONTROL_WAIT_SECONDS = 10.0
 
 
 def parse_add_label(label: str) -> tuple[str, str, Decimal, str] | None:
@@ -159,7 +160,7 @@ async def _in_cart_here(page: Any, product_id: str) -> bool:
     return bool(found and IN_CART_LABEL.fullmatch(found[1].strip()))
 
 
-async def _open_cart(page: Any) -> None:
+async def open_cart(page: Any) -> None:
     """The cart page; /cart moves on to /cart/cart/<id> client-side, or home when signed out."""
 
     await bandcamp._navigate_async(page, BEATPORT_CART_URL, "beatport")
@@ -178,7 +179,7 @@ async def cart_contains_async(page: Any, item: CartItem, *, navigate: bool = Tru
     if navigate:
         if await _in_cart_here(page, item.product_id):
             return True
-        await _open_cart(page)
+        await open_cart(page)
     count = await cart_count_async(page)
     if count == 0:
         return False
@@ -204,7 +205,15 @@ async def cart_count_async(page: Any) -> int | None:
 async def add_to_cart_async(page: Any, item: CartItem, cancel: asyncio.Event) -> None:
     """Click the control of this product, after its label still matches the preflight snapshot."""
 
-    found = await add_control_async(page, item.product_id)
+    found = None
+
+    async def rendered() -> bool:
+        # The page hydrates after it loaded: until then the control is missing or unlabelled.
+        nonlocal found
+        found = await add_control_async(page, item.product_id)
+        return bool(found and (parse_add_label(found[1]) or IN_CART_LABEL.fullmatch(found[1].strip())))
+
+    await bandcamp._poll_async(rendered, CONTROL_WAIT_SECONDS)
     parsed = parse_add_label(found[1]) if found else None
     if found is None or parsed is None:
         raise StoreStructureError("Beatport add-to-cart control changed or is unavailable")
@@ -236,7 +245,7 @@ async def verify_click_async(
         return await bandcamp._poll_async(grew, stages["count"])
 
     async def by_cart() -> bool:
-        await _open_cart(page)
+        await open_cart(page)
         return await cart_contains_async(page, item, navigate=False)
 
     for name, check, seconds in (
