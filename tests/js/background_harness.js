@@ -420,6 +420,16 @@ async function start(fake = fakeBrowser()) {
   x.e["downloads.onCreated"].fire(dl);
   await tick();
   assert.deepEqual(x.events("download.created"), []); // vt and vt2 are both on hypeddit.com
+  // ... unless the app named the tab whose Download it is about to click
+  assert.equal((await x.call("download.expect", { tabId: vt2 })).ok, true);
+  x.e["downloads.onCreated"].fire({ ...dl, id: 20 });
+  await tick();
+  assert.deepEqual(x.events("download.created").map((m) => [m.downloadId, m.tabId]), [[20, vt2]]);
+  x.e["downloads.onCreated"].fire({ ...dl, id: 19 }); // the expectation is used up
+  await tick();
+  assert.equal(x.events("download.created").length, 1);
+  assert.equal((await x.call("download.expect", { tabId: 4242 })).error.code, "not_owned");
+  x.sent.splice(0, x.sent.length, ...x.sent.filter((m) => m.event !== "download.created"));
   assert.equal((await x.call("tab.close", { tabId: vt2 })).ok, true);
   assert.deepEqual(x.off.port.posted.at(-1), { op: "remove", nonce: nonce2 });
   assert.equal(good.disconnected, true);

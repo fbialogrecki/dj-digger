@@ -622,6 +622,16 @@ def test_clear_cookies_refuses_every_other_name(world):
         assert len(ext.commands("cookie.clearGateDownload")) == 1
 
 
+def test_announce_download_names_this_tab(world):
+    listener, ext = world
+    ext.handlers["download.expect"] = lambda a: None
+    with webpage.session(False, listener) as context:
+        page = context.new_page()
+        assert page.announce_download() is None
+        (sent,) = ext.commands("download.expect")
+        assert sent["args"] == {"tabId": page._tab_id}
+
+
 def test_cookies_only_offer_the_soundcloud_token(world):
     listener, ext = world
     tokens = iter(["secret-token", None])

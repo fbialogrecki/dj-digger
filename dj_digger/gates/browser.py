@@ -399,6 +399,7 @@ def _click_gate_download(
         yield from turn.acquire(key, page, cancel)
     try:
         page.context.clear_cookies(name=GATE_DOWNLOAD_COOKIE)
+        page.announce_download()
         button.click(**_CLICK)
         return True
     except Exception as exc:

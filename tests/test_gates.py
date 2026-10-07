@@ -797,6 +797,9 @@ class _GatePage:
     def _fresh_pending(self):
         return {n: 1 for n, kind in enumerate(self.steps) if kind in _CLICK_STEPS}
 
+    def announce_download(self):
+        self.announced = getattr(self, "announced", 0) + 1
+
     def on(self, event, callback):
         self.handlers[event] = callback
 

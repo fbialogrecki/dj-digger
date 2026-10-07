@@ -247,6 +247,7 @@ pozostaje zajęta do czasu odpowiedzi na anulowaną komendę (K2).
 | `dom.call` | `tabId, name` | tylko nazwane funkcje z `dom.js` (MAIN world, tylko odczyt); wynik niezaufany |
 | `cookie.soundcloudToken` | | wartość `oauth_token` z `https://soundcloud.com` albo `null` |
 | `cookie.clearGateDownload` | | usuwa `filedownloading` z hostów Hypeddit |
+| `download.expect` | `tabId` | następne pobranie z CDN o tym samym origin co inne karty należy do tej karty (raz, 60 s) |
 | `download.discard` | `downloadId` | `removeFile` + `erase` po skopiowaniu (D5) |
 | `cancel` | `id` | przerywa czekanie komendy `id` |
 

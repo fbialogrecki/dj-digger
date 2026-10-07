@@ -91,18 +91,18 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 10.2 · block | ↳ ↳ Network-write boundary | 1640–1645 |
 | 10.3 | ↳ Browsers and clipboard | 1646–1717 |
 | 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 1718–1770 |
-| 11 | Security requirements and threat model | 1771–1902 |
+| 11 | Security requirements and threat model | 1771–1904 |
 | 11.1 | ↳ Untrusted URLs and SSRF boundary | 1773–1791 |
 | 11.2 | ↳ Secret and personal-data handling | 1792–1807 |
 | 11.3 | ↳ File and mutation safety | 1808–1829 |
-| 11.4 | ↳ Browser-extension trust boundary | 1830–1902 |
-| 12 | Privacy, lifecycle, and retention | 1903–1955 |
-| 12.1 | ↳ Data stored locally | 1905–1929 |
-| 12.2 | ↳ Data sent to third parties | 1930–1942 |
-| 12.3 | ↳ User-controlled deletion | 1943–1955 |
-| 13 | Failure behavior and current limitations | 1956–2061 |
-| 13.1 | ↳ Error isolation and reporting | 1958–1979 |
-| 13.2 | ↳ Confirmed limitations | 1980–2061 |
+| 11.4 | ↳ Browser-extension trust boundary | 1830–1904 |
+| 12 | Privacy, lifecycle, and retention | 1905–1957 |
+| 12.1 | ↳ Data stored locally | 1907–1931 |
+| 12.2 | ↳ Data sent to third parties | 1932–1944 |
+| 12.3 | ↳ User-controlled deletion | 1945–1957 |
+| 13 | Failure behavior and current limitations | 1958–2061 |
+| 13.1 | ↳ Error isolation and reporting | 1960–1981 |
+| 13.2 | ↳ Confirmed limitations | 1982–2061 |
 | 14 | Verification, CI, and release | 2062–2160 |
 | 14.1 | ↳ Offline and live test suites | 2064–2112 |
 | 14.2 | ↳ Continuous integration and publishing | 2113–2145 |
@@ -1891,7 +1891,9 @@ Python caller, enforces its own limits, whatever the application sends:
 - **Downloads** are attributed to an owned tab by the response it fetched, matched
   to the download's URL, or, for a file from a CDN outside the host permissions, to the
   one own tab (virtual ones by their last reported URL) on the referrer's allowlisted
-  origin; an unattributable one is ignored, an unsafe or "where to
+  origin, or, when several share it, to the tab the application named with
+  `download.expect` right before pressing that gate's Download (gate downloads run one at
+  a time, and the name is used once and expires after 60 s); an unattributable one is ignored, an unsafe or "where to
   save" one is reported as blocked and never accepted, and the application deletes
   the browser's file only after copying a download it was told about.
 - **Channel.** The socket directory is private to the user (§6.3), peers
@@ -2013,9 +2015,7 @@ as player events instead of escaping through Python-CFFI.
   and SoundCloud refuse framing, so carts and the sign-in keep the work window; a
   gate row that needs a Connect popup, a CAPTCHA or a provider login is moved to a
   visible window, and a gate with follow links and an email step in a frame is
-  verified live only on the owner's browser. Several offscreen gates on one
-  Hypeddit origin make a CDN download ambiguous (the referrer is the origin),
-  which is then ignored rather than guessed. Disconnect browsers lasts only until the next start,
+  verified live only on the owner's browser. Disconnect browsers lasts only until the next start,
   which registers again. The extension socket path does not depend on the data
   directory (the instance lock is per data directory), so a second desktop or CLI
   login with a different data directory on one account cannot use the extension

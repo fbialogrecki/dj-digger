@@ -680,6 +680,13 @@ const commands = {
     }
     return { removed };
   },
+  // The app downloads one gate file at a time; it names the tab right before that click, so a
+  // CDN download with only an origin for a referrer is that tab's even when others share the origin.
+  async "download.expect"({ tabId }) {
+    need(tabId);
+    expected = { tabId, t: Date.now() };
+    return null;
+  },
   async "download.discard"({ downloadId }) {
     if (!downloads.has(downloadId)) throw new Err("not_owned", "download was not attributed to an own tab");
     await api.downloads.removeFile(downloadId).catch(() => {}); // already moved or deleted
@@ -748,6 +755,7 @@ on(api.webRequest.onBeforeRedirect, (d) => {
   note(d, d.redirectUrl);
 }, responses);
 
+let expected = null; // {tabId, t} named by download.expect
 const blocked = new Set();
 function block(downloadId, tabId, reason) {
   if (blocked.has(downloadId)) return;
@@ -767,8 +775,12 @@ on(api.downloads.onCreated, async (item) => {
       .filter(([, o]) => !o.popup)
       .map(([id]) => (isVirtual(id) ? Promise.resolve(frames.has(id) ? vtab(id) : null) : api.tabs.get(id).catch(() => null)));
     tabs = new Set((await Promise.all(own)).filter((t) => t && parse(t.url)?.origin === from.origin).map((t) => t.id));
+    if (tabs.size > 1 && expected && tabs.has(expected.tabId) && Date.now() - expected.t < 60000) {
+      tabs = new Set([expected.tabId]);
+    }
   }
   if (tabs.size !== 1) return; // not attributable: ignored, never reported as a row's file
+  if (expected && tabs.has(expected.tabId)) expected = null;
   const [tabId] = tabs;
   downloads.set(item.id, tabId);
   persist();

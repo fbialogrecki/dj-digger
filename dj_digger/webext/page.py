@@ -422,6 +422,11 @@ class _Page:
             raise ValueError("only the page scripts of stores/bandcamp.py can be evaluated")
         return self._tab("dom.call", name=name)
 
+    def _announce_download(self) -> _Cmd:
+        """Tell the extension this page's next download is the one (not Playwright API): a gate
+        file from a CDN carries only the gate's origin, which other gate tabs share."""
+        return self._tab("download.expect", post=lambda _: None)
+
     def _bring_to_front(self) -> _Cmd:
         return self._tab("tab.focus", post=lambda _: None)
 
@@ -444,7 +449,7 @@ class _Page:
         return cmd._replace(ignore=("tab_closed", "not_owned"))
 
 
-_PAGE_OPS = "goto reload content evaluate bring_to_front screenshot".split()
+_PAGE_OPS = "goto reload content evaluate announce_download bring_to_front screenshot".split()
 
 
 @_sync(*_PAGE_OPS)
