@@ -546,4 +546,14 @@ własnym dokumencie offscreen. Właściciel potwierdził: bez okna i bez karty; 
 krótko grała muzyka z ostatniego etapu bramki (Hypeddit odtwarza kolejne utwory po Download), po
 uszczelnieniu `frame-main.js` (12:07) cisza.
 
+**F10 sesja „w tle” koszyka (2026-10-08, Chromium 154, GNOME/Wayland, tylko odczyt):**
+`window.open {background:true}` daje wirtualne `windowId`; dwie karty `tab.new` powstały jako
+nieaktywne karty w istniejącym oknie użytkownika (bez nowego okna, bez zmiany aktywnej karty),
+`window.close` zamknął tylko je. `bandcamp.com/cart` przekierowuje na stronę ostatniej pozycji
+koszyka z otwartym side-cartem. **R11 (throttling nieaktywnej karty):** sonda `waitVisible` 2000 ms
+trwa 2,2–2,5 s zaraz po otwarciu i stale ~2,97–3,00 s przez 6,6 min (pomiary co 30 s) — timery są
+wyrównywane do 1 s, intensywnego throttlingu po 5 min (raz na minutę) nie ma. Wniosek: koszyk
+w nieaktywnych kartach zostaje, każde czekanie może się przedłużyć o ≤ 1 s; offscreen dla
+Bandcampa niepotrzebny.
+
 Środowisko: Fedora 44, GNOME / Wayland, Chromium 154 (RPM), Firefox (tylko W11), data 2026-10-06.

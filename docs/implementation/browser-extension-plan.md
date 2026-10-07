@@ -1,7 +1,8 @@
 # Plan: rozszerzenie przeglądarki zamiast Playwright/Chromium
 
 - Status: **wdrożone na branchu F0–F9 i F4b**; **F10 (praca bez okien, doprecyzowanie właściciela
-  2026-10-07) w toku** i blokuje merge. Akceptacja na żywo (§8) po F10.
+  2026-10-07) wdrożone** (sesja w tle koszyka sprawdzona na żywo; akceptacja W4–W7, W15 na żywo
+  czeka). Akceptacja na żywo (§8) po F10.
   Poniżej plan z rewizji 2; opisy „dziś” w §1 dotyczą stanu sprzed zmiany. Zachowanie opisuje
   `PROJECT-SPECIFICATION.md`.
 - Branch: `feat/browser-extension` (od `main` @ `1fe6060`, wersja 1.3.0); wydanie docelowe 1.4.0
@@ -718,17 +719,17 @@ Zasady (nadrzędne; Z = zasada):
 
 Zadania:
 
-- [ ] Gate'y (`gates/browser.py`, `services/downloads.py`):
+- [x] Gate'y (`gates/browser.py`, `services/downloads.py`):
   - po przebiegu offscreen wiersze odroczone nie idą automatycznie do widocznego okna:
     callback `attend(reasons) -> bool` z GUI decyduje (Z2); bez callbacku (CLI) zachowanie
     jak dotąd;
   - krok z polem komentarza (`textarea` na slajdzie click-through) wypełniany
     `config.random_comment()` (dziś tylko ścieżka HTTP);
   - Firefox bez offscreen: ukryte okno jak dotąd, ale bez automatycznego `show()` (Z2).
-- [ ] GUI pobierania (`gui/backend.py`): obsługa zdarzeń `waiting`, `downloaded`, `status`,
+- [x] GUI pobierania (`gui/backend.py`): obsługa zdarzeń `waiting`, `downloaded`, `status`,
       `browser_started`, `browser_finished`, `summary` (Z6); okno „Wyniki pobierania” (Z3);
       pytanie Z2.
-- [ ] Koszyk (`services/purchases.py`, `webext/page.py`, `background.js`):
+- [x] Koszyk (`services/purchases.py`, `webext/page.py`, `background.js`):
   - sesja „w tle”: `window.open {background:true}` przypina sesję do ostatnio aktywnego
     zwykłego okna użytkownika, `tab.new` tworzy kartę `active:false` w tym oknie; gdy
     przeglądarka nie ma okna, powstaje nowe (nieuniknione);
@@ -738,15 +739,17 @@ Zadania:
   - bez formularza „Review cart” (Z4); `purchase_price` respektuje `nyp_price`;
   - wiersze bez linku Bandcamp/Beatport nie znikają: wynik „brak linku do zakupu” (Z5);
   - `CartResult.url` wypełnione dla każdej pozycji niedodanej; wybór „Otwórz linki”.
-- [ ] Ustawienia i konfiguracja: `nyp_price` (`minimum`/`suggested`) w `config.py`
+- [x] Ustawienia i konfiguracja: `nyp_price` (`minimum`/`suggested`) w `config.py`
       i w dialogu Ustawień; tłumaczenia.
-- [ ] Testy: harness (sesja w tle nie tworzy okna, nie zamyka okna użytkownika), testy
+- [x] Testy: harness (sesja w tle nie tworzy okna, nie zamyka okna użytkownika), testy
       `test_gates.py` (attend: pomiń/otwórz, komentarz), `test_cart.py` (bez akceptacji,
       `nyp_price`, brak linku, URL-e niedodanych), testy GUI zdarzeń i wyników.
-- [ ] Spec §3.5, §3.6, §3.8, §7.4, §10.2, §10.3; CHANGELOG; checklista §21.
-- [ ] Pomiar na żywo: throttling timerów w nieaktywnej karcie (`timers`) przy partii
+- [x] Spec §3.5, §3.6, §3.8, §7.4, §10.2, §10.3; CHANGELOG; checklista §21.
+- [x] Pomiar na żywo: throttling timerów w nieaktywnej karcie (`timers`) przy partii
       koszyka > 5 min; jeśli przeszkadza, Bandcamp przechodzi do offscreen (nie wysyła
-      `X-Frame-Options`), Beatport zostaje w karcie (wysyła `deny`).
+      `X-Frame-Options`), Beatport zostaje w karcie (wysyła `deny`). **Wynik 2026-10-08:** tylko
+      wyrównanie do 1 s (≤ 1 s na czekanie), bez intensywnego throttlingu przez 6,6 min — plan B
+      niepotrzebny.
 
 ## 7. Testy
 
