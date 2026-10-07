@@ -268,6 +268,11 @@ async function start(fake = fakeBrowser()) {
   x.e["webNavigation.onCommitted"].fire({ tabId: nt, frameId: 0 });
   x.e["webNavigation.onDOMContentLoaded"].fire({ tabId: nt, frameId: 0 });
   assert.equal((await going).ok, true);
+  // checkout stays closed under a locale prefix and at Bandcamp's real checkout entry
+  for (const url of ["https://www.beatport.com/de/checkout/main/1", "https://www.beatport.com/en-us/checkout/a/1",
+    "https://bandcamp.com/cart/checkout_start?x=1"]) {
+    assert.equal((await x.call("tab.goto", { tabId: nt, url })).error.code, "forbidden", url);
+  }
 
   // a download from a CDN webRequest never saw is the own tab's whose origin is its referrer
   x = await start();

@@ -61,7 +61,11 @@ function cleanPath(u) {
   p = p.toLowerCase().replace(/\/{2,}/g, "/");
   return p.length > 1 ? p.replace(/\/$/, "") : p;
 }
-const isForbidden = (g, p) => g.forbiddenPaths.some((f) => p === f || p.startsWith(f + "/"));
+// Beatport serves every route under a locale prefix too (/de/checkout/…), so the bare path counts.
+const isForbidden = (g, p) => {
+  const bare = p.replace(/^\/[a-z]{2}(?:-[a-z]{2})?(?=\/|$)/, "");
+  return g.forbiddenPaths.some((f) => [p, bare].some((q) => q === f || q.startsWith(f + "/")));
+};
 // Non-allowlisted URLs (OAuth popups carry code= and state=) are reduced to their host.
 function safeUrl(url) {
   const u = parse(url);

@@ -5,8 +5,8 @@
 - Product version verified: 1.4.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-10-07
-- Document lines: <!-- SPEC TOTAL LINES -->2208<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->2208<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->2209<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->2209<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -91,25 +91,25 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 10.2 · block | ↳ ↳ Network-write boundary | 1643–1648 |
 | 10.3 | ↳ Browsers and clipboard | 1649–1720 |
 | 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 1721–1773 |
-| 11 | Security requirements and threat model | 1774–1918 |
+| 11 | Security requirements and threat model | 1774–1919 |
 | 11.1 | ↳ Untrusted URLs and SSRF boundary | 1776–1794 |
 | 11.2 | ↳ Secret and personal-data handling | 1795–1810 |
 | 11.3 | ↳ File and mutation safety | 1811–1832 |
-| 11.4 | ↳ Browser-extension trust boundary | 1833–1918 |
-| 12 | Privacy, lifecycle, and retention | 1919–1971 |
-| 12.1 | ↳ Data stored locally | 1921–1945 |
-| 12.2 | ↳ Data sent to third parties | 1946–1958 |
-| 12.3 | ↳ User-controlled deletion | 1959–1971 |
-| 13 | Failure behavior and current limitations | 1972–2075 |
-| 13.1 | ↳ Error isolation and reporting | 1974–1995 |
-| 13.2 | ↳ Confirmed limitations | 1996–2075 |
-| 14 | Verification, CI, and release | 2076–2174 |
-| 14.1 | ↳ Offline and live test suites | 2078–2126 |
-| 14.2 | ↳ Continuous integration and publishing | 2127–2159 |
-| 14.3 | ↳ Specification-map verification | 2160–2174 |
-| 15 | Evidence and operational references | 2175–2208 |
-| 15.1 | ↳ Primary implementation evidence | 2177–2198 |
-| 15.2 | ↳ User and historical documentation | 2199–2208 |
+| 11.4 | ↳ Browser-extension trust boundary | 1833–1919 |
+| 12 | Privacy, lifecycle, and retention | 1920–1972 |
+| 12.1 | ↳ Data stored locally | 1922–1946 |
+| 12.2 | ↳ Data sent to third parties | 1947–1959 |
+| 12.3 | ↳ User-controlled deletion | 1960–1972 |
+| 13 | Failure behavior and current limitations | 1973–2076 |
+| 13.1 | ↳ Error isolation and reporting | 1975–1996 |
+| 13.2 | ↳ Confirmed limitations | 1997–2076 |
+| 14 | Verification, CI, and release | 2077–2175 |
+| 14.1 | ↳ Offline and live test suites | 2079–2127 |
+| 14.2 | ↳ Continuous integration and publishing | 2128–2160 |
+| 14.3 | ↳ Specification-map verification | 2161–2175 |
+| 15 | Evidence and operational references | 2176–2209 |
+| 15.1 | ↳ Primary implementation evidence | 2178–2199 |
+| 15.2 | ↳ User and historical documentation | 2200–2209 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -1887,8 +1887,9 @@ Python caller, enforces its own limits, whatever the application sends:
   handlers run and then cancels the link's default, so a gate's follow step is
   ticked without opening (and autoplaying) the artist's SoundCloud page.
 - **No checkout.** A navigation or redirect of an owned Bandcamp or Beatport tab to
-  `/checkout`, `/cart/checkout` or `/payment` (Beatport also `/account/billing` and
-`/subscriptions/billing`) closes the tab and is reported
+  `/checkout`, `/cart/checkout` or `/payment` (Bandcamp also `/cart/checkout_start`,
+  Beatport also `/account/billing` and `/subscriptions/billing`), with or without a
+  leading locale segment such as `/de` or `/en-us`, closes the tab and is reported
   (`forbidden_path`). Clicks are refused on elements whose accessible name matches
   check out, pay, payment, purchase, place order, buy now or complete order,
   except exactly "Buy Digital Track/Album" on Bandcamp. `fill` refuses password
