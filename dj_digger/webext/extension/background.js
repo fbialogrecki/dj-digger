@@ -682,6 +682,12 @@ const commands = {
   },
   // The app downloads one gate file at a time; it names the tab right before that click, so a
   // CDN download with only an origin for a referrer is that tab's even when others share the origin.
+  // Development: re-read the extension's files from disk (an unpacked install) without a trip to
+  // chrome://extensions. The reply goes out first; the work windows close as on any restart.
+  async "extension.reload"() {
+    setTimeout(() => api.runtime.reload(), 200);
+    return null;
+  },
   async "download.expect"({ tabId }) {
     need(tabId);
     expected = { tabId, t: Date.now() };

@@ -226,6 +226,11 @@ def cmd_hello(rig: Rig, args: argparse.Namespace) -> None:
     say(f"SoundCloud oauth_token present in this browser: {bool(token)} (value never printed)")
 
 
+def cmd_reload(rig: Rig, args: argparse.Namespace) -> None:
+    rig.call("extension.reload")
+    say("extension reloading from disk; it says hello again within a few seconds")
+
+
 def cmd_open(rig: Rig, args: argparse.Namespace) -> None:
     with work_window(rig, args.visible):
         open_tab(rig, args.url)
@@ -477,6 +482,7 @@ def build_parser() -> argparse.ArgumentParser:
         return p
 
     add("hello", cmd_hello, help="print the hello and whether a SoundCloud token exists")
+    add("reload", cmd_reload, help="reload the (unpacked) extension from disk")
     add("open", cmd_open, url=True, visible=True, help="open a page, stream events")
     gate_p = add("probe-gate", cmd_probe_gate, url=True, visible=True,
                  help="walk a Hypeddit gate, y/N before each click")

@@ -248,6 +248,7 @@ pozostaje zajęta do czasu odpowiedzi na anulowaną komendę (K2).
 | `cookie.soundcloudToken` | | wartość `oauth_token` z `https://soundcloud.com` albo `null` |
 | `cookie.clearGateDownload` | | usuwa `filedownloading` z hostów Hypeddit |
 | `download.expect` | `tabId` | następne pobranie z CDN o tym samym origin co inne karty należy do tej karty (raz, 60 s) |
+| `extension.reload` | – | tylko rozwój: `runtime.reload()` (rozpakowane rozszerzenie czyta pliki z dysku); `scripts/webext_spike.py reload` |
 | `download.discard` | `downloadId` | `removeFile` + `erase` po skopiowaniu (D5) |
 | `cancel` | `id` | przerywa czekanie komendy `id` |
 
