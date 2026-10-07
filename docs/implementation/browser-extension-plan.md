@@ -229,7 +229,7 @@ pozostaje zajęta do czasu odpowiedzi na anulowaną komendę (K2).
 
 | Komenda | Argumenty | Wynik / uwagi |
 |---|---|---|
-| `window.open` | `visible` | `windowId`; zawsze NOWE okno, jedno na sesję (kilka sesji naraz) |
+| `window.open` | `visible`, `offscreen?` | `{windowId, offscreen}`; zawsze NOWE okno, jedno na sesję (kilka sesji naraz). `offscreen:true` (F4b, tylko ukryta sesja w Chromium) daje wirtualne `windowId` < -1 bez okna przeglądarki; `offscreen:false` w odpowiedzi = zwykłe okno (Firefox, brak dokumentu offscreen). Na sesji offscreen `window.show/hide`, `tab.focus/capture`, `dom.call` kończą się błędem `offscreen` |
 | `window.show` / `window.hide` | `windowId` | przejście ukryty ↔ widoczny (D3) |
 | `window.close` | `windowId` | zamyka tylko karty tego okna: `tab.removed` dla każdej i `window.removed {windowId}` (tak samo, gdy użytkownik zamknie okno ręcznie) |
 | `tab.new` | `windowId, url?` | `tabId` (karta staje się „własna”) |
@@ -523,7 +523,7 @@ z `referrer: https://hypeddit.com/`. Hypeddit nie wysyła `X-Frame-Options`/`fra
 Zakres: tylko gate'y Hypeddit w Chromium. Firefox (bez `chrome.offscreen`) i wszystko poza
 Hypeddit zostaje przy oknie roboczym.
 
-- [ ] Rozszerzenie:
+- [x] Rozszerzenie:
   - uprawnienie `offscreen`; `offscreen.html`/`offscreen.js` trzymają po jednej ramce na kartę;
   - `window.open {visible:false, offscreen:true}` tworzy sesję offscreen (wirtualne
     `windowId`) albo odpowiada `offscreen:false`, gdy przeglądarka tego nie umie;
@@ -539,7 +539,7 @@ Hypeddit zostaje przy oknie roboczym.
     `offscreen.js`; wszystko inne jest rozłączane. Dane z ramki pozostają niezaufane;
   - pobrania: przypisanie po `referrer` obejmuje wirtualne karty (URL z ostatniego raportu ramki);
   - restart service workera i `app-offline` zamykają dokument offscreen jak okna.
-- [ ] Aplikacja (`webext/page.py`, `gates/browser.py`):
+- [x] Aplikacja (`webext/page.py`, `gates/browser.py`):
   - `session(visible=False, offscreen=True)`; gdy odpowiedź mówi `offscreen:false`, zwykłe
     okno jak dziś;
   - ukryty przebieg partii gate'ów idzie w offscreen; wiersze odroczone (CAPTCHA, Connect/OAuth,
@@ -547,11 +547,11 @@ Hypeddit zostaje przy oknie roboczym.
     dopiero wtedy, z kartą na URL gate'u;
   - w offscreen nie klika się przycisków Connect (popup OAuth byłby oknem) — taki wiersz od
     razu jest odroczony.
-- [ ] Testy: harness (sesja offscreen, wirtualne karty, odrzucenie portu spoza dokumentu
+- [x] Testy: harness (sesja offscreen, wirtualne karty, odrzucenie portu spoza dokumentu
       offscreen i spoza allowlisty, przypisanie pobrania), testy adaptera i `tests/test_gates.py`
       (offscreen → widoczne okno dla odroczonych, brak offscreen → okno), test granic
       bezpieczeństwa zaktualizowany o jeden dozwolony kanał `onConnect`.
-- [ ] Spec §10.2, §11.4, §13.2; CHANGELOG.
+- [x] Spec §10.2, §11.4, §13.2; CHANGELOG.
 
 ### F5. Koszyk Bandcamp i lookup Beatport (U3, U4)
 

@@ -56,6 +56,13 @@
 
 ### Changed
 
+- In Chromium-family browsers the hidden Hypeddit pass runs in an offscreen
+  document of the extension (no browser window at all, which desktops such as
+  GNOME on Wayland could not hide); gates that need you (a Connect login, a
+  CAPTCHA, a download the browser holds back) then open in a normal window. The
+  extension asks for the new `offscreen` permission and keeps no new host or
+  message channel: only the extension's own offscreen frames may talk to it.
+  Firefox and everything outside Hypeddit keep the work window.
 - Hypeddit gates run in one work window of your browser: hidden (an unfocused
   window) first, then the same window shown for the gates that need you; the
   tabs of finished gates are closed and the rest are reloaded in place. Files

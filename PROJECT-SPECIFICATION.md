@@ -5,8 +5,8 @@
 - Product version verified: 1.4.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-10-07
-- Document lines: <!-- SPEC TOTAL LINES -->2154<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->2154<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->2194<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->2194<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -83,33 +83,33 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 9 | Authentication and authorization | 1471–1534 |
 | 9.1 | ↳ SoundCloud authentication | 1473–1504 |
 | 9.2 | ↳ Gate action consent | 1505–1534 |
-| 10 | External integrations | 1535–1762 |
+| 10 | External integrations | 1535–1770 |
 | 10.1 | ↳ SoundCloud API and media | 1537–1548 |
-| 10.2 | ↳ Link hubs and download gates | 1549–1637 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1557–1623 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1625–1630 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1632–1637 |
-| 10.3 | ↳ Browsers and clipboard | 1638–1709 |
-| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 1710–1762 |
-| 11 | Security requirements and threat model | 1763–1869 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1765–1783 |
-| 11.2 | ↳ Secret and personal-data handling | 1784–1799 |
-| 11.3 | ↳ File and mutation safety | 1800–1821 |
-| 11.4 | ↳ Browser-extension trust boundary | 1822–1869 |
-| 12 | Privacy, lifecycle, and retention | 1870–1922 |
-| 12.1 | ↳ Data stored locally | 1872–1896 |
-| 12.2 | ↳ Data sent to third parties | 1897–1909 |
-| 12.3 | ↳ User-controlled deletion | 1910–1922 |
-| 13 | Failure behavior and current limitations | 1923–2021 |
-| 13.1 | ↳ Error isolation and reporting | 1925–1946 |
-| 13.2 | ↳ Confirmed limitations | 1947–2021 |
-| 14 | Verification, CI, and release | 2022–2120 |
-| 14.1 | ↳ Offline and live test suites | 2024–2072 |
-| 14.2 | ↳ Continuous integration and publishing | 2073–2105 |
-| 14.3 | ↳ Specification-map verification | 2106–2120 |
-| 15 | Evidence and operational references | 2121–2154 |
-| 15.1 | ↳ Primary implementation evidence | 2123–2144 |
-| 15.2 | ↳ User and historical documentation | 2145–2154 |
+| 10.2 | ↳ Link hubs and download gates | 1549–1645 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1557–1631 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1633–1638 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1640–1645 |
+| 10.3 | ↳ Browsers and clipboard | 1646–1717 |
+| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 1718–1770 |
+| 11 | Security requirements and threat model | 1771–1902 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1773–1791 |
+| 11.2 | ↳ Secret and personal-data handling | 1792–1807 |
+| 11.3 | ↳ File and mutation safety | 1808–1829 |
+| 11.4 | ↳ Browser-extension trust boundary | 1830–1902 |
+| 12 | Privacy, lifecycle, and retention | 1903–1955 |
+| 12.1 | ↳ Data stored locally | 1905–1929 |
+| 12.2 | ↳ Data sent to third parties | 1930–1942 |
+| 12.3 | ↳ User-controlled deletion | 1943–1955 |
+| 13 | Failure behavior and current limitations | 1956–2061 |
+| 13.1 | ↳ Error isolation and reporting | 1958–1979 |
+| 13.2 | ↳ Confirmed limitations | 1980–2061 |
+| 14 | Verification, CI, and release | 2062–2160 |
+| 14.1 | ↳ Offline and live test suites | 2064–2112 |
+| 14.2 | ↳ Continuous integration and publishing | 2113–2145 |
+| 14.3 | ↳ Specification-map verification | 2146–2160 |
+| 15 | Evidence and operational references | 2161–2194 |
+| 15.1 | ↳ Primary implementation evidence | 2163–2184 |
+| 15.2 | ↳ User and historical documentation | 2185–2194 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -1568,8 +1568,12 @@ rejection, transfer, and provider availability. Provider login, CAPTCHA,
 unknown action, protocol change, rejection, and disabled social actions fall
 back to the browser; a batch hands at most eight gates to it per run and leaves
 the rest new. Browser fallback runs in one work window of the user's own browser,
-driven by the extension (§10.3), hidden first (an unfocused normal window, not a
-headless browser): a tab that Hypeddit sent to its hot-or-not poll instead of the
+driven by the extension (§10.3), hidden first. In Chromium the hidden pass is
+offscreen: the gates are frames of the extension's offscreen document, with no browser
+window at all (the page is visible to itself, timers run at full speed, the user's
+sessions apply); elsewhere (Firefox, or when the offscreen document cannot start)
+it is a hidden work window (an unfocused normal window, not a headless browser). A
+tab that Hypeddit sent to its hot-or-not poll instead of the
 gate (its habit for the first visit after a download) is pointed at the gate
 once more; when gate social actions are enabled it presses the gate's
 sidebar Download and walks the step slides it reveals, one current slide at a
@@ -1589,13 +1593,17 @@ to the tab that had just fetched it. A row whose step only a person can finish
 the profile lacks, a page without known controls, a download the browser
 holds back) is deferred. When the hidden pass ends, the tabs of settled rows and
 every popup are closed, each deferred row's tab is reloaded in place at its gate,
-and the same window is shown (not reopened): the driver runs again with a
+and the same window is shown (not reopened); an offscreen session cannot be shown,
+so it is closed and a normal visible work window opens the deferred rows' gates
+again, one tab each: the driver runs again with a
 five-minute provider wait and reports what stopped instead of failing the row.
 Suspended gate drivers are polled round-robin on the calling thread, which also
 receives the adapter's events, so other tabs advance to their
 own login/manual step. Each driver retains its current slide and popup across
 polls, avoiding repeated Connect clicks or form submissions when it resumes.
-Nothing outside Hypeddit's page is ever clicked. A hidden pass always ends five
+Offscreen the driver never presses a Connect button, since the provider's login
+is a popup window: such a row is deferred at once, as is a row whose gate the frame
+could not open. Nothing outside Hypeddit's page is ever clicked. A hidden pass always ends five
 minutes after its driving; a single gate's window has the same limit, a
 batch's window lasts as long as a tab stays open. Downloads are accepted only for
 the tabs and popups the batch's own pages opened: the extension matches a
@@ -1830,6 +1838,29 @@ Python caller, enforces its own limits, whatever the application sends:
   `hypeddit.com` and `hypd.it` (also `www.`), `bandcamp.com` and `beatport.com`
   with their subdomains, and `soundcloud.com` for `/signin` only (its tab is never
   read or clicked). A navigation elsewhere is refused.
+- **Offscreen frames (Chromium).** The hidden Hypeddit pass runs in iframes of
+  `offscreen.html` (permission `offscreen`; reason `IFRAME_SCRIPTING`), one per
+  virtual tab. A virtual window and tab have negative ids (from -2: -1 is the
+  browser's "no tab", under which webRequest reports the offscreen document) and
+  are own tabs like any other: allowlisted navigations only, `dom.*` and `tab.html`
+  need an allowlisted frame URL, and `tab.focus`, `tab.capture`, `dom.call`,
+  `window.show` and `window.hide` fail with `offscreen`. The page's own code runs
+  in a frame, so `dom.js` plus `frame.js` are registered as a content script
+  (`scripting.registerContentScripts`) only while an offscreen session exists, on
+  the Hypeddit hosts only (derived from `allowlist.json`); `frame.js` does nothing
+  unless it sits directly under this extension's own offscreen document
+  (`window.top !== window` and `ancestorOrigins[0]` is the extension origin), so
+  the user's own Hypeddit tabs are untouched. The one `runtime.onConnect` listener
+  admits two ports only: the offscreen document's (no tab, frame 0, its own URL)
+  and a frame's (no `sender.tab`, a frame below the top one, `sender.url` on the
+  Hypeddit group, the random nonce of a live virtual tab as the port name and the
+  frame id it first came from); anything else is disconnected at once, and what a
+  frame sends is untrusted page data. There is still no `runtime.onMessage`, no
+  external messaging and no new host. The frame script and the document are removed
+  with the last offscreen window (`window.close`, the app going away, a background
+  restart, the offscreen document disappearing). Firefox has no offscreen API:
+  `window.open` then answers `offscreen:false` and the session is the hidden
+  window.
 - **Own tabs only.** Commands act on tabs the extension created and on popups of
   those, and on the work windows it created (never on a window id it did not
   create); the user's other tabs and windows are never touched. Reading or clicking
@@ -1858,7 +1889,9 @@ Python caller, enforces its own limits, whatever the application sends:
   `soundcloud.com`, delete `filedownloading` at the Hypeddit hosts. There is no
   general cookie access.
 - **Downloads** are attributed to an owned tab by the response it fetched, matched
-  to the download's URL; an unattributable one is ignored, an unsafe or "where to
+  to the download's URL, or, for a file from a CDN outside the host permissions, to the
+  one own tab (virtual ones by their last reported URL) on the referrer's allowlisted
+  origin; an unattributable one is ignored, an unsafe or "where to
   save" one is reported as blocked and never accepted, and the application deletes
   the browser's file only after copying a download it was told about.
 - **Channel.** The socket directory is private to the user (§6.3), peers
@@ -1973,9 +2006,16 @@ as player events instead of escaping through Python-CFFI.
   unpacked in Chrome, Edge and Brave; a temporary add-on in Firefox, removed when
   Firefox restarts); the repository builds no store listing or signed package.
   Flatpak and Snap browsers cannot start the host and are unsupported, and
-  private windows and Firefox containers are not used. The hidden work window is
-  an unfocused normal window, not a minimized one; whether a window manager raises
-  it is not controlled. Disconnect browsers lasts only until the next start,
+  private windows and Firefox containers are not used. Outside Chromium's
+  offscreen mode the hidden work window is an unfocused normal window, not a
+  minimized one; whether a window manager raises it is not controlled (GNOME on
+  Wayland shows it). The offscreen pass is Hypeddit-only and Chromium-only: Beatport
+  and SoundCloud refuse framing, so carts and the sign-in keep the work window; a
+  gate row that needs a Connect popup, a CAPTCHA or a provider login is moved to a
+  visible window, and a gate with follow links and an email step in a frame is
+  verified live only on the owner's browser. Several offscreen gates on one
+  Hypeddit origin make a CDN download ambiguous (the referrer is the origin),
+  which is then ignored rather than guessed. Disconnect browsers lasts only until the next start,
   which registers again. The extension socket path does not depend on the data
   directory (the instance lock is per data directory), so a second desktop or CLI
   login with a different data directory on one account cannot use the extension
