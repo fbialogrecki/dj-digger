@@ -1391,12 +1391,12 @@ def test_the_hidden_pass_runs_offscreen_and_needs_no_window(tmp_path, monkeypatc
     assert result.failures == () and [key for key, _path in result.completed] == ["1", "2"]
 
 
-def test_a_connect_row_is_deferred_at_once_and_finished_in_a_new_visible_window(tmp_path, monkeypatch):
+def test_a_spotify_login_nobody_is_signed_in_to_is_finished_in_a_new_visible_window(tmp_path, monkeypatch):
     made = iter(range(10))
 
-    def page_factory(ctx):  # the second gate wants Connect: its popup cannot exist offscreen
+    def page_factory(ctx):  # the second gate wants Spotify, which waits for a sign-in offscreen
         if not ctx.offscreen or next(made) == 1:
-            return _GatePage(ctx, steps=("sp", "dw"))
+            return _GatePage(ctx, steps=("sp", "dw"), spotify_signed_in=False)
         return _GatePage(ctx, steps=("email", "dw"))
 
     launches = _gate_browser(monkeypatch, page_factory, offscreen=True)
@@ -1411,14 +1411,36 @@ def test_a_connect_row_is_deferred_at_once_and_finished_in_a_new_visible_window(
     offscreens, window = [context for _hidden, context in launches[:3]], launches[3][1]
     assert all(o.offscreen and o.shows == 0 for o in offscreens) and not window.offscreen
     assert window.attended and window.shows == 0
-    clicks = [sel for o in offscreens for page in o.made for _kind, sel in page.clicked]
-    assert gate_browser.GATE_CONNECT_BUTTON not in clicks, "Connect was never clicked offscreen"
     [tab] = window.made  # the window's first tab takes the deferred row; nothing else opens there
     assert tab.visited == ["https://hypeddit.com/track/2"]
     assert gate_browser.GATE_CONNECT_BUTTON in [sel for _kind, sel in tab.clicked]
     assert result.failures == () and not result.cancelled
     assert sorted(key for key, _path in result.completed) == ["1", "2", "3"]
-    assert messages[0] == "Opening the browser window for 1 gate: the gate wants a provider login (Connect)"
+    assert messages[0] == "Opening the browser window for 1 gate: accounts.spotify.com wants you to sign in"
+
+
+def test_a_spotify_connect_signed_in_finishes_offscreen_without_a_window(tmp_path, monkeypatch):
+    launches = _gate_browser(monkeypatch, lambda ctx: _GatePage(ctx, steps=("sp", "dw")), offscreen=True)
+
+    result = gate_browser.download_hypeddit_batch_in_browser([(_track(), _GATE)], tmp_path, None, config=_DJ)
+
+    assert [hidden for hidden, _context in launches] == [True]
+    [page] = launches[0][1].made
+    assert gate_browser.GATE_CONNECT_BUTTON in [sel for _kind, sel in page.clicked]
+    assert page.popups and page.popups[0].closed, "the sign-in tab came back to Hypeddit and was closed"
+    assert result.failures == () and [key for key, _path in result.completed] == ["7"]
+
+
+def test_other_provider_logins_are_still_deferred_offscreen(tmp_path, monkeypatch):
+    launches = _gate_browser(monkeypatch, lambda ctx: _GatePage(ctx, steps=("dz", "dw")), offscreen=True)
+    asked = []
+
+    gate_browser.download_hypeddit_batch_in_browser(
+        [(_track(), _GATE)], tmp_path, None, config=_DJ, attend=lambda reasons: asked.append(reasons) or False,
+    )
+
+    assert asked == [{"7": "the gate wants a provider login (Connect)"}]
+    assert gate_browser.GATE_CONNECT_BUTTON not in [sel for _kind, sel in launches[0][1].made[0].clicked]
 
 
 def test_a_gate_the_offscreen_frame_cannot_open_is_tried_in_a_window(tmp_path, monkeypatch):
@@ -1450,7 +1472,9 @@ def test_without_offscreen_the_hidden_window_is_shown_as_before(tmp_path, monkey
 
 
 def test_deferred_rows_wait_for_the_person_and_skipping_opens_nothing(tmp_path, monkeypatch):
-    launches = _gate_browser(monkeypatch, lambda ctx: _GatePage(ctx, steps=("sp", "dw")), offscreen=True)
+    launches = _gate_browser(
+        monkeypatch, lambda ctx: _GatePage(ctx, steps=("sp", "dw"), spotify_signed_in=False), offscreen=True
+    )
     asked = []
 
     result = gate_browser.download_hypeddit_batch_in_browser(
@@ -1458,7 +1482,7 @@ def test_deferred_rows_wait_for_the_person_and_skipping_opens_nothing(tmp_path, 
         attend=lambda reasons: asked.append(reasons) or False,
     )
 
-    assert asked == [{"7": "the gate wants a provider login (Connect)"}]
+    assert asked == [{"7": "accounts.spotify.com wants you to sign in"}]
     assert [hidden for hidden, _context in launches] == [True], "no window without the person's yes"
     [(key, error)] = result.failures
     assert key == "7" and isinstance(error, gate_browser.GateManualActionRequired)
@@ -1466,7 +1490,9 @@ def test_deferred_rows_wait_for_the_person_and_skipping_opens_nothing(tmp_path, 
 
 
 def test_deferred_rows_open_in_a_window_when_the_person_says_so(tmp_path, monkeypatch):
-    launches = _gate_browser(monkeypatch, lambda ctx: _GatePage(ctx, steps=("sp", "dw")), offscreen=True)
+    launches = _gate_browser(
+        monkeypatch, lambda ctx: _GatePage(ctx, steps=("sp", "dw"), spotify_signed_in=False), offscreen=True
+    )
 
     result = gate_browser.download_hypeddit_batch_in_browser(
         [(_track(), _GATE)], tmp_path, None, config=_DJ, attend=lambda reasons: True,

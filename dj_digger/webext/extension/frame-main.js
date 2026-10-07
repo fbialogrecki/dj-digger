@@ -3,8 +3,9 @@
 // sound, and an offscreen document cannot be muted like a tab:
 // - Hypeddit's follow, like and repost links call window.open (PopupCenterDual) to show the artist on
 //   SoundCloud, which autoplays, and a popup of an offscreen frame is not an own tab (neither muted
-//   nor closed). The page's own click handler ticks the step either way; Connect (OAuth) is never
-//   clicked in these frames.
+//   nor closed). The page's own click handler ticks the step either way. What the page asks to open is
+//   handed to frame.js, and the extension opens it only when it is Spotify's sign-in for Hypeddit
+//   (Connect): as an inactive tab of the person's window, never a window (plan F10).
 // - Once Download is pressed the gate starts playing other tracks: its media elements are muted the
 //   moment they appear, players embedded from other sites (out of this script's reach) are taken out
 //   before they load, and Web Audio stays suspended.
@@ -13,7 +14,10 @@
 (() => {
   if (window.top === window || !location.ancestorOrigins?.[0]?.startsWith("chrome-extension://")) return;
   const shut = { closed: true, focus() {}, blur() {}, close() {}, postMessage() {} };
-  window.open = () => shut;
+  window.open = (url) => {
+    document.dispatchEvent(new CustomEvent("djd-open", { detail: String(url ?? "") }));
+    return shut;
+  };
 
   const hush = (el) => {
     el.muted = true;

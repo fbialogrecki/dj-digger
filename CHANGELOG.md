@@ -61,6 +61,10 @@
   state while the batch runs (half bar: in the browser pass; full bar: file in).
 - A gate step with a comment field is filled with one of your gate comments in
   the browser pass too.
+- A gate's Spotify step now completes in the background as well: Spotify's
+  sign-in opens as a muted, inactive tab of your browser window and closes once
+  Hypeddit has it, so with Spotify signed in (and Hypeddit authorised once) no
+  window appears. Other provider logins still ask first.
 
 ### Changed
 

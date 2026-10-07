@@ -510,6 +510,28 @@ async function start(fake = fakeBrowser()) {
   x = await start();
   assert.deepEqual([(await opened(x, { visible: true, offscreen: true })).offscreen, x.off.docs], [false, 0]);
 
+  // a framed gate's Connect opens Spotify's sign-in as an inactive tab of the person's window, and
+  // nothing else it asks to open (plan F10); the tab goes with the offscreen session
+  x = await start();
+  const userWin = (await x.api.windows.create()).id;
+  x.user.window = userWin;
+  const sp = await opened(x);
+  const spTab = await newVirtual(x, sp.windowId, GATE);
+  await tick();
+  const fport = connectFrame(x, spTab, GATE);
+  await tick();
+  const SPOTIFY = "https://accounts.spotify.com/authorize?client_id=x&redirect_uri=https%3A%2F%2Fhypeddit.com%2Fspotify_callback&state=s";
+  for (const url of ["https://soundcloud.com/artist", "https://accounts.spotify.com/authorize?redirect_uri=https%3A%2F%2Fevil.example%2F",
+    "javascript:alert(1)", SPOTIFY]) fport.onMessage.fire({ op: "open", url });
+  await tick();
+  const [signIn] = x.events("tab.created");
+  assert.equal(x.events("tab.created").length, 1);
+  assert.deepEqual([signIn.openerTabId, x.tabs.get(signIn.tabId).windowId, x.tabs.get(signIn.tabId).active, x.tabs.get(signIn.tabId).muted],
+    [spTab, userWin, false, true]);
+  assert.equal(signIn.url, "https://accounts.spotify.com/"); // the OAuth state never leaves in an event
+  await x.call("window.close", { windowId: sp.windowId });
+  assert.equal(x.tabs.has(signIn.tabId), false);
+
   // a background session (carts) works in inactive tabs of the person's window and never makes one
   x = await start();
   const mine2 = (await x.api.windows.create()).id;

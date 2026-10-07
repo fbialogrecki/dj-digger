@@ -13,6 +13,8 @@
     if (e.target instanceof HTMLMediaElement) Object.assign(e.target, { muted: true }).pause();
   }, true);
   const port = api.runtime.connect({ name: window.name });
+  // window.open of the page (frame-main.js): background.js decides whether it may be opened
+  document.addEventListener("djd-open", (e) => port.postMessage({ op: "open", url: String(e.detail) }));
   port.onMessage.addListener(async (m) => {
     if (m.op === "cancel") (globalThis.__djdCancel ||= new Set()).add(m.token);
     else if (m.op === "run") port.postMessage({ id: m.id, res: await djDom.run(m.spec) });

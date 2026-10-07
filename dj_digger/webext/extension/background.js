@@ -143,6 +143,8 @@ async function dropWindow(windowId) {
   emit({ event: "window.removed", windowId });
   persist();
   if (w.offscreen) {
+    // its frames go with the document; a provider tab a frame opened is a real tab
+    await Promise.all(ids.filter((id) => !isVirtual(id)).map((id) => api.tabs.remove(id).catch(() => {})));
     if (![...windows.values()].some((x) => x.offscreen)) await closeOffscreen();
     return;
   }
@@ -194,6 +196,7 @@ async function pageTab(tabId, { nav = false } = {}) {
 //   "offscreen"  from offscreen.html itself: background -> it {op:"load"|"remove", nonce, url}
 //   <nonce>      from frame.js, the content script of a gate framed by offscreen.html:
 //                background -> frame {id, op:"run"|"html"|"cancel", ...}, frame -> background {id, res}
+//                or {op:"open", url}: the page's window.open, honoured only for providerLogin()
 // A frame's port is admitted only when it has no tab, comes from a frame below the top one, from an
 // allowlisted Hypeddit URL, under the nonce of a live virtual tab (admit()); everything it sends is
 // untrusted page data.
@@ -296,8 +299,30 @@ function admit(p) {
   p.disconnect();
   return null;
 }
+// Spotify's sign-in for a Hypeddit Connect step, the one popup a framed gate may open (plan F10): its
+// callback tells the gate through Hypeddit's storage, so no opener is needed and an inactive tab does.
+function providerLogin(url) {
+  const u = parse(url);
+  if (!u || u.protocol !== "https:" || u.hostname !== "accounts.spotify.com" || u.pathname !== "/authorize") return null;
+  const back = parse(u.searchParams.get("redirect_uri") ?? "");
+  return back && groupOf(back) === allow.groups.hypeddit ? u.href : null;
+}
+async function openFramePopup(f, url) {
+  const href = providerLogin(url);
+  const opener = [...frames].find(([, x]) => x === f)?.[0];
+  if (!href || opener == null) return;
+  const host = (await api.windows.getLastFocused({ windowTypes: ["normal"] }).catch(() => null))?.id;
+  if (host == null) return; // no window to keep it out of the way in: the row is deferred as before
+  const tab = await api.tabs.create({ windowId: host, url: href, active: false }).catch(() => null);
+  if (!tab || !frames.has(opener)) return void (tab && api.tabs.remove(tab.id).catch(() => {}));
+  owned.set(tab.id, { popup: true, windowId: f.windowId });
+  persist();
+  mute(tab.id);
+  emit({ event: "tab.created", tabId: tab.id, openerTabId: opener, url: safeUrl(href) });
+}
 function onPortMessage(who, m) {
   if (who === OFFSCREEN_PORT || !m || typeof m !== "object") return;
+  if (m.op === "open") return void openFramePopup(who, m.url);
   const done = who.pending.get(m.id);
   who.pending.delete(m.id);
   done?.(m.res !== null && typeof m.res === "object" ? m.res : { ok: false, code: "dom_error", message: "bad reply from the frame" });

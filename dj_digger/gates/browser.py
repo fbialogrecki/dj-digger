@@ -179,8 +179,8 @@ def _drive_gate_steps(
                 raise _NeedsPerson("the gate's download button is not where it was")
             return True
         if kind in GATE_CONNECT_STEPS:
-            if getattr(context, "offscreen", False):
-                # the provider's login is a popup window, which an offscreen session cannot show
+            if getattr(context, "offscreen", False) and kind != "sp":
+                # a provider login is a popup window; offscreen, only Spotify's opens (as a background tab)
                 raise _NeedsPerson("the gate wants a provider login (Connect)")
             yield from _connect_provider(context, page, slide.locator, cancel, status, attended=attended)
         elif kind == "email":

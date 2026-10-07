@@ -383,8 +383,9 @@ the gate asks for one), and presses Download. A step no program can do alone - a
 provider asking you to sign in, a CAPTCHA, a missing email or name - makes the app
 ask you first ("Gates need you"); only if you choose to open them does a browser
 window appear, where the same driver keeps walking the steps before and after the
-one that needs you. Sign in to Spotify there once and later gates finish out of
-sight. A batch with failures ends with a results screen where you can retry them
+one that needs you. A Spotify step completes in the background when your browser is
+signed in to Spotify (its sign-in opens briefly as an inactive tab and closes by
+itself); authorise Hypeddit there once if Spotify asks. A batch with failures ends with a results screen where you can retry them
 or open their gates in your browser. Nothing outside the Hypeddit page is clicked.
 The extension works in the accounts your browser is signed in to, so a Connect step
 that was authorized once before acts on that account. Turn off **Allow social actions**

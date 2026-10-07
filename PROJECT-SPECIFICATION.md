@@ -5,8 +5,8 @@
 - Product version verified: 1.4.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-10-07
-- Document lines: <!-- SPEC TOTAL LINES -->2242<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->2242<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->2252<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->2252<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -83,33 +83,33 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 9 | Authentication and authorization | 1488–1551 |
 | 9.1 | ↳ SoundCloud authentication | 1490–1521 |
 | 9.2 | ↳ Gate action consent | 1522–1551 |
-| 10 | External integrations | 1552–1803 |
+| 10 | External integrations | 1552–1807 |
 | 10.1 | ↳ SoundCloud API and media | 1554–1565 |
-| 10.2 | ↳ Link hubs and download gates | 1566–1670 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1574–1656 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1658–1663 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1665–1670 |
-| 10.3 | ↳ Browsers and clipboard | 1671–1750 |
-| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 1751–1803 |
-| 11 | Security requirements and threat model | 1804–1949 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1806–1824 |
-| 11.2 | ↳ Secret and personal-data handling | 1825–1840 |
-| 11.3 | ↳ File and mutation safety | 1841–1862 |
-| 11.4 | ↳ Browser-extension trust boundary | 1863–1949 |
-| 12 | Privacy, lifecycle, and retention | 1950–2002 |
-| 12.1 | ↳ Data stored locally | 1952–1976 |
-| 12.2 | ↳ Data sent to third parties | 1977–1989 |
-| 12.3 | ↳ User-controlled deletion | 1990–2002 |
-| 13 | Failure behavior and current limitations | 2003–2109 |
-| 13.1 | ↳ Error isolation and reporting | 2005–2026 |
-| 13.2 | ↳ Confirmed limitations | 2027–2109 |
-| 14 | Verification, CI, and release | 2110–2208 |
-| 14.1 | ↳ Offline and live test suites | 2112–2160 |
-| 14.2 | ↳ Continuous integration and publishing | 2161–2193 |
-| 14.3 | ↳ Specification-map verification | 2194–2208 |
-| 15 | Evidence and operational references | 2209–2242 |
-| 15.1 | ↳ Primary implementation evidence | 2211–2232 |
-| 15.2 | ↳ User and historical documentation | 2233–2242 |
+| 10.2 | ↳ Link hubs and download gates | 1566–1674 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1574–1660 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1662–1667 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1669–1674 |
+| 10.3 | ↳ Browsers and clipboard | 1675–1754 |
+| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 1755–1807 |
+| 11 | Security requirements and threat model | 1808–1959 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1810–1828 |
+| 11.2 | ↳ Secret and personal-data handling | 1829–1844 |
+| 11.3 | ↳ File and mutation safety | 1845–1866 |
+| 11.4 | ↳ Browser-extension trust boundary | 1867–1959 |
+| 12 | Privacy, lifecycle, and retention | 1960–2012 |
+| 12.1 | ↳ Data stored locally | 1962–1986 |
+| 12.2 | ↳ Data sent to third parties | 1987–1999 |
+| 12.3 | ↳ User-controlled deletion | 2000–2012 |
+| 13 | Failure behavior and current limitations | 2013–2119 |
+| 13.1 | ↳ Error isolation and reporting | 2015–2036 |
+| 13.2 | ↳ Confirmed limitations | 2037–2119 |
+| 14 | Verification, CI, and release | 2120–2218 |
+| 14.1 | ↳ Offline and live test suites | 2122–2170 |
+| 14.2 | ↳ Continuous integration and publishing | 2171–2203 |
+| 14.3 | ↳ Specification-map verification | 2204–2218 |
+| 15 | Evidence and operational references | 2219–2252 |
+| 15.1 | ↳ Primary implementation evidence | 2221–2242 |
+| 15.2 | ↳ User and historical documentation | 2243–2252 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -1626,9 +1626,13 @@ Suspended gate drivers are polled round-robin on the calling thread, which also
 receives the adapter's events, so other tabs advance to their
 own login/manual step. Each driver retains its current slide and popup across
 polls, avoiding repeated Connect clicks or form submissions when it resumes.
-Offscreen the driver never presses a Connect button, since the provider's login
-is a popup window: such a row is deferred at once, as is a row whose gate the frame
-could not open. Nothing outside Hypeddit's page is ever clicked. A hidden pass always ends five
+Offscreen the driver presses only Spotify's Connect: the extension opens Spotify's
+sign-in as a muted, inactive tab of the user's last focused window (owned as the
+frame's popup), and Hypeddit's callback tells the gate through its storage, so a
+Spotify account signed in and authorised for Hypeddit clears the step with nothing
+on screen; a sign-in still waiting after twenty seconds defers the row. Any other
+provider's login would be a popup window, so such a row is deferred at once, as is a
+row whose gate the frame could not open. Nothing outside Hypeddit's page is ever clicked. A hidden pass always ends five
 minutes after its driving; a single gate's window has the same limit, a
 batch's window lasts as long as a tab stays open. Downloads are accepted only for
 the tabs and popups the batch's own pages opened: the extension matches a
@@ -1888,7 +1892,13 @@ Python caller, enforces its own limits, whatever the application sends:
   `window.open` returns a closed stub and media `play()` only mutes, because the
   gate's follow, like and repost links open the artist on SoundCloud through
   `window.open` (which autoplays) and such a popup would not be an own tab (neither
-  muted nor closed); the page's own handler ticks the step either way. Once Download
+  muted nor closed); the page's own handler ticks the step either way. The URL it
+  asked for goes to `frame.js` (a DOM event) and to the background as
+  `{op:"open", url}` on the frame's port; the background opens it only when it is
+  `https://accounts.spotify.com/authorize` with a `redirect_uri` on the Hypeddit group,
+  as a muted inactive tab of the user's last focused normal window (none: nothing
+  opens), owned as a popup of the frame's virtual tab and reported with that
+  `openerTabId`; it is closed with the session. Once Download
   is pressed the gate plays other tracks, so media elements are muted as they appear
   (and on `play`/`playing`), players embedded from other sites (SoundCloud widget,
   YouTube, Spotify, Bandcamp, Vimeo) are removed before they load, and Web Audio
