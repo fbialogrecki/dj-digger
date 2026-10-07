@@ -88,6 +88,12 @@ function navigable(url) {
 const windows = new Map(); // windowId -> {visible, spare}; spare = blank tab reused by the first tab.new
 const owned = new Map(); // tabId -> {popup, windowId}; a popup belongs to its opener's window
 const downloads = new Map(); // attributed downloadId -> tabId
+// Offscreen sessions (Chromium, plan F4b): a virtual window has a negative id and no browser window, a
+// virtual tab is an iframe of offscreen.html. -1 is the browser's "no tab" (webRequest reports the
+// requests of the offscreen document as tab -1), so virtual ids start at -2.
+const frames = new Map(); // virtual tabId -> {nonce, windowId, url, loads, port, frameId, pending, seq}
+let nextVirtual = -2;
+const isVirtual = (id) => id < 0;
 const closing = new Set(); // tabs the checkout guard is already closing
 const persist = () =>
   api.storage.session
@@ -98,10 +104,11 @@ const setStatus = (s) => api.storage.session.set({ djdStatus: { instance: INSTAN
 // A restarted background has a new INSTANCE, so the app has ended every session of the old one: the
 // windows it left behind belong to nobody and are closed (a window of a live session is never here).
 async function restore() {
+  await closeOffscreen(); // a previous instance's offscreen document and frame script
   const { djdRegistry: r } = await api.storage.session.get("djdRegistry");
   if (!r) return;
-  for (const [id] of r.owned ?? []) await api.tabs.remove(id).catch(() => {});
-  for (const [id] of r.windows ?? []) await api.windows.remove(id).catch(() => {});
+  for (const [id] of r.owned ?? []) if (!isVirtual(id)) await api.tabs.remove(id).catch(() => {});
+  for (const [id] of r.windows ?? []) if (!isVirtual(id)) await api.windows.remove(id).catch(() => {});
   for (const [id, tabId] of r.downloads ?? []) downloads.set(id, tabId);
   persist();
 }
@@ -113,23 +120,44 @@ function workWindow(windowId) {
 // Ends one work window: its tabs (popups elsewhere included) are closed and reported with tab.removed,
 // then window.removed. Used for window.close, a window the user closed by hand and app-offline.
 async function dropWindow(windowId) {
-  if (!windows.delete(windowId)) return; // not ours, or already dropped: never touch it
+  const w = windows.get(windowId);
+  if (!w) return; // not ours, or already dropped: never touch it
+  windows.delete(windowId);
   const ids = [...owned].filter(([, v]) => v.windowId === windowId).map(([id]) => id);
   for (const id of ids) {
     owned.delete(id);
     closing.delete(id);
+    killFrame(id);
     emit({ event: "tab.removed", tabId: id });
   }
   emit({ event: "window.removed", windowId });
   persist();
+  if (w.offscreen) {
+    if (![...windows.values()].some((x) => x.offscreen)) await closeOffscreen();
+    return;
+  }
   await Promise.all(ids.map((id) => api.tabs.remove(id).catch(() => {})));
   await api.windows.remove(windowId).catch(() => {}); // already gone is fine
 }
 function need(tabId) {
   if (!owned.has(tabId)) throw new Err("not_owned", "tab is not owned by dj-digger");
 }
+// A command that needs a real browser tab or window: a virtual one has none.
+function offscreenRefused() {
+  return new Err("offscreen", "not available in the offscreen window; it runs without a browser window");
+}
+function realTab(tabId) {
+  need(tabId);
+  if (isVirtual(tabId)) throw offscreenRefused();
+}
+const vtab = (id) => {
+  const f = frames.get(id);
+  if (!f) throw new Err("tab_closed", "tab no longer exists");
+  return { id, windowId: f.windowId, url: f.url, status: f.port ? "complete" : "loading" };
+};
 async function getTab(tabId) {
   need(tabId);
+  if (isVirtual(tabId)) return vtab(tabId);
   try {
     return await api.tabs.get(tabId);
   } catch {
@@ -146,6 +174,169 @@ async function pageTab(tabId, { nav = false } = {}) {
   const g = groupOf(url);
   if (g ? !nav && g.dom === false : !(nav && isBlank(url))) throw new Err("refused", `tab is on ${safeUrl(url)}`);
   return tab;
+}
+
+// ---------------------------------------------------------------- offscreen sessions (plan F4b)
+
+// The hidden Hypeddit pass runs in iframes of offscreen.html (Chromium: no browser window at all).
+// Two kinds of port reach the one onConnect listener below, and nothing else does:
+//   "offscreen"  from offscreen.html itself: background -> it {op:"load"|"remove", nonce, url}
+//   <nonce>      from frame.js, the content script of a gate framed by offscreen.html:
+//                background -> frame {id, op:"run"|"html"|"cancel", ...}, frame -> background {id, res}
+// A frame's port is admitted only when it has no tab, comes from a frame below the top one, from an
+// allowlisted Hypeddit URL, under the nonce of a live virtual tab (admit()); everything it sends is
+// untrusted page data.
+const OFFSCREEN_PORT = "offscreen";
+const FRAME_SCRIPT = "djd-frame";
+const PORT_WAIT_MS = 5000;
+let offscreenPort = null; // the offscreen document's port
+let offscreenStart = null; // promise of the running or finished start
+let offscreenHello = null;
+
+const tellOffscreen = (m) => {
+  try {
+    offscreenPort?.postMessage(m);
+  } catch {
+    // its disconnect handler ends the sessions
+  }
+};
+
+async function startOffscreen() {
+  const g = allow.groups.hypeddit;
+  const matches = g.hosts.flatMap((h) => [
+    `https://${h}/*`, ...(g.www ? [`https://www.${h}/*`] : []), ...(g.subdomains ? [`https://*.${h}/*`] : []),
+  ]);
+  const connected = new Promise((r) => (offscreenHello = r));
+  await api.scripting.unregisterContentScripts({ ids: [FRAME_SCRIPT] }).catch(() => {});
+  await api.scripting.registerContentScripts([
+    { id: FRAME_SCRIPT, matches, js: ["dom.js", "frame.js"], allFrames: true, runAt: "document_idle", persistAcrossSessions: false },
+  ]);
+  await api.offscreen.createDocument({
+    url: "offscreen.html", reasons: ["IFRAME_SCRIPTING"],
+    justification: "Runs Hypeddit download gates in hidden frames, since a hidden browser window cannot be made on every desktop.",
+  });
+  await Promise.race([connected, sleep(PORT_WAIT_MS).then(() => Promise.reject(new Err("offscreen", "offscreen document did not start")))]);
+}
+// True when offscreen sessions work here (not in Firefox); a failed start is cleaned up and means false.
+async function openOffscreen() {
+  if (!api.offscreen?.createDocument || !api.scripting?.registerContentScripts) return false;
+  try {
+    await (offscreenStart ??= startOffscreen());
+    return true;
+  } catch {
+    await closeOffscreen();
+    return false;
+  }
+}
+async function closeOffscreen() {
+  offscreenStart = null;
+  offscreenPort = null;
+  await api.scripting?.unregisterContentScripts?.({ ids: [FRAME_SCRIPT] }).catch(() => {});
+  await api.offscreen?.closeDocument().catch(() => {});
+}
+
+function newFrame(windowId, url) {
+  const tabId = nextVirtual--;
+  const nonce = crypto.randomUUID();
+  frames.set(tabId, { nonce, windowId, url: "about:blank", loads: 0, port: null, frameId: null, pending: new Map(), seq: 0 });
+  owned.set(tabId, { popup: false, windowId });
+  persist();
+  tellOffscreen({ op: "load", nonce, url });
+  return tabId;
+}
+// The frame is removed and anything waiting on it is released; the caller reports and unregisters it.
+function killFrame(tabId) {
+  const f = frames.get(tabId);
+  if (!f) return;
+  frames.delete(tabId);
+  tellOffscreen({ op: "remove", nonce: f.nonce });
+  f.port?.disconnect();
+  f.port = null;
+  for (const done of f.pending.values()) done(undefined);
+}
+
+// Decides who a new port is: "offscreen", a frame entry, or null (disconnected at once).
+function admit(p) {
+  const s = p.sender ?? {};
+  const f = [...frames.values()].find((x) => x.nonce === p.name);
+  if (!s.tab) {
+    if (p.name === OFFSCREEN_PORT && s.frameId === 0 && s.url === api.runtime.getURL("offscreen.html") && offscreenStart) {
+      offscreenPort = p;
+      offscreenHello?.();
+      return OFFSCREEN_PORT;
+    }
+    if (f && typeof s.frameId === "number" && s.frameId !== 0 && (f.frameId === null || f.frameId === s.frameId)
+        && groupOf(s.url) === allow.groups.hypeddit) {
+      f.port?.disconnect(); // an older document of the same frame
+      Object.assign(f, { port: p, frameId: s.frameId, url: s.url });
+      f.loads++;
+      emit({ event: "tab.updated", tabId: [...frames].find(([, x]) => x === f)[0], url: safeUrl(s.url) });
+      return f;
+    }
+  }
+  p.disconnect();
+  return null;
+}
+function onPortMessage(who, m) {
+  if (who === OFFSCREEN_PORT || !m || typeof m !== "object") return;
+  const done = who.pending.get(m.id);
+  who.pending.delete(m.id);
+  done?.(m.res !== null && typeof m.res === "object" ? m.res : { ok: false, code: "dom_error", message: "bad reply from the frame" });
+}
+function onPortGone(who, p) {
+  if (who === OFFSCREEN_PORT) {
+    if (offscreenPort !== p) return; // closed on purpose
+    offscreenPort = null; // the document is gone: so are its frames
+    for (const [id, w] of windows) if (w.offscreen) dropWindow(id);
+    return;
+  }
+  if (who.port !== p) return;
+  who.port = null;
+  for (const done of who.pending.values()) done(undefined);
+  who.pending.clear();
+}
+// The only onConnect listener; the listeners on the port itself are added at once, the
+// decision follows when the allowlist is loaded.
+api.runtime.onConnect.addListener((p) => {
+  const who = ready.then(() => admit(p));
+  p.onMessage.addListener((m) => who.then((w) => w && onPortMessage(w, m)));
+  p.onDisconnect.addListener(() => who.then((w) => w && onPortGone(w, p)));
+});
+
+// inject() for a virtual tab: djDom.run or djDom.html runs in the frame's content script.
+async function viaFrame(tabId, op, makeArgs, { budgetMs, signal }) {
+  const end = Date.now() + budgetMs;
+  for (;;) {
+    if (signal.aborted) throw new Err("cancelled", "command cancelled");
+    const f = frames.get(tabId);
+    if (!f) throw new Err("tab_closed", "tab no longer exists");
+    if (f.port) {
+      const arg = makeArgs(Math.max(0, end - Date.now()))[0];
+      const res = await new Promise((done) => {
+        const id = ++f.seq;
+        f.pending.set(id, done);
+        try {
+          f.port.postMessage(op === "html" ? { id, op, maxBytes: arg } : { id, op, spec: arg });
+        } catch {
+          f.pending.delete(id);
+          done(undefined);
+        }
+      });
+      if (res !== undefined) return res;
+    }
+    if (Date.now() >= end) throw new Err("timeout", "page did not answer");
+    await sleep(100); // the document is being replaced: wait for the next one
+  }
+}
+// goto/reload of a virtual tab: ready when the new document's content script has connected.
+async function navigateFrame(tabId, url, timeoutMs, ctx) {
+  const f = frames.get(tabId);
+  if (!f) throw new Err("tab_closed", "tab no longer exists");
+  const seen = f.loads;
+  tellOffscreen({ op: "load", nonce: f.nonce, url });
+  await pollUntil(() => f.loads > seen || !frames.has(tabId), timeoutMs, ctx.signal, "page load");
+  if (!frames.has(tabId)) throw new Err("tab_closed", "tab no longer exists");
+  return { url: safeUrl(f.url), status: null }; // no webRequest status for a frame
 }
 
 // ---------------------------------------------------------------- native port and events
@@ -261,6 +452,7 @@ async function pollUntil(check, timeoutMs, signal, what) {
 // Runs an injected function in the tab, retrying while a navigation tears the frame down.
 const TRANSIENT = /frame.*(removed|not found)|no frame|invalidated|destroyed|receiving end|navigat/i;
 async function inject(tabId, func, makeArgs, { budgetMs, world, signal }) {
+  if (isVirtual(tabId)) return viaFrame(tabId, func === djDom.html ? "html" : "run", makeArgs, { budgetMs, signal });
   const end = Date.now() + budgetMs;
   for (;;) {
     if (signal.aborted) throw new Err("cancelled", "command cancelled");
@@ -284,9 +476,11 @@ async function runDom(op, a, ctx) {
   const waits = WAITING.has(op);
   const token = String(ctx.id);
   const cancelInPage = () =>
-    api.scripting
-      .executeScript({ target: { tabId: a.tabId }, func: (t) => (globalThis.__djdCancel ||= new Set()).add(t), args: [token] })
-      .catch(() => {});
+    isVirtual(a.tabId)
+      ? frames.get(a.tabId)?.port?.postMessage({ op: "cancel", token })
+      : api.scripting
+          .executeScript({ target: { tabId: a.tabId }, func: (t) => (globalThis.__djdCancel ||= new Set()).add(t), args: [token] })
+          .catch(() => {});
   ctx.signal.addEventListener("abort", cancelInPage, { once: true });
   try {
     const res = await inject(
@@ -345,7 +539,15 @@ const domCommand = (op) => (a, ctx) => runDom(op, a, ctx);
 // Own tabs never make a sound: SoundCloud popups autoplay (spike R1).
 const mute = (tabId) => api.tabs.update(tabId, { muted: true }).catch(() => {});
 const commands = {
-  async "window.open"({ visible }) {
+  async "window.open"({ visible, offscreen }) {
+    // offscreen (hidden pass, Chromium): a virtual window without any browser window; elsewhere the
+    // reply says offscreen:false and the session gets the minimized window as before
+    if (offscreen && !visible && (await openOffscreen())) {
+      const windowId = nextVirtual--;
+      windows.set(windowId, { visible: false, spare: null, offscreen: true });
+      persist();
+      return { windowId, offscreen: true };
+    }
     // always a NEW window: the windows of other sessions are none of its business
     const w = await api.windows.create({ url: "about:blank", ...(visible ? { focused: true } : hiddenProps()) });
     // Wayland ignores focused:false and may map a window before minimizing it (spike R2)
@@ -355,10 +557,11 @@ const commands = {
     windows.set(w.id, { visible: !!visible, spare });
     owned.set(spare, { popup: false, windowId: w.id });
     persist();
-    return { windowId: w.id };
+    return { windowId: w.id, offscreen: false };
   },
   async "window.show"({ windowId }) {
     const w = workWindow(windowId);
+    if (w.offscreen) throw offscreenRefused();
     await api.windows.update(windowId, { state: "normal", focused: true }).catch(gone);
     w.visible = true;
     persist();
@@ -366,6 +569,7 @@ const commands = {
   },
   async "window.hide"({ windowId }) {
     const w = workWindow(windowId);
+    if (w.offscreen) throw offscreenRefused();
     await api.windows.update(windowId, { state: HIDDEN_STATE, ...hiddenProps() }).catch(gone);
     w.visible = false;
     persist();
@@ -378,6 +582,7 @@ const commands = {
   async "tab.new"({ windowId, url }) {
     const target = url ? navigable(url) : "about:blank";
     const w = workWindow(windowId);
+    if (w.offscreen) return { tabId: newFrame(windowId, url ? target : null) };
     let tab;
     try {
       if (w.spare !== null) {
@@ -398,14 +603,23 @@ const commands = {
   async "tab.goto"({ tabId, url, timeoutMs }, ctx) {
     const target = navigable(url);
     await pageTab(tabId, { nav: true });
+    if (isVirtual(tabId)) return navigateFrame(tabId, target, timeoutMs ?? GOTO_TIMEOUT_MS, ctx);
     return navigate(tabId, () => api.tabs.update(tabId, { url: target }), timeoutMs ?? GOTO_TIMEOUT_MS, ctx);
   },
   async "tab.reload"({ tabId, timeoutMs }, ctx) {
     await pageTab(tabId, { nav: true });
+    if (isVirtual(tabId)) return navigateFrame(tabId, navigable(frames.get(tabId).url), timeoutMs ?? GOTO_TIMEOUT_MS, ctx);
     return navigate(tabId, () => api.tabs.reload(tabId), timeoutMs ?? GOTO_TIMEOUT_MS, ctx);
   },
   async "tab.close"({ tabId }) {
     need(tabId);
+    if (isVirtual(tabId)) {
+      killFrame(tabId);
+      owned.delete(tabId);
+      persist();
+      emit({ event: "tab.removed", tabId });
+      return null;
+    }
     await api.tabs.remove(tabId).catch(() => {}); // already gone is fine; onRemoved cleans up
     return null;
   },
@@ -418,6 +632,7 @@ const commands = {
     };
   },
   async "tab.focus"({ tabId }) {
+    realTab(tabId);
     const tab = await getTab(tabId);
     await api.tabs.update(tabId, { active: true });
     await api.windows.update(tab.windowId, { focused: true });
@@ -430,6 +645,7 @@ const commands = {
   },
   async "tab.capture"({ tabId }) {
     // Best effort, diagnostics only: needs the tab active in a visible window.
+    realTab(tabId);
     const tab = await pageTab(tabId);
     await api.tabs.update(tabId, { active: true });
     const png = await api.tabs.captureVisibleTab(tab.windowId, { format: "png" });
@@ -446,6 +662,7 @@ const commands = {
   "dom.waitVisible": domCommand("waitVisible"),
   async "dom.call"({ tabId, name }, ctx) {
     if (typeof name !== "string" || !Object.hasOwn(djDom.main, name)) throw new Err("bad_args", "unknown function");
+    realTab(tabId); // MAIN-world functions cannot run in an offscreen frame
     await pageTab(tabId);
     const result = await inject(tabId, djDom.main[name], () => [], { budgetMs: 3000, world: "MAIN", signal: ctx.signal });
     if (JSON.stringify(result ?? null).length > 100_000) throw new Err("too_large", "page returned too much data");
@@ -546,7 +763,9 @@ on(api.downloads.onCreated, async (item) => {
   // referrer's allowlisted origin. The referrer is often cut to the origin, so match that.
   const from = parse(item.referrer || "");
   if (!tabs.size && from && groupOf(from)) {
-    const own = [...owned].filter(([, o]) => !o.popup).map(([id]) => api.tabs.get(id).catch(() => null));
+    const own = [...owned]
+      .filter(([, o]) => !o.popup)
+      .map(([id]) => (isVirtual(id) ? Promise.resolve(frames.has(id) ? vtab(id) : null) : api.tabs.get(id).catch(() => null)));
     tabs = new Set((await Promise.all(own)).filter((t) => t && parse(t.url)?.origin === from.origin).map((t) => t.id));
   }
   if (tabs.size !== 1) return; // not attributable: ignored, never reported as a row's file

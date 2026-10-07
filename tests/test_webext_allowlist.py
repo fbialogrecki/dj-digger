@@ -116,7 +116,7 @@ def test_manifest_permissions_and_entry_points():
     assert MANIFEST["manifest_version"] == 3
     assert set(MANIFEST["permissions"]) == {
         "nativeMessaging", "tabs", "scripting", "downloads", "cookies",
-        "webRequest", "webNavigation", "storage", "alarms",
+        "webRequest", "webNavigation", "storage", "alarms", "offscreen",
     }  # fmt: skip
     assert "externally_connectable" not in MANIFEST
     assert "content_scripts" not in MANIFEST
@@ -185,10 +185,33 @@ def test_no_remote_code_and_one_input_channel(path):
     assert "importScripts(" not in source or path.name == "background.js"
     for forbidden in (
         "onMessageExternal", "onConnectExternal", "externally_connectable",
-        "runtime.onMessage", "runtime.onConnect", 'addEventListener("message"',
+        "runtime.onMessage", 'addEventListener("message"',
         "executeScript({ target, code", "sendMessage(",
     ):  # fmt: skip
         assert forbidden not in source, forbidden
+    # plan F4b: the offscreen document and the frame content script each open one port to
+    # the background, which has the one runtime.onConnect (it admits only those two, see
+    # the harness); nothing else listens for or opens a runtime channel.
+    assert ("runtime.onConnect" in source) == (path.name == "background.js")
+    assert ("runtime.connect(" in source) == (path.name in {"offscreen.js", "frame.js"})
+    assert source.count("runtime.onConnect") <= 1
+
+
+def test_the_frame_script_is_inert_outside_the_offscreen_document():
+    source = (EXTENSION / "frame.js").read_text(encoding="utf-8")
+    assert "window.top === window" in source
+    assert "location.ancestorOrigins?.[0] !== new URL(api.runtime.getURL(\"\")).origin" in source
+    assert source.index("ancestorOrigins") < source.index("runtime.connect(")
+
+
+def test_the_frame_script_is_registered_dynamically_for_hypeddit_only():
+    background = (EXTENSION / "background.js").read_text(encoding="utf-8")
+    assert "content_scripts" not in MANIFEST
+    assert background.count("scripting.registerContentScripts(") == 1
+    start = background.index("async function startOffscreen")
+    assert "allow.groups.hypeddit" in background[start : background.index("scripting.registerContentScripts(")]
+    assert 'js: ["dom.js", "frame.js"]' in background
+    assert (EXTENSION / "offscreen.html").is_file()
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
