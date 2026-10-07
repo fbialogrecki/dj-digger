@@ -1,13 +1,15 @@
 # Plan: rozszerzenie przeglądarki zamiast Playwright/Chromium
 
-- Status: **wdrożone na branchu F1–F5, F7–F9**; F6 (koszyk Beatport) wdrożony offline, czeka na akceptację na żywo (W7); F0 (spike) czeka na właściciela.
+- Status: **wdrożone na branchu F0–F9 i F4b**; **F10 (praca bez okien, doprecyzowanie właściciela
+  2026-10-07) w toku** i blokuje merge. Akceptacja na żywo (§8) po F10.
   Poniżej plan z rewizji 2; opisy „dziś” w §1 dotyczą stanu sprzed zmiany. Zachowanie opisuje
   `PROJECT-SPECIFICATION.md`.
 - Branch: `feat/browser-extension` (od `main` @ `1fe6060`, wersja 1.3.0); wydanie docelowe 1.4.0
 - Tryb wdrożenia: bezpośrednia zamiana, bez flag i bez równoległego backendu Playwright.
   Branch merguje się dopiero, gdy przejdzie pełna macierz testów z §8.
 - Źródła: `PROJECT-SPECIFICATION.md` §3.6, §6.1, §9, §10.2–10.4, §13.2; kod wymieniony w §1.
-- Historia: rew. 1 to pierwszy szkic. Rew. 2 dodaje poprawki z przeglądu (K1–K6, W1–W15,
+- Historia: rew. 3 (2026-10-07) dodaje zasadę „bez okien” (Z1–Z6), F10 i poprawia D3, D7,
+  W4–W7. rew. 1 to pierwszy szkic. Rew. 2 dodaje poprawki z przeglądu (K1–K6, W1–W15,
   drobne): semantykę czekania, natywny async, zakaz pickle, przypisywanie pobrań, wspólną
   allowlistę, jawny opis akcji na prawdziwych kontach, stan service workera i inne.
 
@@ -17,6 +19,22 @@
 oraz Firefox) zainstalowane w zwykłej przeglądarce użytkownika, a nie Playwright z pobranym
 Chromium. Dzięki temu automat działa na prawdziwych sesjach użytkownika (Spotify, Beatport,
 Bandcamp, SoundCloud), z prawdziwym odciskiem przeglądarki i bez binarki ~150 MB.
+
+**Efekt dla użytkownika (doprecyzowanie właściciela 2026-10-07, nadrzędne wobec reszty planu):**
+
+- **Gate'y:** użytkownik zaznacza gate'y w aplikacji, a program przechodzi je w tle (e-mail,
+  imię, losowy komentarz, kroki social). Użytkownik widzi **wyłącznie** pobieranie utworów
+  i ich status w aplikacji — żadnego okna, karty ani popupu przeglądarki.
+- **Koszyki Bandcamp i Beatport:** dodawanie dzieje się w tle; wynikiem jest otwarta karta
+  przeglądarki z koszykiem zawierającym wszystkie dodane pozycje oraz powiadomienie
+  w aplikacji o utworach, których nie znaleziono albo które nie miały linku do zakupu,
+  z pytaniem, czy otworzyć te linki w przeglądarce.
+- **Niepowodzenia:** gdy gate nie dał pliku, aplikacja o tym mówi i daje szansę ponowić
+  automatycznie albo przejść go w przeglądarce — zawsze na wyraźne polecenie użytkownika.
+- Rozszerzenie jest narzędziem do tego efektu. Porównanie alternatyw (headless Chrome,
+  Qt WebEngine, czyste HTTP) z 2026-10-07: tylko rozszerzenie łączy prawdziwe sesje
+  użytkownika, niski profil antybotowy i koszyk Bandcamp w przeglądarce użytkownika
+  (koszyk Bandcamp żyje w ciasteczkach przeglądarki, nie na koncie; Beatport — na koncie).
 
 **W zakresie:**
 
@@ -119,10 +137,16 @@ Zachowania, na których kod **polega**, choć nie widać ich w wywołaniach:
     którym powstał. Gdy połączeń jest kilka (kilka przeglądarek), „ostatnio aktywna” wybierana
     jest tylko dla **nowych** sesji. Zerwanie połączenia kończy sesję błędem i nie przełącza
     się na inną przeglądarkę.
-- **D3. Jedno okno robocze zamiast headless.**
-  - Ukryty przebieg: rozszerzenie tworzy własne okno (`windows.create`, `focused:false`,
-    stan `minimized` albo normalne w tle, decyzja po R2) i otwiera w nim karty.
-  - Widoczny przebieg: to samo okno dostaje `windows.update(state:'normal', focused:true)`.
+- **D3. Praca bez okien (rew. 3; zastępuje „jedno okno robocze”).** Spike R2 pokazał, że na
+  GNOME/Wayland okna rozszerzenia nie da się ukryć (`focused:false` i `minimized` są
+  ignorowane), więc **automat nigdy nie tworzy okna sam z siebie** (Z1):
+  - gate'y Hypeddit: dokument offscreen (F4b), bez okna i bez karty;
+  - koszyki: nieaktywne karty w istniejącym oknie przeglądarki użytkownika (sesja „w tle”,
+    F10); na końcu karta koszyka staje się aktywna — to jedyny automatyczny, widoczny efekt;
+  - okno robocze (widoczne) powstaje tylko na wyraźne polecenie z aplikacji („Otwórz
+    w przeglądarce”) oraz dla logowania SoundCloud, gdy przeglądarka jest wylogowana (W3);
+  - Firefox (brak `chrome.offscreen`): ukryte okno robocze jak dotąd — znane ograniczenie
+    na Wayland, Firefox odłożony (decyzja 8).
   - Znika ponowne uruchamianie profilu, kopiowanie ciasteczek do „viewera”, retry blokady
     profilu i podmiana user agenta.
 - **D4. Brak profili zarządzanych.**
@@ -167,7 +191,8 @@ Zachowania, na których kod **polega**, choć nie widać ich w wywołaniach:
   - Dokładne dopasowanie trafia do **prawdziwego koszyka** z taką samą rewalidacją
     i weryfikacją jak Bandcamp.
   - Gdy brak dokładnego dopasowania w kodzie strony, użytkownik jest niezalogowany albo pojawi
-    się challenge, pozycja idzie przez istniejący plik playlisty i Soundiiz.
+    się challenge, pozycja trafia do powiadomienia „nie dodano” z opcją otwarcia jej linku
+    w przeglądarce (rew. 3, Z5). Playlista i Soundiiz zostają jako opcja dodatkowa.
   - **Nigdy** nie szukamy na Beatporcie po artyście i tytule.
 - **D8. Playwright znika całkowicie, także z testów.**
   - Python testujemy offline jak dziś, z fałszywym rozszerzeniem po stronie protokołu (§7).
@@ -670,6 +695,59 @@ pierwsze uruchomienie, ręczne usunięcie starych profili), `docs/installation.m
 `CHANGELOG.md` (1.4.0; uwaga, że koszyk gościa ze starego profilu `store-browser` nie będzie
 widoczny w przeglądarce użytkownika) oraz `docs/gui-e2e-checklist-pl.md` (nowe kroki ręczne).
 
+### F10. Praca bez okien i wyniki w aplikacji (rew. 3, doprecyzowanie właściciela 2026-10-07)
+
+Zasady (nadrzędne; Z = zasada):
+
+- **Z1.** Automat nie pokazuje okna, karty ani popupu przeglądarki sam z siebie. Wyjątki:
+  aktywna karta koszyka na końcu partii koszyka oraz to, co użytkownik wybierze w aplikacji
+  („Otwórz w przeglądarce”, „Pokaż koszyki”, logowanie).
+- **Z2.** Gate wymagający człowieka (Connect/OAuth, CAPTCHA, zgoda Spotify, pobranie
+  zatrzymane przez przeglądarkę) nie otwiera okna. Po partii aplikacja pyta: „N gate'ów
+  wymaga Ciebie (powody): Otwórz w przeglądarce / Pomiń”. Pominięte trafiają do wyników.
+- **Z3.** Każda partia gate'ów z nieudanymi wierszami kończy się oknem „Wyniki pobierania”
+  w aplikacji: lista z powodami i wybory Zamknij / Ponów nieudane / Otwórz nieudane
+  w przeglądarce / (gdy brak rozszerzenia) Połącz przeglądarkę i ponów.
+- **Z4.** Koszyk nie pyta o akceptację. Cena „name your price” wynika z ustawienia
+  `nyp_price` (domyślnie minimalna, do zmiany w Ustawieniach na sugerowaną). Koszyk to nie
+  zakup: przegląd i checkout zostają po stronie użytkownika w karcie koszyka.
+- **Z5.** Wyniki koszyka wymieniają każdy zaznaczony utwór, którego nie dodano: brak linku do
+  sklepu, nie znaleziono, niejednoznaczny, błąd — i oferują „Otwórz N linków w przeglądarce”.
+- **Z6.** Stan wiersza w aplikacji jest aktualny w trakcie: postęp HTTP, „w trakcie” dla
+  przebiegu w przeglądarce, „pobrane” od razu po pliku, nie dopiero na końcu partii.
+
+Zadania:
+
+- [ ] Gate'y (`gates/browser.py`, `services/downloads.py`):
+  - po przebiegu offscreen wiersze odroczone nie idą automatycznie do widocznego okna:
+    callback `attend(reasons) -> bool` z GUI decyduje (Z2); bez callbacku (CLI) zachowanie
+    jak dotąd;
+  - krok z polem komentarza (`textarea` na slajdzie click-through) wypełniany
+    `config.random_comment()` (dziś tylko ścieżka HTTP);
+  - Firefox bez offscreen: ukryte okno jak dotąd, ale bez automatycznego `show()` (Z2).
+- [ ] GUI pobierania (`gui/backend.py`): obsługa zdarzeń `waiting`, `downloaded`, `status`,
+      `browser_started`, `browser_finished`, `summary` (Z6); okno „Wyniki pobierania” (Z3);
+      pytanie Z2.
+- [ ] Koszyk (`services/purchases.py`, `webext/page.py`, `background.js`):
+  - sesja „w tle”: `window.open {background:true}` przypina sesję do ostatnio aktywnego
+    zwykłego okna użytkownika, `tab.new` tworzy kartę `active:false` w tym oknie; gdy
+    przeglądarka nie ma okna, powstaje nowe (nieuniknione);
+  - `window.close` takiej sesji zamyka tylko jej karty, nigdy okna użytkownika;
+  - koniec partii: karta koszyka każdego sklepu aktywowana w oknie użytkownika, karty
+    robocze zamknięte; „Pokaż koszyki” aktywuje je ponownie;
+  - bez formularza „Review cart” (Z4); `purchase_price` respektuje `nyp_price`;
+  - wiersze bez linku Bandcamp/Beatport nie znikają: wynik „brak linku do zakupu” (Z5);
+  - `CartResult.url` wypełnione dla każdej pozycji niedodanej; wybór „Otwórz linki”.
+- [ ] Ustawienia i konfiguracja: `nyp_price` (`minimum`/`suggested`) w `config.py`
+      i w dialogu Ustawień; tłumaczenia.
+- [ ] Testy: harness (sesja w tle nie tworzy okna, nie zamyka okna użytkownika), testy
+      `test_gates.py` (attend: pomiń/otwórz, komentarz), `test_cart.py` (bez akceptacji,
+      `nyp_price`, brak linku, URL-e niedodanych), testy GUI zdarzeń i wyników.
+- [ ] Spec §3.5, §3.6, §3.8, §7.4, §10.2, §10.3; CHANGELOG; checklista §21.
+- [ ] Pomiar na żywo: throttling timerów w nieaktywnej karcie (`timers`) przy partii
+      koszyka > 5 min; jeśli przeszkadza, Bandcamp przechodzi do offscreen (nie wysyła
+      `X-Frame-Options`), Beatport zostaje w karcie (wysyła `deny`).
+
 ## 7. Testy
 
 | Poziom | Co | Gdzie / marker |
@@ -701,10 +779,10 @@ i nie blokują merge; sprawdzono tylko W11 (`selftest.html`: ALL PASS) i ładowa
 | W1 | Pierwsze uruchomienie bez rozszerzenia | dialog „Połącz przeglądarkę”; po instalacji `hello` w ≤ 3 s; Ustawienia pokazują przeglądarkę i uprawnienia |
 | W2 | Logowanie SoundCloud przy zalogowanej przeglądarce | token zapisany bez okna logowania |
 | W3 | Logowanie SoundCloud przy wylogowanej przeglądarce | karta `/signin` w oknie roboczym; po zalogowaniu token zapisany, okno zamknięte |
-| W4 | Partia 5 gate'ów Hypeddit (email, click-through) | wszystkie pliki pobrane w ukrytym przebiegu, każdy pod właściwym trackiem; pliki w folderze playlisty; brak kopii w Pobranych |
-| W5 | Gate z CAPTCHA i z pierwszą zgodą Spotify (Agree klika człowiek) | okno robocze pokazuje tylko odroczone karty (bez duplikatów); po akcji człowieka plik pobrany |
-| W6 | Koszyk Bandcamp: 3 pozycje, w tym jedna NYP z podniesioną ceną | weryfikacja; karta koszyka na wierzchu; nic nie kliknięte poza add-to-cart; ręczna próba wejścia w checkout z karty roboczej zablokowana |
-| W7 | Koszyk Beatport: 3 pozycje z ID + 1 bez ID | 3 w koszyku Beatport; 1 w playliście/Soundiiz; karta koszyka na wierzchu |
+| W4 | Partia 5 gate'ów Hypeddit (email, click-through, komentarz) | **żadne okno, karta ani popup przeglądarki w trakcie**; w aplikacji postęp i stan każdego wiersza na bieżąco; wszystkie pliki pobrane, każdy pod właściwym trackiem; pliki w folderze playlisty; brak kopii w Pobranych |
+| W5 | Gate z CAPTCHA i z pierwszą zgodą Spotify | **przed jakimkolwiek oknem** pytanie w aplikacji „N gate'ów wymaga Ciebie”; „Pomiń” → wiersze w wynikach; „Otwórz” → okno tylko z tymi gate'ami, po akcji człowieka plik pobrany |
+| W6 | Koszyk Bandcamp: 3 pozycje, w tym jedna NYP | **bez okna i bez pytania o akceptację**; karty robocze nieaktywne w oknie użytkownika; na końcu aktywna karta koszyka z 3 pozycjami; NYP po cenie minimalnej, po zmianie ustawienia — po sugerowanej; nic nie kliknięte poza add-to-cart; checkout zablokowany |
+| W7 | Koszyk Beatport: 3 pozycje z ID + 1 bez ID + 1 utwór bez linku do sklepu | jak W6; 3 w koszyku Beatport; powiadomienie wymienia 2 niedodane z powodem; „Otwórz linki” otwiera je w przeglądarce |
 | W8 | Zamknięcie aplikacji w trakcie / zamknięcie przeglądarki w trakcie / przeładowanie rozszerzenia w trakcie | brak zawieszenia; wiersze z jasnym błędem; host kończy się po zamknięciu przeglądarki; brak osieroconych procesów `dj-digger-host` |
 | W9 | Anulowanie partii gate'ów i koszyka (także w trakcie etapu weryfikacji) | jak dziś (spec §10.2, §3.6); brak nakładających się komend na karcie |
 | W10 | Instalacja z wheela na czystym systemie bez Chromium | brak pobierania przeglądarki; brak `playwright` w jakichkolwiek zależnościach i w `uv.lock` |
@@ -712,6 +790,7 @@ i nie blokują merge; sprawdzono tylko W11 (`selftest.html`: ALL PASS) i ładowa
 | W12 | Dwie przeglądarki z rozszerzeniem jednocześnie | partia zostaje w przeglądarce, w której się zaczęła; Ustawienia pokazują aktywną |
 | W13 | Odebranie uprawnień do hostów w Firefoksie (`about:addons`) | Ustawienia pokazują brak uprawnień; komendy dają czytelny błąd zamiast zawieszenia |
 | W14 | `dj-digger browser unregister` | manifesty i wpisy rejestru usunięte; rozszerzenie pokazuje „brak aplikacji” |
+| W15 | Partia gate'ów z nieudanymi wierszami (np. gate usunięty, brak rozszerzenia) | okno „Wyniki pobierania” z powodami; „Ponów nieudane” ponawia tylko je; „Otwórz w przeglądarce” otwiera ich gate'y; przy braku rozszerzenia „Połącz przeglądarkę i ponów” |
 
 Dodatkowo: `npx web-ext lint` bez błędów, a domyślny pytest zielony w CI na trzech systemach.
 
@@ -720,7 +799,8 @@ Dodatkowo: `npx web-ext lint` bez błędów, a domyślny pytest zielony w CI na 
 | # | Ryzyko | Skutek | Mitygacja |
 |---|---|---|---|
 | R1 | Syntetyczne zdarzenia (`isTrusted=false`) nie otwierają popupu (popup blocker) albo Hypeddit je ignoruje | gate'y nie przechodzą bez człowieka | **R1-fallback:** skrypt MAIN-world w karcie gate'u opakowuje `window.open`; zablokowany URL trafia do `tabs.create({openerTabId})`, a callback OAuth Hypeddit idzie przez storage strony (spec §10.2), więc `opener` nie jest potrzebny. W ostateczności `chrome.debugger` (`Input.dispatchMouseEvent`) tylko w Chromium: nowe, groźnie wyglądające uprawnienie i żółty pasek; Firefox wtedy przez widoczny przebieg |
-| R2 | Zminimalizowane okno jest throttlowane lub ma `visibilityState=hidden`; menedżer okien kradnie fokus | wolne lub zawieszone ukryte przebiegi, okno wyskakuje | normalne niezfocusowane okno; decyzja w F0 |
+| R2 | Okna rozszerzenia nie da się ukryć na GNOME/Wayland (potwierdzone w spike'u) | okno wyskakuje | D3/Z1: gate'y w offscreen, koszyki w nieaktywnych kartach okna użytkownika, okno tylko na polecenie |
+| R11 | Nieaktywna karta jest throttlowana (po 5 min: timery raz na minutę) albo zamrażana (Energy Saver) | wolny koszyk przy dużej partii | pomiar w F10; plan B: Bandcamp w offscreen; `autoDiscardable:false` dla kart roboczych |
 | R3 | Native Messaging nie działa w przeglądarkach z Flatpaka i Snapa; Firefox 147+ zmienia katalog konfiguracji | brak połączenia | wykrycie w `register.py` (`~/.var/app/...`, `/snap/...`), komunikat w dialogu; zapis manifestu w obu lokalizacjach Firefoksa |
 | R4 | Beatport wymaga logowania lub antybot blokuje także prawdziwą przeglądarkę przy automatycznym klikaniu | brak koszyka Beatport | fallback playlista/Soundiiz już istnieje; F6 można odłożyć bez blokowania reszty |
 | R5 | „Pytaj, gdzie zapisać”, `danger` dla `.zip`, limit wielu pobrań w Chrome, niejednoznaczne przypisanie pobrania | zatrzymany ukryty przebieg albo plik bez właściciela | `download.blocked` → widoczne okno i komunikat; jedno pobranie naraz; brak zgadywania przypisania (D5) |
@@ -754,6 +834,12 @@ Dodatkowo: `npx web-ext lint` bez błędów, a domyślny pytest zielony w CI na 
    pozostaje wspierany w kodzie, ale bez testów akceptacyjnych na tym etapie; spike F0 robimy
    tylko w Chrome.
 
+9. **Bez okien (2026-10-07):** obowiązuje efekt z §0 i zasady Z1–Z6 (F10). Rozszerzenie
+   zostaje mechanizmem; alternatywy odrzucone (prawdziwe sesje, antybot, koszyk Bandcamp
+   w przeglądarce użytkownika).
+10. **Cena „name your price” (2026-10-07):** domyślnie minimalna, ustawienie `nyp_price`
+    pozwala wybrać sugerowaną. Koszyk bez formularza akceptacji.
+
 ### Otwarte
 
 7. **W11, dystrybucja przed wydaniem 1.4.0** (nie blokuje merge, decyzja odłożona).
@@ -767,7 +853,7 @@ Dodatkowo: `npx web-ext lint` bez błędów, a domyślny pytest zielony w CI na 
 
 ## 11. Kryteria merge do `main`
 
-- [ ] F0–F9 zamknięte; `docs/implementation/browser-extension-spike.md` opisuje wyniki R1–R6.
+- [ ] F0–F10 zamknięte; `docs/implementation/browser-extension-spike.md` opisuje wyniki R1–R6.
 - [ ] Macierz §8 przeszła; wyniki dopisane do `docs/gui-e2e-checklist-pl.md`.
 - [ ] `rg -i 'playwright|chromium' dj_digger/` zwraca tylko uzasadnione wystąpienia
       (np. nazwy przeglądarek w `browser.py`).
