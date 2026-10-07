@@ -7,6 +7,11 @@
 (() => {
   const api = globalThis.browser ?? globalThis.chrome;
   if (window.top === window || location.ancestorOrigins?.[0] !== new URL(api.runtime.getURL("")).origin) return;
+  // Belt and braces next to the frame's autoplay policy: whatever the gate's own player starts is
+  // silenced and stopped (a tab would be muted; this frame cannot be).
+  document.addEventListener("play", (e) => {
+    if (e.target instanceof HTMLMediaElement) Object.assign(e.target, { muted: true }).pause();
+  }, true);
   const port = api.runtime.connect({ name: window.name });
   port.onMessage.addListener(async (m) => {
     if (m.op === "cancel") (globalThis.__djdCancel ||= new Set()).add(m.token);

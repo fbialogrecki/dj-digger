@@ -10,6 +10,9 @@ port.onMessage.addListener((m) => {
     if (!frame) {
       frame = document.createElement("iframe");
       frame.name = m.nonce;
+      // An offscreen document cannot be muted like a tab: no frame in it (nor the SoundCloud
+      // player a gate embeds) may start playing by itself.
+      frame.allow = "autoplay 'none'";
       document.body.append(frame);
       frames.set(m.nonce, frame);
     }
