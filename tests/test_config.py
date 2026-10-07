@@ -133,3 +133,14 @@ def test_public_json_is_atomic_and_ordinarily_readable(tmp_path):
         write_json_atomic(path, {"a": object()}, private=False)
     assert json.loads(path.read_text(encoding="utf-8")) == {"a": 1}, "a failed write keeps the old file"
     assert [p.name for p in path.parent.iterdir()] == ["summary.json"]
+
+
+def test_nyp_price_is_minimum_unless_a_known_choice_was_saved(tmp_path):
+    path = tmp_path / "config.json"
+    assert AppConfig(path).nyp_price == "minimum"
+    config = AppConfig(path)
+    config.nyp_price = "suggested"
+    config.save()
+    assert AppConfig(path).nyp_price == "suggested"
+    path.write_text('{"nyp_price": "everything"}')
+    assert AppConfig(path).nyp_price == "minimum"

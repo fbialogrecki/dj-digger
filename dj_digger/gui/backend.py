@@ -9,13 +9,12 @@ import time
 from contextlib import asynccontextmanager
 from copy import deepcopy
 from dataclasses import replace
-from decimal import Decimal
 from pathlib import Path
 from uuid import uuid4
 
 from .. import links
 from ..analysis import key_names
-from ..cart_models import CartCancelled, CartPlan
+from ..cart_models import CartCancelled
 from ..diagnostics import log_safe_text
 from ..models import GOT, NEW, SKIP, Cancelled, Crate, check_cancelled, is_cancelled
 from ..paths import playlist_download_directory
@@ -417,6 +416,7 @@ class Backend:
                                                 self.record.title if self.record else '')
         request = DownloadRequest(source, self.services.state.db.crate_generation(source),
                                   directory, 20)
+        labels = {row.track.key: row.track.label for row in rows}
         async def work(handle):
             def prerequisites(profile, auth):
                 async def configure():
@@ -427,22 +427,81 @@ class Backend:
                     check_cancelled(handle.cancel)
                     return profile + auth
                 return asyncio.run_coroutine_threadsafe(configure(), self.loop).result()
+            def attend(reasons):
+                # Nothing of the browser is shown unless the person asks for it here (plan Z2).
+                async def question():
+                    gates = '\n'.join(labels.get(key, key) + ': ' + reason for key, reason in reasons.items())
+                    answer = await self.ask('Gates need you', 'These gates want something only you can do, '
+                                            'such as a login or a CAPTCHA.',
+                                            [field('gates', '', gates, 'log'),
+                                             field('next', 'Next step', 'open', 'choice',
+                                                   [['open', 'Open them in the browser'], ['skip', 'Skip them for now']])],
+                                            handle.cancel, ok='Continue')
+                    return answer['next'] == 'open'
+                return asyncio.run_coroutine_threadsafe(question(), self.loop).result()
             put, flushing = self.progress_batch(values)
+            failed, waiting, settled, browser = {}, set(), set(), [False]
             def emit(event):
                 if event.kind == 'progress':
                     put(event.key, event.progress)
-                elif event.kind in {'failed', 'unrecorded'}:
+                elif event.kind == 'waiting':
+                    waiting.add(event.key)
+                    put(event.key, .5)  # handed on: the browser pass, a wizard or the next run
+                elif event.kind == 'downloaded':
+                    settled.add(event.key)
+                    put(event.key, 1.0)
+                elif event.kind in {'failed', 'unrecorded', 'cancelled'}:
+                    settled.add(event.key)
+                    put(event.key, -1)
+                    if event.kind != 'cancelled':
+                        failed[event.key] = event.message
+                elif event.kind == 'browser_started':
+                    browser[0] = True
+                    self.send('busy', {'value': True, 'text': 'Downloading gates in the background'})
+                elif event.kind == 'status':
                     self.send('message', {'text': event.message})
             workflow = DownloadWorkflow(self.services.downloads, request, handle,
                                         client=lambda: self.services.client, config=self.services.config,
-                                        emit=emit, prerequisites=prerequisites)
+                                        emit=emit, prerequisites=prerequisites, attend=attend)
             remote = await self.settle_local(rows, request.directory, handle.cancel)
-            async with flushing():
-                if remote:
+            while remote:
+                async with flushing():
                     await self.io(workflow.run_batch, remote)
+                await self.refresh_rows()
+                # Rows the batch handed on and never settled (more gates than one browser batch takes)
+                # are retried with the failed ones.
+                left = waiting - settled
+                remote = await self.download_results(remote, failed, left, browser[0], handle.cancel)
+                for seen in (failed, waiting, settled):
+                    seen.clear()
             await self.refresh_rows()
         self.services.client
         await self.job('Downloading', work)
+
+    async def download_results(self, remote, failed, left, browser_used, cancel):
+        """What a gate batch could not get, and what to do about it (plan Z3): the items to run again."""
+        keys = list(failed) + [key for key in left if key not in failed]
+        if not keys:
+            return []
+        by_key = {track.key: (track, url) for track, url in remote}
+        lines = [by_key[key][0].label + ': ' + failed.get(key, 'not started; run it again')
+                 for key in keys if key in by_key]
+        options = [['close', 'Close'], ['retry', 'Retry these'], ['open', 'Open them in the browser']]
+        if browser_used and not (self.services.browser_link and self.services.browser_link.connections()):
+            options.append(['connect', 'Connect the browser and retry'])
+        answer = await self.ask('Download results', '', [field('results', '', '\n'.join(lines), 'log'),
+                                                          field('next', 'Next step', 'retry', 'choice', options)],
+                                cancel, ok='Continue')
+        chosen = [by_key[key] for key in keys if key in by_key]
+        if answer['next'] == 'open':
+            for track, url in chosen:
+                check_cancelled(cancel)
+                await self.io(self.services.opening.open_one, url or track.permalink_url, track.key,
+                              self.services.config.browser)
+            return []
+        if answer['next'] == 'connect':
+            await self.connect_browser(cancel)
+        return chosen if answer['next'] in {'retry', 'connect'} else []
 
     def progress_batch(self, values):
         """Download threads `put` progress; inside `flushing()` the loop sends it every 100 ms."""
@@ -732,7 +791,9 @@ class Backend:
                                   dict(field('browser_status', 'Browser automation', status, 'note'), args=status_args),
                                   field('browser', 'Browser', config.browser if any(config.browser == v for v, _ in choices) else '', 'choice',
                                         [['', 'System default'], *[[value, label] for value, label in choices]]),
-                                  field('custom_comments', 'Gate comments (one per line)', '\n'.join(config.custom_comments), 'multiline')],
+                                  field('custom_comments', 'Gate comments (one per line)', '\n'.join(config.custom_comments), 'multiline'),
+                                  field('nyp_price', 'Bandcamp name-your-price items go into the cart at', config.nyp_price, 'choice',
+                                        [['minimum', 'The minimum price'], ['suggested', 'The price the artist suggests']])],
                                  validate, ok='Save')
         await self.io(self.services.accounts.save_preferences, answer)
         self.services.config.first_run = False
@@ -1120,45 +1181,68 @@ class Backend:
         await self.job('Exporting audio', work)
 
     async def action_cart(self, values):
-        from ..cart_models import CartRequest
+        from ..cart_models import CartBatchOutcome, CartRequest, CartResult
         rows = self.targets(values)
         requests = [CartRequest(row.track, tuple((r.category, r.link_url) for r in row.records
                     if r.category in {'bandcamp', 'beatport'})) for row in rows]
+        # A ticked track with no store link is reported, never dropped (plan Z5).
+        unlinked = tuple(CartResult(r.track.key, r.track.label, '', 'skipped', 'no Bandcamp or Beatport link', 'unavailable')
+                         for r in requests if not r.links)
         requests = [r for r in requests if r.links]
-        if not requests:
+        if not requests and not unlinked:
             return
+        tracks = {row.track.key: row.track for row in rows}
+        links = {(r.track.key, store): url for r in requests for store, url in r.links}
         session = self.services.cart
         record = self.record
         source = record.source if record else ''
         source_generation = self.services.state.db.crate_generation(source)
+        def link_for(result):
+            track = tracks[result.track_key]
+            return (result.url or links.get((result.track_key, result.store))
+                    or next((url for (key, _), url in links.items() if key == result.track_key), '')
+                    or track.purchase_url or track.permalink_url)
         async def work(handle):
             async def approve(plan):
-                fields = []
-                for i, item in enumerate(plan.items):
-                    fields.append(field('select_' + str(i), item.track_label, True, 'bool'))
-                    if item.price_editable:
-                        fields.append(field('price_' + str(i), item.currency, str(item.price)))
-                return await self.form('Review cart', plan.summary(), fields, lambda answer: reviewed_cart(plan, answer),
-                                       handle.cancel, ok='Continue')
+                return plan  # no review: the cart is not a purchase, its tab is the review (plan Z4)
             async def manual(items):
                 await self.ask('Finish in browser', '\n'.join(i.track_label for i in items), cancel=handle.cancel)
                 return True
-            outcome = await self.with_extension(lambda: session.run_batch(requests, handle.cancel, approve=approve, manual=manual), handle.cancel)
+            def batch(requests):
+                # manual=None: an uncertain click is offered below, never opened in a window unasked (Z1)
+                return self.with_extension(lambda: session.run_batch(requests, handle.cancel, approve=approve,
+                                                                     nyp_price=self.services.config.nyp_price),
+                                           handle.cancel)
+            outcome = await batch(requests) if requests else CartBatchOutcome(())
             while True:
                 if source and outcome.beatport_playlist_ready:
                     await self.io(self.services.library.remember_beatport, source, source_generation, outcome)
-                options = [['close', 'Close'], ['focus', 'Show carts in browser']]
-                if outcome.beatport_playlist_ready:
-                    options.append(['playlist', 'Send Beatport playlist metadata to Soundiiz'])
+                results = unlinked + outcome.results
+                missed = [r for r in results if r.track_key in tracks and r.status not in ('added', 'already_in_cart')]
+                options = [['close', 'Close']]
+                if outcome.cart_stores:
+                    options.append(['focus', 'Show carts in browser'])
+                if missed:
+                    options.append(['links', 'Open the links that were not added in the browser'])
                 if outcome.manual_candidates:
                     options.append(['manual', 'Finish in browser'])
                 if outcome.retryable_targets:
                     options.append(['retry', 'Retry failed items'])
-                answer = await self.ask('Cart results', '', [field('results', '', '\n'.join(r.track_label + ': ' + result_status(r) + ' ' + r.reason for r in outcome.results), 'log'),
-                                                            field('next', 'Next step', 'close', 'choice', options)], handle.cancel, ok='Continue')
+                if outcome.beatport_playlist_ready:
+                    options.append(['playlist', 'Send Beatport playlist metadata to Soundiiz'])
+                counts = dict(field('summary', '', 'Added to the carts: {0}. Not added: {1}.', 'note'),
+                              args=[len(results) - len(missed), len(missed)])
+                answer = await self.ask('Cart results', '',
+                                        [counts, field('results', '', '\n'.join(r.track_label + ': ' + result_status(r) + ' ' + r.reason for r in results), 'log'),
+                                         field('next', 'Next step', 'close', 'choice', options)], handle.cancel, ok='Continue')
                 answer = {answer['next']: True}
                 if answer.get('focus'):
                     await session.focus_carts()
+                if answer.get('links'):
+                    for result in missed:
+                        check_cancelled(handle.cancel)
+                        if url := link_for(result):
+                            await self.io(self.services.opening.open_one, url, result.track_key, self.services.config.browser)
                 if answer.get('playlist'):
                     from ..services.purchases import prepare_playlist
                     exported = await prepare_playlist(requests, outcome, record.title if record else '',
@@ -1172,13 +1256,12 @@ class Backend:
                     results = await session.finish_manually(list(outcome.manual_candidates), manual, handle.cancel)
                     self.send('message', {'text': '\n'.join(r.track_label + ': ' + r.status for r in results)})
                 if not answer.get('retry'):
-                    if answer.get('close'):
+                    if answer.get('close') or answer.get('links'):
                         break
                     continue
                 retry = [replace(request, links=tuple((store, url) for store, url in request.links
                          if (request.track.key, store) in outcome.retryable_targets)) for request in requests]
-                outcome = await self.with_extension(lambda: session.run_batch([request for request in retry if request.links], handle.cancel,
-                                                                             approve=approve, manual=manual), handle.cancel)
+                outcome = await batch([request for request in retry if request.links])
             await self.refresh_rows()
         await self.job('Preparing cart', work)
 
@@ -1289,26 +1372,6 @@ def result_status(result):
     if result.status in ('added', 'already_in_cart'):
         return ('in ' if result.status == 'added' else 'already in ') + (result.store or 'store').capitalize() + ' cart'
     return 'to playlist' if result.status == 'playlist_ready' else result.status
-
-
-def reviewed_cart(plan, answer):
-    """The ticked cart items, at the prices entered for pay-what-you-want ones."""
-    selected = []
-    for i, item in enumerate(plan.items):
-        if not answer['select_' + str(i)]:
-            continue
-        if item.price_editable:
-            try:
-                price = Decimal(str(answer['price_' + str(i)]))
-            except ArithmeticError:
-                raise ValueError('Invalid price')
-            if not price.is_finite() or price < (item.minimum_price or Decimal(0)):
-                raise ValueError('Invalid price')
-            if item.price_step and price % item.price_step:
-                raise ValueError('Invalid price step')
-            item = replace(item, price=price)
-        selected.append(item)
-    return CartPlan(tuple(selected), plan.results)
 
 
 def field(name, label, value='', kind='text', options=()):

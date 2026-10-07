@@ -51,6 +51,7 @@ function fakeBrowser({ offscreen = true, failOffscreen = false } = {}) {
     e["tabs.onRemoved"].fire(id, { windowId: tab.windowId, isWindowClosing: closing });
   };
   const off = { docs: 0, closed: 0, port: null, scripts: [], unregistered: 0 };
+  const user = { window: null, created: [] }; // the person's last focused window; windows made
   const api = {
     scripting: {
       registerContentScripts: async (list) => {
@@ -102,8 +103,10 @@ function fakeBrowser({ offscreen = true, failOffscreen = false } = {}) {
       create: async () => {
         const id = nextWin++;
         wins.add(id);
+        user.created.push(id);
         return { id, tabs: [newTab(id)] };
       },
+      getLastFocused: async () => (wins.has(user.window) ? { id: user.window } : Promise.reject(new Error("no window"))),
       get: async (id) => (wins.has(id) ? { id } : Promise.reject(new Error("no window"))),
       update: async (id, props) => {
         calls.push(["windows.update", id, JSON.parse(JSON.stringify(props))]);
@@ -121,11 +124,12 @@ function fakeBrowser({ offscreen = true, failOffscreen = false } = {}) {
     tabs: {
       get: async (id) => tabs.get(id) ?? Promise.reject(new Error("no tab")),
       query: async ({ windowId }) => [...tabs.values()].filter((t) => t.windowId === windowId),
-      create: async ({ windowId, url }) => {
+      create: async ({ windowId, url, active }) => {
         if (!wins.has(windowId)) throw new Error("no window");
-        return newTab(windowId, { url });
+        return newTab(windowId, { url, active });
       },
-      update: async (id, { url, muted }) => Object.assign(tabs.get(id), url ? { url } : {}, muted ? { muted } : {}),
+      update: async (id, { url, muted, active }) =>
+        Object.assign(tabs.get(id), url ? { url } : {}, muted ? { muted } : {}, active ? { active } : {}),
       remove: async (id) => {
         calls.push(["tabs.remove", id]);
         if (!tabs.has(id)) throw new Error("no tab");
@@ -146,7 +150,7 @@ function fakeBrowser({ offscreen = true, failOffscreen = false } = {}) {
     downloads: { onCreated: e["downloads.onCreated"], onChanged: e["downloads.onChanged"], search: async () => [] },
     cookies: {},
   };
-  return { api, e, port, sent, calls, tabs, wins, newTab, session, off };
+  return { api, e, port, sent, calls, tabs, wins, newTab, session, off, user };
 }
 
 async function start(fake = fakeBrowser()) {
@@ -505,6 +509,36 @@ async function start(fake = fakeBrowser()) {
   // a visible window is never offscreen
   x = await start();
   assert.deepEqual([(await opened(x, { visible: true, offscreen: true })).offscreen, x.off.docs], [false, 0]);
+
+  // a background session (carts) works in inactive tabs of the person's window and never makes one
+  x = await start();
+  const mine2 = (await x.api.windows.create()).id;
+  const theirs = x.newTab(mine2, { url: "https://example.com/", active: true });
+  x.user.window = mine2;
+  x.calls.length = 0;
+  x.user.created.length = 0;
+  const bg = (await x.call("window.open", { visible: false, background: true })).result;
+  assert.ok(bg.background && bg.windowId < 0);
+  const bt = (await x.call("tab.new", { windowId: bg.windowId, url: "https://bandcamp.com/" })).result.tabId;
+  const bt2 = (await x.call("tab.new", { windowId: bg.windowId })).result.tabId;
+  assert.deepEqual([x.tabs.get(bt).windowId, x.tabs.get(bt).active, x.tabs.get(bt2).windowId], [mine2, false, mine2]);
+  assert.equal((await x.call("window.show", { windowId: bg.windowId })).ok, true);
+  assert.equal((await x.call("tab.capture", { tabId: bt })).error.code, "background");
+  x.e["tabs.onCreated"].fire(x.newTab(mine2, { openerTabId: bt, url: "https://bandcamp.com/x" })); // a popup tab
+  await tick();
+  assert.ok(!x.user.created.length && !x.calls.some(([name]) => name === "windows.update"), "nothing on screen moved");
+  // the finished cart is handed over: no longer owned, so closing the session leaves it and the window
+  assert.equal((await x.call("tab.release", { tabId: bt })).ok, true);
+  assert.equal((await x.call("tab.goto", { tabId: bt, url: "https://bandcamp.com/cart" })).error.code, "not_owned");
+  await x.call("window.close", { windowId: bg.windowId });
+  assert.deepEqual([x.tabs.has(bt), x.tabs.has(bt2), x.tabs.has(theirs.id), x.wins.has(mine2)], [true, false, true, true]);
+  // a browser with no window of its own gets one, and the session closes it again
+  x = await start();
+  const lone = (await x.call("window.open", { visible: false, background: true })).result.windowId;
+  const [made] = x.user.created;
+  await x.call("tab.new", { windowId: lone });
+  await x.call("window.close", { windowId: lone });
+  assert.equal(x.wins.has(made), false);
   console.log("ok");
 })().catch((error) => {
   console.error(error);

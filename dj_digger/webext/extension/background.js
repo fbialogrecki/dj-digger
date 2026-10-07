@@ -90,6 +90,9 @@ function navigable(url) {
 // One work window per session; several sessions (cart, gate batch, sign-in) run at once, each in its
 // own window, and a command only ever touches the window and tabs of its own windowId.
 const windows = new Map(); // windowId -> {visible, spare}; spare = blank tab reused by the first tab.new
+// Background sessions (carts, plan F10/Z1): a virtual window whose tabs are inactive tabs of the
+// person's own last focused window ({background: true, host}); nothing new appears on screen, and
+// closing the session closes only its tabs, never the person's window.
 const owned = new Map(); // tabId -> {popup, windowId}; a popup belongs to its opener's window
 const downloads = new Map(); // attributed downloadId -> tabId
 // Offscreen sessions (Chromium, plan F4b): a virtual window has a negative id and no browser window, a
@@ -112,7 +115,10 @@ async function restore() {
   const { djdRegistry: r } = await api.storage.session.get("djdRegistry");
   if (!r) return;
   for (const [id] of r.owned ?? []) if (!isVirtual(id)) await api.tabs.remove(id).catch(() => {});
-  for (const [id] of r.windows ?? []) if (!isVirtual(id)) await api.windows.remove(id).catch(() => {});
+  for (const [id, w] of r.windows ?? []) {
+    if (!isVirtual(id)) await api.windows.remove(id).catch(() => {});
+    else if (w?.ownsHost) await api.windows.remove(w.host).catch(() => {}); // a window it had to make
+  }
   for (const [id, tabId] of r.downloads ?? []) downloads.set(id, tabId);
   persist();
 }
@@ -141,7 +147,8 @@ async function dropWindow(windowId) {
     return;
   }
   await Promise.all(ids.map((id) => api.tabs.remove(id).catch(() => {})));
-  await api.windows.remove(windowId).catch(() => {}); // already gone is fine
+  if (w.background && !w.ownsHost) return; // the person's window stays
+  await api.windows.remove(w.background ? w.host : windowId).catch(() => {}); // already gone is fine
 }
 function need(tabId) {
   if (!owned.has(tabId)) throw new Err("not_owned", "tab is not owned by dj-digger");
@@ -551,7 +558,17 @@ const domCommand = (op) => (a, ctx) => runDom(op, a, ctx);
 // Own tabs never make a sound: SoundCloud popups autoplay (spike R1).
 const mute = (tabId) => api.tabs.update(tabId, { muted: true }).catch(() => {});
 const commands = {
-  async "window.open"({ visible, offscreen }) {
+  async "window.open"({ visible, offscreen, background }) {
+    if (background && !visible) {
+      // the person's own window; a browser without one gets a new window (nothing else to use)
+      let host = (await api.windows.getLastFocused({ windowTypes: ["normal"] }).catch(() => null))?.id;
+      const ownsHost = host == null;
+      if (ownsHost) host = (await api.windows.create({ url: "about:blank", focused: false })).id;
+      const windowId = nextVirtual--;
+      windows.set(windowId, { visible: false, spare: null, background: true, host, ownsHost });
+      persist();
+      return { windowId, offscreen: false, background: true };
+    }
     // offscreen (hidden pass, Chromium): a virtual window without any browser window; elsewhere the
     // reply says offscreen:false and the session gets the minimized window as before
     if (offscreen && !visible && (await openOffscreen())) {
@@ -574,6 +591,7 @@ const commands = {
   async "window.show"({ windowId }) {
     const w = workWindow(windowId);
     if (w.offscreen) throw offscreenRefused();
+    if (w.background) return null; // its tabs are already in the person's window: tab.focus shows one
     await api.windows.update(windowId, { state: "normal", focused: true }).catch(gone);
     w.visible = true;
     persist();
@@ -582,6 +600,7 @@ const commands = {
   async "window.hide"({ windowId }) {
     const w = workWindow(windowId);
     if (w.offscreen) throw offscreenRefused();
+    if (w.background) return null;
     await api.windows.update(windowId, { state: HIDDEN_STATE, ...hiddenProps() }).catch(gone);
     w.visible = false;
     persist();
@@ -602,7 +621,7 @@ const commands = {
         w.spare = null;
         tab = target === "about:blank" ? await api.tabs.get(id) : await api.tabs.update(id, { url: target });
       } else {
-        tab = await api.tabs.create({ windowId, url: target, active: false });
+        tab = await api.tabs.create({ windowId: w.background ? w.host : windowId, url: target, active: false });
       }
     } catch {
       throw new Err("no_window", "work window is gone, call window.open again");
@@ -643,6 +662,15 @@ const commands = {
       windowId: tab.windowId, openerTabId: tab.openerTabId ?? null,
     };
   },
+  // Hands a tab over to the person (the finished cart): no longer owned, so nothing here closes,
+  // drives or guards it any more - checkout from it is theirs.
+  async "tab.release"({ tabId }) {
+    realTab(tabId);
+    owned.delete(tabId);
+    persist();
+    emit({ event: "tab.removed", tabId });
+    return null;
+  },
   async "tab.focus"({ tabId }) {
     realTab(tabId);
     const tab = await getTab(tabId);
@@ -658,6 +686,9 @@ const commands = {
   async "tab.capture"({ tabId }) {
     // Best effort, diagnostics only: needs the tab active in a visible window.
     realTab(tabId);
+    if (windows.get(owned.get(tabId).windowId)?.background) {
+      throw new Err("background", "a background tab is not brought forward for a screenshot");
+    }
     const tab = await pageTab(tabId);
     await api.tabs.update(tabId, { active: true });
     const png = await api.tabs.captureVisibleTab(tab.windowId, { format: "png" });
@@ -728,8 +759,9 @@ on(api.tabs.onCreated, (tab) => {
   owned.set(tab.id, { popup: true, windowId });
   persist();
   mute(tab.id);
-  // a popup window of a hidden session is hidden too
-  if (tab.windowId !== windowId && windows.get(windowId)?.visible === false) {
+  // a popup window of a hidden session is hidden too (never the person's window a background session uses)
+  const w = windows.get(windowId);
+  if (tab.windowId !== windowId && w?.visible === false && !w.background) {
     api.windows.update(tab.windowId, hiddenProps()).catch(() => {});
   }
   emit({ event: "tab.created", tabId: tab.id, openerTabId: opener, url: safeUrl(tab.pendingUrl || tab.url || "") });
@@ -744,7 +776,10 @@ on(api.tabs.onRemoved, (tabId) => {
   persist();
   emit({ event: "tab.removed", tabId });
 });
-on(api.windows.onRemoved, dropWindow); // closed by hand: same events as window.close
+on(api.windows.onRemoved, (windowId) => {
+  dropWindow(windowId); // closed by hand: same events as window.close
+  for (const [id, w] of windows) if (w.background && w.host === windowId) dropWindow(id);
+});
 
 // Checkout guard: an own tab heading to a forbidden path is closed and reported.
 function guard(d) {

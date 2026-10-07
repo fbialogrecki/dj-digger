@@ -337,6 +337,47 @@ def test_download_uses_playlist_folder(backend, tmp_path, title, base_name, subf
         assert Path(paths[key]).read_bytes() == b'audio'
 
 
+@pytest.mark.parametrize('choice', ['retry', 'open'])
+def test_failed_downloads_end_in_results_with_retry_or_open(backend, tmp_path, choice):
+    from dj_digger.soundcloud import SoundCloudError
+
+    worker, events = backend
+    worker.rows = online_rows(1)
+    worker.services.config.download_directory = str(tmp_path)
+    worker.services.config.first_run = False
+    [row] = worker.rows
+    row.track.downloadable = True
+    row.track.has_downloads_left = True
+    calls, opened = [], []
+    worker.services.opening.open_one = lambda url, *args: opened.append(url)
+
+    class Client:
+        def download_track(self, track, directory, **kwargs):
+            calls.append(track.key)
+            if len(calls) == 1:
+                raise SoundCloudError('the file went away')
+            directory.mkdir(parents=True, exist_ok=True)
+            path = directory / f'{track.id}.wav'
+            path.write_bytes(b'audio')
+            return path
+
+        def close(self):
+            pass
+
+    worker.services._client = Client()
+    worker.submit('download', {'keys': [row.track.key], 'generation': worker.generation})
+    question = wait_event(events, 'question')
+    assert question['title'] == 'Download results'
+    assert 'the file went away' in question['fields'][0]['value']
+    worker.answer(question['id'], {'next': choice})
+    while wait_event(events, 'busy')['value']:
+        pass
+    if choice == 'retry':
+        assert calls == [row.track.key] * 2 and worker.services.state.get(row.track.key) == 'got'
+    else:
+        assert calls == [row.track.key] and opened == [row.track.permalink_url]
+
+
 def test_form_reopens_with_entered_values_until_valid(backend, tmp_path):
     worker, events = backend
     # Settings validation keeps what was typed instead of dropping the dialog.
@@ -1762,16 +1803,41 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
         shiboken6.delete(engine)
 
 
-def test_reviewed_cart_validates_editable_prices():
-    from decimal import Decimal
+def test_cart_runs_without_review_and_offers_the_links_it_could_not_add(backend):
+    from dj_digger.cart_models import CartBatchOutcome, CartResult
+    from dj_digger.models import LinkRecord, Track
+    from dj_digger.rows import Row
 
-    from dj_digger.cart_models import CartItem, CartPlan
-    from dj_digger.gui.backend import reviewed_cart
-    item = CartItem('1', 'A - B', 'bandcamp', 's', 'p', 'id', 'B', Decimal('1'), 'EUR',
-                    minimum_price=Decimal('1'), price_step=Decimal('0.5'), price_editable=True)
-    plan = CartPlan((item, item))
-    reviewed = reviewed_cart(plan, {'select_0': True, 'price_0': '2.5', 'select_1': False})
-    assert [i.price for i in reviewed.items] == [Decimal('2.5')]
-    for price, error in (('0.5', 'Invalid price'), ('1.2', 'Invalid price step'), ('abc', 'Invalid price')):
-        with pytest.raises(ValueError, match=f'^{error}$'):
-            reviewed_cart(plan, {'select_0': True, 'price_0': price, 'select_1': False})
+    worker, events = backend
+    worker.rows = online_rows(2)
+    bare = Track('No store', 'https://soundcloud.com/example/bare', id=9)
+    worker.rows.append(Row(2, bare, [LinkRecord('free', bare, 'https://hypeddit.com/x', '')]))
+    worker.services.config.nyp_price = 'suggested'
+    seen, opened = [], []
+    worker.services.opening.open_one = lambda url, *args: opened.append(url)
+
+    class Cart:
+        async def run_batch(self, requests, cancel, *, approve, nyp_price, manual=None):
+            seen.append(([r.track.key for r in requests], nyp_price, manual))
+            first, second = requests
+            return CartBatchOutcome((
+                CartResult(first.track.key, first.track.label, 'bandcamp', 'added'),
+                CartResult(second.track.key, second.track.label, 'beatport', 'playlist_ready',
+                           'not on its page', 'playlist_ready'),
+            ), ('bandcamp',))
+
+        async def close(self):
+            pass
+
+    worker.services._cart = Cart()
+    worker.submit('cart', {'keys': ['1', '2', bare.key], 'generation': 0})
+    question = wait_event(events, 'question')
+    assert question['title'] == 'Cart results', 'no review form before the cart'
+    assert seen == [(['1', '2'], 'suggested', None)]
+    summary, log, choice = question['fields']
+    assert summary['args'] == [1, 2] and 'no Bandcamp or Beatport link' in log['value']
+    assert 'links' in [value for value, _label in choice['options']]
+    worker.answer(question['id'], {'next': 'links'})
+    while wait_event(events, 'busy')['value']:
+        pass
+    assert opened == [bare.permalink_url, 'https://beatport.com/track/1']

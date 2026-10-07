@@ -8,6 +8,7 @@ import re
 import shutil
 import time
 from collections.abc import Awaitable, Callable
+from contextvars import ContextVar
 from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
@@ -58,6 +59,9 @@ from ..store_urls import (
 from ..webext.page import ACTION_TIMEOUT_MS
 
 LOGGER = logging.getLogger(__name__)
+# The cart batch's name-your-price choice (config.nyp_price); set by CartBrowserSession.run_batch for
+# the tasks it starts, so every quote of that batch reads it without another parameter.
+NYP_PRICE: ContextVar[str] = ContextVar("nyp_price", default="minimum")
 NAVIGATION_TIMEOUT_MS = 30_000
 BANDCAMP_CART_URL = "https://bandcamp.com/cart"
 
@@ -543,7 +547,7 @@ async def _bandcamp_quote_async(page: Any, product: StoreProduct) -> PriceQuote:
         if input_suggested is not None:
             suggested = input_suggested
     try:
-        selected = purchase_price(minimum, suggested, step)
+        selected = purchase_price(minimum, suggested, step, suggested=NYP_PRICE.get() == "suggested")
     except AutomationError as exc:
         raise ProductUnavailable(
             "Bandcamp item has no positive cart price; open this name-your-price item manually"

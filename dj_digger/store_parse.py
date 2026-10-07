@@ -31,10 +31,13 @@ def _decimal(value: Any) -> Decimal | None:
 
 
 def purchase_price(
-    minimum: Decimal, default: Decimal | None, step: Decimal | None
+    minimum: Decimal, default: Decimal | None, step: Decimal | None, *, suggested: bool = False
 ) -> Decimal:
-    """Choose a declared positive price without probing the seller's form."""
+    """Choose a declared positive price without probing the seller's form: the minimum, or with
+    ``suggested`` the seller's own higher default when there is one."""
 
+    if suggested and default is not None and default > minimum:
+        return default
     if minimum > 0:
         return minimum
     if default is not None and default > 0:

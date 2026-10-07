@@ -430,6 +430,11 @@ class _Page:
     def _bring_to_front(self) -> _Cmd:
         return self._tab("tab.focus", post=lambda _: None)
 
+    def _release(self) -> _Cmd:
+        """Hand the tab over to the person (not Playwright API): the extension stops owning it, so
+        it stays open after the session and checkout from it is theirs."""
+        return self._tab("tab.release", post=lambda _: self._mark_closed())
+
     def _screenshot(self, *, path: str | os.PathLike | None = None, full_page: bool = False) -> _Cmd:
         # ponytail: best effort, diagnostics only - the visible part of the active tab
         def save(result: dict) -> bytes:
@@ -449,7 +454,7 @@ class _Page:
         return cmd._replace(ignore=("tab_closed", "not_owned"))
 
 
-_PAGE_OPS = "goto reload content evaluate announce_download bring_to_front screenshot".split()
+_PAGE_OPS = "goto reload content evaluate announce_download bring_to_front release screenshot".split()
 
 
 @_sync(*_PAGE_OPS)
@@ -646,9 +651,11 @@ class _Context:
         return _Cmd("cookie.clearGateDownload", {}, post=lambda _: None)
 
 
-def _open_args(visible: bool, offscreen: bool) -> dict:
-    # offscreen is asked for only by a hidden session; the reply says whether it was granted
-    return {"visible": bool(visible), **({"offscreen": True} if offscreen and not visible else {})}
+def _open_args(visible: bool, offscreen: bool, background: bool = False) -> dict:
+    # offscreen is asked for only by a hidden session; the reply says whether it was granted.
+    # background: the session's tabs are inactive tabs of the person's own window (carts, plan Z1).
+    hidden = {"offscreen": True} if offscreen and not visible else {"background": True} if background and not visible else {}
+    return {"visible": bool(visible), **hidden}
 
 
 _CONTEXT_OPS = "new_page show hide cookies clear_cookies".split()
@@ -772,7 +779,8 @@ class AsyncExtensionContext(_Context):
 
     @classmethod
     async def open(
-        cls, visible: bool = False, listener: Listener | None = None, *, offscreen: bool = False
+        cls, visible: bool = False, listener: Listener | None = None, *, offscreen: bool = False,
+        background: bool = False,
     ) -> AsyncExtensionContext:
         loop = asyncio.get_running_loop()
         session = await asyncio.to_thread(_listener_for(listener).session)  # may wait for hello
@@ -782,7 +790,8 @@ class AsyncExtensionContext(_Context):
             while (item := session.next_event(0)) is not None:  # arrived before on_event was set
                 context._dispatch(item)
             await context._run(
-                _Cmd("window.open", _open_args(visible, offscreen), post=context._opened(visible, new_window=True)))
+                _Cmd("window.open", _open_args(visible, offscreen, background),
+                     post=context._opened(visible, new_window=True)))
         except BaseException:
             context._finish()
             raise

@@ -61,6 +61,8 @@ GATE_EMAIL_INPUT = "#email_address"
 # ("Please enter your name."), checked 2026-09-02.
 GATE_NAME_INPUT = "#email_name"
 GATE_EMAIL_SUBMIT = ".email_to_downloads"
+# A step that also wants a comment posted with it (the HTTP flow's sc/yt_comment_text).
+GATE_COMMENT_INPUT = "textarea:visible"
 GATE_CAPTCHA = "#gatePreviewCaptcha"
 # Set by a download and dropped by the page a few seconds later; while it is
 # there the unlock endpoint answers the next gate with download_status false
@@ -90,6 +92,9 @@ POPUP_GRACE_SECONDS = 3.0
 # event where the link is.
 _CLICK = {"timeout": 15_000, "force": True}
 StatusCallback = Callable[[str], None]
+# Asked before anything is shown: the deferred rows and why, True when the person wants them opened
+# in a browser window (plan Z2). Without one the window opens as before (one-off and CLI callers).
+AttendCallback = Callable[[dict[str, str]], bool]
 # The step driver's own way of saying the person gave up, told apart from a
 # gate step it could not finish.
 CANCELLED = "cancelled"
@@ -181,7 +186,7 @@ def _drive_gate_steps(
         elif kind == "email":
             _share_email(slide.locator, email, name, guard=guard, config=config)
         elif kind in CLICK_THROUGH_STEPS:
-            _click_through(context, page, slide.locator, guard=guard)
+            _click_through(context, page, slide.locator, guard=guard, config=config)
         else:
             raise _NeedsPerson(f"the gate's {kind or 'next'} step is not one this program knows")
         slide = _next_slide(page, slide, cancel)
@@ -218,9 +223,14 @@ def _next_slide(page: Any, slide: _Slide, cancel: Any) -> _Slide:
     raise _NeedsPerson(f"the {_step_name(slide.kind)} step did not clear")
 
 
-def _click_through(context: Any, page: Any, slide: Any, *, guard=lambda: None) -> None:
-    """Tick the slide's follow/like links, closing the pages they open, then Next."""
+def _click_through(context: Any, page: Any, slide: Any, *, guard=lambda: None, config=None) -> None:
+    """Fill the slide's comment if it has one, tick its follow/like links, closing the pages they
+    open, then Next."""
 
+    comment = slide.locator(GATE_COMMENT_INPUT)
+    if comment.count():
+        guard()
+        comment.first.fill(config_or_default(config).random_comment())
     actions = slide.locator(GATE_PENDING_ACTION)
     before = list(context.pages)
     for _ in range(MAX_GATE_STEPS):
@@ -855,6 +865,7 @@ def _window_batch(
     email: str | None,
     name: str | None,
     time_limit: float | None,
+    attend: AttendCallback | None = None,
 ) -> bool:
     """The whole batch in one hidden work window, then the same window shown for what it deferred
     (plan W3). True when cancelled."""
@@ -866,6 +877,8 @@ def _window_batch(
     if not watch.deferred or cancelled:
         return cancelled
     reasons, watch.deferred = watch.deferred, {}
+    if not _attended(watch, reasons, attend):
+        return False
     if status is not None:
         status(_needs_you(reasons))
     _close_settled_tabs(context, watch)
@@ -885,6 +898,7 @@ def _browser_batch(
     email: str | None,
     name: str | None,
     time_limit: float | None,
+    attend: AttendCallback | None = None,
 ) -> bool:
     """Run the hidden pass and, for what it deferred, the visible one. True when cancelled.
 
@@ -905,7 +919,7 @@ def _browser_batch(
                 if not getattr(context, "offscreen", False):  # Firefox: no offscreen documents
                     return _window_batch(
                         context, watch, pending, status,
-                        social=social, email=email, name=name, time_limit=time_limit,
+                        social=social, email=email, name=name, time_limit=time_limit, attend=attend,
                     )
                 if _browser_pass(
                     context, watch, {key: pending[key]}, status,
@@ -914,7 +928,7 @@ def _browser_batch(
                     return True
                 reasons.update(watch.deferred)
                 watch.deferred = {}
-        if not reasons:
+        if not reasons or not _attended(watch, reasons, attend):
             return False
         if status is not None:
             status(_needs_you(reasons))
@@ -938,6 +952,16 @@ def _browser_batch(
     return False
 
 
+def _attended(watch: _TabWatch, reasons: dict[str, str], attend: AttendCallback | None) -> bool:
+    """Whether the deferred rows go on in a window; the ones the person skips fail with their reason."""
+
+    if attend is None or attend(dict(reasons)):
+        return True
+    for key, reason in reasons.items():
+        watch.failures.setdefault(key, GateManualActionRequired(f"{reason}; open the gate in the browser to finish it"))
+    return False
+
+
 def _needs_you(reasons: dict[str, str]) -> str:
     count = len(reasons)
     what = "; ".join(sorted(set(reasons.values())))
@@ -953,6 +977,7 @@ def download_hypeddit_batch_in_browser(
     status: StatusCallback | None = None,
     config: Any | None = None,
     time_limit: float | None = None,
+    attend: AttendCallback | None = None,
 ) -> HypedditBrowserBatchResult:
     """Finish every manual Hypeddit gate through the browser extension, hidden first.
 
@@ -962,7 +987,9 @@ def download_hypeddit_batch_in_browser(
     profile lacks, a download the browser holds back - keep their tab, reloaded
     in place, while the window is shown and the same driver carries on around
     the person; every other tab is closed. Without a ``time_limit`` (seconds)
-    that window stays as long as a tab stays open.
+    that window stays as long as a tab stays open. With ``attend`` nothing is
+    shown until it answers True for those rows; when it answers False they fail
+    with their reason instead (plan Z2).
     """
 
     pending, failures, cancelled = _screen_batch(items, cancel)
@@ -979,7 +1006,8 @@ def download_hypeddit_batch_in_browser(
         return watch.result(cancelled=False)
     try:
         cancelled = _browser_batch(
-            watch, pending, status, social=social, email=email, name=name, time_limit=time_limit
+            watch, pending, status, social=social, email=email, name=name, time_limit=time_limit,
+            attend=attend,
         )
         if cancelled:
             watch.deferred.clear()

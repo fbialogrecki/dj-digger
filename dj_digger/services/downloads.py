@@ -88,7 +88,7 @@ class DownloadService:
         self.record(key, path)
         return path
 
-    def finish_gates(self, items, directory, cancel, *, config, status=None):
+    def finish_gates(self, items, directory, cancel, *, config, status=None, attend=None):
         from ..gates.browser import download_hypeddit_batch_in_browser
 
         result = download_hypeddit_batch_in_browser(
@@ -98,6 +98,7 @@ class DownloadService:
             social=config.gate_social_actions,
             config=config,
             status=status,
+            attend=attend,
         )
         completed, failures = [], list(result.failures)
         # Settle every published file even if one library write fails.
@@ -264,8 +265,9 @@ class DownloadWorkflow:
     typed user answers and returns only approved pending items.
     """
 
-    def __init__(self, service, request, handle, *, client, config, emit, prerequisites):
+    def __init__(self, service, request, handle, *, client, config, emit, prerequisites, attend=None):
         self.service = service
+        self.attend = attend
         self.request = request
         self.handle = handle
         self.client = client
@@ -405,6 +407,7 @@ class DownloadWorkflow:
                 self.handle.cancel,
                 config=self.config,
                 status=lambda message: self.send("status", message=message),
+                attend=self.attend,
             )
         except Cancelled:
             result = FileBatchResult(cancelled=True)

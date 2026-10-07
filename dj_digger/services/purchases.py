@@ -256,32 +256,32 @@ async def _manual_result(
 
 
 class CartBrowserSession:
-    """One lazy work window of the browser extension shared by all cart batches.
+    """One lazy background session of the browser extension shared by all cart batches.
 
-    The work - product lookup, revalidation, the cart clicks - runs in a hidden
-    window of the person's own browser. The same window is shown when there is
-    something for them to do or see: the finished cart, items to finish by
-    hand, or a login. There is no second browser and no cookie copying.
+    The work - product lookup, revalidation, the cart clicks - runs in inactive
+    tabs of the person's own browser window: no window appears (plan Z1). The
+    finished cart is one tab per store, made active and handed over to them;
+    items to finish by hand open as tabs only when they ask. There is no second
+    browser and no cookie copying.
     """
 
     def __init__(self) -> None:
         self._context: Any = None
         self._owned_pages: list[Any] = []
-        self._cart_pages: dict[str, Any] = {}
+        self._cart_stores: tuple[str, ...] = ()
         self._lock = asyncio.Lock()
         self._open_lock = asyncio.Lock()
 
     def _context_closed(self, _context: Any) -> None:
         self._context = None
         self._owned_pages.clear()
-        self._cart_pages.clear()
 
     async def _ensure_context(self) -> Any:
         # Several workers may ask at once after a lost window; only one opens it.
         async with self._open_lock:
             if self._context is not None and not self._context.is_closed():
                 return self._context
-            context = await webpage.AsyncExtensionContext.open(visible=False)
+            context = await webpage.AsyncExtensionContext.open(visible=False, background=True)
             context.on("close", self._context_closed)
             self._context = context
             self._owned_pages = []
@@ -289,10 +289,10 @@ class CartBrowserSession:
             return context
 
     async def _shown_context(self) -> Any:
-        """The same window, brought on screen."""
+        """The same session, its tabs to be brought forward one by one (``bring_to_front``)."""
 
         context = await self._ensure_context()
-        await context.show()
+        await context.show()  # a background session has nothing to show; an older extension's window does
         return context
 
     async def _work_pages(self, count: int = 2) -> list[Any]:
@@ -322,7 +322,6 @@ class CartBrowserSession:
                 with contextlib.suppress(Exception):
                     await context.close(reason="dj-digger cart session closed")
             self._owned_pages.clear()
-            self._cart_pages.clear()
 
     async def _preflight_one(
         self,
@@ -588,11 +587,6 @@ class CartBrowserSession:
     ) -> tuple[tuple[str, ...], tuple[CartResult, ...]]:
         opened: list[str] = []
         warnings: list[CartResult] = []
-        # The carts of an earlier batch share the window; this batch's replace them.
-        for stale in self._cart_pages.values():
-            with contextlib.suppress(Exception):
-                await stale.close()
-        self._cart_pages.clear()
         targets: dict[str, list[CartItem]] = defaultdict(list)
         for source in (successful, keep_open or {}):
             for store, items in source.items():
@@ -618,6 +612,7 @@ class CartBrowserSession:
                         )
                     )
                 await page.bring_to_front()
+                await page.release()  # the person's tab now: it stays, and checkout from it is theirs
             except Exception as exc:
                 LOGGER.warning(
                     "Could not expose final cart: store=%s error=%s",
@@ -635,8 +630,8 @@ class CartBrowserSession:
                     )
                 )
                 continue
-            self._cart_pages[store] = page
             opened.append(store)
+        self._cart_stores = tuple(opened)
         return tuple(opened), tuple(warnings)
 
     async def _preflight_batch(
@@ -730,8 +725,10 @@ class CartBrowserSession:
         approve: ApprovalCallback,
         progress: ProgressCallback | None = None,
         manual: ManualCallback | None = None,
+        nyp_price: str = "minimum",
     ) -> CartBatchOutcome:
         request_list = tuple(requests)
+        bandcamp.NYP_PRICE.set(nyp_price)  # this task's context: its preflight workers inherit it
         async with self._lock:
             LOGGER.info("Cart batch started: tracks=%d", len(request_list))
             bandcamp._emit_progress(progress, CartProgress("starting", 0, len(request_list)))
@@ -818,12 +815,13 @@ class CartBrowserSession:
             return await self._finish_manually(by_store, manual, cancel, None)
 
     async def focus_carts(self) -> None:
+        """The result screen's 'Show carts': the cart tabs were handed over, so each opens afresh."""
+
         async with self._lock:
-            pages = [page for page in self._cart_pages.values() if not page.is_closed()]
-            if pages and self._context is not None:
-                await self._context.show()
-            for page in pages:
+            for store in self._cart_stores:
+                page, _missing = await self._show_store_cart(store, [], [])
                 await page.bring_to_front()
+                await page.release()
 
 
 async def prepare_playlist(requests, outcome, title, directory, browser, *, io=asyncio.to_thread):

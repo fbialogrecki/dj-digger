@@ -768,8 +768,11 @@ class _GatePage:
         late_popup=False,
         asks_name=False,
         detours=0,
+        wants_comment=False,
     ):
         self.context = context
+        self.wants_comment = wants_comment
+        self.comment = None
         self.url = "about:blank"
         self.detours = detours
         self.visited = []
@@ -841,6 +844,8 @@ class _GatePage:
             return self.pending.get(slide, 0)
         if selector == gate_browser.GATE_NAME_INPUT:
             return int(self.asks_name)
+        if selector == gate_browser.GATE_COMMENT_INPUT:
+            return int(self.wants_comment and self.kind in _CLICK_STEPS)
         return 1
 
     def visible(self, selector):
@@ -862,6 +867,8 @@ class _GatePage:
             self.email = value
         elif selector == gate_browser.GATE_NAME_INPUT:
             self.name = value
+        elif selector == gate_browser.GATE_COMMENT_INPUT:
+            self.comment = value
 
     def click(self, selector, slide):
         self.clicked.append((self.kind, selector))
@@ -1002,8 +1009,13 @@ class _Profile:
         self.user_name = name
         self.real = real
 
+    custom_comments = ("Massive tune!",)
+
     def has_real_email(self):
         return self.real
+
+    def random_comment(self):
+        return self.custom_comments[0]
 
 
 _DJ = _Profile("dj@example.com")
@@ -1435,6 +1447,56 @@ def test_without_offscreen_the_hidden_window_is_shown_as_before(tmp_path, monkey
     context = launches[0][1]
     assert context.asked_offscreen and not context.offscreen, "asked, not granted"
     assert launches[1][1] is context and context.shows == 1, "the same window, shown"
+
+
+def test_deferred_rows_wait_for_the_person_and_skipping_opens_nothing(tmp_path, monkeypatch):
+    launches = _gate_browser(monkeypatch, lambda ctx: _GatePage(ctx, steps=("sp", "dw")), offscreen=True)
+    asked = []
+
+    result = gate_browser.download_hypeddit_batch_in_browser(
+        [(_track(), _GATE)], tmp_path, None, config=_DJ,
+        attend=lambda reasons: asked.append(reasons) or False,
+    )
+
+    assert asked == [{"7": "the gate wants a provider login (Connect)"}]
+    assert [hidden for hidden, _context in launches] == [True], "no window without the person's yes"
+    [(key, error)] = result.failures
+    assert key == "7" and isinstance(error, gate_browser.GateManualActionRequired)
+    assert "open the gate in the browser" in str(error)
+
+
+def test_deferred_rows_open_in_a_window_when_the_person_says_so(tmp_path, monkeypatch):
+    launches = _gate_browser(monkeypatch, lambda ctx: _GatePage(ctx, steps=("sp", "dw")), offscreen=True)
+
+    result = gate_browser.download_hypeddit_batch_in_browser(
+        [(_track(), _GATE)], tmp_path, None, config=_DJ, attend=lambda reasons: True,
+    )
+
+    assert [hidden for hidden, _context in launches] == [True, False]
+    assert result.failures == () and [key for key, _path in result.completed] == ["7"]
+
+
+def test_without_offscreen_the_hidden_window_stays_hidden_when_skipped(tmp_path, monkeypatch):
+    launches = _gate_browser(monkeypatch, lambda ctx: _GatePage(ctx, spotify_signed_in=False))
+
+    result = gate_browser.download_hypeddit_batch_in_browser(
+        [(_track(), _GATE)], tmp_path, None, config=_DJ, attend=lambda reasons: False,
+    )
+
+    assert launches[0][1].shows == 0
+    assert [key for key, _error in result.failures] == ["7"]
+
+
+def test_a_comment_step_is_filled_with_a_profile_comment(tmp_path, monkeypatch):
+    launches = _gate_browser(
+        monkeypatch, lambda ctx: _GatePage(ctx, steps=("sc", "dw"), wants_comment=True)
+    )
+
+    result = gate_browser.download_hypeddit_batch_in_browser([(_track(), _GATE)], tmp_path, None, config=_DJ)
+
+    [page] = launches[0][1].made
+    assert page.comment in _DJ.custom_comments
+    assert result.failures == ()
 
 
 class _SlowDownloadPage(_GatePage):

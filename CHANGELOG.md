@@ -53,6 +53,14 @@
   playlist path. The results list shows "in Beatport cart" apart from "to
   playlist". The extension also refuses `/account/billing` and
   `/subscriptions/billing` on Beatport.
+- Settings: "Bandcamp name-your-price items go into the cart at" — the minimum
+  price (default) or the price the artist suggests.
+- Desktop: a "Download results" screen ends every gate batch with failures,
+  listing each with its reason, with Retry these, Open them in the browser and,
+  when the extension is missing, Connect the browser and retry. Rows show their
+  state while the batch runs (half bar: in the browser pass; full bar: file in).
+- A gate step with a comment field is filled with one of your gate comments in
+  the browser pass too.
 
 ### Changed
 
@@ -69,11 +77,9 @@
   are taken from the browser's own download, one gate download at a time, and
   a download the browser holds back (a "where to save" prompt, an unsafe-file
   warning) is never accepted automatically.
-- Bandcamp carts and Beatport lookups use the same kind of window; the final
-  cart and the manual finish are shown in it, with no second browser or cookie
-  copy. Each new batch hides the window and closes the previous batch's cart
-  tabs. Saved cart diagnostics also lose e-mail addresses and are not
-  written for pages above 2 MB.
+- Bandcamp carts and Beatport lookups run in your own browser, with no second
+  browser or cookie copy (see below for where). Saved cart diagnostics also lose
+  e-mail addresses and are not written for pages above 2 MB.
 - The SoundCloud login reads the `oauth_token` cookie from your browser (no
   window when it is still valid) and otherwise opens the sign-in page in the
   work window, waiting up to five minutes as before; closing that sign-in
@@ -90,6 +96,18 @@
   then follow or save on your own account. The Settings text for "Allow
   social actions", the README and the specification say so; turn the setting
   off to click nothing.
+- Nothing of the browser appears on its own any more. Gates that need you no
+  longer open a window by themselves: the desktop asks "Gates need you" first
+  (open them in the browser, or skip them). Carts work in inactive tabs of your
+  own browser window instead of a window of their own, with no review form: the
+  batch ends with one active cart tab per store, which is then yours (the
+  extension no longer guards it, so checkout from it works). "Finish in browser"
+  for uncertain clicks is now only on the results screen. Cart results count
+  what was added and list every ticked track that was not, including tracks
+  without any store link (previously dropped silently), with "Open the links
+  that were not added in the browser"; Soundiiz stays as an option.
+- The extension also refuses Bandcamp's `/cart/checkout_start` and checkout
+  paths under a locale prefix (`/de/checkout/…`).
 
 ### Removed
 

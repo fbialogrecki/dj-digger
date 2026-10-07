@@ -5,8 +5,8 @@
 - Product version verified: 1.4.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-10-07
-- Document lines: <!-- SPEC TOTAL LINES -->2209<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->2209<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->2242<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->2242<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,65 +51,65 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 144–189 |
 | 2.1 | ↳ Problem and product boundary | 146–159 |
 | 2.2 | ↳ Execution modes | 160–189 |
-| 3 | User-visible capabilities | 190–1026 |
+| 3 | User-visible capabilities | 190–1041 |
 | 3.1 | ↳ Track collection | 192–217 |
 | 3.2 | ↳ Link classification and exports | 218–236 |
 | 3.3 | ↳ Track statuses | 237–247 |
 | 3.4 | ↳ Audio preview | 248–419 |
-| 3.5 | ↳ Downloads and local-file matching | 420–458 |
-| 3.6 | ↳ Store purchase assistance | 459–562 |
-| 3.7 | ↳ Local library, analysis and audio export | 563–734 |
-| 3.8 | ↳ Qt Quick desktop | 735–1026 |
-| 4 | System context and data flow | 1027–1071 |
-| 4.1 | ↳ Context diagram | 1029–1055 |
-| 4.2 | ↳ Collection-to-library flow | 1056–1071 |
-| 5 | Repository layout and component ownership | 1072–1158 |
-| 5.1 | ↳ Entry, orchestration, and models | 1074–1085 |
-| 5.2 | ↳ Network and external-system adapters | 1086–1117 |
-| 5.3 | ↳ Persistence, local media, and UI | 1118–1158 |
-| 6 | Runtime architecture and environments | 1159–1302 |
-| 6.1 | ↳ Runtime and dependencies | 1161–1189 |
-| 6.2 | ↳ Concurrency and lifecycle | 1190–1267 |
-| 6.3 | ↳ Local paths and environment variables | 1268–1302 |
-| 7 | Data model and persistence | 1303–1412 |
-| 7.1 | ↳ Domain objects and identity | 1305–1319 |
-| 7.2 | ↳ SQLite schema and invariants | 1320–1372 |
-| 7.3 | ↳ Crate persistence and deletion | 1373–1388 |
-| 7.4 | ↳ Configuration and credential stores | 1389–1412 |
-| 8 | Public interfaces and contracts | 1413–1470 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1415–1443 |
-| 8.2 | ↳ JSON and CSV summary input | 1444–1459 |
-| 8.3 | ↳ URL-opening contract | 1460–1470 |
-| 9 | Authentication and authorization | 1471–1534 |
-| 9.1 | ↳ SoundCloud authentication | 1473–1504 |
-| 9.2 | ↳ Gate action consent | 1505–1534 |
-| 10 | External integrations | 1535–1773 |
-| 10.1 | ↳ SoundCloud API and media | 1537–1548 |
-| 10.2 | ↳ Link hubs and download gates | 1549–1648 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1557–1634 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1636–1641 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1643–1648 |
-| 10.3 | ↳ Browsers and clipboard | 1649–1720 |
-| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 1721–1773 |
-| 11 | Security requirements and threat model | 1774–1919 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1776–1794 |
-| 11.2 | ↳ Secret and personal-data handling | 1795–1810 |
-| 11.3 | ↳ File and mutation safety | 1811–1832 |
-| 11.4 | ↳ Browser-extension trust boundary | 1833–1919 |
-| 12 | Privacy, lifecycle, and retention | 1920–1972 |
-| 12.1 | ↳ Data stored locally | 1922–1946 |
-| 12.2 | ↳ Data sent to third parties | 1947–1959 |
-| 12.3 | ↳ User-controlled deletion | 1960–1972 |
-| 13 | Failure behavior and current limitations | 1973–2076 |
-| 13.1 | ↳ Error isolation and reporting | 1975–1996 |
-| 13.2 | ↳ Confirmed limitations | 1997–2076 |
-| 14 | Verification, CI, and release | 2077–2175 |
-| 14.1 | ↳ Offline and live test suites | 2079–2127 |
-| 14.2 | ↳ Continuous integration and publishing | 2128–2160 |
-| 14.3 | ↳ Specification-map verification | 2161–2175 |
-| 15 | Evidence and operational references | 2176–2209 |
-| 15.1 | ↳ Primary implementation evidence | 2178–2199 |
-| 15.2 | ↳ User and historical documentation | 2200–2209 |
+| 3.5 | ↳ Downloads and local-file matching | 420–467 |
+| 3.6 | ↳ Store purchase assistance | 468–577 |
+| 3.7 | ↳ Local library, analysis and audio export | 578–749 |
+| 3.8 | ↳ Qt Quick desktop | 750–1041 |
+| 4 | System context and data flow | 1042–1086 |
+| 4.1 | ↳ Context diagram | 1044–1070 |
+| 4.2 | ↳ Collection-to-library flow | 1071–1086 |
+| 5 | Repository layout and component ownership | 1087–1173 |
+| 5.1 | ↳ Entry, orchestration, and models | 1089–1100 |
+| 5.2 | ↳ Network and external-system adapters | 1101–1132 |
+| 5.3 | ↳ Persistence, local media, and UI | 1133–1173 |
+| 6 | Runtime architecture and environments | 1174–1317 |
+| 6.1 | ↳ Runtime and dependencies | 1176–1204 |
+| 6.2 | ↳ Concurrency and lifecycle | 1205–1282 |
+| 6.3 | ↳ Local paths and environment variables | 1283–1317 |
+| 7 | Data model and persistence | 1318–1429 |
+| 7.1 | ↳ Domain objects and identity | 1320–1334 |
+| 7.2 | ↳ SQLite schema and invariants | 1335–1387 |
+| 7.3 | ↳ Crate persistence and deletion | 1388–1403 |
+| 7.4 | ↳ Configuration and credential stores | 1404–1429 |
+| 8 | Public interfaces and contracts | 1430–1487 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1432–1460 |
+| 8.2 | ↳ JSON and CSV summary input | 1461–1476 |
+| 8.3 | ↳ URL-opening contract | 1477–1487 |
+| 9 | Authentication and authorization | 1488–1551 |
+| 9.1 | ↳ SoundCloud authentication | 1490–1521 |
+| 9.2 | ↳ Gate action consent | 1522–1551 |
+| 10 | External integrations | 1552–1803 |
+| 10.1 | ↳ SoundCloud API and media | 1554–1565 |
+| 10.2 | ↳ Link hubs and download gates | 1566–1670 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1574–1656 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1658–1663 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1665–1670 |
+| 10.3 | ↳ Browsers and clipboard | 1671–1750 |
+| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 1751–1803 |
+| 11 | Security requirements and threat model | 1804–1949 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1806–1824 |
+| 11.2 | ↳ Secret and personal-data handling | 1825–1840 |
+| 11.3 | ↳ File and mutation safety | 1841–1862 |
+| 11.4 | ↳ Browser-extension trust boundary | 1863–1949 |
+| 12 | Privacy, lifecycle, and retention | 1950–2002 |
+| 12.1 | ↳ Data stored locally | 1952–1976 |
+| 12.2 | ↳ Data sent to third parties | 1977–1989 |
+| 12.3 | ↳ User-controlled deletion | 1990–2002 |
+| 13 | Failure behavior and current limitations | 2003–2109 |
+| 13.1 | ↳ Error isolation and reporting | 2005–2026 |
+| 13.2 | ↳ Confirmed limitations | 2027–2109 |
+| 14 | Verification, CI, and release | 2110–2208 |
+| 14.1 | ↳ Offline and live test suites | 2112–2160 |
+| 14.2 | ↳ Continuous integration and publishing | 2161–2193 |
+| 14.3 | ↳ Specification-map verification | 2194–2208 |
+| 15 | Evidence and operational references | 2209–2242 |
+| 15.1 | ↳ Primary implementation evidence | 2211–2232 |
+| 15.2 | ↳ User and historical documentation | 2233–2242 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -439,7 +439,16 @@ SoundCloud login, or manual Hypeddit browser completion are collected and retrie
 at most once by the desktop flow. A file finished in the user's browser is copied
 out of the browser's download folder through the same validation and then deleted
 there (§10.2). Completed downloads store their local path and mark
-the track `got`.
+the track `got`. While a batch runs, each row shows its own state in the desktop:
+the transfer's progress, a half bar while it is handed to the browser pass or a
+prerequisite, a full bar once its file is in, and nothing again when it failed;
+statuses are refreshed when the batch ends. No browser window or tab appears for
+a gate unless the user opens one (§10.2). A batch with failed rows, or rows it
+handed on and never started (more gates than one browser batch takes), ends in a
+"Download results" screen listing each with its reason: Retry these runs them
+again, Open them in the browser opens each one's gate (or its SoundCloud page),
+and, when the browser pass was needed and no extension is connected, Connect the
+browser and retry shows the Connect browser dialog (§3.8) first.
 
 The local scanner recursively indexes configured directories for MP3, WAV, FLAC,
 AIFF, M4A, AAC, OGG, and ALAC files, following symbolic links, and caches path,
@@ -462,18 +471,20 @@ Store assistance is explicitly initiated by the user. Bandcamp uses verified
 cart automation; Beatport uses the same verified cart when the browser is signed in
 to Beatport with an exact track ID and otherwise produces a playlist for a supported
 transfer. The application never logs in to either store. The work runs in the user's own
-browser through the extension (§10.3). The desktop owns one lazy work window of
-it for its lifetime, hidden (an unfocused normal window, not a headless
-browser) for product discovery, revalidation, and mutation with at most two
-work tabs. The window is shown only when there is something for the user: the
-completed cart view and the manual-finish step open as new tabs of that same
-window, which is brought forward. There is no second browser, cookie copy,
-application-owned profile or store login: the browser's own Bandcamp and Beatport
-sessions are used as they are, and Bandcamp cart continuity depends on the
-browser's cookie jar (a guest cart needs no account login). Each new batch hides
-the window again and closes the previous batch's final cart tabs. When no
-extension is connected, the batch stops and the desktop shows the Connect browser
-dialog (§3.8) before retrying.
+browser through the extension (§10.3). The desktop owns one lazy background
+session of it for its lifetime: product discovery, revalidation and mutation run
+in at most two inactive tabs of the user's own last focused browser window, so no
+window appears, nothing is brought forward and the user's current tab stays
+active (a browser without any window gets one new window, closed with the
+session). The only automatic visible effect is the end of a batch: one cart tab
+per store with verified items is made active and handed over to the user, who
+reviews and checks out there; the extension no longer owns, guards or closes that
+tab. Items to finish by hand open as tabs only when the user picks that on the
+result screen. There is no second browser, cookie copy, application-owned profile
+or store login: the browser's own Bandcamp and Beatport sessions are used as they
+are, and Bandcamp cart continuity depends on the browser's cookie jar (a guest
+cart needs no account login). When no extension is connected, the batch stops and
+the desktop shows the Connect browser dialog (§3.8) before retrying.
 `P` opens every exact Beatport track page among the targeted rows in the
 configured regular browser (release links are counted and skipped), with the
 same confirmation threshold as bulk open. With no store filter, Bandcamp is preferred and Beatport is the
@@ -482,13 +493,12 @@ requests so a successful Bandcamp addition does not remove that track from the
 Beatport playlist.
 
 Two asynchronous page workers preflight a batch. They resolve an exact product,
-check individual availability and price, verify current cart membership, and
-return an editable plan. A single fixed-price track may proceed directly from
-the explicit `c` action; batches and flexible Bandcamp prices require the plan
-screen. The user may deselect items and press `E` to raise a Bandcamp price from
-its verified minimum in store-declared steps only when the store exposes an
-editable price. The review table shrinks to preserve its action buttons in short
-terminals and accepts `Y`, `Enter`, or a button click to continue. A canonical
+check individual availability and price, and verify current cart membership. The
+desktop adds the plan without a review screen (a cart is not a purchase; the cart
+tab is the review). A Bandcamp name-your-price item goes in at its verified
+minimum, or at the price the artist suggests when the `nyp_price` setting says
+`suggested` and that price is higher (§7.4); an item whose minimum is zero and that
+declares no positive price is reported, not added. A canonical
 Beatport `/track/<slug>/<numeric-id>` link is exact by its ID and is read on its own
 page; a release link is read in the user's browser and the track is matched in
 its page code (never by searching Beatport by artist and title). Beatport reads
@@ -519,13 +529,12 @@ the stage it gave up at. An unverified click or a structural failure saves a
 screenshot and a redacted page copy (script bodies and query strings removed)
 under `cart-diagnostics` in the data directory, keeping the last ten (the page copy
 also has e-mail addresses removed and is omitted when the page exceeds 2,000,000
-bytes; the screenshot is best effort). After two
-unverified clicks in one store the batch stops clicking: the remaining products
-are opened with Buy expanded and the price filled, the desktop asks the user to
-press Add to cart themselves, and one read-only cart check per item records
-`manual` or a manual failure (Beatport pages are opened as they are; there is
-nothing to expand). The result screen offers the same for items a
-batch left uncertain. A user-raised price is filled into Bandcamp's current price input
+bytes; the screenshot is best effort and never taken in a background tab). After two
+unverified clicks in one store the batch stops clicking and reports the rest as
+uncertain. "Finish in browser" on the result screen opens those products with Buy
+expanded and the price filled, the desktop asks the user to press Add to cart
+themselves, and one read-only cart check per item records `manual` or a manual
+failure (Beatport pages are opened as they are; there is nothing to expand). A user-raised price is filled into Bandcamp's current price input
 or fails before the add click; it is never silently discarded. A still-uncertain
 page remains open for manual inspection. The flow leaves verified carts open for
 the user while releasing the batch worker for another request; a failure to
@@ -534,7 +543,13 @@ verified additions. Mutation is serial within each store,
 cancellation after a click waits for one bounded verification, and repeated
 structural failures open a per-store circuit breaker without
 navigating the rest of the queue. Results group identical root causes and mark
-only failures that are safe to retry. Beatport items that could not be put in the cart (not signed in, challenge, no
+only failures that are safe to retry. The result screen counts what was added and
+lists every targeted track that was not: a ticked track without any Bandcamp or
+Beatport link is reported as such (it is never dropped silently), as are tracks not
+found, ambiguous, unavailable or failed. "Open the links that were not added in the
+browser" opens, for each, its store link (or the failing result's URL), else the
+track's purchase link, else its SoundCloud page, in the configured regular browser.
+"Show carts in browser" opens fresh cart tabs of the last batch's stores. Beatport items that could not be put in the cart (not signed in, challenge, no
 exact ID) and safe Beatport lookup fallbacks are reported as playlist-ready, not
 as cart failures; the result log shows "in Beatport cart" apart from "to playlist". The
 result action writes a new, non-overwriting plain-text playlist in the playlist's
@@ -1111,7 +1126,7 @@ playback time and are not stored in the crate record.
 - `stores/bandcamp.py` owns Bandcamp selectors and the shared page steps; `stores/beatport.py`
   owns Beatport's add control, header counter and cart-page checks.
   `services/purchases.py` owns batch approval, preflight, mutation and manual
-  completion, the lazy work window of `CartBrowserSession`, and Soundiiz handoff. `cart_models.py`, `store_urls.py`,
+  completion, the lazy background session of `CartBrowserSession`, and Soundiiz handoff. `cart_models.py`, `store_urls.py`,
   `store_match.py` and `store_parse.py` retain store data, URL checks, matching
   and HTML parsing. `beatport_playlist.py` owns Soundiiz metadata and transport.
 
@@ -1255,13 +1270,13 @@ Resources in use by an unfinished thread are not closed underneath it.
 Cart automation uses the extension adapter's native asyncio flavour on its own
 event loop: a cancelled command is cancelled in the extension, and its tab stays
 busy until the extension answers, so commands of one tab never overlap. One lazily
-opened work window serves all batches of the desktop run; it is shown (not
-replaced) for the final cart or the items to finish by hand and hidden again by the
-next batch. Every session owns its own work window (`window.open` always creates a
-new one), so the cart session, a gate batch and a SoundCloud login can be open at
-once and closing one never closes another's pages. If the user closes a work window
-by hand, its pages are closed, its context's `close` callbacks fire, and the cart
-session opens a new window for the next batch. Two queue consumers bound
+opened background session serves all batches of the desktop run: its tabs are
+inactive tabs of the user's last focused window, and the final carts are handed
+over (`tab.release`). Every session owns its own window or virtual window, so the
+cart session, a gate batch and a SoundCloud login can be open at once and closing
+one never closes another's pages. If the user closes the window the cart session
+works in, its pages are closed, its context's `close` callbacks fire, and the cart
+session opens a new one for the next batch. Two queue consumers bound
 read-only preflight concurrency; cart mutation is serial within each store (Bandcamp and Beatport each use one work tab). The blocking flavour (gates, login) dispatches the session's events
 on the calling thread.
 
@@ -1395,7 +1410,9 @@ the desktop's folder tree leaves out) and
 `export_decks`, the decks of the last audio export in deck order (unknown names
 dropped, every deck when none remain), and `default_artwork`, the path of a
 picture for the record label of tracks without artwork (empty for none; Settings
-requires an existing file).
+requires an existing file), and `nyp_price`, `minimum` (default) or `suggested`: the
+price a Bandcamp name-your-price item goes into the cart at (§3.6; any other value
+reads as `minimum`).
 The default email uses the reserved `.invalid` domain. A first missing config is
 created and marks the launch as first-run.
 
@@ -1581,7 +1598,8 @@ gate (its habit for the first visit after a download) is pointed at the gate
 once more; when gate social actions are enabled it presses the gate's
 sidebar Download and walks the step slides it reveals, one current slide at a
 time - a click-through slide's pending follow/like links are clicked and the
-provider pages they open are closed unread before its Next; a Connect slide
+provider pages they open are closed unread before its Next, and a comment field on
+it (`textarea`) is filled with one of the configured gate comments first; a Connect slide
 (Spotify, Deezer, Apple Music, Threads) has its provider popup waited out for
 twenty seconds, a popup back on a Hypeddit host being closed after two
 seconds; the email slide is filled with the configured real address, and with
@@ -1594,7 +1612,11 @@ a block or a failure, or 15 seconds pass, because the extension attributes a fil
 to the tab that had just fetched it. A row whose step only a person can finish
 (a provider still asking for a login, a CAPTCHA, a placeholder email, a name
 the profile lacks, a page without known controls, a download the browser
-holds back) is deferred. When the hidden pass ends, the tabs of settled rows and
+holds back) is deferred. When the hidden pass ends with deferred rows, nothing is
+shown until the caller agrees: the desktop asks "Gates need you" with each row's
+reason and Open them in the browser / Skip them for now; skipped rows fail as manual
+actions with their reason (a caller without that question, such as a single-gate
+download, goes on as follows). Then the tabs of settled rows and
 every popup are closed, each deferred row's tab is reloaded in place at its gate,
 and the same window is shown (not reopened); an offscreen session cannot be shown,
 so it is closed and a normal visible work window opens the deferred rows' gates
@@ -1685,6 +1707,14 @@ tab run in order; cancelling sends `cancel`, which stops the wait in the extensi
 
 Several sessions may be open at once, each with its own work window.
 `window.open {visible}` always creates a new window and returns `{windowId}`;
+`window.open {background: true}` (carts) creates none: it returns a virtual
+`windowId` whose `tab.new` makes an inactive tab in the user's last focused normal
+window (a new unfocused window only when the browser has none, closed with the
+session), `window.show`/`window.hide` do nothing, `tab.capture` fails with
+`background` (it would activate the tab), a popup is never minimized with the
+user's window, and `window.close` closes the session's tabs, never the user's
+window. `tab.release` hands an own tab over: it is no longer owned, guarded or
+closed by any session (the finished cart);
 `window.show`, `window.hide`, `window.close` and `tab.new` take that `windowId`
 (an unknown one is `no_window`, and `window.close` of one that is gone is quietly
 accepted). A tab belongs to the window that opened it and a popup to its opener's
@@ -1728,9 +1758,9 @@ bytes. Matching compares normalized title, artist, version tokens, stable produc
 IDs, availability, price, and currency.
 
 The browser is the user's own, in its normal profile, driven through the
-extension (§10.3). Automated product work runs in the hidden work window; the
-finished cart and the manual-finish pages are new tabs of the same window, which is
-shown. The user's own Bandcamp and Beatport logins and cookies apply (a guest cart
+extension (§10.3). Automated product work runs in inactive tabs of the user's own
+window; the finished cart is a tab made active and handed over to the user, and the
+manual-finish pages open, on request, as tabs there. The user's own Bandcamp and Beatport logins and cookies apply (a guest cart
 left by the `store-browser` profile of releases before 1.4 is not in the user's
 browser); the application offers no store login. Production anti-bot challenges are
 not solvable by automation: neither store's login is ever attempted, and a
@@ -2017,8 +2047,11 @@ as player events instead of escaping through Python-CFFI.
   it can wait for audio needed only 0.4 s later.
 - Bandcamp and Beatport cart automation and Beatport release lookup support linked products
   only and depend on current store interfaces. They need the extension connected
-  in a running browser; the work window is shown for the completed cart and the
-  manual finish, and a failure to show it is one warning that keeps the additions.
+  in a running browser; the completed cart is one active tab per store in the user's
+  window, and a failure to show it is one warning that keeps the additions. The cart's
+  work tabs are visible in the tab strip while a batch runs (inactive; Beatport refuses
+  framing, so they cannot be offscreen), and a hidden tab's timers may be throttled by
+  the browser.
 - The extension is installed unpacked by the user (Developer mode and Load
   unpacked in Chrome, Edge and Brave; a temporary add-on in Firefox, removed when
   Firefox restarts); the repository builds no store listing or signed package.
@@ -2027,9 +2060,9 @@ as player events instead of escaping through Python-CFFI.
   offscreen mode the hidden work window is an unfocused normal window, not a
   minimized one; whether a window manager raises it is not controlled (GNOME on
   Wayland shows it). The offscreen pass is Hypeddit-only and Chromium-only: Beatport
-  and SoundCloud refuse framing, so carts and the sign-in keep the work window; a
-  gate row that needs a Connect popup, a CAPTCHA or a provider login is moved to a
-  visible window, and a gate with follow links and an email step in a frame is
+  and SoundCloud refuse framing, so carts use tabs of the user's window and the
+  sign-in keeps the work window; a gate row that needs a Connect popup, a CAPTCHA or
+  a provider login is moved to a visible window when the user agrees, and a gate with follow links and an email step in a frame is
   verified live only on the owner's browser. Disconnect browsers lasts only until the next start,
   which registers again. The extension socket path does not depend on the data
   directory (the instance lock is per data directory), so a second desktop or CLI

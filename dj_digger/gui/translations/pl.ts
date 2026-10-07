@@ -482,6 +482,19 @@
   </context>
   <context>
     <name>Bridge</name>
+    <message><source>Gates need you</source><translation>Bramki czekają na Ciebie</translation></message>
+    <message><source>These gates want something only you can do, such as a login or a CAPTCHA.</source><translation>Te bramki wymagają czegoś, co możesz zrobić tylko Ty, np. logowania albo CAPTCHA.</translation></message>
+    <message><source>Open them in the browser</source><translation>Otwórz je w przeglądarce</translation></message>
+    <message><source>Skip them for now</source><translation>Na razie pomiń</translation></message>
+    <message><source>Downloading gates in the background</source><translation>Pobieranie z bramek w tle</translation></message>
+    <message><source>Download results</source><translation>Wyniki pobierania</translation></message>
+    <message><source>Retry these</source><translation>Ponów te</translation></message>
+    <message><source>Connect the browser and retry</source><translation>Połącz przeglądarkę i ponów</translation></message>
+    <message><source>Added to the carts: {0}. Not added: {1}.</source><translation>Dodano do koszyków: {0}. Nie dodano: {1}.</translation></message>
+    <message><source>Open the links that were not added in the browser</source><translation>Otwórz w przeglądarce linki, których nie dodano</translation></message>
+    <message><source>Bandcamp name-your-price items go into the cart at</source><translation>Pozycje Bandcamp „zapłać, ile chcesz” trafiają do koszyka po</translation></message>
+    <message><source>The minimum price</source><translation>cenie minimalnej</translation></message>
+    <message><source>The price the artist suggests</source><translation>cenie sugerowanej przez artystę</translation></message>
     <message>
       <source>Default cover (tracks without artwork)</source>
       <translation>Domyślna okładka (utwory bez okładki)</translation>

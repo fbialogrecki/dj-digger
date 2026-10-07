@@ -376,6 +376,12 @@ def test_name_your_price_uses_a_positive_default_then_an_explicit_step():
     assert store_parse.purchase_price(Decimal("0"), None, Decimal("0.01")) == Decimal("0.01")
 
 
+def test_name_your_price_takes_the_minimum_unless_the_suggested_price_is_chosen():
+    assert store_parse.purchase_price(Decimal("1"), Decimal("3"), None) == Decimal("1")
+    assert store_parse.purchase_price(Decimal("1"), Decimal("3"), None, suggested=True) == Decimal("3")
+    assert store_parse.purchase_price(Decimal("2"), Decimal("1"), None, suggested=True) == Decimal("2")
+
+
 def test_name_your_price_without_a_positive_value_is_not_guessed():
     with pytest.raises(automation_errors.AutomationError, match="positive"):
         store_parse.purchase_price(Decimal("0"), None, None)
@@ -792,6 +798,7 @@ class FakePage:
         self.url = "about:blank"
         self.closed = False
         self.focused = 0
+        self.released = False
 
     def is_closed(self):
         return self.closed
@@ -801,6 +808,9 @@ class FakePage:
 
     async def bring_to_front(self):
         self.focused += 1
+
+    async def release(self):
+        self.released = True
 
 
 class FakeContext:
@@ -845,9 +855,10 @@ def opened_contexts(monkeypatch):
 
     contexts = []
 
-    async def open_context(visible=False, listener=None):
+    async def open_context(visible=False, listener=None, *, background=False):
         context = FakeContext()
         context.visible = visible
+        context.background = background
         contexts.append(context)
         return context
 
@@ -868,7 +879,8 @@ def test_cart_session_opens_one_hidden_window_and_reuses_it(opened_contexts):
 
     asyncio.run(scenario())
 
-    assert len(opened_contexts) == 1, "one window, reused, never reopened"
+    assert len(opened_contexts) == 1, "one session, reused, never reopened"
+    assert opened_contexts[0].background, "tabs of the person's own window, no window of its own"
     assert not opened_contexts[0].shows
     assert opened_contexts[0].closed
 
@@ -1601,7 +1613,7 @@ def test_unverified_bandcamp_click_is_kept_open_for_manual_inspection(monkeypatc
     assert outcome.cart_stores == ("bandcamp",)
 
 
-def test_final_bandcamp_cart_is_shown_in_the_same_window(monkeypatch, opened_contexts):
+def test_final_bandcamp_cart_is_one_tab_handed_over_to_the_person(monkeypatch, opened_contexts):
     item = resolved_item("bandcamp")
     session = cart.CartBrowserSession()
 
@@ -1628,13 +1640,11 @@ def test_final_bandcamp_cart_is_shown_in_the_same_window(monkeypatch, opened_con
 
     assert len(opened_contexts) == 1, "no second browser"
     context = opened_contexts[0]
-    cart_page = session._cart_pages["bandcamp"]
-    assert cart_page.context is context and cart_page not in work
-    assert context.visible and context.shows == 1
-    assert stores == ("bandcamp",)
+    [cart_page] = [page for page in context.pages if page not in work]
+    assert stores == ("bandcamp",) and session._cart_stores == ("bandcamp",)
     assert not warnings
     assert cart_page.url == bandcamp_adapter.BANDCAMP_CART_URL
-    assert cart_page.focused == 1
+    assert cart_page.focused == 1 and cart_page.released
 
 
 def test_existing_bandcamp_item_is_checked_in_the_global_cart(monkeypatch):
@@ -1658,20 +1668,20 @@ def test_existing_bandcamp_item_is_checked_in_the_global_cart(monkeypatch):
     assert page.url == bandcamp_adapter.BANDCAMP_CART_URL
 
 
-def test_showing_the_carts_again_focuses_their_tabs_in_the_same_window(opened_contexts):
+def test_showing_the_carts_again_opens_a_fresh_cart_tab(monkeypatch, opened_contexts):
     session = cart.CartBrowserSession()
+    session._cart_stores = ("bandcamp",)
 
-    async def scenario():
-        context = await session._ensure_context()
-        page = await context.new_page()
-        session._cart_pages["bandcamp"] = page
-        await session.focus_carts()
-        return page
+    async def navigate(_page, url, _store):
+        _page.url = url
+        return 200
 
-    page = asyncio.run(scenario())
+    monkeypatch.setattr(bandcamp_adapter, "_navigate_async", navigate)
+    asyncio.run(session.focus_carts())
 
-    assert len(opened_contexts) == 1
-    assert opened_contexts[0].visible and page.focused == 1
+    [page] = opened_contexts[0].pages
+    assert page.url == bandcamp_adapter.BANDCAMP_CART_URL
+    assert page.focused == 1 and page.released
 
 
 def test_a_new_batch_hides_the_window_the_carts_were_shown_in(opened_contexts):
@@ -2000,7 +2010,7 @@ def test_soundiiz_limit_is_reported_apart_from_import_failures(tmp_path, monkeyp
 def test_a_missing_extension_is_reported_and_never_becomes_a_beatport_playlist(monkeypatch):
     missing = ExtensionMissing("The dj-digger browser extension is not connected")
 
-    async def no_extension(visible=False, listener=None):
+    async def no_extension(visible=False, listener=None, *, background=False):
         raise missing
 
     monkeypatch.setattr(cart.webpage.AsyncExtensionContext, "open", no_extension)

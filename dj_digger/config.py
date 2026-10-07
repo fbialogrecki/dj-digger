@@ -42,7 +42,11 @@ PERSISTED_FIELDS = (
     "volume",
     "export_decks",
     "default_artwork",
+    "nyp_price",
 )
+# What a Bandcamp "name your price" item goes into the cart at: its minimum, or the price the
+# artist suggests (owner's decision 2026-10-07: minimum unless changed in Settings).
+NYP_PRICES = ("minimum", "suggested")
 
 def is_real_email(value: str) -> bool:
     email = value.strip()
@@ -89,6 +93,7 @@ class AppConfig:
         self.export_decks: list[str] = list(DEFAULT_DECKS)
         # A picture for the record label of tracks without artwork; empty for a blank label.
         self.default_artwork: str = ""
+        self.nyp_price: str = NYP_PRICES[0]
         # True when there was no config file to read, i.e. this is the first
         # launch. The desktop uses it to ask for the settings before anything needs
         # them - gates submit the name and email without asking again.
@@ -127,6 +132,8 @@ class AppConfig:
                 if isinstance(decks, list):
                     self.export_decks = [name for name in DECK_NAMES if name in {str(d) for d in decks}] or list(DEFAULT_DECKS)
                 self.default_artwork = str(raw.get("default_artwork") or "").strip()
+                if raw.get("nyp_price") in NYP_PRICES:
+                    self.nyp_price = raw["nyp_price"]
         except FileNotFoundError:
             self.first_run = True
             self.save()

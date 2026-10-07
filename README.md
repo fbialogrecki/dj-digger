@@ -271,63 +271,42 @@ Links are parsed and categorized using strict domain-boundary matching:
 | `no-link` | No purchase or download link found |
 | `others` | Unrecognized external web link |
 
-### Bandcamp carts and Beatport playlists
+### Bandcamp and Beatport carts
 
-The desktop cart actions do the product checks and the cart clicks in a separate
-work window of your own browser, driven by the dj-digger extension; the browser's
-Bandcamp and Beatport sessions are used as they are. The window stays out of the
-way while it works and comes to the front only when there is something for you:
-the completed Bandcamp cart, or items left to finish by hand. If the extension is
-not connected, the app says so and shows the steps in
-[Connect your browser](#connect-your-browser). A Bandcamp account is not required
-for its cookie-backed cart. The app never reads or fills your
-password, chooses a payment method, or completes checkout.
+The cart action does the product checks and the cart clicks in your own browser,
+driven by the dj-digger extension, with the browser's Bandcamp and Beatport
+sessions as they are. No window opens: the work happens in a couple of inactive
+tabs of your browser window, and your current tab stays where it is. When the
+batch is done, one cart tab per store becomes active and is yours from then on —
+review it and check out there. If the extension is not connected, the app says so
+and shows the steps in [Connect your browser](#connect-your-browser). A Bandcamp
+account is not required for its cookie-backed cart. The app never reads or fills
+your password, chooses a payment method, or completes checkout.
 
-- The single-track cart action resolves the selected track, then adds it to Bandcamp or prepares it for
-  a Beatport playlist.
-- The all-visible cart action resolves all currently visible, unhandled tracks, then asks for one batch
-  confirmation. The active Bandcamp or Beatport filter limits the target store.
-- When both Bandcamp and Beatport filters are explicitly active, each track is
-  handled for both destinations: Bandcamp is added to its cart and Beatport is
-  retained for the transfer playlist.
-- With no store filter, Bandcamp is tried first. Beatport is used only when the
-  exact track is genuinely unavailable for individual purchase on Bandcamp—not
-  when Bandcamp fails technically.
+- There is no review form: a cart is not a purchase. Bandcamp "name your price"
+  items go in at their minimum, or at the price the artist suggests if you choose
+  that in Settings.
+- Beatport tracks go into your real Beatport cart when your browser is signed in
+  and the exact track is known (a direct track link, or the release page's own
+  rows; never a search by artist and title).
+- The result screen counts what was added and lists every ticked track that was
+  not (no store link, not found, ambiguous, failed), and offers to open those
+  links in your browser. Safe failures can be retried; uncertain clicks can be
+  finished by hand with **Finish in browser**.
 
-Batch mode resolves every candidate first and shows exact products, prices,
-currencies, existing cart items, and skips before Bandcamp is changed. Bandcamp
-rows with seller-approved flexible pricing show their minimum; select one and
-enter a higher value. Fixed-price rows cannot be edited. Bandcamp
-pages are rechecked immediately before each click. Ambiguous titles, version
-mismatches, changed prices or product IDs, CAPTCHA, and changed store UI stop the
-affected Bandcamp operation instead of guessing. Two reusable work tabs bound
-preflight; Bandcamp mutation is serial, and only its successful final cart tab
-remains open for format selection and checkout.
+Every product page is rechecked immediately before its click. Ambiguous titles,
+version mismatches, changed prices or product IDs, CAPTCHA, and changed store UI
+stop the affected item instead of guessing. A track sold only as part of a full
+album is reported as album-only instead of silently adding the whole album. After
+a click, verification uses the store's cart counter and cart view, each on its own
+clock; an uncertain click is never repeated, and the app saves a screenshot and a
+redacted copy of the page under `cart-diagnostics` in its data folder (last ten
+kept) so a broken flow can be reported with the page that broke it.
 
-If a Bandcamp link moved or points only to an artist/label page, the app uses the
-site's visible autocomplete as a bounded fallback. It accepts only canonical,
-exact track matches and inspects at most three returned album pages; it never
-enters the CAPTCHA-protected full results page. A track sold only as part of a
-full album is reported as album-only instead of silently adding the whole album.
-After a click, verification uses the cart count, a visible removable row in the
-opened side cart, and one reload check, each on its own clock. An uncertain
-cart remains open for inspection and is never clicked again automatically; the
-app saves a screenshot and a redacted copy of the page under
-`cart-diagnostics` in its data folder (last ten kept) so a broken flow can be
-reported with the page that broke it. After two unverified clicks in one
-batch the app stops clicking: it opens the remaining products with Buy
-expanded and the price filled, asks you to press Add to cart yourself, and
-then checks the cart once. The result screen offers the same **Finish in
-browser** for anything left uncertain.
-
-Beatport login and cart mutation are not automated: the cart actions prepare a
-playlist, and the Beatport-pages action opens the exact Beatport track pages in your everyday
-browser, where you are already logged in, so adding to the cart is one click
-each. The result screen creates a
-new `Beatport playlist.txt` in the playlist's download folder, copies its contents,
-creates a temporary Soundiiz import with Beatport already selected, and opens
-the returned review page. Confirm the matches and finish the transfer there;
-Soundiiz accepts up to 200 tracks per import. The saved file and clipboard remain
+Beatport tracks that could not go into the cart can still be sent to Soundiiz from
+the result screen: it creates a new `Beatport playlist.txt` in the playlist's
+download folder, copies its contents, creates a temporary Soundiiz import with
+Beatport already selected, and opens the returned review page. Soundiiz accepts up to 200 tracks per import. The saved file and clipboard remain
 available as a fallback. Promo prefixes, uploader names, preview markers and
 trailing label fields are removed before matching, including titles whose artist
 separator has no surrounding spaces. Exact Beatport track URLs are preferred in that
@@ -395,15 +374,18 @@ Releases before 1.0 asked for a Spotify developer app and stored a login in
 delete it yourself.
 
 When a gate ends up in the browser (a refusal, a CAPTCHA, a
-provider login), the extension walks the gate's own step slides for you in a work window:
-it ticks the follow and like links (closing the provider pages they open,
-unread), presses the Connect of a Spotify step - whose login popup comes back
-by itself once you have signed in to Spotify in your browser - fills the email
-slide with the address from Settings (and the name, when the gate asks for
-one), and presses Download. Only a step no program can do alone - a provider
-asking you to sign in, a CAPTCHA, a missing email or name - opens a window, where the same driver keeps walking the steps before
-and after the one that needs you. Sign in to Spotify there once and later
-gates finish out of sight. Nothing outside the Hypeddit page is clicked.
+provider login), the extension walks the gate's own step slides for you out of
+sight (in Chrome-family browsers no window or tab appears at all; you only see the
+download status in the app): it ticks the follow and like links (closing the
+provider pages they open, unread), fills a comment field with one of your gate
+comments, fills the email slide with the address from Settings (and the name, when
+the gate asks for one), and presses Download. A step no program can do alone - a
+provider asking you to sign in, a CAPTCHA, a missing email or name - makes the app
+ask you first ("Gates need you"); only if you choose to open them does a browser
+window appear, where the same driver keeps walking the steps before and after the
+one that needs you. Sign in to Spotify there once and later gates finish out of
+sight. A batch with failures ends with a results screen where you can retry them
+or open their gates in your browser. Nothing outside the Hypeddit page is clicked.
 The extension works in the accounts your browser is signed in to, so a Connect step
 that was authorized once before acts on that account. Turn off **Allow social actions**
 in Settings to keep the program from reporting or clicking any social step at all. Gates requiring those actions
