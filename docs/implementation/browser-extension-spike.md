@@ -532,4 +532,11 @@ wracamy do decyzji (D1–D5).
 | R6 | **OK.** Prawdziwa ścieżka `CartBrowserSession.run_batch` przez rozszerzenie: `Folcoch - Blow` (EUR 1.99) `added`, „verified at stage count”; `Analect - Two Steps Back` (GBP 1.50) dodany, przy ponownym przebiegu `already_in_cart`. Side cart `#item_list .item` jak w fixtures. Jeden raz (pierwszy przebieg po teście offscreen) `Cart navigation failed … PageError` dla `https://bandcamp.com/cart` w obu próbach; nie powtórzyło się. | bez zmian w F5; obserwować PageError (W6) |
 | W11 (`selftest.html`) | **OK** w Chrome i Firefoksie (ALL PASS). | bez zmian |
 
+**F4b na żywo (2026-10-07 11:34, Chromium 154, GNOME/Wayland):** partia 3 bramek przez
+`download_hypeddit_batch_in_browser` (`zcgy54`, `poumticafarfacid/unspoken-1`,
+`hellbound/ghostvoices`; kroki SoundCloud i Instagram) przeszła w ~60 s w sesji offscreen: 3/3
+pliki (MP3 320 kbps, WAV 16 bit, MP3 320 kbps) skopiowane do folderu docelowego, każdy pod swoim
+wierszem (trzy karty na `hypeddit.com` naraz, przypisanie przez `download.expect`), w Pobranych nic
+nie zostało (`download.discard`).
+
 Środowisko: Fedora 44, GNOME / Wayland, Chromium 154 (RPM), Firefox (tylko W11), data 2026-10-06.
