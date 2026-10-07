@@ -914,7 +914,8 @@ class _GatePage:
 
 
 class _GateContext:
-    def __init__(self, page_factory, clock, *, attended, launches=None):
+    def __init__(self, page_factory, clock, *, attended, launches=None, offscreen=False):
+        self.offscreen = offscreen  # a session without any browser window: it cannot be shown
         self.factory = page_factory
         self.clock = clock
         self.attended = attended
@@ -938,6 +939,7 @@ class _GateContext:
         return page
 
     def show(self):
+        assert not self.offscreen, "an offscreen session cannot be shown"
         self.shows += 1
         self.closed_at_show = [page for page in self.made if getattr(page, "closed", False)]
         self.attended = True
@@ -952,19 +954,30 @@ class _GateContext:
         self.cookies.discard(name)
 
 
-def _gate_browser(monkeypatch, page_factory):
+def _gate_browser(monkeypatch, page_factory, *, offscreen=False):
     """The window's states, as (hidden, context): one entry when it opened and one
-    more when it was shown - the same context - on a clock the fakes advance."""
+    more when it was shown - the same context - on a clock the fakes advance.
+    With ``offscreen`` a hidden session that asks for it is granted one (Chromium);
+    its tabs are closed when it ends, as the adapter does."""
 
+    grant = offscreen
     clock = {"t": 0.0}
     monkeypatch.setattr(gate_browser, "_now", lambda: clock["t"])
     launches = []
 
     @contextmanager
-    def session(visible=False, listener=None):
-        context = _GateContext(page_factory, clock, attended=visible, launches=launches)
+    def session(visible=False, listener=None, *, offscreen=False):
+        granted = offscreen and grant and not visible
+        context = _GateContext(page_factory, clock, attended=visible, launches=launches, offscreen=granted)
+        context.asked_offscreen = offscreen
         launches.append((not visible, context))
-        yield context
+        try:
+            yield context
+        finally:
+            if granted:
+                for page in context.made:
+                    page.closed = True
+                context.pages.clear()
 
     monkeypatch.setattr("dj_digger.webext.page.session", session)
     return launches
@@ -1345,6 +1358,79 @@ def test_the_visible_pass_keeps_the_window_and_reloads_only_the_deferred_tab(tmp
     assert result.failures == () and not result.cancelled
     assert sorted(key for key, _path in result.completed) == ["1", "2", "3"]
     assert messages[0].startswith("Opening the browser window for 1 gate: accounts.spotify.com")
+
+
+def test_the_hidden_pass_runs_offscreen_and_needs_no_window(tmp_path, monkeypatch):
+    launches = _gate_browser(monkeypatch, lambda ctx: _GatePage(ctx, steps=("email", "dw")), offscreen=True)
+    tracks = _tracks(1, 2)
+
+    result = gate_browser.download_hypeddit_batch_in_browser(
+        [(track, f"https://hypeddit.com/track/{track.id}") for track in tracks],
+        tmp_path, None, config=_DJ,
+    )
+
+    assert [hidden for hidden, _context in launches] == [True], "no visible window was ever opened"
+    context = launches[0][1]
+    assert context.offscreen and context.asked_offscreen and context.shows == 0
+    assert result.failures == () and [key for key, _path in result.completed] == ["1", "2"]
+
+
+def test_a_connect_row_is_deferred_at_once_and_finished_in_a_new_visible_window(tmp_path, monkeypatch):
+    made = iter(range(10))
+
+    def page_factory(ctx):  # the second gate wants Connect: its popup cannot exist offscreen
+        if not ctx.offscreen or next(made) == 1:
+            return _GatePage(ctx, steps=("sp", "dw"))
+        return _GatePage(ctx, steps=("email", "dw"))
+
+    launches = _gate_browser(monkeypatch, page_factory, offscreen=True)
+    messages = []
+
+    result = gate_browser.download_hypeddit_batch_in_browser(
+        [(track, f"https://hypeddit.com/track/{track.id}") for track in _tracks(1, 2, 3)],
+        tmp_path, None, config=_DJ, status=messages.append,
+    )
+
+    assert [hidden for hidden, _context in launches] == [True, False]
+    offscreen, window = launches[0][1], launches[1][1]
+    assert offscreen is not window and offscreen.offscreen and not window.offscreen
+    assert window.attended and offscreen.shows == 0 and window.shows == 0
+    clicks = [sel for page in offscreen.made for _kind, sel in page.clicked]
+    assert gate_browser.GATE_CONNECT_BUTTON not in clicks, "Connect was never clicked offscreen"
+    [tab] = window.made  # the window's first tab takes the deferred row; nothing else opens there
+    assert tab.visited == ["https://hypeddit.com/track/2"]
+    assert gate_browser.GATE_CONNECT_BUTTON in [sel for _kind, sel in tab.clicked]
+    assert result.failures == () and not result.cancelled
+    assert sorted(key for key, _path in result.completed) == ["1", "2", "3"]
+    assert messages[0] == "Opening the browser window for 1 gate: the gate wants a provider login (Connect)"
+
+
+def test_a_gate_the_offscreen_frame_cannot_open_is_tried_in_a_window(tmp_path, monkeypatch):
+    class Page(_GatePage):
+        def goto(self, url, **kwargs):
+            if self.context.offscreen:
+                raise TimeoutError("the frame never reported the page")
+            super().goto(url, **kwargs)
+
+    launches = _gate_browser(monkeypatch, lambda ctx: Page(ctx, steps=("email", "dw")), offscreen=True)
+
+    result = gate_browser.download_hypeddit_batch_in_browser(
+        [(_track(), _GATE)], tmp_path, None, config=_DJ
+    )
+
+    assert [hidden for hidden, _context in launches] == [True, False]
+    assert result.failures == () and [key for key, _path in result.completed] == ["7"]
+
+
+def test_without_offscreen_the_hidden_window_is_shown_as_before(tmp_path, monkeypatch):
+    launches = _gate_browser(monkeypatch, lambda ctx: _GatePage(ctx, spotify_signed_in=False))
+
+    gate_browser.download_hypeddit_in_browser(_track(), _GATE, tmp_path, None, config=_DJ)
+
+    assert [hidden for hidden, _context in launches] == [True, False]
+    context = launches[0][1]
+    assert context.asked_offscreen and not context.offscreen, "asked, not granted"
+    assert launches[1][1] is context and context.shows == 1, "the same window, shown"
 
 
 class _SlowDownloadPage(_GatePage):

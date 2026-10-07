@@ -766,6 +766,43 @@ def test_session_factory_opens_a_window_and_closes_it(world):
     assert len(ext.commands("window.close")) == 1
 
 
+def test_offscreen_session_reports_whether_it_really_is_one(world):
+    listener, ext = world
+    ext.handlers["window.open"] = lambda a: {"windowId": -2, "offscreen": True}
+    with webpage.session(listener=listener, offscreen=True) as context:
+        assert ext.commands("window.open")[0]["args"] == {"visible": False, "offscreen": True}
+        assert context.offscreen and not context.visible and context._window_id == -2
+        context.new_page()
+        assert ext.commands("tab.new")[0]["args"] == {"windowId": -2}
+    assert ext.wait_for("window.close")["args"] == {"windowId": -2}
+
+
+def test_offscreen_falls_back_to_a_normal_window_when_the_browser_cannot(world):
+    listener, ext = world  # Firefox, or an extension without the offscreen command: no flag in the reply
+    with webpage.session(listener=listener, offscreen=True) as context:
+        assert ext.commands("window.open")[0]["args"] == {"visible": False, "offscreen": True}
+        assert not context.offscreen and not context.visible
+    ext.handlers["window.open"] = lambda a: {"windowId": 9, "offscreen": False}
+    with webpage.session(listener=listener, offscreen=True) as context:
+        assert not context.offscreen
+    # a visible or plain session never asks
+    with webpage.session(True, listener, offscreen=True), webpage.session(listener=listener):
+        assert [r["args"] for r in ext.commands("window.open")[2:]] == [{"visible": True}, {"visible": False}]
+
+
+def test_async_offscreen_session(world):
+    listener, ext = world
+    ext.handlers["window.open"] = lambda a: {"windowId": -3, "offscreen": True}
+
+    async def run():
+        async with webpage.async_session(listener=listener, offscreen=True) as context:
+            assert context.offscreen and not context.visible
+            await context.new_page()
+
+    asyncio.run(run())
+    assert ext.commands("window.open")[0]["args"] == {"visible": False, "offscreen": True}
+
+
 def test_a_failing_window_open_raises_and_leaves_nothing_behind(world):
     listener, ext = world
     ext.handlers["window.open"] = raising("no_window", "no")

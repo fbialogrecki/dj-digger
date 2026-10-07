@@ -494,6 +494,7 @@ class _Context:
         self._blocked: set[int] = set()
         self._closed = False
         self._visible = False
+        self._offscreen = False  # hidden pass without a browser window (Chromium, plan F4b)
         self._window_id: int | None = None  # this session's own work window (several may be open)
 
     # -- state -------------------------------------------------------------------
@@ -505,6 +506,13 @@ class _Context:
     @property
     def visible(self) -> bool:
         return self._visible
+
+    @property
+    def offscreen(self) -> bool:
+        """True when the session runs in the extension's offscreen document: it has no browser
+        window, cannot be shown, and its tabs are frames (no popups, no ``bring_to_front``)."""
+
+        return self._offscreen
 
     def on(self, event: str, callback: Callable) -> None:
         _listen(self._listeners, CONTEXT_EVENTS, event, callback)
@@ -594,6 +602,7 @@ class _Context:
         def post(result: Any) -> None:
             if new_window:
                 self._window_id = int(result["windowId"])
+                self._offscreen = bool(result.get("offscreen"))  # an old or Firefox extension: False
             self._visible = bool(visible)
 
         return post
@@ -630,6 +639,11 @@ class _Context:
         if name != CLEARABLE_COOKIE or filters:
             raise ValueError(f"only the {CLEARABLE_COOKIE!r} cookie can be cleared")
         return _Cmd("cookie.clearGateDownload", {}, post=lambda _: None)
+
+
+def _open_args(visible: bool, offscreen: bool) -> dict:
+    # offscreen is asked for only by a hidden session; the reply says whether it was granted
+    return {"visible": bool(visible), **({"offscreen": True} if offscreen and not visible else {})}
 
 
 _CONTEXT_OPS = "new_page show hide cookies clear_cookies".split()
@@ -671,10 +685,13 @@ class ExtensionContext(_Context):
         self._pumping = False
 
     @classmethod
-    def open(cls, visible: bool = False, listener: Listener | None = None) -> ExtensionContext:
+    def open(
+        cls, visible: bool = False, listener: Listener | None = None, *, offscreen: bool = False
+    ) -> ExtensionContext:
         context = cls(_listener_for(listener).session())
         try:
-            context._run(_Cmd("window.open", {"visible": bool(visible)}, post=context._opened(visible, new_window=True)))
+            context._run(_Cmd("window.open", _open_args(visible, offscreen),
+                              post=context._opened(visible, new_window=True)))
         except BaseException:
             context._finish()
             raise
@@ -749,7 +766,9 @@ class AsyncExtensionContext(_Context):
         self._tails: dict[int, asyncio.Future] = {}  # tab -> its last command's reply arrived
 
     @classmethod
-    async def open(cls, visible: bool = False, listener: Listener | None = None) -> AsyncExtensionContext:
+    async def open(
+        cls, visible: bool = False, listener: Listener | None = None, *, offscreen: bool = False
+    ) -> AsyncExtensionContext:
         loop = asyncio.get_running_loop()
         session = await asyncio.to_thread(_listener_for(listener).session)  # may wait for hello
         context = cls(session, loop)
@@ -758,7 +777,7 @@ class AsyncExtensionContext(_Context):
             while (item := session.next_event(0)) is not None:  # arrived before on_event was set
                 context._dispatch(item)
             await context._run(
-                _Cmd("window.open", {"visible": bool(visible)}, post=context._opened(visible, new_window=True)))
+                _Cmd("window.open", _open_args(visible, offscreen), post=context._opened(visible, new_window=True)))
         except BaseException:
             context._finish()
             raise
@@ -818,11 +837,14 @@ class AsyncExtensionContext(_Context):
 
 
 @contextmanager
-def session(visible: bool = False, listener: Listener | None = None) -> Iterator[ExtensionContext]:
+def session(
+    visible: bool = False, listener: Listener | None = None, *, offscreen: bool = False
+) -> Iterator[ExtensionContext]:
     """One work window for a batch; leaving the block closes its tabs and the window (only its own:
-    other sessions keep theirs)."""
+    other sessions keep theirs). ``offscreen`` asks for a hidden session without any browser window
+    (Chromium); check ``context.offscreen``, as other browsers answer with a normal hidden window."""
 
-    context = ExtensionContext.open(visible, listener)
+    context = ExtensionContext.open(visible, listener, offscreen=offscreen)
     try:
         yield context
     finally:
@@ -830,8 +852,10 @@ def session(visible: bool = False, listener: Listener | None = None) -> Iterator
 
 
 @asynccontextmanager
-async def async_session(visible: bool = False, listener: Listener | None = None) -> AsyncIterator[AsyncExtensionContext]:
-    context = await AsyncExtensionContext.open(visible, listener)
+async def async_session(
+    visible: bool = False, listener: Listener | None = None, *, offscreen: bool = False
+) -> AsyncIterator[AsyncExtensionContext]:
+    context = await AsyncExtensionContext.open(visible, listener, offscreen=offscreen)
     try:
         yield context
     finally:

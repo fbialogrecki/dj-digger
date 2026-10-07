@@ -174,6 +174,9 @@ def _drive_gate_steps(
                 raise _NeedsPerson("the gate's download button is not where it was")
             return True
         if kind in GATE_CONNECT_STEPS:
+            if getattr(context, "offscreen", False):
+                # the provider's login is a popup window, which an offscreen session cannot show
+                raise _NeedsPerson("the gate wants a provider login (Connect)")
             yield from _connect_provider(context, page, slide.locator, cancel, status, attended=attended)
         elif kind == "email":
             _share_email(slide.locator, email, name, guard=guard, config=config)
@@ -500,7 +503,8 @@ class _TabWatch:
         self.deferred: dict[str, str] = {}
         self.tabs: dict[str, Any] = {}  # each row's own tab; its popups are only owned
         self.turn = _DownloadTurn()
-        # Set by each pass: who is at the window, and where to tell them.
+        # Set by each pass: whether it runs offscreen, who is at the window, and where to tell them.
+        self.offscreen = False
         self.attended = False
         self.status: StatusCallback | None = None
         self._watched: set[int] = set()
@@ -638,7 +642,10 @@ def _goto_gate(page: Any, key: str, watch: _TabWatch) -> None:
                 "Hypeddit redirected outside its canonical hosts"
             )
     except Exception as exc:
-        watch.failures[key] = GateUnavailable(f"Could not open Hypeddit in the browser: {exc}")
+        if watch.offscreen:  # nothing was seen of the page: a real window gets to try
+            watch.deferred[key] = f"the hidden browser could not open the gate: {exc}"
+        else:
+            watch.failures[key] = GateUnavailable(f"Could not open Hypeddit in the browser: {exc}")
 
 
 def _close_settled_tabs(context: Any, watch: _TabWatch) -> None:
@@ -820,6 +827,7 @@ def _browser_pass(
     """
 
     watch.attended, watch.status = not hidden, status
+    watch.offscreen = bool(getattr(context, "offscreen", False))
     watch.turn.holder = None
     pages = _open_gate_tabs(context, rows, watch)
     return _await_downloads(
@@ -845,27 +853,39 @@ def _browser_batch(
     name: str | None,
     time_limit: float | None,
 ) -> bool:
-    """Run the hidden pass and, for what it deferred, the visible one, in ONE
-    extension window: it is shown, not reopened (plan W3). True when cancelled."""
+    """Run the hidden pass and, for what it deferred, the visible one. True when cancelled.
+
+    The hidden pass runs offscreen where the browser can (Chromium: no window at all), else in a
+    hidden work window. What it deferred is carried on in a window the person can see: the same
+    window, shown (plan W3), or - after an offscreen pass, which cannot be shown - a new one whose
+    tabs open the deferred rows' gates again.
+    """
 
     try:
-        with webpage.session(visible=False) as context:
+        with webpage.session(visible=False, offscreen=True) as context:
             context.on("page", watch.watch_popup)
             cancelled = _browser_pass(
                 context, watch, pending, status,
                 hidden=True, social=social, email=email, name=name, time_limit=None,
             )
-            if watch.deferred and not cancelled:
-                reasons, watch.deferred = watch.deferred, {}
-                if status is not None:
-                    status(_needs_you(reasons))
+            if not watch.deferred or cancelled:
+                return cancelled
+            reasons, watch.deferred = watch.deferred, {}
+            if status is not None:
+                status(_needs_you(reasons))
+            if not getattr(context, "offscreen", False):
                 _close_settled_tabs(context, watch)
                 context.show()
-                cancelled = _browser_pass(
+                return _browser_pass(
                     context, watch, {key: pending[key] for key in reasons}, status,
                     hidden=False, social=social, email=email, name=name, time_limit=time_limit,
                 )
-            return cancelled
+        with webpage.session(visible=True) as shown:  # the offscreen one is closed, its tabs are gone
+            shown.on("page", watch.watch_popup)
+            return _browser_pass(
+                shown, watch, {key: pending[key] for key in reasons}, status,
+                hidden=False, social=social, email=email, name=name, time_limit=time_limit,
+            )
     except ExtensionMissing as exc:
         error = GateUnavailable(
             f"{exc}. Connect the dj-digger browser extension in your browser, then try again"
