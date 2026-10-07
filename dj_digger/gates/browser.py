@@ -497,6 +497,7 @@ class _TabWatch:
     ) -> None:
         self.config = config
         self.pending = pending
+        self.scope = set(pending)  # the rows of the running pass (offscreen: one gate at a time)
         self.directory = directory
         self.cancel = cancel
         self.failures = failures
@@ -515,7 +516,7 @@ class _TabWatch:
         return key in self.completed or key in self.failures or key in self.deferred
 
     def done(self) -> bool:
-        return all(self.settled(key) for key in self.pending)
+        return all(self.settled(key) for key in self.scope)
 
     def label(self, key: str) -> str:
         track, _url = self.pending[key]
@@ -588,7 +589,7 @@ class _TabWatch:
         return [page for page in context.pages if id(page) in self._owners and not _page_closed(page)]
 
     def fail_unsettled(self, reason: str) -> None:
-        for key in self.pending:
+        for key in self.scope:
             if not self.settled(key):
                 self.failures[key] = GateManualActionRequired(reason)
 
@@ -763,7 +764,7 @@ def _settle_wait(context: Any, watch: _TabWatch, time_limit: float | None) -> st
         except Exception:
             break
         open_keys = {watch._owners[id(page)] for page in open_pages}
-        for key in watch.pending:
+        for key in watch.scope:
             if not watch.settled(key) and key not in open_keys:
                 watch.failures[key] = GateManualActionRequired(_TAB_CLOSED)
         if not open_pages or watch.done():
@@ -827,7 +828,7 @@ def _browser_pass(
     nobody can close its tabs. Browser failures propagate to the batch.
     """
 
-    watch.attended, watch.status = not hidden, status
+    watch.attended, watch.status, watch.scope = not hidden, status, set(rows)
     watch.offscreen = bool(getattr(context, "offscreen", False))
     watch.turn.holder = None
     pages = _open_gate_tabs(context, rows, watch)
@@ -841,6 +842,37 @@ def _browser_pass(
         name=name,
         attended=not hidden,
         time_limit=PROVIDER_WAIT_SECONDS if hidden else time_limit,
+    )
+
+
+def _window_batch(
+    context: Any,
+    watch: _TabWatch,
+    pending: dict[str, tuple[Any, str]],
+    status: StatusCallback | None,
+    *,
+    social: bool,
+    email: str | None,
+    name: str | None,
+    time_limit: float | None,
+) -> bool:
+    """The whole batch in one hidden work window, then the same window shown for what it deferred
+    (plan W3). True when cancelled."""
+
+    cancelled = _browser_pass(
+        context, watch, pending, status,
+        hidden=True, social=social, email=email, name=name, time_limit=None,
+    )
+    if not watch.deferred or cancelled:
+        return cancelled
+    reasons, watch.deferred = watch.deferred, {}
+    if status is not None:
+        status(_needs_you(reasons))
+    _close_settled_tabs(context, watch)
+    context.show()
+    return _browser_pass(
+        context, watch, {key: pending[key] for key in reasons}, status,
+        hidden=False, social=social, email=email, name=name, time_limit=time_limit,
     )
 
 
@@ -858,30 +890,35 @@ def _browser_batch(
 
     The hidden pass runs offscreen where the browser can (Chromium: no window at all), else in a
     hidden work window. What it deferred is carried on in a window the person can see: the same
-    window, shown (plan W3), or - after an offscreen pass, which cannot be shown - a new one whose
+    window, shown (plan W3), or - after the offscreen pass, which cannot be shown - a new one whose
     tabs open the deferred rows' gates again.
     """
 
     try:
-        with webpage.session(visible=False, offscreen=True) as context:
-            context.on("page", watch.watch_popup)
-            cancelled = _browser_pass(
-                context, watch, pending, status,
-                hidden=True, social=social, email=email, name=name, time_limit=None,
-            )
-            if not watch.deferred or cancelled:
-                return cancelled
-            reasons, watch.deferred = watch.deferred, {}
-            if status is not None:
-                status(_needs_you(reasons))
-            if not getattr(context, "offscreen", False):
-                _close_settled_tabs(context, watch)
-                context.show()
-                return _browser_pass(
-                    context, watch, {key: pending[key] for key in reasons}, status,
-                    hidden=False, social=social, email=email, name=name, time_limit=time_limit,
-                )
-        with webpage.session(visible=True) as shown:  # the offscreen one is closed, its tabs are gone
+        reasons: dict[str, str] = {}
+        # ponytail: one offscreen document per gate, so the gates go one after another. A page may
+        # start one download by itself; Chrome's download request limiter holds the next for a
+        # prompt that nobody sees in an offscreen document (all its frames are one page to it).
+        for key in pending:
+            with webpage.session(visible=False, offscreen=True) as context:
+                context.on("page", watch.watch_popup)
+                if not getattr(context, "offscreen", False):  # Firefox: no offscreen documents
+                    return _window_batch(
+                        context, watch, pending, status,
+                        social=social, email=email, name=name, time_limit=time_limit,
+                    )
+                if _browser_pass(
+                    context, watch, {key: pending[key]}, status,
+                    hidden=True, social=social, email=email, name=name, time_limit=None,
+                ):
+                    return True
+                reasons.update(watch.deferred)
+                watch.deferred = {}
+        if not reasons:
+            return False
+        if status is not None:
+            status(_needs_you(reasons))
+        with webpage.session(visible=True) as shown:  # the offscreen ones are closed, their tabs gone
             shown.on("page", watch.watch_popup)
             return _browser_pass(
                 shown, watch, {key: pending[key] for key in reasons}, status,

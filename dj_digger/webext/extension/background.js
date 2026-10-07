@@ -91,7 +91,7 @@ const downloads = new Map(); // attributed downloadId -> tabId
 // Offscreen sessions (Chromium, plan F4b): a virtual window has a negative id and no browser window, a
 // virtual tab is an iframe of offscreen.html. -1 is the browser's "no tab" (webRequest reports the
 // requests of the offscreen document as tab -1), so virtual ids start at -2.
-const frames = new Map(); // virtual tabId -> {nonce, windowId, url, loads, port, frameId, pending, seq}
+const frames = new Map(); // virtual tabId -> {nonce, windowId, url, loads, port, pending, seq}
 let nextVirtual = -2;
 const isVirtual = (id) => id < 0;
 const closing = new Set(); // tabs the checkout guard is already closing
@@ -187,7 +187,7 @@ async function pageTab(tabId, { nav = false } = {}) {
 // allowlisted Hypeddit URL, under the nonce of a live virtual tab (admit()); everything it sends is
 // untrusted page data.
 const OFFSCREEN_PORT = "offscreen";
-const FRAME_SCRIPT = "djd-frame";
+const FRAME_SCRIPTS = ["djd-frame", "djd-frame-main"];
 const PORT_WAIT_MS = 5000;
 let offscreenPort = null; // the offscreen document's port
 let offscreenStart = null; // promise of the running or finished start
@@ -207,9 +207,11 @@ async function startOffscreen() {
     `https://${h}/*`, ...(g.www ? [`https://www.${h}/*`] : []), ...(g.subdomains ? [`https://*.${h}/*`] : []),
   ]);
   const connected = new Promise((r) => (offscreenHello = r));
-  await api.scripting.unregisterContentScripts({ ids: [FRAME_SCRIPT] }).catch(() => {});
+  await api.scripting.unregisterContentScripts({ ids: FRAME_SCRIPTS }).catch(() => {});
   await api.scripting.registerContentScripts([
-    { id: FRAME_SCRIPT, matches, js: ["dom.js", "frame.js"], allFrames: true, runAt: "document_idle", persistAcrossSessions: false },
+    { id: FRAME_SCRIPTS[0], matches, js: ["dom.js", "frame.js"], allFrames: true, runAt: "document_idle", persistAcrossSessions: false },
+    // page world, before the page's own scripts: no popups and no sound from a framed gate
+    { id: FRAME_SCRIPTS[1], matches, js: ["frame-main.js"], allFrames: true, runAt: "document_start", world: "MAIN", persistAcrossSessions: false },
   ]);
   await api.offscreen.createDocument({
     url: "offscreen.html", reasons: ["IFRAME_SCRIPTING"],
@@ -218,12 +220,17 @@ async function startOffscreen() {
   await Promise.race([connected, sleep(PORT_WAIT_MS).then(() => Promise.reject(new Err("offscreen", "offscreen document did not start")))]);
 }
 // True when offscreen sessions work here (not in Firefox); a failed start is cleaned up and means false.
+let offscreenWhyNot = ""; // why the last start was refused, told to the app with offscreen:false
 async function openOffscreen() {
-  if (!api.offscreen?.createDocument || !api.scripting?.registerContentScripts) return false;
+  if (!api.offscreen?.createDocument || !api.scripting?.registerContentScripts) {
+    offscreenWhyNot = "this browser has no offscreen documents";
+    return false;
+  }
   try {
     await (offscreenStart ??= startOffscreen());
     return true;
-  } catch {
+  } catch (e) {
+    offscreenWhyNot = redactMessage(e?.message ?? String(e));
     await closeOffscreen();
     return false;
   }
@@ -231,14 +238,14 @@ async function openOffscreen() {
 async function closeOffscreen() {
   offscreenStart = null;
   offscreenPort = null;
-  await api.scripting?.unregisterContentScripts?.({ ids: [FRAME_SCRIPT] }).catch(() => {});
+  await api.scripting?.unregisterContentScripts?.({ ids: FRAME_SCRIPTS }).catch(() => {});
   await api.offscreen?.closeDocument().catch(() => {});
 }
 
 function newFrame(windowId, url) {
   const tabId = nextVirtual--;
   const nonce = crypto.randomUUID();
-  frames.set(tabId, { nonce, windowId, url: "about:blank", loads: 0, port: null, frameId: null, pending: new Map(), seq: 0 });
+  frames.set(tabId, { nonce, windowId, url: "about:blank", loads: 0, port: null, pending: new Map(), seq: 0 });
   owned.set(tabId, { popup: false, windowId });
   persist();
   tellOffscreen({ op: "load", nonce, url });
@@ -259,16 +266,17 @@ function killFrame(tabId) {
 function admit(p) {
   const s = p.sender ?? {};
   const f = [...frames.values()].find((x) => x.nonce === p.name);
+  // No tab here: the offscreen document and its frames are not in one. Chrome sets frameId only
+  // together with tab, so a port is told by its URL and the frame's nonce, never by frameId.
   if (!s.tab) {
-    if (p.name === OFFSCREEN_PORT && s.frameId === 0 && s.url === api.runtime.getURL("offscreen.html") && offscreenStart) {
+    if (p.name === OFFSCREEN_PORT && s.url === api.runtime.getURL("offscreen.html") && offscreenStart) {
       offscreenPort = p;
       offscreenHello?.();
       return OFFSCREEN_PORT;
     }
-    if (f && typeof s.frameId === "number" && s.frameId !== 0 && (f.frameId === null || f.frameId === s.frameId)
-        && groupOf(s.url) === allow.groups.hypeddit) {
+    if (f && groupOf(s.url) === allow.groups.hypeddit) {
       f.port?.disconnect(); // an older document of the same frame
-      Object.assign(f, { port: p, frameId: s.frameId, url: s.url });
+      Object.assign(f, { port: p, url: s.url });
       f.loads++;
       emit({ event: "tab.updated", tabId: [...frames].find(([, x]) => x === f)[0], url: safeUrl(s.url) });
       return f;
@@ -557,7 +565,7 @@ const commands = {
     windows.set(w.id, { visible: !!visible, spare });
     owned.set(spare, { popup: false, windowId: w.id });
     persist();
-    return { windowId: w.id, offscreen: false };
+    return { windowId: w.id, offscreen: false, ...(offscreen && !visible ? { offscreenError: offscreenWhyNot } : {}) };
   },
   async "window.show"({ windowId }) {
     const w = workWindow(windowId);

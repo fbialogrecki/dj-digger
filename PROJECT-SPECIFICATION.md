@@ -5,8 +5,8 @@
 - Product version verified: 1.4.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-10-07
-- Document lines: <!-- SPEC TOTAL LINES -->2194<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->2194<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->2204<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->2204<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -83,33 +83,33 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 9 | Authentication and authorization | 1471–1534 |
 | 9.1 | ↳ SoundCloud authentication | 1473–1504 |
 | 9.2 | ↳ Gate action consent | 1505–1534 |
-| 10 | External integrations | 1535–1770 |
+| 10 | External integrations | 1535–1773 |
 | 10.1 | ↳ SoundCloud API and media | 1537–1548 |
-| 10.2 | ↳ Link hubs and download gates | 1549–1645 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1557–1631 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1633–1638 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1640–1645 |
-| 10.3 | ↳ Browsers and clipboard | 1646–1717 |
-| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 1718–1770 |
-| 11 | Security requirements and threat model | 1771–1904 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1773–1791 |
-| 11.2 | ↳ Secret and personal-data handling | 1792–1807 |
-| 11.3 | ↳ File and mutation safety | 1808–1829 |
-| 11.4 | ↳ Browser-extension trust boundary | 1830–1904 |
-| 12 | Privacy, lifecycle, and retention | 1905–1957 |
-| 12.1 | ↳ Data stored locally | 1907–1931 |
-| 12.2 | ↳ Data sent to third parties | 1932–1944 |
-| 12.3 | ↳ User-controlled deletion | 1945–1957 |
-| 13 | Failure behavior and current limitations | 1958–2061 |
-| 13.1 | ↳ Error isolation and reporting | 1960–1981 |
-| 13.2 | ↳ Confirmed limitations | 1982–2061 |
-| 14 | Verification, CI, and release | 2062–2160 |
-| 14.1 | ↳ Offline and live test suites | 2064–2112 |
-| 14.2 | ↳ Continuous integration and publishing | 2113–2145 |
-| 14.3 | ↳ Specification-map verification | 2146–2160 |
-| 15 | Evidence and operational references | 2161–2194 |
-| 15.1 | ↳ Primary implementation evidence | 2163–2184 |
-| 15.2 | ↳ User and historical documentation | 2185–2194 |
+| 10.2 | ↳ Link hubs and download gates | 1549–1648 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1557–1634 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1636–1641 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1643–1648 |
+| 10.3 | ↳ Browsers and clipboard | 1649–1720 |
+| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 1721–1773 |
+| 11 | Security requirements and threat model | 1774–1914 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1776–1794 |
+| 11.2 | ↳ Secret and personal-data handling | 1795–1810 |
+| 11.3 | ↳ File and mutation safety | 1811–1832 |
+| 11.4 | ↳ Browser-extension trust boundary | 1833–1914 |
+| 12 | Privacy, lifecycle, and retention | 1915–1967 |
+| 12.1 | ↳ Data stored locally | 1917–1941 |
+| 12.2 | ↳ Data sent to third parties | 1942–1954 |
+| 12.3 | ↳ User-controlled deletion | 1955–1967 |
+| 13 | Failure behavior and current limitations | 1968–2071 |
+| 13.1 | ↳ Error isolation and reporting | 1970–1991 |
+| 13.2 | ↳ Confirmed limitations | 1992–2071 |
+| 14 | Verification, CI, and release | 2072–2170 |
+| 14.1 | ↳ Offline and live test suites | 2074–2122 |
+| 14.2 | ↳ Continuous integration and publishing | 2123–2155 |
+| 14.3 | ↳ Specification-map verification | 2156–2170 |
+| 15 | Evidence and operational references | 2171–2204 |
+| 15.1 | ↳ Primary implementation evidence | 2173–2194 |
+| 15.2 | ↳ User and historical documentation | 2195–2204 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -1571,7 +1571,10 @@ the rest new. Browser fallback runs in one work window of the user's own browser
 driven by the extension (§10.3), hidden first. In Chromium the hidden pass is
 offscreen: the gates are frames of the extension's offscreen document, with no browser
 window at all (the page is visible to itself, timers run at full speed, the user's
-sessions apply); elsewhere (Firefox, or when the offscreen document cannot start)
+sessions apply). Each gate gets an offscreen document of its own, one gate after
+another: a page may start one download by itself, and Chrome's download request
+limiter holds the next for a prompt nobody sees there (all frames of one document are
+one page to it). Elsewhere (Firefox, or when the offscreen document cannot start)
 it is a hidden work window (an unfocused normal window, not a headless browser). A
 tab that Hypeddit sent to its hot-or-not poll instead of the
 gate (its habit for the first visit after a download) is pointed at the gate
@@ -1850,12 +1853,19 @@ Python caller, enforces its own limits, whatever the application sends:
   the Hypeddit hosts only (derived from `allowlist.json`); `frame.js` does nothing
   unless it sits directly under this extension's own offscreen document
   (`window.top !== window` and `ancestorOrigins[0]` is the extension origin), so
-  the user's own Hypeddit tabs are untouched. The one `runtime.onConnect` listener
-  admits two ports only: the offscreen document's (no tab, frame 0, its own URL)
-  and a frame's (no `sender.tab`, a frame below the top one, `sender.url` on the
-  Hypeddit group, the random nonce of a live virtual tab as the port name and the
-  frame id it first came from); anything else is disconnected at once, and what a
-  frame sends is untrusted page data. There is still no `runtime.onMessage`, no
+  the user's own Hypeddit tabs are untouched. With them, `frame-main.js` runs in
+  the page world at `document_start`, again only directly under an extension page:
+  `window.open` returns a closed stub and media `play()` only mutes, because the
+  gate's follow, like and repost links open the artist on SoundCloud through
+  `window.open` (which autoplays) and such a popup would not be an own tab (neither
+  muted nor closed); the page's own handler ticks the step either way. The frames
+  also carry the autoplay policy `'none'`. The one `runtime.onConnect` listener
+  admits two ports only: the offscreen document's (no tab, its own URL) and a
+  frame's (no `sender.tab`, `sender.url` on the Hypeddit group, the random nonce of
+  a live virtual tab as the port name); Chrome sets `sender.frameId` only together
+  with a tab, so it is not used. Anything else is disconnected at once, and what a
+  frame sends is untrusted page data. A refused offscreen start answers
+  `offscreen:false` with `offscreenError`. There is still no `runtime.onMessage`, no
   external messaging and no new host. The frame script and the document are removed
   with the last offscreen window (`window.close`, the app going away, a background
   restart, the offscreen document disappearing). Firefox has no offscreen API:

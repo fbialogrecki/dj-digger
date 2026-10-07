@@ -1372,9 +1372,10 @@ def test_the_hidden_pass_runs_offscreen_and_needs_no_window(tmp_path, monkeypatc
         tmp_path, None, config=_DJ,
     )
 
-    assert [hidden for hidden, _context in launches] == [True], "no visible window was ever opened"
-    context = launches[0][1]
-    assert context.offscreen and context.asked_offscreen and context.shows == 0
+    # one offscreen document per gate: a document starts only one download by itself
+    assert [hidden for hidden, _context in launches] == [True, True], "no visible window was ever opened"
+    for _hidden, context in launches:
+        assert context.offscreen and context.asked_offscreen and context.shows == 0
     assert result.failures == () and [key for key, _path in result.completed] == ["1", "2"]
 
 
@@ -1394,11 +1395,11 @@ def test_a_connect_row_is_deferred_at_once_and_finished_in_a_new_visible_window(
         tmp_path, None, config=_DJ, status=messages.append,
     )
 
-    assert [hidden for hidden, _context in launches] == [True, False]
-    offscreen, window = launches[0][1], launches[1][1]
-    assert offscreen is not window and offscreen.offscreen and not window.offscreen
-    assert window.attended and offscreen.shows == 0 and window.shows == 0
-    clicks = [sel for page in offscreen.made for _kind, sel in page.clicked]
+    assert [hidden for hidden, _context in launches] == [True, True, True, False]  # a document per gate
+    offscreens, window = [context for _hidden, context in launches[:3]], launches[3][1]
+    assert all(o.offscreen and o.shows == 0 for o in offscreens) and not window.offscreen
+    assert window.attended and window.shows == 0
+    clicks = [sel for o in offscreens for page in o.made for _kind, sel in page.clicked]
     assert gate_browser.GATE_CONNECT_BUTTON not in clicks, "Connect was never clicked offscreen"
     [tab] = window.made  # the window's first tab takes the deferred row; nothing else opens there
     assert tab.visited == ["https://hypeddit.com/track/2"]

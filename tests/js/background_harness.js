@@ -73,7 +73,7 @@ function fakeBrowser({ offscreen = true, failOffscreen = false } = {}) {
           off.docs++;
           off.opts = opts;
           setTimeout(() => {
-            off.port = fakePort("offscreen", { frameId: 0, url: "offscreen.html" });
+            off.port = fakePort("offscreen", { url: "offscreen.html" }); // no tab, so Chrome sets no frameId
             e["runtime.onConnect"].fire(off.port);
           }, 5);
         },
@@ -286,7 +286,7 @@ async function start(fake = fakeBrowser()) {
   const GATE = "https://hypeddit.com/1rjvpc";
   const connectFrame = (x, tabId, url, extra = {}) => {
     const nonce = x.off.port.posted.find((m) => m.op === "load" && m.nonce === x.nonces[tabId]).nonce;
-    const p = fakePort(nonce, { frameId: 5, url, ...extra });
+    const p = fakePort(nonce, { url, ...extra });
     x.e["runtime.onConnect"].fire(p);
     return p;
   };
@@ -311,11 +311,13 @@ async function start(fake = fakeBrowser()) {
   assert.equal(x.off.docs, 1);
   assert.equal(x.off.opts.reasons[0], "IFRAME_SCRIPTING");
   assert.equal(x.wins.size, 0); // no browser window at all
-  const [script] = x.off.scripts;
+  const [script, main] = x.off.scripts;
   assert.deepEqual(script.matches, ["https://hypeddit.com/*", "https://www.hypeddit.com/*", "https://hypd.it/*", "https://www.hypd.it/*"]);
   assert.deepEqual([script.js, script.allFrames, script.persistAcrossSessions], [["dom.js", "frame.js"], true, false]);
-  assert.equal((await opened(x)).offscreen, true); // a second session shares the document and the script
-  assert.deepEqual([x.off.docs, x.off.scripts.length], [1, 1]);
+  // the page-world part (no popups, no sound) runs before the gate's own scripts, on the same hosts
+  assert.deepEqual([main.js, main.world, main.runAt, main.matches], [["frame-main.js"], "MAIN", "document_start", script.matches]);
+  assert.equal((await opened(x)).offscreen, true); // a second session shares the document and the scripts
+  assert.deepEqual([x.off.docs, x.off.scripts.length], [1, 2]);
   for (const cmd of ["window.show", "window.hide"]) assert.equal((await x.call(cmd, { windowId: ow.windowId })).error.code, "offscreen");
 
   assert.equal((await x.call("tab.new", { windowId: ow.windowId, url: "https://example.com/" })).error.code, "refused");
@@ -391,19 +393,17 @@ async function start(fake = fakeBrowser()) {
   const nonce2 = x.nonces[vt2];
   const url2 = "https://hypeddit.com/two";
   const bad = [
-    fakePort("no-such-nonce", { frameId: 5, url: url2 }),
-    fakePort("", { frameId: 5, url: url2 }),
-    fakePort(nonce2, { frameId: 5, url: url2, tab: { id: 9 } }), // a tab of the user's own
-    fakePort(nonce2, { frameId: 0, url: url2 }), // not a frame
-    fakePort(nonce2, { frameId: undefined, url: url2 }),
-    fakePort(nonce2, { frameId: 5, url: "https://bandcamp.com/x" }), // allowlisted, but not Hypeddit
-    fakePort(nonce2, { frameId: 5, url: "https://evil.example/" }),
-    fakePort(nonce2, { frameId: 5, url: "https://hypeddit.com.evil.example/" }),
-    fakePort(nonce2, { frameId: 5, url: "https://soundcloud.com/signin" }),
-    fakePort("offscreen", { frameId: 0, url: "https://hypeddit.com/" }), // not the offscreen document
+    fakePort("no-such-nonce", { url: url2 }),
+    fakePort("", { url: url2 }),
+    fakePort(nonce2, { frameId: 0, url: url2, tab: { id: 9 } }), // a tab of the user's own
+    fakePort(nonce2, { url: "https://bandcamp.com/x" }), // allowlisted, but not Hypeddit
+    fakePort(nonce2, { url: "https://evil.example/" }),
+    fakePort(nonce2, { url: "https://hypeddit.com.evil.example/" }),
+    fakePort(nonce2, { url: "https://soundcloud.com/signin" }),
+    fakePort(nonce2, { url: "welcome.html" }), // another page of the extension
+    fakePort("offscreen", { url: "https://hypeddit.com/" }), // not the offscreen document
     fakePort("offscreen", { frameId: 0, url: "offscreen.html", tab: { id: 9 } }),
-    fakePort("offscreen", { frameId: 3, url: "offscreen.html" }),
-    fakePort(x.nonces[vt], { frameId: 6, url: GATE }), // the frame of vt is frame 5
+    fakePort("offscreen", { url: "welcome.html" }),
     fakePort(undefined, undefined),
   ].map(cut);
   await tick();
@@ -411,7 +411,7 @@ async function start(fake = fakeBrowser()) {
   assert.equal(x.off.port.disconnected, false);
   assert.equal(fp3.disconnected, false);
   assert.equal(x.events("tab.updated").filter((m) => m.tabId === vt2).length, 0);
-  const good = cut(fakePort(nonce2, { frameId: 5, url: url2 }));
+  const good = cut(fakePort(nonce2, { url: url2 }));
   await tick();
   assert.equal(good.disconnected, false);
 
@@ -450,7 +450,7 @@ async function start(fake = fakeBrowser()) {
   assert.deepEqual(x.events("tab.removed").map((m) => m.tabId), [vt2, vt]);
   assert.deepEqual(x.events("window.removed").map((m) => m.windowId), [ow.windowId]);
   assert.equal(fp3.disconnected, true);
-  assert.deepEqual([x.off.closed, x.off.scripts.length], [0, 1]); // the second session still needs them
+  assert.deepEqual([x.off.closed, x.off.scripts.length], [0, 2]); // the second session still needs them
   const ownId = x.session.djdRegistry.windows.map(([id]) => id);
   assert.equal(ownId.length, 1);
   assert.equal((await x.call("window.close", { windowId: ownId[0] })).ok, true);

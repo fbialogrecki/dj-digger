@@ -211,6 +211,12 @@ def test_the_frame_script_is_registered_dynamically_for_hypeddit_only():
     start = background.index("async function startOffscreen")
     assert "allow.groups.hypeddit" in background[start : background.index("scripting.registerContentScripts(")]
     assert 'js: ["dom.js", "frame.js"]' in background
+    assert 'js: ["frame-main.js"]' in background  # page world: no popups, no sound
+
+
+def test_the_page_world_frame_script_is_inert_outside_an_extension_frame():
+    source = (EXTENSION / "frame-main.js").read_text(encoding="utf-8")
+    assert source.index('ancestorOrigins?.[0]?.startsWith("chrome-extension://")') < source.index("window.open =")
     assert (EXTENSION / "offscreen.html").is_file()
 
 
