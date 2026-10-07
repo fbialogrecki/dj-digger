@@ -6,6 +6,7 @@ the selectors run against real markup; nothing here opens a browser.
 
 import asyncio
 import json
+import re
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -55,7 +56,8 @@ class Loc:
 
     async def click(self, timeout=None, force=False):
         self.page.shop.clicked.append(self.elements[0].get("aria-label"))
-        self.page.shop.on_click(self.elements[0])
+        if self.page.cart_loaded:  # before the cart has loaded the page ignores the click
+            self.page.shop.on_click(self.elements[0])
 
     async def all_texts_and_attrs(self, attrs, text=True, limit=500):
         return [
@@ -67,11 +69,20 @@ class Loc:
 class Shop:
     """What Beatport shows: the page states, the account and the cart."""
 
-    def __init__(self, *, logged_in=True, update_count=True, update_cart=True, price="$1.49"):
+    def __init__(self, *, logged_in=True, update_count=True, update_cart=True, price="$1.49", late=0, bought=False):
         self.logged_in, self.update_count, self.update_cart = logged_in, update_count, update_cart
+        self.bought, self.dialog = bought, False
         self.price, self.in_cart, self.count, self.clicked = price, False, 0, []
+        # How many counter reads after a load still show the hydrated header's "0 items"
+        self.late = late
 
     def on_click(self, element):
+        if element.get_text(strip=True) == "Cancel":
+            self.dialog = False
+            return
+        if self.bought and "'Signal' (Original Mix)" in element.get("aria-label", ""):
+            self.dialog = True  # Beatport asks before a repurchase
+            return
         if "'Signal' (Original Mix)" in element.get("aria-label", ""):
             self.count += self.update_count
             self.in_cart = self.in_cart or self.update_cart
@@ -86,6 +97,10 @@ class Shop:
                 text = text.replace(
                     f"Add track 'Signal' (Original Mix) by Test Artist to cart. Price: {self.price}",
                     "Track 'Signal' is already in your cart", 1)
+            if self.dialog:
+                text = text.replace("</body>", "<div role='dialog'><p>You've previously purchased Track \"Signal\". "
+                                    "Are you sure you'd like to repurchase it again?</p><button>Add to cart</button>"
+                                    "<button>Cancel</button></div></body>", 1)
             return text.replace("Open cart, 0 items", f"Open cart, {self.count} items")
         if url == CART:
             return read("cart_page.html" if self.in_cart else "cart_page_without_item.html")
@@ -94,22 +109,39 @@ class Shop:
 
 class FakePage:
     def __init__(self, shop, url="about:blank"):
-        self.shop, self.url = shop, url
+        self.shop, self.url, self.reads = shop, url, 0
+
+    @property
+    def cart_loaded(self):
+        return self.reads >= self.shop.late
 
     async def goto(self, url, wait_until=None, timeout=None):
         if url == f"{BASE}/cart":
             url = CART if self.shop.logged_in else LOGIN
-        self.url = url
+        self.url, self.reads = url, 0
         return SimpleNamespace(status=200)
 
     async def content(self):
         return self.shop.html(self.url)
 
     def locator(self, css):
-        return Loc(self, BeautifulSoup(self.shop.html(self.url), "html.parser").select(css))
+        html = self.shop.html(self.url)
+        if css == beatport.CART_LINK and not self.cart_loaded:
+            self.reads += 1
+            html = re.sub(r"Open cart, \d+ items", "Open cart, 0 items", html)
+        return Loc(self, BeautifulSoup(html, "html.parser").select(css))
 
     async def bring_to_front(self):
         pass
+
+    def _soup(self):
+        return BeautifulSoup(self.shop.html(self.url), "html.parser")
+
+    def get_by_text(self, pattern, exact=False):
+        return Loc(self, [el.parent for el in self._soup().find_all(string=pattern)])
+
+    def get_by_role(self, role, name=None, exact=False):
+        return Loc(self, [el for el in self._soup().find_all(role) if el.get_text(strip=True) == name])
 
 
 @pytest.fixture(autouse=True)
@@ -119,6 +151,7 @@ def quick_and_private(monkeypatch):
 
     monkeypatch.setattr(bandcamp_adapter, "save_cart_diagnostics", no_diagnostics)
     monkeypatch.setattr(beatport, "VERIFY_STAGES", (("count", 0.3), ("sidecart", 1.0), ("reload", 2.0)))
+    monkeypatch.setattr(beatport, "COUNT_SETTLE_SECONDS", 0.3)
 
 
 def resolve(shop, url, title="Signal"):
@@ -253,6 +286,32 @@ def test_a_verified_click_is_added_by_the_counter_or_by_the_cart_page():
         asyncio.run(page.goto(TRACK))
         outcome = asyncio.run(beatport.verify_click_async(page, item, shop.count - 1 if shop.count else 0))
         assert (outcome.verified, outcome.stage) == (True, stage)
+
+
+def test_a_cart_that_loads_late_is_waited_for_and_never_taken_for_an_add():
+    shop = Shop(late=3)
+    shop.count = 2  # two other items, shown only once the account's cart has loaded
+    page, item = resolve(shop, TRACK)
+
+    result, missed = asyncio.run(
+        cart.CartBrowserSession()._execute_item("beatport", item, page, asyncio.Event())
+    )
+
+    assert (result.status, missed) == ("added", 0)
+    assert shop.in_cart and shop.count == 3, "the click came after the cart had loaded"
+
+
+def test_a_track_bought_before_is_not_added_again_and_its_question_is_cancelled():
+    shop = Shop(bought=True)
+    page, item = resolve(shop, TRACK)
+
+    result, missed = asyncio.run(
+        cart.CartBrowserSession()._execute_item("beatport", item, page, asyncio.Event())
+    )
+
+    assert (result.status, result.code, missed) == ("skipped", "unavailable", 0)
+    assert "bought on this Beatport account" in result.reason
+    assert shop.clicked[-1] is None and not shop.dialog and not shop.in_cart, "Cancel, never Add to cart"
 
 
 def test_an_item_already_in_the_cart_is_not_clicked():

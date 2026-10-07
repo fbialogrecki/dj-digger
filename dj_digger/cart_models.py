@@ -19,6 +19,10 @@ class ProductUnavailable(RuntimeError):
     """The linked release has no exact, individually purchasable track."""
 
 
+class AlreadyPurchased(ProductUnavailable):
+    """The store says the account bought this already; it is not put in the cart again."""
+
+
 class UnsafeMatch(RuntimeError):
     """The candidates are too ambiguous to mutate a cart safely."""
 

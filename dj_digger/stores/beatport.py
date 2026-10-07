@@ -7,6 +7,7 @@ one of that id (spec section 3.6).
 """
 
 import asyncio
+import contextlib
 import re
 import time
 from decimal import Decimal
@@ -15,6 +16,7 @@ from urllib.parse import urljoin, urlparse
 
 from ..cart_models import (
     VERIFY_STAGES,
+    AlreadyPurchased,
     CartItem,
     CartUnverified,
     NotLoggedIn,
@@ -43,6 +45,13 @@ ADD_LABEL = re.compile(r"Add track '(.*)'(?: \((.*)\))? by (.*) to cart\. Price:
 IN_CART_LABEL = re.compile(r"Track '.*' is already in your cart", re.DOTALL)
 MAX_ROWS = 200
 CONTROL_WAIT_SECONDS = 10.0
+# The header hydrates showing "0 items" and loads the account's cart a moment later (0.6-1.4 s live,
+# 2026-10-08); a click before that does nothing and the count it jumps to looks like a verified add.
+# A count is trusted once it held this long.
+COUNT_SETTLE_SECONDS = 2.0
+# Adding a track the account already bought opens "You've previously purchased Track 'T'. Are you sure
+# you'd like to repurchase it again?" with Add to cart / Cancel (live 2026-10-08): the answer is Cancel.
+REPURCHASE = re.compile(r"previously purchased", re.IGNORECASE)
 
 
 def parse_add_label(label: str) -> tuple[str, str, Decimal, str] | None:
@@ -180,7 +189,7 @@ async def cart_contains_async(page: Any, item: CartItem, *, navigate: bool = Tru
         if await _in_cart_here(page, item.product_id):
             return True
         await open_cart(page)
-    count = await cart_count_async(page)
+    count = await settled_count_async(page)
     if count == 0:
         return False
     deadline = time.monotonic() + 8.0
@@ -200,6 +209,22 @@ async def cart_count_async(page: Any) -> int | None:
     except Exception:
         return None
     return int(match.group(1)) if match else None
+
+
+async def settled_count_async(page: Any) -> int | None:
+    """The header counter once the account's cart has loaded into it (see COUNT_SETTLE_SECONDS);
+    None when the page shows no counter within CONTROL_WAIT_SECONDS."""
+
+    deadline = time.monotonic() + CONTROL_WAIT_SECONDS
+    seen, since = None, time.monotonic()
+    while time.monotonic() < deadline:
+        count = await cart_count_async(page)
+        if count != seen:
+            seen, since = count, time.monotonic()
+        elif count is not None and time.monotonic() - since >= COUNT_SETTLE_SECONDS:
+            return count
+        await asyncio.sleep(0.2)
+    return seen
 
 
 async def add_to_cart_async(page: Any, item: CartItem, cancel: asyncio.Event) -> None:
@@ -239,6 +264,10 @@ async def verify_click_async(
 
     async def by_count() -> bool:
         async def grew() -> bool:
+            if await page.get_by_text(REPURCHASE).count():
+                with contextlib.suppress(Exception):
+                    await page.get_by_role("button", name="Cancel", exact=True).first.click(timeout=ACTION_TIMEOUT_MS)
+                raise AlreadyPurchased("bought on this Beatport account already; not added again")
             after = await cart_count_async(page)
             return count_before is not None and after is not None and after > count_before
 

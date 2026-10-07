@@ -556,4 +556,18 @@ wyrównywane do 1 s, intensywnego throttlingu po 5 min (raz na minutę) nie ma. 
 w nieaktywnych kartach zostaje, każde czekanie może się przedłużyć o ≤ 1 s; offscreen dla
 Bandcampa niepotrzebny.
 
+**F10 na żywo (2026-10-08, zgoda właściciela, profil: Filip / własny e-mail):**
+- Bramka `low-e/clubbizarrehardedit` (e-mail, SoundCloud, Instagram, Spotify) przeszła w tle w 37 s:
+  bez okna i bez pytania „Gates need you”; Spotify Connect przez nieaktywną kartę logowania
+  (callback Hypeddit idzie przez `localStorage`, ramka offscreen go odbiera); WAV 86 MB w folderze
+  docelowym, w Pobranych nic.
+- Koszyk (Bandcamp 3, Beatport 3 + 1 release), 63 s, bez okna i bez akceptacji: Bandcamp 2 dodane
+  po cenie minimalnej, 1 „no longer available”; Beatport: release `aetherborne` dopasowany do
+  „Subterrain” i dodany. **Znaleziony błąd:** nagłówek Beatportu pokazuje „0 items” do czasu
+  wczytania koszyka konta (0,6–1,4 s po załadowaniu), klik przed tym nic nie robi, a skok licznika
+  0 → 2 był brany za dodanie (fałszywe „added”). Poprawka: licznik ustalony przez 2 s przed klikiem
+  i w sprawdzaniu koszyka; po niej „Got Me” dodany naprawdę (2 → 3, wiersz w koszyku).
+  „The Rave” był już kupiony na tym koncie: Beatport pyta „repurchase it again?” — teraz Cancel
+  i wynik „bought on this Beatport account already”.
+
 Środowisko: Fedora 44, GNOME / Wayland, Chromium 154 (RPM), Firefox (tylko W11), data 2026-10-06.

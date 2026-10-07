@@ -113,6 +113,15 @@
 - The extension also refuses Bandcamp's `/cart/checkout_start` and checkout
   paths under a locale prefix (`/de/checkout/…`).
 
+### Fixed
+
+- Beatport: a click made before the page had loaded your cart did nothing, and
+  the counter then jumping to your real cart size was taken as a verified add
+  (seen live: tracks reported "in Beatport cart" that were not). The counter is
+  now trusted only once it has settled, and a track you bought before on Beatport
+  is reported as already bought instead of an unverified click (Beatport's
+  "repurchase it again?" question is answered with Cancel).
+
 ### Removed
 
 - Playwright, the bundled and downloaded Chromium (the "Download Chromium"

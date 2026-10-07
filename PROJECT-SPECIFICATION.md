@@ -5,8 +5,8 @@
 - Product version verified: 1.4.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-10-07
-- Document lines: <!-- SPEC TOTAL LINES -->2252<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->2252<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->2259<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->2259<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,65 +51,65 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 144–189 |
 | 2.1 | ↳ Problem and product boundary | 146–159 |
 | 2.2 | ↳ Execution modes | 160–189 |
-| 3 | User-visible capabilities | 190–1041 |
+| 3 | User-visible capabilities | 190–1048 |
 | 3.1 | ↳ Track collection | 192–217 |
 | 3.2 | ↳ Link classification and exports | 218–236 |
 | 3.3 | ↳ Track statuses | 237–247 |
 | 3.4 | ↳ Audio preview | 248–419 |
 | 3.5 | ↳ Downloads and local-file matching | 420–467 |
-| 3.6 | ↳ Store purchase assistance | 468–577 |
-| 3.7 | ↳ Local library, analysis and audio export | 578–749 |
-| 3.8 | ↳ Qt Quick desktop | 750–1041 |
-| 4 | System context and data flow | 1042–1086 |
-| 4.1 | ↳ Context diagram | 1044–1070 |
-| 4.2 | ↳ Collection-to-library flow | 1071–1086 |
-| 5 | Repository layout and component ownership | 1087–1173 |
-| 5.1 | ↳ Entry, orchestration, and models | 1089–1100 |
-| 5.2 | ↳ Network and external-system adapters | 1101–1132 |
-| 5.3 | ↳ Persistence, local media, and UI | 1133–1173 |
-| 6 | Runtime architecture and environments | 1174–1317 |
-| 6.1 | ↳ Runtime and dependencies | 1176–1204 |
-| 6.2 | ↳ Concurrency and lifecycle | 1205–1282 |
-| 6.3 | ↳ Local paths and environment variables | 1283–1317 |
-| 7 | Data model and persistence | 1318–1429 |
-| 7.1 | ↳ Domain objects and identity | 1320–1334 |
-| 7.2 | ↳ SQLite schema and invariants | 1335–1387 |
-| 7.3 | ↳ Crate persistence and deletion | 1388–1403 |
-| 7.4 | ↳ Configuration and credential stores | 1404–1429 |
-| 8 | Public interfaces and contracts | 1430–1487 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1432–1460 |
-| 8.2 | ↳ JSON and CSV summary input | 1461–1476 |
-| 8.3 | ↳ URL-opening contract | 1477–1487 |
-| 9 | Authentication and authorization | 1488–1551 |
-| 9.1 | ↳ SoundCloud authentication | 1490–1521 |
-| 9.2 | ↳ Gate action consent | 1522–1551 |
-| 10 | External integrations | 1552–1807 |
-| 10.1 | ↳ SoundCloud API and media | 1554–1565 |
-| 10.2 | ↳ Link hubs and download gates | 1566–1674 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1574–1660 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1662–1667 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1669–1674 |
-| 10.3 | ↳ Browsers and clipboard | 1675–1754 |
-| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 1755–1807 |
-| 11 | Security requirements and threat model | 1808–1959 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1810–1828 |
-| 11.2 | ↳ Secret and personal-data handling | 1829–1844 |
-| 11.3 | ↳ File and mutation safety | 1845–1866 |
-| 11.4 | ↳ Browser-extension trust boundary | 1867–1959 |
-| 12 | Privacy, lifecycle, and retention | 1960–2012 |
-| 12.1 | ↳ Data stored locally | 1962–1986 |
-| 12.2 | ↳ Data sent to third parties | 1987–1999 |
-| 12.3 | ↳ User-controlled deletion | 2000–2012 |
-| 13 | Failure behavior and current limitations | 2013–2119 |
-| 13.1 | ↳ Error isolation and reporting | 2015–2036 |
-| 13.2 | ↳ Confirmed limitations | 2037–2119 |
-| 14 | Verification, CI, and release | 2120–2218 |
-| 14.1 | ↳ Offline and live test suites | 2122–2170 |
-| 14.2 | ↳ Continuous integration and publishing | 2171–2203 |
-| 14.3 | ↳ Specification-map verification | 2204–2218 |
-| 15 | Evidence and operational references | 2219–2252 |
-| 15.1 | ↳ Primary implementation evidence | 2221–2242 |
-| 15.2 | ↳ User and historical documentation | 2243–2252 |
+| 3.6 | ↳ Store purchase assistance | 468–584 |
+| 3.7 | ↳ Local library, analysis and audio export | 585–756 |
+| 3.8 | ↳ Qt Quick desktop | 757–1048 |
+| 4 | System context and data flow | 1049–1093 |
+| 4.1 | ↳ Context diagram | 1051–1077 |
+| 4.2 | ↳ Collection-to-library flow | 1078–1093 |
+| 5 | Repository layout and component ownership | 1094–1180 |
+| 5.1 | ↳ Entry, orchestration, and models | 1096–1107 |
+| 5.2 | ↳ Network and external-system adapters | 1108–1139 |
+| 5.3 | ↳ Persistence, local media, and UI | 1140–1180 |
+| 6 | Runtime architecture and environments | 1181–1324 |
+| 6.1 | ↳ Runtime and dependencies | 1183–1211 |
+| 6.2 | ↳ Concurrency and lifecycle | 1212–1289 |
+| 6.3 | ↳ Local paths and environment variables | 1290–1324 |
+| 7 | Data model and persistence | 1325–1436 |
+| 7.1 | ↳ Domain objects and identity | 1327–1341 |
+| 7.2 | ↳ SQLite schema and invariants | 1342–1394 |
+| 7.3 | ↳ Crate persistence and deletion | 1395–1410 |
+| 7.4 | ↳ Configuration and credential stores | 1411–1436 |
+| 8 | Public interfaces and contracts | 1437–1494 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1439–1467 |
+| 8.2 | ↳ JSON and CSV summary input | 1468–1483 |
+| 8.3 | ↳ URL-opening contract | 1484–1494 |
+| 9 | Authentication and authorization | 1495–1558 |
+| 9.1 | ↳ SoundCloud authentication | 1497–1528 |
+| 9.2 | ↳ Gate action consent | 1529–1558 |
+| 10 | External integrations | 1559–1814 |
+| 10.1 | ↳ SoundCloud API and media | 1561–1572 |
+| 10.2 | ↳ Link hubs and download gates | 1573–1681 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1581–1667 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1669–1674 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1676–1681 |
+| 10.3 | ↳ Browsers and clipboard | 1682–1761 |
+| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 1762–1814 |
+| 11 | Security requirements and threat model | 1815–1966 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1817–1835 |
+| 11.2 | ↳ Secret and personal-data handling | 1836–1851 |
+| 11.3 | ↳ File and mutation safety | 1852–1873 |
+| 11.4 | ↳ Browser-extension trust boundary | 1874–1966 |
+| 12 | Privacy, lifecycle, and retention | 1967–2019 |
+| 12.1 | ↳ Data stored locally | 1969–1993 |
+| 12.2 | ↳ Data sent to third parties | 1994–2006 |
+| 12.3 | ↳ User-controlled deletion | 2007–2019 |
+| 13 | Failure behavior and current limitations | 2020–2126 |
+| 13.1 | ↳ Error isolation and reporting | 2022–2043 |
+| 13.2 | ↳ Confirmed limitations | 2044–2126 |
+| 14 | Verification, CI, and release | 2127–2225 |
+| 14.1 | ↳ Offline and live test suites | 2129–2177 |
+| 14.2 | ↳ Continuous integration and publishing | 2178–2210 |
+| 14.3 | ↳ Specification-map verification | 2211–2225 |
+| 15 | Evidence and operational references | 2226–2259 |
+| 15.1 | ↳ Primary implementation evidence | 2228–2249 |
+| 15.2 | ↳ User and historical documentation | 2250–2259 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -519,8 +519,15 @@ Before each mutation the page is reloaded and product identity and price are
 compared with the preflight snapshot. Ambiguous matches, version mismatch,
 changed price or product identity, unavailable controls, external redirects, or
 failed cart verification skip or fail the affected item. An add is not retried
-when its verification is uncertain. Beatport verification reads the header cart
-counter (5 s), then the cart page (25 s), inside the same 45-second budget.
+when its verification is uncertain. Beatport's header hydrates showing "0 items" and
+loads the account's cart a moment later, and a click before that does nothing, so a
+Beatport counter is trusted only once it has held for two seconds (at most ten): the
+add waits for it, an item the settled page marks as in the cart is not clicked, and
+the cart check reads it too. Beatport verification reads the header cart counter
+(5 s), then the cart page (25 s), inside the same 45-second budget. When Beatport
+answers the click with its "previously purchased ... repurchase it again?" question,
+its Cancel is pressed and the item is skipped as already bought on that account
+(never added again).
 Bandcamp verification runs three stages on
 their own clocks (the cart count for 5 s, the real side-cart control requiring a
 visible removable row with the same canonical host and path for 10 s, one

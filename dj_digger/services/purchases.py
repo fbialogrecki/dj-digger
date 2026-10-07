@@ -16,6 +16,7 @@ from ..cart_models import (
     MANUAL_AFTER_UNVERIFIED,
     MANUAL_TABS_MAX,
     VERIFY_BUDGET_SECONDS,
+    AlreadyPurchased,
     ApprovalCallback,
     CartBatchOutcome,
     CartCancelled,
@@ -467,9 +468,13 @@ class CartBrowserSession:
             )
             if isinstance(ready, CartResult):
                 return ready, unverified
-            count_before = await (
-                bandcamp._bandcamp_cart_count_async if store == "bandcamp" else beatport.cart_count_async
-            )(page)
+            if store == "beatport":
+                # the counter and the add control are right only once the account's cart has loaded
+                count_before = await beatport.settled_count_async(page)
+                if await beatport._in_cart_here(page, ready.product_id):
+                    return CartResult(item.track_key, item.track_label, store, "already_in_cart"), unverified
+            else:
+                count_before = await bandcamp._bandcamp_cart_count_async(page)
             await bandcamp._add_to_cart_async(page, ready, cancel)
             clicked = True
             outcome = await asyncio.wait_for(
@@ -490,6 +495,8 @@ class CartBrowserSession:
                 f"stage after {outcome.elapsed:.0f}s); it was not retried",
                 "cart_unverified",
             ), unverified
+        except AlreadyPurchased as exc:
+            return CartResult(item.track_key, item.track_label, store, "skipped", str(exc), "unavailable"), unverified
         except CartUnverified as exc:
             unverified += 1
             await bandcamp.save_cart_diagnostics(page, store, item.product_url, "cart_unverified")
