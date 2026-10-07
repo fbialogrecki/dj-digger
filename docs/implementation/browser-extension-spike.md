@@ -539,4 +539,11 @@ pliki (MP3 320 kbps, WAV 16 bit, MP3 320 kbps) skopiowane do folderu docelowego,
 wierszem (trzy karty na `hypeddit.com` naraz, przypisanie przez `download.expect`), w Pobranych nic
 nie zostało (`download.discard`).
 
+**F4b po poprawkach (2026-10-07 11:52–12:07):** partie 3, 2, 2 i 2 bramek (świeże:
+`gsdl00`, `markgreene/whentheysleepwedance`, `stretch/inthissilence`,
+`shibuya793/nightcrawlerremix`, `palouk/…`, `pragmaticuk/…`) — wszystkie pobrane, każda bramka we
+własnym dokumencie offscreen. Właściciel potwierdził: bez okna i bez karty; przy 12:02 jeszcze
+krótko grała muzyka z ostatniego etapu bramki (Hypeddit odtwarza kolejne utwory po Download), po
+uszczelnieniu `frame-main.js` (12:07) cisza.
+
 Środowisko: Fedora 44, GNOME / Wayland, Chromium 154 (RPM), Firefox (tylko W11), data 2026-10-06.

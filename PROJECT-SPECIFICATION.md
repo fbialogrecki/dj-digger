@@ -5,8 +5,8 @@
 - Product version verified: 1.4.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-10-07
-- Document lines: <!-- SPEC TOTAL LINES -->2204<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->2204<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->2208<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->2208<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -91,25 +91,25 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 10.2 · block | ↳ ↳ Network-write boundary | 1643–1648 |
 | 10.3 | ↳ Browsers and clipboard | 1649–1720 |
 | 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 1721–1773 |
-| 11 | Security requirements and threat model | 1774–1914 |
+| 11 | Security requirements and threat model | 1774–1918 |
 | 11.1 | ↳ Untrusted URLs and SSRF boundary | 1776–1794 |
 | 11.2 | ↳ Secret and personal-data handling | 1795–1810 |
 | 11.3 | ↳ File and mutation safety | 1811–1832 |
-| 11.4 | ↳ Browser-extension trust boundary | 1833–1914 |
-| 12 | Privacy, lifecycle, and retention | 1915–1967 |
-| 12.1 | ↳ Data stored locally | 1917–1941 |
-| 12.2 | ↳ Data sent to third parties | 1942–1954 |
-| 12.3 | ↳ User-controlled deletion | 1955–1967 |
-| 13 | Failure behavior and current limitations | 1968–2071 |
-| 13.1 | ↳ Error isolation and reporting | 1970–1991 |
-| 13.2 | ↳ Confirmed limitations | 1992–2071 |
-| 14 | Verification, CI, and release | 2072–2170 |
-| 14.1 | ↳ Offline and live test suites | 2074–2122 |
-| 14.2 | ↳ Continuous integration and publishing | 2123–2155 |
-| 14.3 | ↳ Specification-map verification | 2156–2170 |
-| 15 | Evidence and operational references | 2171–2204 |
-| 15.1 | ↳ Primary implementation evidence | 2173–2194 |
-| 15.2 | ↳ User and historical documentation | 2195–2204 |
+| 11.4 | ↳ Browser-extension trust boundary | 1833–1918 |
+| 12 | Privacy, lifecycle, and retention | 1919–1971 |
+| 12.1 | ↳ Data stored locally | 1921–1945 |
+| 12.2 | ↳ Data sent to third parties | 1946–1958 |
+| 12.3 | ↳ User-controlled deletion | 1959–1971 |
+| 13 | Failure behavior and current limitations | 1972–2075 |
+| 13.1 | ↳ Error isolation and reporting | 1974–1995 |
+| 13.2 | ↳ Confirmed limitations | 1996–2075 |
+| 14 | Verification, CI, and release | 2076–2174 |
+| 14.1 | ↳ Offline and live test suites | 2078–2126 |
+| 14.2 | ↳ Continuous integration and publishing | 2127–2159 |
+| 14.3 | ↳ Specification-map verification | 2160–2174 |
+| 15 | Evidence and operational references | 2175–2208 |
+| 15.1 | ↳ Primary implementation evidence | 2177–2198 |
+| 15.2 | ↳ User and historical documentation | 2199–2208 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -1858,7 +1858,11 @@ Python caller, enforces its own limits, whatever the application sends:
   `window.open` returns a closed stub and media `play()` only mutes, because the
   gate's follow, like and repost links open the artist on SoundCloud through
   `window.open` (which autoplays) and such a popup would not be an own tab (neither
-  muted nor closed); the page's own handler ticks the step either way. The frames
+  muted nor closed); the page's own handler ticks the step either way. Once Download
+  is pressed the gate plays other tracks, so media elements are muted as they appear
+  (and on `play`/`playing`), players embedded from other sites (SoundCloud widget,
+  YouTube, Spotify, Bandcamp, Vimeo) are removed before they load, and Web Audio
+  stays suspended. The frames
   also carry the autoplay policy `'none'`. The one `runtime.onConnect` listener
   admits two ports only: the offscreen document's (no tab, its own URL) and a
   frame's (no `sender.tab`, `sender.url` on the Hypeddit group, the random nonce of
