@@ -201,7 +201,7 @@ class Backend:
         return dict(key=t.key, title=t.title, artist=t.artist, genre=t.genre_label,
                     bpm=t.bpm or '', keySignature=t.key_signature, classicKey=classic, camelot=camelot, year=t.release_year or '',
                     label=t.label_name, duration=t.duration, status=self.services.state.get(t.key),
-                    stores=', '.join(row.categories), local=bool(t.local_path), path=t.local_path or self.preview_paths.get(t.key, ''),
+                    stores=', '.join(row.categories), storeNames=', '.join(row.names), local=bool(t.local_path), path=t.local_path or self.preview_paths.get(t.key, ''),
                     search=row.haystack)
 
     async def refresh_rows(self):

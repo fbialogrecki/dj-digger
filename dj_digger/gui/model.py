@@ -57,7 +57,7 @@ class TrackModel(QAbstractTableModel):
     def roleNames(self):
         return {Qt.DisplayRole: b'display', Qt.UserRole: b'trackKey', Qt.UserRole + 1: b'chosen',
                 Qt.UserRole + 2: b'status', Qt.UserRole + 3: b'progress', Qt.UserRole + 4: b'local',
-                Qt.UserRole + 5: b'camelot'}
+                Qt.UserRole + 5: b'camelot', Qt.UserRole + 6: b'stores'}
 
     def rowCount(self, parent=QModelIndex()):
         return 0 if parent.isValid() else len(self.visible)
@@ -81,6 +81,8 @@ class TrackModel(QAbstractTableModel):
             return bool(row.get('local'))
         if role == Qt.UserRole + 5:
             return row.get('camelot', '')
+        if role == Qt.UserRole + 6:
+            return row.get('stores', '')
         if role == Qt.DisplayRole:
             name = COLUMNS[index.column()]
             value = row.get(name, '')
@@ -91,6 +93,8 @@ class TrackModel(QAbstractTableModel):
                     return self.tr('\u2717 Failed') if done < 0 else f"{done * 100:.0f}%"
                 label = STATUS_LABELS.get(value, value)
                 return self.tr(label) if label else ''
+            if name == 'stores':
+                return row.get('storeNames', value)  # the filter keeps the categories
             if name == 'duration':
                 return clock(int(value or 0) // 1000)
             if name == 'bpm' and value != '':

@@ -890,6 +890,23 @@ def test_model_counts_store_summary_and_status_labels(app):
     assert model.keys() == []
 
 
+def test_a_gate_reads_as_its_site_while_the_filter_keeps_the_gate_category(app):
+    from dj_digger import links
+    from dj_digger.models import LinkRecord, Track
+    from dj_digger.rows import Row
+    track = Track('T', 'https://soundcloud.com/a/t')
+    records = [LinkRecord('gate', track, 'https://www.toneden.io/a/post/t', ''),
+               LinkRecord('bandcamp', track, 'https://a.bandcamp.com/track/t', ''),
+               LinkRecord('gate', track, 'https://gate.example/t', '')]
+    assert Row(0, track, records).names == ['ToneDen', 'bandcamp', 'gate']
+    assert links.gate_name('https://hypd.it/x') == 'Hypeddit'
+    model = TrackModel()
+    model.replace([{**row('a', 'Alpha'), 'stores': 'gate, bandcamp', 'storeNames': 'Hypeddit, bandcamp'}])
+    assert model.data(model.index(0, 9)) == 'Hypeddit, bandcamp'
+    assert model.data(model.index(0, 9), Qt.UserRole + 6) == 'gate, bandcamp'
+    assert dict(name='gate', count=1) in model.store_counts()
+
+
 def keyed(key, title, key_signature, bpm=120):
     from dj_digger.analysis import key_names
     classic, camelot = key_names(key_signature) or ('', '')

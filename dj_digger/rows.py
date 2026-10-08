@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 
+from . import links
 from .models import LinkRecord, Track
 
 
@@ -17,6 +18,15 @@ class Row:
     @property
     def categories(self) -> list[str]:
         return [record.category for record in self.records]
+
+    @property
+    def names(self) -> list[str]:
+        """The categories as the table shows them: a gate by its site's name."""
+
+        return [
+            links.gate_name(record.link_url) if record.category == "gate" else record.category
+            for record in self.records
+        ]
 
     @property
     def haystack(self) -> str:

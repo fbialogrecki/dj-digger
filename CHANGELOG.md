@@ -24,6 +24,8 @@
 
 ### Added
 
+- The Stores column names each track's gate site (Hypeddit, ToneDen, …)
+  instead of a generic "gate"; the store filter still groups all gates.
 - The dj-digger browser extension (Manifest V3, one code base for Chrome-family
   browsers and Firefox), a `dj-digger-host` Native Messaging relay (a console
   script, and a console executable beside the GUI in the installers) and the

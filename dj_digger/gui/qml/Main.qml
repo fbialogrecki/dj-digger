@@ -1554,6 +1554,7 @@ ApplicationWindow {
                         required property bool local
                         required property string trackKey
                         required property string camelot
+                        required property string stores
                         required property int row
                         required property int column
                         readonly property bool playing: desktop.audioKey === trackKey
@@ -1657,12 +1658,14 @@ ApplicationWindow {
                             anchors.fill: parent; anchors.margins: 6; spacing: 4; clip: true
                             Repeater {
                                 // "no-link" is the absence of a store, so it leaves the cell empty.
-                                model: cell.column === 9 ? cell.display.split(", ").filter(s => s && s !== "no-link") : []
+                                // A gate badge names its site; its category (same position) picks the colour.
+                                model: cell.column === 9 ? cell.display.split(", ").map((name, i) => ({ name: name, category: cell.stores.split(", ")[i] }))
+                                                           .filter(s => s.name && s.category !== "no-link") : []
                                 Rectangle {
-                                    required property string modelData
+                                    required property var modelData
                                     width: badge.implicitWidth + 10; height: 22; radius: 4
                                     color: cell.chosen ? root.panel : root.alternate
-                                    Label { id: badge; anchors.centerIn: parent; text: parent.modelData; font.pixelSize: 12; color: root.storeColor(parent.modelData) }
+                                    Label { id: badge; anchors.centerIn: parent; text: parent.modelData.name; font.pixelSize: 12; color: root.storeColor(parent.modelData.category) }
                                 }
                             }
                         }

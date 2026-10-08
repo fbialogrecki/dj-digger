@@ -185,6 +185,26 @@ def is_toneden_url(url: str) -> bool:
     return is_openable(url) and host_of(url) == "toneden.io"
 
 
+# What the table calls each gate site: one "gate" filter, but a row says whose gate it is.
+GATE_NAMES = {
+    "hypeddit.com": "Hypeddit",
+    "hypd.it": "Hypeddit",
+    "toneden.io": "ToneDen",
+    "gaterush.me": "GateRush",
+    "droploud.com": "Droploud",
+    "wump.io": "Wump",
+    "theartistunion.com": "Artist Union",
+    "pumpyoursound.com": "PumpYourSound",
+    "hitsdistrict.com": "HitsDistrict",
+    "click.dj": "click.dj",
+}
+
+
+def gate_name(url: str) -> str:
+    host = host_of(url)
+    return next((name for domain, name in GATE_NAMES.items() if host_matches(host, domain)), "gate")
+
+
 def host_matches(host: str, domain: str) -> bool:
     """Match on domain boundaries, so evil-bandcamp.com.attacker.net does not."""
 
