@@ -431,12 +431,17 @@ class Backend:
                 # Nothing of the browser is shown unless the person asks for it here (plan Z2).
                 async def question():
                     gates = '\n'.join(labels.get(key, key) + ': ' + reason for key, reason in reasons.items())
-                    answer = await self.ask('Gates need you', 'These gates want something only you can do, '
-                                            'such as a login or a CAPTCHA.',
-                                            [field('gates', '', gates, 'log'),
-                                             field('next', 'Next step', 'open', 'choice',
-                                                   [['open', 'Open them in the browser'], ['skip', 'Skip them for now']])],
-                                            handle.cancel, ok='Continue')
+                    try:
+                        answer = await self.ask('Gates need you', 'These gates want something only you can do, '
+                                                'such as a login or a CAPTCHA.',
+                                                [field('gates', '', gates, 'log'),
+                                                 field('next', 'Next step', 'open', 'choice',
+                                                       [['open', 'Open them in the browser'], ['skip', 'Skip them for now']])],
+                                                handle.cancel, ok='Continue')
+                    except Cancelled:
+                        # The dialog's Cancel stops the whole download, not just this question.
+                        self.services.operations.cancel(handle)
+                        raise
                     return answer['next'] == 'open'
                 return asyncio.run_coroutine_threadsafe(question(), self.loop).result()
             put, flushing = self.progress_batch(values)
@@ -481,7 +486,7 @@ class Backend:
     async def download_results(self, remote, failed, left, browser_used, cancel):
         """What a gate batch could not get, and what to do about it (plan Z3): the items to run again."""
         keys = list(failed) + [key for key in left if key not in failed]
-        if not keys:
+        if not keys or is_cancelled(cancel):  # a cancelled download ends without another question
             return []
         by_key = {track.key: (track, url) for track, url in remote}
         lines = [by_key[key][0].label + ': ' + failed.get(key, 'not started; run it again')

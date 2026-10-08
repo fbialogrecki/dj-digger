@@ -378,6 +378,50 @@ def test_failed_downloads_end_in_results_with_retry_or_open(backend, tmp_path, c
         assert calls == [row.track.key] and opened == [row.track.permalink_url]
 
 
+def test_cancel_in_gates_need_you_stops_the_whole_download(backend, tmp_path):
+    from dj_digger.gate_models import GateCaptchaRequired
+    from dj_digger.models import LinkRecord
+    from dj_digger.services.downloads import FileBatchResult
+
+    worker, events = backend
+    from dj_digger.soundcloud import SoundCloudError
+
+    worker.rows = online_rows(2)
+    worker.services.config.download_directory = str(tmp_path)
+    worker.services.config.first_run = False
+    row, gone = worker.rows
+    row.records = [LinkRecord('gate', row.track, 'https://hypeddit.com/track/abc', '')]
+    row.track.purchase_url = 'https://hypeddit.com/track/abc'
+    gone.track.downloadable = gone.track.has_downloads_left = True
+
+    class Client:
+        def download_track(self, track, directory, **kwargs):
+            if track.key == gone.track.key:
+                raise SoundCloudError('the gate page no longer exists')
+            raise GateCaptchaRequired('Hypeddit CAPTCHA requires browser completion')
+
+        def close(self):
+            pass
+
+    def finish_gates(items, directory, cancel, *, config, status=None, attend=None):
+        attend({key: 'the gate wants a CAPTCHA solved' for key in (t.key for t, _url in items)})
+        return FileBatchResult()
+
+    worker.services._client = Client()
+    worker.services.downloads.finish_gates = finish_gates
+    worker.submit('download', {'keys': [row.track.key, gone.track.key], 'generation': worker.generation})
+    question = wait_event(events, 'question')
+    assert question['title'] == 'Gates need you'
+    worker.answer(question['id'], None)
+    asked = []
+    while True:
+        kind, value = events.get(timeout=10)
+        asked += [value['title']] if kind == 'question' else []
+        if kind == 'busy' and not value['value']:
+            break
+    assert asked == [], "no Download results after Cancel"
+
+
 def test_form_reopens_with_entered_values_until_valid(backend, tmp_path):
     worker, events = backend
     # Settings validation keeps what was typed instead of dropping the dialog.

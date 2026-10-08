@@ -127,6 +127,9 @@
 
 ### Fixed
 
+- Cancel in "Gates need you" only closed that question: the download went on
+  and ended in "Download results". It now stops the whole download, and a
+  cancelled download (also from the status bar) asks nothing more.
 - A failed row in a running download showed "-100%" in its Status cell; it now
   says "✗ Failed".
 - A Hypeddit gate whose step timed out in the background (a slow page) asked

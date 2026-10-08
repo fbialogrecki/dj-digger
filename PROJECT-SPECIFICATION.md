@@ -1627,7 +1627,7 @@ to the tab that had just fetched it. A row whose step only a person can finish
 the profile lacks, a page without known controls, a download the browser
 holds back) is deferred. Offscreen, a row deferred by an error instead (a control that did not appear in time) first gets one more offscreen document of its own and is deferred only if that fails too. When the hidden pass ends with deferred rows, nothing is
 shown until the caller agrees: the desktop asks "Gates need you" with each row's
-reason and Open them in the browser / Skip them for now; skipped rows fail as manual
+reason and Open them in the browser / Skip them for now (its Cancel cancels the whole download, which then asks nothing more); skipped rows fail as manual
 actions with their reason (a caller without that question, such as a single-gate
 download, goes on as follows). Then the tabs of settled rows and
 every popup are closed, each deferred row's tab is reloaded in place at its gate,
