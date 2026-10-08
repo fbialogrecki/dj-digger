@@ -513,6 +513,7 @@ class _TabWatch:
         self.failures = failures
         self.completed: dict[str, Path] = {}
         self.deferred: dict[str, str] = {}
+        self.unsure: set[str] = set()  # deferred by an error rather than by a step that wants a person
         self.tabs: dict[str, Any] = {}  # each row's own tab; its popups are only owned
         self.turn = _DownloadTurn()
         # Set by each pass: whether it runs offscreen, who is at the window, and where to tell them.
@@ -715,6 +716,8 @@ def _drive_tab(
                 status(f"{watch.label(key)}: {reason}; finish it in the browser window")
         else:
             watch.deferred[key] = reason
+            if not isinstance(exc, _NeedsPerson):
+                watch.unsure.add(key)  # a slow page or a missed control, not a login: worth one more go
     return False
 
 
@@ -914,20 +917,27 @@ def _browser_batch(
         # start one download by itself; Chrome's download request limiter holds the next for a
         # prompt that nobody sees in an offscreen document (all its frames are one page to it).
         for key in pending:
-            with webpage.session(visible=False, offscreen=True) as context:
-                context.on("page", watch.watch_popup)
-                if not getattr(context, "offscreen", False):  # Firefox: no offscreen documents
-                    return _window_batch(
-                        context, watch, pending, status,
-                        social=social, email=email, name=name, time_limit=time_limit, attend=attend,
-                    )
-                if _browser_pass(
-                    context, watch, {key: pending[key]}, status,
-                    hidden=True, social=social, email=email, name=name, time_limit=None,
-                ):
-                    return True
-                reasons.update(watch.deferred)
-                watch.deferred = {}
+            for retry in (True, False):
+                with webpage.session(visible=False, offscreen=True) as context:
+                    context.on("page", watch.watch_popup)
+                    if not getattr(context, "offscreen", False):  # Firefox: no offscreen documents
+                        return _window_batch(
+                            context, watch, pending, status,
+                            social=social, email=email, name=name, time_limit=time_limit, attend=attend,
+                        )
+                    if _browser_pass(
+                        context, watch, {key: pending[key]}, status,
+                        hidden=True, social=social, email=email, name=name, time_limit=None,
+                    ):
+                        return True
+                # An error (a timeout on a slow page) gets a second offscreen go before a person is
+                # asked; a login or a CAPTCHA does not.
+                if not (retry and key in watch.unsure):
+                    break
+                watch.unsure.discard(key)
+                del watch.deferred[key]
+            reasons.update(watch.deferred)
+            watch.deferred = {}
         if not reasons or not _attended(watch, reasons, attend):
             return False
         if status is not None:

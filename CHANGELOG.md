@@ -115,6 +115,13 @@
 
 ### Fixed
 
+- A failed row in a running download showed "-100%" in its Status cell; it now
+  says "✗ Failed".
+- A Hypeddit gate whose step timed out in the background (a slow page) asked
+  "Gates need you" at once; it now gets one more background try first. A
+  timeout names the control it waited for.
+- A ToneDen or other non-Hypeddit gate said "press 'o' to open"; it now names
+  the site and says to open the link in the browser.
 - Beatport: a click made before the page had loaded your cart did nothing, and
   the counter then jumping to your real cart size was taken as a verified add
   (seen live: tracks reported "in Beatport cart" that were not). The counter is

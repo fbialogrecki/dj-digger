@@ -128,12 +128,15 @@
       return set.filter((n) => n.nodeType === 1);
     };
 
+    // What the wait was for, so a failure report names the control and not just "element".
+    const described = () =>
+      (spec.locator || []).map((s) => s.css ?? s.xpath ?? s.role ?? s.text ?? s.placeholder).filter((v) => typeof v === "string").join(" >> ") || "element";
     const waitFor = async (probe) => {
       for (;;) {
         if (cancelled()) throw err("cancelled", "command cancelled");
         const v = probe();
         if (v) return v;
-        if (Date.now() >= deadline) throw err("timeout", `timeout ${spec.timeoutMs}ms waiting for element`);
+        if (Date.now() >= deadline) throw err("timeout", `timeout ${spec.timeoutMs}ms waiting for ${described()}`);
         await sleep(50);
       }
     };

@@ -330,8 +330,10 @@ class SoundCloudClient:
 
         if not download_url:
             if gate_url:
+                # Only Hypeddit gates go on to the browser extension; say whose gate this was.
+                host = (urlparse(gate_url).hostname or "this site").removeprefix("www.")
                 raise SoundCloudError(
-                    "Gate link requires browser completion - press 'o' to open"
+                    f"{host} gates cannot be finished automatically; open the link in the browser"
                 )
             raise SoundCloudError("This track has no active direct download or resolved gate link")
         return download_url, gate_derived

@@ -1668,6 +1668,10 @@
       <source>✗ Skipped</source>
       <translation>✗ Pominięty</translation>
     </message>
+    <message>
+      <source>✗ Failed</source>
+      <translation>✗ Nieudane</translation>
+    </message>
     <message><source>Selected tracks</source><translation>Zaznaczone utwory</translation></message>
     <message><source>Other</source><translation>Inne</translation></message>
     <message><source>Rename file (folder views)</source><translation>Zmień nazwę pliku (widoki folderów)</translation></message>

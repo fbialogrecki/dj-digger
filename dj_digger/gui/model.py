@@ -86,7 +86,9 @@ class TrackModel(QAbstractTableModel):
             value = row.get(name, '')
             if name == 'status':
                 if row['key'] in self.progress:
-                    return f"{self.progress[row['key']] * 100:.0f}%"
+                    # -1 is the batch's "settled without a file"; the bar hides, the cell says so.
+                    done = self.progress[row['key']]
+                    return self.tr('\u2717 Failed') if done < 0 else f"{done * 100:.0f}%"
                 label = STATUS_LABELS.get(value, value)
                 return self.tr(label) if label else ''
             if name == 'duration':

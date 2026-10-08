@@ -441,7 +441,7 @@ out of the browser's download folder through the same validation and then delete
 there (§10.2). Completed downloads store their local path and mark
 the track `got`. While a batch runs, each row shows its own state in the desktop:
 the transfer's progress, a half bar while it is handed to the browser pass or a
-prerequisite, a full bar once its file is in, and nothing again when it failed;
+prerequisite, a full bar once its file is in, and no bar with "✗ Failed" in its Status cell when it failed;
 statuses are refreshed when the batch ends. No browser window or tab appears for
 a gate unless the user opens one (§10.2). A batch with failed rows, or rows it
 handed on and never started (more gates than one browser batch takes), ends in a
@@ -1619,7 +1619,7 @@ a block or a failure, or 15 seconds pass, because the extension attributes a fil
 to the tab that had just fetched it. A row whose step only a person can finish
 (a provider still asking for a login, a CAPTCHA, a placeholder email, a name
 the profile lacks, a page without known controls, a download the browser
-holds back) is deferred. When the hidden pass ends with deferred rows, nothing is
+holds back) is deferred. Offscreen, a row deferred by an error instead (a control that did not appear in time) first gets one more offscreen document of its own and is deferred only if that fails too. When the hidden pass ends with deferred rows, nothing is
 shown until the caller agrees: the desktop asks "Gates need you" with each row's
 reason and Open them in the browser / Skip them for now; skipped rows fail as manual
 actions with their reason (a caller without that question, such as a single-gate

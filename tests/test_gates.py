@@ -1443,6 +1443,28 @@ def test_other_provider_logins_are_still_deferred_offscreen(tmp_path, monkeypatc
     assert gate_browser.GATE_CONNECT_BUTTON not in [sel for _kind, sel in launches[0][1].made[0].clicked]
 
 
+def test_a_step_that_times_out_offscreen_gets_one_more_offscreen_go_before_anyone_is_asked(tmp_path, monkeypatch):
+    timed_out = []
+
+    class Page(_GatePage):
+        def click(self, selector, slide):
+            if selector == gate_browser.GATE_NEXT_BUTTON and not timed_out:
+                timed_out.append(selector)
+                raise TimeoutError("timeout 15000ms waiting for .button-next:visible")
+            super().click(selector, slide)
+
+    launches = _gate_browser(monkeypatch, lambda ctx: Page(ctx, steps=("yt", "dw")), offscreen=True)
+    asked = []
+
+    result = gate_browser.download_hypeddit_batch_in_browser(
+        [(_track(), _GATE)], tmp_path, None, config=_DJ, attend=lambda reasons: asked.append(reasons) or False,
+    )
+
+    assert timed_out and asked == []
+    assert [hidden for hidden, _context in launches] == [True, True], "no window, two offscreen goes"
+    assert result.failures == () and [key for key, _path in result.completed] == ["7"]
+
+
 def test_a_gate_the_offscreen_frame_cannot_open_is_tried_in_a_window(tmp_path, monkeypatch):
     class Page(_GatePage):
         def goto(self, url, **kwargs):
