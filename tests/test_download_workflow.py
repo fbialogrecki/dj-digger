@@ -167,3 +167,21 @@ def test_workflow_reports_published_but_unrecorded_path_without_retransfer(tmp_p
         assert result.path.read_bytes() == b'audio'
         assert calls == ['1']
         services.operations.finish(handle)
+
+
+def test_toneden_rows_go_to_the_browser_pass_and_gone_gates_fail_at_once():
+    from dj_digger.gate_models import GateAuthenticationRequired, GateUnavailable
+    from dj_digger.services.downloads import _BatchProgress
+
+    one, two, three = (Track(id=i, title=str(i), permalink_url=f"https://soundcloud.com/a/{i}") for i in (1, 2, 3))
+    progress = _BatchProgress(total=3)
+    live = GateAuthenticationRequired("ToneDen unlocks the download only for a fan signed in")
+
+    def record(track, url, error):
+        return progress.record(track, url, "failed", error, False, retry_prerequisites=True)
+
+    assert record(one, "https://www.toneden.io/badcomputer/post/bad-computer-4me", live) == "waiting"
+    assert record(two, "https://toneden.io/ilovedjcj/post/wish", GateUnavailable("the gate page no longer exists")) == "failed"
+    assert record(three, "https://gaterush.me/x", live) == "failed"  # no browser driver for it
+    assert [track.key for track, _url in progress.browser_items] == ["1"]
+    assert progress.failed == 2 and progress.failure_groups == {"protocol": 1, "auth": 1}

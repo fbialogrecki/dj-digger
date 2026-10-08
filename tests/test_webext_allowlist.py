@@ -58,11 +58,22 @@ def test_hypeddit_hosts_mirror_links_py():
     assert group["subdomains"] is False
 
 
+def test_toneden_hosts_mirror_links_py():
+    group = GROUPS["toneden"]
+    assert group["hosts"] == ["toneden.io"]  # links.is_toneden_url: host_of(url) == "toneden.io"
+    assert group["www"] is True and group["subdomains"] is False
+    assert group["forbiddenPaths"] == [] and "allowedPaths" not in group
+
+
+def test_only_the_gates_run_in_offscreen_frames():
+    assert {name for name, group in GROUPS.items() if group.get("frames")} == {"hypeddit", "toneden"}
+
+
 def test_store_hosts_mirror_store_urls_py():
     for store, domain in store_urls.STORE_HOSTS.items():
         assert GROUPS[store]["hosts"] == [domain]
         assert GROUPS[store]["subdomains"] is True
-    assert set(GROUPS) == {"hypeddit", "soundcloud", *store_urls.STORE_HOSTS}
+    assert set(GROUPS) == {"hypeddit", "toneden", "soundcloud", *store_urls.STORE_HOSTS}
 
 
 def test_soundcloud_is_signin_only_and_never_scripted():
@@ -89,6 +100,10 @@ def test_soundcloud_is_signin_only_and_never_scripted():
         "https://beatport.com/",
         "https://notbeatport.com/",
         "https://soundcloud.com/signin",
+        "https://toneden.io/a/post/b",
+        "https://www.toneden.io/auth/soundcloud",
+        "https://sd.toneden.io/production/v2/toneden.js",
+        "https://toneden.io.evil.net/",
         "https://example.com/",
         "https://user:pw@bandcamp.com/",
         "https://bandcamp.com:8443/",
@@ -100,6 +115,7 @@ def test_allowlist_agrees_with_the_python_url_checks(url):
     plain = parsed.scheme == "https" and not (parsed.username or parsed.password or parsed.port)
     python_says = plain and (
         links.is_hypeddit_url(url)
+        or links.is_toneden_url(url)
         or store_urls.is_store_url(url, "bandcamp")
         or store_urls.is_store_url(url, "beatport")
         or links.host_of(url) == "soundcloud.com"
@@ -204,12 +220,13 @@ def test_the_frame_script_is_inert_outside_the_offscreen_document():
     assert source.index("ancestorOrigins") < source.index("runtime.connect(")
 
 
-def test_the_frame_script_is_registered_dynamically_for_hypeddit_only():
+def test_the_frame_script_is_registered_dynamically_for_the_gate_hosts_only():
     background = (EXTENSION / "background.js").read_text(encoding="utf-8")
     assert "content_scripts" not in MANIFEST
     assert background.count("scripting.registerContentScripts(") == 1
     start = background.index("async function startOffscreen")
-    assert "allow.groups.hypeddit" in background[start : background.index("scripting.registerContentScripts(")]
+    registering = background[start : background.index("scripting.registerContentScripts(")]
+    assert "filter((g) => g.frames)" in registering  # see test_only_the_gates_run_in_offscreen_frames
     assert 'js: ["dom.js", "frame.js"]' in background
     assert 'js: ["frame-main.js"]' in background  # page world: no popups, no sound
 

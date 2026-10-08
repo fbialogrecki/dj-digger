@@ -192,7 +192,10 @@
       // The page has done its part by then (the step is ticked), so neither is followed.
       const a = el.closest("a[href]");
       const stop = (e) => e.target === el && e.preventDefault();
-      const quiet = a && (a.target === "_blank" || /^javascript:/i.test(a.getAttribute("href")));
+      // In a gate frame of the offscreen document, a link aimed at the top or parent would replace that
+      // document (ToneDen's sign-in links are target="_top"): its page handler runs, the link does not.
+      const out = window.top !== window && (a?.target === "_top" || a?.target === "_parent");
+      const quiet = a && (out || a.target === "_blank" || /^javascript:/i.test(a.getAttribute("href")));
       if (quiet) window.addEventListener("click", stop);
       try {
         fire(el, "click", { ...base, buttons: 0 });

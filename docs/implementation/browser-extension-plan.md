@@ -751,6 +751,27 @@ Zadania:
       wyrównanie do 1 s (≤ 1 s na czekanie), bez intensywnego throttlingu przez 6,6 min — plan B
       niepotrzebny.
 
+### F11. Gate'y ToneDen w tle (zgoda właściciela 2026-10-08, w tym `toneden.io` w allowliście)
+
+Rozpoznanie (tylko odczyt, publiczny JS ToneDen) w spike'u, sekcja „ToneDen”. Zasady Z1–Z6 bez zmian.
+
+- [x] HTTP: resolver ToneDen czyta `api/v1/posts`; 404/410 → „the gate page no longer exists”
+      (bez przeglądarki i bez pytania), inaczej `GateAuthenticationRequired` → przebieg w
+      przeglądarce jak Hypeddit (`_finished_in_browser`). Dowolna inna bramka bez pliku: jeden
+      GET z walidacją przekierowań, 404/410 → to samo (Artist Union).
+- [x] Rozszerzenie: grupa `toneden` (`toneden.io`, `www.`), grupy z `"frames": true` dostają skrypty
+      ramek i port; z ramki ToneDen wolno otworzyć tylko `/auth/soundcloud|spotify` i
+      `/api/v1/attachments/<id>/download` (nieaktywna, wyciszona karta); stub `window.open` na
+      ToneDen „otwarty”, `alert()` w ramkach wyłączony, ramki `no-referrer`, linki `_top`/`_parent`
+      w ramce nie nawigują; `code`/`state`/`jwt`/`token` usuwane z URL-i w zdarzeniach.
+- [x] Aplikacja: `_drive_toneden_steps` (duży przycisk → krok → logowanie w karcie → powrót na
+      ToneDen → przeładowanie ramki → plik w karcie), reszta (odroczenie, „Gates need you”,
+      zapis pliku) wspólna z Hypeddit.
+- [x] Testy: `test_gates.py` (offscreen bez okna i pytania, logowanie czekające → pytanie, okno po
+      zgodzie, wycofana zgoda, 404), `test_download_workflow.py` (routing), harness (port ramki
+      ToneDen, dozwolone/odrzucone popupy, redakcja, przypisanie pobrania).
+- [ ] Na żywo: patrz checklista GATE-14; otwarte pytania w spec §13.2.
+
 ## 7. Testy
 
 | Poziom | Co | Gdzie / marker |

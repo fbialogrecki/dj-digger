@@ -392,6 +392,14 @@ that was authorized once before acts on that account. Turn off **Allow social ac
 in Settings to keep the program from reporting or clicking any social step at all. Gates requiring those actions
 will then remain manual.
 
+ToneDen gates (`toneden.io/<artist>/post/<slug>`) go the same way: out of sight the
+extension presses the gate's follow/repost (SoundCloud) or follow/save (Spotify) button;
+ToneDen's sign-in opens as a muted, inactive tab that closes by itself once it is back at
+ToneDen, and the file arrives in the app. If your browser is not signed in to that
+provider, or the provider wants you to approve ToneDen first, the app asks ("Gates need
+you"); the approval itself is always yours to click. A gate whose page no longer exists is
+reported as such and never opened.
+
 ---
 
 ## 🎧 In-Memory Streaming & Waveform Engine

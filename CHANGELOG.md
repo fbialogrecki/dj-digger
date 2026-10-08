@@ -65,6 +65,16 @@
   sign-in opens as a muted, inactive tab of your browser window and closes once
   Hypeddit has it, so with Spotify signed in (and Hypeddit authorised once) no
   window appears. Other provider logins still ask first.
+- ToneDen gates (`toneden.io/<artist>/post/<slug>`) now download in the
+  background through the browser extension, like Hypeddit gates: the gate runs
+  in an offscreen frame, its follow/repost (SoundCloud) or follow/save (Spotify)
+  button is pressed, ToneDen's own sign-in opens as a muted, inactive tab that
+  closes once it is back at ToneDen, and the file arrives in the row. A sign-in
+  that waits for you (not signed in, or ToneDen not yet approved at the
+  provider) is asked about in "Gates need you"; the provider's own approval
+  button is never pressed for you. The extension now also works on
+  `toneden.io` (a new host permission: reload the unpacked extension, and in
+  Firefox grant it on the extension's page).
 
 ### Changed
 
@@ -122,6 +132,13 @@
   timeout names the control it waited for.
 - A ToneDen or other non-Hypeddit gate said "press 'o' to open"; it now names
   the site and says to open the link in the browser.
+- A gate whose page no longer exists (a removed ToneDen post, an Artist Union
+  track that answers 404) now fails at once with "the gate page no longer
+  exists" instead of "open it in the browser", and is never handed to the
+  browser or asked about.
+- Gate frames no longer tell the gate site the extension's address as their
+  referrer, and an OAuth `code`/`state` or a ToneDen `jwt` in a gate-site URL
+  no longer reaches the app's events or logs.
 - Beatport: a click made before the page had loaded your cart did nothing, and
   the counter then jumping to your real cart size was taken as a verified add
   (seen live: tracks reported "in Beatport cart" that were not). The counter is

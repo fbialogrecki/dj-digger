@@ -139,6 +139,12 @@ def _is_hypeddit(url: str | None) -> bool:
     return bool(url) and links_module.is_hypeddit_url(url)
 
 
+def _finished_in_browser(url: str | None) -> bool:
+    """A gate the browser extension can carry on with when the HTTP flow cannot."""
+
+    return _is_hypeddit(url) or bool(url) and links_module.is_toneden_url(url)
+
+
 def downloadable(track: Track, gate_url: str | None) -> bool:
     """Whether there is anything to fetch: a free download, a direct file or a gate."""
 
@@ -197,7 +203,7 @@ class _BatchProgress:
             self.profile_items.append((track, gate_url))
         elif retry_prerequisites and isinstance(result, soundcloud.SoundCloudLoginRequired):
             self.auth_items.append((track, gate_url))
-        elif isinstance(result, gate_models.BROWSER_REQUIRED_ERRORS) and _is_hypeddit(gate_url):
+        elif isinstance(result, gate_models.BROWSER_REQUIRED_ERRORS) and _finished_in_browser(gate_url):
             if len(self.browser_items) < BROWSER_BATCH_MAX:
                 self.browser_items.append((track, gate_url))
                 self.browser_reasons[track.key] = str(result)

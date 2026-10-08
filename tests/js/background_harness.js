@@ -321,7 +321,8 @@ async function start(fake = fakeBrowser()) {
   assert.equal(x.off.opts.reasons[0], "IFRAME_SCRIPTING");
   assert.equal(x.wins.size, 0); // no browser window at all
   const [script, main] = x.off.scripts;
-  assert.deepEqual(script.matches, ["https://hypeddit.com/*", "https://www.hypeddit.com/*", "https://hypd.it/*", "https://www.hypd.it/*"]);
+  assert.deepEqual(script.matches, ["https://hypeddit.com/*", "https://www.hypeddit.com/*", "https://hypd.it/*", "https://www.hypd.it/*",
+    "https://toneden.io/*", "https://www.toneden.io/*"]); // the "frames" groups: the gates
   assert.deepEqual([script.js, script.allFrames, script.persistAcrossSessions], [["dom.js", "frame.js"], true, false]);
   // the page-world part (no popups, no sound) runs before the gate's own scripts, on the same hosts
   assert.deepEqual([main.js, main.world, main.runAt, main.matches], [["frame-main.js"], "MAIN", "document_start", script.matches]);
@@ -405,7 +406,8 @@ async function start(fake = fakeBrowser()) {
     fakePort("no-such-nonce", { url: url2 }),
     fakePort("", { url: url2 }),
     fakePort(nonce2, { frameId: 0, url: url2, tab: { id: 9 } }), // a tab of the user's own
-    fakePort(nonce2, { url: "https://bandcamp.com/x" }), // allowlisted, but not Hypeddit
+    fakePort(nonce2, { url: "https://bandcamp.com/x" }), // allowlisted, but not a gate
+    fakePort(nonce2, { url: "https://toneden.io.evil.example/" }),
     fakePort(nonce2, { url: "https://evil.example/" }),
     fakePort(nonce2, { url: "https://hypeddit.com.evil.example/" }),
     fakePort(nonce2, { url: "https://soundcloud.com/signin" }),
@@ -521,8 +523,9 @@ async function start(fake = fakeBrowser()) {
   const fport = connectFrame(x, spTab, GATE);
   await tick();
   const SPOTIFY = "https://accounts.spotify.com/authorize?client_id=x&redirect_uri=https%3A%2F%2Fhypeddit.com%2Fspotify_callback&state=s";
+  const TD_AUTH = "https://www.toneden.io/auth/soundcloud?fanOptOut=true&redirectPostID=5834468&userType=fan&spotlightTrackID=5834468&clientAuth=true";
   for (const url of ["https://soundcloud.com/artist", "https://accounts.spotify.com/authorize?redirect_uri=https%3A%2F%2Fevil.example%2F",
-    "javascript:alert(1)", SPOTIFY]) fport.onMessage.fire({ op: "open", url });
+    "javascript:alert(1)", TD_AUTH, SPOTIFY]) fport.onMessage.fire({ op: "open", url }); // ToneDen's are a ToneDen frame's
   await tick();
   const [signIn] = x.events("tab.created");
   assert.equal(x.events("tab.created").length, 1);
@@ -531,6 +534,45 @@ async function start(fake = fakeBrowser()) {
   assert.equal(signIn.url, "https://accounts.spotify.com/"); // the OAuth state never leaves in an event
   await x.call("window.close", { windowId: sp.windowId });
   assert.equal(x.tabs.has(signIn.tabId), false);
+
+  // a framed ToneDen gate may open ToneDen's own sign-in start and its unlocked file as inactive tabs of
+  // the person's window, nothing else; credentials in their URLs never leave in an event, and the file's
+  // download is that tab's (seen by webRequest on the ToneDen host before its redirect to a CDN)
+  x = await start();
+  x.user.window = (await x.api.windows.create()).id;
+  const td = await opened(x);
+  const TD_GATE = "https://www.toneden.io/badcomputer/post/bad-computer-4me";
+  const tdTab = await newVirtual(x, td.windowId, TD_GATE);
+  await tick();
+  const tport = connectFrame(x, tdTab, TD_GATE);
+  await tick();
+  assert.equal(tport.disconnected, false);
+  const TD_FILE = "https://www.toneden.io/api/v1/attachments/5834468/download?jwt=secret";
+  for (const url of [SPOTIFY, "https://www.toneden.io/auth/facebook", "https://www.toneden.io/auth/soundcloud/callback",
+    "https://www.toneden.io/badcomputer/post/x", "https://www.toneden.io/api/v1/attachments/x/download",
+    "https://evil.example/auth/soundcloud", "https://toneden.io.evil.example/auth/soundcloud",
+    "https://www.toneden.io:8443/auth/soundcloud", "http://www.toneden.io/auth/soundcloud",
+    "https://user@www.toneden.io/auth/soundcloud", "https://soundcloud.com/connect", TD_AUTH, TD_FILE]) {
+    tport.onMessage.fire({ op: "open", url });
+  }
+  await tick();
+  const [tdAuth, tdFile] = x.events("tab.created");
+  assert.equal(x.events("tab.created").length, 2);
+  assert.deepEqual([tdAuth.url, tdFile.url], [TD_AUTH, "https://www.toneden.io/api/v1/attachments/5834468/download"]);
+  for (const t of [tdAuth, tdFile]) {
+    assert.deepEqual([t.openerTabId, x.tabs.get(t.tabId).windowId, x.tabs.get(t.tabId).active, x.tabs.get(t.tabId).muted],
+      [tdTab, x.user.window, false, true]);
+  }
+  x.e["tabs.onUpdated"].fire(tdAuth.tabId, { url: "https://www.toneden.io/auth/soundcloud/callback?code=abc&state=s&x=1" });
+  await tick();
+  assert.equal(x.events("tab.updated").at(-1).url, "https://www.toneden.io/auth/soundcloud/callback?x=1");
+  x.e["webRequest.onBeforeRedirect"].fire({ tabId: tdFile.tabId, url: TD_FILE, redirectUrl: "https://cdn.example/4me.mp3" });
+  await tick();
+  x.e["downloads.onCreated"].fire({ id: 31, url: TD_FILE, finalUrl: "https://cdn.example/4me.mp3", referrer: "", danger: "safe" });
+  await tick();
+  assert.deepEqual(x.events("download.created").map((m) => [m.downloadId, m.tabId]), [[31, tdFile.tabId]]);
+  await x.call("window.close", { windowId: td.windowId });
+  assert.deepEqual([x.tabs.has(tdAuth.tabId), x.tabs.has(tdFile.tabId)], [false, false]);
 
   // a background session (carts) works in inactive tabs of the person's window and never makes one
   x = await start();

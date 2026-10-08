@@ -4,9 +4,9 @@
 - Document version: 1.1
 - Product version verified: 1.4.0 (working tree)
 - Owner: Filip Białogrecki
-- Updated: 2026-10-07
-- Document lines: <!-- SPEC TOTAL LINES -->2259<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->2259<!-- END SPEC MAP LIMIT -->
+- Updated: 2026-10-08
+- Document lines: <!-- SPEC TOTAL LINES -->2308<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->2308<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -45,71 +45,72 @@ subsection; ordinary emphasized text is never promoted into the map.
 <!-- BEGIN GENERATED SECTION MAP -->
 | § | Section | Lines |
 | --- | --- | --- |
-| 1 | Specification governance | 115–143 |
-| 1.1 | ↳ Authority and scope | 117–129 |
-| 1.2 | ↳ Update contract | 130–143 |
-| 2 | Product purpose and execution modes | 144–189 |
-| 2.1 | ↳ Problem and product boundary | 146–159 |
-| 2.2 | ↳ Execution modes | 160–189 |
-| 3 | User-visible capabilities | 190–1048 |
-| 3.1 | ↳ Track collection | 192–217 |
-| 3.2 | ↳ Link classification and exports | 218–236 |
-| 3.3 | ↳ Track statuses | 237–247 |
-| 3.4 | ↳ Audio preview | 248–419 |
-| 3.5 | ↳ Downloads and local-file matching | 420–467 |
-| 3.6 | ↳ Store purchase assistance | 468–584 |
-| 3.7 | ↳ Local library, analysis and audio export | 585–756 |
-| 3.8 | ↳ Qt Quick desktop | 757–1048 |
-| 4 | System context and data flow | 1049–1093 |
-| 4.1 | ↳ Context diagram | 1051–1077 |
-| 4.2 | ↳ Collection-to-library flow | 1078–1093 |
-| 5 | Repository layout and component ownership | 1094–1180 |
-| 5.1 | ↳ Entry, orchestration, and models | 1096–1107 |
-| 5.2 | ↳ Network and external-system adapters | 1108–1139 |
-| 5.3 | ↳ Persistence, local media, and UI | 1140–1180 |
-| 6 | Runtime architecture and environments | 1181–1324 |
-| 6.1 | ↳ Runtime and dependencies | 1183–1211 |
-| 6.2 | ↳ Concurrency and lifecycle | 1212–1289 |
-| 6.3 | ↳ Local paths and environment variables | 1290–1324 |
-| 7 | Data model and persistence | 1325–1436 |
-| 7.1 | ↳ Domain objects and identity | 1327–1341 |
-| 7.2 | ↳ SQLite schema and invariants | 1342–1394 |
-| 7.3 | ↳ Crate persistence and deletion | 1395–1410 |
-| 7.4 | ↳ Configuration and credential stores | 1411–1436 |
-| 8 | Public interfaces and contracts | 1437–1494 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1439–1467 |
-| 8.2 | ↳ JSON and CSV summary input | 1468–1483 |
-| 8.3 | ↳ URL-opening contract | 1484–1494 |
-| 9 | Authentication and authorization | 1495–1558 |
-| 9.1 | ↳ SoundCloud authentication | 1497–1528 |
-| 9.2 | ↳ Gate action consent | 1529–1558 |
-| 10 | External integrations | 1559–1814 |
-| 10.1 | ↳ SoundCloud API and media | 1561–1572 |
-| 10.2 | ↳ Link hubs and download gates | 1573–1681 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1581–1667 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1669–1674 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1676–1681 |
-| 10.3 | ↳ Browsers and clipboard | 1682–1761 |
-| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 1762–1814 |
-| 11 | Security requirements and threat model | 1815–1966 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1817–1835 |
-| 11.2 | ↳ Secret and personal-data handling | 1836–1851 |
-| 11.3 | ↳ File and mutation safety | 1852–1873 |
-| 11.4 | ↳ Browser-extension trust boundary | 1874–1966 |
-| 12 | Privacy, lifecycle, and retention | 1967–2019 |
-| 12.1 | ↳ Data stored locally | 1969–1993 |
-| 12.2 | ↳ Data sent to third parties | 1994–2006 |
-| 12.3 | ↳ User-controlled deletion | 2007–2019 |
-| 13 | Failure behavior and current limitations | 2020–2126 |
-| 13.1 | ↳ Error isolation and reporting | 2022–2043 |
-| 13.2 | ↳ Confirmed limitations | 2044–2126 |
-| 14 | Verification, CI, and release | 2127–2225 |
-| 14.1 | ↳ Offline and live test suites | 2129–2177 |
-| 14.2 | ↳ Continuous integration and publishing | 2178–2210 |
-| 14.3 | ↳ Specification-map verification | 2211–2225 |
-| 15 | Evidence and operational references | 2226–2259 |
-| 15.1 | ↳ Primary implementation evidence | 2228–2249 |
-| 15.2 | ↳ User and historical documentation | 2250–2259 |
+| 1 | Specification governance | 116–144 |
+| 1.1 | ↳ Authority and scope | 118–130 |
+| 1.2 | ↳ Update contract | 131–144 |
+| 2 | Product purpose and execution modes | 145–190 |
+| 2.1 | ↳ Problem and product boundary | 147–160 |
+| 2.2 | ↳ Execution modes | 161–190 |
+| 3 | User-visible capabilities | 191–1051 |
+| 3.1 | ↳ Track collection | 193–218 |
+| 3.2 | ↳ Link classification and exports | 219–237 |
+| 3.3 | ↳ Track statuses | 238–248 |
+| 3.4 | ↳ Audio preview | 249–420 |
+| 3.5 | ↳ Downloads and local-file matching | 421–470 |
+| 3.6 | ↳ Store purchase assistance | 471–587 |
+| 3.7 | ↳ Local library, analysis and audio export | 588–759 |
+| 3.8 | ↳ Qt Quick desktop | 760–1051 |
+| 4 | System context and data flow | 1052–1096 |
+| 4.1 | ↳ Context diagram | 1054–1080 |
+| 4.2 | ↳ Collection-to-library flow | 1081–1096 |
+| 5 | Repository layout and component ownership | 1097–1183 |
+| 5.1 | ↳ Entry, orchestration, and models | 1099–1110 |
+| 5.2 | ↳ Network and external-system adapters | 1111–1142 |
+| 5.3 | ↳ Persistence, local media, and UI | 1143–1183 |
+| 6 | Runtime architecture and environments | 1184–1327 |
+| 6.1 | ↳ Runtime and dependencies | 1186–1214 |
+| 6.2 | ↳ Concurrency and lifecycle | 1215–1292 |
+| 6.3 | ↳ Local paths and environment variables | 1293–1327 |
+| 7 | Data model and persistence | 1328–1439 |
+| 7.1 | ↳ Domain objects and identity | 1330–1344 |
+| 7.2 | ↳ SQLite schema and invariants | 1345–1397 |
+| 7.3 | ↳ Crate persistence and deletion | 1398–1413 |
+| 7.4 | ↳ Configuration and credential stores | 1414–1439 |
+| 8 | Public interfaces and contracts | 1440–1497 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1442–1470 |
+| 8.2 | ↳ JSON and CSV summary input | 1471–1486 |
+| 8.3 | ↳ URL-opening contract | 1487–1497 |
+| 9 | Authentication and authorization | 1498–1564 |
+| 9.1 | ↳ SoundCloud authentication | 1500–1531 |
+| 9.2 | ↳ Gate action consent | 1532–1564 |
+| 10 | External integrations | 1565–1849 |
+| 10.1 | ↳ SoundCloud API and media | 1567–1578 |
+| 10.2 | ↳ Link hubs and download gates | 1579–1716 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1587–1673 |
+| 10.2 · block | ↳ ↳ ToneDen | 1675–1699 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1701–1709 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1711–1716 |
+| 10.3 | ↳ Browsers and clipboard | 1717–1796 |
+| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 1797–1849 |
+| 11 | Security requirements and threat model | 1850–2012 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1852–1870 |
+| 11.2 | ↳ Secret and personal-data handling | 1871–1886 |
+| 11.3 | ↳ File and mutation safety | 1887–1908 |
+| 11.4 | ↳ Browser-extension trust boundary | 1909–2012 |
+| 12 | Privacy, lifecycle, and retention | 2013–2065 |
+| 12.1 | ↳ Data stored locally | 2015–2039 |
+| 12.2 | ↳ Data sent to third parties | 2040–2052 |
+| 12.3 | ↳ User-controlled deletion | 2053–2065 |
+| 13 | Failure behavior and current limitations | 2066–2175 |
+| 13.1 | ↳ Error isolation and reporting | 2068–2089 |
+| 13.2 | ↳ Confirmed limitations | 2090–2175 |
+| 14 | Verification, CI, and release | 2176–2274 |
+| 14.1 | ↳ Offline and live test suites | 2178–2226 |
+| 14.2 | ↳ Continuous integration and publishing | 2227–2259 |
+| 14.3 | ↳ Specification-map verification | 2260–2274 |
+| 15 | Evidence and operational references | 2275–2308 |
+| 15.1 | ↳ Primary implementation evidence | 2277–2298 |
+| 15.2 | ↳ User and historical documentation | 2299–2308 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -435,13 +436,15 @@ and the maximum body size is 2 GiB.
 
 Batch downloads use at most eight worker threads. Each gate flow uses its own HTTP
 session because cookies are flow state. Prerequisites such as a real profile,
-SoundCloud login, or manual Hypeddit browser completion are collected and retried
+SoundCloud login, or Hypeddit and ToneDen browser completion are collected and retried
 at most once by the desktop flow. A file finished in the user's browser is copied
 out of the browser's download folder through the same validation and then deleted
 there (§10.2). Completed downloads store their local path and mark
 the track `got`. While a batch runs, each row shows its own state in the desktop:
 the transfer's progress, a half bar while it is handed to the browser pass or a
 prerequisite, a full bar once its file is in, and no bar with "✗ Failed" in its Status cell when it failed;
+a gate whose page answers 404 or 410 fails at once with "the gate page no longer exists" and is
+never handed to the browser or asked about;
 statuses are refreshed when the batch ends. No browser window or tab appears for
 a gate unless the user opens one (§10.2). A batch with failed rows, or rows it
 handed on and never started (more gates than one browser batch takes), ends in a
@@ -1111,7 +1114,7 @@ playback time and are not stored in the crate record.
   pagination and media authorization. `files.py` owns validated HTTP/browser
   file publication and local copies under one filename lock.
 - `gates/hubs.py` inspects link hubs, `gates/providers.py` implements HTTP gate
-  protocols and `gates/browser.py` drives Hypeddit completion in the user's
+  protocols and `gates/browser.py` drives Hypeddit and ToneDen completion in the user's
   browser through `webext.page`. `gate_models.py` owns their typed outcomes and
   inspection data.
 - `http.py` owns URL/redirect validation; `browser.py` owns OS browser handoff
@@ -1554,7 +1557,10 @@ if the user once authorised the Hypeddit application at that provider, the popup
 returns without a prompt and Hypeddit can follow or save on the user's own
 account. There is no further consent prompt; Settings states this next to the flag.
 The provider's own consent screen (for example Agree) is never clicked by the
-program.
+program. The same flag covers ToneDen's steps: its follow-and-repost (SoundCloud) or
+follow/save (Spotify) button is pressed, and ToneDen performs the action through its own
+application at that provider on the account the browser is signed in to; a provider still
+asking for a sign-in or a first approval of ToneDen is left to the person (§10.2).
 
 ## 10. External integrations
 
@@ -1665,8 +1671,37 @@ and genuine failures; unfinished items remain cancelled instead of receiving a
 synthetic manual-action error. The single-item adapter raises `Cancelled` when
 no file or genuine failure was produced.
 
+<!-- spec-map-block: ToneDen -->
+ToneDen (`toneden.io`, `www.` once) hands its file only to a fan signed in to it
+with SoundCloud or Spotify, so its HTTP resolver never yields a URL: it reads the
+post the gate page reads (`GET www.toneden.io/api/v1/posts?author_username=&link_path=`,
+no redirects); a 404 or 410 fails the row with "the gate page no longer exists", an
+`unlock_type` other than `download` fails it as offering no download, and anything else
+is a provider-login failure the desktop hands to the browser pass like a Hypeddit row
+(same eight-row cap). In the browser the gate is a React page: its big button opens the
+unlock step, where each action button is pending (`.gate-first-init`), working
+(`.gate-first-load`) or done (`.gate-first-fin`), and the big button stays `.disabled`
+until the gate is open, after which it opens the file
+(`/api/v1/attachments/<id>/download`) with `window.open`. The driver presses the big
+button; an open gate's file tab is the row's (its download is attributed to that tab);
+otherwise it presses the first pending action. A fan ToneDen already knows unlocks a
+Spotify action with the page's own request; a SoundCloud action, or a fan it does not know,
+opens ToneDen's sign-in
+(`www.toneden.io/auth/soundcloud|spotify`), which goes on to the provider and back to
+ToneDen's callback. Offscreen that sign-in is an inactive, muted tab of the user's last
+focused window without an opener, so the page never hears back: once the tab is back on
+a ToneDen page other than the sign-in start it is closed after two seconds and the gate
+frame is reloaded, after which ToneDen knows the fan. A sign-in still away after twenty
+seconds defers the row ("<provider host> wants you to sign in") to the "Gates need you"
+question; a third sign-in in one gate, a gate without a known action (for example an
+email-only gate) or a step that does not clear within fifteen seconds defers it too.
+ToneDen's own buttons are the only ones pressed.
+
 <!-- spec-map-block: Other resolvers -->
-Host routing also implements ToneDen page/API extraction, Droploud track API,
+A gate URL that no resolver turns into a file is checked once with a redirect-validated
+GET; a 404 or 410 answer fails it as "the gate page no longer exists" (for example a
+removed Artist Union track), anything else with an instruction to open it in the browser.
+Host routing also implements Droploud track API,
 GateRush form posts, MediaFire page extraction, Dropbox URL rewriting, and Google
 Drive URL rewriting. Direct URLs ending in MP3, WAV, FLAC, ZIP, or AIFF are
 accepted by shape after fetch-safety validation. The resolver host table is the
@@ -1686,7 +1721,7 @@ path tries `wl-copy`, `xclip`, `xsel`, `pbcopy`, then Windows `clip.exe`, with a
 two-second timeout and no shell invocation. OSC 52 is not emitted because stdout
 belongs to the terminal.
 
-Bandcamp carts, Beatport lookup, Hypeddit browser completion and the SoundCloud
+Bandcamp carts, Beatport lookup, Hypeddit and ToneDen browser completion and the SoundCloud
 browser login drive the user's own browser through the dj-digger extension (Chrome,
 Chromium, Brave, Edge 121 or newer; Firefox 128 or newer). The application
 downloads and bundles no browser and keeps no browser profile.
@@ -1877,12 +1912,12 @@ Automation drives the user's real, logged-in browser, so the extension, not the
 Python caller, enforces its own limits, whatever the application sends:
 
 - **Allowlist.** `allowlist.json` is the single source for `background.js`; a test
-  compares it with `links.HYPEDDIT_HOSTS`, `store_urls.STORE_HOSTS` and the
-  manifest's `host_permissions`. Only `https`, default port, no credentials:
-  `hypeddit.com` and `hypd.it` (also `www.`), `bandcamp.com` and `beatport.com`
+  compares it with `links.HYPEDDIT_HOSTS`, `links.is_toneden_url`, `store_urls.STORE_HOSTS`
+  and the manifest's `host_permissions`. Only `https`, default port, no credentials:
+  `hypeddit.com` and `hypd.it` (also `www.`), `toneden.io` (also `www.`), `bandcamp.com` and `beatport.com`
   with their subdomains, and `soundcloud.com` for `/signin` only (its tab is never
   read or clicked). A navigation elsewhere is refused.
-- **Offscreen frames (Chromium).** The hidden Hypeddit pass runs in iframes of
+- **Offscreen frames (Chromium).** The hidden gate pass runs in iframes of
   `offscreen.html` (permission `offscreen`; reason `IFRAME_SCRIPTING`), one per
   virtual tab. A virtual window and tab have negative ids (from -2: -1 is the
   browser's "no tab", under which webRequest reports the offscreen document) and
@@ -1891,18 +1926,23 @@ Python caller, enforces its own limits, whatever the application sends:
   `window.show` and `window.hide` fail with `offscreen`. The page's own code runs
   in a frame, so `dom.js` plus `frame.js` are registered as a content script
   (`scripting.registerContentScripts`) only while an offscreen session exists, on
-  the Hypeddit hosts only (derived from `allowlist.json`); `frame.js` does nothing
+  the hosts of the groups marked `frames` only (Hypeddit and ToneDen, derived from
+  `allowlist.json`); `frame.js` does nothing
   unless it sits directly under this extension's own offscreen document
   (`window.top !== window` and `ancestorOrigins[0]` is the extension origin), so
-  the user's own Hypeddit tabs are untouched. With them, `frame-main.js` runs in
+  the user's own gate tabs are untouched. With them, `frame-main.js` runs in
   the page world at `document_start`, again only directly under an extension page:
-  `window.open` returns a closed stub and media `play()` only mutes, because the
+  `window.open` returns a closed stub (on ToneDen one that stays open: ToneDen polls
+  `closed` and takes a closed popup for a blocked one), `alert()` does nothing (nobody can
+  answer it there) and media `play()` only mutes, because the
   gate's follow, like and repost links open the artist on SoundCloud through
   `window.open` (which autoplays) and such a popup would not be an own tab (neither
   muted nor closed); the page's own handler ticks the step either way. The URL it
   asked for goes to `frame.js` (a DOM event) and to the background as
   `{op:"open", url}` on the frame's port; the background opens it only when it is
-  `https://accounts.spotify.com/authorize` with a `redirect_uri` on the Hypeddit group,
+  `https://accounts.spotify.com/authorize` with a `redirect_uri` on the Hypeddit group
+  (from a Hypeddit frame), or, from a ToneDen frame, a ToneDen URL whose path is exactly
+  `/auth/soundcloud`, `/auth/spotify` or `/api/v1/attachments/<digits>/download`,
   as a muted inactive tab of the user's last focused normal window (none: nothing
   opens), owned as a popup of the frame's virtual tab and reported with that
   `openerTabId`; it is closed with the session. Once Download
@@ -1910,9 +1950,11 @@ Python caller, enforces its own limits, whatever the application sends:
   (and on `play`/`playing`), players embedded from other sites (SoundCloud widget,
   YouTube, Spotify, Bandcamp, Vimeo) are removed before they load, and Web Audio
   stays suspended. The frames
-  also carry the autoplay policy `'none'`. The one `runtime.onConnect` listener
+  also carry the autoplay policy `'none'` and the referrer policy `no-referrer` (a gate
+  opened from the address bar has none either; ToneDen would send its sign-in back to
+  `document.referrer`, the extension's own origin). The one `runtime.onConnect` listener
   admits two ports only: the offscreen document's (no tab, its own URL) and a
-  frame's (no `sender.tab`, `sender.url` on the Hypeddit group, the random nonce of
+  frame's (no `sender.tab`, `sender.url` on a `frames` group, the random nonce of
   a live virtual tab as the port name); Chrome sets `sender.frameId` only together
   with a tab, so it is not used. Anything else is disconnected at once, and what a
   frame sends is untrusted page data. A refused offscreen start answers
@@ -1928,11 +1970,15 @@ Python caller, enforces its own limits, whatever the application sends:
   (`dom.*`, `tab.html`, `tab.capture`) also needs the tab's current URL on the
   allowlist, so provider popups are only closed and reported, never read or
   clicked. URLs outside the allowlist are reduced to `https://<host>/` in events,
-  replies and error messages, so OAuth callbacks (`code=`, `state=`) never cross
+  replies and error messages, and an allowlisted URL loses its `code`, `state`, `jwt`,
+  `token`, `access_token` and `oauth_token` query parameters (an OAuth callback back at the
+  gate's site, the `jwt` on ToneDen's download link), so OAuth callbacks never cross
   the channel or reach a log. Every owned tab is muted. A `dom.click` on a link that
   opens a new tab (`target=_blank`) or a `javascript:` URL lets the page's own
   handlers run and then cancels the link's default, so a gate's follow step is
-  ticked without opening (and autoplaying) the artist's SoundCloud page.
+  ticked without opening (and autoplaying) the artist's SoundCloud page; in a gate frame
+  the same holds for a link aimed at `_top` or `_parent` (ToneDen's sign-in links), which
+  would otherwise replace the offscreen document.
 - **No checkout.** A navigation or redirect of an owned Bandcamp or Beatport tab to
   `/checkout`, `/cart/checkout` or `/payment` (Bandcamp also `/cart/checkout_start`,
   Beatport also `/account/billing` and `/subscriptions/billing`), with or without a
@@ -2076,11 +2122,14 @@ as player events instead of escaping through Python-CFFI.
   private windows and Firefox containers are not used. Outside Chromium's
   offscreen mode the hidden work window is an unfocused normal window, not a
   minimized one; whether a window manager raises it is not controlled (GNOME on
-  Wayland shows it). The offscreen pass is Hypeddit-only and Chromium-only: Beatport
+  Wayland shows it). The offscreen pass is for Hypeddit and ToneDen only and Chromium-only: Beatport
   and SoundCloud refuse framing, so carts use tabs of the user's window and the
   sign-in keeps the work window; a gate row that needs a Connect popup, a CAPTCHA or
   a provider login is moved to a visible window when the user agrees, and a gate with follow links and an email step in a frame is
-  verified live only on the owner's browser. Disconnect browsers lasts only until the next start,
+  verified live only on the owner's browser. ToneDen in a frame is verified offline only:
+  whether its server unlocks the gate during the provider callback (which the reload relies
+  on), whether SoundCloud asks a fan who once approved ToneDen to approve it again, and the
+  file behind its download link are unconfirmed live. Disconnect browsers lasts only until the next start,
   which registers again. The extension socket path does not depend on the data
   directory (the instance lock is per data directory), so a second desktop or CLI
   login with a different data directory on one account cannot use the extension

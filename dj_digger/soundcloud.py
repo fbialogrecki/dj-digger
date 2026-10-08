@@ -330,7 +330,10 @@ class SoundCloudClient:
 
         if not download_url:
             if gate_url:
-                # Only Hypeddit gates go on to the browser extension; say whose gate this was.
+                if gates.gate_page_gone(gate_url, session, self._timeout):
+                    raise gate_models.GateUnavailable(gates.GATE_GONE)
+                # Only Hypeddit and ToneDen gates go on to the browser extension (their resolvers
+                # say so); say whose gate this was.
                 host = (urlparse(gate_url).hostname or "this site").removeprefix("www.")
                 raise SoundCloudError(
                     f"{host} gates cannot be finished automatically; open the link in the browser"

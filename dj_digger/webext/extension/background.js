@@ -66,11 +66,18 @@ const isForbidden = (g, p) => {
   const bare = p.replace(/^\/[a-z]{2}(?:-[a-z]{2})?(?=\/|$)/, "");
   return g.forbiddenPaths.some((f) => [p, bare].some((q) => q === f || q.startsWith(f + "/")));
 };
-// Non-allowlisted URLs (OAuth popups carry code= and state=) are reduced to their host.
+// Non-allowlisted URLs (OAuth popups carry code= and state=) are reduced to their host; an allowlisted
+// one loses the query parameters that carry a credential (an OAuth callback back at the gate's site, the
+// jwt on ToneDen's download link).
+const SECRET_PARAMS = ["code", "state", "jwt", "token", "access_token", "oauth_token"];
 function safeUrl(url) {
   const u = parse(url);
   if (!u) return "";
-  if (url === "about:blank" || groupOf(u)) return u.href;
+  if (url === "about:blank") return u.href;
+  if (groupOf(u)) {
+    if (SECRET_PARAMS.some((k) => u.searchParams.has(k))) for (const k of SECRET_PARAMS) u.searchParams.delete(k);
+    return u.href;
+  }
   return u.protocol.startsWith("http") ? `${u.protocol}//${u.hostname}/` : u.protocol;
 }
 const redactMessage = (m) => String(m ?? "").replace(/https?:\/\/[^\s"')]+/g, safeUrl);
@@ -191,15 +198,16 @@ async function pageTab(tabId, { nav = false } = {}) {
 
 // ---------------------------------------------------------------- offscreen sessions (plan F4b)
 
-// The hidden Hypeddit pass runs in iframes of offscreen.html (Chromium: no browser window at all).
+// The hidden gate pass runs in iframes of offscreen.html (Chromium: no browser window at all), for the
+// allowlist groups marked "frames" (Hypeddit, ToneDen).
 // Two kinds of port reach the one onConnect listener below, and nothing else does:
 //   "offscreen"  from offscreen.html itself: background -> it {op:"load"|"remove", nonce, url}
 //   <nonce>      from frame.js, the content script of a gate framed by offscreen.html:
 //                background -> frame {id, op:"run"|"html"|"cancel", ...}, frame -> background {id, res}
-//                or {op:"open", url}: the page's window.open, honoured only for providerLogin()
+//                or {op:"open", url}: the page's window.open, honoured only for popupUrl()
 // A frame's port is admitted only when it has no tab, comes from a frame below the top one, from an
-// allowlisted Hypeddit URL, under the nonce of a live virtual tab (admit()); everything it sends is
-// untrusted page data.
+// allowlisted URL of a "frames" group, under the nonce of a live virtual tab (admit()); everything it
+// sends is untrusted page data.
 const OFFSCREEN_PORT = "offscreen";
 const FRAME_SCRIPTS = ["djd-frame", "djd-frame-main"];
 const PORT_WAIT_MS = 5000;
@@ -216,10 +224,9 @@ const tellOffscreen = (m) => {
 };
 
 async function startOffscreen() {
-  const g = allow.groups.hypeddit;
-  const matches = g.hosts.flatMap((h) => [
+  const matches = Object.values(allow.groups).filter((g) => g.frames).flatMap((g) => g.hosts.flatMap((h) => [
     `https://${h}/*`, ...(g.www ? [`https://www.${h}/*`] : []), ...(g.subdomains ? [`https://*.${h}/*`] : []),
-  ]);
+  ]));
   const connected = new Promise((r) => (offscreenHello = r));
   await api.scripting.unregisterContentScripts({ ids: FRAME_SCRIPTS }).catch(() => {});
   await api.scripting.registerContentScripts([
@@ -229,7 +236,7 @@ async function startOffscreen() {
   ]);
   await api.offscreen.createDocument({
     url: "offscreen.html", reasons: ["IFRAME_SCRIPTING"],
-    justification: "Runs Hypeddit download gates in hidden frames, since a hidden browser window cannot be made on every desktop.",
+    justification: "Runs download gates (Hypeddit, ToneDen) in hidden frames, since a hidden browser window cannot be made on every desktop.",
   });
   await Promise.race([connected, sleep(PORT_WAIT_MS).then(() => Promise.reject(new Err("offscreen", "offscreen document did not start")))]);
 }
@@ -288,7 +295,7 @@ function admit(p) {
       offscreenHello?.();
       return OFFSCREEN_PORT;
     }
-    if (f && groupOf(s.url) === allow.groups.hypeddit) {
+    if (f && groupOf(s.url)?.frames) {
       f.port?.disconnect(); // an older document of the same frame
       Object.assign(f, { port: p, url: s.url });
       f.loads++;
@@ -299,16 +306,25 @@ function admit(p) {
   p.disconnect();
   return null;
 }
-// Spotify's sign-in for a Hypeddit Connect step, the one popup a framed gate may open (plan F10): its
-// callback tells the gate through Hypeddit's storage, so no opener is needed and an inactive tab does.
-function providerLogin(url) {
+// The popups a framed gate may open (plan F10), each as an inactive tab without an opener, by the group
+// of the frame's own page:
+// - Hypeddit: Spotify's sign-in for its Connect step; the callback tells the gate through Hypeddit's
+//   storage, so no opener is needed.
+// - ToneDen: its own sign-in start, /auth/soundcloud or /auth/spotify (it goes on to the provider and
+//   back to ToneDen, whose server then knows the fan; the app reloads the gate), and the unlocked file,
+//   /api/v1/attachments/<id>/download.
+function popupUrl(g, url) {
   const u = parse(url);
-  if (!u || u.protocol !== "https:" || u.hostname !== "accounts.spotify.com" || u.pathname !== "/authorize") return null;
-  const back = parse(u.searchParams.get("redirect_uri") ?? "");
-  return back && groupOf(back) === allow.groups.hypeddit ? u.href : null;
+  if (!u || u.protocol !== "https:" || u.username || u.password || u.port) return null;
+  if (g === allow.groups.hypeddit && u.hostname === "accounts.spotify.com" && u.pathname === "/authorize") {
+    const back = parse(u.searchParams.get("redirect_uri") ?? "");
+    return back && groupOf(back) === allow.groups.hypeddit ? u.href : null;
+  }
+  const toneden = /^\/auth\/(soundcloud|spotify)$|^\/api\/v1\/attachments\/\d+\/download$/;
+  return g === allow.groups.toneden && groupOf(u) === g && toneden.test(u.pathname) ? u.href : null;
 }
 async function openFramePopup(f, url) {
-  const href = providerLogin(url);
+  const href = popupUrl(groupOf(f.url), url);
   const opener = [...frames].find(([, x]) => x === f)?.[0];
   if (!href || opener == null) return;
   const host = (await api.windows.getLastFocused({ windowTypes: ["normal"] }).catch(() => null))?.id;

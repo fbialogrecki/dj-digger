@@ -76,6 +76,11 @@ def _identity_for(config: Any | None) -> Any:
 DOWNLOAD_SUFFIXES = (".mp3", ".wav", ".flac", ".aiff", ".aif", ".zip")
 
 TONEDEN_RE = re.compile(r'https?://(?:www\.)?toneden\.io/([^/]+)/post/([a-zA-Z0-9_-]+)')
+# What the gate page itself reads (www.toneden.io, 2026-10-08): {"post": {..., "unlock": {...}}}, or 404.
+TONEDEN_POSTS_API = "https://www.toneden.io/api/v1/posts"
+# A gate page that answers one of these was taken down: a reason, not a job for the browser.
+GONE_STATUSES = (404, 410)
+GATE_GONE = "the gate page no longer exists"
 
 
 def _clean_url(raw_url: str | None) -> str | None:
@@ -633,46 +638,56 @@ def _refused(result: Any) -> bool:
 def resolve_toneden_download_url(
     url: str, session: requests.Session, timeout: float = 10.0, config: Any | None = None
 ) -> str | None:
-    """Resolve direct audio download URL from ToneDen fan gate link."""
+    """Tell a live ToneDen gate from one that is gone; never a file.
+
+    ToneDen hands the file over only to a fan signed in to it with SoundCloud or
+    Spotify (checked 2026-10-08: its ``unlock`` carries no download URL), so a
+    live gate goes on to the browser extension, while a post its API no longer
+    knows fails here with a reason and is never offered to the browser.
+    """
     match = TONEDEN_RE.search(url)
     if not match:
         return None
-
-    headers = {**REQUEST_HEADERS, "Referer": url}
-
     try:
-        resp = session.get(url, headers=headers, timeout=timeout)
-        if resp.status_code == 200:
-            text = resp.text
-
-            # 1. Extract JSON state from page HTML
-            json_match = re.search(r'window\.__INITIAL_STATE__\s*=\s*({.*?});</script>', text, re.DOTALL)
-            if json_match:
-                for key_name in ("download_url", "free_download_location", "s3_url", "file_url"):
-                    dl_match = re.search(rf'"{key_name}"\s*:\s*"([^"]+)"', json_match.group(1))
-                    if dl_match:
-                        cleaned = _clean_url(dl_match.group(1))
-                        if cleaned:
-                            return cleaned
-
-            # 2. Try ToneDen fan gate API directly
-            gate_slug = match.group(2)
-            api_url = f"https://www.toneden.io/api/v1/fan_gates/slug/{gate_slug}"
-            api_resp = session.get(api_url, headers=headers, timeout=timeout)
-            if api_resp.status_code == 200:
-                try:
-                    data = api_resp.json()
-                    if isinstance(data, dict):
-                        for field in ("download_url", "free_download_location", "s3_url", "file_url"):
-                            cleaned = _clean_url(data.get(field))
-                            if cleaned:
-                                return cleaned
-                except ValueError:
-                    pass
+        response = session.get(
+            TONEDEN_POSTS_API,
+            params={"author_username": match.group(1), "link_path": match.group(2)},
+            headers={**REQUEST_HEADERS, "Accept": "application/json", "Referer": url},
+            timeout=timeout,
+            allow_redirects=False,
+        )
     except requests.RequestException as exc:
         _log_gate_failure("ToneDen", url, exc)
+        return None
+    if response.status_code in GONE_STATUSES:
+        raise GateUnavailable(GATE_GONE)
+    try:
+        unlock = response.json()["post"]["unlock"]
+    except (ValueError, KeyError, TypeError):
+        unlock = None
+    if isinstance(unlock, dict) and unlock.get("unlock_type") not in (None, "download"):
+        raise GateUnavailable("the ToneDen post offers no download")
+    raise GateAuthenticationRequired(
+        "ToneDen unlocks the download only for a fan signed in with SoundCloud or Spotify"
+    )
 
-    return None
+
+def gate_page_gone(url: str, session: requests.Session, timeout: float = 10.0) -> bool:
+    """True when the gate's page answers 404 or 410: the gate was taken down.
+
+    One GET with every redirect checked before it is followed; anything else -
+    an error, an unsafe hop, a page - is not proof that the gate is gone.
+    """
+    if not is_fetchable(url):
+        return False
+    try:
+        response, _landed = follow_redirects(
+            session, url, timeout=timeout, headers=REQUEST_HEADERS, stream=True
+        )
+    except (UnsafeRedirect, requests.RequestException):
+        return False
+    response.close()
+    return response.status_code in GONE_STATUSES
 
 
 DROPLOUD_RE = re.compile(

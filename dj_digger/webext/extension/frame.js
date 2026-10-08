@@ -1,7 +1,7 @@
-// frame.js - content script of a Hypeddit gate framed by offscreen.html (plan F4b). It is registered
-// by background.js only while an offscreen session exists, on the Hypeddit hosts only, together with
-// dom.js, and does nothing unless this is a frame directly under this extension's own offscreen
-// document: in the user's own Hypeddit tabs it is inert. Its one channel is a port to background.js
+// frame.js - content script of a gate (Hypeddit, ToneDen) framed by offscreen.html (plan F4b). It is
+// registered by background.js only while an offscreen session exists, on the gate hosts only (the
+// "frames" groups of allowlist.json), together with dom.js, and does nothing unless this is a frame
+// directly under this extension's own offscreen document: in the user's own gate tabs it is inert. Its one channel is a port to background.js
 // named by the frame's nonce (the iframe's name); it runs the same djDom engine on request.
 "use strict";
 (() => {

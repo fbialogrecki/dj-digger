@@ -5,6 +5,14 @@
       "hosts": ["hypeddit.com", "hypd.it"],
       "www": true,
       "subdomains": false,
+      "frames": true,
+      "forbiddenPaths": []
+    },
+    "toneden": {
+      "hosts": ["toneden.io"],
+      "www": true,
+      "subdomains": false,
+      "frames": true,
       "forbiddenPaths": []
     },
     "bandcamp": {

@@ -73,6 +73,19 @@ def medusa_track():
     )
 
 
+@pytest.mark.parametrize("status, wanted", [(404, gate_models.GateUnavailable), (200, SoundCloudError)])
+def test_a_gate_nobody_resolves_is_reported_gone_only_when_its_page_is(tmp_path, status, wanted):
+    gate = "https://theartistunion.com/tracks/5832b2"
+    session = FakeSession([FakeResponse(status_code=status)])
+    track = Track(id=1, title="t", permalink_url="https://soundcloud.com/a/t")
+
+    with pytest.raises(wanted) as caught:
+        make_client(session).download_track(track, tmp_path, gate_url=gate, session=session)
+
+    assert ("no longer exists" in str(caught.value)) is (status == 404)
+    assert [url for url, _params, _kwargs in session.calls] == [gate]
+
+
 def test_a_free_download_without_a_url_explains_that_login_is_required(tmp_path):
     client = SoundCloudClient(
         session=FakeSession([]), client_id=DUMMY_CLIENT_ID, oauth_token=""

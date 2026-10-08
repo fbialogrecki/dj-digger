@@ -179,6 +179,12 @@ def is_hypeddit_url(url: str) -> bool:
     return is_openable(url) and host_of(url) in HYPEDDIT_HOSTS
 
 
+def is_toneden_url(url: str) -> bool:
+    """ToneDen's own pages (toneden.io, www. once): the other gate the browser extension finishes."""
+
+    return is_openable(url) and host_of(url) == "toneden.io"
+
+
 def host_matches(host: str, domain: str) -> bool:
     """Match on domain boundaries, so evil-bandcamp.com.attacker.net does not."""
 

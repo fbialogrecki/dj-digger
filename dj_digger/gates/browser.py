@@ -4,6 +4,7 @@ Extracts direct file download URLs from gate pages without requiring manual
 social media login steps.
 """
 
+import re
 import threading
 import time
 import urllib.parse
@@ -27,7 +28,7 @@ from dj_digger.gate_models import (
 from ..automation_errors import AutomationError
 from ..config import DEFAULT_NAME
 from ..http import is_fetchable
-from ..links import host_of, is_hypeddit_url
+from ..links import host_of, is_hypeddit_url, is_toneden_url
 from ..models import Cancelled, is_cancelled
 from ..webext import page as webpage
 from ..webext.link import ExtensionMissing
@@ -95,6 +96,22 @@ StatusCallback = Callable[[str], None]
 # Asked before anything is shown: the deferred rows and why, True when the person wants them opened
 # in a browser window (plan Z2). Without one the window opens as before (one-off and CLI callers).
 AttendCallback = Callable[[dict[str, str]], bool]
+# ToneDen's gate page (www.toneden.io/<artist>/post/<slug>, a React app read on 2026-10-08). Its big
+# button (the post's own text) opens the unlock step: one button per action (follow and repost on
+# SoundCloud, follow or save on Spotify), pending while it shows .gate-first-init, done with
+# .gate-first-fin, .gate-first-load while it works. There the big button stays .disabled until the gate
+# is open, and then opens the file (api/v1/attachments/<id>/download) with window.open. A SoundCloud
+# action, or any action of a fan ToneDen does not know, opens ToneDen's sign-in
+# (www.toneden.io/auth/<provider>?spotlightTrackID=...) in a popup that answers its opener by
+# postMessage; offscreen it is an inactive tab without an opener, so once that tab is back at ToneDen
+# the frame is reloaded: the server has done the action in its callback (as for the redirect its
+# mobile page uses) and knows the fan, whose Spotify actions are then plain requests of the page.
+TONEDEN_GATE_BUTTON = "a.post-gate-btn:visible"
+TONEDEN_LOCKED = "a.post-gate-btn.disabled"
+TONEDEN_PENDING_STEP = ".gate-btn-box a.btn:has(.gate-first-init):visible"
+TONEDEN_WORKING_STEP = ".gate-btn-box .gate-first-load:visible"
+# A ToneDen sign-in that brought the fan back without unlocking anything is not tried forever.
+TONEDEN_SIGN_INS = 2
 # The step driver's own way of saying the person gave up, told apart from a
 # gate step it could not finish.
 CANCELLED = "cancelled"
@@ -316,12 +333,15 @@ def _wait_for_provider(
     status: StatusCallback | None,
     *,
     attended: bool,
+    home: Callable[[str], bool] = is_hypeddit_url,
+    site: str = "Hypeddit",
 ) -> Generator[None, None, None]:
-    """Wait until the provider popup (or the tab itself) is back at Hypeddit.
+    """Wait until the provider popup (or the tab itself) is back ``home`` at the gate's site.
 
-    The callback page tells the gate through the browser's storage the
-    moment it loads, so a popup that stays on Hypeddit afterwards has nothing
-    left to do and is closed the way a person would close it.
+    Hypeddit's callback page tells the gate through the browser's storage the
+    moment it loads, and ToneDen's server knows the fan once its callback ran,
+    so a popup that stays home afterwards has nothing left to do and is closed
+    the way a person would close it.
     """
 
     limit = PROVIDER_WAIT_SECONDS if attended else UNATTENDED_PROVIDER_SECONDS
@@ -337,18 +357,18 @@ def _wait_for_provider(
         popups = _popups_of(context, page, before)
         seen = seen or bool(popups)
         for popup in popups:
-            if not is_hypeddit_url(str(popup.url)):
+            if not home(str(popup.url)):
                 came_home.pop(id(popup), None)
                 continue
             if _now() - came_home.setdefault(id(popup), _now()) >= CALLBACK_LINGER_SECONDS:
                 with suppress(Exception):
                     popup.close()
         popups = [popup for popup in popups if not _page_closed(popup)]
-        off_host = not is_hypeddit_url(str(page.url))
+        off_host = not home(str(page.url))
         if not popups and not off_host and (seen or _now() - started >= POPUP_GRACE_SECONDS):
             return
         where = host_of(str(popups[0].url if popups else page.url)) or "the provider"
-        message = f"Complete {where} in the browser window, then return to Hypeddit"
+        message = f"Complete {where} in the browser window, then return to {site}"
         if attended and status is not None and message != told:
             status(message)
             told = message
@@ -419,6 +439,92 @@ def _click_gate_download(
         return False
 
 
+def _toneden_home(url: str) -> bool:
+    """Back at ToneDen: any of its pages but a sign-in's start, which is on its way to the provider."""
+
+    return is_toneden_url(url) and not re.fullmatch(r"/auth/[\w-]+/?", urllib.parse.urlsplit(url).path)
+
+
+def _popup_or(context: Any, page: Any, before: list[Any], cancel: Any, settled: Callable[[], bool],
+              stuck: str) -> bool:
+    """True once ``page`` opened a popup, False once ``settled()``; STEP_SETTLE_SECONDS at most."""
+
+    deadline = _now() + STEP_SETTLE_SECONDS
+    while _now() < deadline:
+        if is_cancelled(cancel):
+            raise GateManualActionRequired(CANCELLED)
+        if _popups_of(context, page, before):
+            return True
+        if settled():
+            return False
+        page.wait_for_timeout(250)
+    raise _NeedsPerson(stuck)
+
+
+def _drive_toneden_steps(
+    context: Any,
+    page: Any,
+    cancel: Any,
+    status: StatusCallback | None,
+    *,
+    social: bool,
+    attended: bool,
+    config=None,
+) -> Generator[None, None, bool]:
+    """Unlock a ToneDen gate the way a fan does, then open its file (see TONEDEN_GATE_BUTTON).
+
+    Only ToneDen's own buttons are clicked; a provider's sign-in is waited out
+    like a Hypeddit Connect, never touched. False means the page did not look
+    like a gate this knows.
+    """
+
+    def guard():
+        if is_cancelled(cancel):
+            raise GateManualActionRequired(CANCELLED)
+        if config is not None:
+            check_gate_action(config, social=True)
+
+    def locked() -> bool:
+        return bool(page.locator(TONEDEN_LOCKED).count())
+
+    if not social:
+        return False
+    guard()
+    sign_ins = 0
+    for turn in range(MAX_GATE_STEPS):
+        before = list(context.pages)
+        try:  # the start view's button opens the unlock step; an open gate's opens the file
+            page.locator(TONEDEN_GATE_BUTTON).first.click(**_CLICK)
+        except Exception:
+            if turn:
+                raise
+            return False
+        if _popup_or(context, page, before, cancel, locked, "the gate's download did not start"):
+            return True  # the file's tab: the watch takes its download
+        pending = page.locator(TONEDEN_PENDING_STEP)
+        left = pending.count()
+        if not left:
+            raise _NeedsPerson("the gate's step is not one this program knows")
+
+        def cleared(left=left) -> bool:
+            busy = page.locator(TONEDEN_WORKING_STEP).count()
+            return not locked() or page.locator(TONEDEN_PENDING_STEP).count() < left and not busy
+
+        guard()
+        before = list(context.pages)
+        pending.first.click(**_CLICK)
+        if not _popup_or(context, page, before, cancel, cleared, "the gate's step did not clear"):
+            continue  # a fan ToneDen knows: the page made the request itself
+        sign_ins += 1
+        if sign_ins > TONEDEN_SIGN_INS:
+            raise _NeedsPerson("ToneDen did not unlock the gate after the sign-in")
+        yield from _wait_for_provider(
+            context, page, before, cancel, status, attended=attended, home=_toneden_home, site="ToneDen"
+        )
+        page.reload(wait_until="domcontentloaded", timeout=30_000)
+    raise _NeedsPerson("the gate did not reach its download")
+
+
 def _gate_email(config: Any | None) -> str | None:
     """The address the gate's email slide gets, or None while it is the placeholder."""
 
@@ -468,6 +574,12 @@ def download_hypeddit_in_browser(
     raise GateUnavailable("The browser produced neither a file nor a reason")
 
 
+def _gate_site(url: str) -> str | None:
+    """Whose gate the browser finishes at this URL: Hypeddit, ToneDen, or nobody's."""
+
+    return "Hypeddit" if is_hypeddit_url(url) else "ToneDen" if is_toneden_url(url) else None
+
+
 def _screen_batch(
     items: list[tuple[Any, str]], cancel: Any
 ) -> tuple[dict[str, tuple[Any, str]], dict[str, GateError], bool]:
@@ -478,9 +590,9 @@ def _screen_batch(
     if is_cancelled(cancel):
         return {}, {}, True
     failures = {
-        key: GateProtocolChanged("Refusing an unsafe Hypeddit browser URL")
+        key: GateProtocolChanged("Refusing an unsafe gate browser URL")
         for key, (_track, url) in keyed.items()
-        if not is_hypeddit_url(url) or not is_fetchable(url)
+        if _gate_site(url) is None or not is_fetchable(url)
     }
     pending = {key: value for key, value in keyed.items() if key not in failures}
     return pending, failures, False
@@ -648,17 +760,16 @@ def _open_gate_tabs(
 
 def _goto_gate(page: Any, key: str, watch: _TabWatch) -> None:
     _track, url = watch.pending[key]
+    site = _gate_site(url)
     try:
         page.goto(url, wait_until="domcontentloaded", timeout=30_000)
-        if not is_hypeddit_url(str(page.url)):
-            watch.failures[key] = GateProtocolChanged(
-                "Hypeddit redirected outside its canonical hosts"
-            )
+        if _gate_site(str(page.url)) != site:
+            watch.failures[key] = GateProtocolChanged(f"{site} redirected outside its canonical hosts")
     except Exception as exc:
         if watch.offscreen:  # nothing was seen of the page: a real window gets to try
             watch.deferred[key] = f"the hidden browser could not open the gate: {exc}"
         else:
-            watch.failures[key] = GateUnavailable(f"Could not open Hypeddit in the browser: {exc}")
+            watch.failures[key] = GateUnavailable(f"Could not open {site} in the browser: {exc}")
 
 
 def _close_settled_tabs(context: Any, watch: _TabWatch) -> None:
@@ -693,17 +804,23 @@ def _drive_tab(
     somebody is.
     """
 
+    _track, url = watch.pending[key]
     try:
-        if _on_hot_or_not(page):
-            # The first visit to a gate after a download in this profile is
-            # sent to Hypeddit's hot-or-not poll instead; the next visit gets
-            # the gate (seen on a hidden pass, 2026-09-02).
-            _track, url = watch.pending[key]
-            page.goto(url, wait_until="domcontentloaded", timeout=30_000)
-        if not (yield from _drive_gate_steps(
-            context, page, watch.cancel, status, social=social, email=email, name=name,
-            attended=attended, config=watch.config, turn=watch.turn, key=key,
-        )) and not attended:
+        if is_toneden_url(url):
+            steps = _drive_toneden_steps(
+                context, page, watch.cancel, status, social=social, attended=attended, config=watch.config,
+            )
+        else:
+            if _on_hot_or_not(page):
+                # The first visit to a gate after a download in this profile is
+                # sent to Hypeddit's hot-or-not poll instead; the next visit gets
+                # the gate (seen on a hidden pass, 2026-09-02).
+                page.goto(url, wait_until="domcontentloaded", timeout=30_000)
+            steps = _drive_gate_steps(
+                context, page, watch.cancel, status, social=social, email=email, name=name,
+                attended=attended, config=watch.config, turn=watch.turn, key=key,
+            )
+        if not (yield from steps) and not attended:
             raise _NeedsPerson("the gate page has no step controls this program knows")
     except (GateSocialActionsDisabled, GateProfileRequired) as exc:
         watch.failures[key] = exc
@@ -989,7 +1106,7 @@ def download_hypeddit_batch_in_browser(
     time_limit: float | None = None,
     attend: AttendCallback | None = None,
 ) -> HypedditBrowserBatchResult:
-    """Finish every manual Hypeddit gate through the browser extension, hidden first.
+    """Finish every manual Hypeddit or ToneDen gate through the browser extension, hidden first.
 
     Each gate opens as a tab of one work window, not shown, and has its steps
     walked (see ``_drive_gate_steps``). Rows that stop at something only a

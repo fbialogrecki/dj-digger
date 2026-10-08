@@ -570,4 +570,32 @@ Bandcampa niepotrzebny.
   „The Rave” był już kupiony na tym koncie: Beatport pyta „repurchase it again?” — teraz Cancel
   i wynik „bought on this Beatport account already”.
 
+**ToneDen (2026-10-08, tylko odczyt: GET stron, API i publicznego JS `social.js` + chunków
+`st.toneden.io/1.279/javascripts/*`, bez logowania i bez kliknięć akcji):**
+- Strona `www.toneden.io/<artist>/post/<slug>` to SPA (React), `X-Frame-Options: ALLOWALL`
+  (ramka offscreen działa), `toneden.io/…` przekierowuje na `www.`. Dane: `GET api/v1/posts?
+  author_username=&link_path=` (`post.unlock`: `platform` soundcloud/spotify, `unlock_type`,
+  `download_display_url`; brak URL-a pliku), potem `GET api/v1/attachments/<id>/gateMetadata`
+  (`is_gate_open`, `viewer_id`). Brak posta: 404 (API i strona).
+- Przebieg: duży przycisk `a.post-gate-btn` (tekst z posta) → krok „unlock”: przyciski akcji
+  `.gate-btn-box a.btn` (`.gate-first-init` / `-load` / `-fin`), duży przycisk `.disabled` do
+  otwarcia bramki. Otwarta bramka: duży przycisk robi `window.open(api/v1/attachments/<id>/download
+  [?jwt=])` — plik w nowej karcie (bez sesji: 401 HTML).
+- Akcja: fan nieznany ToneDen → `users.auth.external(platform)` → popup
+  `www.toneden.io/auth/<platform>?fanOptOut&is_opted_in&redirectPostID&userType=fan&spotlightTrackID
+  &clientAuth=true` (w ramce także `embed=true&redirectURL=document.referrer`) → 302 do dostawcy
+  (`soundcloud.com/connect?…redirect_uri=https://www.toneden.io/auth/soundcloud/callback`,
+  Spotify analogicznie) → callback. Strona czeka na `postMessage({type:"auth_response"})` od
+  popupu (sprawdza `origin`) i co 250 ms na `popup.closed` (zamknięty = „popup blocker”, błąd
+  i `alert()`). Dla SoundCloud przycisk zawsze idzie przez logowanie (`onUnlockClick.bind(null,
+  true)`), dla Spotify fan już zalogowany robi `POST api/v1/attachments/<id>/unlock` bez popupu.
+  Mobilny wariant tej samej akcji to zwykłe przekierowanie (`target="_top"`) na ten sam
+  `/auth/…?spotlightTrackID=` z powrotem na post — stąd wniosek, że serwer odblokowuje bramkę już
+  w callbacku (odpowiedź niesie `spotlightTrackStatus`). **Niepotwierdzone na żywo.**
+- Wniosek: w ramce offscreen karta logowania nie ma `opener`, więc strona nie dostanie
+  `postMessage`; aplikacja czeka, aż karta wróci na ToneDen (inna ścieżka niż start
+  `/auth/<platform>`), zamyka ją i przeładowuje ramkę (serwer zna już fana). Stub
+  `window.open` na ToneDen musi być „otwarty”, a ramka `no-referrer` (inaczej `redirectURL` =
+  origin rozszerzenia).
+
 Środowisko: Fedora 44, GNOME / Wayland, Chromium 154 (RPM), Firefox (tylko W11), data 2026-10-06.

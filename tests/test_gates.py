@@ -62,16 +62,49 @@ def test_soundcloud_preview_path_is_never_a_gate_file():
     )
 
 
-def test_resolve_toneden_api():
+def _toneden_session(status, body=None):
     session = MagicMock(spec=requests.Session)
-    resp_page = MagicMock()
-    resp_page.status_code = 200
-    resp_page.text = '<html><script>window.__INITIAL_STATE__ = {"download_url": "https://cdn.toneden.io/track.mp3"};</script></html>'
-    session.get.return_value = resp_page
+    response = MagicMock(status_code=status)
+    response.json.return_value = body
+    session.get.return_value = response
+    return session
 
-    url = "https://www.toneden.io/artist/post/trackslug"
-    result = resolve_toneden_download_url(url, session)
-    assert result == "https://cdn.toneden.io/track.mp3"
+
+def test_a_live_toneden_gate_goes_to_the_browser():
+    session = _toneden_session(200, {"post": {"unlock": {"unlock_type": "download", "platform": "soundcloud"}}})
+
+    with pytest.raises(gate_models.GateAuthenticationRequired):
+        resolve_toneden_download_url("https://www.toneden.io/badcomputer/post/bad-computer-4me", session)
+
+    [call] = session.get.call_args_list
+    assert call.args == (gates.TONEDEN_POSTS_API,)
+    assert call.kwargs["params"] == {"author_username": "badcomputer", "link_path": "bad-computer-4me"}
+    assert call.kwargs["allow_redirects"] is False
+
+
+def test_a_toneden_post_that_is_gone_fails_without_the_browser():
+    session = _toneden_session(404)
+
+    with pytest.raises(gate_models.GateUnavailable, match="no longer exists") as caught:
+        resolve_toneden_download_url("https://toneden.io/ilovedjcj/post/wish-goshfather", session)
+
+    assert not isinstance(caught.value, gate_models.BROWSER_REQUIRED_ERRORS)
+
+
+def test_a_toneden_post_without_a_download_is_not_a_browser_job():
+    session = _toneden_session(200, {"post": {"unlock": {"unlock_type": "stream"}}})
+
+    with pytest.raises(gate_models.GateUnavailable, match="no download"):
+        resolve_toneden_download_url("https://www.toneden.io/a/post/b", session)
+
+
+@pytest.mark.parametrize("status, wanted", [(404, True), (410, True), (200, False), (500, False)])
+def test_a_gate_page_answering_404_is_gone(status, wanted):
+    session = MagicMock(spec=requests.Session)
+    session.get.return_value = MagicMock(status_code=status, headers={})
+
+    assert gates.gate_page_gone("https://theartistunion.com/tracks/5832b2", session) is wanted
+    assert gates.gate_page_gone("http://127.0.0.1/tracks/1", session) is False  # never fetched
 
 
 def test_resolve_gate_download_url_routing():
@@ -1533,6 +1566,183 @@ def test_without_offscreen_the_hidden_window_stays_hidden_when_skipped(tmp_path,
 
     assert launches[0][1].shows == 0
     assert [key for key, _error in result.failures] == ["7"]
+
+
+_TD_GATE = "https://www.toneden.io/badcomputer/post/bad-computer-4me"
+_TD_AUTH = "https://www.toneden.io/auth/soundcloud?spotlightTrackID=1&clientAuth=true"
+_TD_CONNECT = "https://soundcloud.com/connect?client_id=x"
+_TD_CALLBACK = "https://www.toneden.io/auth/soundcloud/callback"
+_TD_FILE = "https://www.toneden.io/api/v1/attachments/1/download"
+
+
+class _ToneDenTab(_Popup):
+    """A tab a framed ToneDen gate opened: its sign-in, or its file."""
+
+    def __init__(self, opener, url):
+        super().__init__(opener, url)
+        self.handlers = {}
+
+    def on(self, event, callback):
+        self.handlers[event] = callback
+
+
+class _ToneDenPage:
+    """A ToneDen gate: the big button opens the unlock step (locked) or, once open, the file's tab.
+
+    A fan ToneDen does not know gets the step's sign-in as a tab, which comes back to ToneDen
+    by itself only when SoundCloud is signed in - or a person is there; after that the
+    reloaded page knows the fan, and the step is a plain request.
+    """
+
+    def __init__(self, context, *, signed_in=True, fan=False, unlocked=False):
+        self.context = context
+        self.url = "about:blank"
+        self.handlers = {}
+        self.opener = None
+        self.closed = False
+        self.signed_in = signed_in
+        self.fan = fan
+        self.unlocked = unlocked
+        self.step = "start"
+        self.clicked = []
+        self.reloads = 0
+        self.tabs = []
+
+    def on(self, event, callback):
+        self.handlers[event] = callback
+
+    def is_closed(self):
+        return self.closed
+
+    def close(self):
+        self.closed = True
+
+    def goto(self, url, **_kwargs):
+        self.url, self.step = url, "start"
+
+    def reload(self, **_kwargs):
+        self.reloads += 1
+        self.step = "start"
+
+    def locator(self, selector):
+        return _Control(self, selector, None)
+
+    def count(self, selector, _slide):
+        locked = self.step == "unlock" and not self.unlocked
+        if selector in (gate_browser.TONEDEN_LOCKED, gate_browser.TONEDEN_PENDING_STEP):
+            return int(locked)
+        return 0
+
+    def visible(self, selector):
+        return True
+
+    def click(self, selector, _slide):
+        self.clicked.append(selector)
+        if selector == gate_browser.TONEDEN_GATE_BUTTON:
+            if not self.unlocked:
+                self.step = "unlock"
+                return
+            tab = self._open(_TD_FILE)
+            tab.handlers["download"](_download("4Me (Original Mix).mp3", b"ID3-4me"))
+        elif selector == gate_browser.TONEDEN_PENDING_STEP:
+            if self.fan:
+                self.unlocked = True  # POST attachments/<id>/unlock
+            else:
+                self._open(_TD_AUTH)
+
+    def _open(self, url):
+        tab = _ToneDenTab(self, url)
+        self.tabs.append(tab)
+        self.context.pages.append(tab)
+        self.context.handlers["page"](tab)
+        return tab
+
+    def wait_for_timeout(self, milliseconds):
+        self.context.clock["t"] += milliseconds / 1000
+        for tab in self.tabs:
+            if tab.closed or tab.url == _TD_FILE:
+                continue
+            tab.polls += 1
+            if tab.polls == 1:
+                tab.url = _TD_CONNECT
+            elif tab.polls == 2 and (self.signed_in or self.context.attended):
+                tab.url = _TD_CALLBACK  # ToneDen's server now knows the fan
+                self.fan = True
+
+
+def test_a_toneden_gate_signs_in_and_downloads_offscreen_without_a_window_or_a_question(tmp_path, monkeypatch):
+    launches = _gate_browser(monkeypatch, lambda ctx: _ToneDenPage(ctx), offscreen=True)
+    asked = []
+
+    result = gate_browser.download_hypeddit_batch_in_browser(
+        [(_track(), _TD_GATE)], tmp_path, None, config=_DJ, attend=lambda reasons: asked.append(reasons) or False,
+    )
+
+    assert asked == [] and [hidden for hidden, _context in launches] == [True]
+    context = launches[0][1]
+    assert context.offscreen and context.shows == 0
+    [page] = context.made
+    sign_in, file_tab = page.tabs
+    assert sign_in.closed and sign_in.url == _TD_CALLBACK, "the sign-in tab came back to ToneDen and was closed"
+    assert page.reloads == 1, "the gate was reloaded once ToneDen knew the fan"
+    assert page.clicked == [
+        gate_browser.TONEDEN_GATE_BUTTON, gate_browser.TONEDEN_PENDING_STEP,  # -> sign-in tab
+        gate_browser.TONEDEN_GATE_BUTTON, gate_browser.TONEDEN_PENDING_STEP,  # -> the page's own unlock
+        gate_browser.TONEDEN_GATE_BUTTON,  # -> the file's tab
+    ]
+    assert file_tab.url == _TD_FILE
+    [(key, path)] = result.completed
+    assert key == "7" and path.read_bytes() == b"ID3-4me" and result.failures == ()
+
+
+def test_a_toneden_gate_a_fan_already_unlocked_just_downloads(tmp_path, monkeypatch):
+    launches = _gate_browser(monkeypatch, lambda ctx: _ToneDenPage(ctx, fan=True, unlocked=True), offscreen=True)
+
+    result = gate_browser.download_hypeddit_batch_in_browser([(_track(), _TD_GATE)], tmp_path, None, config=_DJ)
+
+    [page] = launches[0][1].made
+    assert page.clicked == [gate_browser.TONEDEN_GATE_BUTTON] and page.reloads == 0
+    assert [key for key, _path in result.completed] == ["7"]
+
+
+def test_a_toneden_sign_in_nobody_is_signed_in_for_is_asked_about_not_shown(tmp_path, monkeypatch):
+    launches = _gate_browser(monkeypatch, lambda ctx: _ToneDenPage(ctx, signed_in=False), offscreen=True)
+    asked = []
+
+    result = gate_browser.download_hypeddit_batch_in_browser(
+        [(_track(), _TD_GATE)], tmp_path, None, config=_DJ, attend=lambda reasons: asked.append(reasons) or False,
+    )
+
+    assert asked == [{"7": "soundcloud.com wants you to sign in"}]
+    assert [hidden for hidden, _context in launches] == [True], "no window without the person's yes"
+    [page] = launches[0][1].made
+    assert page.tabs[0].url == _TD_CONNECT, "the provider's page was waited out, never touched"
+    [(key, error)] = result.failures
+    assert key == "7" and isinstance(error, gate_browser.GateManualActionRequired)
+
+
+def test_a_toneden_sign_in_finishes_at_the_window_when_the_person_says_so(tmp_path, monkeypatch):
+    launches = _gate_browser(monkeypatch, lambda ctx: _ToneDenPage(ctx, signed_in=False), offscreen=True)
+
+    result = gate_browser.download_hypeddit_batch_in_browser(
+        [(_track(), _TD_GATE)], tmp_path, None, config=_DJ, attend=lambda reasons: True,
+    )
+
+    assert [hidden for hidden, _context in launches] == [True, False]
+    assert result.failures == () and [key for key, _path in result.completed] == ["7"]
+
+
+def test_toneden_steps_are_not_clicked_once_consent_is_withdrawn(tmp_path, monkeypatch):
+    launches = _gate_browser(monkeypatch, lambda ctx: _ToneDenPage(ctx), offscreen=True)
+    profile = _Profile("dj@example.com")
+    profile.gate_social_actions = False  # withdrawn in Settings after the batch started
+
+    result = gate_browser.download_hypeddit_batch_in_browser([(_track(), _TD_GATE)], tmp_path, None, config=profile)
+
+    [page] = launches[0][1].made
+    assert page.clicked == []
+    [(_key, error)] = result.failures
+    assert isinstance(error, gate_models.GateSocialActionsDisabled)
 
 
 def test_a_comment_step_is_filled_with_a_profile_comment(tmp_path, monkeypatch):
