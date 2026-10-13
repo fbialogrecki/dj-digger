@@ -1,4 +1,5 @@
 """Owner playlist import without expensive external shop/gate resolution."""
+import re
 from collections import OrderedDict
 from itertools import batched
 from threading import Event
@@ -14,6 +15,28 @@ from ..soundcloud import (
     is_soundcloud_url,
 )
 from ..soundcloud_errors import SoundCloudError
+
+PROFILE_HOSTS = frozenset({'soundcloud.com', 'www.soundcloud.com', 'm.soundcloud.com'})
+PROFILE_NAME = re.compile(r'[A-Za-z0-9_-]+')
+
+
+def profile_url(value):
+    """``soundcloud.com/name/sets?x`` and the like as ``https://soundcloud.com/name``; ValueError otherwise."""
+    text = str(value or '').strip()
+    if not text:
+        raise ValueError('Paste your SoundCloud profile link')
+    if '://' not in text:
+        text = 'https://' + text
+    try:
+        parsed = urlparse(text)
+        host = (parsed.hostname or '').lower()
+    except ValueError:
+        parsed, host = None, ''
+    # Only the profile name is kept: SoundCloud's own resolver is asked about it, never this host.
+    name = next((part for part in parsed.path.split('/') if part), '') if host in PROFILE_HOSTS else ''
+    if not is_soundcloud_url(text) or not PROFILE_NAME.fullmatch(name):
+        raise ValueError('Paste a profile link like https://soundcloud.com/your-name')
+    return 'https://soundcloud.com/' + name
 
 
 def _resolve_owner(client, url, private, check):
@@ -68,7 +91,7 @@ def _playlist_headers(client, owner_id, check):
             identifier = header.get('id')
             if identifier in playlist_ids:
                 continue
-            if not identifier or _owner_id(header) != owner_id:
+            if not identifier or not _owner_id(header):
                 raise SoundCloudError('Playlist owner or ID missing from response')
             playlist_ids.add(identifier)
             yield header
@@ -123,9 +146,11 @@ def _import_playlist(client, db, identifier, cache, generations, check):
     return {'id': identifier, 'status': 'imported' if saved else 'locally_changed', 'tracks': len(tracks)}
 
 
-def _import_profile(client, db, url, *, private=False, cancel=None, current=lambda: True, progress=lambda done: None, _report=None):
-    if not is_soundcloud_url(url):
-        raise SoundCloudError('Paste a SoundCloud profile URL')
+def _import_profile(client, db, url, *, private=False, cancel=None, current=lambda: True, progress=lambda done, total: None, _report=None):
+    try:
+        url = profile_url(url)
+    except ValueError as exc:
+        raise SoundCloudError(str(exc)) from exc
     generations = db.snapshot_generations()
     token = client.oauth_token
 
@@ -138,13 +163,22 @@ def _import_profile(client, db, url, *, private=False, cancel=None, current=lamb
     _link_legacy_playlists(client, db, url, owner_id, generations, check)
     cache = OrderedDict()
     report = _report if _report is not None else []
-    for header in _playlist_headers(client, owner_id, check):
-        if not private and header.get('sharing') == 'private':
-            continue
-        result = _import_playlist(client, db, header['id'], cache, generations, check)
-        report.append(result)
-        if result['status'] in ('imported', 'locally_changed'):
-            progress(len(report))
+    # Every page first, so the count is known before the first playlist is saved.
+    headers = list(_playlist_headers(client, owner_id, check))
+    for done, header in enumerate(headers, 1):
+        if _owner_id(header) != owner_id:
+            # The endpoint lists the sets the profile created; a liked or reposted one stays out.
+            result = {'id': header['id'], 'status': 'skipped', 'message': 'created by someone else'}
+        elif not private and header.get('sharing') == 'private':
+            result = {'id': header['id'], 'status': 'skipped', 'message': 'private playlist'}
+        else:
+            try:
+                result = _import_playlist(client, db, header['id'], cache, generations, check)
+            except SoundCloudError as exc:
+                check()  # a changed session still stops the whole import
+                result = {'id': header['id'], 'status': 'failed', 'message': str(exc)}
+        report.append(dict(result, title=str(header.get('title') or header['id'])))
+        progress(done, len(headers))
     return report
 
 
@@ -163,7 +197,7 @@ class _ImportClient(SoundCloudClient):
         raise AssertionError('unreachable')
 
 
-def import_profile(client, db, url, *, private=False, cancel=None, current=lambda: True, progress=lambda done: None):
+def import_profile(client, db, url, *, private=False, cancel=None, current=lambda: True, progress=lambda done, total: None):
     report = []
 
     def perform(adapter, stop, valid):

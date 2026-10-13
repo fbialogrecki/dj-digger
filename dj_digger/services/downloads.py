@@ -257,6 +257,8 @@ class DownloadEvent:
     path: Path | None = None
     message: str = ""
     label: str = ""
+    # A failure's FAILURE_GROUPS name, so the desktop can say why in plain words.
+    group: str = ""
     progress: float = 0.0
     count: int = 0
     fields: dict = field(default_factory=dict)
@@ -287,7 +289,8 @@ class DownloadWorkflow:
         self.emit(DownloadEvent(self.handle.id, kind, **values))
 
     def failed(self, track, error, *, label="", message=None):
-        values = dict(key=track.key, label=label, message=message or str(error))
+        values = dict(key=track.key, label=label, message=message or str(error),
+                      group=_gate_failure_group(error) if isinstance(error, Exception) else "other")
         if isinstance(error, PublishedFileUnrecorded):
             self.send("unrecorded", path=error.result.path, **values)
         else:

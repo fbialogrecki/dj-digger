@@ -469,9 +469,14 @@ ApplicationWindow {
         if (dialog.visible || pendingQuestions.length === 0) return
         let q = pendingQuestions.shift()
         dialog.ident = q.id; dialog.title = q.title; dialog.body = q.body; dialog.error = q.error || ""
-        dialog.fields = q.fields; dialog.values = {}
-        for (let f of q.fields) dialog.values[f.name] = f.value
-        dialog.okText = q.ok || ""; dialog.info = !!q.info
+        // Read-only rows and section headers are not answers; a folded section starts folded.
+        let values = {}, collapsed = {}
+        for (let f of q.fields) {
+            if (["note", "path", "copy", "section"].indexOf(f.kind) < 0) values[f.name] = f.value
+            if (f.kind === "section" && f.collapsed === true) collapsed[f.name] = true
+        }
+        dialog.values = values; dialog.collapsed = collapsed; dialog.fields = q.fields
+        dialog.okText = q.ok || ""; dialog.cancelText = q.cancel || ""; dialog.info = !!q.info
         dialog.open()
     }
     Connections {
@@ -2673,23 +2678,57 @@ ApplicationWindow {
     }
     AppDialog {
         id: dialog
+        objectName: "questionDialog"
         property string ident: ""
         property string body: ""
         property string error: ""
         property string okText: ""
+        property string cancelText: ""
         property bool info: false
         property var fields: []
         property var values: ({})
+        property var collapsed: ({})
+        // A `buttons` field puts one footer button per option in place of OK.
+        readonly property var choiceField: fields.find(f => f.kind === "buttons") ?? null
+        function fieldSection(index) {
+            for (let i = index; i >= 0; i--) if (fields[i].kind === "section") return fields[i].name
+            return ""
+        }
         anchors.centerIn: parent; width: Math.min(650, root.width - 50)
         height: Math.min(root.height - 50, implicitHeight)
-        standardButtons: info ? Dialog.Ok : Dialog.Ok | Dialog.Cancel
+        standardButtons: info ? Dialog.Ok : choiceField ? Dialog.Cancel : Dialog.Ok | Dialog.Cancel
         onOkTextChanged: { let ok = standardButton(Dialog.Ok); if (ok) ok.text = okText || qsTr("OK") }
+        onCancelTextChanged: { let cancel = standardButton(Dialog.Cancel); if (cancel) cancel.text = cancelText || qsTr("Cancel") }
         onAccepted: desktop.answer(ident, values, true)
         onRejected: desktop.answer(ident, {}, false)
         onClosed: Qt.callLater(root.nextQuestion)
-        onOpened: {
+        function dressButtons() {
             let ok = standardButton(Dialog.Ok)
             if (ok) { ok.text = okText || qsTr("OK"); ok.highlighted = true; if (fields.length === 0) ok.forceActiveFocus() }
+            let cancel = standardButton(Dialog.Cancel)
+            if (cancel) cancel.text = cancelText || qsTr("Cancel")
+        }
+        // Again once settled: a change of standardButtons recreates the buttons after this point.
+        onOpened: { dressButtons(); Qt.callLater(dressButtons) }
+        footer: DialogButtonBox {
+            visible: count > 0
+            alignment: Qt.AlignRight; spacing: 8
+            padding: 16; topPadding: 4
+            background: null
+            delegate: Button { implicitWidth: Math.max(96, implicitContentWidth + 32) }
+            Repeater {
+                model: dialog.choiceField ? dialog.choiceField.options : []
+                Button {
+                    required property var modelData
+                    objectName: "choice-" + modelData[0]
+                    readonly property bool preferred: modelData[0] === dialog.choiceField?.value
+                    text: modelData[1]; highlighted: preferred; font.bold: preferred
+                    implicitWidth: Math.max(96, implicitContentWidth + 32)
+                    DialogButtonBox.buttonRole: DialogButtonBox.ActionRole
+                    Accessible.name: text
+                    onClicked: { dialog.values[dialog.choiceField.name] = modelData[0]; dialog.accept() }
+                }
+            }
         }
         contentItem: ScrollView {
             id: dialogScroll
@@ -2715,7 +2754,28 @@ ApplicationWindow {
                         required property var modelData
                         required property int index
                         Layout.fillWidth: true; spacing: 2
-                        Label { text: modelData.label; textFormat: Text.PlainText; color: root.muted; visible: text.length > 0 && modelData.kind !== "bool" }
+                        visible: modelData.kind !== "buttons" && (modelData.kind === "section" || !dialog.collapsed[dialog.fieldSection(index)])
+                        // A section header; one that starts folded can be opened and folded again.
+                        Label {
+                            visible: fieldItem.modelData.kind === "section" && fieldItem.modelData.collapsed !== true && text.length > 0
+                            Layout.fillWidth: true; Layout.topMargin: fieldItem.index > 0 ? 8 : 0
+                            text: fieldItem.modelData.label; textFormat: Text.PlainText; font.bold: true; color: root.fg
+                            Accessible.role: Accessible.Heading
+                        }
+                        Button {
+                            objectName: "section-" + fieldItem.modelData.name
+                            visible: fieldItem.modelData.kind === "section" && fieldItem.modelData.collapsed === true
+                            Layout.topMargin: fieldItem.index > 0 ? 8 : 0
+                            flat: true; font.bold: true; leftPadding: 0
+                            text: (dialog.collapsed[fieldItem.modelData.name] ? "▸ " : "▾ ") + fieldItem.modelData.label
+                            Accessible.name: fieldItem.modelData.label
+                            onClicked: {
+                                let folded = Object.assign({}, dialog.collapsed)
+                                folded[fieldItem.modelData.name] = !folded[fieldItem.modelData.name]
+                                dialog.collapsed = folded
+                            }
+                        }
+                        Label { text: modelData.label; textFormat: Text.PlainText; color: root.muted; visible: text.length > 0 && ["bool", "section", "buttons"].indexOf(modelData.kind) < 0 }
                         RowLayout {
                             Layout.fillWidth: true
                             visible: ["text", "folder", "file", "savefile", "image", "number"].indexOf(fieldItem.modelData.kind) >= 0
@@ -2747,9 +2807,9 @@ ApplicationWindow {
                                 }
                             }
                         }
-                        // Read-only text the person can select; a path also gets a button that copies it.
+                        // Read-only text the person can select; a path or an address also gets a button that copies it.
                         RowLayout {
-                            visible: fieldItem.modelData.kind === "note" || fieldItem.modelData.kind === "path"
+                            visible: ["note", "path", "copy"].indexOf(fieldItem.modelData.kind) >= 0
                             Layout.fillWidth: true
                             TextEdit {
                                 Layout.fillWidth: true
@@ -2760,8 +2820,8 @@ ApplicationWindow {
                             }
                             Button {
                                 objectName: "copy-" + fieldItem.modelData.name
-                                text: qsTr("Copy path")
-                                visible: fieldItem.modelData.kind === "path"
+                                text: fieldItem.modelData.kind === "path" ? qsTr("Copy path") : qsTr("Copy")
+                                visible: fieldItem.modelData.kind === "path" || fieldItem.modelData.kind === "copy"
                                 onClicked: desktop.copyText(String(fieldItem.modelData.value))
                             }
                         }
@@ -2789,9 +2849,10 @@ ApplicationWindow {
                                     id: area
                                     text: String(fieldItem.modelData.value); textFormat: Text.PlainText
                                     readOnly: fieldItem.modelData.kind === "log"; selectByMouse: true
-                                    wrapMode: fieldItem.modelData.kind === "log" ? Text.NoWrap : Text.Wrap
+                                    wrapMode: Text.Wrap
                                     font.family: fieldItem.modelData.kind === "log" ? "monospace" : Qt.application.font.family
-                                    onTextChanged: if (!readOnly) dialog.values[fieldItem.modelData.name] = text
+                                    // Only the person's edits are answers, not the text set when the dialog opens.
+                                    onTextChanged: if (!readOnly && activeFocus) dialog.values[fieldItem.modelData.name] = text
                                     Accessible.name: fieldItem.modelData.label
                                 }
                             }
@@ -2826,6 +2887,12 @@ ApplicationWindow {
                             visible: fieldItem.modelData.kind === "bool"; text: fieldItem.modelData.label
                             checked: (dialog.values[fieldItem.modelData.name] ?? fieldItem.modelData.value) === true
                             onToggled: dialog.values[fieldItem.modelData.name] = checked; Accessible.name: fieldItem.modelData.label
+                        }
+                        // Plain-language help under a field or a section header.
+                        Label {
+                            Layout.fillWidth: true; visible: text.length > 0
+                            text: fieldItem.modelData.hint || ""; textFormat: Text.PlainText; wrapMode: Text.Wrap
+                            color: root.muted; font.pixelSize: 12
                         }
                     }
                 }

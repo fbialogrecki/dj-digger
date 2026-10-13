@@ -448,10 +448,16 @@ never handed to the browser or asked about;
 statuses are refreshed when the batch ends. No browser window or tab appears for
 a gate unless the user opens one (§10.2). A batch with failed rows, or rows it
 handed on and never started (more gates than one browser batch takes), ends in a
-"Download results" screen listing each with its reason: Retry these runs them
-again, Open them in the browser opens each one's gate (or its SoundCloud page),
-and, when the browser pass was needed and no extension is connected, Connect the
-browser and retry shows the Connect browser dialog (§3.8) first.
+"Download results" screen listing each with a plain reason from its failure group
+(needs a sign-in on the gate site, a CAPTCHA solved, a step only you can do, the gate
+refused or is gone, timed out, the download failed, needs a SoundCloud sign-in or your
+name and email, not started) followed by the original message, wrapped: Retry these runs them
+again, Open in browser opens each one's gate (or its SoundCloud page),
+and, when the browser pass was needed and no extension is connected, Connect browser
+and retry shows the Connect browser dialog (§3.8) first; Close ends the download. The
+default button is Open in browser when any row needs a person, else Retry these. Skipping
+the Settings or sign-in step a prerequisite asks for skips only those rows, which then
+appear in the results with that reason; Stop download ends the whole download.
 
 The local scanner recursively indexes configured directories for MP3, WAV, FLAC,
 AIFF, M4A, AAC, OGG, and ALAC files, following symbolic links, and caches path,
@@ -743,7 +749,17 @@ exports keep partial results and a complete report; `ctrl+u` resumes the most
 recent unfinished operation from the application's trusted SQLite journal.
 
 `i` imports playlists created by a SoundCloud profile independently of
-profile-track digging. Private mode checks `/me` ownership and session identity.
+profile-track digging. The profile link is normalised by `profile_url()`: a scheme
+may be missing, the host must be exactly `soundcloud.com`, `www.` or `m.` (so not
+`on.soundcloud.com` short links or look-alike hosts), and only the first path segment
+(`[A-Za-z0-9_-]+`) is kept, dropping `/sets`, query strings and fragments; it is resolved
+through the API host only. All pages of `/users/{id}/playlists` (200 per page, the sets the
+profile created; liked and reposted sets are not requested) are read before the first save, so
+progress reports done/total. A listed set owned by another user is skipped ("created by someone
+else"), a private one is skipped unless private mode is on, and a set SoundCloud cannot serve is
+reported as failed while the rest go on; a changed session or cancellation still stops the
+whole import. Every report entry carries the set's title.
+Private mode checks `/me` ownership and session identity.
 Pagination detects repeated cursors; track hydration is batched with a bounded
 cache and preserves duplicates/order. Missing tracks or incomplete replies retain
 the previous snapshot. Provider playlist IDs preserve identity across permalink
@@ -1013,20 +1029,54 @@ confirmation; cart retry/manual completion and Soundiiz metadata transfer are
 explicit choices. There is no store login: the browser's own sessions are used, and
 neither store has a login: the Beatport cart needs the browser signed in to Beatport, else its path is the Soundiiz playlist. Settings shows an
 empty Email field while the reserved placeholder is configured, so saving never
-requires clearing it. Its Browser automation row is read-only text with the state
+requires clearing it. Settings is grouped under section headers: Downloads (download
+folder), Gates and carts (name, email, social actions, gate comments, Bandcamp
+name-your-price), Browser (status, Open links in), Player (default cover) and a folded
+"Library folders (advanced)" section with the scan, pinned and hidden folder lists; most
+fields carry a one-line plain-language hint. Its Browser automation row is read-only text with the state
 of the extension: browser name and extension version with "connected", "missing
-site access", "out of date: reload it", or "not connected". The social-actions
-description states that gates may follow, like, repost or comment, and connect
+site access", "out of date: reload it", or "not connected". A saved Open links in browser
+this computer does not report stays selected as "<name> (not available on this computer)"
+and is saved unchanged (links still resolve to the system default, §10.3). The Gates and
+carts description says gates are free downloads for a follow, a like or an email, and
+that gates may follow, like, repost or comment, and connect
 Spotify, Deezer or Apple Music, on the accounts logged in to the user's browser
 (§9.2). The Settings menu offers Connect browser… or, with a connected extension, Connected: <browser> — Disconnect…. A cart
 batch or the SoundCloud login that finds no connected extension opens the Connect
-browser dialog and repeats the call after Check connection (cancelling it is
-reported as cancelled): it registers the host (§10.3), explains Load unpacked
-(Chrome, Edge, Brave: Developer mode) and Load Temporary Add-on with
-`manifest.json` (Firefox: `about:debugging`), shows the extension folder as a
+browser dialog and repeats the call once the extension says hello (Not now is
+reported as cancelled): it registers the host (§10.3), gives numbered steps for
+Chrome, Edge, Brave (Developer mode, Load unpacked) and Firefox (Load Temporary Add-on with
+`manifest.json`), shows `chrome://extensions` and `about:debugging#/runtime/this-firefox`
+as text with Copy buttons (a link cannot open a browser's own pages), shows the extension folder as a
 read-only path with a Copy path button, and lists registration notes such as
-unsupported Flatpak/Snap browsers. Form fields of kind `note` and `path` are
-read-only text. Disconnect browsers asks for confirmation, removes the host
+unsupported Flatpak/Snap browsers. Check connection waits five seconds for a hello; without
+one the dialog comes back with "The extension still isn't answering…", and with one the
+status line says "Connected: <Browser> <major version>. SoundCloud sign-in, gates and carts
+will open there." A successful sign-in reports "Signed in as <user> in <Browser> <version>";
+Sign out says the browser stays signed in to SoundCloud.
+
+The generic form dialog renders field kinds `text`, `number`, `folder`, `file`,
+`savefile`, `image`, `choice`, `bool`, `checks`, `multiline` and `log` (wrapped, read-only)
+as inputs; `note`, `path` and `copy` are read-only text (the last two with a Copy button),
+`section` is a header (one sent with `collapsed` starts folded and opens on click), and
+`buttons` replaces OK with one footer button per option, the one matching the field's value
+in bold and taken by Enter. Any field may carry a `hint` line; a question may name its Cancel
+button. Read-only kinds and headers are not part of the answer, and a multi-line editor
+records only the person's edits.
+
+On a first start (`first_run`) or with no saved playlist, while `onboarded` is false, the
+window runs Welcome once it is ready: a profile link with Import all my playlists / Skip
+(an Include private playlists box only when signed in, since private sets need the owner's
+sign-in), then Downloads and gates (download folder, name, email) with Save and continue /
+Skip, then, without a connected extension, Connect your browser explaining that SoundCloud
+sign-in, gates and carts open in the browser with the extension (Connect browser / Skip).
+The import runs as a background job with done/total progress while the next steps are
+shown; every step can be skipped, and finishing or skipping saves `onboarded`. Import
+profile playlists… uses the same link check. Both end in a Profile import dialog:
+"Imported N / M playlists", skipped and failed counts, each set that did not come in with
+its reason, and the private JSON report's path with Copy path; a stopped import shows its
+reason and what was imported before it. The first download of a first run asks for
+Settings once; Skip goes on with the defaults and says where files go. Disconnect browsers asks for confirmation, removes the host
 registration and closes the relays already connected; the desktop registers again at its next start. Cancelling a cart is
 reported as cancelled, not as an error. Playing a track with no SoundCloud id reports that there is nothing to stream.
 Import saved summary asks for a JSON file. Export audio asks for decks in the
@@ -1467,7 +1517,8 @@ requires an existing file), and `nyp_price`, `minimum` (default) or `suggested`:
 price a Bandcamp name-your-price item goes into the cart at (§3.6; any other value
 reads as `minimum`).
 The default email uses the reserved `.invalid` domain. A first missing config is
-created and marks the launch as first-run.
+created and marks the launch as first-run. `onboarded` is true once the desktop's
+Welcome steps were finished or skipped (§3.8); only `true` is read as true.
 
 `auth.json` stores a verified SoundCloud OAuth token with username and user ID.
 `webext.json` stores `authkey`, 32 random bytes in hex that authenticate the
@@ -1671,7 +1722,7 @@ to the tab that had just fetched it. A row whose step only a person can finish
 the profile lacks, a page without known controls, a download the browser
 holds back) is deferred. Offscreen, a row deferred by an error instead (a control that did not appear in time) first gets one more offscreen document of its own and is deferred only if that fails too. When the hidden pass ends with deferred rows, nothing is
 shown until the caller agrees: the desktop asks "Gates need you" with each row's
-reason and Open them in the browser / Skip them for now (its Cancel cancels the whole download, which then asks nothing more); skipped rows fail as manual
+reason and the buttons Open in browser / Skip these / Stop download (which cancels the whole download, which then asks nothing more); skipped rows fail as manual
 actions with their reason (a caller without that question, such as a single-gate
 download, goes on as follows). Then the tabs of settled rows and
 every popup are closed, each deferred row's tab is reloaded in place at its gate,

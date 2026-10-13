@@ -43,6 +43,7 @@ PERSISTED_FIELDS = (
     "export_decks",
     "default_artwork",
     "nyp_price",
+    "onboarded",
 )
 # What a Bandcamp "name your price" item goes into the cart at: its minimum, or the price the
 # artist suggests (owner's decision 2026-10-07: minimum unless changed in Settings).
@@ -98,6 +99,8 @@ class AppConfig:
         # launch. The desktop uses it to ask for the settings before anything needs
         # them - gates submit the name and email without asking again.
         self.first_run: bool = False
+        # The desktop's Welcome steps were finished or skipped; they are not shown again.
+        self.onboarded: bool = False
         self.load()
 
     def load(self) -> None:
@@ -134,6 +137,7 @@ class AppConfig:
                 self.default_artwork = str(raw.get("default_artwork") or "").strip()
                 if raw.get("nyp_price") in NYP_PRICES:
                     self.nyp_price = raw["nyp_price"]
+                self.onboarded = raw.get("onboarded") is True
         except FileNotFoundError:
             self.first_run = True
             self.save()

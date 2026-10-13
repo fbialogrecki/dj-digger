@@ -1,6 +1,5 @@
 """Desktop orchestration. Qt receives detached values, never service objects."""
 import asyncio
-import contextlib
 import json
 import logging
 import os
@@ -101,11 +100,12 @@ class Backend:
                 future.set_result(deepcopy(values))
         self.loop.call_soon_threadsafe(deliver)
 
-    async def ask(self, title, body='', fields=(), cancel=None, ok='', error=''):
+    async def ask(self, title, body='', fields=(), cancel=None, ok='', error='', dismiss=''):
+        """``dismiss`` names the Cancel button; answering with it raises Cancelled."""
         ident = uuid4().hex
         future = self.loop.create_future()
         self.questions[ident] = future
-        self.send('question', dict(id=ident, title=title, body=body, fields=list(fields), ok=ok, error=error))
+        self.send('question', dict(id=ident, title=title, body=body, fields=list(fields), ok=ok, error=error, cancel=dismiss))
         try:
             while not future.done():
                 if self.closing or (is_cancelled(cancel)):
@@ -120,16 +120,19 @@ class Backend:
             self.questions.pop(ident, None)
             self.send('dismiss', {'id': ident})
 
-    async def form(self, title, body, fields, validate, cancel=None, ok=''):
+    async def form(self, title, body, fields, validate, cancel=None, ok='', dismiss=''):
         """Re-open the same dialog with the entered values until validation passes."""
         error = ''
+        shown = {f['name'] for f in fields if f['kind'] in DISPLAY_KINDS}
         while True:
-            answer = await self.ask(title, body, fields, cancel, ok, error)
+            answer = await self.ask(title, body, fields, cancel, ok, error, dismiss)
+            # Read-only rows and section headers are not answers.
+            answer = {name: value for name, value in answer.items() if name not in shown}
             try:
                 return validate(answer)
             except ValueError as exc:
                 error = str(exc)
-                fields = [f if f['kind'] == 'note' else dict(f, value=answer.get(f['name'], f['value'])) for f in fields]
+                fields = [f if f['name'] in shown else dict(f, value=answer.get(f['name'], f['value'])) for f in fields]
 
     async def io(self, function, *args, **kwargs):
         return await self.services.io(function, *args, **kwargs)
@@ -156,7 +159,10 @@ class Backend:
                 await self.sidebar()
                 if messages:
                     self.send('message', {'text': '\n'.join(messages)})
-                self.send('ready', {'volume': self.services.config.volume})
+                config = self.services.config
+                # The window asks for Welcome (action_welcome) once it is up: first start, or nothing imported yet.
+                self.send('ready', {'volume': config.volume,
+                                    'welcome': not config.onboarded and (config.first_run or not self.saved_playlists)})
                 await self.action_account({})
                 return
             if not hasattr(self, 'services'):
@@ -421,7 +427,11 @@ class Backend:
         if not rows:
             return
         if self.services.config.first_run:
-            await self.action_settings({})
+            # Asked once: Skip keeps the defaults and the download goes ahead.
+            self.services.config.first_run = False
+            if not await self.skippable(self.action_settings({})):
+                self.send('message', {'text': 'Downloading to {0}; change the folder in Settings',
+                                      'args': [self.services.config.download_directory]})
         source = self.record.source if self.record else ''
         directory = playlist_download_directory(self.services.config.download_directory,
                                                 self.record.title if self.record else '')
@@ -434,12 +444,18 @@ class Backend:
                                handle.cancel, ok='Download')
             def prerequisites(profile, auth):
                 async def configure():
-                    if profile:
-                        await self.action_settings({})
-                    if auth:
-                        await self.authenticate(handle.cancel)
+                    # Each step can be skipped on its own; its rows then end in the results with why.
+                    ready = []
+                    for items, step, group in ((profile, lambda: self.action_settings({}), 'profile'),
+                                               (auth, lambda: self.authenticate(handle.cancel), 'login')):
+                        if items and await self.skippable(step(), handle.cancel):
+                            ready += items
+                        else:
+                            for track, _url in items:
+                                failed[track.key] = (group, '')
+                                put(track.key, -1)
                     check_cancelled(handle.cancel)
-                    return profile + auth
+                    return ready
                 return asyncio.run_coroutine_threadsafe(configure(), self.loop).result()
             def attend(reasons):
                 # Nothing of the browser is shown unless the person asks for it here (plan Z2).
@@ -449,11 +465,11 @@ class Backend:
                         answer = await self.ask('Gates need you', 'These gates want something only you can do, '
                                                 'such as a login or a CAPTCHA.',
                                                 [field('gates', '', gates, 'log'),
-                                                 field('next', 'Next step', 'open', 'choice',
-                                                       [['open', 'Open them in the browser'], ['skip', 'Skip them for now']])],
-                                                handle.cancel, ok='Continue')
+                                                 field('next', '', 'open', 'buttons',
+                                                       [['open', 'Open in browser'], ['skip', 'Skip these']])],
+                                                handle.cancel, dismiss='Stop download')
                     except Cancelled:
-                        # The dialog's Cancel stops the whole download, not just this question.
+                        # Stop download ends the whole download, not just this question.
                         self.services.operations.cancel(handle)
                         raise
                     return answer['next'] == 'open'
@@ -473,7 +489,7 @@ class Backend:
                     settled.add(event.key)
                     put(event.key, -1)
                     if event.kind != 'cancelled':
-                        failed[event.key] = event.message
+                        failed[event.key] = (event.group, event.message)
                 elif event.kind == 'browser_started':
                     browser[0] = True
                     self.send('busy', {'value': True, 'text': 'Downloading gates in the background'})
@@ -503,14 +519,26 @@ class Backend:
         if not keys or is_cancelled(cancel):  # a cancelled download ends without another question
             return []
         by_key = {track.key: (track, url) for track, url in remote}
-        lines = [by_key[key][0].label + ': ' + failed.get(key, 'not started; run it again')
-                 for key in keys if key in by_key]
-        options = [['close', 'Close'], ['retry', 'Retry these'], ['open', 'Open them in the browser']]
+        lines, human = [], False
+        for key in keys:
+            if key in by_key:
+                text, needs_person = failure_reason(*failed.get(key, ('left', '')))
+                lines.append(by_key[key][0].label + ': ' + text)
+                human = human or needs_person
+        # The first button is the default: the browser when a person must act, else another try.
+        options = [['open', 'Open in browser'], ['retry', 'Retry these']]
+        if not human:
+            options.reverse()
         if browser_used and not (self.services.browser_link and self.services.browser_link.connections()):
-            options.append(['connect', 'Connect the browser and retry'])
-        answer = await self.ask('Download results', '', [field('results', '', '\n'.join(lines), 'log'),
-                                                          field('next', 'Next step', 'retry', 'choice', options)],
-                                cancel, ok='Continue')
+            options.append(['connect', 'Connect browser and retry'])
+        try:
+            answer = await self.ask('Download results', '', [field('results', '', '\n'.join(lines), 'log'),
+                                                              field('next', '', options[0][0], 'buttons', options)],
+                                    cancel, dismiss='Close')
+        except Cancelled:
+            if self.closing or is_cancelled(cancel):
+                raise
+            return []
         chosen = [by_key[key] for key in keys if key in by_key]
         if answer['next'] == 'open':
             for track, url in chosen:
@@ -804,21 +832,38 @@ class Backend:
             await self.publish([], '', self.generation)
 
     async def action_profile(self, values):
+        """Import every playlist a profile created; Welcome passes the link it already asked for."""
+        from ..paths import data_dir
+        from ..private_json import write_private_json
         from ..services.profile_import import import_profile
-        answer = await self.form('Import profile playlists', '', [field('url', 'SoundCloud profile URL'),
-                                                                 field('private', 'Include private playlists', False, 'bool')], required('url'), ok='Import')
+        from ..soundcloud_errors import SoundCloudError
+        if values.get('url'):
+            answer = profile_answer(values)
+        else:
+            answer = await self.form('Import profile playlists', '', [
+                field('url', 'Your SoundCloud profile link', hint='For example https://soundcloud.com/your-name'),
+                field('private', 'Include private playlists', False, 'bool',
+                      hint='Only when you are signed in to SoundCloud as this profile')], profile_answer, ok='Import')
         client = self.services.client
         async def work(handle):
-            report = await self.io(import_profile, client, self.services.state.db, answer['url'],
-                                   private=answer['private'], cancel=handle.cancel,
-                                   current=lambda: self.services._client is client)
-            from ..paths import data_dir
-            from ..private_json import write_private_json
+            def progress(done, total):
+                self.loop.call_soon_threadsafe(self.send, 'importProgress', dict(stage='Importing playlists', done=done, total=total))
+            error = ''
+            try:
+                report = await self.io(import_profile, client, self.services.state.db, answer['url'],
+                                       private=answer['private'], cancel=handle.cancel,
+                                       current=lambda: self.services._client is client, progress=progress)
+            except SoundCloudError as exc:
+                report, error = getattr(exc, 'report', []), str(exc)
+            finally:
+                self.send('importProgress', {})
+                await self.sidebar()
             output = data_dir() / ('profile-import-' + uuid4().hex + '.json')
-            await self.io(write_private_json, output, {'profile': answer['url'], 'results': report})
-            self.send('message', {'text': 'Imported {0} / {1} playlists. Report: {2}', 'args': [sum(item['status'] == 'imported' for item in report), len(report), str(output)]})
-            await self.sidebar()
-        await self.job('Importing playlists', work)
+            await self.io(write_private_json, output, {'profile': answer['url'], 'results': report, 'error': error})
+            return report, error, output
+        report, error, output = await self.job('Importing playlists', work)
+        await self.skippable(self.ask('Profile import', answer['url'], [*profile_summary(report, error),
+                                                                        field('report', 'Full report', str(output), 'path')], ok='Close'))
 
     async def action_settings(self, values):
         config = self.services.config
@@ -837,22 +882,42 @@ class Backend:
                 answer[name] = [line.strip() for line in answer[name].splitlines() if line.strip()]
             return answer
         status, status_args = self.browser_status()
-        answer = await self.form('Settings', 'Gates may submit your name and email. Social actions may follow, like, repost or comment, '
-                                 'and connect Spotify, Deezer or Apple Music, on the accounts logged in to your browser.',
-                                 [field('download_directory', 'Download folder', config.download_directory, 'folder'),
-                                  field('user_name', 'Name', config.user_name), field('user_email', 'Email', config.user_email if config.has_real_email() else ''),
-                                  field('gate_social_actions', 'Allow social actions', config.gate_social_actions, 'bool'),
-                                  field('scan_directories', 'Scan folders (one per line)', '\n'.join(config.scan_directories), 'multiline'),
-                                  field('pinned_directories', 'Pinned folders (one per line)', '\n'.join(config.pinned_directories), 'multiline'),
-                                  field('hidden_directories', 'Hidden folders (one per line)', '\n'.join(config.hidden_directories), 'multiline'),
-                                  field('default_artwork', 'Default cover (tracks without artwork)', config.default_artwork, 'image'),
-                                  dict(field('browser_status', 'Browser automation', status, 'note'), args=status_args),
-                                  field('browser', 'Open links in', config.browser if any(config.browser == v for v, _ in choices) else '', 'choice',
-                                        [[value, label] for value, label in choices]),
-                                  field('custom_comments', 'Gate comments (one per line)', '\n'.join(config.custom_comments), 'multiline'),
-                                  field('nyp_price', 'Bandcamp name-your-price items go into the cart at', config.nyp_price, 'choice',
-                                        [['minimum', 'The minimum price'], ['suggested', 'The price the artist suggests']])],
-                                 validate, ok='Save')
+        browsers = [[value, label] for value, label in choices]
+        if config.browser and not any(config.browser == value for value, _ in choices):
+            # Kept as saved, not quietly replaced: it may be back on another day or computer.
+            browsers.append([config.browser, '{0} (not available on this computer)', config.browser])
+        answer = await self.form('Settings', '', [
+            section('section_downloads', 'Downloads'),
+            field('download_directory', 'Download folder', config.download_directory, 'folder',
+                  hint='Each playlist gets its own folder inside it.'),
+            section('section_gates', 'Gates and carts',
+                    'Gates are free downloads you get for a follow, a like or your email; dj-digger fills them in for you. '
+                    'Gates may submit your name and email. Social actions may follow, like, repost or comment, '
+                    'and connect Spotify, Deezer or Apple Music, on the accounts logged in to your browser.'),
+            field('user_name', 'Name', config.user_name),
+            field('user_email', 'Email', config.user_email if config.has_real_email() else '',
+                  hint='Some gates ask for one before the download.'),
+            field('gate_social_actions', 'Allow social actions', config.gate_social_actions, 'bool',
+                  hint='Off: gates that want a follow, like, repost or comment are left for you to do in the browser.'),
+            field('custom_comments', 'Gate comments (one per line)', '\n'.join(config.custom_comments), 'multiline',
+                  hint='One is picked at random when a gate asks for a comment.'),
+            field('nyp_price', 'Bandcamp name-your-price items go into the cart at', config.nyp_price, 'choice',
+                  [['minimum', 'The minimum price'], ['suggested', 'The price the artist suggests']],
+                  hint='Nothing is bought: you pay in the store yourself.'),
+            section('section_browser', 'Browser'),
+            dict(field('browser_status', 'Browser automation', status, 'note'), args=status_args),
+            field('browser', 'Open links in', config.browser, 'choice', browsers,
+                  hint='Store and artist links open here. SoundCloud sign-in, gates and carts open in the browser '
+                       'with the dj-digger extension (Settings → Connect browser…).'),
+            section('section_player', 'Player'),
+            field('default_artwork', 'Default cover (tracks without artwork)', config.default_artwork, 'image'),
+            section('section_folders', 'Library folders (advanced)', collapsed=True),
+            field('scan_directories', 'Scan folders (one per line)', '\n'.join(config.scan_directories), 'multiline',
+                  hint='Where dj-digger looks for music you already have.'),
+            field('pinned_directories', 'Pinned folders (one per line)', '\n'.join(config.pinned_directories), 'multiline',
+                  hint='Listed under Folders in the sidebar.'),
+            field('hidden_directories', 'Hidden folders (one per line)', '\n'.join(config.hidden_directories), 'multiline',
+                  hint='Left out of the folder tree.')], validate, ok='Save')
         await self.io(self.services.accounts.save_preferences, answer)
         self.services.config.first_run = False
         await self.sidebar()
@@ -865,7 +930,13 @@ class Backend:
             raise ValueError(result.error)
         if result.token:
             self.services.adopt_login(result.token)
-            self.send('message', {'text': 'Signed in'})
+            browser = self.connected_browser()
+            if result.username and browser:
+                self.send('message', {'text': 'Signed in as {0} in {1}', 'args': [result.username, browser]})
+            elif result.username:
+                self.send('message', {'text': 'Signed in as {0}', 'args': [result.username]})
+            else:
+                self.send('message', {'text': 'Signed in'})
             await self.action_account({})
         else:
             raise Cancelled()
@@ -875,7 +946,8 @@ class Backend:
 
     async def action_logout(self, values):
         from ..auth import clear_token
-        await self.ask('Sign out', 'Remove the stored SoundCloud session from this computer.', ok='Sign out')
+        await self.ask('Sign out', 'Remove the stored SoundCloud session from this computer. Your browser stays '
+                       'signed in to SoundCloud; sign out there too if you want to.', ok='Sign out')
         await self.io(clear_token)
         self.services.adopt_login(None)
         await self.action_account({})
@@ -1390,22 +1462,50 @@ class Backend:
         if not folder:
             from ..paths import data_dir
             folder = str(data_dir() / 'browser-extension')
-        status, args = self.browser_status()
-        fields = [dict(field('status', 'Status', status, 'note'), args=args),
-                  field('chrome', 'Chrome, Edge, Brave', 'Open the extensions page, switch on Developer mode, '
-                        'choose Load unpacked and select the folder below.', 'note'),
-                  field('firefox', 'Firefox', 'Open about:debugging, choose This Firefox, then Load Temporary Add-on '
-                        'and select manifest.json in the folder below.', 'note'),
-                  field('folder', 'Extension folder', folder, 'path')]
-        if notes:
-            fields.insert(1, field('notes', 'Notes', '\n'.join(notes), 'note'))
-        await self.ask('Connect browser', 'dj-digger controls your own browser through an extension, so it works with '
-                       'the accounts you are logged in to. SoundCloud sign-in, gates and carts open in the browser where you install '
-                       'the extension - pick the one you are signed in to.', fields, cancel, ok='Check connection')
-        if self.services.browser_link is not None:
-            with contextlib.suppress(link.ExtensionMissing):
-                await self.io(self.services.browser_link.connection, 5)
-        await self.action_account({})
+        error = ''
+        while True:
+            status, args = self.browser_status()
+            # Browsers do not let a link open their own extensions page, so its address is there to copy.
+            fields = [dict(field('status', 'Status', status, 'note'), args=args),
+                      section('section_chrome', 'Chrome, Edge, Brave'),
+                      field('chrome_steps', '', '1. Open a new tab and go to the address below.\n'
+                            '2. Switch on Developer mode (top right).\n'
+                            '3. Click Load unpacked and choose the extension folder below.', 'note'),
+                      field('chrome_page', '', 'chrome://extensions', 'copy'),
+                      section('section_firefox', 'Firefox'),
+                      field('firefox_steps', '', '1. Open a new tab and go to the address below.\n'
+                            '2. Click Load Temporary Add-on.\n'
+                            '3. Choose manifest.json in the extension folder below.', 'note'),
+                      field('firefox_page', '', 'about:debugging#/runtime/this-firefox', 'copy'),
+                      field('folder', 'Extension folder', folder, 'path')]
+            if notes:
+                fields.insert(1, field('notes', 'Notes', '\n'.join(notes), 'note'))
+            await self.ask('Connect browser', 'dj-digger controls your own browser through an extension, so it works with '
+                           'the accounts you are logged in to. SoundCloud sign-in, gates and carts open in the browser where you install '
+                           'the extension - pick the one you are signed in to.', fields, cancel, ok='Check connection',
+                           error=error, dismiss='Not now')
+            try:
+                if self.services.browser_link is None:
+                    raise link.ExtensionMissing('No extension channel')
+                connection = await self.io(self.services.browser_link.connection, 5)
+            except link.ExtensionMissing:
+                error = "The extension still isn't answering. Install/enable it, then click Check connection again."
+                continue
+            browser = self.connected_browser(connection)
+            self.send('message', {'text': 'Connected: {0}. SoundCloud sign-in, gates and carts will open there.',
+                                  'args': [browser or 'browser']})
+            await self.action_account({})
+            return
+
+    def connected_browser(self, connection=None):
+        """``Chrome 141`` for the given (else the most recent compatible) extension connection; '' for none."""
+        if connection is None:
+            link = self.services.browser_link
+            usable = [c for c in (link.connections() if link is not None else []) if c.compatible]
+            connection = max(usable, key=lambda c: c.last_active) if usable else None
+        hello = getattr(connection, 'hello', None) or {}
+        name = str(hello.get('browser') or '').capitalize()
+        return ' '.join(filter(None, [name, str(hello.get('browserVersion') or '').split('.')[0]])) if name else ''
 
     async def with_extension(self, call, cancel):
         """Browser automation needs the extension; until it says hello, show how to connect and retry."""
@@ -1418,7 +1518,63 @@ class Backend:
 
     async def action_connect_browser(self, values):
         await self.connect_browser()
-        self.send('message', dict(zip(('text', 'args'), self.browser_status())))
+
+    async def skippable(self, step, cancel=None):
+        """Await a step the person may skip: True once done, False when they chose Skip (or Cancel)."""
+        try:
+            await step
+            return True
+        except Cancelled:
+            if self.closing or is_cancelled(cancel):
+                raise
+            return False
+
+    async def action_welcome(self, values):
+        """First start: import the person's own playlists, then the settings that matter. Every step skips."""
+        config = self.services.config
+        if config.onboarded:
+            return
+        signed_in = await self.io(lambda: bool(self.services.client.oauth_token))
+        fields = [field('url', 'Your SoundCloud profile link', hint='For example https://soundcloud.com/your-name')]
+        if signed_in:  # private playlists come only with the owner's own sign-in
+            fields.append(field('private', 'Include private playlists', False, 'bool',
+                                hint='Only when you are signed in to SoundCloud as this profile'))
+        answer = {}
+        async def profile():
+            answer.update(await self.form(
+                'Welcome to dj-digger', 'dj-digger lists the tracks of your SoundCloud playlists with their free downloads '
+                'and store links, so you can preview, download and buy them in one place. Start with your own playlists: '
+                'paste your profile link and every playlist you created is imported.', fields, profile_answer,
+                ok='Import all my playlists', dismiss='Skip'))
+        if await self.skippable(profile()):
+            # In the background: the next steps do not wait for it; its summary follows when done.
+            self._start('profile', answer)
+        def basics(answer):
+            from ..config import is_real_email
+            if answer['user_email'] and not is_real_email(answer['user_email']):
+                raise ValueError('Enter a valid email')
+            if not answer['download_directory'].strip():
+                raise ValueError('Specify a download folder')
+            return answer
+        async def settings():
+            await self.io(self.services.accounts.save_preferences, await self.form(
+                'Downloads and gates', 'Where downloads go, and the name and email that gates (free downloads for a '
+                'follow, a like or your email) may submit. Everything else is in Settings.',
+                [field('download_directory', 'Download folder', config.download_directory, 'folder',
+                       hint='Each playlist gets its own folder inside it.'),
+                 field('user_name', 'Name', config.user_name),
+                 field('user_email', 'Email', config.user_email if config.has_real_email() else '',
+                       hint='Some gates ask for one before the download.')], basics, ok='Save and continue', dismiss='Skip'))
+        await self.skippable(settings())
+        if not self.connected_browser():
+            async def browser():
+                await self.ask('Connect your browser', 'SoundCloud sign-in, gates and carts need the dj-digger extension in '
+                               'your browser. They open in the browser where it is installed, with the accounts you are '
+                               'signed in to there.', ok='Connect browser', dismiss='Skip')
+                await self.connect_browser()
+            await self.skippable(browser())
+        config.first_run = False
+        await self.io(self.services.accounts.save_preferences, {'onboarded': True})
 
     async def action_disconnect_browsers(self, values):
         from ..webext import register
@@ -1479,8 +1635,73 @@ def result_status(result):
     return 'to playlist' if result.status == 'playlist_ready' else result.status
 
 
-def field(name, label, value='', kind='text', options=()):
-    return dict(name=name, label=label, value=value, kind=kind, options=[list(o) for o in options])
+def field(name, label, value='', kind='text', options=(), hint=''):
+    """A form row. ``hint`` is a line of plain-language help shown under it. Kinds besides inputs:
+    ``note`` / ``path`` / ``copy`` read-only text (the last two with a Copy button), ``section`` a
+    header (``collapsed=True`` folds the rows up to the next one), ``buttons`` one footer button
+    per option that answers with its value (the dialog then has no OK button)."""
+    return dict(name=name, label=label, value=value, kind=kind, options=[list(o) for o in options], hint=hint)
+
+
+DISPLAY_KINDS = frozenset({'note', 'path', 'copy', 'section'})
+
+
+def section(name, label, hint='', collapsed=False):
+    return dict(field(name, label, kind='section', hint=hint), collapsed=collapsed)
+
+
+def profile_answer(answer):
+    """Form validation: the profile link, normalised (ValueError says what to paste)."""
+    from ..services.profile_import import profile_url
+    return dict(answer, url=profile_url(answer.get('url')), private=bool(answer.get('private')))
+
+
+# Why a download failed, in plain words, by the service's failure group; True when only a person can fix it.
+FAILURE_REASONS = {
+    'auth': ('needs you to sign in on the gate site', True),
+    'captcha': ('needs a CAPTCHA solved', True),
+    'consent': ('wants a follow, like or comment (switched off in Settings)', True),
+    'manual': ('needs a step only you can do', True),
+    'rejected': ('the gate refused the download', True),
+    'protocol': ('the gate is gone or has changed', True),
+    'login': ('needs a SoundCloud sign-in', True),
+    'profile': ('needs your name and email (Settings)', True),
+    'download': ('the download failed', False),
+    'left': ('not started; run it again', False),
+}
+
+
+def failure_reason(group, message):
+    """(text, needs a person) for one failed row; the original message follows in brackets."""
+    lowered = message.lower()
+    if 'no longer exists' in lowered:
+        phrase, human = 'the gate is gone', True
+    elif 'timed out' in lowered or 'timeout' in lowered:
+        phrase, human = 'timed out', False
+    else:
+        phrase, human = FAILURE_REASONS.get(group, ('', False))
+    detail = log_safe_text(message)[:200]
+    text = phrase + (f' ({detail})' if detail and detail != phrase else '') if phrase else detail or 'failed'
+    return text, human
+
+
+def profile_summary(report, error=''):
+    """The rows of the import result: counts, then each playlist that did not come in and why."""
+    reasons = {'locally_changed': 'deleted or changed here during the import; left as it is',
+               'incomplete': 'SoundCloud sent it incomplete; the previous copy was kept'}
+    imported = sum(item['status'] == 'imported' for item in report)
+    skipped = [item for item in report if item['status'] in ('skipped', 'locally_changed')]
+    failed = [item for item in report if item['status'] not in ('imported', 'skipped', 'locally_changed')]
+    rows = [dict(field('summary', '', 'Imported {0} / {1} playlists', 'note'), args=[imported, len(report)]),
+            dict(field('counts', '', 'Skipped: {0}. Failed: {1}.', 'note'), args=[len(skipped), len(failed)])]
+    if error:
+        rows.append(dict(field('stopped', '', 'The import stopped: {0}', 'note'), args=[log_safe_text(error)]))
+    lines = [f"{item.get('title', item.get('id'))}: {verdict}, "
+             f"{reasons.get(item['status']) or log_safe_text(item.get('message') or item['status'])}"
+             for verdict, items in (('skipped', skipped), ('failed', failed)) for item in items]
+    if lines:
+        rows.append(field('details', 'Not imported', '\n'.join(lines), 'log'))
+    return rows
 
 
 def soundcloud_link(name):

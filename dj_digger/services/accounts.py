@@ -14,6 +14,7 @@ from ..webext.link import ExtensionMissing
 class AuthenticationResult:
     token: str | None = field(default=None, repr=False)
     error: str = ""
+    username: str = ""
 
 
 class AccountService:
@@ -36,7 +37,7 @@ class AccountService:
                         result = auth.login_with_browser(self.client_id(), cancel=cancel, status=status)
                     else:
                         result = auth.verify_and_save(token, self.client_id())
-                    return AuthenticationResult(token=result[0])
+                    return AuthenticationResult(token=result[0], username=result[1])
                 except auth.SoundCloudAuthCancelled:
                     return AuthenticationResult()
                 except auth.SoundCloudAuthError as exc:

@@ -240,11 +240,14 @@ class Bridge(QObject):
             self.notice.emit(self._message, self._level)
         elif kind == 'question':
             values['info'] = values.get('ok') == 'Close'
-            for name in ('title', 'body', 'ok', 'error'):
+            for name in ('title', 'body', 'ok', 'error', 'cancel'):
                 values[name] = self.tr(values.get(name, ''))
             for item in values['fields']:
                 item['label'] = self.tr(item['label'])
-                item['options'] = [[value, self.tr(label)] for value, label in item.get('options', [])]
+                item['hint'] = self.tr(item.get('hint', ''))
+                # An option may carry arguments for its label after it: [value, label, *args].
+                item['options'] = [[value, self.tr(label).format(*args) if args else self.tr(label)]
+                                   for value, label, *args in item.get('options', [])]
                 if item['kind'] == 'note':
                     item['value'] = self.tr(item['value']).format(*item['args']) if 'args' in item else self.tr(item['value'])
             self.question.emit(values)
@@ -253,6 +256,8 @@ class Bridge(QObject):
         elif kind == 'ready':
             self._ready = True
             self._volume = values.get('volume', self._volume)
+            if values.get('welcome'):
+                self.backend.submit('welcome')
         elif kind == 'closed':
             if self._close_timer:
                 self._close_timer.cancel()

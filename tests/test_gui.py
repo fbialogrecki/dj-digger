@@ -560,7 +560,9 @@ def test_missing_extension_shows_the_connect_dialog_and_retries(extension, choic
     assert fields['status']['value'] == 'Not connected: install the dj-digger extension in your browser'
     assert fields['folder'] == dict(fields['folder'], kind='path', value=str(folder))
     assert fields['notes']['value'] == 'No browser'
-    assert {'chrome', 'firefox'} <= set(fields) and 'Chromium' not in str(question)
+    assert {'chrome_steps', 'firefox_steps'} <= set(fields) and 'Chromium' not in str(question)
+    assert (fields['chrome_page']['kind'], fields['chrome_page']['value']) == ('copy', 'chrome://extensions')
+    assert fields['firefox_page']['value'] == 'about:debugging#/runtime/this-firefox' and question['cancel'] == 'Not now'
     worker.answer(question['id'], {} if choice == 'check' else None)
     if choice == 'cancel':
         with pytest.raises(Cancelled):
@@ -589,6 +591,7 @@ def test_login_without_the_extension_offers_to_connect_it_and_retries(extension)
     question = next_of(events, 'question')[1]
     assert question['title'] == 'Connect browser'
     worker.answer(question['id'], {})
+    assert next_of(events, 'message', 'error')[1]['text'].startswith('Connected: ')
     assert next_of(events, 'message', 'error')[1]['text'] == 'Signed in' and calls == ['browser', 'browser']
 
 
@@ -625,7 +628,8 @@ def test_settings_show_the_browser_automation_status(extension, tmp_path, hellos
     worker.services.browser_link = FakeLink(*hellos)
     worker.submit('settings', {})
     question = wait_event(events, 'question')
-    assert 'accounts logged in to your browser' in question['body'] and 'Deezer' in question['body']
+    gates = next(f for f in question['fields'] if f['name'] == 'section_gates')['hint']
+    assert 'accounts logged in to your browser' in gates and 'Deezer' in gates
     note = next(f for f in question['fields'] if f['name'] == 'browser_status')
     assert (note['kind'], note['label'], note['value'].format(*note.get('args', []))) == ('note', 'Browser automation', status)
     answer = {f['name']: f['value'] for f in question['fields']}
