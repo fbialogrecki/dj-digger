@@ -13,11 +13,11 @@ def test_invert_selection_flips_only_visible_rows(app):  # noqa: F811
     model.select(0)
     model.invertSelection()
     assert model.keys() == ['b', 'c']
-    model.filter('Beta', '', False)
+    model.filter('Beta', {})
     model.invertSelection()
     assert model.keys() == []
     # Like Select all, it acts on what the filters show; hidden rows leave the selection.
-    model.filter('', '', False)
+    model.filter('', {})
     assert model.keys() == []
 
 
@@ -101,7 +101,7 @@ def test_menu_entries_follow_the_view_and_name_counts(window):
     bridge.table.selectAll()
     qml(win, 'contextMenu.open()')
     settle(win)
-    assert shown(win) == ['play', 'owned', 'skip', 'reset', 'copy', 'selectAll', 'invert',
+    assert shown(win) == ['play', 'skip', 'reset', 'copy', 'selectAll', 'invert',
                           'reveal', 'edit', 'analyze', 'export', 'deleteFiles']
     assert '2' in qml(win, entry(win, 'deleteFiles') + '.text')
     # Disabled entries say why.

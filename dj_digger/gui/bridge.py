@@ -162,8 +162,6 @@ class Bridge(QObject):
     def receive(self, kind, values):
         if kind == 'view':
             self._view = {k: v for k, v in values.items() if k != 'rows'}
-            if values.get('local'):
-                self.table.store = ''
             self.table.replace(values['rows'])
         elif kind == 'rows':
             if values['generation'] == self._view['generation']:
@@ -275,7 +273,7 @@ class Bridge(QObject):
         if everything:
             keys = [row['key'] for row in self.table.visible]
         self.backend.submit(name, dict(keys=keys, order=[r['key'] for r in self.table.visible], selected=selected, search=self.table.search,
-                                       hide=self.table.hide, store=self.table.store, generation=self._view['generation']))
+                                       statuses=sorted(self.table.statuses), stores=sorted(self.table.store_filter), generation=self._view['generation']))
 
     @Slot(str)
     def mark(self, status):

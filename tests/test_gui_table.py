@@ -52,8 +52,8 @@ def test_range_without_a_visible_anchor_starts_at_the_keyboard_row(app):
     assert model.keys() == ['2', '3', '4']
     # The anchor's track filtered out: the range starts where the keyboard row is.
     model.select(5)
-    model.filter('T1 ', '', False)
-    model.filter('', '', False)
+    model.filter('T1 ', {})
+    model.filter('', {})
     model.anchor = 'gone'
     model.select(3, False, True)
     assert model.keys() == ['3', '4', '5']
@@ -72,9 +72,9 @@ def test_keyboard_row_follows_its_track_through_sort_and_filter(app):
     assert model.cursorRow == 0
     model.sortBy(2)
     assert model.cursorRow == 2 and model.visible[2]['key'] == 'c'
-    model.filter('alpha', '', False)
+    model.filter('alpha', {})
     assert model.cursorRow == -1
-    model.filter('', '', False)
+    model.filter('', {})
     assert model.cursorRow == 2
     model.selectAll()
     assert model.cursorRow == 2 and model.anchor == 'c'

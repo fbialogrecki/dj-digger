@@ -100,10 +100,10 @@ def test_invert_selection_selects_the_other_visible_rows(app):
     model.select(0)
     model.invertSelection()
     assert model.keys() == ['b', 'c']
-    model.filter('Beta', '', False)
+    model.filter('Beta', {})
     model.invertSelection()
     assert model.keys() == [] and model.selected == set(), 'hidden rows drop out of the selection'
-    model.filter('', '', False)
+    model.filter('', {})
     model.invertSelection()
     assert model.keys() == ['a', 'b', 'c']
 

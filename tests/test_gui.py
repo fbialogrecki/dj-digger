@@ -49,7 +49,7 @@ def test_table_selection_survives_sort_and_status_updates(app):
     updated[0]['status'] = 'got'
     model.update_rows(updated)
     assert model.keys() == ['b']
-    model.filter('', '', True)
+    model.filter('', {'statuses': ['new', 'played', 'opened']})
     assert model.rowCount() == 1
     assert model.keys() == []
     assert model.thread() == QThread.currentThread()
@@ -60,7 +60,7 @@ def test_table_literal_text_and_numeric_sort(app):
     model.replace([row('1', '<img src="http://127.0.0.1/private">', 99), row('2', 'Other', 120)])
     model.sortBy(4)
     assert model.data(model.index(0, 2)).startswith('<img')
-    model.filter('other', 'bandcamp', False)
+    model.filter('other', {'stores': ['bandcamp']})
     assert model.rowCount() == 1
     assert model.visible[0]['key'] == '2'
 
@@ -76,7 +76,7 @@ def test_table_longest_visible_text_and_header_names(app):
     model.replace(played)
     assert model.data(model.index(1, 0)) == 'Played' and model.data(model.index(1, 8)) == '2:20:08'
     assert model.data(model.index(0, 8)) == '1:00'
-    model.filter('short', '', False)
+    model.filter('short', {})
     assert model.longestText(2) == 'Short'
     assert model.longestText(42) == '' and model.longestText(-1) == ''
     assert model.headerName(9) == 'Stores' and model.headerName(11) == 'Comment' and model.headerName(12) == ''
@@ -260,7 +260,7 @@ def test_open_uses_only_selected_store(backend):
     worker.rows = online_rows(1)
     opened = []
     worker.services.opening.open_one = lambda url, *args: opened.append(url)
-    worker.submit('open', {'keys': ['1'], 'generation': 0, 'store': 'beatport'})
+    worker.submit('open', {'keys': ['1'], 'generation': 0, 'stores': ['beatport']})
     wait_event(events, 'rows')
     assert opened == ['https://beatport.com/track/0']
 
@@ -281,10 +281,10 @@ def test_cancel_bulk_open_has_no_browser_side_effect(backend):
     worker.rows = online_rows(21)
     opened = []
     worker.services.opening.open_one = lambda url, *args: opened.append(url)
-    # Twenty links open without a prompt, as in the TUI; the twenty-first asks first.
+    # Ten links open without a prompt; the eleventh asks first, naming how many tabs.
     worker.submit('open', {'keys': [str(i) for i in range(1, 22)], 'generation': 0})
     question = wait_event(events, 'question')
-    assert question['fields'][0]['kind'] == 'log' and question['ok'] == 'Open'
+    assert question['fields'][0]['args'] == [21] and question['fields'][-1]['kind'] == 'log' and question['ok'] == 'Open'
     worker.answer(question['id'], None)
     assert wait_event(events, 'message')['text'] == 'Cancelled'
     assert not opened
@@ -935,7 +935,7 @@ def test_model_counts_store_summary_and_status_labels(app):
     assert model.keys() == []
 
 
-def test_a_gate_reads_as_its_site_while_the_filter_keeps_the_gate_category(app):
+def test_a_gate_reads_and_filters_as_its_site(app):
     from dj_digger import links
     from dj_digger.models import LinkRecord, Track
     from dj_digger.rows import Row
@@ -949,7 +949,8 @@ def test_a_gate_reads_as_its_site_while_the_filter_keeps_the_gate_category(app):
     model.replace([{**row('a', 'Alpha'), 'stores': 'gate, bandcamp', 'storeNames': 'Hypeddit, bandcamp'}])
     assert model.data(model.index(0, 9)) == 'Hypeddit, bandcamp'
     assert model.data(model.index(0, 9), Qt.UserRole + 6) == 'gate, bandcamp'
-    assert dict(name='gate', count=1) in model.store_counts()
+    # The store pills name a gate by its site too, as the Stores column does.
+    assert dict(name='Hypeddit', count=1) in model.store_counts()
 
 
 def keyed(key, title, key_signature, bpm=120):
@@ -1495,7 +1496,7 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
             return (light + .05) / (dark + .05)
 
         search = window.findChild(QQuickItem, 'trackSearch')
-        store = window.findChild(QQuickItem, 'storeFilter')
+        store = window.findChild(QQuickItem, 'statusFilter')
         for theme in ('dark', 'light', 'dark'):
             window.setProperty('themeChoice', theme)
             painted = QSignalSpy(window.frameSwapped)
@@ -1656,14 +1657,21 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
         # The action buttons are present as soon as a view is loaded and enable with a selection.
         actions = window.findChild(QQuickItem, 'trackActions')
         assert actions.isVisible()
-        open_links = next(c for c in actions.childItems() if c.property('text') == 'Otwórz linki')
-        assert not open_links.isEnabled()
+        # A local view offers no store actions: no Open in browser, Download, Mark owned or cart.
+        open_links = window.findChild(QQuickItem, 'openButton')
+        assert not open_links.isVisible()
+        skip = window.findChild(QQuickItem, 'skipButton')
+        assert not skip.isEnabled()
         bridge.table.select(1)
         settle()
-        assert open_links.isEnabled()
+        assert skip.isEnabled() and window.findChild(QQuickItem, 'selectionCount').property('text').startswith('1 ')
         # The row menu's entries per view are covered in test_gui_context_menu.py.
         def qml(expression):
             return QQmlExpression(QQmlEngine.contextForObject(window), window, expression).evaluate()[0]
+        bridge.receive('view', dict(title='Playlist', source='sc:1', local=False, generation=2, rows=[row('a', 'Alpha'), row('b', 'Beta')]))
+        bridge.table.select(1)
+        settle()
+        assert open_links.isVisible() and open_links.isEnabled()
         bridge.receive('view', dict(title='Local', source='fixture', local=True, generation=3, rows=[row('a', 'Alpha'), row('b', 'Beta')]))
         bridge.table.select(1)
         settle()

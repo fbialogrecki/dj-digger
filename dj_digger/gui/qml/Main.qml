@@ -336,8 +336,54 @@ ApplicationWindow {
     function clearFilters() {
         if (hasSelection) desktop.model.clearSelection()
         else if (search.text) search.text = ""
-        else { store.currentIndex = 0; hide.checked = false; filterTimer.restart() }
+        else resetFilters(true)
         table.forceActiveFocus()
+    }
+    // Filters live here and reach the model through applyFilters; the toolbar only shows them.
+    property var storeFilter: []
+    property string statusFilter: ""
+    property int bpmMin: 0
+    property int bpmMax: 0
+    property bool keyMatch: false
+    property string genreFilter: ""
+    readonly property var statusSets: ({ unhandled: ["new", "played", "opened"], new: ["new", "played"], opened: ["opened"], got: ["got"], skip: ["skip"] })
+    readonly property bool extraFilters: bpmMin > 0 || bpmMax > 0 || keyMatch || genreFilter !== ""
+    readonly property bool filtersActive: search.text !== "" || storeFilter.length > 0 || statusFilter !== "" || extraFilters
+    function applyFilters() {
+        let playing = desktop.nowPlaying.camelot || "", codes = []
+        if (keyMatch && playing)
+            for (let n = 1; n <= 12; n++) for (let mode of ["A", "B"]) if (harmonic(n + mode, playing)) codes.push(n + mode)
+        desktop.model.filter(search.text, { stores: storeFilter, statuses: statusSets[statusFilter] || [], bpmMin: bpmMin, bpmMax: bpmMax, keys: codes, genre: genreFilter })
+    }
+    function setStatusFilter(value) { statusFilter = value; filterTimer.restart() }
+    function toggleStore(name) {
+        let chosen = storeFilter.slice(), at = chosen.indexOf(name)
+        if (at >= 0) chosen.splice(at, 1); else chosen.push(name)
+        storeFilter = chosen
+        filterTimer.restart()
+    }
+    // Esc and "Clear filters" clear everything; another view keeps only the status filter, a way of working.
+    function resetFilters(everything) {
+        search.text = ""
+        storeFilter = []; bpmMin = 0; bpmMax = 0; keyMatch = false; genreFilter = ""
+        if (everything) statusFilter = ""
+        filterTimer.stop()
+        applyFilters()
+    }
+    readonly property string viewIdentity: desktop.view.source || desktop.view.title || ""
+    onViewIdentityChanged: resetFilters(false)
+    Connections {
+        target: desktop.model
+        // A store that left the view leaves the filter too; counts changing never shift it.
+        function onStoresChanged() {
+            let present = desktop.model.stores.map(s => s.name)
+            let kept = root.storeFilter.filter(name => present.indexOf(name) >= 0)
+            if (kept.length !== root.storeFilter.length) { root.storeFilter = kept; filterTimer.restart() }
+        }
+    }
+    Connections {
+        target: desktop
+        function onNowPlayingChanged() { if (root.keyMatch) filterTimer.restart() }
     }
     function shortcutList() {
         let lines = []
@@ -444,14 +490,16 @@ ApplicationWindow {
 
     // Actions shown by the toolbar, the player or the sidebar live here, outside the menus,
     // so their shortcuts work everywhere without a second copy in the menu bar.
-    Action { id: openAction; text: qsTr("Open links"); shortcut: "O"; enabled: root.hasSelection; onTriggered: desktop.action("open") }
-    Action { id: downloadAction; text: qsTr("Download"); shortcut: "D"; enabled: root.hasSelection && !desktop.busy; onTriggered: desktop.action("download") }
-    Action { id: ownedAction; text: qsTr("Mark owned"); shortcut: "G"; enabled: root.hasSelection; onTriggered: desktop.mark("got") }
+    // Store links, downloads, owning and carts belong to playlists; local files have none of them.
+    // Opening runs as an operation of its own, so it waits for the running one like Download.
+    Action { id: openAction; text: qsTr("Open in browser"); shortcut: "O"; enabled: root.hasSelection && !desktop.busy && !desktop.view.local; onTriggered: desktop.action("open") }
+    Action { id: downloadAction; text: qsTr("Download"); shortcut: "D"; enabled: root.hasSelection && !desktop.busy && !desktop.view.local; onTriggered: desktop.action("download") }
+    Action { id: ownedAction; text: qsTr("Mark owned"); shortcut: "G"; enabled: root.hasSelection && !desktop.view.local; onTriggered: desktop.mark("got") }
     Action { id: skipAction; text: qsTr("Skip"); shortcut: "K"; enabled: root.hasSelection; onTriggered: desktop.mark("skip") }
     Action { id: resetAction; text: qsTr("Reset status"); shortcut: "U"; enabled: root.hasSelection; onTriggered: desktop.mark("new") }
     Action { id: analyzeAction; text: qsTr("Analyze BPM / key"); enabled: root.hasSelection && !desktop.busy && !!desktop.view.local; onTriggered: desktop.action("analyze") }
     Action { id: editAction; text: qsTr("Edit BPM / key…"); shortcut: "E"; enabled: desktop.model.counts.selected === 1 && !!desktop.view.local; onTriggered: desktop.action("edit") }
-    Action { id: cartAction; text: qsTr("Prepare cart / Beatport playlist…"); shortcut: "C"; enabled: root.hasSelection && !desktop.busy; onTriggered: desktop.action("cart") }
+    Action { id: cartAction; text: qsTr("Add to store carts…"); shortcut: "C"; enabled: root.hasSelection && !desktop.busy && !desktop.view.local; onTriggered: desktop.action("cart") }
     Action { id: removeAction; text: qsTr("Remove from playlist…"); shortcut: "X"; enabled: root.hasSelection && root.remoteView; onTriggered: desktop.action("remove") }
     // Space always belongs to playback: it pauses or resumes the loaded track, whatever is selected;
     // only with nothing loaded does it start the selected track. Enter starts the selected track.
@@ -468,7 +516,8 @@ ApplicationWindow {
     Action { id: addFolderAction; text: qsTr("Add folder…"); shortcut: "Ctrl+O"; onTriggered: folderDialog.open() }
     Action { id: deletePlaylistAction; text: qsTr("Delete playlist…"); shortcut: "Shift+X"; enabled: !!desktop.view.source; onTriggered: desktop.deletePlaylist(desktop.view.source) }
     Action { id: searchAction; text: qsTr("Search"); shortcut: "Ctrl+F"; onTriggered: { search.forceActiveFocus(); search.selectAll() } }
-    Action { id: hideAction; text: qsTr("Hide handled"); shortcut: "H"; onTriggered: { hide.checked = !hide.checked; filterTimer.restart() } }
+    // H switches the status filter between every track and the unhandled ones.
+    Action { id: hideAction; text: qsTr("Hide handled"); shortcut: "H"; onTriggered: root.setStatusFilter(root.statusFilter === "unhandled" ? "" : "unhandled") }
 
     // The menu bar holds what has no button elsewhere, grouped by what it acts on, plus the
     // transport, so every playback key can be found from the menus.
@@ -517,12 +566,12 @@ ApplicationWindow {
             Action { text: qsTr("Invert selection"); shortcut: "Ctrl+I"; enabled: root.hasRows; onTriggered: desktop.model.invertSelection() }
             Action { text: qsTr("Undo status change"); shortcut: "Ctrl+Z"; onTriggered: desktop.action("undo") }
             AppSeparator {}
-            Action { text: qsTr("Open all visible links"); shortcut: "Shift+O"; enabled: root.hasRows && !desktop.busy; onTriggered: desktop.action("open", true) }
-            Action { text: qsTr("Download all visible"); shortcut: "Shift+D"; enabled: root.hasRows && !desktop.busy; onTriggered: desktop.action("download", true) }
-            Action { text: qsTr("Prepare cart for all visible…"); shortcut: "Shift+C"; enabled: root.hasRows && !desktop.busy; onTriggered: desktop.action("cart", true) }
+            Action { text: qsTr("Open all visible links"); shortcut: "Shift+O"; enabled: root.hasRows && !desktop.busy && !desktop.view.local; onTriggered: desktop.action("open", true) }
+            Action { text: qsTr("Download all visible"); shortcut: "Shift+D"; enabled: root.hasRows && !desktop.busy && !desktop.view.local; onTriggered: desktop.action("download", true) }
+            Action { text: qsTr("Add all visible to store carts…"); shortcut: "Shift+C"; enabled: root.hasRows && !desktop.busy && !desktop.view.local; onTriggered: desktop.action("cart", true) }
             AppSeparator {}
             Action { text: qsTr("Save local playlist…"); enabled: root.hasSelection && desktop.view.local; onTriggered: desktop.action("save_playlist") }
-            Action { text: qsTr("Export links…"); shortcut: "Shift+E"; enabled: root.hasRows; onTriggered: desktop.action("summary", !root.hasSelection) }
+            Action { text: qsTr("Export links…"); shortcut: "Shift+E"; enabled: root.hasRows && !desktop.view.local; onTriggered: desktop.action("summary", !root.hasSelection) }
         }
         // The player's own Actions: one shortcut each, wherever it is shown.
         AppMenu {
@@ -1741,40 +1790,193 @@ ApplicationWindow {
                 }
                 }
             }
-                TextField {
-                    id: search; objectName: "trackSearch"; placeholderText: qsTr("Search artist, title, genre, tag or label"); Layout.fillWidth: true; Layout.minimumWidth: 0
-                    Layout.rightMargin: root.edge
-                    rightPadding: slashKey.visible ? slashKey.width + 18 : leftPadding
-                    // Framed like the toolbar buttons: a faint outline, the accent only while typing.
-                    background: Rectangle {
-                        implicitHeight: 36; radius: 6; color: root.bg
-                        border.color: search.activeFocus ? root.accent : root.alternate
-                    }
-                    // The key that jumps here, shown as a key rather than as part of the hint.
-                    Rectangle {
-                        id: slashKey
-                        visible: !search.activeFocus && !search.text
-                        anchors.right: parent.right; anchors.rightMargin: 10; anchors.verticalCenter: parent.verticalCenter
-                        width: 22; height: 22; radius: 4; color: "transparent"; border.color: root.alternate
-                        Label { anchors.centerIn: parent; text: "/"; color: root.muted; font.pixelSize: 12 }
-                    }
-                    onTextChanged: filterTimer.restart()
-                    Keys.onReturnPressed: table.forceActiveFocus()
-                    Keys.onDownPressed: table.forceActiveFocus()
-                    Accessible.name: qsTr("Search tracks")
-                }
-                // Actions for the selection lead the row while tracks are selected; the filters follow.
-                RowLayout {
+                // Search and store pills, the status and other filters, then the actions on the selection:
+                // one row when the pane has room for all, otherwise search and pills on the first row
+                // and the actions with the status filter below them.
+                GridLayout {
                     id: toolbar
-                    Layout.fillWidth: true; Layout.minimumWidth: 0; Layout.rightMargin: root.edge; spacing: 10
-                    // Below this width the action buttons keep their icons and tooltips only.
-                    readonly property bool compact: width < 1040
+                    Layout.fillWidth: true; Layout.minimumWidth: 0; Layout.rightMargin: root.edge
+                    readonly property bool oneRow: width >= 880
+                    // Without room for their names the action buttons keep their icons and tooltips only.
+                    readonly property bool compact: oneRow ? width < 1400 : width < 640
+                    columns: 3; columnSpacing: 10; rowSpacing: 8
+                    // Every control of the toolbar is 32 px high with the same faint outline; a filter
+                    // that is on takes the selection colour and an accent outline.
+                    component Toggle: ToolButton {
+                        id: toggle
+                        implicitHeight: 32; padding: 6; leftPadding: 10; rightPadding: 10
+                        background: Rectangle {
+                            radius: 6; border.color: toggle.checked ? root.accent : root.alternate
+                            color: toggle.checked ? root.selection : toggle.down ? root.pressedSurface : toggle.hovered ? root.hoverSurface : "transparent"
+                        }
+                        contentItem: Label {
+                            text: toggle.text; textFormat: Text.PlainText; font.features: root.tabular; verticalAlignment: Text.AlignVCenter
+                            color: toggle.checked ? root.selectionText : toggle.enabled ? root.fg : root.disabledFg
+                        }
+                        Accessible.name: text; Accessible.checkable: true; Accessible.checked: checked
+                    }
+                    RowLayout {
+                        id: filterRow
+                        Layout.row: 0; Layout.column: 0; Layout.columnSpan: toolbar.oneRow ? 1 : 3
+                        Layout.fillWidth: true; Layout.minimumWidth: 0; spacing: 6
+                        TextField {
+                            id: search; objectName: "trackSearch"; placeholderText: qsTr("Search artist, title, genre, tag or label")
+                            Layout.fillWidth: true; Layout.minimumWidth: 140; Layout.preferredWidth: 220; Layout.maximumWidth: 420
+                            rightPadding: (slashKey.visible ? slashKey.width : clearSearch.visible ? clearSearch.width : 0) + 18
+                            // Framed like the toolbar buttons: a faint outline, the accent only while typing.
+                            background: Rectangle {
+                                implicitHeight: 32; radius: 6; color: root.bg
+                                border.color: search.activeFocus ? root.accent : root.alternate
+                            }
+                            // The key that jumps here, shown as a key rather than as part of the hint.
+                            Rectangle {
+                                id: slashKey
+                                visible: !search.activeFocus && !search.text
+                                anchors.right: parent.right; anchors.rightMargin: 8; anchors.verticalCenter: parent.verticalCenter
+                                width: 22; height: 22; radius: 4; color: "transparent"; border.color: root.alternate
+                                Label { anchors.centerIn: parent; text: "/"; color: root.muted; font.pixelSize: 12 }
+                            }
+                            FlatButton {
+                                id: clearSearch; objectName: "clearSearch"
+                                visible: search.text.length > 0
+                                anchors.right: parent.right; anchors.rightMargin: 4; anchors.verticalCenter: parent.verticalCenter
+                                text: qsTr("Clear search"); icon.source: "icons/close.svg"; icon.width: 10; icon.height: 10
+                                focusPolicy: Qt.NoFocus
+                                onClicked: search.text = ""
+                            }
+                            onTextChanged: filterTimer.restart()
+                            Keys.onReturnPressed: table.forceActiveFocus()
+                            Keys.onDownPressed: table.forceActiveFocus()
+                            Accessible.name: qsTr("Search tracks")
+                        }
+                        // One pill per store in the view, several at once; none chosen shows every store.
+                        // They scroll sideways when the row is too narrow for all of them.
+                        Flickable {
+                            id: storePills; objectName: "storePills"
+                            visible: !desktop.view.local && desktop.model.stores.length > 0
+                            Layout.fillWidth: true; Layout.minimumWidth: 0; Layout.preferredHeight: 32
+                            Layout.preferredWidth: pillRow.width; Layout.maximumWidth: pillRow.width
+                            contentWidth: pillRow.width; contentHeight: 32; clip: true
+                            flickableDirection: Flickable.HorizontalFlick; boundsBehavior: Flickable.StopAtBounds
+                            Row {
+                                id: pillRow; spacing: 6
+                                Toggle {
+                                    objectName: "storePill-all"
+                                    text: qsTr("All stores"); checked: root.storeFilter.length === 0
+                                    onClicked: { root.storeFilter = []; filterTimer.restart() }
+                                }
+                                Repeater {
+                                    model: desktop.model.stores
+                                    Toggle {
+                                        required property var modelData
+                                        objectName: "storePill-" + modelData.name
+                                        text: modelData.name + " " + modelData.count
+                                        checked: root.storeFilter.indexOf(modelData.name) >= 0
+                                        onClicked: root.toggleStore(modelData.name)
+                                    }
+                                }
+                            }
+                            ScrollIndicator.horizontal: ScrollIndicator {}
+                        }
+                        // How many tracks the filters leave, in the accent colour while any filter is on.
+                        Label {
+                            objectName: "filterCount"
+                            visible: root.filtersActive && desktop.model.counts.total > 0
+                            text: desktop.model.counts.visible + " / " + desktop.model.counts.total
+                            color: root.accent; font.features: root.tabular
+                        }
+                        Item { Layout.fillWidth: true; Layout.minimumWidth: 0 }
+                    }
+                    RowLayout {
+                        Layout.row: toolbar.oneRow ? 0 : 1; Layout.column: 1; spacing: 6
+                        ComboBox {
+                            id: statusBox; objectName: "statusFilter"
+                            implicitHeight: 32; Layout.preferredWidth: 130
+                            readonly property var values: ["", "unhandled", "new", "opened", "got", "skip"]
+                            model: [qsTr("All statuses"), qsTr("Unhandled"), qsTr("New"), qsTr("Opened"), qsTr("Owned"), qsTr("Skipped")]
+                            Binding on currentIndex { value: Math.max(0, statusBox.values.indexOf(root.statusFilter)) }
+                            onActivated: index => root.setStatusFilter(values[index])
+                            delegate: ItemDelegate {
+                                id: statusOption
+                                required property int index
+                                required property string modelData
+                                width: ListView.view.width
+                                text: modelData
+                                highlighted: statusBox.highlightedIndex === index
+                                contentItem: Label {
+                                    text: statusOption.text; textFormat: Text.PlainText
+                                    color: statusOption.highlighted ? root.selectionText : root.fg
+                                }
+                                background: Rectangle { color: statusOption.highlighted ? root.selection : root.panel }
+                            }
+                            ToolTip.visible: hovered; ToolTip.text: qsTr("Show tracks by status; H switches between all and unhandled")
+                            Accessible.name: qsTr("Status filter")
+                        }
+                        Toggle {
+                            id: moreFilters; objectName: "moreFilters"
+                            text: qsTr("Filters"); checked: root.extraFilters
+                            onClicked: filterPopup.open()
+                            ToolTip.visible: hovered; ToolTip.text: desktop.view.local ? qsTr("BPM, key and genre") : qsTr("Genre")
+                            Popup {
+                                id: filterPopup
+                                y: parent.height + 4; x: parent.width - width
+                                padding: 12
+                                background: Rectangle { color: root.panel; border.color: root.alternate; radius: 4 }
+                                contentItem: GridLayout {
+                                    columns: 2; columnSpacing: 10; rowSpacing: 8
+                                    Label { text: qsTr("BPM"); visible: !!desktop.view.local }
+                                    RowLayout {
+                                        visible: !!desktop.view.local; spacing: 6
+                                        TextField {
+                                            objectName: "bpmMin"; implicitWidth: 64; placeholderText: qsTr("min")
+                                            validator: IntValidator { bottom: 0; top: 999 }
+                                            text: root.bpmMin ? String(root.bpmMin) : ""
+                                            onTextEdited: { root.bpmMin = Number(text) || 0; filterTimer.restart() }
+                                            Accessible.name: qsTr("Lowest BPM")
+                                        }
+                                        Label { text: "–" }
+                                        TextField {
+                                            objectName: "bpmMax"; implicitWidth: 64; placeholderText: qsTr("max")
+                                            validator: IntValidator { bottom: 0; top: 999 }
+                                            text: root.bpmMax ? String(root.bpmMax) : ""
+                                            onTextEdited: { root.bpmMax = Number(text) || 0; filterTimer.restart() }
+                                            Accessible.name: qsTr("Highest BPM")
+                                        }
+                                    }
+                                    Label { text: qsTr("Key"); visible: !!desktop.view.local }
+                                    CheckBox {
+                                        visible: !!desktop.view.local
+                                        text: qsTr("Mixes with the playing track")
+                                        enabled: !!desktop.nowPlaying.camelot || checked
+                                        checked: root.keyMatch
+                                        onToggled: { root.keyMatch = checked; filterTimer.restart() }
+                                    }
+                                    Label { text: qsTr("Genre") }
+                                    TextField {
+                                        objectName: "genreFilter"; Layout.preferredWidth: 180; placeholderText: qsTr("any")
+                                        text: root.genreFilter
+                                        onTextEdited: { root.genreFilter = text; filterTimer.restart() }
+                                        Accessible.name: qsTr("Genre")
+                                    }
+                                    Button {
+                                        Layout.columnSpan: 2; Layout.alignment: Qt.AlignRight
+                                        text: qsTr("Clear filters"); enabled: root.filtersActive
+                                        onClicked: root.resetFilters(true)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // The actions on the selected tracks, with how many are selected.
                     RowLayout {
                         id: trackActions
                         objectName: "trackActions"
                         // Present as soon as a view is loaded; entries that need a selection are disabled without one.
+                        // Never narrower than its buttons: the filters give way first.
+                        Layout.row: toolbar.oneRow ? 0 : 1; Layout.column: toolbar.oneRow ? 2 : 0
+                        Layout.fillWidth: !toolbar.oneRow
                         visible: !!desktop.view.title
-                        Layout.minimumWidth: 0; spacing: 6
+                        spacing: 6
                         // Each button is its own outlined tile with room around it, so the row never
                         // reads as one run of text.
                         component ActionButton: FlatButton {
@@ -1788,11 +1990,18 @@ ApplicationWindow {
                                 color: actionButton.down ? root.pressedSurface : actionButton.hovered ? root.hoverSurface : "transparent"
                             }
                         }
+                        Label {
+                            objectName: "selectionCount"
+                            visible: root.hasSelection
+                            text: qsTr("%1 selected").arg(desktop.model.counts.selected)
+                            color: root.muted; font.features: root.tabular
+                        }
                         // The same actions as the shortcuts, so a tooltip always names the key that works.
-                        ActionButton { action: openAction; icon.source: "icons/link.svg" }
-                        ActionButton { action: downloadAction; icon.source: "icons/download.svg" }
-                        ActionButton { action: ownedAction; icon.source: "icons/owned.svg" }
-                        ActionButton { action: skipAction; icon.source: "icons/skip.svg" }
+                        // Playlist actions show in playlist views, file actions in local views.
+                        ActionButton { objectName: "openButton"; action: openAction; icon.source: "icons/link.svg"; visible: !desktop.view.local }
+                        ActionButton { action: downloadAction; icon.source: "icons/download.svg"; visible: !desktop.view.local }
+                        ActionButton { action: ownedAction; icon.source: "icons/owned.svg"; visible: !desktop.view.local }
+                        ActionButton { objectName: "skipButton"; action: skipAction; icon.source: "icons/skip.svg" }
                         ActionButton { action: analyzeAction; icon.source: "icons/analyze.svg"; visible: !!desktop.view.local }
                         ActionButton {
                             id: moreActions
@@ -1800,53 +2009,8 @@ ApplicationWindow {
                             onClicked: contextMenu.popup(moreActions, 0, moreActions.height)
                         }
                     }
-                    Rectangle { visible: trackActions.visible && store.visible; Layout.preferredWidth: 1; Layout.preferredHeight: 22; color: root.alternate }
-                    ComboBox {
-                        id: store; objectName: "storeFilter"
-                        visible: !desktop.view.local
-                        implicitWidth: 190
-                        property var stores: desktop.model.stores
-                        model: [qsTr("All stores")].concat(stores.map(s => s.name + " · " + s.count))
-                        onActivated: filterTimer.restart()
-                        delegate: ItemDelegate {
-                            id: storeOption
-                            required property int index
-                            required property string modelData
-                            width: ListView.view.width
-                            text: modelData
-                            highlighted: store.highlightedIndex === index
-                            contentItem: Label {
-                                text: storeOption.text; textFormat: Text.PlainText
-                                color: storeOption.highlighted ? root.selectionText : root.fg
-                            }
-                            background: Rectangle { color: storeOption.highlighted ? root.selection : root.panel }
-                        }
-                    }
-                    Item { Layout.fillWidth: true; Layout.minimumWidth: 0 }
-                    // A view filter, not an action on tracks: on its own at the far right. The eye closes
-                    // and the button lights up while owned and skipped tracks are hidden.
-                    FlatButton {
-                        id: hide; objectName: "hideHandled"
-                        checkable: true; keys: "H"
-                        display: toolbar.compact ? AbstractButton.IconOnly : AbstractButton.TextBesideIcon
-                        text: checked ? qsTr("Show handled") : qsTr("Hide handled")
-                        icon.source: checked ? "icons/eye-off.svg" : "icons/eye.svg"
-                        icon.width: 16; icon.height: 16; icon.color: checked ? root.selectionText : root.fg
-                        implicitHeight: 32; padding: 6; leftPadding: 10; rightPadding: 10; spacing: 6
-                        background: Rectangle {
-                            radius: 6; border.color: hide.checked ? root.accent : root.alternate
-                            color: hide.checked ? root.selection : hide.down ? root.pressedSurface : hide.hovered ? root.hoverSurface : "transparent"
-                        }
-                        contentItem: IconLabel {
-                            spacing: hide.spacing; display: hide.display; icon: hide.icon; text: hide.text; font: hide.font
-                            color: hide.checked ? root.selectionText : root.fg
-                        }
-                        ToolTip.text: (checked ? qsTr("Show owned and skipped tracks") : qsTr("Hide owned and skipped tracks")) + " (H)"
-                        Accessible.checkable: true; Accessible.checked: checked
-                        onToggled: filterTimer.restart()
-                    }
                 }
-                Timer { id: filterTimer; interval: 120; onTriggered: desktop.model.filter(search.text, store.currentIndex > 0 && store.stores[store.currentIndex - 1] ? store.stores[store.currentIndex - 1].name : "", hide.checked) }
+                Timer { id: filterTimer; interval: 120; onTriggered: root.applyFilters() }
                 HorizontalHeaderView {
                     id: header; syncView: table; Layout.fillWidth: true; Layout.rightMargin: root.edge; clip: true
                     resizableColumns: true; movableColumns: true
@@ -2222,12 +2386,20 @@ ApplicationWindow {
                     ScrollBar.horizontal: ScrollBar {}
                     Accessible.name: qsTr("Tracks")
                 }
-                Label {
-                    anchors.centerIn: parent; width: parent.width - 40
-                    visible: !root.hasRows && desktop.ready; wrapMode: Text.WordWrap; horizontalAlignment: Text.AlignHCenter; color: root.muted
-                    text: desktop.model.counts.total > 0 ? qsTr("No tracks match the search or filters. Press Esc to clear them.")
-                        : desktop.view.title ? qsTr("This view has no tracks.")
-                        : qsTr("Add a playlist (A), pick one in the sidebar or add a folder (Ctrl+O) to start.")
+                ColumnLayout {
+                    anchors.centerIn: parent; width: parent.width - 40; spacing: 12
+                    visible: !root.hasRows && desktop.ready
+                    Label {
+                        Layout.fillWidth: true; wrapMode: Text.WordWrap; horizontalAlignment: Text.AlignHCenter; color: root.muted
+                        text: desktop.model.counts.total > 0 ? qsTr("No tracks match the search or filters. Press Esc to clear them.")
+                            : desktop.view.title ? qsTr("This view has no tracks.")
+                            : qsTr("Add a playlist (A), pick one in the sidebar or add a folder (Ctrl+O) to start.")
+                    }
+                    Button {
+                        objectName: "clearFilters"; Layout.alignment: Qt.AlignHCenter
+                        visible: desktop.model.counts.total > 0 && root.filtersActive
+                        text: qsTr("Clear filters"); onClicked: { root.resetFilters(true); table.forceActiveFocus() }
+                    }
                 }
                 }
                 Rectangle {
@@ -2420,10 +2592,10 @@ ApplicationWindow {
         // An in-place edit that the opening click ended leaves nothing focused; the table takes the keyboard back.
         onClosed: if (!root.activeFocusItem || root.activeFocusItem === root.contentItem) table.forceActiveFocus()
         AppMenuItem { objectName: "play"; text: qsTr("Play"); keys: "Enter"; enabled: root.hasSelection; onTriggered: desktop.action("play") }
-        AppMenuItem { objectName: "open"; action: openAction; visible: !contextMenu.local }
+        AppMenuItem { objectName: "open"; action: openAction; visible: !contextMenu.local; reason: contextMenu.busyReason }
         AppSeparator {}
         AppMenuItem { objectName: "download"; action: downloadAction; visible: !contextMenu.local; reason: contextMenu.busyReason }
-        AppMenuItem { objectName: "owned"; action: ownedAction }
+        AppMenuItem { objectName: "owned"; action: ownedAction; visible: !contextMenu.local }
         AppMenuItem { objectName: "skip"; action: skipAction }
         AppMenuItem { objectName: "reset"; action: resetAction }
         AppSeparator {}

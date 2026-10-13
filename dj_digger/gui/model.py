@@ -17,6 +17,11 @@ def clock(seconds):
     return f'{hours}:{rest // 60:02d}:{rest % 60:02d}' if hours else f'{rest // 60}:{rest % 60:02d}'
 
 
+def store_names(row):
+    """The stores of a row as its Stores cell names them: a gate by its site."""
+    return [name for name in row.get('storeNames', row['stores']).split(', ') if name]
+
+
 def camelot_order(row):
     """Keys sort around the Camelot wheel (1A, 1B, 2A ...); unknown keys last, by text."""
     code = row.get('camelot', '')
@@ -35,8 +40,13 @@ class TrackModel(QAbstractTableModel):
         self.visible = []
         self.selected = set()
         self.search = ''
-        self.store = ''
-        self.hide = False
+        # Store names (as the Stores column shows them) and statuses to keep; empty keeps all.
+        self.store_filter = set()
+        self.statuses = set()
+        # BPM bounds (0 = open), Camelot codes to keep and a genre fragment.
+        self.bpm = (0.0, 0.0)
+        self.key_codes = set()
+        self.genre = ''
         self.sort_column = -1
         self.reverse = False
         # Range selection grows from the anchor; the keyboard row is the cursor. Both are track keys,
@@ -151,7 +161,7 @@ class TrackModel(QAbstractTableModel):
         # Starting a track takes its "new" away; that is not a decision worth a flash.
         flashed = {b['key']: b['status'] for a, b in zip(self.rows, rows) if a['status'] != b['status'] and b['status'] != 'played'}
         self.rows = rows
-        if self.hide or self.search or self.store or self.sort_column >= 0:
+        if self.filtering() or self.sort_column >= 0:
             self.refilter(stores=True)
         else:
             self.visible = list(rows)
@@ -162,11 +172,22 @@ class TrackModel(QAbstractTableModel):
         if 0 < len(flashed) <= FLASH_LIMIT:
             self.statusFlashed.emit(flashed)
 
+    def filtering(self):
+        return bool(self.search or self.store_filter or self.statuses or any(self.bpm) or self.key_codes or self.genre)
+
+    def keep(self, row, tokens):
+        bpm = float(row.get('bpm') or 0)
+        low, high = self.bpm
+        return (all(t in row['search'].casefold() for t in tokens)
+                and (not self.store_filter or not self.store_filter.isdisjoint(store_names(row)))
+                and (not self.statuses or row['status'] in self.statuses)
+                and (not low or bpm >= low) and (not high or 0 < bpm <= high)
+                and (not self.key_codes or row.get('camelot', '') in self.key_codes)
+                and self.genre in str(row.get('genre', '')).casefold())
+
     def refilter(self, stores=False):
         tokens = self.search.casefold().split()
-        visible = [r for r in self.rows if all(t in r['search'].casefold() for t in tokens)
-                   and (not self.store or self.store in r['stores'])
-                   and not (self.hide and r['status'] in ('got', 'skip'))]
+        visible = [r for r in self.rows if self.keep(r, tokens)]
         if self.sort_column >= 0:
             name = COLUMNS[self.sort_column]
             numeric = name in {'bpm', 'duration', 'year'}
@@ -183,7 +204,7 @@ class TrackModel(QAbstractTableModel):
     def store_counts(self):
         counts = {}
         for row in self.rows:
-            for store in filter(None, row['stores'].split(', ')):
+            for store in store_names(row):
                 counts[store] = counts.get(store, 0) + 1
         return [dict(name=name, count=count) for name, count in sorted(counts.items(), key=lambda item: -item[1])]
 
@@ -202,9 +223,15 @@ class TrackModel(QAbstractTableModel):
     def row_of(self, key):
         return next((i for i, r in enumerate(self.visible) if r['key'] == key), -1) if key else -1
 
-    @Slot(str, str, bool)
-    def filter(self, text, store, hide):
-        self.search, self.store, self.hide = text, store, hide
+    @Slot(str, 'QVariantMap')
+    def filter(self, text, options):
+        """Search text plus ``options``: stores, statuses and keys (lists), bpmMin, bpmMax and genre."""
+        self.search = text
+        self.store_filter = set(options.get('stores') or ())
+        self.statuses = set(options.get('statuses') or ())
+        self.bpm = (float(options.get('bpmMin') or 0), float(options.get('bpmMax') or 0))
+        self.key_codes = set(options.get('keys') or ())
+        self.genre = str(options.get('genre') or '').casefold().strip()
         self.refilter()
 
     @Slot(str)

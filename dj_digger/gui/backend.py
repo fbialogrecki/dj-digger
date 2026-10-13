@@ -26,6 +26,8 @@ from ..soundcloud import is_soundcloud_url
 
 LOGGER = logging.getLogger(__name__)
 RELEASES_URL = 'https://github.com/fbialogrecki/dj-digger/releases'
+# Opening or downloading more tracks than this asks first.
+CONFIRM_ABOVE = 10
 
 
 class Backend:
@@ -395,15 +397,17 @@ class Backend:
     async def action_open(self, values):
         rows = self.targets(values)
         urls = []
+        stores = set(values.get('stores') or ())
         for row in rows:
-            candidates = [record for record in row.records
-                          if (not values.get('store') or record.category == values['store'])
-                          and links.is_openable(record.link_url)]
+            # A store filter names stores as the Stores column does, a gate by its site.
+            candidates = [record for record, name in zip(row.records, row.names)
+                          if (not stores or name in stores) and links.is_openable(record.link_url)]
             if candidates:
                 urls.append((row.track.key, candidates[0].link_url))
         async def work(handle):
-            if len(urls) > 20:
-                await self.ask('Open links', '', [field('urls', '', '\n'.join(url for _, url in urls), 'log')], handle.cancel, ok='Open')
+            if len(urls) > CONFIRM_ABOVE:
+                await self.ask('Open in browser', '', [dict(field('count', '', 'Open {0} tabs in the browser?', 'note'), args=[len(urls)]),
+                                                       field('urls', '', '\n'.join(url for _, url in urls), 'log')], handle.cancel, ok='Open')
             for key, url in urls:
                 check_cancelled(handle.cancel)
                 await self.io(self.services.opening.open_one, url, key, self.services.config.browser)
@@ -425,6 +429,9 @@ class Backend:
                                   directory, 20)
         labels = {row.track.key: row.track.label for row in rows}
         async def work(handle):
+            if len(rows) > CONFIRM_ABOVE:
+                await self.ask('Download', '', [dict(field('count', '', 'Download {0} tracks?', 'note'), args=[len(rows)])],
+                               handle.cancel, ok='Download')
             def prerequisites(profile, auth):
                 async def configure():
                     if profile:
@@ -709,13 +716,13 @@ class Backend:
         paths = tuple(Path(t.local_path) for t in tracks)
         if folder and not values.get('selected'):
             paths = await self.io(self.local.selection, folder, recursive=answer['recursive'], cancel=cancel)
-            if values.get('search') or values.get('hide'):
+            if values.get('search') or values.get('statuses'):
                 from ..playlist import filter_rows
                 from ..rows import Row
                 matching = []
                 for path in paths:
                     track = await self.io(self.local.register, path, inspect=bool(values.get('search')), cancel=cancel)
-                    if filter_rows([Row(0, track, [])], values.get('search', ''), values.get('hide', False), lambda row: self.services.state.get(row.track.key)):
+                    if filter_rows([Row(0, track, [])], values.get('search', ''), values.get('statuses', ()), lambda row: self.services.state.get(row.track.key)):
                         matching.append(path)
                 paths = tuple(matching)
         return paths
@@ -1354,7 +1361,7 @@ class Backend:
                          if (request.track.key, store) in outcome.retryable_targets)) for request in requests]
                 outcome = await batch([request for request in retry if request.links])
             await self.refresh_rows()
-        await self.job('Preparing cart', work)
+        await self.job('Adding to store carts', work)
 
     def browser_status(self):
         """The extension's state as a translatable template and its arguments."""
