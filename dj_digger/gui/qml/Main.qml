@@ -425,7 +425,7 @@ ApplicationWindow {
         }
         AppMenu {
             title: qsTr("Tracks")
-            Action { text: qsTr("Select all"); shortcut: "Ctrl+A"; onTriggered: desktop.model.selectAll() }
+            Action { id: selectAllAction; text: qsTr("Select all"); shortcut: "Ctrl+A"; onTriggered: desktop.model.selectAll() }
             Action { text: qsTr("Undo status change"); shortcut: "Ctrl+Z"; onTriggered: desktop.action("undo") }
             AppSeparator {}
             Action { text: qsTr("Open all visible links"); shortcut: "Shift+O"; enabled: root.hasRows && !desktop.busy; onTriggered: desktop.action("open", true) }
@@ -516,6 +516,9 @@ ApplicationWindow {
     component AppMenuItem: MenuItem {
         id: menuItem
         property string keys: ""
+        // Why a disabled entry is disabled, shown after its label; destructive entries use the danger colour.
+        property string reason: ""
+        property bool destructive: false
         readonly property string shortcutText: keys || (action && action.shortcut ? String(action.shortcut) : "")
         // Plain Text measures synchronously, so the menu can size itself before it opens.
         implicitWidth: leftPadding + labelText.implicitWidth + (shortcutLabel.visible ? 28 + shortcutLabel.implicitWidth : 0) + rightPadding
@@ -538,8 +541,9 @@ ApplicationWindow {
                 id: labelText
                 anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
                 width: Math.min(implicitWidth, parent.width - (shortcutLabel.visible ? shortcutLabel.implicitWidth + 28 : 0))
-                text: menuItem.text; textFormat: Text.PlainText; elide: Text.ElideRight; font: menuItem.font
-                color: menuItem.enabled ? root.fg : root.disabledFg
+                text: menuItem.text + (!menuItem.enabled && menuItem.reason ? " (" + menuItem.reason + ")" : "")
+                textFormat: Text.PlainText; elide: Text.ElideRight; font: menuItem.font
+                color: !menuItem.enabled ? root.disabledFg : menuItem.destructive ? root.danger : root.fg
             }
             Text {
                 id: shortcutLabel
@@ -1506,6 +1510,12 @@ ApplicationWindow {
                 }
                 Item {
                 Layout.fillWidth: true; Layout.fillHeight: true; Layout.rightMargin: root.edge
+                // Below the last row a right click keeps the selection and opens the same menu, with Select all.
+                MouseArea {
+                    objectName: "tableBackground"
+                    anchors.fill: parent; acceptedButtons: Qt.RightButton; enabled: !!desktop.view.title
+                    onClicked: { table.forceActiveFocus(); contextMenu.popup() }
+                }
                 TableView {
                     id: table; objectName: "trackTable"; property int keyboardRow: 0
                     anchors.fill: parent
@@ -1677,6 +1687,8 @@ ApplicationWindow {
                         MouseArea {
                             anchors.fill: parent; acceptedButtons: Qt.LeftButton | Qt.RightButton
                             onClicked: function(mouse) {
+                                // Taking focus first saves an open in-place edit (its editor saves on focus loss)
+                                // before the selection or the menu change anything.
                                 table.forceActiveFocus()
                                 table.keyboardRow = row
                                 if (mouse.button !== Qt.RightButton || !chosen) desktop.model.select(row, (mouse.modifiers & Qt.ControlModifier) !== 0, (mouse.modifiers & Qt.ShiftModifier) !== 0)
@@ -1720,7 +1732,13 @@ ApplicationWindow {
                     property string editKey: ""
                     property int editColumn: -1
                     function startEditing(key, column) { editKey = key; editColumn = column }
-                    function stopEditing() { editKey = ""; editColumn = -1; forceActiveFocus() }
+                    // A menu opened by the click that ended the edit keeps the keyboard; focus comes back when it closes.
+                    function stopEditing() { editKey = ""; editColumn = -1; if (!contextMenu.visible) forceActiveFocus() }
+                    function popupMenu() {
+                        if (keyboardRow < rows) positionViewAtRow(keyboardRow, TableView.Contain)
+                        let item = itemAtCell(Qt.point(root.titleColumn, keyboardRow))
+                        if (item) contextMenu.popup(item, 0, item.height); else contextMenu.popup(table, 0, 0)
+                    }
                     function moveCursor(delta, extend) {
                         keyboardRow = Math.max(0, Math.min(rows - 1, keyboardRow + delta))
                         desktop.model.select(keyboardRow, false, extend)
@@ -1735,6 +1753,7 @@ ApplicationWindow {
                             if (desktop.view.local && desktop.model.counts.selected === 1) { positionViewAtRow(keyboardRow, TableView.Contain); startEditing(desktop.model.firstSelectedKey, root.titleColumn) }
                             event.accepted = true
                         }
+                        else if (event.key === Qt.Key_Menu || (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier))) { popupMenu(); event.accepted = true }
                         else if (event.key === Qt.Key_Delete) { if (root.hasSelection && root.remoteView) desktop.action("remove"); event.accepted = true }
                         else if (event.key === Qt.Key_Home) { moveCursor(-rows, (event.modifiers & Qt.ShiftModifier) !== 0); event.accepted = true }
                         else if (event.key === Qt.Key_End) { moveCursor(rows, (event.modifiers & Qt.ShiftModifier) !== 0); event.accepted = true }
@@ -1862,19 +1881,54 @@ ApplicationWindow {
     }
     AppMenu {
         id: contextMenu
-        // The same menu for a right click and the toolbar's "More actions": nothing the toolbar
-        // already shows. Local-file entries appear only in local views, playlist entries only in playlist views.
+        objectName: "trackMenu"
+        // One menu for a right click, the Menu key / Shift+F10 and the toolbar's "More actions", built from the
+        // toolbar's own actions so labels, keys and enabled states match. Store and SoundCloud entries are hidden in
+        // local views and local-file entries in online views; within a view an entry that does not apply is disabled.
         readonly property bool local: !!desktop.view.local
-        AppMenuItem { text: qsTr("Play"); keys: "Enter"; enabled: root.hasSelection; onTriggered: desktop.action("play") }
-        AppMenuItem { text: qsTr("Reset status"); keys: "U"; enabled: root.hasSelection; onTriggered: desktop.mark("new") }
+        readonly property int selected: desktop.model.counts.selected
+        readonly property string busyReason: root.hasSelection && desktop.busy ? qsTr("wait for the current task") : ""
+        // An in-place edit that the opening click ended leaves nothing focused; the table takes the keyboard back.
+        onClosed: if (!root.activeFocusItem || root.activeFocusItem === root.contentItem) table.forceActiveFocus()
+        AppMenuItem { objectName: "play"; text: qsTr("Play"); keys: "Enter"; enabled: root.hasSelection; onTriggered: desktop.action("play") }
+        AppMenuItem { objectName: "open"; action: openAction; visible: !contextMenu.local }
         AppSeparator {}
-        AppMenuItem { text: qsTr("Copy artist and title"); keys: "Ctrl+C"; enabled: root.hasSelection; onTriggered: desktop.copy() }
-        AppMenuItem { text: qsTr("Edit BPM / key…"); keys: "E"; visible: contextMenu.local; enabled: desktop.model.counts.selected === 1; onTriggered: desktop.action("edit") }
-        AppMenuItem { text: qsTr("Export audio…"); visible: contextMenu.local; enabled: root.hasSelection && !desktop.busy; onTriggered: desktop.action("export") }
-        AppMenuItem { text: qsTr("Prepare cart / Beatport playlist…"); keys: "C"; enabled: root.hasSelection && !desktop.busy; onTriggered: desktop.action("cart") }
-        AppSeparator { visible: root.remoteView || contextMenu.local }
-        AppMenuItem { text: qsTr("Remove from playlist…"); keys: "X"; visible: root.remoteView; enabled: root.hasSelection; onTriggered: desktop.action("remove") }
-        AppMenuItem { text: qsTr("Delete files…"); visible: contextMenu.local; enabled: root.hasSelection && !desktop.busy; onTriggered: desktop.action("delete_files") }
+        AppMenuItem { objectName: "download"; action: downloadAction; visible: !contextMenu.local; reason: contextMenu.busyReason }
+        AppMenuItem { objectName: "owned"; action: ownedAction }
+        AppMenuItem { objectName: "skip"; action: skipAction }
+        AppMenuItem { objectName: "reset"; action: resetAction }
+        AppSeparator {}
+        AppMenuItem { objectName: "copy"; text: qsTr("Copy artist and title"); keys: "Ctrl+C"; enabled: root.hasSelection; onTriggered: desktop.copy() }
+        AppMenuItem { objectName: "copyLink"; text: qsTr("Copy link"); visible: !contextMenu.local; enabled: root.hasSelection; onTriggered: desktop.copyLinks() }
+        AppSeparator {}
+        AppMenuItem { objectName: "selectAll"; action: selectAllAction; enabled: root.hasRows }
+        AppMenuItem { objectName: "invert"; text: qsTr("Invert selection"); enabled: root.hasRows; onTriggered: desktop.model.invertSelection() }
+        AppSeparator { visible: contextMenu.local }
+        AppMenuItem {
+            objectName: "reveal"; text: qsTr("Reveal in file manager"); visible: contextMenu.local
+            enabled: contextMenu.selected === 1; reason: contextMenu.selected > 1 ? qsTr("select one track") : ""
+            onTriggered: desktop.reveal()
+        }
+        AppMenuItem { objectName: "edit"; action: editAction; visible: contextMenu.local; reason: contextMenu.selected > 1 ? qsTr("select one track") : "" }
+        AppMenuItem { objectName: "analyze"; action: analyzeAction; visible: contextMenu.local; reason: contextMenu.busyReason }
+        AppMenuItem {
+            objectName: "export"; visible: contextMenu.local; enabled: root.hasSelection && !desktop.busy; reason: contextMenu.busyReason
+            text: contextMenu.selected > 1 ? qsTr("Export %n tracks…", "", contextMenu.selected) : qsTr("Export audio…")
+            onTriggered: desktop.action("export")
+        }
+        AppSeparator { visible: !contextMenu.local }
+        AppMenuItem { objectName: "cart"; action: cartAction; visible: !contextMenu.local; reason: contextMenu.busyReason }
+        AppSeparator {}
+        AppMenuItem {
+            objectName: "remove"; action: removeAction; visible: !contextMenu.local; destructive: true
+            text: contextMenu.selected > 1 ? qsTr("Remove %n from playlist…", "", contextMenu.selected) : removeAction.text
+        }
+        AppMenuItem {
+            objectName: "deleteFiles"; visible: contextMenu.local; destructive: true
+            enabled: root.hasSelection && !desktop.busy; reason: contextMenu.busyReason
+            text: contextMenu.selected > 1 ? qsTr("Delete %n files…", "", contextMenu.selected) : qsTr("Delete files…")
+            onTriggered: desktop.action("delete_files")
+        }
     }
     FolderDialog {
         id: fieldFolder

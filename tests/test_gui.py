@@ -1651,25 +1651,9 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
         bridge.table.select(1)
         settle()
         assert open_links.isEnabled()
-        # "More actions" omits the toolbar entries; local-only and playlist-only entries follow the view.
+        # The row menu's entries per view are covered in test_gui_context_menu.py.
         def qml(expression):
             return QQmlExpression(QQmlEngine.contextForObject(window), window, expression).evaluate()[0]
-        def menu_entries():
-            return [qml(f'contextMenu.itemAt({i}).text') for i in range(int(qml('contextMenu.count')))
-                    if qml(f'contextMenu.itemAt({i}).height') > 0 and qml(f'contextMenu.itemAt({i}).text')]
-        # A right click and "More actions" show one menu, without anything the toolbar already offers.
-        qml('contextMenu.open()')
-        settle()
-        assert menu_entries() == ['Odtwórz', 'Resetuj status', 'Kopiuj artystę i tytuł', 'Edytuj BPM / tonację…',
-                                  'Eksportuj audio…', 'Przygotuj koszyk / playlistę Beatport…', 'Usuń pliki…']
-        qml('contextMenu.close()')
-        bridge.receive('view', dict(title='Playlist', source='sc:1', local=False, generation=2, rows=[row('a', 'Alpha'), row('b', 'Beta')]))
-        bridge.table.select(1)
-        qml('contextMenu.open()')
-        settle()
-        assert menu_entries() == ['Odtwórz', 'Resetuj status', 'Kopiuj artystę i tytuł', 'Przygotuj koszyk / playlistę Beatport…',
-                                  'Usuń z playlisty…']
-        qml('contextMenu.close()')
         bridge.receive('view', dict(title='Local', source='fixture', local=True, generation=3, rows=[row('a', 'Alpha'), row('b', 'Beta')]))
         bridge.table.select(1)
         settle()

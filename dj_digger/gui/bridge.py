@@ -28,6 +28,23 @@ from .model import TrackModel
 LANGUAGES = ('de', 'es', 'fr', 'it', 'pl', 'ru')
 
 
+def reveal_in_file_manager(path):
+    """Open the file's folder, with the file selected where the platform offers that in one call."""
+    import subprocess
+    import sys
+
+    from PySide6.QtCore import QUrl
+    from PySide6.QtGui import QDesktopServices
+    path = os.path.abspath(path)
+    if sys.platform == 'darwin':
+        subprocess.Popen(['open', '-R', path])
+    elif sys.platform == 'win32':
+        subprocess.Popen(['explorer', '/select,', path])
+    else:
+        # ponytail: Linux opens the folder only; selecting the file needs the FileManager1 D-Bus call.
+        QDesktopServices.openUrl(QUrl.fromLocalFile(os.path.dirname(path)))
+
+
 class Bridge(QObject):
     event = Signal(str, object)
     changed = Signal()
@@ -330,6 +347,20 @@ class Bridge(QObject):
     @Slot(str)
     def copyText(self, text):
         QGuiApplication.clipboard().setText(text)
+
+    @Slot()
+    def copyLinks(self):
+        """Copy the selected tracks' SoundCloud links; only web addresses, like opening them."""
+        from ..http import is_openable
+        urls = [r.get('url', '') for r in self.table.visible if r['key'] in self.table.selected]
+        QGuiApplication.clipboard().setText('\n'.join(u for u in urls if is_openable(u)))
+
+    @Slot()
+    def reveal(self):
+        """Show the first selected local file in the system file manager."""
+        row = next((r for r in self.table.visible if r['key'] in self.table.selected), None)
+        if row and row.get('local') and row.get('path'):
+            reveal_in_file_manager(row['path'])
 
     @Slot(int)
     def step(self, direction):

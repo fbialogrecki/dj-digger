@@ -228,6 +228,11 @@ class TrackModel(QAbstractTableModel):
         self.selection_changed()
 
     @Slot()
+    def invertSelection(self):
+        self.selected = {r['key'] for r in self.visible} - self.selected
+        self.selection_changed()
+
+    @Slot()
     def clearSelection(self):
         self.selected = set()
         self.selection_changed()
