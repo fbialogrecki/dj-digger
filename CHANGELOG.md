@@ -51,7 +51,8 @@
   remembered; View → Compact rows; Format and Comment columns for local files.
 - Sidebar: right-click menus act on the clicked folder or playlist (Analyze,
   Rescan, Show in file manager, Copy path, Pin/Unpin, Hide; Refresh, Rename,
-  Duplicate); hidden folders come back from the Folders menu; track counts, a
+  Duplicate, Export audio… for every file of a local playlist without opening
+  it); hidden folders come back from the Folders menu; track counts, a
   filter field, foldable sections and one scrolling panel; drag selected local
   tracks onto a local playlist, or drop folders from the file manager; keyboard
   navigation and a visible splitter.

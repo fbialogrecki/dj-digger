@@ -1582,6 +1582,10 @@
       <translation>Seules les playlists locales peuvent être dupliquées</translation>
     </message>
     <message>
+      <source>Only local playlists can be exported</source>
+      <translation>Seules les playlists locales peuvent être exportées</translation>
+    </message>
+    <message>
       <source>Duplicate</source>
       <translation>Dupliquer</translation>
     </message>

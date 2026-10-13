@@ -686,8 +686,15 @@ class Backend:
 
     async def action_export(self, values):
         from ..export import execute, plan_export
-        tracks = [r.track for r in self.targets(values) if r.track.local_path]
-        folder = self.folder
+        if source := values.get('source'):
+            # A local playlist from the sidebar exports all of its files, opened or not.
+            if not source.startswith('local-playlist:'):
+                raise ValueError('Only local playlists can be exported')
+            tracks = [m['path'] for m in await self.io(self.services.state.db.local_playlist_media, source)]
+            folder = None
+        else:
+            tracks = [r.track.local_path for r in self.targets(values) if r.track.local_path]
+            folder = self.folder
         if not tracks and folder is None:
             return
         config = self.services.config
@@ -741,8 +748,8 @@ class Backend:
              field('recursive', 'Include subfolders', False, 'bool')], validate, ok='Export')
 
     async def export_paths(self, tracks, folder, values, answer, cancel):
-        """The chosen tracks, or the whole folder view narrowed by its search and hide filters."""
-        paths = tuple(Path(t.local_path) for t in tracks)
+        """The chosen files, or the whole folder view narrowed by its search and hide filters."""
+        paths = tuple(Path(path) for path in tracks)
         if folder and not values.get('selected'):
             paths = await self.io(self.local.selection, folder, recursive=answer['recursive'], cancel=cancel)
             if values.get('search') or values.get('statuses'):

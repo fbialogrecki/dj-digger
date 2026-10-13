@@ -342,7 +342,7 @@ class Bridge(QObject):
 
     @Slot(str, str)
     def playlistAction(self, name, source):
-        """A sidebar playlist menu action (refresh, rename_playlist, duplicate_playlist) on that playlist."""
+        """A sidebar playlist menu action (refresh, rename_playlist, duplicate_playlist, export) on that playlist."""
         self.backend.submit(name, {'source': source})
 
     @Slot(str)

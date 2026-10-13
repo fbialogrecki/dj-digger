@@ -874,6 +874,7 @@ Dodatkowo: `npx web-ext lint` bez błędów, a domyślny pytest zielony w CI na 
    - AMO *unlisted* z `update_url` wskazującym plik aktualizacji w GitHub Releases.
 
    Alternatywa: wydać 1.4.0 z instalacją w trybie deweloperskim i zaakceptować ostrzeżenia.
+8. Przycisk „Open extensions page” w Connect browser odłożony do publikacji rozszerzenia w Chrome Web Store / AMO; wtedy linkuje do strony w sklepie zamiast `chrome://extensions` (decyzja właściciela 2026-10-13).
 
 ## 11. Kryteria merge do `main`
 

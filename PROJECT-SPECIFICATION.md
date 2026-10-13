@@ -5,8 +5,8 @@
 - Product version verified: 1.4.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-10-08
-- Document lines: <!-- SPEC TOTAL LINES -->2455<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->2455<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->2459<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->2459<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,66 +51,66 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 145–190 |
 | 2.1 | ↳ Problem and product boundary | 147–160 |
 | 2.2 | ↳ Execution modes | 161–190 |
-| 3 | User-visible capabilities | 191–1192 |
+| 3 | User-visible capabilities | 191–1196 |
 | 3.1 | ↳ Track collection | 193–218 |
 | 3.2 | ↳ Link classification and exports | 219–237 |
 | 3.3 | ↳ Track statuses | 238–248 |
 | 3.4 | ↳ Audio preview | 249–425 |
 | 3.5 | ↳ Downloads and local-file matching | 426–481 |
 | 3.6 | ↳ Store purchase assistance | 482–598 |
-| 3.7 | ↳ Local library, analysis and audio export | 599–773 |
-| 3.8 | ↳ Qt Quick desktop | 774–1192 |
-| 4 | System context and data flow | 1193–1237 |
-| 4.1 | ↳ Context diagram | 1195–1221 |
-| 4.2 | ↳ Collection-to-library flow | 1222–1237 |
-| 5 | Repository layout and component ownership | 1238–1324 |
-| 5.1 | ↳ Entry, orchestration, and models | 1240–1251 |
-| 5.2 | ↳ Network and external-system adapters | 1252–1283 |
-| 5.3 | ↳ Persistence, local media, and UI | 1284–1324 |
-| 6 | Runtime architecture and environments | 1325–1468 |
-| 6.1 | ↳ Runtime and dependencies | 1327–1355 |
-| 6.2 | ↳ Concurrency and lifecycle | 1356–1433 |
-| 6.3 | ↳ Local paths and environment variables | 1434–1468 |
-| 7 | Data model and persistence | 1469–1585 |
-| 7.1 | ↳ Domain objects and identity | 1471–1485 |
-| 7.2 | ↳ SQLite schema and invariants | 1486–1542 |
-| 7.3 | ↳ Crate persistence and deletion | 1543–1558 |
-| 7.4 | ↳ Configuration and credential stores | 1559–1585 |
-| 8 | Public interfaces and contracts | 1586–1644 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1588–1616 |
-| 8.2 | ↳ JSON and CSV summary input | 1617–1632 |
-| 8.3 | ↳ URL-opening contract | 1633–1644 |
-| 9 | Authentication and authorization | 1645–1711 |
-| 9.1 | ↳ SoundCloud authentication | 1647–1678 |
-| 9.2 | ↳ Gate action consent | 1679–1711 |
-| 10 | External integrations | 1712–1996 |
-| 10.1 | ↳ SoundCloud API and media | 1714–1725 |
-| 10.2 | ↳ Link hubs and download gates | 1726–1863 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1734–1820 |
-| 10.2 · block | ↳ ↳ ToneDen | 1822–1846 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1848–1856 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1858–1863 |
-| 10.3 | ↳ Browsers and clipboard | 1864–1943 |
-| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 1944–1996 |
-| 11 | Security requirements and threat model | 1997–2159 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1999–2017 |
-| 11.2 | ↳ Secret and personal-data handling | 2018–2033 |
-| 11.3 | ↳ File and mutation safety | 2034–2055 |
-| 11.4 | ↳ Browser-extension trust boundary | 2056–2159 |
-| 12 | Privacy, lifecycle, and retention | 2160–2212 |
-| 12.1 | ↳ Data stored locally | 2162–2186 |
-| 12.2 | ↳ Data sent to third parties | 2187–2199 |
-| 12.3 | ↳ User-controlled deletion | 2200–2212 |
-| 13 | Failure behavior and current limitations | 2213–2322 |
-| 13.1 | ↳ Error isolation and reporting | 2215–2236 |
-| 13.2 | ↳ Confirmed limitations | 2237–2322 |
-| 14 | Verification, CI, and release | 2323–2421 |
-| 14.1 | ↳ Offline and live test suites | 2325–2373 |
-| 14.2 | ↳ Continuous integration and publishing | 2374–2406 |
-| 14.3 | ↳ Specification-map verification | 2407–2421 |
-| 15 | Evidence and operational references | 2422–2455 |
-| 15.1 | ↳ Primary implementation evidence | 2424–2445 |
-| 15.2 | ↳ User and historical documentation | 2446–2455 |
+| 3.7 | ↳ Local library, analysis and audio export | 599–776 |
+| 3.8 | ↳ Qt Quick desktop | 777–1196 |
+| 4 | System context and data flow | 1197–1241 |
+| 4.1 | ↳ Context diagram | 1199–1225 |
+| 4.2 | ↳ Collection-to-library flow | 1226–1241 |
+| 5 | Repository layout and component ownership | 1242–1328 |
+| 5.1 | ↳ Entry, orchestration, and models | 1244–1255 |
+| 5.2 | ↳ Network and external-system adapters | 1256–1287 |
+| 5.3 | ↳ Persistence, local media, and UI | 1288–1328 |
+| 6 | Runtime architecture and environments | 1329–1472 |
+| 6.1 | ↳ Runtime and dependencies | 1331–1359 |
+| 6.2 | ↳ Concurrency and lifecycle | 1360–1437 |
+| 6.3 | ↳ Local paths and environment variables | 1438–1472 |
+| 7 | Data model and persistence | 1473–1589 |
+| 7.1 | ↳ Domain objects and identity | 1475–1489 |
+| 7.2 | ↳ SQLite schema and invariants | 1490–1546 |
+| 7.3 | ↳ Crate persistence and deletion | 1547–1562 |
+| 7.4 | ↳ Configuration and credential stores | 1563–1589 |
+| 8 | Public interfaces and contracts | 1590–1648 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1592–1620 |
+| 8.2 | ↳ JSON and CSV summary input | 1621–1636 |
+| 8.3 | ↳ URL-opening contract | 1637–1648 |
+| 9 | Authentication and authorization | 1649–1715 |
+| 9.1 | ↳ SoundCloud authentication | 1651–1682 |
+| 9.2 | ↳ Gate action consent | 1683–1715 |
+| 10 | External integrations | 1716–2000 |
+| 10.1 | ↳ SoundCloud API and media | 1718–1729 |
+| 10.2 | ↳ Link hubs and download gates | 1730–1867 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1738–1824 |
+| 10.2 · block | ↳ ↳ ToneDen | 1826–1850 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1852–1860 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1862–1867 |
+| 10.3 | ↳ Browsers and clipboard | 1868–1947 |
+| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 1948–2000 |
+| 11 | Security requirements and threat model | 2001–2163 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2003–2021 |
+| 11.2 | ↳ Secret and personal-data handling | 2022–2037 |
+| 11.3 | ↳ File and mutation safety | 2038–2059 |
+| 11.4 | ↳ Browser-extension trust boundary | 2060–2163 |
+| 12 | Privacy, lifecycle, and retention | 2164–2216 |
+| 12.1 | ↳ Data stored locally | 2166–2190 |
+| 12.2 | ↳ Data sent to third parties | 2191–2203 |
+| 12.3 | ↳ User-controlled deletion | 2204–2216 |
+| 13 | Failure behavior and current limitations | 2217–2326 |
+| 13.1 | ↳ Error isolation and reporting | 2219–2240 |
+| 13.2 | ↳ Confirmed limitations | 2241–2326 |
+| 14 | Verification, CI, and release | 2327–2425 |
+| 14.1 | ↳ Offline and live test suites | 2329–2377 |
+| 14.2 | ↳ Continuous integration and publishing | 2378–2410 |
+| 14.3 | ↳ Specification-map verification | 2411–2425 |
+| 15 | Evidence and operational references | 2426–2459 |
+| 15.1 | ↳ Primary implementation evidence | 2428–2449 |
+| 15.2 | ↳ User and historical documentation | 2450–2459 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -697,7 +697,10 @@ plans and their reports keep them; before a choice is saved, and for plans saved
 before this, the set is CDJ-350, 850/850-K, 2000, 2000NXS, 2000NXS2, 3000 and
 3000X. Exports copy every selected audio
 file to a unique new folder, including unchanged files. An unselected folder view
-covers all matching pages; recursion is explicit. A file is kept as it is only
+covers all matching pages; recursion is explicit. Export audio… in the sidebar menu
+of a local playlist (`local-playlist:` sources only) exports every file of that
+playlist, in playlist order, without opening it; the files are read from
+`local_playlist_media` off the UI thread. A file is kept as it is only
 when every chosen deck plays it according to the rules below; PCM and, for a FLAC
 target, FLAC/ALAC otherwise convert to the target, while a lossy file some chosen
 deck cannot play is listed as an exception rather than transcoded. Only necessary
@@ -953,7 +956,8 @@ Playlist rows show an SVG icon with an accessible name (a list with a note for l
 title and the number of active tracks (§7.2); a playlist still importing shows a spinner and no count. Arrows move through the
 list and Enter opens the current playlist, as a click does. The playlist menu acts on that playlist: Open, Refresh (SoundCloud
 playlists: shows the playlist and imports it again), Rename… (a SoundCloud playlist keeps the new title over SoundCloud's on
-refresh, §7.3), Duplicate… (local playlists: a new local playlist with the same files) and Delete playlist…. In local views,
+refresh, §7.3), Duplicate… (local playlists: a new local playlist with the same files), Export audio… (local playlists:
+the audio export of §3.7 for all of its files; disabled with “wait for the current task” while an operation runs) and Delete playlist…. In local views,
 selected tracks dragged from the table onto a local playlist are added at its end (the drag starts on a selected row; one started on an unselected row selects rows
 instead); SoundCloud playlists accept no drops.
 

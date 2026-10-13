@@ -66,6 +66,36 @@ def test_local_playlists_take_dropped_tracks_rename_and_duplicate(backend, tmp_p
     assert 'local playlist' in value['text']
 
 
+def test_a_local_playlist_exports_exactly_its_files_from_the_sidebar(backend, tmp_path):  # noqa: F811
+    worker, events = backend
+    folder = tmp_path / 'music'
+    folder.mkdir()
+    for name in ('One - A.wav', 'Two - B.wav', 'Three - C.wav'):
+        (folder / name).write_bytes(b'fixture')
+    worker.submit('folder', {'path': str(folder)})
+    view = wait_event(events, 'view')
+    wait_event(events, 'rows')
+    keys = {Path(row['path']).name: row['key'] for row in view['rows']}
+    worker.submit('save_playlist', dict(generation=view['generation'], keys=[keys['One - A.wav'], keys['Three - C.wav']]))
+    question = wait_event(events, 'question')
+    worker.answer(question['id'], {'title': 'Set'})
+    [mine] = wait_event(events, 'sidebar')['items']
+    # Not opened, nothing selected: the playlist's own files are what gets exported.
+    worker.submit('export', {'source': mine['source']})
+    form = wait_event(events, 'question')
+    worker.answer(form['id'], dict({f['name']: f['value'] for f in form['fields']}, folder=str(tmp_path / 'out'), mode='copy'))
+    review = wait_event(events, 'question')
+    assert review['title'] == 'Review export'
+    plan = review['fields'][0]['value']
+    assert 'One - A.wav →' in plan and 'Three - C.wav →' in plan and 'Two - B.wav' not in plan
+    worker.answer(review['id'], None)
+    assert wait_event(events, 'message')['text'] == 'Cancelled'
+    worker.submit('export', {'source': 'https://soundcloud.com/a/sets/b'})
+    while (event := events.get(timeout=10))[0] != 'error':
+        pass
+    assert event[1]['text'] == 'Only local playlists can be exported'
+
+
 def test_folder_menu_pins_unpins_and_unhides_the_folder_it_names(backend, tmp_path):  # noqa: F811
     worker, events = backend
     folder = tmp_path / 'Sets'
@@ -200,11 +230,17 @@ def test_qml_sidebar_sections_filter_keyboard_menus_and_track_drop(app, tmp_path
         # The menus act on the row they were opened on.
         qml(f'root.playlistMenuAt("{remote}")')
         assert qml('playlistMenu.itemAt(1).visible') and not qml('playlistMenu.itemAt(3).visible')
+        # Only a local playlist's files can be exported from here.
+        assert qml('playlistMenu.itemAt(4).text') == 'Export audio…' and not qml('playlistMenu.itemAt(4).visible')
         qml('playlistMenu.itemAt(1).triggered(); playlistMenu.close()')
         assert bridge.backend.calls[-1] == ('refresh', {'source': remote})
         qml(f'root.playlistMenuAt("{local}")')
         qml('playlistMenu.itemAt(2).triggered(); playlistMenu.close()')
         assert bridge.backend.calls[-1] == ('rename_playlist', {'source': local})
+        qml(f'root.playlistMenuAt("{local}")')
+        assert qml('playlistMenu.itemAt(4).visible') and qml('playlistMenu.itemAt(4).enabled')
+        qml('playlistMenu.itemAt(4).triggered(); playlistMenu.close()')
+        assert bridge.backend.calls[-1] == ('export', {'source': local})
         sets = (home / 'Sets').as_posix()
         qml(f'root.folderMenuAt("{sets}")')
         assert qml('folderMenu.pinned') and qml('folderMenu.itemAt(8).text') == 'Unpin folder'

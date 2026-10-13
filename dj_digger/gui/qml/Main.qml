@@ -2908,6 +2908,12 @@ ApplicationWindow {
         AppMenuItem { text: qsTr("Refresh"); visible: !playlistMenu.local; enabled: !desktop.busy && !playlistMenu.pending; onTriggered: desktop.playlistAction("refresh", playlistMenu.source) }
         AppMenuItem { text: qsTr("Rename…"); enabled: !playlistMenu.pending; onTriggered: desktop.playlistAction("rename_playlist", playlistMenu.source) }
         AppMenuItem { text: qsTr("Duplicate…"); visible: playlistMenu.local; onTriggered: desktop.playlistAction("duplicate_playlist", playlistMenu.source) }
+        // Every file of a local playlist, without opening it and selecting them all.
+        AppMenuItem {
+            text: qsTr("Export audio…"); visible: playlistMenu.local; enabled: !desktop.busy
+            reason: desktop.busy ? qsTr("wait for the current task") : ""
+            onTriggered: desktop.playlistAction("export", playlistMenu.source)
+        }
         AppSeparator {}
         AppMenuItem { text: qsTr("Delete playlist…"); enabled: !playlistMenu.pending; onTriggered: desktop.deletePlaylist(playlistMenu.source) }
     }

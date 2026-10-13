@@ -1587,6 +1587,10 @@
       <translation>Дублировать можно только локальные плейлисты</translation>
     </message>
     <message>
+      <source>Only local playlists can be exported</source>
+      <translation>Экспортировать можно только локальные плейлисты</translation>
+    </message>
+    <message>
       <source>Duplicate</source>
       <translation>Дублировать</translation>
     </message>
