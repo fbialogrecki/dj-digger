@@ -55,6 +55,7 @@ class Bridge(QObject):
     artworkChanged = Signal()
     nowPlayingChanged = Signal()
     kicksChanged = Signal()
+    mutedChanged = Signal()
     importChanged = Signal()
     rootsChanged = Signal()
     accountChanged = Signal()
@@ -87,6 +88,9 @@ class Bridge(QObject):
         self._audio = {}
         self._waveform = []
         self._waveform_key = ''
+        self._waveform_bands = []
+        self._waveform_drop = -1.0
+        self._muted = False
         self._artwork = {}
         self._now_playing = {}
         self._kicks = {}
@@ -121,8 +125,12 @@ class Bridge(QObject):
     playing = Property(bool, lambda self: bool(self._audio.get('playing')), notify=playingChanged)
     waveform = Property('QVariantList', lambda self: self._waveform, notify=waveformChanged)
     waveformKey = Property(str, lambda self: self._waveform_key, notify=waveformChanged)
+    # Where the first drop lands, as a fraction of the loaded track; -1 without one.
+    waveformDrop = Property(float, lambda self: self._waveform_drop, notify=waveformChanged)
     # The loaded track's record label as a PNG data URL, '' while loading or without a picture.
     artwork = Property(str, lambda self: self._artwork.get('image', ''), notify=artworkChanged)
+    # The same picture as a plain square, for View → Vinyl artwork turned off.
+    artworkSquare = Property(str, lambda self: self._artwork.get('square', ''), notify=artworkChanged)
     # Artist, name, BPM and key of the loaded track; empty once another track loads.
     nowPlaying = Property('QVariantMap', lambda self: self._now_playing, notify=nowPlayingChanged)
     # Kick levels (0-1) around the playing position, including audio decoded but
@@ -136,6 +144,8 @@ class Bridge(QObject):
     busy = Property(bool, lambda self: self._busy, notify=changed)
     ready = Property(bool, lambda self: self._ready, notify=changed)
     volume = Property(float, lambda self: self._volume, notify=changed)
+    # Mute as the player reports it, the one place it lives.
+    muted = Property(bool, lambda self: self._muted, notify=mutedChanged)
     message = Property(str, lambda self: self._message, notify=changed)
 
     def _refresh_roots(self):
@@ -199,7 +209,13 @@ class Bridge(QObject):
             self.audioChanged.emit()
             return
         elif kind == 'waveform':
-            self._set_waveform(values['key'], values['samples'])
+            self._set_waveform(values['key'], values['samples'], values.get('bands') or [], values.get('drop', -1.0))
+            return
+        elif kind == 'volume':
+            self._volume = values['volume']
+            if values['muted'] != self._muted:
+                self._muted = values['muted']
+                self.mutedChanged.emit()
             return
         elif kind == 'artwork':
             if values.get('key') == self._audio.get('key'):
@@ -264,9 +280,10 @@ class Bridge(QObject):
             self.closed.emit()
         self.changed.emit()
 
-    def _set_waveform(self, key, samples):
+    def _set_waveform(self, key, samples, bands=(), drop=-1.0):
         if (key, samples) != (self._waveform_key, self._waveform):
             self._waveform_key, self._waveform = key, samples
+            self._waveform_bands, self._waveform_drop = list(bands), float(drop)
             self.waveformChanged.emit()
 
     @Slot(str)
@@ -357,10 +374,15 @@ class Bridge(QObject):
     def addFolder(self, path):
         self.backend.submit('add_folder', {'path': self.localPath(path)})
 
-    @Slot('QVariantList', int, result='QVariantList')
-    def waveformLevels(self, samples, width):
-        from ..waveform import column_levels
-        return column_levels(samples, width)
+    @Slot(int, str, result='QVariantMap')
+    def waveformColumns(self, width, key=''):
+        """Levels and low/mid/high shares of the loaded waveform in ``width`` columns.
+
+        It reads the waveform held here rather than a copy from QML; ``key`` only
+        makes a QML binding follow the waveform.
+        """
+        from ..waveform import column_bands, column_levels
+        return dict(levels=column_levels(self._waveform, width), bands=column_bands(self._waveform_bands, width))
 
     @Slot(str, result=str)
     def localPath(self, value):
@@ -456,7 +478,8 @@ class Bridge(QObject):
     def saveSettings(self, values):
         # Only this fixed presentation shape is persisted; no service preferences.
         allowed = {'width', 'height', 'language', 'theme', 'sidebarWidth', 'sidebarVisible', 'columnWidths', 'hiddenColumns', 'columnOrder',
-                   'keyNotation', 'animations', 'colors', 'recent', 'sortColumn', 'sortReverse', 'compactRows', 'sidebarCollapsed'}
+                   'keyNotation', 'animations', 'colors', 'recent', 'sortColumn', 'sortReverse', 'compactRows', 'sidebarCollapsed',
+                   'remainingTime', 'previewStart', 'spectral', 'vinyl'}
         self._settings = {k: v for k, v in values.items() if k in allowed}
 
     @Slot()

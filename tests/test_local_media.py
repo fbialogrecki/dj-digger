@@ -499,23 +499,31 @@ def test_a_played_waveform_is_kept_in_the_library(tmp_path, db, monkeypatch):
     source = SimpleNamespace(whole=lambda cancel: whole.append(1) or audio.getvalue())
     remote = Track('Remote', 'Artist', id=7)
     first = track_waveform(db, remote, source)
-    assert len(first) == 1024 and max(first) > 0, 'computed here from the streamed audio'
+    assert len(first['peaks']) == 1024 and max(first['peaks']) > 0, 'computed here from the streamed audio'
+    assert len(first['bands']) == 1024 and all(len(b) == 3 for b in first['bands'])
     assert track_waveform(db, remote, source) == first
     assert len(whole) == 1, 'the second play reads the library'
     unfinished = Track('Unfinished', 'Artist', id=8)
-    assert track_waveform(db, unfinished, SimpleNamespace(whole=lambda cancel: None)) == []
+    assert track_waveform(db, unfinished, SimpleNamespace(whole=lambda cancel: None)) == dict(peaks=[], bands=[])
     assert db.waveform(unfinished.key, '') is None, 'nothing is kept for a stream that never completed'
 
     path = tmp_path / 'local.wav'
     path.write_bytes(b'one')
     decoded = []
-    monkeypatch.setattr(local_audio, 'waveform', lambda source, cancel: decoded.append(source) or [5, 6])
+    envelope = dict(peaks=[5, 6], bands=[[1, 2, 3], [4, 5, 6]])
+    monkeypatch.setattr(local_audio, 'waveform', lambda source, cancel: decoded.append(source) or envelope)
     local = Track('Local', '', local_path=str(path), local_id='x')
-    assert track_waveform(db, local, '', None) == [5, 6]
-    assert track_waveform(db, local, '', None) == [5, 6] and len(decoded) == 1
+    assert track_waveform(db, local, '', None) == envelope
+    assert track_waveform(db, local, '', None) == envelope and len(decoded) == 1
     path.write_bytes(b'changed')
     track_waveform(db, local, '', None)
     assert len(decoded) == 2, 'a changed file is decoded again'
+    # A row kept before bands existed is decoded again, and kept when that yields nothing.
+    db.save_waveform(local.key, signature(path), [7, 8])
+    assert track_waveform(db, local, '', None) == envelope and len(decoded) == 3
+    db.save_waveform(local.key, signature(path), [7, 8])
+    monkeypatch.setattr(local_audio, 'waveform', lambda source, cancel: [])
+    assert track_waveform(db, local, '', None) == dict(peaks=[7, 8], bands=[])
 
 
 def test_local_artwork_is_the_embedded_picture_else_a_cover_beside_the_file(tmp_path):

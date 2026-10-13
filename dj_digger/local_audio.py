@@ -7,6 +7,7 @@ import numpy as np
 
 from .media import MediaError, pcm_blocks, probe
 from .services.playback import Prepared, Stream
+from .waveform import band_levels, fold_bands
 
 # Protect loaded and prefetched media, including the short replacement commit.
 LEASE_LOCK = threading.RLock()
@@ -194,20 +195,23 @@ def waveform(path, cancel=None):
     before = signature(path)
     metadata = probe(path, cancel)
     frames_per_bin = max(1, round(metadata['duration'] * 4000 / 1024))
-    peaks = np.zeros(1024, dtype=np.int32)
+    peaks, bands = np.zeros(1024, dtype=np.int32), np.zeros((1024, 3))
     frame = 0
     for block in pcm_blocks(path, rate=4000, channels=2, sample_format='s16le', cancel=cancel):
+        fold_bands(bands, block, frame, frames_per_bin)
         frame = _fold_peaks(peaks, block, frame, frames_per_bin)
-    return peaks.tolist() if signature(path) == before else []
+    return dict(peaks=peaks.tolist(), bands=band_levels(bands)) if signature(path) == before else []
 
 
 def encoded_waveform(data):
-    """The same 1024 peaks from a whole encoded file held in memory (a streamed MP3)."""
+    """The same 1024 peaks and bands from a whole encoded file held in memory (a streamed MP3)."""
     import miniaudio
     decoded = miniaudio.decode(bytes(data), output_format=miniaudio.SampleFormat.SIGNED16, nchannels=2, sample_rate=4000)
-    peaks = np.zeros(1024, dtype=np.int32)
-    _fold_peaks(peaks, decoded.samples.tobytes(), 0, max(1, -(-decoded.num_frames // 1024)))
-    return peaks.tolist()
+    peaks, bands = np.zeros(1024, dtype=np.int32), np.zeros((1024, 3))
+    pcm, frames_per_bin = decoded.samples.tobytes(), max(1, -(-decoded.num_frames // 1024))
+    fold_bands(bands, pcm, 0, frames_per_bin)
+    _fold_peaks(peaks, pcm, 0, frames_per_bin)
+    return dict(peaks=peaks.tolist(), bands=band_levels(bands))
 
 
 ARTWORK_NAMES = ('cover', 'folder', 'front', 'albumart')

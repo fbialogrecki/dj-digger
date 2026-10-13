@@ -76,7 +76,20 @@ ApplicationWindow {
             root.kickStart = desktop.kicks.start || 0
             root.kickStep = desktop.kicks.step || .01
             root.kickLevels = desktop.kicks.levels || []
+            root.anchorBeat()
         }
+    }
+    // Where the zoomed waveform's beat ticks line up: a strong kick, kept while the next ones fall on
+    // the grid of the analysed BPM; -1 without a BPM or a kick.
+    property real beatAnchor: -1
+    function anchorBeat() {
+        let bpm = desktop.nowPlaying.bpm || 0, levels = kickLevels, best = .6, at = -1
+        if (bpm <= 0 || kickKey !== desktop.audioKey) { beatAnchor = -1; return }
+        for (let i = 0; i < levels.length; i++) if (levels[i] > best) { best = levels[i]; at = i }
+        if (at < 0) return
+        let time = kickStart + at * kickStep, period = 60 / bpm
+        let off = beatAnchor < 0 ? period / 2 : ((time - beatAnchor) % period + period) % period
+        if (Math.min(off, period - off) > .04) beatAnchor = time
     }
     readonly property bool pulsing: live && motion
     // The track time reaching the speaker at clockAt, from the player's own
@@ -85,6 +98,8 @@ ApplicationWindow {
     property real clockAt: 0
     property real lastPosition: 0
     property string clockKey: ""
+    // Seeks the backend has served; a change is a real jump, a position step alone may be lag.
+    property int clockSeeks: 0
     property real lastTick: 0
     // Heard audio time, interpolated every frame while pulsing; -1 falls back to the snapshot position.
     property real playhead: -1
@@ -105,9 +120,11 @@ ApplicationWindow {
         now = now === undefined ? Date.now() : now
         heard += (now - at) / 1000
         let predicted = audioClock + (now - clockAt) / 1000
-        let key = desktop.audioKey
-        // Another track or a seek starts over; small differences ease in.
-        let jumped = key !== clockKey || Math.abs(position - lastPosition) > .5
+        let key = desktop.audioKey, seeks = desktop.audio.seeks || 0
+        // Another track or a seek the backend served starts over; small differences ease in,
+        // and a late snapshot after an audio hiccup only re-anchors the clock.
+        let jumped = key !== clockKey || seeks !== clockSeeks
+        clockSeeks = seeks
         if (audioClock < 0 || jumped || Math.abs(heard - predicted) > .15) {
             audioClock = heard
             if (jumped) flash = 0
@@ -177,8 +194,22 @@ ApplicationWindow {
     // What selected tracks dragged from the table carry; only local playlists accept it.
     readonly property string trackDragKey: "application/x-dj-digger-tracks"
     property bool shuttingDown: false
-    property bool isMuted: false
+    readonly property bool isMuted: desktop.muted
     property real volume: desktop.volume
+    // The clock shows the time left instead of the time played; a click on it switches.
+    property bool remainingTime: false
+    // Where a newly started track begins: "" at its start, "drop" at the estimated drop, "30" at 30 %.
+    property string previewStart: ""
+    // Bars coloured by their low/mid/high mix (warm lows, cool highs) instead of the colour pair.
+    property bool spectral: true
+    // The artwork on the record's label; off, the plain square picture fills the cover.
+    property bool vinylArtwork: true
+    // Hot cues per track key for this session: four track times, or null where none is set.
+    // ponytail: kept in memory only; the library has no place for them yet.
+    property var cues: ({})
+    readonly property var trackCues: cues[desktop.audioKey] || [null, null, null, null]
+    readonly property real dropTime: desktop.waveformKey === desktop.audioKey && desktop.waveformDrop >= 0
+                                     ? desktop.waveformDrop * (desktop.audio.duration || 0) : -1
     property var pendingQuestions: []
     property var messages: []
     property string errorMessage: ""
@@ -328,11 +359,50 @@ ApplicationWindow {
         else if (hasSelection) desktop.action("play")
     }
     function nudge(seconds) { if (loaded) desktop.transport("nudge", seconds) }
+    function seekTo(seconds) {
+        // The key, not ``loaded``: a new track's handlers run before the bindings on its snapshot.
+        if (!desktop.audioKey) return
+        let duration = desktop.audio.duration || 0
+        waveform.pending = duration > 0 ? Math.max(0, Math.min(1, seconds / duration)) : -1; pendingTimer.restart()
+        desktop.transport("seek", Math.max(0, seconds))
+    }
+    function jumpTo(fraction) { seekTo(fraction * (desktop.audio.duration || 0)) }
+    function setCue(index) {
+        if (!loaded) return
+        let all = Object.assign({}, cues), list = trackCues.slice()
+        list[index] = waveform.heard
+        all[desktop.audioKey] = list
+        cues = all
+    }
+    function jumpCue(index) { if (typeof trackCues[index] === "number") seekTo(trackCues[index]) }
+    function jumpToDrop() { if (dropTime >= 0) seekTo(dropTime) }
+    // A newly started track begins where View → Start previews says, once, unless the listener seeks first.
+    property string previewKey: ""
+    property int previewSeeks: 0
+    property bool previewDone: false
+    function applyPreviewStart() {
+        let key = desktop.audioKey, duration = desktop.audio.duration || 0
+        if (key !== previewKey) { previewKey = key; previewSeeks = desktop.audio.seeks || 0; previewDone = !key }
+        if (previewDone || !previewStart || duration <= 0) return
+        if ((desktop.audio.seeks || 0) !== previewSeeks) { previewDone = true; return }
+        // The drop needs the waveform; a track without one starts at 30 %.
+        if (previewStart === "drop" && desktop.waveformKey !== key) return
+        previewDone = true
+        seekTo(previewStart === "drop" && desktop.waveformDrop >= 0 ? desktop.waveformDrop * duration : .3 * duration)
+    }
+    Connections {
+        target: desktop
+        function onPlayingChanged() { root.applyPreviewStart() }
+        function onWaveformChanged() { root.applyPreviewStart() }
+    }
     function changeVolume(delta) {
-        volume = Math.max(0, Math.min(1, volume + delta)); isMuted = false
+        volume = Math.max(0, Math.min(1, volume + delta))
         desktop.transport("volume", volume)
     }
-    function toggleMute() { isMuted = !isMuted; desktop.transport("mute", 0) }
+    // The backend owns mute; the button shows what it reports.
+    function toggleMute() { desktop.transport("mute", 0) }
+    // A dragged slider sends at most one level every 50 ms, the latest.
+    Timer { id: volumeSend; interval: 50; onTriggered: desktop.transport("volume", root.volume) }
     function clearFilters() {
         if (hasSelection) desktop.model.clearSelection()
         else if (search.text) search.text = ""
@@ -417,6 +487,10 @@ ApplicationWindow {
                    "  " + qsTr("Drag across rows") + "\t" + qsTr("Select a range"), "  " + qsTr("Double click") + "\t" + qsTr("Play"),
                    "  F2\t" + qsTr("Rename file (folder views)"),
                    "  " + qsTr("Click a selected name again") + "\t" + qsTr("Edit artist or track name (folder views)"))
+        lines.push("\n" + qsTr("Waveform"))
+        lines.push("  1–9, 0\t" + qsTr("Jump to 10–90 % of the track, 0 to its start"),
+                   "  Ctrl+1–4\t" + qsTr("Set hot cue 1–4 at the playhead"), "  Alt+1–4\t" + qsTr("Jump to hot cue 1–4"),
+                   "  " + qsTr("Mouse wheel over the waveform") + "\t" + qsTr("Seek 5 s"))
         return lines.join("\n")
     }
 
@@ -450,6 +524,10 @@ ApplicationWindow {
         if (list(s.recent))
             recent = list(s.recent).filter(r => r && (r.kind === "folder" || r.kind === "playlist") && typeof r.target === "string" && r.target)
                              .slice(0, 8).map(r => ({kind: r.kind, target: r.target}))
+        remainingTime = s.remainingTime === true
+        previewStart = s.previewStart === "drop" || s.previewStart === "30" ? s.previewStart : ""
+        spectral = s.spectral !== false
+        vinylArtwork = s.vinyl !== false
         desktop.language(languageCode)
         table.forceActiveFocus()
     }
@@ -461,7 +539,8 @@ ApplicationWindow {
             desktop.saveSettings({sidebarWidth: sidebar.width, sidebarVisible: sidebarVisible, sidebarCollapsed: sidebarCollapsed, width: width, height: height, language: languageCode,
                                   theme: themeChoice, columnWidths: columnWidths, hiddenColumns: hiddenColumns, columnOrder: columnOrder,
                                   keyNotation: keyNotation, animations: animations, colors: colorPair, recent: recent,
-                                  sortColumn: desktop.model.sortColumn, sortReverse: desktop.model.sortReverse, compactRows: compactRows})
+                                  sortColumn: desktop.model.sortColumn, sortReverse: desktop.model.sortReverse, compactRows: compactRows,
+                                  remainingTime: remainingTime, previewStart: previewStart, spectral: spectral, vinyl: vinylArtwork})
             desktop.close()
         }
     }
@@ -509,7 +588,7 @@ ApplicationWindow {
     // Space always belongs to playback: it pauses or resumes the loaded track, whatever is selected;
     // only with nothing loaded does it start the selected track. Enter starts the selected track.
     Action { id: playAction; text: qsTr("Play / pause"); shortcut: "Space"; enabled: root.loaded || root.hasSelection; onTriggered: root.playPause() }
-    Action { id: stopAction; text: qsTr("Stop"); shortcut: "Ctrl+W"; enabled: root.loaded; onTriggered: desktop.transport("stop", 0) }
+    Action { id: stopAction; text: qsTr("Stop"); shortcut: "S"; enabled: root.loaded; onTriggered: desktop.transport("stop", 0) }
     Action { id: previousAction; text: qsTr("Previous track"); shortcut: "P"; enabled: root.loaded; onTriggered: desktop.step(-1) }
     Action { id: nextAction; text: qsTr("Next track"); shortcut: "N"; enabled: root.loaded; onTriggered: desktop.step(1) }
     Action { id: seekBackAction; text: qsTr("Seek backward 10 s"); shortcut: "["; enabled: root.loaded; onTriggered: root.nudge(-10) }
@@ -517,6 +596,33 @@ ApplicationWindow {
     Action { id: volumeDownAction; text: qsTr("Volume down"); shortcut: "-"; onTriggered: root.changeVolume(-.05) }
     Action { id: volumeUpAction; text: qsTr("Volume up"); shortcut: "="; onTriggered: root.changeVolume(.05) }
     Action { id: muteAction; text: qsTr("Mute"); shortcut: "M"; onTriggered: root.toggleMute() }
+    // Shift+[ and Shift+] type { and } on most layouts, which is what a shortcut sees.
+    Action { id: seekBackLongAction; text: qsTr("Seek backward 30 s"); shortcut: "{"; enabled: root.loaded; onTriggered: root.nudge(-30) }
+    Action { id: seekForwardLongAction; text: qsTr("Seek forward 30 s"); shortcut: "}"; enabled: root.loaded; onTriggered: root.nudge(30) }
+    Action { id: dropAction; text: qsTr("Jump to drop"); shortcut: "J"; enabled: root.loaded && root.dropTime >= 0; onTriggered: root.jumpToDrop() }
+    // Either, or neither: a track then starts at its beginning.
+    Action { id: previewDropAction; text: qsTr("Start previews at the drop"); checkable: true; checked: root.previewStart === "drop"; onTriggered: root.previewStart = checked ? "drop" : "" }
+    Action { id: previewThirtyAction; text: qsTr("Start previews at 30 %"); checkable: true; checked: root.previewStart === "30"; onTriggered: root.previewStart = checked ? "30" : "" }
+    // 1-9 jump to 10-90 % of the track and 0 to its start; Ctrl+1-4 set hot cues, Alt+1-4 jump to them.
+    readonly property bool seekKeys: loaded && !dialogOpen
+    Shortcut { sequence: "1"; enabled: root.seekKeys; onActivated: root.jumpTo(.1) }
+    Shortcut { sequence: "2"; enabled: root.seekKeys; onActivated: root.jumpTo(.2) }
+    Shortcut { sequence: "3"; enabled: root.seekKeys; onActivated: root.jumpTo(.3) }
+    Shortcut { sequence: "4"; enabled: root.seekKeys; onActivated: root.jumpTo(.4) }
+    Shortcut { sequence: "5"; enabled: root.seekKeys; onActivated: root.jumpTo(.5) }
+    Shortcut { sequence: "6"; enabled: root.seekKeys; onActivated: root.jumpTo(.6) }
+    Shortcut { sequence: "7"; enabled: root.seekKeys; onActivated: root.jumpTo(.7) }
+    Shortcut { sequence: "8"; enabled: root.seekKeys; onActivated: root.jumpTo(.8) }
+    Shortcut { sequence: "9"; enabled: root.seekKeys; onActivated: root.jumpTo(.9) }
+    Shortcut { sequence: "0"; enabled: root.seekKeys; onActivated: root.jumpTo(0) }
+    Shortcut { sequence: "Ctrl+1"; enabled: root.seekKeys; onActivated: root.setCue(0) }
+    Shortcut { sequence: "Ctrl+2"; enabled: root.seekKeys; onActivated: root.setCue(1) }
+    Shortcut { sequence: "Ctrl+3"; enabled: root.seekKeys; onActivated: root.setCue(2) }
+    Shortcut { sequence: "Ctrl+4"; enabled: root.seekKeys; onActivated: root.setCue(3) }
+    Shortcut { sequence: "Alt+1"; enabled: root.seekKeys; onActivated: root.jumpCue(0) }
+    Shortcut { sequence: "Alt+2"; enabled: root.seekKeys; onActivated: root.jumpCue(1) }
+    Shortcut { sequence: "Alt+3"; enabled: root.seekKeys; onActivated: root.jumpCue(2) }
+    Shortcut { sequence: "Alt+4"; enabled: root.seekKeys; onActivated: root.jumpCue(3) }
     Action { id: addPlaylistAction; text: qsTr("Add playlist…"); shortcut: "A"; onTriggered: desktop.action("dig") }
     Action { id: addFolderAction; text: qsTr("Add folder…"); shortcut: "Ctrl+O"; onTriggered: folderDialog.open() }
     Action { id: deletePlaylistAction; text: qsTr("Delete playlist…"); shortcut: "Shift+X"; enabled: !!desktop.view.source; onTriggered: desktop.deletePlaylist(desktop.view.source) }
@@ -589,6 +695,12 @@ ApplicationWindow {
             AppSeparator {}
             AppMenuItem { action: seekBackAction }
             AppMenuItem { action: seekForwardAction }
+            AppMenuItem { action: seekBackLongAction }
+            AppMenuItem { action: seekForwardLongAction }
+            AppMenuItem { action: dropAction }
+            AppSeparator {}
+            AppMenuItem { action: previewDropAction }
+            AppMenuItem { action: previewThirtyAction }
             AppSeparator {}
             AppMenuItem { action: volumeDownAction }
             AppMenuItem { action: volumeUpAction }
@@ -670,6 +782,9 @@ ApplicationWindow {
                 Action { text: qsTr("Camelot (8A)"); checkable: true; checked: root.keyNotation === "camelot"; ActionGroup.group: notationGroup; onTriggered: root.keyNotation = "camelot" }
                 Action { text: qsTr("Classic (Am)"); checkable: true; checked: root.keyNotation === "classic"; ActionGroup.group: notationGroup; onTriggered: root.keyNotation = "classic" }
             }
+            AppSeparator {}
+            Action { text: qsTr("Spectral waveform"); checkable: true; checked: root.spectral; onTriggered: root.spectral = checked }
+            Action { text: qsTr("Vinyl artwork"); checkable: true; checked: root.vinylArtwork; onTriggered: root.vinylArtwork = checked }
             AppSeparator {}
             Action { id: animationsAction; text: qsTr("Animations"); checkable: true; checked: root.animations; onTriggered: root.animations = checked }
             Action { text: qsTr("Compact rows"); checkable: true; checked: root.compactRows; onTriggered: root.compactRows = checked }
@@ -919,7 +1034,7 @@ ApplicationWindow {
         onHeightChanged: settle.restart()
         onVisibleChanged: requestPaint()
         Connections { target: waveform; function onRepaint() { requestPaint() } }
-        Connections { target: root; function onPairColorsChanged() { requestPaint() } }
+        Connections { target: root; function onPairColorsChanged() { requestPaint() } function onSpectralColorsChanged() { requestPaint() } function onSpectralChanged() { requestPaint() } }
     }
     // A rounded label for BPM and key; a key takes its Camelot hue, a match with the playing track gets a ring.
     component Chip: Rectangle {
@@ -981,6 +1096,11 @@ ApplicationWindow {
         property bool spinning: false
         property bool ready: true
         property string artwork: ""
+        // The same picture as a plain square, shown over the whole cover instead of the record.
+        property string square: ""
+        property bool vinyl: true
+        // The label's share of the record: large enough to make the artwork out.
+        readonly property real labelSize: .42
         // Nothing loaded: the pair's colours behind a plain record with a white label and no code.
         property bool idle: false
         // A binding at first; the handler takes over from the first change.
@@ -1012,16 +1132,16 @@ ApplicationWindow {
             width: parent.width * .84; height: width; anchors.centerIn: parent
             // Near-black vinyl; the label is darkened so it does not outshine the record.
             Rectangle { anchors.fill: parent; radius: width / 2; color: "#0c0c0e" }
-            Rectangle { anchors.centerIn: parent; width: disc.width * .34; height: width; radius: width / 2; color: Qt.darker((cover.hash >> 5) % 2 ? cover.first : cover.second, 1.25) }
+            Rectangle { anchors.centerIn: parent; width: disc.width * cover.labelSize; height: width; radius: width / 2; color: Qt.darker((cover.hash >> 5) % 2 ? cover.first : cover.second, 1.25) }
             // Already cut to a circle by the backend, shown as it is: no tint, no overlay.
             Image {
                 objectName: "labelArtwork"
-                anchors.centerIn: parent; width: disc.width * .34; height: width
+                anchors.centerIn: parent; width: disc.width * cover.labelSize; height: width
                 source: cover.artwork; asynchronous: true; smooth: true; mipmap: true
                 opacity: status === Image.Ready ? 1 : 0
                 Behavior on opacity { enabled: root.motion; NumberAnimation { duration: 300 } }
             }
-            Rectangle { objectName: "whiteLabel"; anchors.centerIn: parent; width: disc.width * .34; height: width; radius: width / 2; color: "white"; opacity: cover.idle ? 1 : 1 - cover.reveal }
+            Rectangle { objectName: "whiteLabel"; anchors.centerIn: parent; width: disc.width * cover.labelSize; height: width; radius: width / 2; color: "white"; opacity: cover.idle ? 1 : 1 - cover.reveal }
             // A barcode of the track: radial strokes and dots from the label to the rim, laid out
             // from the key hash. Painted once per track; turning the record costs no repaint.
             Canvas {
@@ -1035,7 +1155,7 @@ ApplicationWindow {
                     let ctx = getContext("2d")
                     ctx.reset()
                     let random = root.seeded(code)
-                    let centre = width / 2, inner = width * .19, outer = width * .48
+                    let centre = width / 2, inner = width * (cover.labelSize / 2 + .02), outer = width * .48
                     // Spans along the radius, 0 at the label and 1 at the rim; the empty one is dots only.
                     let patterns = [[[0, 1]], [[0, .5]], [[.5, 1]], [[.3, .7]], [[0, 1 / 3], [2 / 3, 1]], []]
                     ctx.strokeStyle = ctx.fillStyle = Qt.rgba(1, 1, 1, .6)
@@ -1063,6 +1183,15 @@ ApplicationWindow {
                 from: 0; to: 360; duration: 4000; loops: Animation.Infinite
                 running: root.motion; paused: running && !cover.spinning
             }
+        }
+        // View → Vinyl artwork off: the picture itself, square and still, over the record.
+        Image {
+            objectName: "squareArtwork"
+            anchors.fill: parent; fillMode: Image.PreserveAspectCrop
+            visible: !cover.vinyl && !cover.idle
+            source: visible ? cover.square : ""; asynchronous: true; smooth: true; mipmap: true
+            opacity: status === Image.Ready ? 1 : 0
+            Behavior on opacity { enabled: root.motion; NumberAnimation { duration: 300 } }
         }
     }
     // The waveform rests in deep, saturated tones and lights up in neon on a kick,
@@ -1101,6 +1230,15 @@ ApplicationWindow {
     readonly property color waveRestTop: pairColors[1]
     readonly property color waveNeonFoot: pairColors[2]
     readonly property color waveNeonTop: pairColors[3]
+    // View → Spectral waveform: warm lows, green mids and cool highs, mixed by each bar's shares.
+    // None is a saturated red, and each keeps 3:1 against the panel, like the pairs.
+    readonly property var spectralColors: dark ? ["#ff9a2e", "#5fd068", "#4f8dff"] : ["#b86e00", "#2f8a3a", "#2f62d6"]
+    readonly property var spectralAnchors: spectralColors.map(value => Qt.color(value))
+    function spectralColor(mix) {
+        let c = spectralAnchors
+        return Qt.rgba(c[0].r * mix[0] + c[1].r * mix[1] + c[2].r * mix[2], c[0].g * mix[0] + c[1].g * mix[1] + c[2].g * mix[2],
+                       c[0].b * mix[0] + c[1].b * mix[1] + c[2].b * mix[2], 1)
+    }
     function luminance(color) {
         let linear = c => c <= .04045 ? c / 12.92 : Math.pow((c + .055) / 1.055, 2.4)
         return .2126 * linear(color.r) + .7152 * linear(color.g) + .0722 * linear(color.b)
@@ -1463,21 +1601,26 @@ ApplicationWindow {
                 id: player
                 // Always full height: before anything plays the record and a slowly drifting
                 // waveform already stand where the track will appear.
-                Layout.fillWidth: true; Layout.preferredHeight: 184
+                // A little taller on tall windows, so the waveform is not squashed flat.
+                Layout.fillWidth: true; Layout.preferredHeight: Math.round(Math.max(184, Math.min(300, root.height * .3)))
                 Layout.rightMargin: root.edge
                 color: root.panel; radius: 6
                 RowLayout {
                     anchors.fill: parent; anchors.margins: 10; spacing: 12
                     Cover {
                         objectName: "cover"
-                        // Transport controls come first; the artwork only takes room the panel can spare.
-                        visible: player.width >= 640
+                        // Transport controls come first; the artwork shrinks to the room the panel can spare,
+                        // down to 72 px, and goes only below a 480 px panel.
+                        visible: player.width >= 480
                         idle: !root.loaded
-                        Layout.fillHeight: true; Layout.preferredWidth: height
+                        readonly property real side: Math.min(player.height - 20, Math.max(72, (player.width - 440) * .8))
+                        Layout.preferredWidth: side; Layout.preferredHeight: side; Layout.alignment: Qt.AlignVCenter
                         seed: desktop.audioKey
                         spinning: desktop.playing
                         ready: waveform.ready
                         artwork: desktop.artwork
+                        square: desktop.artworkSquare
+                        vinyl: root.vinylArtwork
                     }
                 ColumnLayout {
                     Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumWidth: 0; spacing: 6
@@ -1512,15 +1655,64 @@ ApplicationWindow {
                             Item { Layout.fillWidth: true }
                         }
                     }
+                    // A close-up of the 15 s around the playhead, drawn as moving rectangles from the same
+                    // per-bin levels, with ticks on the beat grid when the track's BPM and kicks are known.
+                    Item {
+                        id: zoom; objectName: "zoomStrip"
+                        Layout.fillWidth: true; Layout.preferredHeight: 22
+                        visible: root.loaded; clip: true
+                        readonly property real span: 15
+                        readonly property var strip: desktop.waveformColumns(desktop.waveform.length, desktop.waveformKey)
+                        readonly property int bins: waveform.ready ? strip.levels.length : 0
+                        readonly property real binSeconds: bins > 0 ? waveform.duration / bins : 0
+                        readonly property real now: waveform.fraction * waveform.duration
+                        readonly property real start: now - span / 2
+                        readonly property real period: (desktop.nowPlaying.bpm || 0) > 0 ? 60 / desktop.nowPlaying.bpm : 0
+                        // Colours once per waveform, not per frame.
+                        readonly property var colours: {
+                            let list = [], top = root.waveRestTop
+                            for (let i = 0; i < bins; i++)
+                                list.push(root.spectral && strip.bands.length === bins ? root.spectralColor(strip.bands[i])
+                                          : Qt.tint(root.waveRestFoot, Qt.rgba(top.r, top.g, top.b, strip.levels[i])))
+                            return list
+                        }
+                        Repeater {
+                            model: zoom.binSeconds > 0 ? Math.ceil(zoom.span / zoom.binSeconds) + 2 : 0
+                            Rectangle {
+                                required property int index
+                                readonly property int bin: Math.floor(zoom.start / zoom.binSeconds) + index
+                                readonly property real level: bin >= 0 && bin < zoom.bins ? zoom.strip.levels[bin] : 0
+                                x: (bin * zoom.binSeconds - zoom.start) / zoom.span * zoom.width
+                                width: Math.max(1, zoom.binSeconds / zoom.span * zoom.width - 1)
+                                height: Math.max(1, level * zoom.height); y: zoom.height - height
+                                color: zoom.colours[bin] || "transparent"
+                                opacity: (bin + 1) * zoom.binSeconds <= zoom.now ? 1 : root.dark ? .38 : .45
+                            }
+                        }
+                        Repeater {
+                            objectName: "beatTicks"
+                            model: zoom.period > 0 && root.beatAnchor >= 0 ? Math.ceil(zoom.span / zoom.period) + 1 : 0
+                            Rectangle {
+                                required property int index
+                                readonly property real time: root.beatAnchor + (Math.ceil((zoom.start - root.beatAnchor) / zoom.period) + index) * zoom.period
+                                x: (time - zoom.start) / zoom.span * zoom.width; width: 1; height: 5; color: root.muted
+                            }
+                        }
+                        Rectangle { x: zoom.width / 2 - 1; width: 2; height: zoom.height; color: root.fg }
+                    }
                     Item {
                         id: waveform; objectName: "waveform"
                         Layout.fillWidth: true; Layout.fillHeight: true
-                        property var samples: desktop.waveform
                         property real position: desktop.audio.position || 0
                         readonly property real duration: desktop.audio.duration || 0
-                        // Recomputed when the bar count changes, not on every pixel of a resize.
                         readonly property int columns: Math.max(1, Math.floor(width / 3))
-                        property var levels: desktop.waveformLevels(samples, columns)
+                        // Levels follow the bar count 50 ms after a resize settles, not every 3 px of a drag.
+                        property int levelColumns: columns
+                        Timer { id: levelTimer; interval: 50; onTriggered: waveform.levelColumns = waveform.columns }
+                        // Levels and low/mid/high shares per bar, read from the waveform the bridge holds.
+                        readonly property var columnData: desktop.waveformColumns(levelColumns, desktop.waveformKey)
+                        readonly property var levels: columnData.levels
+                        readonly property var bands: columnData.bands
                         // The backend sends the waveform for every track, empty when there is none.
                         readonly property bool ready: !!desktop.audioKey && desktop.waveformKey === desktop.audioKey
                         // Until then the bars flicker as noise. A new track scatters the old waveform into the
@@ -1539,9 +1731,16 @@ ApplicationWindow {
                         // The played and neon canvases are hidden while bars move; once they settle they are
                         // painted again, or they would keep the first frame of the blend (noise over the waveform).
                         onMovingChanged: if (!moving) repaint()
-                        onColumnsChanged: refreshNoise()
+                        onColumnsChanged: { refreshNoise(); levelTimer.restart() }
                         Component.onCompleted: refreshNoise()
                         onReadyChanged: {
+                            // Leaving the noise, take the bars from the noise as it stands now: the frame loop
+                            // that records them rests while minimized or inactive, and left them stale.
+                            if (ready) {
+                                let now = []
+                                for (let i = 0; i < columns; i++) now.push(level(i, noiseShape, false))
+                                shown = now
+                            }
                             blendAnimation.stop()
                             blendFrom = shown
                             if (root.motion) {
@@ -1593,8 +1792,8 @@ ApplicationWindow {
                             let v = .5 + .32 * Math.sin(wander * s[0] + s[1]) + .18 * Math.sin(wander * s[2] + s[3])
                             return Math.max(.04, Math.min(.95, v * s[4]))
                         }
-                        function level(i, shape) {
-                            let target = ready ? levels[i] || 0 : placeholder(i, shape)
+                        function level(i, shape, settled) {
+                            let target = (settled === undefined ? ready : settled) ? levels[i] || 0 : placeholder(i, shape)
                             if (blend >= 1 || i >= blendFrom.length) return target
                             return blendFrom[i] + (target - blendFrom[i]) * blend
                         }
@@ -1620,13 +1819,16 @@ ApplicationWindow {
                             ctx.fillStyle = neon ? gradient(ctx, height, root.waveNeonFoot, root.waveNeonTop)
                                                  : gradient(ctx, height, root.waveRestFoot, root.waveRestTop)
                             ctx.globalAlpha = played ? 1 : root.dark ? .38 : .45
-                            let count = columns, step = width / count, bar = Math.max(1, step - 1)
+                            let count = ready && levels.length ? levels.length : columns, step = width / count, bar = Math.max(1, step - 1)
+                            // View → Spectral waveform: each bar in its own low/mid/high mix, brighter for the kick light.
+                            let colours = root.spectral && ready && bands.length === count
                             let values = []
                             for (let i = 0; i < count; i++) values.push(level(i))
                             // What is on screen, for the next track change to scatter from.
-                            if (!played && !neon) shown = values
+                            if (!played && !neon && !moving) shown = values
                             for (let i = 0; i < count; i++) {
                                 let barHeight = Math.max(1, values[i] * (height - 2))
+                                if (colours) ctx.fillStyle = neon ? root.peakColor(root.spectralColor(bands[i])) : root.spectralColor(bands[i])
                                 ctx.fillRect(i * step, height - barHeight, bar, barHeight)
                             }
                         }
@@ -1665,17 +1867,26 @@ ApplicationWindow {
                                 }
                             }
                         }
-                        // On a kick the whole played side, everything left of the cursor, lights up in neon.
                         Item {
                             clip: true; visible: waveform.ready && !waveform.moving
                             anchors { top: parent.top; bottom: parent.bottom; left: parent.left }
                             width: waveform.fraction * waveform.width
                             WaveformBars { objectName: "playedBars"; width: waveform.width; height: waveform.height; played: true }
+                        }
+                        // On a kick only the bars just played light up in neon: the last 2 s left of the
+                        // cursor, at least 40 px, so the light stays where the sound is.
+                        Item {
+                            id: neonBand; objectName: "neonBand"
+                            clip: true; visible: waveform.ready && !waveform.moving
+                            readonly property real span: Math.max(40, 2 / Math.max(1, waveform.duration) * waveform.width)
+                            x: Math.max(0, waveform.fraction * waveform.width - span)
+                            anchors { top: parent.top; bottom: parent.bottom }
+                            width: waveform.fraction * waveform.width - x
                             // Painted once per waveform like the bars under it; the light only fades it in and
-                            // out, and the clip above keeps it to the played side.
+                            // out, and the clip above keeps it to the band behind the cursor.
                             WaveformBars {
                                 id: neonBars; objectName: "kickBars"
-                                width: waveform.width; height: waveform.height; played: true; neon: true
+                                x: -neonBand.x; width: waveform.width; height: waveform.height; played: true; neon: true
                                 // Drawn by the glow effect when there is one, which fades it itself.
                                 opacity: kickGlow.active ? 1 : root.glow
                                 visible: !kickGlow.active
@@ -1695,6 +1906,26 @@ ApplicationWindow {
                                 }
                             }
                         }
+                        // Hot cues, numbered, and the estimated drop, over the bars.
+                        Repeater {
+                            model: 4
+                            Rectangle {
+                                required property int index
+                                readonly property var time: root.trackCues[index]
+                                objectName: "cue" + (index + 1)
+                                visible: root.loaded && typeof time === "number" && waveform.duration > 0
+                                x: (time || 0) / Math.max(1, waveform.duration) * waveform.width; width: 2; height: waveform.height
+                                color: root.accent
+                                Label { x: 3; text: index + 1; font.pixelSize: 10; font.bold: true; color: root.accent }
+                            }
+                        }
+                        Rectangle {
+                            objectName: "dropMarker"
+                            visible: root.loaded && root.dropTime >= 0 && waveform.duration > 0
+                            x: root.dropTime / Math.max(1, waveform.duration) * waveform.width; width: 2; height: waveform.height
+                            color: root.warning
+                            Label { x: 3; anchors.bottom: parent.bottom; text: qsTr("Drop"); font.pixelSize: 10; font.bold: true; color: root.warning }
+                        }
                         // Subpixel position: the playhead slides instead of stepping a pixel at a time.
                         Rectangle {
                             objectName: "cursor"; antialiasing: true; visible: root.loaded
@@ -1713,8 +1944,17 @@ ApplicationWindow {
                             onReleased: mouse => {
                                 let target = fractionAt(mouse.x)
                                 waveform.scrub = -1
-                                waveform.pending = target; pendingTimer.restart()
-                                desktop.transport("seek", target * waveform.duration)
+                                root.seekTo(target * waveform.duration)
+                            }
+                            // The wheel seeks 5 s a notch, forward when turned up; touchpads add up to whole notches.
+                            property real wheelRest: 0
+                            onWheel: wheel => {
+                                wheelRest += wheel.angleDelta.y || -wheel.angleDelta.x
+                                while (Math.abs(wheelRest) >= 120) {
+                                    let step = wheelRest > 0 ? 1 : -1
+                                    wheelRest -= step * 120
+                                    root.nudge(5 * step)
+                                }
                             }
                             ToolTip.visible: containsMouse; ToolTip.delay: 300
                             ToolTip.text: root.clock(mouseX / width * waveform.duration)
@@ -1744,10 +1984,7 @@ ApplicationWindow {
                             onClicked: root.playPause()
                         }
                         Button { text: qsTr("Next track"); enabled: root.loaded; display: AbstractButton.IconOnly; implicitWidth: 40; icon.source: "icons/next.svg"; icon.color: palette.buttonText; Accessible.name: text; ToolTip.visible: hovered; ToolTip.text: text + " (N)"; onClicked: desktop.step(1) }
-                        Button { text: qsTr("Stop"); enabled: root.loaded; display: AbstractButton.IconOnly; implicitWidth: 40; icon.source: "icons/stop.svg"; icon.color: palette.buttonText; Accessible.name: text; ToolTip.visible: hovered; ToolTip.text: text + " (Ctrl+W)"; onClicked: desktop.transport("stop", 0) }
-                        Label { visible: root.loaded; text: root.clock(desktop.audio.position) + " / " + root.clock(desktop.audio.duration); color: root.muted; font.features: root.tabular }
-                        Item { visible: root.loaded; Layout.fillWidth: true; Layout.minimumWidth: 0 }
-                        Label { visible: !root.loaded; text: root.hasSelection ? qsTr("Press Space to play the selected track") : qsTr("Select a track to play"); color: root.muted; elide: Text.ElideRight; Layout.fillWidth: true; Layout.minimumWidth: 0 }
+                        Button { text: qsTr("Stop"); enabled: root.loaded; display: AbstractButton.IconOnly; implicitWidth: 40; icon.source: "icons/stop.svg"; icon.color: palette.buttonText; Accessible.name: text; ToolTip.visible: hovered; ToolTip.text: text + " (" + stopAction.shortcut + ")"; onClicked: stopAction.trigger() }
                         // A speaker, struck through while muted; the words stay for tooltips and screen readers.
                         ToolButton {
                             objectName: "muteButton"
@@ -1786,10 +2023,33 @@ ApplicationWindow {
                                 width: volumeSlider.pressed || volumeSlider.hovered ? 14 : 12; height: width; radius: width / 2
                                 color: root.fg; border.color: root.panel
                             }
-                            Layout.fillWidth: true; Layout.minimumWidth: 50; Layout.preferredWidth: 100; Layout.maximumWidth: 140
-                            onMoved: { root.volume = value; root.isMuted = false; desktop.transport("volume", value) }
+                            // A tall track around the thin line, so it is easy to grab.
+                            implicitHeight: 32
+                            Layout.fillWidth: true; Layout.minimumWidth: 50; Layout.preferredWidth: 110; Layout.maximumWidth: 140
+                            onMoved: { root.volume = value; volumeSend.start() }
                             Accessible.name: qsTr("Volume")
                             ToolTip.visible: hovered || pressed; ToolTip.text: qsTr("Volume") + " " + Math.round(value * 100) + "%"
+                        }
+                        Item { visible: root.loaded; Layout.fillWidth: true; Layout.minimumWidth: 0 }
+                        Label { visible: !root.loaded; text: root.hasSelection ? qsTr("Press Space to play the selected track") : qsTr("Select a track to play"); color: root.muted; elide: Text.ElideRight; Layout.fillWidth: true; Layout.minimumWidth: 0 }
+                        // The time played, or after a click the time left, large; the other one and the length beside it.
+                        Label {
+                            objectName: "clock"
+                            visible: root.loaded
+                            readonly property real timeLeft: Math.max(0, (desktop.audio.duration || 0) - (desktop.audio.position || 0))
+                            text: root.remainingTime ? "−" + root.clock(timeLeft) : root.clock(desktop.audio.position)
+                            font.pixelSize: 20; font.bold: true; font.features: root.tabular; color: root.fg
+                            TapHandler { onTapped: root.remainingTime = !root.remainingTime }
+                            HoverHandler { id: clockHover; cursorShape: Qt.PointingHandCursor }
+                            ToolTip.visible: clockHover.hovered; ToolTip.delay: 500
+                            ToolTip.text: root.remainingTime ? qsTr("Time left; click to show the time played") : qsTr("Time played; click to show the time left")
+                            Accessible.role: Accessible.Button; Accessible.name: ToolTip.text
+                        }
+                        Label {
+                            visible: root.loaded
+                            text: (root.remainingTime ? root.clock(desktop.audio.position) : "−" + root.clock(Math.max(0, (desktop.audio.duration || 0) - (desktop.audio.position || 0))))
+                                  + " / " + root.clock(desktop.audio.duration)
+                            color: root.muted; font.features: root.tabular
                         }
                     }
                 }

@@ -751,6 +751,10 @@ class Player:
         """The set volume regardless of mute, the value worth remembering."""
         return self._volume
 
+    @property
+    def muted(self) -> bool:
+        return self._muted
+
     def unload(self) -> None:
         """Stop and forget the track, so the bar has nothing left to say.
 

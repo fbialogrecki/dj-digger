@@ -1212,7 +1212,7 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
         # label and no code, and the waveform drifts as slow noise with no cursor.
         def named(name):
             return window.findChild(QQuickItem, name)
-        window.setWidth(1200)  # The artwork shows from a 640 px player panel.
+        window.setWidth(1200)  # The artwork is full size from a 640 px player panel.
         painted = QSignalSpy(window.frameSwapped)
         window.update()
         assert painted.wait(3000)
@@ -1403,11 +1403,18 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
         assert played.property('opacity') == 1 and kick.property('opacity') == pytest.approx(1)
         assert cover.property('opacity') == 1
         assert find_item(cover, 'coverGlow').property('opacity') == pytest.approx(1)
-        # The neon covers the whole played side: full-width bars under the played clip, which
-        # ends at the cursor; no shader glow under the software renderer.
-        assert kick.property('width') == canvas.width() and kick.property('x') == 0
-        assert kick.parentItem() is played.parentItem()
-        assert played.parentItem().width() == pytest.approx(canvas.property('fraction') * canvas.width())
+        # The neon covers only the last 2 s (at least 40 px) left of the cursor: full-width bars,
+        # aligned with the played ones, under a clip ending at the cursor; no shader glow under the
+        # software renderer. In this 4 s track 2 s is half the panel, so here all of the played side.
+        band, cursor_x = kick.parentItem(), canvas.property('fraction') * canvas.width()
+        assert kick.property('width') == canvas.width() and kick.property('x') == -band.x()
+        assert band.x() == pytest.approx(max(0, cursor_x - max(40, canvas.width() / 2)))
+        assert band.x() + band.width() == pytest.approx(cursor_x)
+        assert played.parentItem().width() == pytest.approx(cursor_x)
+        window.setProperty('playhead', 3.5)
+        assert band.x() == pytest.approx(canvas.width() * 3.5 / 4 - canvas.width() / 2)
+        assert band.x() + band.width() == pytest.approx(canvas.width() * 3.5 / 4)
+        window.setProperty('playhead', 1.01)
         assert find_item(canvas, 'kickGlow').property('active') is False
         # Then it dies away like a lamp, by e every 75 ms, slower than the levels drop,
         # and is under the gate within 150 ms.
@@ -1647,9 +1654,13 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
         assert mute_icon().endswith('icons/volume.svg')
         click(mute)
         assert bridge.backend.calls[-1][0] == 'transport' and bridge.backend.calls[-1][1]['operation'] == 'mute'
+        # The button shows what the player reports, not a guess of its own.
+        assert mute_icon().endswith('icons/volume.svg')
+        bridge.receive('volume', {'volume': .8, 'muted': True})
         assert mute_icon().endswith('icons/volume-muted.svg')
         assert mute.property('text') == 'Wyłącz wyciszenie'
         click(mute)
+        bridge.receive('volume', {'volume': .8, 'muted': False})
         assert mute_icon().endswith('icons/volume.svg')
         # With nothing loaded, Play starts the selected track.
         bridge.receive('audio', {})

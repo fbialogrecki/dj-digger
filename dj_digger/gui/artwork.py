@@ -1,14 +1,16 @@
-"""The record label: a picture cut to a circle, colours untouched."""
+"""The record label: a picture cut to a circle (or a plain square), colours untouched."""
 import base64
 
 from PySide6.QtCore import QBuffer, QByteArray, QRectF, Qt
 from PySide6.QtGui import QImage, QPainter, QPainterPath
 
 LABEL_PIXELS = 256
+SQUARE_PIXELS = 384  # The plain artwork fills the whole cover, at twice the label's size.
 
 
-def label_image(data: bytes, size: int = LABEL_PIXELS) -> str:
-    """A PNG data URL of the picture's centre square in a circle; '' when it is not an image.
+def label_image(data: bytes, size: int = LABEL_PIXELS, circle: bool = True) -> str:
+    """A PNG data URL of the picture's centre square, in a circle unless ``circle`` is
+    False; '' when it is not an image.
 
     QImage works off the GUI thread. Cutting here keeps the label free of shaders,
     which the software renderer does not run.
@@ -22,9 +24,10 @@ def label_image(data: bytes, size: int = LABEL_PIXELS) -> str:
     label.fill(Qt.transparent)
     painter = QPainter(label)
     painter.setRenderHints(QPainter.Antialiasing | QPainter.SmoothPixmapTransform)
-    circle = QPainterPath()
-    circle.addEllipse(QRectF(0, 0, size, size))
-    painter.setClipPath(circle)
+    if circle:
+        path = QPainterPath()
+        path.addEllipse(QRectF(0, 0, size, size))
+        painter.setClipPath(path)
     painter.drawImage((size - scaled.width()) // 2, (size - scaled.height()) // 2, scaled)
     painter.end()
     encoded = QByteArray()

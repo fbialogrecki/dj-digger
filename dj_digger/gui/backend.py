@@ -64,6 +64,7 @@ class Backend:
         # Seeks arriving faster than the decoder can honor them collapse into the latest.
         self.seek_request = None
         self.seeking = False
+        self.seeks = 0
         self.thread.start()
 
     def _run(self):
@@ -1033,11 +1034,12 @@ class Backend:
 
     async def load_waveform(self, loaded, source, cancel):
         from ..services.playback import track_waveform
-        samples = []
+        from ..waveform import drop
+        envelope = dict(peaks=[], bands=[])
         try:
             async with self.waveform_lock:
                 check_cancelled(cancel)
-                samples = await self.io(track_waveform, self.services.state.db, loaded.track, source, cancel)
+                envelope = await self.io(track_waveform, self.services.state.db, loaded.track, source, cancel)
         except (Cancelled, asyncio.CancelledError):
             return
         except Exception as exc:
@@ -1047,13 +1049,15 @@ class Backend:
         # Sent even when empty: the window stops waiting for it and shows the track.
         async with self.player_lock:
             if not cancel.is_set() and self.services.player.loaded is loaded:
-                self.send('waveform', dict(key=loaded.track.key, samples=samples), copy=False)
+                # ``drop`` is the fraction of the track where the first drop lands, -1 without one.
+                self.send('waveform', dict(key=loaded.track.key, samples=envelope['peaks'], bands=envelope['bands'],
+                                           drop=drop(envelope['peaks'], envelope['bands'])), copy=False)
 
     async def load_artwork(self, loaded, cancel):
         """The label picture: the track's own artwork, else the default cover from Settings."""
         from ..local_audio import artwork
         from ..services.playback import remote_artwork
-        from .artwork import label_image
+        from .artwork import SQUARE_PIXELS, label_image
         track, url = loaded.track, loaded.stream.artwork_url
         def picture():
             data = None
@@ -1068,22 +1072,25 @@ class Backend:
             fallback = self.services.config.default_artwork
             if not label and fallback:
                 try:
-                    label = label_image(Path(fallback).read_bytes())
+                    data = Path(fallback).read_bytes()
+                    label = label_image(data)
                 except OSError as exc:
                     LOGGER.debug('Default cover unavailable: %s', log_safe_text(exc))
-            return label
-        label = await self.io(picture)
+            # The record label's circle, and the same picture as a plain square.
+            return label, label_image(data, SQUARE_PIXELS, circle=False) if label else ''
+        label, square = await self.io(picture)
         async with self.player_lock:
             if not cancel.is_set() and self.services.player.loaded is loaded:
-                self.send('artwork', dict(key=track.key, image=label), copy=False)
+                self.send('artwork', dict(key=track.key, image=label, square=square), copy=False)
 
     def publish_audio(self):
         # The per-tick snapshot stays small: the waveform travels separately and only when it changes.
         p = self.services.player
         # ``heard`` is the track time reaching the speaker at ``at`` (epoch seconds),
         # so the window can run its clock from there without the delivery delay.
+        # ``seeks`` counts the seeks served, so the window tells a jump from a late snapshot.
         snapshot = dict(key=p.loaded.track.key, title=p.loaded.track.label, playing=p.playing, position=p.position,
-                        duration=p.duration, heard=p.heard(), at=time.time()) if p.loaded else {}
+                        duration=p.duration, heard=p.heard(), at=time.time(), seeks=self.seeks) if p.loaded else {}
         self.send('audio', snapshot)
         return snapshot
 
@@ -1191,10 +1198,13 @@ class Backend:
             self.publish_audio()
         elif operation in ('seek', 'nudge'):
             await self.apply_seek(operation, float(values['value']))
-        elif operation == 'volume':
-            await self.player_call(player.set_volume, max(0, min(float(values['value']), 1)))
-        elif operation == 'mute':
-            await self.player_call(player.toggle_mute)
+        elif operation in ('volume', 'mute'):
+            if operation == 'volume':
+                await self.player_call(player.set_volume, max(0, min(float(values['value']), 1)))
+            else:
+                await self.player_call(player.toggle_mute)
+            # The player owns the level and mute; the window shows what it reports.
+            self.send('volume', dict(volume=player.level, muted=player.muted))
 
     async def apply_seek(self, operation, value):
         """Serve the newest seek; nudges that pile up behind it add together."""
@@ -1215,6 +1225,7 @@ class Backend:
                     await self.player_call(player.seek, max(0, min(value, player.duration)))
                 else:
                     await self.player_call(player.nudge, value)
+                self.seeks += 1
                 self.publish_audio()
         finally:
             self.seeking = False

@@ -106,25 +106,37 @@ def remote_artwork(session, url: str) -> bytes:
     return bytes(data)
 
 
-def track_waveform(db, track: Track, source, cancel=None) -> list[int]:
-    """The track's envelope, at most 1024 peaks, computed here from its audio:
-    the local file, or the stream once ``source`` holds all of it. Kept in the
-    library after the first computation."""
+def _envelope(value) -> dict:
+    """``peaks`` and ``bands`` of a stored or computed envelope; a bare list is a
+    row kept before bands existed."""
+
+    if isinstance(value, dict):
+        return dict(peaks=list(value.get("peaks") or []), bands=list(value.get("bands") or []))
+    return dict(peaks=list(value or []), bands=[])
+
+
+def track_waveform(db, track: Track, source, cancel=None) -> dict:
+    """The track's envelope, at most 1024 peaks plus their low/mid/high levels,
+    computed here from its audio: the local file, or the stream once ``source``
+    holds all of it. Kept in the library after the first computation; a row kept
+    without bands is computed again, and stays as it was if that yields nothing."""
 
     from .. import local_audio
     from ..media import signature
     mark = signature(Path(track.local_path)) if track.local_path else ""
     cached = db.waveform(track.key, mark)
-    if cached is not None:
+    cached = _envelope(cached) if cached is not None else None
+    if cached is not None and cached["bands"]:
         return cached
     if track.local_path:
-        samples = local_audio.waveform(Path(track.local_path), cancel)
+        computed = _envelope(local_audio.waveform(Path(track.local_path), cancel))
     else:
         data = source.whole(cancel) if hasattr(source, "whole") else None
-        samples = local_audio.encoded_waveform(data) if data else []
-    if samples:
-        db.save_waveform(track.key, mark, samples)
-    return samples
+        computed = _envelope(local_audio.encoded_waveform(data) if data else [])
+    if computed["peaks"]:
+        db.save_waveform(track.key, mark, computed)
+        return computed
+    return cached or computed
 
 
 @dataclass
