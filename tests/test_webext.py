@@ -385,11 +385,14 @@ def test_oversized_command_is_refused_locally(listener, address):
 
 @pytest.mark.skipif(not POSIX, reason="unix sockets only")
 def test_socket_address_and_authkey_locations(tmp_path, monkeypatch):
-    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path / "run"))
-    assert link.socket_address() == str(tmp_path / "run" / "dj-digger" / "webext.sock")
+    # macOS tmp_path alone nearly fills sun_path, so the short cases use a short base.
+    short = Path(tempfile.mkdtemp(prefix="djs", dir="/tmp"))
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(short / "run"))
+    assert link.socket_address() == str(short / "run" / "dj-digger" / "webext.sock")
     monkeypatch.delenv("XDG_RUNTIME_DIR")
-    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
-    assert link.socket_address() == str(tmp_path / "data" / "dj-digger" / "run" / "webext.sock")
+    monkeypatch.setenv("XDG_DATA_HOME", str(short / "data"))
+    assert link.socket_address() == str(short / "data" / "dj-digger" / "run" / "webext.sock")
+    short.rmdir()
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / ("long" * 30)))  # beyond sun_path
     assert link.socket_address() == f"/tmp/dj-digger-{os.getuid()}/webext.sock"
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 import pytest
 
 from dj_digger.webext import link
@@ -91,7 +93,8 @@ def test_probe_store_reads_only_and_prints_no_page_content(capsys, tmp_path):
     assert "123456" in out  # ids parsed locally from tab.html are fine
     assert SECRET not in out
     assert EMAIL not in out and EMAIL not in saved.read_text()
-    assert oct(saved.stat().st_mode & 0o777) == "0o600"
+    if os.name == "posix":  # Windows has no owner-only mode bits
+        assert oct(saved.stat().st_mode & 0o777) == "0o600"
 
 
 def test_probe_store_bandcamp_only_reads_named_page_data():

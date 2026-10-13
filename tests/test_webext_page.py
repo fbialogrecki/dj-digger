@@ -515,7 +515,8 @@ def test_save_as_refuses_symlinks_oversized_and_missing_files(world, tmp_path, m
                 by_id[1].save_as(tmp_path / "x1")
         with pytest.raises(AutomationError, match="cannot be read"):
             by_id[3].save_as(tmp_path / "x3")
-        with pytest.raises(AutomationError, match="not a regular file"):
+        # Windows refuses to open a directory at all; POSIX opens it and fstat says what it is.
+        with pytest.raises(AutomationError, match="not a regular file" if POSIX else "cannot be read"):
             by_id[4].save_as(tmp_path / "x4")
         monkeypatch.setattr(files, "MAX_DOWNLOAD_BYTES", 3)
         with pytest.raises(AutomationError, match="exceeded"):
