@@ -62,10 +62,14 @@ def media_track(db, record: dict) -> Track:
     tags = metadata.get('tags', {})
     year = next((y for name in ('date', 'year', 'originaldate', 'original_year') if (y := _year(str(tags.get(name) or '')))), None)
     label = next((str(tags[name]).strip() for name in ('label', 'publisher', 'organization') if str(tags.get(name) or '').strip()), '')
+    # The extension is known at once; the bitrate once the file has been probed (lossless streams often report none).
+    kbps = round(int(metadata.get('bit_rate') or 0) / 1000)
+    audio_format = Path(record['path']).suffix[1:].upper() + (f' {kbps} kbps' if kbps else '')
     return Track(title=stem, permalink_url='', artist=artist or filename_artist(stem),
                  local_id=record['id'], local_path=record['path'], duration=int(metadata.get('duration', 0) * 1000),
                  bpm=resolved['bpm'][0], key_signature=resolved['key'][0],
-                 genre=str(tags.get('genre') or '').strip(), release_year=year, label_name=label)
+                 genre=str(tags.get('genre') or '').strip(), release_year=year, label_name=label,
+                 audio_format=audio_format, comment=' '.join(str(tags.get('comment') or '').split()))
 
 
 def valid_file_name(name: str) -> str:

@@ -71,15 +71,15 @@ def test_table_longest_visible_text_and_header_names(app):
     assert model.longestText(2) == 'A much longer title'
     assert model.longestText(4) == '120.5'
     assert model.longestText(0) == 'New'
-    # A played track says nothing until it is decided on; long mixes count hours.
+    # A played track keeps its listening history visible; long mixes count hours.
     played = [row('1', 'Short', 99), dict(row('2', 'Mix', 120), status='played', duration=8408000)]
     model.replace(played)
-    assert model.data(model.index(1, 0)) == '' and model.data(model.index(1, 8)) == '2:20:08'
+    assert model.data(model.index(1, 0)) == 'Played' and model.data(model.index(1, 8)) == '2:20:08'
     assert model.data(model.index(0, 8)) == '1:00'
     model.filter('short', '', False)
     assert model.longestText(2) == 'Short'
     assert model.longestText(42) == '' and model.longestText(-1) == ''
-    assert model.headerName(9) == 'Stores' and model.headerName(10) == ''
+    assert model.headerName(9) == 'Stores' and model.headerName(11) == 'Comment' and model.headerName(12) == ''
     assert model.headerName(2) == 'Track name'
     assert TrackModel().longestText(2) == ''
 
@@ -1679,11 +1679,16 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
         assert bridge.backend.calls[-1][0] == 'mark' and bridge.backend.calls[-1][1]['status'] == 'skip'
         listed = qml('shortcutList()')
         assert '  K\tPomiń' in listed and '  Space\tOdtwórz / pauza' in listed and '  Shift+S, Ctrl+,\tPreferencje…' in listed
-        # In a folder view a double click edits the name in place; typing never fires a shortcut,
-        # Enter saves and Esc cancels.
+        # In a folder view a slow second click on the selected name edits it in place (once a double
+        # click is ruled out); typing never fires a shortcut, Enter saves and Esc cancels.
         settle()
+        pause = QGuiApplication.styleHints().mouseDoubleClickInterval() + 150
         name = table.mapToScene(QPointF(qml('table.columnWidth(0) + table.columnWidth(1)') + 30, 17)).toPoint()
-        QTest.mouseDClick(window, Qt.LeftButton, pos=name)
+        QTest.mouseClick(window, Qt.LeftButton, pos=name)
+        QTest.qWait(pause)
+        QTest.mouseClick(window, Qt.LeftButton, pos=name)
+        assert find(window.contentItem(), 'cellEditor') is None
+        QTest.qWait(pause)
         settle()
         assert find(window.contentItem(), 'cellEditor') is not None
         bridge.backend.calls.clear()
@@ -1694,7 +1699,8 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
         assert bridge.backend.calls == [('rename', dict(keys=['a'], field='title', value='Artist - Song', generation=3))]
         assert find(window.contentItem(), 'cellEditor') is None
         artist = table.mapToScene(QPointF(qml('table.columnWidth(0)') + 30, 17)).toPoint()
-        QTest.mouseDClick(window, Qt.LeftButton, pos=artist)
+        QTest.mouseClick(window, Qt.LeftButton, pos=artist)
+        QTest.qWait(pause)
         settle()
         for char in 'Nobody':
             QTest.keyClick(window, char)
@@ -1704,6 +1710,11 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
         assert bridge.table.keys() == ['a']
         assert bridge.backend.calls == [('rename', dict(keys=['a'], field='title', value='Artist - Song', generation=3))]
         assert find(window.contentItem(), 'cellEditor') is None
+        # A double click on the name plays, it never edits.
+        QTest.mouseDClick(window, Qt.LeftButton, pos=name)
+        QTest.qWait(pause)
+        settle()
+        assert find(window.contentItem(), 'cellEditor') is None and bridge.backend.calls[-1][0] == 'play'
         # Columns: a dragged or fitted width wins over the saved one, the divider fits on
         # double-click without sorting, and the header menu toggles visibility.
         settle()
@@ -1735,23 +1746,23 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
         qml('toggleColumn(9)')
         # Unloaded (zero-width) columns report -1 from TableView.
         assert qml('table.columnWidth(9)') <= 0 and stores.property('checked') is False
-        assert window.property('hiddenColumns').toVariant() == [9]
+        assert window.property('hiddenColumns').toVariant() == [10, 11, 9]
         qml('toggleColumn(9); resetColumnWidths()')
         assert qml('table.columnWidth(9)') == 140 and qml('table.columnWidth(1)') == 150
         # A narrower width saved by an older version never cuts statuses or times short.
         qml('table.setColumnWidth(0, 60); table.setColumnWidth(8, 40); table.forceLayout()')
         assert qml('table.columnWidth(0)') == 104 and qml('table.columnWidth(8)') == 70
         qml('resetColumnWidths()')
-        assert window.property('hiddenColumns').toVariant() == []
+        assert window.property('hiddenColumns').toVariant() == [10, 11]
         # Columns can be reordered; the order is tracked for persistence and can be reset.
         qml('table.moveColumn(0, 2)')
         settle()
-        assert window.property('columnOrder').toVariant() == [1, 2, 0, 3, 4, 5, 6, 7, 8, 9]
+        assert window.property('columnOrder').toVariant() == [1, 2, 0, 3, 4, 5, 6, 7, 8, 9, 10, 11]
         cells = qml('(function(){ let out = []; for (let c of table.contentItem.children) if (c.column !== undefined && c.row === 0 && c.visible) out.push([Math.round(c.x), c.column]); out.sort((a, b) => a[0] - b[0]); return JSON.stringify(out.slice(0, 3).map(c => c[1])) })()')
         assert json.loads(cells) == [1, 2, 0]
         qml('resetColumnOrder()')
         settle()
-        assert window.property('columnOrder').toVariant() == list(range(10))
+        assert window.property('columnOrder').toVariant() == list(range(12))
         # The status bar spans the whole window and the dialog buttons are localized and compact.
         status = window.findChild(QQuickItem, 'statusBar')
         assert status.width() == window.width()

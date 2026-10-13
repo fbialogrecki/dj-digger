@@ -424,7 +424,7 @@ class Bridge(QObject):
     def saveSettings(self, values):
         # Only this fixed presentation shape is persisted; no service preferences.
         allowed = {'width', 'height', 'language', 'theme', 'sidebarWidth', 'sidebarVisible', 'columnWidths', 'hiddenColumns', 'columnOrder',
-                   'keyNotation', 'animations', 'colors', 'recent'}
+                   'keyNotation', 'animations', 'colors', 'recent', 'sortColumn', 'sortReverse', 'compactRows'}
         self._settings = {k: v for k, v in values.items() if k in allowed}
 
     @Slot()

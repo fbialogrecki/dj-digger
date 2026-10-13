@@ -84,6 +84,9 @@ class Track:
     key_signature: str = ""
     release_year: int | None = None
     label_name: str = ""
+    # Local files only: container and bitrate ("MP3 320 kbps") and the comment tag.
+    audio_format: str = ""
+    comment: str = ""
 
     @property
     def key(self) -> str:

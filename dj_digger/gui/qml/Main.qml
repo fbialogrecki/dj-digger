@@ -24,7 +24,7 @@ ApplicationWindow {
     property color pressedSurface: dark ? "#35353f" : "#c1c6cf"
     property color disabledFg: dark ? "#8e9098" : "#585b64"
     // Selection is a soft, low-chroma blue: a whole list selected must not glare.
-    property color selection: dark ? "#34466f" : "#c9d5f2"
+    property color selection: dark ? "#34466f" : "#b8c9f0"
     property color selectionText: dark ? "#ffffff" : "#111217"
     property color accent: dark ? "#2f63ea" : "#1f4fd1"
     property color accent2: dark ? "#c02a4e" : "#8c1a36"
@@ -166,20 +166,24 @@ ApplicationWindow {
     property string errorMessage: ""
     // Space and the Play button only pause or resume the loaded track; Enter starts the selected one.
     readonly property bool pauseTarget: desktop.playing
-    readonly property var defaultColumnWidths: [110, 150, 280, 85, 64, 64, 58, 95, 70, 140]
+    // Format (10) and Comment (11) came later: appended, so saved widths, order and hidden columns keep their meaning.
+    readonly property var allColumns: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    readonly property var defaultColumnWidths: [110, 150, 280, 85, 64, 64, 58, 95, 70, 140, 110, 180]
     // Statuses, numbers and times are never cut short, whatever width was saved or dragged.
-    readonly property var minimumColumnWidths: [104, 0, 0, 0, 56, 56, 58, 0, 70, 0]
+    readonly property var minimumColumnWidths: [104, 0, 0, 0, 56, 56, 58, 0, 70, 0, 0, 0]
     property var columnWidths: defaultColumnWidths.slice()
-    property var hiddenColumns: []
+    property var hiddenColumns: [10, 11]
     // Logical column per visual position; TableView keeps delegates and widths logical.
-    property var columnOrder: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    property var columnOrder: allColumns.slice()
     readonly property int titleColumn: 2
+    property bool compactRows: false
+    readonly property int rowHeight: compactRows ? 26 : 34
     function applyColumnOrder(order) {
         for (let visual = 0; visual < order.length; visual++) table.moveColumn(order[visual], visual)
     }
     function resetColumnOrder() {
         table.clearColumnReordering()
-        columnOrder = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+        columnOrder = allColumns.slice()
     }
     function resetLayout() {
         resetColumnWidths(); resetColumnOrder()
@@ -189,8 +193,8 @@ ApplicationWindow {
         let cancel = target.standardButton(Dialog.Cancel); if (cancel) cancel.text = qsTr("Cancel")
         let close = target.standardButton(Dialog.Close); if (close) close.text = qsTr("Close")
     }
-    // BPM and key come from local files; genre, year and label from SoundCloud or a file's tags.
-    function columnAvailable(column) { return (column !== 4 && column !== 5) || !!desktop.view.local }
+    // BPM, key, format and comment come from local files; genre, year and label from SoundCloud or a file's tags.
+    function columnAvailable(column) { return (column !== 4 && column !== 5 && column < 10) || !!desktop.view.local }
     // The outermost visible columns, in on-screen order, close the keyboard row's outline.
     readonly property int firstVisibleColumn: columnOrder.find(c => columnVisible(c)) ?? 0
     readonly property int lastVisibleColumn: columnOrder.slice().reverse().find(c => columnVisible(c)) ?? 0
@@ -204,7 +208,8 @@ ApplicationWindow {
             for (let part of sample.split(", ").filter(s => s && s !== "no-link")) { badgeMetrics.text = part; needed += badgeMetrics.width + 14 }
         } else {
             fitMetrics.text = sample
-            needed = fitMetrics.width + 14 + (column === titleColumn ? 26 : column === 4 || column === 5 ? 14 : 0)
+            // The title keeps an 18 px play-state slot and room for the found-locally folder.
+            needed = fitMetrics.width + 14 + (column === titleColumn ? 44 : column === 4 || column === 5 ? 14 : 0)
         }
         fitMetrics.text = desktop.model.headerName(column) + " ▲"
         return Math.ceil(Math.max(40, Math.min(600, Math.max(needed, fitMetrics.width + 10))))
@@ -216,7 +221,7 @@ ApplicationWindow {
         table.setColumnWidth(column, width)
         table.forceLayout()
     }
-    function fitAllColumns() { for (let i = 0; i < 10; i++) fitColumn(i) }
+    function fitAllColumns() { for (let i of allColumns) fitColumn(i) }
     function resetColumnWidths() {
         table.clearColumnWidths()
         columnWidths = defaultColumnWidths.slice()
@@ -294,7 +299,7 @@ ApplicationWindow {
     }
     function tempoMatch(bpm, other) { return bpm > 0 && other > 0 && Math.abs(bpm - other) <= other * .03 }
     function statusColor(status) {
-        return status === "got" ? success : status === "skip" ? muted : status === "opened" ? warning : fg
+        return status === "got" ? success : status === "skip" || status === "played" ? muted : status === "opened" ? warning : fg
     }
     function note(text, level) {
         messages = [(new Date()).toLocaleTimeString(Qt.locale(), Locale.ShortFormat) + (level === "error" ? " ! " : "   ") + text].concat(messages).slice(0, 50)
@@ -344,9 +349,10 @@ ApplicationWindow {
         lines.push("\n" + qsTr("Track list"))
         lines.push("  Enter\t" + qsTr("Play the selected track"), "  Delete\t" + qsTr("Remove from playlist"),
                    "  Esc\t" + qsTr("Clear selection, then search, then filters"), "  Ctrl+C\t" + qsTr("Copy artist and title"),
-                   "  Shift+↑/↓\t" + qsTr("Extend selection"), "  " + qsTr("Double click") + "\t" + qsTr("Play"),
+                   "  Shift+↑/↓\t" + qsTr("Extend selection"), "  Ctrl+Shift+↑/↓\t" + qsTr("Add a range to the selection"),
+                   "  " + qsTr("Drag across rows") + "\t" + qsTr("Select a range"), "  " + qsTr("Double click") + "\t" + qsTr("Play"),
                    "  F2\t" + qsTr("Rename file (folder views)"),
-                   "  " + qsTr("Double click") + "\t" + qsTr("Edit artist or track name (folder views)"))
+                   "  " + qsTr("Click a selected name again") + "\t" + qsTr("Edit artist or track name (folder views)"))
         return lines.join("\n")
     }
 
@@ -356,20 +362,28 @@ ApplicationWindow {
         height = Math.min(Screen.height, Math.max(520, Number(s.height) || 800))
         languageCode = ["en", "de", "es", "fr", "it", "pl", "ru"].indexOf(s.language) >= 0 ? s.language : systemLanguage
         themeChoice = ["system", "light", "dark"].indexOf(s.theme) >= 0 ? s.theme : "system"
-        if (Array.isArray(s.columnWidths) && s.columnWidths.length === 10)
-            columnWidths = s.columnWidths.map(v => Math.max(40, Math.min(600, Number(v) || 100)))
-        if (Array.isArray(s.hiddenColumns))
-            hiddenColumns = s.hiddenColumns.map(Number).filter(v => Number.isInteger(v) && v >= 0 && v < 10 && v !== titleColumn)
-        if (Array.isArray(s.columnOrder) && s.columnOrder.length === 10
-                && [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].every(i => s.columnOrder.map(Number).indexOf(i) >= 0))
-            applyColumnOrder(s.columnOrder.map(Number))
+        // Lists arrive as Qt sequences, which Array.isArray rejects; copied, they restore at last.
+        let list = v => v && typeof v === "object" && typeof v.length === "number" ? Array.from(v) : null
+        let widths = list(s.columnWidths), hidden = list(s.hiddenColumns), saved = list(s.columnOrder)
+        // Settings saved with ten columns get Format and Comment appended, hidden.
+        let legacy = !!saved && saved.length === 10
+        if (widths && (widths.length === 10 || widths.length === allColumns.length))
+            columnWidths = widths.concat(defaultColumnWidths.slice(widths.length)).map(v => Math.max(40, Math.min(600, Number(v) || 100)))
+        if (hidden)
+            hiddenColumns = hidden.map(Number).filter(v => Number.isInteger(v) && v >= 0 && v < allColumns.length && v !== titleColumn)
+                .concat(legacy ? [10, 11] : [])
+        let order = saved ? saved.map(Number).concat(legacy ? [10, 11] : []) : []
+        if (order.length === allColumns.length && allColumns.every(i => order.indexOf(i) >= 0))
+            applyColumnOrder(order)
+        if (Number.isInteger(s.sortColumn)) desktop.model.setSort(s.sortColumn, s.sortReverse === true)
+        if (s.compactRows === true) compactRows = true
         sidebarWidth = Math.max(160, Math.min(400, Number(s.sidebarWidth) || 220))
         if (s.sidebarVisible === false) sidebarVisible = false
         if (s.animations === false) animations = false
         keyNotation = s.keyNotation === "classic" ? "classic" : "camelot"
         if (typeof s.colors === "string" && colorPairs.hasOwnProperty(s.colors)) colorPair = s.colors
-        if (Array.isArray(s.recent))
-            recent = s.recent.filter(r => r && (r.kind === "folder" || r.kind === "playlist") && typeof r.target === "string" && r.target)
+        if (list(s.recent))
+            recent = list(s.recent).filter(r => r && (r.kind === "folder" || r.kind === "playlist") && typeof r.target === "string" && r.target)
                              .slice(0, 8).map(r => ({kind: r.kind, target: r.target}))
         desktop.language(languageCode)
         table.forceActiveFocus()
@@ -378,10 +392,11 @@ ApplicationWindow {
         event.accepted = false
         if (!shuttingDown) {
             shuttingDown = true
-            for (let i = 0; i < 10; i++) if (i !== titleColumn && columnVisible(i)) columnWidths[i] = table.columnWidth(i)
+            for (let i of allColumns) if (i !== titleColumn && columnVisible(i)) columnWidths[i] = table.columnWidth(i)
             desktop.saveSettings({sidebarWidth: sidebar.width, sidebarVisible: sidebarVisible, width: width, height: height, language: languageCode,
                                   theme: themeChoice, columnWidths: columnWidths, hiddenColumns: hiddenColumns, columnOrder: columnOrder,
-                                  keyNotation: keyNotation, animations: animations, colors: colorPair, recent: recent})
+                                  keyNotation: keyNotation, animations: animations, colors: colorPair, recent: recent,
+                                  sortColumn: desktop.model.sortColumn, sortReverse: desktop.model.sortReverse, compactRows: compactRows})
             desktop.close()
         }
     }
@@ -516,7 +531,7 @@ ApplicationWindow {
                 id: viewColumnMenu
                 title: qsTr("Columns")
                 Instantiator {
-                    model: 10
+                    model: root.allColumns.length
                     delegate: AppMenuItem {
                         required property int index
                         objectName: "viewColumn-" + index
@@ -584,6 +599,7 @@ ApplicationWindow {
             }
             AppSeparator {}
             Action { id: animationsAction; text: qsTr("Animations"); checkable: true; checked: root.animations; onTriggered: root.animations = checked }
+            Action { text: qsTr("Compact rows"); checkable: true; checked: root.compactRows; onTriggered: root.compactRows = checked }
         }
         AppMenu {
             title: qsTr("Settings")
@@ -1664,8 +1680,13 @@ ApplicationWindow {
                     onClicked: { table.forceActiveFocus(); contextMenu.popup() }
                 }
                 TableView {
-                    id: table; objectName: "trackTable"; property int keyboardRow: 0
+                    id: table; objectName: "trackTable"
+                    // The model keeps the keyboard row as a track key, so a sort or filter never moves it to another track.
+                    readonly property int keyboardRow: desktop.model.cursorRow
                     anchors.fill: parent
+                    rowHeightProvider: () => root.rowHeight
+                    property int rowHeight: root.rowHeight
+                    onRowHeightChanged: forceLayout()
                     clip: true; model: desktop.model; reuseItems: true
                     // Title takes the remaining width so status and stores stay on screen.
                     // BPM and key only mean something for local files; SoundCloud rows never carry them.
@@ -1679,7 +1700,7 @@ ApplicationWindow {
                         if (!root.columnVisible(column)) return 0
                         if (column !== root.titleColumn || explicitColumnWidth(column) >= 0) return chosenWidth(column)
                         let used = 0
-                        for (let i = 0; i < 10; i++) if (i !== root.titleColumn && root.columnVisible(i)) used += chosenWidth(i)
+                        for (let i of root.allColumns) if (i !== root.titleColumn && root.columnVisible(i)) used += chosenWidth(i)
                         // Up to the right edge, like the search field above; the scroll bar floats over the stores.
                         return Math.max(150, width - used)
                     }
@@ -1696,7 +1717,6 @@ ApplicationWindow {
                     Connections {
                         target: desktop.model
                         function onModelReset() {
-                            table.keyboardRow = 0
                             // Qt 6.11: moving a column also freezes a row mapping sized to the rows of that
                             // moment, and the next larger view aborted the app in getRowHeight. Rows are
                             // never reordered here, so the mapping is dropped; the column order stays.
@@ -1719,8 +1739,10 @@ ApplicationWindow {
                         required property string stores
                         required property int row
                         required property int column
+                        // The loaded track, playing or paused.
                         readonly property bool playing: desktop.audioKey === trackKey
-                        implicitHeight: 34; implicitWidth: 100
+                        readonly property bool titleCell: column === root.titleColumn
+                        implicitHeight: root.rowHeight; implicitWidth: 100
                         color: chosen ? root.selection : (row % 2 ? root.panel : root.bg)
                         // Only the hover layer fades; theme and selection colours switch at once.
                         // A delegate taken from the pool shows its new row's state without fading into it.
@@ -1731,6 +1753,17 @@ ApplicationWindow {
                             anchors.fill: parent; color: root.hoverSurface
                             opacity: !cell.chosen && cell.row === table.hoverRow ? 1 : 0
                             Behavior on opacity { enabled: root.motion && !cell.recycled; NumberAnimation { duration: 120 } }
+                        }
+                        // The loaded track's row: an accent tint and a bar at its left edge, both quieter while paused.
+                        Rectangle {
+                            visible: cell.playing; anchors.fill: parent; color: root.accent
+                            // Light: kept faint so it never reads as the selection colour.
+                            opacity: desktop.playing ? (root.dark ? .22 : .09) : (root.dark ? .08 : .04)
+                        }
+                        Rectangle {
+                            objectName: "nowPlayingBar"
+                            visible: cell.playing && cell.column === root.firstVisibleColumn
+                            width: 3; height: parent.height; color: desktop.playing ? root.accent : root.muted
                         }
                         readonly property string flashStatus: root.flashKeys[trackKey] || ""
                         onFlashStatusChanged: if (flashStatus) flash.restart()
@@ -1780,11 +1813,20 @@ ApplicationWindow {
                             Rectangle { visible: cell.column === root.lastVisibleColumn; anchors.right: parent.right; width: 1; height: parent.height; color: root.accent }
                         }
                         // In a playlist, a folder before the name says the track is on this computer.
-                        readonly property bool found: cell.column === root.titleColumn && cell.local && !desktop.view.local
+                        readonly property bool found: cell.titleCell && cell.local && !desktop.view.local
+                        // The name keeps a fixed slot for the play state, so it never shifts when a track starts or stops.
+                        ColorImage {
+                            objectName: "playState"
+                            visible: cell.titleCell && cell.playing
+                            x: 7; anchors.verticalCenter: parent.verticalCenter
+                            width: 12; height: 12; sourceSize: Qt.size(12, 12)
+                            source: desktop.playing ? "icons/play.svg" : "icons/pause.svg"
+                            color: cell.chosen ? root.selectionText : desktop.playing ? root.accent : root.muted
+                        }
                         ColorImage {
                             objectName: "foundLocally"
                             visible: cell.found
-                            x: 7; anchors.verticalCenter: parent.verticalCenter
+                            x: 25; anchors.verticalCenter: parent.verticalCenter
                             width: 14; height: 14; sourceSize: Qt.size(14, 14); source: "icons/folder.svg"
                             color: cell.chosen ? root.selectionText : root.silver
                             HoverHandler { id: foundHover }
@@ -1807,17 +1849,17 @@ ApplicationWindow {
                             id: cellText
                             transformOrigin: Item.Left
                             visible: cell.column !== 9 && !cell.chipColumn
-                            anchors.fill: parent; anchors.margins: 7; anchors.leftMargin: cell.found ? 27 : 7; textFormat: Text.PlainText; elide: Text.ElideRight
+                            anchors.fill: parent; anchors.rightMargin: 7; anchors.leftMargin: cell.titleCell ? (cell.found ? 45 : 25) : 7
+                            verticalAlignment: Text.AlignVCenter; textFormat: Text.PlainText; elide: Text.ElideRight
                             horizontalAlignment: [4, 6, 8].indexOf(cell.column) >= 0 ? Text.AlignRight : Text.AlignLeft
-                            font.bold: cell.column === root.titleColumn && cell.playing
                             font.features: root.tabular
-                            text: (cell.column === root.titleColumn && cell.playing ? "▶ " : "") + cell.display
+                            text: cell.display
                             color: cell.chosen ? root.selectionText : cell.progress >= 0 ? root.fg : cell.column === 0 ? root.statusColor(cell.status)
-                                 : [3, 7, 8].indexOf(cell.column) >= 0 ? root.muted : root.fg
+                                 : [3, 7, 8, 10, 11].indexOf(cell.column) >= 0 ? root.muted : root.fg
                         }
                         Row {
                             visible: cell.column === 9
-                            anchors.fill: parent; anchors.margins: 6; spacing: 4; clip: true
+                            anchors.fill: parent; anchors.margins: root.compactRows ? 3 : 6; spacing: 4; clip: true
                             Repeater {
                                 // "no-link" is the absence of a store, so it leaves the cell empty.
                                 // A gate badge names its site; its category (same position) picks the colour.
@@ -1825,7 +1867,7 @@ ApplicationWindow {
                                                            .filter(s => s.name && s.category !== "no-link") : []
                                 Rectangle {
                                     required property var modelData
-                                    width: badge.implicitWidth + 10; height: 22; radius: 4
+                                    width: badge.implicitWidth + 10; height: root.compactRows ? 20 : 22; radius: 4
                                     color: cell.chosen ? root.panel : root.alternate
                                     Label { id: badge; anchors.centerIn: parent; text: parent.modelData.name; font.pixelSize: 12; color: root.storeColor(parent.modelData.category) }
                                 }
@@ -1833,15 +1875,54 @@ ApplicationWindow {
                         }
                         MouseArea {
                             anchors.fill: parent; acceptedButtons: Qt.LeftButton | Qt.RightButton
-                            onClicked: function(mouse) {
+                            // Dragging across rows selects them, so the view never takes the press over to flick.
+                            preventStealing: true
+                            property int dragRow: -1
+                            // A plain press on a selected row waits for the release: it may be a slow second
+                            // click that renames, or the start of a drag. (A drag of the selection onto the
+                            // sidebar would start from here too.)
+                            property bool deferred: false
+                            onPressed: function(mouse) {
                                 // Taking focus first saves an open in-place edit (its editor saves on focus loss)
                                 // before the selection or the menu change anything.
                                 table.forceActiveFocus()
-                                table.keyboardRow = row
-                                if (mouse.button !== Qt.RightButton || !chosen) desktop.model.select(row, (mouse.modifiers & Qt.ControlModifier) !== 0, (mouse.modifiers & Qt.ShiftModifier) !== 0)
-                                if (mouse.button === Qt.RightButton) contextMenu.popup()
+                                dragRow = row
+                                let toggle = (mouse.modifiers & Qt.ControlModifier) !== 0, extend = (mouse.modifiers & Qt.ShiftModifier) !== 0
+                                deferred = mouse.button === Qt.LeftButton && chosen && !toggle && !extend
+                                if (mouse.button === Qt.RightButton ? !chosen : !deferred) desktop.model.select(row, toggle, extend)
                             }
-                            onDoubleClicked: if (cell.editable) table.startEditing(cell.trackKey, cell.column); else desktop.action("play")
+                            onPositionChanged: function(mouse) {
+                                if (!(mouse.buttons & Qt.LeftButton) || dragRow < 0) return
+                                // The row under the pointer; past the top or bottom edge the view scrolls a row per move.
+                                let y = mapToItem(table.contentItem, mouse.x, mouse.y).y
+                                let top = table.contentY, bottom = table.contentY + table.height - 1
+                                let target = table.cellAtPosition(Qt.point(cell.x + 1, Math.max(top, Math.min(bottom, y))), true).y
+                                if (target < 0) return
+                                if (y < top) target = Math.max(0, target - 1)
+                                else if (y > bottom) target = Math.min(table.rows - 1, target + 1)
+                                if (target === dragRow) return
+                                if (deferred) { deferred = false; desktop.model.select(dragRow, false, false) }
+                                dragRow = target
+                                desktop.model.select(target, (mouse.modifiers & Qt.ControlModifier) !== 0, true)
+                                table.positionViewAtRow(target, TableView.Contain)
+                            }
+                            onReleased: {
+                                dragRow = -1
+                                if (!deferred) return
+                                deferred = false
+                                let only = desktop.model.counts.selected === 1
+                                desktop.model.select(row, false, false)
+                                if (only && cell.editable) { slowClick.key = cell.trackKey; slowClick.column = cell.column; slowClick.restart() }
+                            }
+                            onCanceled: { dragRow = -1; deferred = false }
+                            onClicked: function(mouse) { if (mouse.button === Qt.RightButton) contextMenu.popup() }
+                            // A double click always plays; renaming is F2 or a slow second click on a selected name.
+                            onDoubleClicked: function(mouse) {
+                                if (mouse.button !== Qt.LeftButton) return
+                                deferred = false
+                                slowClick.stop()
+                                desktop.action("play")
+                            }
                         }
                         // In folder views the artist and the file's name are edited in place;
                         // a new name renames the file on disk.
@@ -1882,30 +1963,46 @@ ApplicationWindow {
                     // A menu opened by the click that ended the edit keeps the keyboard; focus comes back when it closes.
                     function stopEditing() { editKey = ""; editColumn = -1; if (!contextMenu.visible) forceActiveFocus() }
                     function popupMenu() {
-                        if (keyboardRow < rows) positionViewAtRow(keyboardRow, TableView.Contain)
-                        let item = itemAtCell(Qt.point(root.titleColumn, keyboardRow))
+                        if (keyboardRow >= 0) positionViewAtRow(keyboardRow, TableView.Contain)
+                        let item = keyboardRow >= 0 ? itemAtCell(Qt.point(root.titleColumn, keyboardRow)) : null
                         if (item) contextMenu.popup(item, 0, item.height); else contextMenu.popup(table, 0, 0)
                     }
-                    function moveCursor(delta, extend) {
-                        keyboardRow = Math.max(0, Math.min(rows - 1, keyboardRow + delta))
-                        desktop.model.select(keyboardRow, false, extend)
-                        positionViewAtRow(keyboardRow, TableView.Contain)
+                    // A second click on the only selected name renames it once a double click is ruled out.
+                    Timer {
+                        id: slowClick
+                        property string key: ""
+                        property int column: -1
+                        interval: Qt.styleHints.mouseDoubleClickInterval + 100
+                        onTriggered: if (desktop.model.counts.selected === 1 && desktop.model.firstSelectedKey === key) table.startEditing(key, column)
                     }
-                    Keys.onUpPressed: event => moveCursor(-1, (event.modifiers & Qt.ShiftModifier) !== 0)
-                    Keys.onDownPressed: event => moveCursor(1, (event.modifiers & Qt.ShiftModifier) !== 0)
+                    // Shift extends from the anchor; Ctrl+Shift adds the range to the selection.
+                    // Without a keyboard row, moving down starts at the first row and moving up at the last.
+                    function moveCursor(delta, event) {
+                        if (rows === 0) return
+                        let extend = (event.modifiers & Qt.ShiftModifier) !== 0, add = extend && (event.modifiers & Qt.ControlModifier) !== 0
+                        let target = Math.max(0, Math.min(rows - 1, (keyboardRow >= 0 ? keyboardRow : delta > 0 ? -1 : rows) + delta))
+                        desktop.model.select(target, add, extend)
+                        positionViewAtRow(target, TableView.Contain)
+                    }
+                    readonly property int pageRows: Math.max(1, Math.floor(height / root.rowHeight) - 1)
+                    Keys.onUpPressed: event => moveCursor(-1, event)
+                    Keys.onDownPressed: event => moveCursor(1, event)
                     Keys.onPressed: function(event) {
                         if (event.matches(StandardKey.Copy)) { desktop.copy(); event.accepted = true }
                         else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { if (root.hasSelection) desktop.action("play"); event.accepted = true }
                         else if (event.key === Qt.Key_F2) {
-                            if (desktop.view.local && desktop.model.counts.selected === 1) { positionViewAtRow(keyboardRow, TableView.Contain); startEditing(desktop.model.firstSelectedKey, root.titleColumn) }
+                            if (desktop.view.local && desktop.model.counts.selected === 1) {
+                                if (keyboardRow >= 0) positionViewAtRow(keyboardRow, TableView.Contain)
+                                startEditing(desktop.model.firstSelectedKey, root.titleColumn)
+                            }
                             event.accepted = true
                         }
                         else if (event.key === Qt.Key_Menu || (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier))) { popupMenu(); event.accepted = true }
                         else if (event.key === Qt.Key_Delete) { if (root.hasSelection && root.remoteView) desktop.action("remove"); event.accepted = true }
-                        else if (event.key === Qt.Key_Home) { moveCursor(-rows, (event.modifiers & Qt.ShiftModifier) !== 0); event.accepted = true }
-                        else if (event.key === Qt.Key_End) { moveCursor(rows, (event.modifiers & Qt.ShiftModifier) !== 0); event.accepted = true }
-                        else if (event.key === Qt.Key_PageUp) { moveCursor(-Math.max(1, Math.floor(height / 34) - 1), (event.modifiers & Qt.ShiftModifier) !== 0); event.accepted = true }
-                        else if (event.key === Qt.Key_PageDown) { moveCursor(Math.max(1, Math.floor(height / 34) - 1), (event.modifiers & Qt.ShiftModifier) !== 0); event.accepted = true }
+                        else if (event.key === Qt.Key_Home) { moveCursor(-rows, event); event.accepted = true }
+                        else if (event.key === Qt.Key_End) { moveCursor(rows, event); event.accepted = true }
+                        else if (event.key === Qt.Key_PageUp) { moveCursor(-pageRows, event); event.accepted = true }
+                        else if (event.key === Qt.Key_PageDown) { moveCursor(pageRows, event); event.accepted = true }
                     }
                     ScrollBar.vertical: ScrollBar {}
                     ScrollBar.horizontal: ScrollBar {}
@@ -2012,7 +2109,7 @@ ApplicationWindow {
         AppMenuItem { text: qsTr("Reset column order"); onTriggered: root.resetColumnOrder() }
         AppSeparator {}
         Instantiator {
-            model: 10
+            model: root.allColumns.length
             delegate: AppMenuItem {
                 required property int index
                 objectName: "column-" + index
