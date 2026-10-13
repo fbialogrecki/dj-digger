@@ -460,7 +460,7 @@
     <message><source>Disconnect browsers…</source><translation>Odłącz przeglądarki…</translation></message>
     <message><source>Copy path</source><translation>Kopiuj ścieżkę</translation></message>
     <message><source>Connect browser</source><translation>Połącz przeglądarkę</translation></message>
-    <message><source>dj-digger controls your own browser through an extension, so it works with the accounts you are logged in to.</source><translation>dj-digger steruje Twoją własną przeglądarką przez rozszerzenie, więc działa na kontach, na których jesteś zalogowany.</translation></message>
+    <message><source>dj-digger controls your own browser through an extension, so it works with the accounts you are logged in to. SoundCloud sign-in, gates and carts open in the browser where you install the extension - pick the one you are signed in to.</source><translation>dj-digger steruje Twoją własną przeglądarką przez rozszerzenie, więc działa na kontach, na których jesteś zalogowany. Logowanie do SoundCloud, bramki i koszyki otwierają się w przeglądarce, w której zainstalujesz rozszerzenie - wybierz tę, w której jesteś zalogowany.</translation></message>
     <message><source>Check connection</source><translation>Sprawdź połączenie</translation></message>
     <message><source>Status</source><translation>Status</translation></message>
     <message><source>Notes</source><translation>Uwagi</translation></message>
@@ -1081,8 +1081,8 @@
       <translation>Domyślna systemowa</translation>
     </message>
     <message>
-      <source>Browser</source>
-      <translation>Przeglądarka</translation>
+      <source>Open links in</source>
+      <translation>Otwieraj linki w</translation>
     </message>
     <message>
       <source>This field is required</source>
@@ -1135,7 +1135,7 @@
     <message><source>Disconnect browsers…</source><translation>Odłącz przeglądarki…</translation></message>
     <message><source>Copy path</source><translation>Kopiuj ścieżkę</translation></message>
     <message><source>Connect browser</source><translation>Połącz przeglądarkę</translation></message>
-    <message><source>dj-digger controls your own browser through an extension, so it works with the accounts you are logged in to.</source><translation>dj-digger steruje Twoją własną przeglądarką przez rozszerzenie, więc działa na kontach, na których jesteś zalogowany.</translation></message>
+    <message><source>dj-digger controls your own browser through an extension, so it works with the accounts you are logged in to. SoundCloud sign-in, gates and carts open in the browser where you install the extension - pick the one you are signed in to.</source><translation>dj-digger steruje Twoją własną przeglądarką przez rozszerzenie, więc działa na kontach, na których jesteś zalogowany. Logowanie do SoundCloud, bramki i koszyki otwierają się w przeglądarce, w której zainstalujesz rozszerzenie - wybierz tę, w której jesteś zalogowany.</translation></message>
     <message><source>Check connection</source><translation>Sprawdź połączenie</translation></message>
     <message><source>Notes</source><translation>Uwagi</translation></message>
     <message><source>Chrome, Edge, Brave</source><translation>Chrome, Edge, Brave</translation></message>
@@ -1703,7 +1703,7 @@
     <message><source>Disconnect browsers…</source><translation>Odłącz przeglądarki…</translation></message>
     <message><source>Copy path</source><translation>Kopiuj ścieżkę</translation></message>
     <message><source>Connect browser</source><translation>Połącz przeglądarkę</translation></message>
-    <message><source>dj-digger controls your own browser through an extension, so it works with the accounts you are logged in to.</source><translation>dj-digger steruje Twoją własną przeglądarką przez rozszerzenie, więc działa na kontach, na których jesteś zalogowany.</translation></message>
+    <message><source>dj-digger controls your own browser through an extension, so it works with the accounts you are logged in to. SoundCloud sign-in, gates and carts open in the browser where you install the extension - pick the one you are signed in to.</source><translation>dj-digger steruje Twoją własną przeglądarką przez rozszerzenie, więc działa na kontach, na których jesteś zalogowany. Logowanie do SoundCloud, bramki i koszyki otwierają się w przeglądarce, w której zainstalujesz rozszerzenie - wybierz tę, w której jesteś zalogowany.</translation></message>
     <message><source>Check connection</source><translation>Sprawdź połączenie</translation></message>
     <message><source>Notes</source><translation>Uwagi</translation></message>
     <message><source>Chrome, Edge, Brave</source><translation>Chrome, Edge, Brave</translation></message>

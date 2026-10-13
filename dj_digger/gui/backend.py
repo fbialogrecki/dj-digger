@@ -794,8 +794,8 @@ class Backend:
                                   field('hidden_directories', 'Hidden folders (one per line)', '\n'.join(config.hidden_directories), 'multiline'),
                                   field('default_artwork', 'Default cover (tracks without artwork)', config.default_artwork, 'image'),
                                   dict(field('browser_status', 'Browser automation', status, 'note'), args=status_args),
-                                  field('browser', 'Browser', config.browser if any(config.browser == v for v, _ in choices) else '', 'choice',
-                                        [['', 'System default'], *[[value, label] for value, label in choices]]),
+                                  field('browser', 'Open links in', config.browser if any(config.browser == v for v, _ in choices) else '', 'choice',
+                                        [[value, label] for value, label in choices]),
                                   field('custom_comments', 'Gate comments (one per line)', '\n'.join(config.custom_comments), 'multiline'),
                                   field('nyp_price', 'Bandcamp name-your-price items go into the cart at', config.nyp_price, 'choice',
                                         [['minimum', 'The minimum price'], ['suggested', 'The price the artist suggests']])],
@@ -1307,7 +1307,8 @@ class Backend:
         if notes:
             fields.insert(1, field('notes', 'Notes', '\n'.join(notes), 'note'))
         await self.ask('Connect browser', 'dj-digger controls your own browser through an extension, so it works with '
-                       'the accounts you are logged in to.', fields, cancel, ok='Check connection')
+                       'the accounts you are logged in to. SoundCloud sign-in, gates and carts open in the browser where you install '
+                       'the extension - pick the one you are signed in to.', fields, cancel, ok='Check connection')
         if self.services.browser_link is not None:
             with contextlib.suppress(link.ExtensionMissing):
                 await self.io(self.services.browser_link.connection, 5)

@@ -24,6 +24,9 @@
 
 ### Added
 
+- German, Spanish, French, Italian and Russian desktop translations next to
+  English and Polish (View → Language); a first start picks the system
+  language when it is one of them.
 - The Stores column names each track's gate site (Hypeddit, ToneDen, …)
   instead of a generic "gate"; the store filter still groups all gates.
 - The dj-digger browser extension (Manifest V3, one code base for Chrome-family
@@ -127,6 +130,9 @@
 
 ### Fixed
 
+- Settings offered "System default" twice in the browser list. The field is now
+  "Open links in", and Connect browser says that SoundCloud sign-in, gates and carts
+  open in the browser where the extension is installed.
 - Cancel in "Gates need you" only closed that question: the download went on
   and ended in "Download results". It now stops the whole download, and a
   cancelled download (also from the status bar) asks nothing more.

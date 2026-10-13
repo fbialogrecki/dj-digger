@@ -327,7 +327,7 @@ ApplicationWindow {
         let s = desktop.settings()
         width = Math.min(Screen.width, Math.max(760, Number(s.width) || 1200))
         height = Math.min(Screen.height, Math.max(520, Number(s.height) || 800))
-        languageCode = s.language === "pl" || s.language === "en" ? s.language : systemLanguage
+        languageCode = ["en", "de", "es", "fr", "it", "pl", "ru"].indexOf(s.language) >= 0 ? s.language : systemLanguage
         themeChoice = ["system", "light", "dark"].indexOf(s.theme) >= 0 ? s.theme : "system"
         if (Array.isArray(s.columnWidths) && s.columnWidths.length === 10)
             columnWidths = s.columnWidths.map(v => Math.max(40, Math.min(600, Number(v) || 100)))
@@ -442,8 +442,13 @@ ApplicationWindow {
             AppMenu {
                 title: qsTr("Language")
                 ActionGroup { id: languageGroup }
-                Action { text: "Polski"; checkable: true; checked: root.languageCode === "pl"; ActionGroup.group: languageGroup; onTriggered: { root.languageCode = "pl"; desktop.language("pl") } }
+                Action { text: "Deutsch"; checkable: true; checked: root.languageCode === "de"; ActionGroup.group: languageGroup; onTriggered: { root.languageCode = "de"; desktop.language("de") } }
                 Action { text: "English"; checkable: true; checked: root.languageCode === "en"; ActionGroup.group: languageGroup; onTriggered: { root.languageCode = "en"; desktop.language("en") } }
+                Action { text: "Español"; checkable: true; checked: root.languageCode === "es"; ActionGroup.group: languageGroup; onTriggered: { root.languageCode = "es"; desktop.language("es") } }
+                Action { text: "Français"; checkable: true; checked: root.languageCode === "fr"; ActionGroup.group: languageGroup; onTriggered: { root.languageCode = "fr"; desktop.language("fr") } }
+                Action { text: "Italiano"; checkable: true; checked: root.languageCode === "it"; ActionGroup.group: languageGroup; onTriggered: { root.languageCode = "it"; desktop.language("it") } }
+                Action { text: "Polski"; checkable: true; checked: root.languageCode === "pl"; ActionGroup.group: languageGroup; onTriggered: { root.languageCode = "pl"; desktop.language("pl") } }
+                Action { text: "Русский"; checkable: true; checked: root.languageCode === "ru"; ActionGroup.group: languageGroup; onTriggered: { root.languageCode = "ru"; desktop.language("ru") } }
             }
             AppMenu {
                 title: qsTr("Theme")

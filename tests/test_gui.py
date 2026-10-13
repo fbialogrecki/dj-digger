@@ -429,6 +429,7 @@ def test_form_reopens_with_entered_values_until_valid(backend, tmp_path):
     question = wait_event(events, 'question')
     browser = next(f for f in question['fields'] if f['name'] == 'browser')
     assert browser['kind'] == 'choice' and browser['options'][0] == ['', 'System default']
+    assert [o[0] for o in browser['options']].count('') == 1, "System default is offered once"
     answer = {f['name']: f['value'] for f in question['fields']}
     answer.update(user_email='not-an-email', user_name='Digger', download_directory=str(tmp_path))
     worker.answer(question['id'], answer)

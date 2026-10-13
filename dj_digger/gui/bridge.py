@@ -24,6 +24,9 @@ from .backend import Backend
 from .directories import DirectoryModel, MusicFolders
 from .model import TrackModel
 
+# Catalogs in translations/; English is the source language and needs none.
+LANGUAGES = ('de', 'es', 'fr', 'it', 'pl', 'ru')
+
 
 class Bridge(QObject):
     event = Signal(str, object)
@@ -345,10 +348,10 @@ class Bridge(QObject):
         app = QGuiApplication.instance()
         app.removeTranslator(self._translator)
         app.removeTranslator(self._qt_translator)
-        if language == 'pl':
-            if self._qt_translator.load('qtbase_pl', QLibraryInfo.path(QLibraryInfo.TranslationsPath)):
+        if language in LANGUAGES:
+            if self._qt_translator.load(f'qtbase_{language}', QLibraryInfo.path(QLibraryInfo.TranslationsPath)):
                 app.installTranslator(self._qt_translator)
-            path = Path(__file__).parent / 'translations' / 'pl.qm'
+            path = Path(__file__).parent / 'translations' / f'{language}.qm'
             if self._translator.load(str(path)):
                 app.installTranslator(self._translator)
         self.engine.retranslate()

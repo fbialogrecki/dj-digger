@@ -17,7 +17,7 @@ def main():
         return 1
     from ..logging_setup import close_logging, configure_logging
     from .backend import Backend
-    from .bridge import Bridge
+    from .bridge import LANGUAGES, Bridge
 
     # Libraries sometimes write diagnostics directly when pythonw has no streams.
     for name in ('stdout', 'stderr'):
@@ -51,7 +51,8 @@ def main():
     # CI smoke uses isolated HOME/XDG and never opens sockets or registers browsers.
     bridge = Bridge(engine, backend_factory=partial(Backend, connect_browser='--smoke-test' not in sys.argv))
     engine.rootContext().setContextProperty('desktop', bridge)
-    engine.rootContext().setContextProperty('systemLanguage', 'pl' if QLocale.system().name().startswith('pl') else 'en')
+    language = QLocale.system().name()[:2]
+    engine.rootContext().setContextProperty('systemLanguage', language if language in LANGUAGES else 'en')
     bridge.closed.connect(lambda: app.exit(0))
     app.setQuitOnLastWindowClosed(False)
     engine.load(QUrl.fromLocalFile(str(Path(__file__).parent / 'qml' / 'Main.qml')))
