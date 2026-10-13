@@ -1530,9 +1530,11 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
                 assert contrast(icon.property('color'), background) >= 3
                 arrow = item.property('indicator').childItems()[0]
                 assert contrast(arrow.property('color'), background) >= 3
-            # Disabled controls remain legible, with a distinct subdued text role.
+            # Disabled controls stay visible but read clearly dimmer than secondary (muted) text.
             search.setProperty('enabled', False)
-            assert contrast(search.property('color'), search.property('background').property('color')) >= 4.5
+            surface = search.property('background').property('color')
+            disabled = contrast(search.property('color'), surface)
+            assert 2 <= disabled <= contrast(window.property('muted'), surface) - 2
             search.setProperty('enabled', True)
         # The chevron folds a folder; its name always opens it, and one whose music is all
         # in subfolders also unfolds them, never folds them away.

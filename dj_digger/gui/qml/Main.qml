@@ -13,27 +13,44 @@ ApplicationWindow {
     title: "dj-digger" + (desktop.view.title ? " — " + desktop.view.title : "")
     property string languageCode: systemLanguage
     property string themeChoice: "system"
-    property bool dark: themeChoice === "dark" || (themeChoice === "system" && Application.styleHints.colorScheme === Qt.Dark)
+    // High contrast is the dark theme with black surfaces, white text and brighter outlines.
+    readonly property bool highContrast: themeChoice === "contrast"
+    property bool dark: highContrast || themeChoice === "dark" || (themeChoice === "system" && Application.styleHints.colorScheme === Qt.Dark)
     // Club palette: near-black surfaces, electric blue and bordeaux accents, metallic silver text.
-    property color bg: dark ? "#0b0b0e" : "#eceef1"
-    property color panel: dark ? "#141418" : "#fafafb"
-    property color fg: dark ? "#ececef" : "#111217"
-    property color muted: dark ? "#a3a6ad" : "#50535c"
+    property color bg: highContrast ? "#000000" : dark ? "#0b0b0e" : "#eceef1"
+    property color panel: highContrast ? "#0d0d0f" : dark ? "#141418" : "#fafafb"
+    property color fg: highContrast ? "#ffffff" : dark ? "#ececef" : "#111217"
+    property color muted: highContrast ? "#e2e3e6" : dark ? "#a3a6ad" : "#50535c"
     property color alternate: dark ? "#1e1e24" : "#dfe2e7"
     property color hoverSurface: dark ? "#26262e" : "#d6dae1"
     property color pressedSurface: dark ? "#35353f" : "#c1c6cf"
-    property color disabledFg: dark ? "#8e9098" : "#585b64"
+    // Clearly dimmer than muted: disabled controls must not read as merely secondary.
+    property color disabledFg: highContrast ? "#8b8e96" : dark ? "#5f626b" : "#9a9da5"
     // Selection is a soft, low-chroma blue: a whole list selected must not glare.
     property color selection: dark ? "#34466f" : "#b8c9f0"
     property color selectionText: dark ? "#ffffff" : "#111217"
     property color accent: dark ? "#2f63ea" : "#1f4fd1"
     property color accent2: dark ? "#c02a4e" : "#8c1a36"
-    property color silver: dark ? "#c9ccd3" : "#7d818b"
+    // Secondary text (the artist): 4.5:1 against the panel in both themes.
+    property color silver: highContrast ? "#e2e3e6" : dark ? "#c9ccd3" : "#666a73"
     property color success: dark ? "#6fd08c" : "#1c7a3c"
     property color warning: dark ? "#e3b85c" : "#8a5a00"
     property color danger: dark ? "#ff7088" : "#a3122f"
     // Field outlines, checkbox frames and scroll handles: 3:1 against both surfaces.
-    property color border: dark ? "#6a6d76" : "#7d818b"
+    property color border: highContrast ? "#a0a3ab" : dark ? "#6a6d76" : "#7d818b"
+    // One type scale from the system font, so its size and DPI scaling apply everywhere; at the
+    // 14 px desktop default these are the sizes the window was drawn with.
+    readonly property int fontBody: Qt.application.font.pixelSize > 0 ? Qt.application.font.pixelSize : Math.round(Qt.application.font.pointSize * 4 / 3)
+    readonly property int fontSmall: Math.round(fontBody * .8)
+    readonly property int fontCaption: Math.round(fontBody * .86)
+    readonly property int fontLarge: Math.round(fontBody * 1.07)
+    readonly property int fontTitle: Math.round(fontBody * 1.2)
+    readonly property int fontDisplay: Math.round(fontBody * 1.43)
+    // Icon buttons come in two sizes: 16 px in toolbars, lists and banners, 20 px in the transport.
+    readonly property int iconSmall: 16
+    readonly property int iconLarge: 20
+    // Hover tooltips wait a moment, so passing the pointer over controls does not flash them.
+    readonly property int tipDelay: 500
     // Tabular digits keep times, BPM and counts from jittering as they change.
     readonly property var tabular: ({ "tnum": 1 })
     property string keyNotation: "camelot"
@@ -499,7 +516,7 @@ ApplicationWindow {
         width = Math.min(Screen.width, Math.max(760, Number(s.width) || 1200))
         height = Math.min(Screen.height, Math.max(520, Number(s.height) || 800))
         languageCode = ["en", "de", "es", "fr", "it", "pl", "ru"].indexOf(s.language) >= 0 ? s.language : systemLanguage
-        themeChoice = ["system", "light", "dark"].indexOf(s.theme) >= 0 ? s.theme : "system"
+        themeChoice = ["system", "light", "dark", "contrast"].indexOf(s.theme) >= 0 ? s.theme : "system"
         // Lists arrive as Qt sequences, which Array.isArray rejects; copied, they restore at last.
         let list = v => v && typeof v === "object" && typeof v.length === "number" ? Array.from(v) : null
         let widths = list(s.columnWidths), hidden = list(s.hiddenColumns), saved = list(s.columnOrder)
@@ -566,9 +583,11 @@ ApplicationWindow {
             if (dialog.ident === id) dialog.close()
             Qt.callLater(root.nextQuestion)
         }
+        // Errors stay in the banner until dismissed; everything else is confirmed in a toast.
         function onNotice(text, level) {
             root.note(text, level)
             if (level === "error") root.errorMessage = text
+            else root.toast(text)
         }
     }
 
@@ -748,6 +767,7 @@ ApplicationWindow {
                 Action { text: qsTr("System"); checkable: true; checked: root.themeChoice === "system"; ActionGroup.group: themeGroup; onTriggered: root.themeChoice = "system" }
                 Action { text: qsTr("Dark"); checkable: true; checked: root.themeChoice === "dark"; ActionGroup.group: themeGroup; onTriggered: root.themeChoice = "dark" }
                 Action { text: qsTr("Light"); checkable: true; checked: root.themeChoice === "light"; ActionGroup.group: themeGroup; onTriggered: root.themeChoice = "light" }
+                Action { text: qsTr("High contrast"); checkable: true; checked: root.themeChoice === "contrast"; ActionGroup.group: themeGroup; onTriggered: root.themeChoice = "contrast" }
             }
             // Grouped by the first colour's family; each entry shows its two neon colours.
             AppMenu {
@@ -838,6 +858,8 @@ ApplicationWindow {
         // Why a disabled entry is disabled, shown after its label; destructive entries use the danger colour.
         property string reason: ""
         property bool destructive: false
+        // The highlight already marks the keyboard's entry; the window's focus ring stays off menus.
+        readonly property bool focusRing: false
         // An Action may carry extra properties: keys (every shortcut, for display), tip (a tooltip)
         // and pair (a colour pair, shown as a swatch).
         readonly property string shortcutText: keys || (action && action.keys ? action.keys : "") || (action && action.shortcut ? String(action.shortcut) : "")
@@ -846,7 +868,7 @@ ApplicationWindow {
         readonly property real trailingWidth: shortcutLabel.visible ? shortcutLabel.implicitWidth : swatchChip.visible ? swatchChip.implicitWidth : 0
         // Plain Text measures synchronously, so the menu can size itself before it opens.
         implicitWidth: leftPadding + labelText.implicitWidth + (trailingWidth ? 28 + trailingWidth : 0) + rightPadding
-        ToolTip.visible: hovered && tip.length > 0; ToolTip.text: tip; ToolTip.delay: 600
+        ToolTip.visible: hovered && tip.length > 0; ToolTip.text: tip; ToolTip.delay: root.tipDelay
         implicitHeight: 30
         // Menus do not collapse invisible entries on their own.
         height: visible ? implicitHeight : 0
@@ -868,13 +890,14 @@ ApplicationWindow {
                 width: Math.min(implicitWidth, parent.width - (menuItem.trailingWidth ? menuItem.trailingWidth + 28 : 0))
                 text: menuItem.text + (!menuItem.enabled && menuItem.reason ? " (" + menuItem.reason + ")" : "")
                 textFormat: Text.PlainText; elide: Text.ElideRight; font: menuItem.font
-                color: !menuItem.enabled ? root.disabledFg : menuItem.destructive ? root.danger : root.fg
+                // A disabled entry that says why stays readable: the reason is the point of it.
+                color: !menuItem.enabled ? (menuItem.reason ? root.muted : root.disabledFg) : menuItem.destructive ? root.danger : root.fg
             }
             Text {
                 id: shortcutLabel
                 anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
                 visible: text.length > 0; text: menuItem.shortcutText; textFormat: Text.PlainText
-                font.pixelSize: 12; color: menuItem.enabled ? root.muted : root.disabledFg
+                font.pixelSize: root.fontCaption; color: menuItem.enabled ? root.muted : root.disabledFg
             }
             Row {
                 id: swatchChip
@@ -901,7 +924,7 @@ ApplicationWindow {
         leftPadding: 14; topPadding: 8; bottomPadding: 2
         contentItem: Text {
             text: menuSection.title; textFormat: Text.PlainText
-            font.bold: true; font.pixelSize: 11; font.letterSpacing: 1; font.capitalization: Font.AllUppercase; color: root.muted
+            font.bold: true; font.pixelSize: root.fontSmall; font.letterSpacing: 1; font.capitalization: Font.AllUppercase; color: root.muted
         }
     }
     // One entry of View → Colours.
@@ -927,11 +950,11 @@ ApplicationWindow {
         id: flatButton
         property string keys: action && action.shortcut ? String(action.shortcut) : ""
         display: AbstractButton.IconOnly
-        icon.width: 14; icon.height: 14; icon.color: enabled ? root.fg : root.disabledFg
+        icon.width: root.iconSmall; icon.height: root.iconSmall; icon.color: enabled ? root.fg : root.disabledFg
         padding: 4
         background: Rectangle { radius: 4; color: flatButton.down ? root.pressedSurface : flatButton.hovered ? root.hoverSurface : "transparent" }
         Accessible.name: text
-        ToolTip.visible: hovered; ToolTip.text: text + (keys ? " (" + keys + ")" : "")
+        ToolTip.visible: hovered; ToolTip.delay: root.tipDelay; ToolTip.text: text + (keys ? " (" + keys + ")" : "")
     }
     // A sidebar section's centred, uppercase name: a click folds the section away or back,
     // the button on the right (or a right click) opens the section's menu.
@@ -943,7 +966,7 @@ ApplicationWindow {
         width: parent ? parent.width : 0; height: 30
         padding: 0; leftPadding: 6; rightPadding: 6
         focusPolicy: Qt.StrongFocus
-        background: Rectangle { color: sidebarHeader.hovered ? root.hoverSurface : "transparent"; border.color: sidebarHeader.visualFocus ? root.accent : "transparent" }
+        background: Rectangle { color: sidebarHeader.hovered ? root.hoverSurface : "transparent" }
         contentItem: RowLayout {
             spacing: 4
             Item {
@@ -956,7 +979,7 @@ ApplicationWindow {
             Label {
                 Layout.fillWidth: true; text: sidebarHeader.text
                 horizontalAlignment: Text.AlignHCenter; textFormat: Text.PlainText; elide: Text.ElideRight
-                font.bold: true; font.pixelSize: 11; font.letterSpacing: 1; font.capitalization: Font.AllUppercase; color: root.muted
+                font.bold: true; font.pixelSize: root.fontSmall; font.letterSpacing: 1; font.capitalization: Font.AllUppercase; color: root.muted
             }
             FlatButton {
                 implicitWidth: 20; implicitHeight: 20; padding: 0; focusPolicy: Qt.NoFocus
@@ -975,7 +998,7 @@ ApplicationWindow {
     component FolderCount: Label {
         text: desktop.folder.total || ""
         visible: !!desktop.folder.total
-        font.pixelSize: 11; font.features: root.tabular; color: root.selectionText
+        font.pixelSize: root.fontSmall; font.features: root.tabular; color: root.selectionText
     }
     // Marks a folder the user pinned (Add folder…, Pin folder).
     component PinMark: ColorImage {
@@ -995,7 +1018,7 @@ ApplicationWindow {
         FlatButton {
             id: addControl
             anchors.fill: parent; anchors.topMargin: 2; anchors.bottomMargin: 2
-            icon.source: "icons/plus.svg"; icon.width: 12; icon.height: 12; icon.color: hovered ? root.fg : root.muted
+            icon.source: "icons/plus.svg"; icon.color: hovered ? root.fg : root.muted
             background: Rectangle { color: addControl.down ? root.pressedSurface : addControl.hovered ? root.hoverSurface : "transparent" }
             onClicked: addButton.add()
         }
@@ -1009,7 +1032,7 @@ ApplicationWindow {
         header: Label {
             text: appDialog.title; visible: appDialog.title.length > 0
             textFormat: Text.PlainText; elide: Text.ElideRight
-            font.bold: true; font.pixelSize: 15; color: root.fg
+            font.bold: true; font.pixelSize: root.fontLarge; color: root.fg
             padding: 16; bottomPadding: 8
         }
         footer: DialogButtonBox {
@@ -1050,10 +1073,10 @@ ApplicationWindow {
         border.color: match ? root.fg : root.keyTint(code, .8)
         Label {
             id: chipLabel
-            anchors.centerIn: parent; textFormat: Text.PlainText; font.pixelSize: 12; font.features: root.tabular
+            anchors.centerIn: parent; textFormat: Text.PlainText; font.pixelSize: root.fontCaption; font.features: root.tabular
             font.bold: chip.match; color: root.fg
         }
-        ToolTip.visible: match && chipHover.hovered; ToolTip.text: qsTr("Mixes with the playing track")
+        ToolTip.visible: match && chipHover.hovered; ToolTip.delay: root.tipDelay; ToolTip.text: qsTr("Mixes with the playing track")
         HoverHandler { id: chipHover }
     }
     // Two colours laid out from the track hash: blended along a line at a random angle,
@@ -1346,7 +1369,8 @@ ApplicationWindow {
                                 highlighted: modelData.source === desktop.view.source
                                 background: Rectangle {
                                     color: playlistItem.highlighted ? root.selection : playlistItem.hovered ? root.hoverSurface : "transparent"
-                                    border.color: playlistDrop.containsDrag || (playlistItem.ListView.isCurrentItem && playlistList.activeFocus) ? root.accent : "transparent"
+                                    border.width: playlistDrop.containsDrag || (playlistItem.ListView.isCurrentItem && playlistList.activeFocus) ? 2 : 0
+                                    border.color: root.accent
                                 }
                                 contentItem: RowLayout {
                                     spacing: 6
@@ -1367,7 +1391,7 @@ ApplicationWindow {
                                         objectName: "playlistCount"
                                         visible: !playlistItem.pending && modelData.count !== undefined
                                         text: modelData.count !== undefined ? modelData.count : ""
-                                        font.pixelSize: 11; font.features: root.tabular
+                                        font.pixelSize: root.fontSmall; font.features: root.tabular
                                         color: playlistItem.highlighted ? root.selectionText : root.muted
                                     }
                                 }
@@ -1443,7 +1467,6 @@ ApplicationWindow {
                                                 highlighted: root.folderView && desktop.samePath(desktop.folder.path, folderRoot.modelData.path)
                                                 background: Rectangle {
                                                     color: rootItem.highlighted ? root.selection : rootItem.hovered ? root.hoverSurface : "transparent"
-                                                    border.color: rootItem.visualFocus ? root.accent : "transparent"
                                                 }
                                                 contentItem: RowLayout {
                                                     spacing: 4
@@ -1472,7 +1495,7 @@ ApplicationWindow {
                                                     FolderCount { visible: rootItem.highlighted }
                                                     PinMark { visible: folderRoot.modelData.kind === "custom"; selected: rootItem.highlighted }
                                                 }
-                                                ToolTip.visible: hovered; ToolTip.text: folderRoot.modelData.path
+                                                ToolTip.visible: hovered; ToolTip.delay: root.tipDelay; ToolTip.text: folderRoot.modelData.path
                                                 Accessible.name: folderRoot.name
                                                 Accessible.description: folderRoot.modelData.path
                                                 onActiveFocusChanged: if (activeFocus) root.revealInSidebar(rootItem)
@@ -1486,8 +1509,9 @@ ApplicationWindow {
                                                 Keys.onEnterPressed: folderRoot.open()
                                                 Keys.onRightPressed: if (folderRoot.expandable) folderRoot.expanded = true
                                                 Keys.onLeftPressed: folderRoot.expanded = false
-                                                Keys.onDownPressed: nextItemInFocusChain(true).forceActiveFocus()
-                                                Keys.onUpPressed: nextItemInFocusChain(false).forceActiveFocus()
+                                                // A keyboard move, so the focus ring shows on the row it reaches.
+                                                Keys.onDownPressed: nextItemInFocusChain(true).forceActiveFocus(Qt.TabFocusReason)
+                                                Keys.onUpPressed: nextItemInFocusChain(false).forceActiveFocus(Qt.TabFocusReason)
                                                 Keys.onMenuPressed: root.folderMenuAt(folderRoot.modelData.path)
                                                 TapHandler { acceptedButtons: Qt.RightButton; onTapped: root.folderMenuAt(folderRoot.modelData.path) }
                                             }
@@ -1533,7 +1557,8 @@ ApplicationWindow {
                                                     }
                                                     background: Rectangle {
                                                         color: directoryDelegate.highlighted ? root.selection : directoryDelegate.hovered ? root.hoverSurface : root.bg
-                                                        border.color: directoryDelegate.current && directoryTree.activeFocus ? root.accent : "transparent"
+                                                        border.width: directoryDelegate.current && directoryTree.activeFocus ? 2 : 0
+                                                        border.color: root.accent
                                                     }
                                                     contentItem: RowLayout {
                                                         spacing: 6
@@ -1591,7 +1616,7 @@ ApplicationWindow {
                     visible: root.folderView && desktop.folder.total > 250
                     Layout.leftMargin: 6; Layout.rightMargin: 6; spacing: 0
                     FlatButton { icon.source: "icons/chevron.svg"; icon.width: 10; icon.height: 10; icon.color: enabled ? root.muted : root.disabledFg; rotation: 180; implicitWidth: 24; implicitHeight: 24; text: qsTr("Previous page"); enabled: desktop.folder.offset > 0; onClicked: desktop.openFolder(desktop.folder.path, Math.max(0, desktop.folder.offset-250)) }
-                    Label { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; color: root.muted; font.pixelSize: 12; text: (desktop.folder.offset + 1) + "–" + Math.min(desktop.folder.offset + 250, desktop.folder.total) + " / " + desktop.folder.total }
+                    Label { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; color: root.muted; font.pixelSize: root.fontCaption; text: (desktop.folder.offset + 1) + "–" + Math.min(desktop.folder.offset + 250, desktop.folder.total) + " / " + desktop.folder.total }
                     FlatButton { icon.source: "icons/chevron.svg"; icon.width: 10; icon.height: 10; icon.color: enabled ? root.muted : root.disabledFg; implicitWidth: 24; implicitHeight: 24; text: qsTr("Next page"); enabled: desktop.folder.offset + 250 < desktop.folder.total; onClicked: desktop.openFolder(desktop.folder.path, desktop.folder.offset+250) }
                 }
             }
@@ -1630,7 +1655,7 @@ ApplicationWindow {
                             objectName: "nowPlayingTitle"
                             Layout.fillWidth: true; Layout.minimumWidth: 0
                             text: desktop.nowPlaying.name || desktop.audio.title || ""
-                            textFormat: Text.PlainText; elide: Text.ElideRight; font.pixelSize: 17; font.bold: true
+                            textFormat: Text.PlainText; elide: Text.ElideRight; font.pixelSize: root.fontTitle; font.bold: true
                         }
                         // BPM and key sit right after the artist, where the eye already is.
                         RowLayout {
@@ -1916,7 +1941,7 @@ ApplicationWindow {
                                 visible: root.loaded && typeof time === "number" && waveform.duration > 0
                                 x: (time || 0) / Math.max(1, waveform.duration) * waveform.width; width: 2; height: waveform.height
                                 color: root.accent
-                                Label { x: 3; text: index + 1; font.pixelSize: 10; font.bold: true; color: root.accent }
+                                Label { x: 3; text: index + 1; font.pixelSize: root.fontSmall; font.bold: true; color: root.accent }
                             }
                         }
                         Rectangle {
@@ -1924,7 +1949,7 @@ ApplicationWindow {
                             visible: root.loaded && root.dropTime >= 0 && waveform.duration > 0
                             x: root.dropTime / Math.max(1, waveform.duration) * waveform.width; width: 2; height: waveform.height
                             color: root.warning
-                            Label { x: 3; anchors.bottom: parent.bottom; text: qsTr("Drop"); font.pixelSize: 10; font.bold: true; color: root.warning }
+                            Label { x: 3; anchors.bottom: parent.bottom; text: qsTr("Drop"); font.pixelSize: root.fontSmall; font.bold: true; color: root.warning }
                         }
                         // Subpixel position: the playhead slides instead of stepping a pixel at a time.
                         Rectangle {
@@ -1963,7 +1988,7 @@ ApplicationWindow {
                         Accessible.name: qsTr("Waveform")
                     }
                     RowLayout {
-                        Button { text: qsTr("Previous track"); enabled: root.loaded; display: AbstractButton.IconOnly; implicitWidth: 40; icon.source: "icons/previous.svg"; icon.color: palette.buttonText; Accessible.name: text; ToolTip.visible: hovered; ToolTip.text: text + " (P)"; onClicked: desktop.step(-1) }
+                        Button { text: qsTr("Previous track"); enabled: root.loaded; display: AbstractButton.IconOnly; implicitWidth: 40; icon.source: "icons/previous.svg"; icon.color: palette.buttonText; icon.width: root.iconLarge; icon.height: root.iconLarge; Accessible.name: text; ToolTip.visible: hovered; ToolTip.delay: root.tipDelay; ToolTip.text: text + " (P)"; onClicked: desktop.step(-1) }
                         Button {
                             id: playButton
                             objectName: "playPause"
@@ -1972,7 +1997,7 @@ ApplicationWindow {
                             text: root.pauseTarget ? qsTr("Pause") : qsTr("Play")
                             display: AbstractButton.IconOnly
                             icon.source: root.pauseTarget ? "icons/pause.svg" : "icons/play.svg"
-                            icon.color: palette.buttonText; icon.width: 20; icon.height: 20
+                            icon.color: palette.buttonText; icon.width: root.iconLarge; icon.height: root.iconLarge
                             onIconChanged: if (root.motion) playPop.restart()
                             SequentialAnimation {
                                 id: playPop
@@ -1980,20 +2005,20 @@ ApplicationWindow {
                                 NumberAnimation { target: playButton; property: "scale"; to: 1; duration: 180; easing.type: Easing.OutBack }
                             }
                             Accessible.name: text
-                            ToolTip.visible: hovered; ToolTip.text: text + " (Space)"
+                            ToolTip.visible: hovered; ToolTip.delay: root.tipDelay; ToolTip.text: text + " (Space)"
                             onClicked: root.playPause()
                         }
-                        Button { text: qsTr("Next track"); enabled: root.loaded; display: AbstractButton.IconOnly; implicitWidth: 40; icon.source: "icons/next.svg"; icon.color: palette.buttonText; Accessible.name: text; ToolTip.visible: hovered; ToolTip.text: text + " (N)"; onClicked: desktop.step(1) }
-                        Button { text: qsTr("Stop"); enabled: root.loaded; display: AbstractButton.IconOnly; implicitWidth: 40; icon.source: "icons/stop.svg"; icon.color: palette.buttonText; Accessible.name: text; ToolTip.visible: hovered; ToolTip.text: text + " (" + stopAction.shortcut + ")"; onClicked: stopAction.trigger() }
+                        Button { text: qsTr("Next track"); enabled: root.loaded; display: AbstractButton.IconOnly; implicitWidth: 40; icon.source: "icons/next.svg"; icon.color: palette.buttonText; icon.width: root.iconLarge; icon.height: root.iconLarge; Accessible.name: text; ToolTip.visible: hovered; ToolTip.delay: root.tipDelay; ToolTip.text: text + " (N)"; onClicked: desktop.step(1) }
+                        Button { text: qsTr("Stop"); enabled: root.loaded; display: AbstractButton.IconOnly; implicitWidth: 40; icon.source: "icons/stop.svg"; icon.color: palette.buttonText; icon.width: root.iconLarge; icon.height: root.iconLarge; Accessible.name: text; ToolTip.visible: hovered; ToolTip.delay: root.tipDelay; ToolTip.text: text + " (" + stopAction.shortcut + ")"; onClicked: stopAction.trigger() }
                         // A speaker, struck through while muted; the words stay for tooltips and screen readers.
                         ToolButton {
                             objectName: "muteButton"
                             text: root.isMuted ? qsTr("Unmute") : qsTr("Mute")
                             display: AbstractButton.IconOnly
                             icon.source: root.isMuted ? "icons/volume-muted.svg" : "icons/volume.svg"
-                            icon.color: palette.buttonText; icon.width: 20; icon.height: 20
+                            icon.color: palette.buttonText; icon.width: root.iconLarge; icon.height: root.iconLarge
                             implicitWidth: 40
-                            Accessible.name: text; ToolTip.visible: hovered; ToolTip.text: text + " (M)"
+                            Accessible.name: text; ToolTip.visible: hovered; ToolTip.delay: root.tipDelay; ToolTip.text: text + " (M)"
                             onClicked: root.toggleMute()
                         }
                         Slider {
@@ -2028,7 +2053,7 @@ ApplicationWindow {
                             Layout.fillWidth: true; Layout.minimumWidth: 50; Layout.preferredWidth: 110; Layout.maximumWidth: 140
                             onMoved: { root.volume = value; volumeSend.start() }
                             Accessible.name: qsTr("Volume")
-                            ToolTip.visible: hovered || pressed; ToolTip.text: qsTr("Volume") + " " + Math.round(value * 100) + "%"
+                            ToolTip.visible: hovered || pressed; ToolTip.delay: pressed ? 0 : root.tipDelay; ToolTip.text: qsTr("Volume") + " " + Math.round(value * 100) + "%"
                         }
                         Item { visible: root.loaded; Layout.fillWidth: true; Layout.minimumWidth: 0 }
                         Label { visible: !root.loaded; text: root.hasSelection ? qsTr("Press Space to play the selected track") : qsTr("Select a track to play"); color: root.muted; elide: Text.ElideRight; Layout.fillWidth: true; Layout.minimumWidth: 0 }
@@ -2038,10 +2063,10 @@ ApplicationWindow {
                             visible: root.loaded
                             readonly property real timeLeft: Math.max(0, (desktop.audio.duration || 0) - (desktop.audio.position || 0))
                             text: root.remainingTime ? "−" + root.clock(timeLeft) : root.clock(desktop.audio.position)
-                            font.pixelSize: 20; font.bold: true; font.features: root.tabular; color: root.fg
+                            font.pixelSize: root.fontDisplay; font.bold: true; font.features: root.tabular; color: root.fg
                             TapHandler { onTapped: root.remainingTime = !root.remainingTime }
                             HoverHandler { id: clockHover; cursorShape: Qt.PointingHandCursor }
-                            ToolTip.visible: clockHover.hovered; ToolTip.delay: 500
+                            ToolTip.visible: clockHover.hovered; ToolTip.delay: root.tipDelay
                             ToolTip.text: root.remainingTime ? qsTr("Time left; click to show the time played") : qsTr("Time played; click to show the time left")
                             Accessible.role: Accessible.Button; Accessible.name: ToolTip.text
                         }
@@ -2099,13 +2124,13 @@ ApplicationWindow {
                                 visible: !search.activeFocus && !search.text
                                 anchors.right: parent.right; anchors.rightMargin: 8; anchors.verticalCenter: parent.verticalCenter
                                 width: 22; height: 22; radius: 4; color: "transparent"; border.color: root.alternate
-                                Label { anchors.centerIn: parent; text: "/"; color: root.muted; font.pixelSize: 12 }
+                                Label { anchors.centerIn: parent; text: "/"; color: root.muted; font.pixelSize: root.fontCaption }
                             }
                             FlatButton {
                                 id: clearSearch; objectName: "clearSearch"
                                 visible: search.text.length > 0
                                 anchors.right: parent.right; anchors.rightMargin: 4; anchors.verticalCenter: parent.verticalCenter
-                                text: qsTr("Clear search"); icon.source: "icons/close.svg"; icon.width: 10; icon.height: 10
+                                text: qsTr("Clear search"); icon.source: "icons/close.svg"
                                 focusPolicy: Qt.NoFocus
                                 onClicked: search.text = ""
                             }
@@ -2149,6 +2174,7 @@ ApplicationWindow {
                             visible: root.filtersActive && desktop.model.counts.total > 0
                             text: desktop.model.counts.visible + " / " + desktop.model.counts.total
                             color: root.accent; font.features: root.tabular
+                            Accessible.name: text; Accessible.description: qsTr("Tracks the filters leave, of all tracks in this view")
                         }
                         Item { Layout.fillWidth: true; Layout.minimumWidth: 0 }
                     }
@@ -2174,14 +2200,14 @@ ApplicationWindow {
                                 }
                                 background: Rectangle { color: statusOption.highlighted ? root.selection : root.panel }
                             }
-                            ToolTip.visible: hovered; ToolTip.text: qsTr("Show tracks by status; H switches between all and unhandled")
+                            ToolTip.visible: hovered; ToolTip.delay: root.tipDelay; ToolTip.text: qsTr("Show tracks by status; H switches between all and unhandled")
                             Accessible.name: qsTr("Status filter")
                         }
                         Toggle {
                             id: moreFilters; objectName: "moreFilters"
                             text: qsTr("Filters"); checked: root.extraFilters
                             onClicked: filterPopup.open()
-                            ToolTip.visible: hovered; ToolTip.text: desktop.view.local ? qsTr("BPM, key and genre") : qsTr("Genre")
+                            ToolTip.visible: hovered; ToolTip.delay: root.tipDelay; ToolTip.text: desktop.view.local ? qsTr("BPM, key and genre") : qsTr("Genre")
                             Popup {
                                 id: filterPopup
                                 y: parent.height + 4; x: parent.width - width
@@ -2247,7 +2273,7 @@ ApplicationWindow {
                         component ActionButton: FlatButton {
                             id: actionButton
                             display: toolbar.compact ? AbstractButton.IconOnly : AbstractButton.TextBesideIcon
-                            icon.width: 16; icon.height: 16
+                            icon.width: root.iconSmall; icon.height: root.iconSmall
                             implicitHeight: 32; padding: 6; leftPadding: 10; rightPadding: 10; spacing: 6
                             // Only a faint outline at rest; the surface appears on hover.
                             background: Rectangle {
@@ -2463,7 +2489,7 @@ ApplicationWindow {
                             width: 14; height: 14; sourceSize: Qt.size(14, 14); source: "icons/folder.svg"
                             color: cell.chosen ? root.selectionText : root.silver
                             HoverHandler { id: foundHover }
-                            ToolTip.visible: foundHover.hovered; ToolTip.text: qsTr("Found in your local files")
+                            ToolTip.visible: foundHover.hovered; ToolTip.delay: root.tipDelay; ToolTip.text: qsTr("Found in your local files")
                         }
                         readonly property bool chipColumn: cell.column === 4 || cell.column === 5
                         Chip {
@@ -2502,7 +2528,7 @@ ApplicationWindow {
                                     required property var modelData
                                     width: badge.implicitWidth + 10; height: root.compactRows ? 20 : 22; radius: 4
                                     color: cell.chosen ? root.panel : root.alternate
-                                    Label { id: badge; anchors.centerIn: parent; text: parent.modelData.name; font.pixelSize: 12; color: root.storeColor(parent.modelData.category) }
+                                    Label { id: badge; anchors.centerIn: parent; text: parent.modelData.name; font.pixelSize: root.fontCaption; color: root.storeColor(parent.modelData.category) }
                                 }
                             }
                         }
@@ -2631,7 +2657,7 @@ ApplicationWindow {
                     Keys.onUpPressed: event => moveCursor(-1, event)
                     Keys.onDownPressed: event => moveCursor(1, event)
                     Keys.onPressed: function(event) {
-                        if (event.matches(StandardKey.Copy)) { desktop.copy(); event.accepted = true }
+                        if (event.matches(StandardKey.Copy)) { root.copied(desktop.copy()); event.accepted = true }
                         else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { if (root.hasSelection) desktop.action("play"); event.accepted = true }
                         else if (event.key === Qt.Key_F2) {
                             if (desktop.view.local && desktop.model.counts.selected === 1) {
@@ -2652,13 +2678,37 @@ ApplicationWindow {
                     Accessible.name: qsTr("Tracks")
                 }
                 ColumnLayout {
-                    anchors.centerIn: parent; width: parent.width - 40; spacing: 12
+                    id: emptyState; objectName: "emptyState"
+                    anchors.centerIn: parent; width: Math.min(parent.width - 40, 520); spacing: 12
                     visible: !root.hasRows && desktop.ready
+                    // Nothing open yet: what to do first, as buttons, with the keys underneath.
+                    readonly property bool start: !desktop.view.title
+                    ColorImage {
+                        visible: emptyState.start; Layout.alignment: Qt.AlignHCenter
+                        Layout.preferredWidth: 40; Layout.preferredHeight: 40; sourceSize: Qt.size(40, 40)
+                        source: "icons/playlist.svg"; color: root.muted
+                    }
+                    Label {
+                        visible: emptyState.start; Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter
+                        text: qsTr("Start digging"); font.pixelSize: root.fontTitle; font.bold: true; color: root.fg
+                        Accessible.role: Accessible.Heading
+                    }
                     Label {
                         Layout.fillWidth: true; wrapMode: Text.WordWrap; horizontalAlignment: Text.AlignHCenter; color: root.muted
                         text: desktop.model.counts.total > 0 ? qsTr("No tracks match the search or filters. Press Esc to clear them.")
                             : desktop.view.title ? qsTr("This view has no tracks.")
-                            : qsTr("Add a playlist (A), pick one in the sidebar or add a folder (Ctrl+O) to start.")
+                            : qsTr("Pick a playlist or folder in the sidebar, or add one.")
+                    }
+                    RowLayout {
+                        visible: emptyState.start; Layout.alignment: Qt.AlignHCenter; spacing: 8
+                        Button { objectName: "emptyAddPlaylist"; action: addPlaylistAction }
+                        Button { objectName: "emptyAddFolder"; action: addFolderAction }
+                        Button { objectName: "emptyImportProfile"; text: qsTr("Import profile playlists…"); enabled: !desktop.busy; onClicked: desktop.action("profile") }
+                    }
+                    Label {
+                        visible: emptyState.start; Layout.fillWidth: true; wrapMode: Text.WordWrap; horizontalAlignment: Text.AlignHCenter
+                        text: qsTr("Shortcuts: A adds a playlist, Ctrl+O a folder; F1 lists every key.")
+                        color: root.muted; font.pixelSize: root.fontCaption
                     }
                     Button {
                         objectName: "clearFilters"; Layout.alignment: Qt.AlignHCenter
@@ -2668,22 +2718,27 @@ ApplicationWindow {
                 }
                 }
                 Rectangle {
-                    objectName: "errorBanner"
+                    id: errorBanner; objectName: "errorBanner"
                     visible: root.errorMessage.length > 0
                     Layout.fillWidth: true; Layout.minimumWidth: 0; Layout.rightMargin: root.edge
                     implicitHeight: errorContent.implicitHeight + 16
                     color: root.panel; border.color: root.danger; radius: 4
+                    // Screen readers announce it as an alert when it appears.
+                    Accessible.role: Accessible.AlertMessage
+                    Accessible.name: root.errorMessage
                     RowLayout {
                         id: errorContent
                         anchors.fill: parent; anchors.margins: 8
                         Label {
+                            id: errorText
                             Layout.fillWidth: true; Layout.minimumWidth: 0
                             text: root.errorMessage; textFormat: Text.PlainText
                             wrapMode: Text.Wrap; maximumLineCount: 3; elide: Text.ElideRight
                             color: root.danger; Accessible.name: text
                         }
-                        Button { objectName: "errorDetails"; text: qsTr("Details"); onClicked: messageLog.open() }
-                        FlatButton { objectName: "dismissError"; text: qsTr("Dismiss error"); icon.source: "icons/close.svg"; icon.width: 12; icon.height: 12; onClicked: root.errorMessage = "" }
+                        // Three lines at most: a longer message ends in "…" and its button says the rest is there.
+                        Button { objectName: "errorDetails"; text: errorText.truncated ? qsTr("Show full error") : qsTr("Details"); onClicked: messageLog.open() }
+                        FlatButton { objectName: "dismissError"; text: qsTr("Dismiss error"); icon.source: "icons/close.svg"; onClicked: root.errorMessage = "" }
                     }
                 }
             }
@@ -2699,11 +2754,17 @@ ApplicationWindow {
                 Label {
                     // Counts keep their width; the message beside them gives way first.
                     Layout.maximumWidth: parent.width * 0.7; Layout.minimumWidth: 0
+                    objectName: "statusCounts"
                     color: root.muted; elide: Text.ElideRight; font.features: root.tabular
                     property var c: desktop.model.counts
                     text: root.hasRows || c.total > 0 ? qsTr("%1 / %2 tracks · owned %3 · skipped %4").arg(c.visible).arg(c.total).arg(c.got).arg(c.skipped) : ""
+                    Accessible.name: text
+                    Accessible.description: qsTr("Tracks shown of all tracks in this view, and how many are owned or skipped")
                 }
-                BusyIndicator { running: desktop.busy || root.shuttingDown || !desktop.ready; visible: running; implicitHeight: 22; implicitWidth: 22 }
+                BusyIndicator {
+                    running: desktop.busy || root.shuttingDown || !desktop.ready; visible: running; implicitHeight: 22; implicitWidth: 22
+                    Accessible.name: qsTr("Working")
+                }
                 // An import shows its stage and how many of how many tracks are in.
                 ProgressBar {
                     objectName: "importProgress"
@@ -2711,18 +2772,21 @@ ApplicationWindow {
                     from: 0; to: Math.max(1, desktop.importProgress.total || 0); value: desktop.importProgress.done || 0
                     Layout.preferredWidth: 160; Layout.minimumWidth: 60
                     Behavior on value { enabled: root.motion; NumberAnimation { duration: 150 } }
+                    Accessible.name: qsTr("Import progress")
+                    Accessible.description: qsTr("%1 of %2").arg(desktop.importProgress.done || 0).arg(desktop.importProgress.total || 0)
                 }
                 FlatButton { text: qsTr("Cancel"); display: AbstractButton.TextOnly; visible: desktop.busy; implicitHeight: 24; onClicked: desktop.action("cancel") }
                 Label {
+                    objectName: "statusMessage"
                     Layout.fillWidth: true; Layout.minimumWidth: 0; textFormat: Text.PlainText; elide: Text.ElideRight
                     readonly property var importing: desktop.importProgress
                     text: root.shuttingDown ? qsTr("Closing…") : !desktop.ready ? qsTr("Loading library…")
                         : importing.stage ? importing.stage + (importing.total ? " " + importing.done + " / " + importing.total : "")
-                        : desktop.level === "error" ? "" : desktop.message
+                        : desktop.level === "error" ? (root.errorMessage ? qsTr("Error — see the message above") : "") : desktop.message
                     font.features: root.tabular
                     color: desktop.level === "error" ? root.danger : root.muted
                     font.bold: desktop.level === "error"
-                    ToolTip.visible: hovered && text.length > 0; ToolTip.text: text
+                    ToolTip.visible: hovered && text.length > 0; ToolTip.delay: root.tipDelay; ToolTip.text: text
                     HoverHandler { id: messageHover }
                     property bool hovered: messageHover.hovered
                     TapHandler { onTapped: messageLog.open() }
@@ -2732,6 +2796,61 @@ ApplicationWindow {
         }
     }
     FolderDialog { id: folderDialog; title: qsTr("Add folder"); onAccepted: desktop.addFolder(selectedFolder.toString()) }
+    // One keyboard focus ring for every control: 2 px in the accent colour inside whichever control
+    // Tab, an arrow move or a shortcut gave focus to; a click never shows it (visualFocus).
+    Rectangle {
+        id: focusRing; objectName: "focusRing"
+        readonly property Item target: root.activeFocusItem
+        readonly property bool shown: !!target && target.visualFocus === true && target.focusRing !== false
+        parent: shown ? target : root.contentItem
+        visible: shown
+        anchors.fill: parent; z: 1000
+        color: "transparent"; border.width: 2; border.color: root.accent
+        radius: shown && target.background && typeof target.background.radius === "number" ? target.background.radius : 0
+    }
+    // Short confirmations (copied, added, downloaded, imported…) in the bottom-right corner: three at
+    // most, each for 3 s, newest at the bottom; a click dismisses one. They never take focus.
+    ListModel { id: toastModel }
+    function toast(text) {
+        if (!text || shuttingDown) return
+        toastModel.append({text: String(text)})
+        while (toastModel.count > 3) toastModel.remove(0)
+    }
+    function copied(count) { if (count > 0) toast(qsTr("Copied to the clipboard")) }
+    Popup {
+        id: toasts; objectName: "toasts"
+        parent: Overlay.overlay
+        // Above the status bar and the error banner, clear of the window edge.
+        x: parent.width - width - 16; y: parent.height - height - 36 - (errorBanner.visible ? errorBanner.height + 8 : 0)
+        width: Math.min(360, root.width - 32); height: toastList.contentHeight
+        padding: 0; modal: false; dim: false; focus: false
+        closePolicy: Popup.NoAutoClose
+        background: null
+        visible: toastModel.count > 0
+        contentItem: ListView {
+            id: toastList; objectName: "toastList"
+            interactive: false; spacing: 6; model: toastModel
+            add: Transition { enabled: root.motion; NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 150 } }
+            displaced: Transition { enabled: root.motion; NumberAnimation { property: "y"; duration: 150 } }
+            delegate: Rectangle {
+                id: toastItem
+                required property int index
+                required property string text
+                width: ListView.view.width; height: toastLabel.implicitHeight + 20
+                radius: 6; color: root.panel; border.color: root.border
+                Label {
+                    id: toastLabel
+                    anchors.fill: parent; anchors.margins: 10; verticalAlignment: Text.AlignVCenter
+                    text: toastItem.text; textFormat: Text.PlainText; wrapMode: Text.Wrap; maximumLineCount: 3; elide: Text.ElideRight
+                    color: root.fg
+                }
+                Timer { running: true; interval: 3000; onTriggered: toastModel.remove(toastItem.index) }
+                TapHandler { onTapped: toastModel.remove(toastItem.index) }
+                Accessible.role: Accessible.AlertMessage
+                Accessible.name: text
+            }
+        }
+    }
     // Follows the pointer while selected tracks are dragged from the table.
     Rectangle {
         id: trackDrag; objectName: "trackDrag"
@@ -2744,7 +2863,7 @@ ApplicationWindow {
         color: root.panel; border.color: root.accent
         Drag.keys: [root.trackDragKey]
         Drag.hotSpot: Qt.point(-12, -12)
-        Label { id: dragLabel; anchors.centerIn: parent; text: desktop.model.counts.selected === 1 ? qsTr("1 track") : qsTr("%1 tracks").arg(desktop.model.counts.selected); color: root.fg; font.pixelSize: 12 }
+        Label { id: dragLabel; anchors.centerIn: parent; text: desktop.model.counts.selected === 1 ? qsTr("1 track") : qsTr("%1 tracks").arg(desktop.model.counts.selected); color: root.fg; font.pixelSize: root.fontCaption }
     }
     // The sidebar menus act on the row they were opened on, not on the view that is loaded.
     function folderMenuAt(path) { folderMenu.path = path; folderMenu.pinned = desktop.isPinned(path); folderMenu.popup() }
@@ -2764,7 +2883,7 @@ ApplicationWindow {
         }
         AppSeparator {}
         AppMenuItem { text: qsTr("Show in file manager"); onTriggered: desktop.showFolder(folderMenu.path) }
-        AppMenuItem { text: qsTr("Copy path"); onTriggered: desktop.copyText(folderMenu.path) }
+        AppMenuItem { text: qsTr("Copy path"); onTriggered: root.copied(desktop.copyText(folderMenu.path)) }
         AppSeparator {}
         // A pinned folder is a root of its own; unpinning takes it off the list.
         AppMenuItem { text: qsTr("Pin folder"); visible: !folderMenu.pinned; onTriggered: desktop.folderAction("pin", folderMenu.path) }
@@ -2821,7 +2940,7 @@ ApplicationWindow {
         }
     }
     TextMetrics { id: fitMetrics }
-    TextMetrics { id: badgeMetrics; font.pixelSize: 12 }
+    TextMetrics { id: badgeMetrics; font.pixelSize: root.fontCaption }
     AppMenu {
         id: columnMenu
         property int column: 0
@@ -2864,8 +2983,8 @@ ApplicationWindow {
         AppMenuItem { objectName: "skip"; action: skipAction }
         AppMenuItem { objectName: "reset"; action: resetAction }
         AppSeparator {}
-        AppMenuItem { objectName: "copy"; text: qsTr("Copy artist and title"); keys: "Ctrl+C"; enabled: root.hasSelection; onTriggered: desktop.copy() }
-        AppMenuItem { objectName: "copyLink"; text: qsTr("Copy link"); visible: !contextMenu.local; enabled: root.hasSelection; onTriggered: desktop.copyLinks() }
+        AppMenuItem { objectName: "copy"; text: qsTr("Copy artist and title"); keys: "Ctrl+C"; enabled: root.hasSelection; onTriggered: root.copied(desktop.copy()) }
+        AppMenuItem { objectName: "copyLink"; text: qsTr("Copy link"); visible: !contextMenu.local; enabled: root.hasSelection; onTriggered: root.copied(desktop.copyLinks()) }
         AppSeparator {}
         AppMenuItem { objectName: "selectAll"; action: selectAllAction; enabled: root.hasRows }
         AppMenuItem { objectName: "invert"; text: qsTr("Invert selection"); enabled: root.hasRows; onTriggered: desktop.model.invertSelection() }
@@ -3082,7 +3201,7 @@ ApplicationWindow {
                                 objectName: "copy-" + fieldItem.modelData.name
                                 text: fieldItem.modelData.kind === "path" ? qsTr("Copy path") : qsTr("Copy")
                                 visible: fieldItem.modelData.kind === "path" || fieldItem.modelData.kind === "copy"
-                                onClicked: desktop.copyText(String(fieldItem.modelData.value))
+                                onClicked: root.copied(desktop.copyText(String(fieldItem.modelData.value)))
                             }
                         }
                         RowLayout {
@@ -3152,7 +3271,7 @@ ApplicationWindow {
                         Label {
                             Layout.fillWidth: true; visible: text.length > 0
                             text: fieldItem.modelData.hint || ""; textFormat: Text.PlainText; wrapMode: Text.Wrap
-                            color: root.muted; font.pixelSize: 12
+                            color: root.muted; font.pixelSize: root.fontCaption
                         }
                     }
                 }

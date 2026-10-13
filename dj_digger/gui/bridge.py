@@ -402,21 +402,25 @@ class Bridge(QObject):
         url = QUrl(path)
         self.backend.submit('folder', {'path': url.toLocalFile() if url.isLocalFile() else path, 'offset': offset})
 
-    @Slot()
+    # The copy slots return how many lines they copied, so the window confirms only a real copy.
+    @Slot(result=int)
     def copy(self):
         rows = [r for r in self.table.visible if r['key'] in self.table.selected]
         QGuiApplication.clipboard().setText('\n'.join(r['artist'] + ' — ' + r['title'] for r in rows))
+        return len(rows)
 
-    @Slot(str)
+    @Slot(str, result=int)
     def copyText(self, text):
         QGuiApplication.clipboard().setText(text)
+        return int(bool(text))
 
-    @Slot()
+    @Slot(result=int)
     def copyLinks(self):
         """Copy the selected tracks' SoundCloud links; only web addresses, like opening them."""
         from ..http import is_openable
-        urls = [r.get('url', '') for r in self.table.visible if r['key'] in self.table.selected]
-        QGuiApplication.clipboard().setText('\n'.join(u for u in urls if is_openable(u)))
+        urls = [u for r in self.table.visible if r['key'] in self.table.selected if is_openable(u := r.get('url', ''))]
+        QGuiApplication.clipboard().setText('\n'.join(urls))
+        return len(urls)
 
     @Slot()
     def reveal(self):

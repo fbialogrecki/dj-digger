@@ -5,8 +5,8 @@
 - Product version verified: 1.4.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-10-08
-- Document lines: <!-- SPEC TOTAL LINES -->2438<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->2438<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->2455<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->2455<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,7 +51,7 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 145–190 |
 | 2.1 | ↳ Problem and product boundary | 147–160 |
 | 2.2 | ↳ Execution modes | 161–190 |
-| 3 | User-visible capabilities | 191–1175 |
+| 3 | User-visible capabilities | 191–1192 |
 | 3.1 | ↳ Track collection | 193–218 |
 | 3.2 | ↳ Link classification and exports | 219–237 |
 | 3.3 | ↳ Track statuses | 238–248 |
@@ -59,58 +59,58 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 3.5 | ↳ Downloads and local-file matching | 426–481 |
 | 3.6 | ↳ Store purchase assistance | 482–598 |
 | 3.7 | ↳ Local library, analysis and audio export | 599–773 |
-| 3.8 | ↳ Qt Quick desktop | 774–1175 |
-| 4 | System context and data flow | 1176–1220 |
-| 4.1 | ↳ Context diagram | 1178–1204 |
-| 4.2 | ↳ Collection-to-library flow | 1205–1220 |
-| 5 | Repository layout and component ownership | 1221–1307 |
-| 5.1 | ↳ Entry, orchestration, and models | 1223–1234 |
-| 5.2 | ↳ Network and external-system adapters | 1235–1266 |
-| 5.3 | ↳ Persistence, local media, and UI | 1267–1307 |
-| 6 | Runtime architecture and environments | 1308–1451 |
-| 6.1 | ↳ Runtime and dependencies | 1310–1338 |
-| 6.2 | ↳ Concurrency and lifecycle | 1339–1416 |
-| 6.3 | ↳ Local paths and environment variables | 1417–1451 |
-| 7 | Data model and persistence | 1452–1568 |
-| 7.1 | ↳ Domain objects and identity | 1454–1468 |
-| 7.2 | ↳ SQLite schema and invariants | 1469–1525 |
-| 7.3 | ↳ Crate persistence and deletion | 1526–1541 |
-| 7.4 | ↳ Configuration and credential stores | 1542–1568 |
-| 8 | Public interfaces and contracts | 1569–1627 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1571–1599 |
-| 8.2 | ↳ JSON and CSV summary input | 1600–1615 |
-| 8.3 | ↳ URL-opening contract | 1616–1627 |
-| 9 | Authentication and authorization | 1628–1694 |
-| 9.1 | ↳ SoundCloud authentication | 1630–1661 |
-| 9.2 | ↳ Gate action consent | 1662–1694 |
-| 10 | External integrations | 1695–1979 |
-| 10.1 | ↳ SoundCloud API and media | 1697–1708 |
-| 10.2 | ↳ Link hubs and download gates | 1709–1846 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1717–1803 |
-| 10.2 · block | ↳ ↳ ToneDen | 1805–1829 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1831–1839 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1841–1846 |
-| 10.3 | ↳ Browsers and clipboard | 1847–1926 |
-| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 1927–1979 |
-| 11 | Security requirements and threat model | 1980–2142 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1982–2000 |
-| 11.2 | ↳ Secret and personal-data handling | 2001–2016 |
-| 11.3 | ↳ File and mutation safety | 2017–2038 |
-| 11.4 | ↳ Browser-extension trust boundary | 2039–2142 |
-| 12 | Privacy, lifecycle, and retention | 2143–2195 |
-| 12.1 | ↳ Data stored locally | 2145–2169 |
-| 12.2 | ↳ Data sent to third parties | 2170–2182 |
-| 12.3 | ↳ User-controlled deletion | 2183–2195 |
-| 13 | Failure behavior and current limitations | 2196–2305 |
-| 13.1 | ↳ Error isolation and reporting | 2198–2219 |
-| 13.2 | ↳ Confirmed limitations | 2220–2305 |
-| 14 | Verification, CI, and release | 2306–2404 |
-| 14.1 | ↳ Offline and live test suites | 2308–2356 |
-| 14.2 | ↳ Continuous integration and publishing | 2357–2389 |
-| 14.3 | ↳ Specification-map verification | 2390–2404 |
-| 15 | Evidence and operational references | 2405–2438 |
-| 15.1 | ↳ Primary implementation evidence | 2407–2428 |
-| 15.2 | ↳ User and historical documentation | 2429–2438 |
+| 3.8 | ↳ Qt Quick desktop | 774–1192 |
+| 4 | System context and data flow | 1193–1237 |
+| 4.1 | ↳ Context diagram | 1195–1221 |
+| 4.2 | ↳ Collection-to-library flow | 1222–1237 |
+| 5 | Repository layout and component ownership | 1238–1324 |
+| 5.1 | ↳ Entry, orchestration, and models | 1240–1251 |
+| 5.2 | ↳ Network and external-system adapters | 1252–1283 |
+| 5.3 | ↳ Persistence, local media, and UI | 1284–1324 |
+| 6 | Runtime architecture and environments | 1325–1468 |
+| 6.1 | ↳ Runtime and dependencies | 1327–1355 |
+| 6.2 | ↳ Concurrency and lifecycle | 1356–1433 |
+| 6.3 | ↳ Local paths and environment variables | 1434–1468 |
+| 7 | Data model and persistence | 1469–1585 |
+| 7.1 | ↳ Domain objects and identity | 1471–1485 |
+| 7.2 | ↳ SQLite schema and invariants | 1486–1542 |
+| 7.3 | ↳ Crate persistence and deletion | 1543–1558 |
+| 7.4 | ↳ Configuration and credential stores | 1559–1585 |
+| 8 | Public interfaces and contracts | 1586–1644 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1588–1616 |
+| 8.2 | ↳ JSON and CSV summary input | 1617–1632 |
+| 8.3 | ↳ URL-opening contract | 1633–1644 |
+| 9 | Authentication and authorization | 1645–1711 |
+| 9.1 | ↳ SoundCloud authentication | 1647–1678 |
+| 9.2 | ↳ Gate action consent | 1679–1711 |
+| 10 | External integrations | 1712–1996 |
+| 10.1 | ↳ SoundCloud API and media | 1714–1725 |
+| 10.2 | ↳ Link hubs and download gates | 1726–1863 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1734–1820 |
+| 10.2 · block | ↳ ↳ ToneDen | 1822–1846 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1848–1856 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1858–1863 |
+| 10.3 | ↳ Browsers and clipboard | 1864–1943 |
+| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 1944–1996 |
+| 11 | Security requirements and threat model | 1997–2159 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1999–2017 |
+| 11.2 | ↳ Secret and personal-data handling | 2018–2033 |
+| 11.3 | ↳ File and mutation safety | 2034–2055 |
+| 11.4 | ↳ Browser-extension trust boundary | 2056–2159 |
+| 12 | Privacy, lifecycle, and retention | 2160–2212 |
+| 12.1 | ↳ Data stored locally | 2162–2186 |
+| 12.2 | ↳ Data sent to third parties | 2187–2199 |
+| 12.3 | ↳ User-controlled deletion | 2200–2212 |
+| 13 | Failure behavior and current limitations | 2213–2322 |
+| 13.1 | ↳ Error isolation and reporting | 2215–2236 |
+| 13.2 | ↳ Confirmed limitations | 2237–2322 |
+| 14 | Verification, CI, and release | 2323–2421 |
+| 14.1 | ↳ Offline and live test suites | 2325–2373 |
+| 14.2 | ↳ Continuous integration and publishing | 2374–2406 |
+| 14.3 | ↳ Specification-map verification | 2407–2421 |
+| 15 | Evidence and operational references | 2422–2455 |
+| 15.1 | ↳ Primary implementation evidence | 2424–2445 |
+| 15.2 | ↳ User and historical documentation | 2446–2455 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -875,7 +875,15 @@ accent, a bordeaux second accent and silver secondary text. Selected rows,
 playlists and folders use a soft low-chroma blue (dark `#34466f` with white
 text, light `#b8c9f0` with near-black text, distinct from both zebra row colours), and chips on a selected row sit
 on the panel colour; clocks, BPM and
-counts use tabular digits. In local views BPM and key render as chips; BPM shows
+counts use tabular digits. Secondary (silver) text keeps 4.5:1 against the panel (light `#666a73`), and disabled
+text and icons are clearly dimmer than muted text (dark `#5f626b`, light `#9a9da5`); a disabled menu entry that names
+why it is disabled shows that label in the muted colour instead. Keyboard focus shows as one 2 px ring in the accent
+colour inside whichever control Tab, an arrow move between folder roots or a shortcut focused (Qt `visualFocus`), never after a
+click; menus keep their highlight instead, and the playlist list and folder trees outline their current row in the same 2 px accent.
+Text sizes come from one scale on the system font (`Qt.application.font`): small 0.8×, caption 0.86×, large 1.07×,
+title 1.2× and display 1.43× the body size, which at the 14 px desktop default are the 11, 12, 15, 17 and 20 px the window
+was drawn with. Icon buttons use 16 px icons (toolbar, sidebar, search, banner) or 20 px (transport); disclosure chevrons stay
+10 px. Hover tooltips appear after 500 ms (the waveform's time readout after 300 ms, the volume readout at once while dragging). In local views BPM and key render as chips; BPM shows
 one decimal place when fractional. Keys are parsed from common spellings (`Am`,
 `A minor`, `Amin`, `8A`, enharmonic sharps/flats) by `analysis.key_names`, shown
 in Camelot or classic notation (View → Key notation, default Camelot), sorted
@@ -972,12 +980,20 @@ Enter or leaving the field saves, Esc cancels and no shortcut fires while typing
 continuous progress fill spans the full row background while downloading, with
 the percentage in the Status column and text drawn above the fill. The fill
 follows column widths and horizontal scrolling; selection remains visible in
-both themes. The player card, search field, toolbar and table share one 8 px right margin. The toolbar above the table holds the search field, the store pills, a visible / total count, the status filter and Filters, then the actions on the selection; it is one row from 880 px of toolbar width, otherwise search and pills fill the first row and the actions, followed by the status filter and Filters, the second. Every toolbar control is 32 px high. The search field has rounded corners and the toolbar buttons' faint outline on the window background (accent while focused), shows `/`, its shortcut, as a key at its right end while empty and unfocused, and a clear (×) button while it holds text. Dialog field outlines, checkbox frames and scroll handles use the `border` colour (palette `mid`), at least 3:1 against both surfaces; menu separators stay in the quieter `alternate` colour. In playlist views the store pills follow the search: “All stores”, then one pill per store or gate site present in the view, named and counted as the Stores column names them (`bandcamp 12`, `Hypeddit 3`), most frequent first; they scroll sideways when the row is too narrow. Several pills can be on at once (a track matching any of them shows) and none on shows every store; the filter keeps store names, so changing counts never shift it, and a store that leaves the view leaves the filter. The status filter offers All statuses, Unhandled (new, played and opened), New (new and played), Opened, Owned and Skipped; H switches it between All statuses and Unhandled. Filters opens a small popup with a BPM range and “Mixes with the playing track” (Camelot-compatible keys, local views only) and a genre fragment, plus Clear filters; it takes the selection colour and an accent outline while any of these is set, like a pill that is on. While any filter or search is active the count beside the pills shows visible / total in the accent colour; when nothing matches, the empty table says so and offers Clear filters. Esc clears the selection, then the search, then every filter. Opening another view (another source or title, not another page or a refresh) clears the search, store, BPM, key and genre filters and keeps the status filter. Whenever a view is loaded the action group shows “N selected” with a selection and icon buttons for Open in browser, Download and Mark owned (playlist views only), Skip, Analyze BPM / key (local views only) and More actions, each a 32 px tile with a faint outline, transparent until hovered, with 6 px between tiles; buttons that need a selection are disabled without one. Open in browser and Download wait while an operation runs. Playlist actions (open, download, mark owned, cart, their whole-view variants and Export links in the Tracks menu) are hidden or disabled in local views, local-file actions in playlist views. The buttons use the same `Action` objects as the shortcuts, so their tooltips name the key that works. A right click on a row or below the last row, the Menu key or Shift+F10 at the keyboard row, and More actions open the same row menu (described below). The action buttons show their names only with room (from 1400 px of toolbar width on one row, 640 px on their own row), icons otherwise; tooltips name the action and its shortcut. A status bar spans the whole window below the sidebar and the table with visible/total/owned/skipped counts on the left, the busy indicator, a Cancel button during operations and the last message; during a playlist import the message shows the stage with done / total counts beside a progress bar, at most ten updates a second. Add playlist asks to paste a link to a SoundCloud playlist and re-opens with an error until the text is a soundcloud.com link. The import is listed at the top of the playlist sidebar at once, with a spinner and the link as its name until SoundCloud reports the title, and cannot be opened from there; the table opens on it and fills batch by batch in playlist order. These provisional rows are not saved: when the import succeeds they are replaced by the saved playlist, and when it fails, is cancelled or finds nothing the view is withdrawn and the sidebar entry disappears. Refresh keeps the current rows until the new ones are saved. The menu bar holds actions with no button elsewhere plus the transport: Library (refresh; Open recent, the last eight playlists and folders opened, newest first, playlists no longer in the sidebar left out; headed sections Import — import profile playlists, import saved summary, restore removed tracks —, Folder — pin folder, analyze folder, scan local library — and Export — resume interrupted export; quit; the less obvious entries carry a short tooltip), Tracks (select all Ctrl+A, select none Ctrl+Shift+A, invert selection Ctrl+I — the visible rows not selected —, undo status change; open, download and add to store carts for all visible; save local playlist, export links), Playback (the player's own play/pause, stop, previous/next, 10 s and 30 s seeks, jump to drop, the two preview-start toggles and volume/mute `Action`s with their keys), View (show sidebar Ctrl+B, full screen F11, which returns to the windowed or maximized state it left; a Columns submenu mirroring the header menu's visibility toggles; Reset layout, which restores default column widths and order and the 220 px sidebar; language, theme, colours, key notation; spectral waveform, vinyl artwork; animations, compact rows), Settings (Preferences, Shift+S or Ctrl+,; one SoundCloud entry, “Sign in to SoundCloud…” or “Signed in as <name> — Sign out…”; one browser entry, “Connect browser…” or “Connected: <browser> — Disconnect…”) and Help (keyboard shortcuts, F1 or ?; messages; diagnostics; open data folder; open log folder, the folder of the current log file; check for updates, which opens the GitHub releases page through the safe `open_url` and makes no request of its own; About dj-digger…, a dialog with the version, the Apache License 2.0 and the data folder as a copyable path). The backend sends the SoundCloud and browser state (`account`: signed in, the saved user name only when the stored token is the one in use, and the most recently active compatible extension's browser — never the token) at start, after sign-in, sign-out, Connect browser and Disconnect, and whenever the Settings menu opens. Sign-in/sign-out, the imports, restore and disconnect are disabled while an operation runs. Checkable View entries bind `checked` to the window state and set the state from the new check when triggered. Each colour entry shows a two-colour swatch of the pair's neon colours, and the pairs are grouped by the first colour's family between separators. Actions the toolbar, the row menu or the sidebar already offer (open, download, mark owned, skip, reset, BPM/key analysis and editing, cart, remove, add playlist, add folder, delete playlist, search, hide handled (switches the status filter)) are window-level `Action`s outside the menus, so their shortcuts still work, and the Help dialog lists them under Selected tracks and Other after the menus, whose entries — submenus included — it lists with every key that works, and ends with a Waveform section for the digit, hot-cue and wheel keys. Entries that open a dialog or a sign-in end in “…”; Delete playlist sits after a separator in the playlist menu. Every menu entry, including the row and playlist context menus, uses one layout: a fixed check column, the label and the shortcut (or colour swatch) in the muted color, and menus size to their widest entry after retranslation. Space is the shortcut of the Play / pause action. Single-key shortcuts (add, refresh, open, download, got/skip/reset, undo, remove, search, hide handled, seek, percentage jumps, next/previous, stop, jump to drop, volume, mute, sidebar) and Shift+S for Preferences are listed in a generated Help dialog; they are suppressed while text fields or modal dialogs have focus. Actions that need a selection are disabled without one;
+both themes. The player card, search field, toolbar and table share one 8 px right margin. The toolbar above the table holds the search field, the store pills, a visible / total count, the status filter and Filters, then the actions on the selection; it is one row from 880 px of toolbar width, otherwise search and pills fill the first row and the actions, followed by the status filter and Filters, the second. Every toolbar control is 32 px high. The search field has rounded corners and the toolbar buttons' faint outline on the window background (accent while focused), shows `/`, its shortcut, as a key at its right end while empty and unfocused, and a clear (×) button while it holds text. Dialog field outlines, checkbox frames and scroll handles use the `border` colour (palette `mid`), at least 3:1 against both surfaces; menu separators stay in the quieter `alternate` colour. In playlist views the store pills follow the search: “All stores”, then one pill per store or gate site present in the view, named and counted as the Stores column names them (`bandcamp 12`, `Hypeddit 3`), most frequent first; they scroll sideways when the row is too narrow. Several pills can be on at once (a track matching any of them shows) and none on shows every store; the filter keeps store names, so changing counts never shift it, and a store that leaves the view leaves the filter. The status filter offers All statuses, Unhandled (new, played and opened), New (new and played), Opened, Owned and Skipped; H switches it between All statuses and Unhandled. Filters opens a small popup with a BPM range and “Mixes with the playing track” (Camelot-compatible keys, local views only) and a genre fragment, plus Clear filters; it takes the selection colour and an accent outline while any of these is set, like a pill that is on. While any filter or search is active the count beside the pills shows visible / total in the accent colour; when nothing matches, the empty table says so and offers Clear filters. With no view open the table shows a start state:
+a playlist icon, “Start digging”, a line pointing at the sidebar, Add playlist…, Add folder… and Import profile
+playlists… buttons, and the shortcuts beneath. Esc clears the selection, then the search, then every filter. Opening another view (another source or title, not another page or a refresh) clears the search, store, BPM, key and genre filters and keeps the status filter. Whenever a view is loaded the action group shows “N selected” with a selection and icon buttons for Open in browser, Download and Mark owned (playlist views only), Skip, Analyze BPM / key (local views only) and More actions, each a 32 px tile with a faint outline, transparent until hovered, with 6 px between tiles; buttons that need a selection are disabled without one. Open in browser and Download wait while an operation runs. Playlist actions (open, download, mark owned, cart, their whole-view variants and Export links in the Tracks menu) are hidden or disabled in local views, local-file actions in playlist views. The buttons use the same `Action` objects as the shortcuts, so their tooltips name the key that works. A right click on a row or below the last row, the Menu key or Shift+F10 at the keyboard row, and More actions open the same row menu (described below). The action buttons show their names only with room (from 1400 px of toolbar width on one row, 640 px on their own row), icons otherwise; tooltips name the action and its shortcut. A status bar spans the whole window below the sidebar and the table with visible/total/owned/skipped counts on the left, the busy indicator, a Cancel button during operations and the last message; during a playlist import the message shows the stage with done / total counts beside a progress bar, at most ten updates a second. Add playlist asks to paste a link to a SoundCloud playlist and re-opens with an error until the text is a soundcloud.com link. The import is listed at the top of the playlist sidebar at once, with a spinner and the link as its name until SoundCloud reports the title, and cannot be opened from there; the table opens on it and fills batch by batch in playlist order. These provisional rows are not saved: when the import succeeds they are replaced by the saved playlist, and when it fails, is cancelled or finds nothing the view is withdrawn and the sidebar entry disappears. Refresh keeps the current rows until the new ones are saved. The menu bar holds actions with no button elsewhere plus the transport: Library (refresh; Open recent, the last eight playlists and folders opened, newest first, playlists no longer in the sidebar left out; headed sections Import — import profile playlists, import saved summary, restore removed tracks —, Folder — pin folder, analyze folder, scan local library — and Export — resume interrupted export; quit; the less obvious entries carry a short tooltip), Tracks (select all Ctrl+A, select none Ctrl+Shift+A, invert selection Ctrl+I — the visible rows not selected —, undo status change; open, download and add to store carts for all visible; save local playlist, export links), Playback (the player's own play/pause, stop, previous/next, 10 s and 30 s seeks, jump to drop, the two preview-start toggles and volume/mute `Action`s with their keys), View (show sidebar Ctrl+B, full screen F11, which returns to the windowed or maximized state it left; a Columns submenu mirroring the header menu's visibility toggles; Reset layout, which restores default column widths and order and the 220 px sidebar; language, theme, colours, key notation; spectral waveform, vinyl artwork; animations, compact rows), Settings (Preferences, Shift+S or Ctrl+,; one SoundCloud entry, “Sign in to SoundCloud…” or “Signed in as <name> — Sign out…”; one browser entry, “Connect browser…” or “Connected: <browser> — Disconnect…”) and Help (keyboard shortcuts, F1 or ?; messages; diagnostics; open data folder; open log folder, the folder of the current log file; check for updates, which opens the GitHub releases page through the safe `open_url` and makes no request of its own; About dj-digger…, a dialog with the version, the Apache License 2.0 and the data folder as a copyable path). The backend sends the SoundCloud and browser state (`account`: signed in, the saved user name only when the stored token is the one in use, and the most recently active compatible extension's browser — never the token) at start, after sign-in, sign-out, Connect browser and Disconnect, and whenever the Settings menu opens. Sign-in/sign-out, the imports, restore and disconnect are disabled while an operation runs. Checkable View entries bind `checked` to the window state and set the state from the new check when triggered. Each colour entry shows a two-colour swatch of the pair's neon colours, and the pairs are grouped by the first colour's family between separators. Actions the toolbar, the row menu or the sidebar already offer (open, download, mark owned, skip, reset, BPM/key analysis and editing, cart, remove, add playlist, add folder, delete playlist, search, hide handled (switches the status filter)) are window-level `Action`s outside the menus, so their shortcuts still work, and the Help dialog lists them under Selected tracks and Other after the menus, whose entries — submenus included — it lists with every key that works, and ends with a Waveform section for the digit, hot-cue and wheel keys. Entries that open a dialog or a sign-in end in “…”; Delete playlist sits after a separator in the playlist menu. Every menu entry, including the row and playlist context menus, uses one layout: a fixed check column, the label and the shortcut (or colour swatch) in the muted color, and menus size to their widest entry after retranslation. Space is the shortcut of the Play / pause action. Single-key shortcuts (add, refresh, open, download, got/skip/reset, undo, remove, search, hide handled, seek, percentage jumps, next/previous, stop, jump to drop, volume, mute, sidebar) and Shift+S for Preferences are listed in a generated Help dialog; they are suppressed while text fields or modal dialogs have focus. Actions that need a selection are disabled without one;
 whole-view variants (open all visible, download all visible, cart for all
 visible) are separate explicit commands, and opening more than ten links or
 downloading more than ten tracks asks first, naming the count. Errors appear in a separate, dismissible banner with a
-Details button opening the message log. Later informational messages do not dismiss an error; closing
-the banner retains it in the log. Informational messages remain in the footer.
+Details button opening the message log; the banner is an accessible alert, shows at most three lines, and when the message
+is cut short (ending in “…”) the button reads “Show full error”. Later informational messages do not dismiss an error; closing
+the banner retains it in the log. While an error is the latest message the status bar reads “Error — see the message above”
+(empty once the banner is closed). Informational messages remain in the footer and are also confirmed in toasts: small
+non-modal popups at the bottom right, above the status bar and the error banner, each for 3 s, at most three (the oldest
+goes first), fading in only with animations on, dismissed by a click, never taking focus, and accessible alerts. Copying
+(artist and title, links, a path) shows “Copied to the clipboard” when something was copied. The status-bar counts, filter count,
+busy indicator and import progress carry accessible names and descriptions.
 
 The row menu is built from the toolbar's own `Action`s, so labels, shortcuts and enabled states
 match, in groups divided by separators: Play (Enter) and Open in browser; Download, Mark owned, Skip and
@@ -1033,7 +1049,8 @@ Language selection (View → Language, listed by endonym) supports English, Germ
 French, Italian, Polish and Russian UI catalogs; the first start follows the system locale's
 language when it is one of these and English otherwise. Provider diagnostics
 and some service-generated summaries retain their original text. Themes support
-system, light and dark; View → Colours picks the pair that paints the waveform
+system, light, dark and high contrast (the dark theme on black surfaces with white text, near-white secondary text and
+brighter outlines; saved as `contrast`); View → Colours picks the pair that paints the waveform
 and artwork backdrop (magenta and blue, the default; green and yellow; purple and
 orange; cyan and magenta; crimson and ice blue; gold and chrome; violet and gold;
 teal and coral; emerald and pink; jade and raspberry; rose and mint; lime and

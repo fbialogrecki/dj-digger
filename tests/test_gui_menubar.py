@@ -152,7 +152,7 @@ def test_qml_menu_bar(app, tmp_path, monkeypatch):
     from PySide6.QtCore import QTranslator
 
     # Earlier desktop tests leave their Polish catalog installed; these assertions read English.
-    for translator in [o for o in gc.get_objects() if isinstance(o, QTranslator)]:
+    for translator in [o for o in gc.get_objects() if issubclass(type(o), QTranslator)]:
         if shiboken6.isValid(translator):
             app.removeTranslator(translator)
     monkeypatch.setenv('XDG_CONFIG_HOME', str(tmp_path / 'config'))
