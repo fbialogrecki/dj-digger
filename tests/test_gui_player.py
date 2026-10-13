@@ -143,6 +143,10 @@ def test_keys_cues_and_the_drop_seek(window):
     assert seeks(bridge) == [50, 0, 40, 12]
     bridge.receive('audio', audio('b'))
     assert qml(root, 'trackCues[1]') is None
+    # The Help list names them: the Playback menu's Actions and the waveform keys.
+    help = qml(root, 'shortcutList()')
+    for text in ('}\tSeek forward 30 s', 'J\tJump to drop', '1–9, 0\t', 'Ctrl+1–4\t', 'Alt+1–4\t'):
+        assert text in help, text
 
 
 def find(item, name):

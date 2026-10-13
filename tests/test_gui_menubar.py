@@ -180,7 +180,16 @@ def test_qml_menu_bar(app, tmp_path, monkeypatch):
         # Playback lists the player's own Actions, so their keys stay the same.
         assert qml('menuBar.menuAt(2).itemAt(0).action === playAction') is True
         assert [t for t in texts('menuBar.menuAt(2)') if t] == ['Play / pause', 'Stop', 'Previous track', 'Next track',
-                                                               'Seek backward 10 s', 'Seek forward 10 s', 'Volume down', 'Volume up', 'Mute']
+                                                               'Seek backward 10 s', 'Seek forward 10 s', 'Seek backward 30 s',
+                                                               'Seek forward 30 s', 'Jump to drop', 'Start previews at the drop',
+                                                               'Start previews at 30 %', 'Volume down', 'Volume up', 'Mute']
+        # The preview starts are one or the other: checking one unchecks the other, unchecking leaves none.
+        qml('previewDropAction.trigger()')
+        assert qml('previewStart') == 'drop' and qml('previewDropAction.checked') and not qml('previewThirtyAction.checked')
+        qml('previewThirtyAction.trigger()')
+        assert qml('previewStart') == '30' and not qml('previewDropAction.checked')
+        qml('previewThirtyAction.trigger()')
+        assert qml('previewStart') == '' and not qml('previewThirtyAction.checked')
         library = texts('menuBar.menuAt(0)')
         assert library.index('Import profile playlists…') < library.index('Pin folder') < library.index('Resume interrupted export…')
         assert qml('menuBar.menuAt(0).itemAt(3).tip').startswith('Add every playlist')
