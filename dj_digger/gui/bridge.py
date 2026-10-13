@@ -57,6 +57,7 @@ class Bridge(QObject):
     kicksChanged = Signal()
     importChanged = Signal()
     rootsChanged = Signal()
+    accountChanged = Signal()
     question = Signal('QVariantMap')
     dismiss = Signal(str)
     notice = Signal(str, str)
@@ -90,6 +91,7 @@ class Bridge(QObject):
         self._now_playing = {}
         self._kicks = {}
         self._import = {}
+        self._account = {}
         self._busy = False
         self._message = ''
         self._busy_message = ''
@@ -127,6 +129,8 @@ class Bridge(QObject):
     kicks = Property('QVariantMap', lambda self: self._kicks, notify=kicksChanged)
     # Stage, done and total of a playlist import while it runs; empty otherwise.
     importProgress = Property('QVariantMap', lambda self: self._import, notify=importChanged)
+    # signedIn, the saved SoundCloud name and the connected browser ('' when none), for the Settings menu.
+    account = Property('QVariantMap', lambda self: self._account, notify=accountChanged)
     busy = Property(bool, lambda self: self._busy, notify=changed)
     ready = Property(bool, lambda self: self._ready, notify=changed)
     volume = Property(float, lambda self: self._volume, notify=changed)
@@ -204,6 +208,11 @@ class Bridge(QObject):
         elif kind == 'importProgress':
             self._import = dict(values, stage=self.tr(values['stage'])) if values else {}
             self.importChanged.emit()
+            return
+        elif kind == 'account':
+            if values != self._account:
+                self._account = values
+                self.accountChanged.emit()
             return
         elif kind == 'kicks':
             if values != self._kicks:
@@ -362,6 +371,18 @@ class Bridge(QObject):
         if row and row.get('local') and row.get('path'):
             reveal_in_file_manager(row['path'])
 
+    @Slot(str)
+    def revealFolder(self, which):
+        """Show the data folder, or the folder holding the current log, in the file manager."""
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+
+        from ..logging_setup import current_log_path
+        from ..paths import data_dir, log_dir
+        log = current_log_path()
+        folder = data_dir() if which == 'data' else log.parent if log else log_dir()
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
+
     @Slot(int)
     def step(self, direction):
         self.backend.submit('step', {'direction': direction})
@@ -403,7 +424,7 @@ class Bridge(QObject):
     def saveSettings(self, values):
         # Only this fixed presentation shape is persisted; no service preferences.
         allowed = {'width', 'height', 'language', 'theme', 'sidebarWidth', 'sidebarVisible', 'columnWidths', 'hiddenColumns', 'columnOrder',
-                   'keyNotation', 'animations', 'colors'}
+                   'keyNotation', 'animations', 'colors', 'recent'}
         self._settings = {k: v for k, v in values.items() if k in allowed}
 
     @Slot()

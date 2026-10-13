@@ -24,6 +24,7 @@ from ..services.runtime import ApplicationServices
 from ..soundcloud import is_soundcloud_url
 
 LOGGER = logging.getLogger(__name__)
+RELEASES_URL = 'https://github.com/fbialogrecki/dj-digger/releases'
 
 
 class Backend:
@@ -153,6 +154,7 @@ class Backend:
                 if messages:
                     self.send('message', {'text': '\n'.join(messages)})
                 self.send('ready', {'volume': self.services.config.volume})
+                await self.action_account({})
                 return
             if not hasattr(self, 'services'):
                 return
@@ -813,6 +815,7 @@ class Backend:
         if result.token:
             self.services.adopt_login(result.token)
             self.send('message', {'text': 'Signed in'})
+            await self.action_account({})
         else:
             raise Cancelled()
 
@@ -824,6 +827,30 @@ class Backend:
         await self.ask('Sign out', 'Remove the stored SoundCloud session from this computer.', ok='Sign out')
         await self.io(clear_token)
         self.services.adopt_login(None)
+        await self.action_account({})
+
+    async def action_account(self, values):
+        """Who is signed in and which browser is connected, for the Settings menu; never the token."""
+        from .. import auth
+        token, info = await self.io(lambda: (auth.get_stored_token(), auth.get_stored_auth_info()))
+        link = self.services.browser_link
+        connected = [c for c in link.connections() if c.compatible] if link is not None else []
+        browser = str(max(connected, key=lambda c: c.last_active).hello.get('browser') or 'browser').capitalize() if connected else ''
+        # An environment token belongs to no saved name.
+        name = str(info.get('username') or '') if token and info.get('oauth_token') == token else ''
+        self.send('account', dict(signedIn=bool(token), name=name, browser=browser), copy=False)
+
+    async def action_about(self, values):
+        from .. import __version__
+        from ..paths import data_dir
+        await self.ask('About dj-digger', 'Dig purchase and free-download links out of SoundCloud playlists, likes and profiles.',
+                       [field('version', 'Version', __version__, 'note'), field('licence', 'Licence', 'Apache License 2.0', 'note'),
+                        field('data', 'Data folder', str(data_dir()), 'path')], ok='Close')
+
+    async def action_updates(self, values):
+        # The releases page in the browser; the app itself never checks over the network.
+        from ..browser import open_url
+        await self.io(open_url, RELEASES_URL, self.services.config.browser)
 
     async def player_call(self, function, *args):
         async with self.player_lock:
@@ -1312,6 +1339,7 @@ class Backend:
         if self.services.browser_link is not None:
             with contextlib.suppress(link.ExtensionMissing):
                 await self.io(self.services.browser_link.connection, 5)
+        await self.action_account({})
 
     async def with_extension(self, call, cancel):
         """Browser automation needs the extension; until it says hello, show how to connect and retry."""
@@ -1332,6 +1360,11 @@ class Backend:
                        'The extension stays installed but reports that the app is missing; dj-digger '
                        'registers again the next time it starts.', ok='Disconnect')
         removed = await self.io(register.unregister)
+        # A relay already running would keep the menu saying "Connected".
+        if self.services.browser_link is not None:
+            for connection in self.services.browser_link.connections():
+                await self.io(connection.close)
+        await self.action_account({})
         self.send('message', {'text': 'Browsers disconnected: {0}', 'args': [len(removed)]})
 
     def close(self):

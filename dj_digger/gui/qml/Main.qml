@@ -145,6 +145,19 @@ ApplicationWindow {
     readonly property int edge: 8
     property real sidebarWidth: 220
     property bool sidebarVisible: true
+    // Where F11 returns to: windowed or maximized.
+    property int windowedVisibility: Window.Windowed
+    // Last opened playlists and folders, newest first; playlists gone from the sidebar drop out.
+    property var recent: []
+    readonly property var recentEntries: recent.map(r => ({kind: r.kind, target: r.target,
+        title: r.kind === "folder" ? r.target.split(/[\\/]/).filter(Boolean).pop() || r.target
+                                   : (desktop.playlists.find(p => p.source === r.target) || {}).title}))
+        .filter(r => r.title)
+    readonly property string recentKey: folderView ? "folder\n" + desktop.folder.path : desktop.view.source ? "playlist\n" + desktop.view.source : ""
+    onRecentKeyChanged: if (recentKey) {
+        let [kind, target] = recentKey.split("\n")
+        recent = [{kind: kind, target: target}].concat(recent.filter(r => r.kind !== kind || r.target !== target)).slice(0, 8)
+    }
     property bool shuttingDown: false
     property bool isMuted: false
     property real volume: desktop.volume
@@ -167,6 +180,10 @@ ApplicationWindow {
     function resetColumnOrder() {
         table.clearColumnReordering()
         columnOrder = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    }
+    function resetLayout() {
+        resetColumnWidths(); resetColumnOrder()
+        sidebarWidth = 220; sidebar.SplitView.preferredWidth = sidebarWidth
     }
     function localizeButtons(target) {
         let cancel = target.standardButton(Dialog.Cancel); if (cancel) cancel.text = qsTr("Cancel")
@@ -301,18 +318,28 @@ ApplicationWindow {
     }
     function shortcutList() {
         let lines = []
-        let section = (title, actions) => {
-            lines.push("\n" + title)
-            for (let action of actions) if (action && action.shortcut) lines.push("  " + action.shortcut + "\t" + action.text)
+        let line = (keys, text) => lines.push("  " + keys + "\t" + text)
+        // Entries of a menu and its submenus; separators and section titles have no shortcutText.
+        let entries = menu => {
+            let found = []
+            for (let i = 0; i < menu.count; i++) {
+                let sub = menu.menuAt(i), item = menu.itemAt(i)
+                if (sub) found = found.concat(entries(sub))
+                else if (item && item.shortcutText) found.push(item)
+            }
+            return found
         }
         for (let m = 0; m < menuBar.count; m++) {
-            let menu = menuBar.menuAt(m), actions = []
-            for (let i = 0; i < menu.count; i++) actions.push(menu.actionAt(i))
-            section(menu.title, actions)
+            let menu = menuBar.menuAt(m)
+            lines.push("\n" + menu.title)
+            for (let item of entries(menu)) line(item.shortcutText, item.text)
         }
-        // Actions the toolbar, the player and the sidebar already show keep their keys here.
+        // Actions the toolbar and the sidebar already show keep their keys here.
+        let section = (title, actions) => {
+            lines.push("\n" + title)
+            for (let action of actions) if (action && action.shortcut) line(action.shortcut, action.text)
+        }
         section(qsTr("Selected tracks"), [openAction, downloadAction, ownedAction, skipAction, resetAction, editAction, cartAction, removeAction])
-        section(qsTr("Playback"), [playAction, stopAction, previousAction, nextAction, seekBackAction, seekForwardAction, volumeDownAction, volumeUpAction, muteAction])
         section(qsTr("Other"), [addPlaylistAction, addFolderAction, deletePlaylistAction, searchAction, hideAction])
         lines.push("\n" + qsTr("Track list"))
         lines.push("  Enter\t" + qsTr("Play the selected track"), "  Delete\t" + qsTr("Remove from playlist"),
@@ -341,6 +368,9 @@ ApplicationWindow {
         if (s.animations === false) animations = false
         keyNotation = s.keyNotation === "classic" ? "classic" : "camelot"
         if (typeof s.colors === "string" && colorPairs.hasOwnProperty(s.colors)) colorPair = s.colors
+        if (Array.isArray(s.recent))
+            recent = s.recent.filter(r => r && (r.kind === "folder" || r.kind === "playlist") && typeof r.target === "string" && r.target)
+                             .slice(0, 8).map(r => ({kind: r.kind, target: r.target}))
         desktop.language(languageCode)
         table.forceActiveFocus()
     }
@@ -351,7 +381,7 @@ ApplicationWindow {
             for (let i = 0; i < 10; i++) if (i !== titleColumn && columnVisible(i)) columnWidths[i] = table.columnWidth(i)
             desktop.saveSettings({sidebarWidth: sidebar.width, sidebarVisible: sidebarVisible, width: width, height: height, language: languageCode,
                                   theme: themeChoice, columnWidths: columnWidths, hiddenColumns: hiddenColumns, columnOrder: columnOrder,
-                                  keyNotation: keyNotation, animations: animations, colors: colorPair})
+                                  keyNotation: keyNotation, animations: animations, colors: colorPair, recent: recent})
             desktop.close()
         }
     }
@@ -406,26 +436,51 @@ ApplicationWindow {
     Action { id: searchAction; text: qsTr("Search"); shortcut: "Ctrl+F"; onTriggered: { search.forceActiveFocus(); search.selectAll() } }
     Action { id: hideAction; text: qsTr("Hide handled"); shortcut: "H"; onTriggered: { hide.checked = !hide.checked; filterTimer.restart() } }
 
-    // The menu bar holds only what has no button elsewhere, grouped by what it acts on.
+    // The menu bar holds what has no button elsewhere, grouped by what it acts on, plus the
+    // transport, so every playback key can be found from the menus.
     menuBar: MenuBar {
         AppMenu {
             title: qsTr("Library")
-            Action { text: qsTr("Import profile playlists…"); onTriggered: desktop.action("profile") }
-            Action { text: qsTr("Import saved summary…"); onTriggered: desktop.action("import_summary") }
-            AppSeparator {}
             Action { text: qsTr("Refresh"); shortcut: "R"; enabled: !desktop.busy && (root.remoteView || root.folderView); onTriggered: desktop.action("refresh") }
-            Action { text: qsTr("Restore removed tracks…"); enabled: root.remoteView; onTriggered: desktop.action("restore") }
-            AppSeparator {}
-            Action { text: qsTr("Pin folder"); enabled: root.folderView; onTriggered: desktop.action("pin") }
-            Action { text: qsTr("Scan local library"); enabled: !desktop.busy; onTriggered: desktop.action("scan") }
-            Action { text: qsTr("Analyze folder"); enabled: root.folderView && !desktop.busy; onTriggered: desktop.action("analyze_folder") }
-            Action { text: qsTr("Resume export…"); enabled: !desktop.busy; onTriggered: desktop.action("resume") }
+            AppMenu {
+                id: recentMenu
+                title: qsTr("Open recent")
+                AppMenuItem { text: qsTr("No recent items"); enabled: false; visible: root.recentEntries.length === 0 }
+                Instantiator {
+                    model: root.recentEntries
+                    delegate: AppMenuItem {
+                        required property var modelData
+                        text: modelData.title; tip: modelData.kind === "folder" ? modelData.target : ""
+                        onTriggered: modelData.kind === "folder" ? desktop.openFolder(modelData.target, 0) : desktop.load(modelData.target)
+                    }
+                    onObjectAdded: (index, object) => recentMenu.insertItem(index, object)
+                    onObjectRemoved: (index, object) => recentMenu.removeItem(object)
+                }
+            }
+            AppMenuSection { title: qsTr("Import") }
+            Action { text: qsTr("Import profile playlists…"); property string tip: qsTr("Add every playlist of a SoundCloud profile to the sidebar")
+                     enabled: !desktop.busy; onTriggered: desktop.action("profile") }
+            Action { text: qsTr("Import saved summary…"); property string tip: qsTr("Show the tracks of a JSON summary exported earlier")
+                     enabled: !desktop.busy; onTriggered: desktop.action("import_summary") }
+            Action { text: qsTr("Restore removed tracks…"); property string tip: qsTr("Bring back the tracks removed from this playlist")
+                     enabled: root.remoteView && !desktop.busy; onTriggered: desktop.action("restore") }
+            AppMenuSection { title: qsTr("Folder") }
+            Action { text: qsTr("Pin folder"); property string tip: qsTr("Keep this folder in the sidebar"); enabled: root.folderView; onTriggered: desktop.action("pin") }
+            Action { text: qsTr("Analyze folder"); property string tip: qsTr("Detect BPM and key of every file in this folder")
+                     enabled: root.folderView && !desktop.busy; onTriggered: desktop.action("analyze_folder") }
+            Action { text: qsTr("Scan local library"); property string tip: qsTr("Find these tracks among the files in your scan folders")
+                     enabled: !desktop.busy; onTriggered: desktop.action("scan") }
+            AppMenuSection { title: qsTr("Export") }
+            Action { text: qsTr("Resume interrupted export…"); property string tip: qsTr("Finish an audio export to a folder that was cut short")
+                     enabled: !desktop.busy; onTriggered: desktop.action("resume") }
             AppSeparator {}
             Action { text: qsTr("Quit"); shortcut: "Ctrl+Q"; onTriggered: root.close() }
         }
         AppMenu {
             title: qsTr("Tracks")
             Action { id: selectAllAction; text: qsTr("Select all"); shortcut: "Ctrl+A"; onTriggered: desktop.model.selectAll() }
+            Action { text: qsTr("Select none"); shortcut: "Ctrl+Shift+A"; enabled: root.hasSelection; onTriggered: desktop.model.clearSelection() }
+            Action { text: qsTr("Invert selection"); shortcut: "Ctrl+I"; enabled: root.hasRows; onTriggered: desktop.model.invertSelection() }
             Action { text: qsTr("Undo status change"); shortcut: "Ctrl+Z"; onTriggered: desktop.action("undo") }
             AppSeparator {}
             Action { text: qsTr("Open all visible links"); shortcut: "Shift+O"; enabled: root.hasRows && !desktop.busy; onTriggered: desktop.action("open", true) }
@@ -435,9 +490,46 @@ ApplicationWindow {
             Action { text: qsTr("Save local playlist…"); enabled: root.hasSelection && desktop.view.local; onTriggered: desktop.action("save_playlist") }
             Action { text: qsTr("Export links…"); shortcut: "Shift+E"; enabled: root.hasRows; onTriggered: desktop.action("summary", !root.hasSelection) }
         }
+        // The player's own Actions: one shortcut each, wherever it is shown.
+        AppMenu {
+            title: qsTr("Playback")
+            AppMenuItem { action: playAction }
+            AppMenuItem { action: stopAction }
+            AppSeparator {}
+            AppMenuItem { action: previousAction }
+            AppMenuItem { action: nextAction }
+            AppSeparator {}
+            AppMenuItem { action: seekBackAction }
+            AppMenuItem { action: seekForwardAction }
+            AppSeparator {}
+            AppMenuItem { action: volumeDownAction }
+            AppMenuItem { action: volumeUpAction }
+            AppMenuItem { action: muteAction }
+        }
         AppMenu {
             title: qsTr("View")
-            Action { id: sidebarAction; text: qsTr("Show sidebar"); shortcut: "Ctrl+B"; checkable: true; onTriggered: root.sidebarVisible = !root.sidebarVisible }
+            // Checked follows the state; a trigger sets the state from the new check, never toggles it again.
+            Action { id: sidebarAction; text: qsTr("Show sidebar"); shortcut: "Ctrl+B"; checkable: true; checked: root.sidebarVisible; onTriggered: root.sidebarVisible = checked }
+            Action { text: qsTr("Full screen"); shortcut: "F11"; checkable: true; checked: root.visibility === Window.FullScreen
+                     onTriggered: if (checked) { root.windowedVisibility = root.visibility; root.visibility = Window.FullScreen } else root.visibility = root.windowedVisibility }
+            AppMenu {
+                id: viewColumnMenu
+                title: qsTr("Columns")
+                Instantiator {
+                    model: 10
+                    delegate: AppMenuItem {
+                        required property int index
+                        objectName: "viewColumn-" + index
+                        text: (desktop.ready, desktop.model.headerName(index))
+                        checkable: true; checked: root.hiddenColumns.indexOf(index) < 0
+                        enabled: index !== root.titleColumn && root.columnAvailable(index)
+                        onTriggered: root.toggleColumn(index)
+                    }
+                    onObjectAdded: (index, object) => viewColumnMenu.insertItem(index, object)
+                    onObjectRemoved: (index, object) => viewColumnMenu.removeItem(object)
+                }
+            }
+            Action { text: qsTr("Reset layout"); property string tip: qsTr("Default column widths and order, and sidebar width"); onTriggered: root.resetLayout() }
             AppSeparator {}
             AppMenu {
                 title: qsTr("Language")
@@ -457,27 +549,32 @@ ApplicationWindow {
                 Action { text: qsTr("Dark"); checkable: true; checked: root.themeChoice === "dark"; ActionGroup.group: themeGroup; onTriggered: root.themeChoice = "dark" }
                 Action { text: qsTr("Light"); checkable: true; checked: root.themeChoice === "light"; ActionGroup.group: themeGroup; onTriggered: root.themeChoice = "light" }
             }
+            // Grouped by the first colour's family; each entry shows its two neon colours.
             AppMenu {
                 title: qsTr("Colours")
                 ActionGroup { id: colorGroup }
-                Action { text: qsTr("Magenta and blue"); checkable: true; checked: root.colorPair === "magenta-blue"; ActionGroup.group: colorGroup; onTriggered: root.colorPair = "magenta-blue" }
-                Action { text: qsTr("Green and yellow"); checkable: true; checked: root.colorPair === "green-yellow"; ActionGroup.group: colorGroup; onTriggered: root.colorPair = "green-yellow" }
-                Action { text: qsTr("Purple and orange"); checkable: true; checked: root.colorPair === "purple-orange"; ActionGroup.group: colorGroup; onTriggered: root.colorPair = "purple-orange" }
-                Action { text: qsTr("Cyan and magenta"); checkable: true; checked: root.colorPair === "cyan-magenta"; ActionGroup.group: colorGroup; onTriggered: root.colorPair = "cyan-magenta" }
-                Action { text: qsTr("Crimson and ice blue"); checkable: true; checked: root.colorPair === "crimson-ice"; ActionGroup.group: colorGroup; onTriggered: root.colorPair = "crimson-ice" }
-                Action { text: qsTr("Gold and chrome"); checkable: true; checked: root.colorPair === "gold-chrome"; ActionGroup.group: colorGroup; onTriggered: root.colorPair = "gold-chrome" }
-                Action { text: qsTr("Violet and gold"); checkable: true; checked: root.colorPair === "violet-gold"; ActionGroup.group: colorGroup; onTriggered: root.colorPair = "violet-gold" }
-                Action { text: qsTr("Teal and coral"); checkable: true; checked: root.colorPair === "teal-coral"; ActionGroup.group: colorGroup; onTriggered: root.colorPair = "teal-coral" }
-                Action { text: qsTr("Emerald and pink"); checkable: true; checked: root.colorPair === "emerald-pink"; ActionGroup.group: colorGroup; onTriggered: root.colorPair = "emerald-pink" }
-                Action { text: qsTr("Jade and raspberry"); checkable: true; checked: root.colorPair === "jade-raspberry"; ActionGroup.group: colorGroup; onTriggered: root.colorPair = "jade-raspberry" }
-                Action { text: qsTr("Rose and mint"); checkable: true; checked: root.colorPair === "rose-mint"; ActionGroup.group: colorGroup; onTriggered: root.colorPair = "rose-mint" }
-                Action { text: qsTr("Lime and violet"); checkable: true; checked: root.colorPair === "lime-violet"; ActionGroup.group: colorGroup; onTriggered: root.colorPair = "lime-violet" }
-                Action { text: qsTr("Acid and ultraviolet"); checkable: true; checked: root.colorPair === "acid-ultraviolet"; ActionGroup.group: colorGroup; onTriggered: root.colorPair = "acid-ultraviolet" }
-                Action { text: qsTr("Amber and teal"); checkable: true; checked: root.colorPair === "amber-teal"; ActionGroup.group: colorGroup; onTriggered: root.colorPair = "amber-teal" }
-                Action { text: qsTr("Copper and cyan"); checkable: true; checked: root.colorPair === "copper-cyan"; ActionGroup.group: colorGroup; onTriggered: root.colorPair = "copper-cyan" }
-                Action { text: qsTr("Blue and orange"); checkable: true; checked: root.colorPair === "blue-orange"; ActionGroup.group: colorGroup; onTriggered: root.colorPair = "blue-orange" }
-                Action { text: qsTr("Sky and lemon"); checkable: true; checked: root.colorPair === "sky-lemon"; ActionGroup.group: colorGroup; onTriggered: root.colorPair = "sky-lemon" }
-                Action { text: qsTr("Indigo and lime"); checkable: true; checked: root.colorPair === "indigo-lime"; ActionGroup.group: colorGroup; onTriggered: root.colorPair = "indigo-lime" }
+                PairAction { pair: "magenta-blue"; text: qsTr("Magenta and blue") }
+                PairAction { pair: "crimson-ice"; text: qsTr("Crimson and ice blue") }
+                PairAction { pair: "rose-mint"; text: qsTr("Rose and mint") }
+                AppSeparator {}
+                PairAction { pair: "purple-orange"; text: qsTr("Purple and orange") }
+                PairAction { pair: "violet-gold"; text: qsTr("Violet and gold") }
+                PairAction { pair: "indigo-lime"; text: qsTr("Indigo and lime") }
+                AppSeparator {}
+                PairAction { pair: "cyan-magenta"; text: qsTr("Cyan and magenta") }
+                PairAction { pair: "blue-orange"; text: qsTr("Blue and orange") }
+                PairAction { pair: "sky-lemon"; text: qsTr("Sky and lemon") }
+                PairAction { pair: "teal-coral"; text: qsTr("Teal and coral") }
+                AppSeparator {}
+                PairAction { pair: "green-yellow"; text: qsTr("Green and yellow") }
+                PairAction { pair: "emerald-pink"; text: qsTr("Emerald and pink") }
+                PairAction { pair: "jade-raspberry"; text: qsTr("Jade and raspberry") }
+                PairAction { pair: "lime-violet"; text: qsTr("Lime and violet") }
+                PairAction { pair: "acid-ultraviolet"; text: qsTr("Acid and ultraviolet") }
+                AppSeparator {}
+                PairAction { pair: "gold-chrome"; text: qsTr("Gold and chrome") }
+                PairAction { pair: "amber-teal"; text: qsTr("Amber and teal") }
+                PairAction { pair: "copper-cyan"; text: qsTr("Copper and cyan") }
             }
             AppMenu {
                 title: qsTr("Key notation")
@@ -486,27 +583,45 @@ ApplicationWindow {
                 Action { text: qsTr("Classic (Am)"); checkable: true; checked: root.keyNotation === "classic"; ActionGroup.group: notationGroup; onTriggered: root.keyNotation = "classic" }
             }
             AppSeparator {}
-            Action { id: animationsAction; text: qsTr("Animations"); checkable: true; onTriggered: root.animations = !root.animations }
+            Action { id: animationsAction; text: qsTr("Animations"); checkable: true; checked: root.animations; onTriggered: root.animations = checked }
         }
         AppMenu {
             title: qsTr("Settings")
-            Action { text: qsTr("Preferences…"); shortcut: "Shift+S"; onTriggered: desktop.action("settings") }
+            // The account and the browser come from the backend; a refresh on opening catches a browser that connected since.
+            onOpened: desktop.action("account")
+            Action { id: preferencesAction; text: qsTr("Preferences…"); shortcut: "Shift+S"; property string keys: "Shift+S, Ctrl+,"; onTriggered: desktop.action("settings") }
             AppSeparator {}
-            Action { text: qsTr("Sign in to SoundCloud…"); enabled: !desktop.busy; onTriggered: desktop.action("login") }
-            Action { text: qsTr("Sign out…"); onTriggered: desktop.action("logout") }
-            AppSeparator {}
-            Action { text: qsTr("Connect browser…"); onTriggered: desktop.action("connect_browser") }
-            Action { text: qsTr("Disconnect browsers…"); onTriggered: desktop.action("disconnect_browsers") }
+            Action {
+                objectName: "accountAction"
+                readonly property bool signedIn: !!desktop.account.signedIn
+                text: !signedIn ? qsTr("Sign in to SoundCloud…")
+                    : desktop.account.name ? qsTr("Signed in as %1 — Sign out…").arg(desktop.account.name) : qsTr("Signed in — Sign out…")
+                enabled: !desktop.busy
+                onTriggered: desktop.action(signedIn ? "logout" : "login")
+            }
+            Action {
+                readonly property string browser: desktop.account.browser || ""
+                text: browser ? qsTr("Connected: %1 — Disconnect…").arg(browser) : qsTr("Connect browser…")
+                // Disconnecting closes the browser's channel, so not in the middle of a job.
+                enabled: !browser || !desktop.busy
+                onTriggered: desktop.action(browser ? "disconnect_browsers" : "connect_browser")
+            }
         }
         AppMenu {
             title: qsTr("Help")
-            Action { text: qsTr("Keyboard shortcuts"); shortcut: "?"; onTriggered: { helpText.text = root.shortcutList(); helpDialog.open() } }
+            Action { id: helpAction; text: qsTr("Keyboard shortcuts"); shortcut: "?"; property string keys: "F1, ?"; onTriggered: { helpText.text = root.shortcutList(); helpDialog.open() } }
             Action { text: qsTr("Messages"); onTriggered: messageLog.open() }
             Action { text: qsTr("Diagnostics"); onTriggered: desktop.action("logs") }
+            AppSeparator {}
+            Action { text: qsTr("Open data folder"); property string tip: qsTr("The library database and import reports"); onTriggered: desktop.revealFolder("data") }
+            Action { text: qsTr("Open log folder"); property string tip: qsTr("Attach the log to a bug report"); onTriggered: desktop.revealFolder("logs") }
+            Action { text: qsTr("Check for updates"); property string tip: qsTr("Opens the releases page in your browser"); onTriggered: desktop.action("updates") }
+            AppSeparator {}
+            Action { text: qsTr("About dj-digger…"); onTriggered: desktop.action("about") }
         }
     }
-    Binding { target: sidebarAction; property: "checked"; value: root.sidebarVisible }
-    Binding { target: animationsAction; property: "checked"; value: root.animations }
+    Shortcut { sequence: "F1"; onActivated: helpAction.trigger() }
+    Shortcut { sequence: "Ctrl+,"; onActivated: preferencesAction.trigger() }
     Shortcut { sequence: "/"; enabled: !root.dialogOpen; onActivated: { search.forceActiveFocus(); search.selectAll() } }
     Shortcut { sequence: "Escape"; enabled: !root.dialogOpen; onActivated: root.clearFilters() }
 
@@ -519,9 +634,15 @@ ApplicationWindow {
         // Why a disabled entry is disabled, shown after its label; destructive entries use the danger colour.
         property string reason: ""
         property bool destructive: false
-        readonly property string shortcutText: keys || (action && action.shortcut ? String(action.shortcut) : "")
+        // An Action may carry extra properties: keys (every shortcut, for display), tip (a tooltip)
+        // and pair (a colour pair, shown as a swatch).
+        readonly property string shortcutText: keys || (action && action.keys ? action.keys : "") || (action && action.shortcut ? String(action.shortcut) : "")
+        property string tip: action && action.tip ? action.tip : ""
+        readonly property var swatch: action && action.pair ? root.colorPairs[action.pair][root.dark ? "dark" : "light"].slice(2) : []
+        readonly property real trailingWidth: shortcutLabel.visible ? shortcutLabel.implicitWidth : swatchChip.visible ? swatchChip.implicitWidth : 0
         // Plain Text measures synchronously, so the menu can size itself before it opens.
-        implicitWidth: leftPadding + labelText.implicitWidth + (shortcutLabel.visible ? 28 + shortcutLabel.implicitWidth : 0) + rightPadding
+        implicitWidth: leftPadding + labelText.implicitWidth + (trailingWidth ? 28 + trailingWidth : 0) + rightPadding
+        ToolTip.visible: hovered && tip.length > 0; ToolTip.text: tip; ToolTip.delay: 600
         implicitHeight: 30
         // Menus do not collapse invisible entries on their own.
         height: visible ? implicitHeight : 0
@@ -540,7 +661,7 @@ ApplicationWindow {
             Text {
                 id: labelText
                 anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
-                width: Math.min(implicitWidth, parent.width - (shortcutLabel.visible ? shortcutLabel.implicitWidth + 28 : 0))
+                width: Math.min(implicitWidth, parent.width - (menuItem.trailingWidth ? menuItem.trailingWidth + 28 : 0))
                 text: menuItem.text + (!menuItem.enabled && menuItem.reason ? " (" + menuItem.reason + ")" : "")
                 textFormat: Text.PlainText; elide: Text.ElideRight; font: menuItem.font
                 color: !menuItem.enabled ? root.disabledFg : menuItem.destructive ? root.danger : root.fg
@@ -551,6 +672,15 @@ ApplicationWindow {
                 visible: text.length > 0; text: menuItem.shortcutText; textFormat: Text.PlainText
                 font.pixelSize: 12; color: menuItem.enabled ? root.muted : root.disabledFg
             }
+            Row {
+                id: swatchChip
+                anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
+                visible: menuItem.swatch.length === 2 && !shortcutLabel.visible
+                Repeater {
+                    model: menuItem.swatch
+                    Rectangle { required property color modelData; width: 12; height: 12; color: modelData }
+                }
+            }
         }
         background: Rectangle { x: 3; width: menuItem.width - 6; height: menuItem.height; radius: 3; color: menuItem.highlighted ? root.hoverSurface : "transparent" }
     }
@@ -558,6 +688,23 @@ ApplicationWindow {
     component AppSeparator: MenuSeparator {
         height: visible ? implicitHeight : 0
         contentItem: Rectangle { implicitWidth: 188; implicitHeight: 1; color: root.alternate }
+    }
+    // A quiet heading inside a menu; not an entry, so it cannot be picked.
+    component AppMenuSection: MenuSeparator {
+        id: menuSection
+        property string title
+        height: visible ? implicitHeight : 0
+        leftPadding: 14; topPadding: 8; bottomPadding: 2
+        contentItem: Text {
+            text: menuSection.title; textFormat: Text.PlainText
+            font.bold: true; font.pixelSize: 11; font.letterSpacing: 1; font.capitalization: Font.AllUppercase; color: root.muted
+        }
+    }
+    // One entry of View → Colours.
+    component PairAction: Action {
+        property string pair
+        checkable: true; checked: root.colorPair === pair; ActionGroup.group: colorGroup
+        onTriggered: root.colorPair = pair
     }
     component AppMenu: Menu {
         id: appMenu

@@ -1657,18 +1657,18 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
         bridge.receive('view', dict(title='Local', source='fixture', local=True, generation=3, rows=[row('a', 'Alpha'), row('b', 'Beta')]))
         bridge.table.select(1)
         settle()
-        # The menu bar holds only what has no button elsewhere; every entry shows its shortcut in one column.
+        # The menu bar holds what has no button elsewhere, plus the transport; every entry shows its shortcut in one column.
         titles = [qml(f'menuBar.menuAt({i}).title') for i in range(int(qml('menuBar.count')))]
-        assert titles == ['Biblioteka', 'Utwory', 'Widok', 'Ustawienia', 'Pomoc']
+        assert titles == ['Biblioteka', 'Utwory', 'Odtwarzanie', 'Widok', 'Ustawienia', 'Pomoc']
         entries = [qml(f'menuBar.menuAt({m}).actionAt({i}) ? menuBar.menuAt({m}).actionAt({i}).text : ""')
                    for m in range(len(titles)) for i in range(int(qml(f'menuBar.menuAt({m}).count')))]
-        for duplicate in ('Otwórz linki', 'Pobierz', 'Oznacz jako posiadane', 'Pomiń', 'Odtwórz / pauza', 'Szukaj', 'Ukryj obsłużone'):
+        for duplicate in ('Otwórz linki', 'Pobierz', 'Oznacz jako posiadane', 'Pomiń', 'Szukaj', 'Ukryj obsłużone'):
             assert duplicate not in entries
         assert qml('menuBar.menuAt(1).itemAt(0).text') == 'Zaznacz wszystko'
         assert qml('menuBar.menuAt(1).itemAt(0).shortcutText') == 'Ctrl+A'
-        assert qml('menuBar.menuAt(3).itemAt(0).shortcutText') == 'Shift+S'
-        assert qml('menuBar.menuAt(2).itemAt(0).checkable') is True
-        assert qml('menuBar.menuAt(1).itemAt(0).leftPadding') == qml('menuBar.menuAt(2).itemAt(0).leftPadding')
+        assert qml('menuBar.menuAt(4).itemAt(0).shortcutText') == 'Shift+S, Ctrl+,'
+        assert qml('menuBar.menuAt(3).itemAt(0).checkable') is True
+        assert qml('menuBar.menuAt(1).itemAt(0).leftPadding') == qml('menuBar.menuAt(3).itemAt(0).leftPadding')
         assert qml('contextMenu.itemAt(0).shortcutText') == 'Enter'
         # Keys of actions that left the menus still work and are still listed, with the toolbar naming them too.
         assert open_links.property('keys') == 'O'
@@ -1678,7 +1678,7 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
         QTest.keyClick(window, Qt.Key_K)
         assert bridge.backend.calls[-1][0] == 'mark' and bridge.backend.calls[-1][1]['status'] == 'skip'
         listed = qml('shortcutList()')
-        assert '  K\tPomiń' in listed and '  Space\tOdtwórz / pauza' in listed and '  Shift+S\tPreferencje…' in listed
+        assert '  K\tPomiń' in listed and '  Space\tOdtwórz / pauza' in listed and '  Shift+S, Ctrl+,\tPreferencje…' in listed
         # In a folder view a double click edits the name in place; typing never fires a shortcut,
         # Enter saves and Esc cancels.
         settle()

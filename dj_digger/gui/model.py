@@ -229,6 +229,7 @@ class TrackModel(QAbstractTableModel):
 
     @Slot()
     def invertSelection(self):
+        """Select the visible rows that are not selected; hidden rows drop out of the selection."""
         self.selected = {r['key'] for r in self.visible} - self.selected
         self.selection_changed()
 
