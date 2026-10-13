@@ -5,8 +5,8 @@
 - Product version verified: 1.4.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-10-08
-- Document lines: <!-- SPEC TOTAL LINES -->2310<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->2310<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->2438<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->2438<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,66 +51,66 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 145–190 |
 | 2.1 | ↳ Problem and product boundary | 147–160 |
 | 2.2 | ↳ Execution modes | 161–190 |
-| 3 | User-visible capabilities | 191–1053 |
+| 3 | User-visible capabilities | 191–1175 |
 | 3.1 | ↳ Track collection | 193–218 |
 | 3.2 | ↳ Link classification and exports | 219–237 |
 | 3.3 | ↳ Track statuses | 238–248 |
-| 3.4 | ↳ Audio preview | 249–420 |
-| 3.5 | ↳ Downloads and local-file matching | 421–470 |
-| 3.6 | ↳ Store purchase assistance | 471–587 |
-| 3.7 | ↳ Local library, analysis and audio export | 588–759 |
-| 3.8 | ↳ Qt Quick desktop | 760–1053 |
-| 4 | System context and data flow | 1054–1098 |
-| 4.1 | ↳ Context diagram | 1056–1082 |
-| 4.2 | ↳ Collection-to-library flow | 1083–1098 |
-| 5 | Repository layout and component ownership | 1099–1185 |
-| 5.1 | ↳ Entry, orchestration, and models | 1101–1112 |
-| 5.2 | ↳ Network and external-system adapters | 1113–1144 |
-| 5.3 | ↳ Persistence, local media, and UI | 1145–1185 |
-| 6 | Runtime architecture and environments | 1186–1329 |
-| 6.1 | ↳ Runtime and dependencies | 1188–1216 |
-| 6.2 | ↳ Concurrency and lifecycle | 1217–1294 |
-| 6.3 | ↳ Local paths and environment variables | 1295–1329 |
-| 7 | Data model and persistence | 1330–1441 |
-| 7.1 | ↳ Domain objects and identity | 1332–1346 |
-| 7.2 | ↳ SQLite schema and invariants | 1347–1399 |
-| 7.3 | ↳ Crate persistence and deletion | 1400–1415 |
-| 7.4 | ↳ Configuration and credential stores | 1416–1441 |
-| 8 | Public interfaces and contracts | 1442–1499 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1444–1472 |
-| 8.2 | ↳ JSON and CSV summary input | 1473–1488 |
-| 8.3 | ↳ URL-opening contract | 1489–1499 |
-| 9 | Authentication and authorization | 1500–1566 |
-| 9.1 | ↳ SoundCloud authentication | 1502–1533 |
-| 9.2 | ↳ Gate action consent | 1534–1566 |
-| 10 | External integrations | 1567–1851 |
-| 10.1 | ↳ SoundCloud API and media | 1569–1580 |
-| 10.2 | ↳ Link hubs and download gates | 1581–1718 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1589–1675 |
-| 10.2 · block | ↳ ↳ ToneDen | 1677–1701 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1703–1711 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1713–1718 |
-| 10.3 | ↳ Browsers and clipboard | 1719–1798 |
-| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 1799–1851 |
-| 11 | Security requirements and threat model | 1852–2014 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1854–1872 |
-| 11.2 | ↳ Secret and personal-data handling | 1873–1888 |
-| 11.3 | ↳ File and mutation safety | 1889–1910 |
-| 11.4 | ↳ Browser-extension trust boundary | 1911–2014 |
-| 12 | Privacy, lifecycle, and retention | 2015–2067 |
-| 12.1 | ↳ Data stored locally | 2017–2041 |
-| 12.2 | ↳ Data sent to third parties | 2042–2054 |
-| 12.3 | ↳ User-controlled deletion | 2055–2067 |
-| 13 | Failure behavior and current limitations | 2068–2177 |
-| 13.1 | ↳ Error isolation and reporting | 2070–2091 |
-| 13.2 | ↳ Confirmed limitations | 2092–2177 |
-| 14 | Verification, CI, and release | 2178–2276 |
-| 14.1 | ↳ Offline and live test suites | 2180–2228 |
-| 14.2 | ↳ Continuous integration and publishing | 2229–2261 |
-| 14.3 | ↳ Specification-map verification | 2262–2276 |
-| 15 | Evidence and operational references | 2277–2310 |
-| 15.1 | ↳ Primary implementation evidence | 2279–2300 |
-| 15.2 | ↳ User and historical documentation | 2301–2310 |
+| 3.4 | ↳ Audio preview | 249–425 |
+| 3.5 | ↳ Downloads and local-file matching | 426–481 |
+| 3.6 | ↳ Store purchase assistance | 482–598 |
+| 3.7 | ↳ Local library, analysis and audio export | 599–773 |
+| 3.8 | ↳ Qt Quick desktop | 774–1175 |
+| 4 | System context and data flow | 1176–1220 |
+| 4.1 | ↳ Context diagram | 1178–1204 |
+| 4.2 | ↳ Collection-to-library flow | 1205–1220 |
+| 5 | Repository layout and component ownership | 1221–1307 |
+| 5.1 | ↳ Entry, orchestration, and models | 1223–1234 |
+| 5.2 | ↳ Network and external-system adapters | 1235–1266 |
+| 5.3 | ↳ Persistence, local media, and UI | 1267–1307 |
+| 6 | Runtime architecture and environments | 1308–1451 |
+| 6.1 | ↳ Runtime and dependencies | 1310–1338 |
+| 6.2 | ↳ Concurrency and lifecycle | 1339–1416 |
+| 6.3 | ↳ Local paths and environment variables | 1417–1451 |
+| 7 | Data model and persistence | 1452–1568 |
+| 7.1 | ↳ Domain objects and identity | 1454–1468 |
+| 7.2 | ↳ SQLite schema and invariants | 1469–1525 |
+| 7.3 | ↳ Crate persistence and deletion | 1526–1541 |
+| 7.4 | ↳ Configuration and credential stores | 1542–1568 |
+| 8 | Public interfaces and contracts | 1569–1627 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1571–1599 |
+| 8.2 | ↳ JSON and CSV summary input | 1600–1615 |
+| 8.3 | ↳ URL-opening contract | 1616–1627 |
+| 9 | Authentication and authorization | 1628–1694 |
+| 9.1 | ↳ SoundCloud authentication | 1630–1661 |
+| 9.2 | ↳ Gate action consent | 1662–1694 |
+| 10 | External integrations | 1695–1979 |
+| 10.1 | ↳ SoundCloud API and media | 1697–1708 |
+| 10.2 | ↳ Link hubs and download gates | 1709–1846 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1717–1803 |
+| 10.2 · block | ↳ ↳ ToneDen | 1805–1829 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1831–1839 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1841–1846 |
+| 10.3 | ↳ Browsers and clipboard | 1847–1926 |
+| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 1927–1979 |
+| 11 | Security requirements and threat model | 1980–2142 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 1982–2000 |
+| 11.2 | ↳ Secret and personal-data handling | 2001–2016 |
+| 11.3 | ↳ File and mutation safety | 2017–2038 |
+| 11.4 | ↳ Browser-extension trust boundary | 2039–2142 |
+| 12 | Privacy, lifecycle, and retention | 2143–2195 |
+| 12.1 | ↳ Data stored locally | 2145–2169 |
+| 12.2 | ↳ Data sent to third parties | 2170–2182 |
+| 12.3 | ↳ User-controlled deletion | 2183–2195 |
+| 13 | Failure behavior and current limitations | 2196–2305 |
+| 13.1 | ↳ Error isolation and reporting | 2198–2219 |
+| 13.2 | ↳ Confirmed limitations | 2220–2305 |
+| 14 | Verification, CI, and release | 2306–2404 |
+| 14.1 | ↳ Offline and live test suites | 2308–2356 |
+| 14.2 | ↳ Continuous integration and publishing | 2357–2389 |
+| 14.3 | ↳ Specification-map verification | 2390–2404 |
+| 15 | Evidence and operational references | 2405–2438 |
+| 15.1 | ↳ Primary implementation evidence | 2407–2428 |
+| 15.2 | ↳ User and historical documentation | 2429–2438 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance

@@ -24,6 +24,47 @@
 
 ### Added
 
+- Desktop first start opens Welcome: paste your SoundCloud profile link and every
+  playlist the profile created is imported in the background, with a summary; then
+  the download folder, name and email, and Connect browser. Every step can be
+  skipped. Profile links work with or without https, m./www., /sets or a query.
+- Desktop toolbar: store and gate-site pills replace the store dropdown (several at
+  once, filtered by name); a status filter (All / Unhandled / New / Opened / Owned /
+  Skipped, H toggles Unhandled) replaces Hide handled; a Filters popup adds BPM
+  range, harmonic key and genre; a filtered count, a clear button in search and
+  Clear filters when nothing matches. Opening or downloading more than ten tracks
+  asks first.
+- Track right-click menu: Open, Download, Mark owned, Skip, Analyze and the cart
+  next to Play and Reset, grouped; Copy link, Reveal in file manager, Select all
+  and Invert selection; Remove and Delete in red with counts; disabled entries say
+  why. It opens with the Menu key, Shift+F10 or a right click below the rows.
+- Track table: Shift selects exactly the range (Ctrl+Shift adds it) and dragging
+  across rows selects them; the keyboard row stays on its track through sorts and
+  filters; the playing track gets a tinted row, a left bar and a play/pause icon;
+  "Played" is shown; double click always plays (rename with F2 or a slow second
+  click); header clicks cycle ascending/descending/original order and the sort is
+  remembered; View → Compact rows; Format and Comment columns for local files.
+- Sidebar: right-click menus act on the clicked folder or playlist (Analyze,
+  Rescan, Show in file manager, Copy path, Pin/Unpin, Hide; Refresh, Rename,
+  Duplicate); hidden folders come back from the Folders menu; track counts, a
+  filter field, foldable sections and one scrolling panel; drag selected local
+  tracks onto a local playlist, or drop folders from the file manager; keyboard
+  navigation and a visible splitter.
+- Player: spectral waveform (View → Spectral waveform), a 15 s zoom strip with
+  beat ticks, an estimated drop marker with Jump to drop (J) and optional preview
+  start at the drop or 30 %, session hot cues (Ctrl+1–4 / Alt+1–4), 1–9/0 position
+  jumps, 30 s seeks ({ / }), wheel seeking, a large elapsed/remaining clock, a
+  plain square artwork option, and a kick light limited to the last 2 s behind the
+  cursor.
+- Menu bar: Settings shows who is signed in and which browser is connected; a
+  Playback menu; Select none and Invert selection; Library sections with tooltips
+  and Open recent; View → Full screen (F11), Columns and Reset layout; colour
+  swatches; Help → Open data folder, Open log folder, Check for updates, About;
+  F1 and Ctrl+, shortcuts.
+- Settings is grouped into sections with plain-language hints; Connect browser has
+  numbered steps with copyable extension pages and confirms which browser
+  connected; Gates need you and Download results use clear buttons and plain
+  reasons.
 - German, Spanish, French, Italian and Russian desktop translations next to
   English and Polish (View → Language); a first start picks the system
   language when it is one of them.
@@ -83,6 +124,9 @@
 
 ### Changed
 
+- "Prepare cart / Beatport playlist…" is now "Add to store carts…" and "Open
+  links" is "Open in browser"; store actions no longer appear in local folder
+  views. Stop is now S (was Ctrl+W).
 - In Chromium-family browsers the hidden Hypeddit pass runs in an offscreen
   document of the extension (no browser window at all, which desktops such as
   GNOME on Wayland could not hide); gates that need you (a Connect login, a
@@ -130,6 +174,9 @@
 
 ### Fixed
 
+- Skipping the first-run Settings no longer stops a download; a saved browser that
+  is not available is kept instead of silently reset. Saved column widths, order,
+  hidden columns and recent items now really restore at startup.
 - Settings offered "System default" twice in the browser list. The field is now
   "Open links in", and Connect browser says that SoundCloud sign-in, gates and carts
   open in the browser where the extension is installed.
