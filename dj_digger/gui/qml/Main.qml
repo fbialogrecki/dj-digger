@@ -2284,7 +2284,7 @@ ApplicationWindow {
                         Label {
                             objectName: "selectionCount"
                             visible: root.hasSelection
-                            text: qsTr("%1 selected").arg(desktop.model.counts.selected)
+                            text: qsTr("%n selected", "", desktop.model.counts.selected)
                             color: root.muted; font.features: root.tabular
                         }
                         // The same actions as the shortcuts, so a tooltip always names the key that works.
@@ -2863,7 +2863,7 @@ ApplicationWindow {
         color: root.panel; border.color: root.accent
         Drag.keys: [root.trackDragKey]
         Drag.hotSpot: Qt.point(-12, -12)
-        Label { id: dragLabel; anchors.centerIn: parent; text: desktop.model.counts.selected === 1 ? qsTr("1 track") : qsTr("%1 tracks").arg(desktop.model.counts.selected); color: root.fg; font.pixelSize: root.fontCaption }
+        Label { id: dragLabel; anchors.centerIn: parent; text: desktop.model.counts.selected === 1 ? qsTr("1 track") : qsTr("%n tracks", "", desktop.model.counts.selected); color: root.fg; font.pixelSize: root.fontCaption }
     }
     // The sidebar menus act on the row they were opened on, not on the view that is loaded.
     function folderMenuAt(path) { folderMenu.path = path; folderMenu.pinned = desktop.isPinned(path); folderMenu.popup() }

@@ -67,7 +67,8 @@
   reasons.
 - German, Spanish, French, Italian and Russian desktop translations next to
   English and Polish (View → Language); a first start picks the system
-  language when it is one of them.
+  language when it is one of them. The reworked menus, filters, dialogs and
+  Welcome are translated too, with proper plural forms for track counts.
 - The Stores column names each track's gate site (Hypeddit, ToneDen, …)
   instead of a generic "gate"; the store filter still groups all gates.
 - The dj-digger browser extension (Manifest V3, one code base for Chrome-family
