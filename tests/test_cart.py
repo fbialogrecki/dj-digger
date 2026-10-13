@@ -363,7 +363,7 @@ def test_store_security_challenge_is_a_technical_failure_not_missing_product():
         <body>Performing security verification. Ray ID: public-challenge-id</body></html>
     """
 
-    with pytest.raises(cart_models.SecurityChallengeBlocked, match="automated browser"):
+    with pytest.raises(cart_models.SecurityChallengeBlocked, match="did not clear on its own"):
         store_parse.products_from_html(
             html,
             "https://www.beatport.com/release/release/123",
@@ -988,7 +988,8 @@ def test_direct_beatport_track_without_a_login_stays_an_exact_playlist_entry(mon
     )
 
 
-def test_a_known_security_challenge_stops_without_looping_or_structure_retry():
+def test_a_known_security_challenge_stops_without_looping_or_structure_retry(monkeypatch):
+    monkeypatch.setattr(bandcamp_adapter, "CHALLENGE_GRACE_SECONDS", 0)
     class ChallengePage:
         url = "https://www.beatport.com/track/signal/1"
         focused = False
@@ -1000,10 +1001,46 @@ def test_a_known_security_challenge_stops_without_looping_or_structure_retry():
             self.focused = True
 
     page = ChallengePage()
-    with pytest.raises(cart_models.SecurityChallengeBlocked, match="automated browser"):
+    with pytest.raises(cart_models.SecurityChallengeBlocked, match="did not clear on its own"):
         asyncio.run(bandcamp_adapter._page_products_async(page, "beatport", asyncio.Event()))
 
     assert page.focused
+
+
+def test_a_security_check_that_clears_itself_is_waited_out(monkeypatch):
+    # Seen live on Beatport: "Just a moment..." passes in the user's browser after a few seconds.
+    monkeypatch.setattr(bandcamp_adapter.asyncio, "sleep", _no_sleep)
+    real = store_parse.products_from_html
+    calls = []
+
+    def products(content, url, store):
+        calls.append(content)
+        return real(content, url, store) if len(calls) < 3 else ["product"]
+
+    monkeypatch.setattr(bandcamp_adapter, "products_from_html", products)
+
+    class ClearingPage:
+        url = "https://www.beatport.com/track/signal/1"
+        focused = False
+
+        async def content(self):
+            return "<title>Just a moment...</title>Performing security verification"
+
+        async def bring_to_front(self):
+            self.focused = True
+
+    async def labels(page, found):
+        return found
+
+    from dj_digger.stores import beatport
+    monkeypatch.setattr(beatport, "with_labels_async", labels)
+    page = ClearingPage()
+    assert asyncio.run(bandcamp_adapter._page_products_async(page, "beatport", asyncio.Event())) == ["product"]
+    assert len(calls) == 3 and not page.focused
+
+
+async def _no_sleep(_seconds):
+    return None
 
 
 def test_bandcamp_storefront_without_a_release_is_not_a_structure_failure(monkeypatch):

@@ -156,7 +156,7 @@ def products_from_html(html: str, page_url: str, store: str) -> list[StoreProduc
         or "/_fs-ch-" in (html or "").casefold()
     ):
         raise SecurityChallengeBlocked(
-            "store security verification does not support an automated browser"
+            "the store's security check did not clear on its own; complete it in the browser"
         )
     by_id: dict[str, StoreProduct] = {}
     tralbum_minimum: Decimal | None = None

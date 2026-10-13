@@ -188,6 +188,9 @@
 
 ### Fixed
 
+- Store carts wait up to 20 s for a "Just a moment…" security check that clears
+  itself in your browser (seen on Beatport) instead of failing at once and bringing
+  the tab to the front; only a check that does not clear asks for you.
 - Skipping the first-run Settings no longer stops a download; a saved browser that
   is not available is kept instead of silently reset. Saved column widths, order,
   hidden columns and recent items now really restore at startup.

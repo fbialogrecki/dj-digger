@@ -5,8 +5,8 @@
 - Product version verified: 1.4.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-10-08
-- Document lines: <!-- SPEC TOTAL LINES -->2490<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->2490<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->2492<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->2492<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,66 +51,66 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 145–190 |
 | 2.1 | ↳ Problem and product boundary | 147–160 |
 | 2.2 | ↳ Execution modes | 161–190 |
-| 3 | User-visible capabilities | 191–1196 |
+| 3 | User-visible capabilities | 191–1198 |
 | 3.1 | ↳ Track collection | 193–218 |
 | 3.2 | ↳ Link classification and exports | 219–237 |
 | 3.3 | ↳ Track statuses | 238–248 |
 | 3.4 | ↳ Audio preview | 249–425 |
 | 3.5 | ↳ Downloads and local-file matching | 426–481 |
-| 3.6 | ↳ Store purchase assistance | 482–598 |
-| 3.7 | ↳ Local library, analysis and audio export | 599–776 |
-| 3.8 | ↳ Qt Quick desktop | 777–1196 |
-| 4 | System context and data flow | 1197–1241 |
-| 4.1 | ↳ Context diagram | 1199–1225 |
-| 4.2 | ↳ Collection-to-library flow | 1226–1241 |
-| 5 | Repository layout and component ownership | 1242–1328 |
-| 5.1 | ↳ Entry, orchestration, and models | 1244–1255 |
-| 5.2 | ↳ Network and external-system adapters | 1256–1287 |
-| 5.3 | ↳ Persistence, local media, and UI | 1288–1328 |
-| 6 | Runtime architecture and environments | 1329–1472 |
-| 6.1 | ↳ Runtime and dependencies | 1331–1359 |
-| 6.2 | ↳ Concurrency and lifecycle | 1360–1437 |
-| 6.3 | ↳ Local paths and environment variables | 1438–1472 |
-| 7 | Data model and persistence | 1473–1589 |
-| 7.1 | ↳ Domain objects and identity | 1475–1489 |
-| 7.2 | ↳ SQLite schema and invariants | 1490–1546 |
-| 7.3 | ↳ Crate persistence and deletion | 1547–1562 |
-| 7.4 | ↳ Configuration and credential stores | 1563–1589 |
-| 8 | Public interfaces and contracts | 1590–1648 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1592–1620 |
-| 8.2 | ↳ JSON and CSV summary input | 1621–1636 |
-| 8.3 | ↳ URL-opening contract | 1637–1648 |
-| 9 | Authentication and authorization | 1649–1715 |
-| 9.1 | ↳ SoundCloud authentication | 1651–1682 |
-| 9.2 | ↳ Gate action consent | 1683–1715 |
-| 10 | External integrations | 1716–2018 |
-| 10.1 | ↳ SoundCloud API and media | 1718–1729 |
-| 10.2 | ↳ Link hubs and download gates | 1730–1867 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1738–1824 |
-| 10.2 · block | ↳ ↳ ToneDen | 1826–1850 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1852–1860 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1862–1867 |
-| 10.3 | ↳ Browsers and clipboard | 1868–1965 |
-| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 1966–2018 |
-| 11 | Security requirements and threat model | 2019–2193 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2021–2039 |
-| 11.2 | ↳ Secret and personal-data handling | 2040–2055 |
-| 11.3 | ↳ File and mutation safety | 2056–2077 |
-| 11.4 | ↳ Browser-extension trust boundary | 2078–2193 |
-| 12 | Privacy, lifecycle, and retention | 2194–2247 |
-| 12.1 | ↳ Data stored locally | 2196–2220 |
-| 12.2 | ↳ Data sent to third parties | 2221–2234 |
-| 12.3 | ↳ User-controlled deletion | 2235–2247 |
-| 13 | Failure behavior and current limitations | 2248–2357 |
-| 13.1 | ↳ Error isolation and reporting | 2250–2271 |
-| 13.2 | ↳ Confirmed limitations | 2272–2357 |
-| 14 | Verification, CI, and release | 2358–2456 |
-| 14.1 | ↳ Offline and live test suites | 2360–2408 |
-| 14.2 | ↳ Continuous integration and publishing | 2409–2441 |
-| 14.3 | ↳ Specification-map verification | 2442–2456 |
-| 15 | Evidence and operational references | 2457–2490 |
-| 15.1 | ↳ Primary implementation evidence | 2459–2480 |
-| 15.2 | ↳ User and historical documentation | 2481–2490 |
+| 3.6 | ↳ Store purchase assistance | 482–600 |
+| 3.7 | ↳ Local library, analysis and audio export | 601–778 |
+| 3.8 | ↳ Qt Quick desktop | 779–1198 |
+| 4 | System context and data flow | 1199–1243 |
+| 4.1 | ↳ Context diagram | 1201–1227 |
+| 4.2 | ↳ Collection-to-library flow | 1228–1243 |
+| 5 | Repository layout and component ownership | 1244–1330 |
+| 5.1 | ↳ Entry, orchestration, and models | 1246–1257 |
+| 5.2 | ↳ Network and external-system adapters | 1258–1289 |
+| 5.3 | ↳ Persistence, local media, and UI | 1290–1330 |
+| 6 | Runtime architecture and environments | 1331–1474 |
+| 6.1 | ↳ Runtime and dependencies | 1333–1361 |
+| 6.2 | ↳ Concurrency and lifecycle | 1362–1439 |
+| 6.3 | ↳ Local paths and environment variables | 1440–1474 |
+| 7 | Data model and persistence | 1475–1591 |
+| 7.1 | ↳ Domain objects and identity | 1477–1491 |
+| 7.2 | ↳ SQLite schema and invariants | 1492–1548 |
+| 7.3 | ↳ Crate persistence and deletion | 1549–1564 |
+| 7.4 | ↳ Configuration and credential stores | 1565–1591 |
+| 8 | Public interfaces and contracts | 1592–1650 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1594–1622 |
+| 8.2 | ↳ JSON and CSV summary input | 1623–1638 |
+| 8.3 | ↳ URL-opening contract | 1639–1650 |
+| 9 | Authentication and authorization | 1651–1717 |
+| 9.1 | ↳ SoundCloud authentication | 1653–1684 |
+| 9.2 | ↳ Gate action consent | 1685–1717 |
+| 10 | External integrations | 1718–2020 |
+| 10.1 | ↳ SoundCloud API and media | 1720–1731 |
+| 10.2 | ↳ Link hubs and download gates | 1732–1869 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1740–1826 |
+| 10.2 · block | ↳ ↳ ToneDen | 1828–1852 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1854–1862 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1864–1869 |
+| 10.3 | ↳ Browsers and clipboard | 1870–1967 |
+| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 1968–2020 |
+| 11 | Security requirements and threat model | 2021–2195 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2023–2041 |
+| 11.2 | ↳ Secret and personal-data handling | 2042–2057 |
+| 11.3 | ↳ File and mutation safety | 2058–2079 |
+| 11.4 | ↳ Browser-extension trust boundary | 2080–2195 |
+| 12 | Privacy, lifecycle, and retention | 2196–2249 |
+| 12.1 | ↳ Data stored locally | 2198–2222 |
+| 12.2 | ↳ Data sent to third parties | 2223–2236 |
+| 12.3 | ↳ User-controlled deletion | 2237–2249 |
+| 13 | Failure behavior and current limitations | 2250–2359 |
+| 13.1 | ↳ Error isolation and reporting | 2252–2273 |
+| 13.2 | ↳ Confirmed limitations | 2274–2359 |
+| 14 | Verification, CI, and release | 2360–2458 |
+| 14.1 | ↳ Offline and live test suites | 2362–2410 |
+| 14.2 | ↳ Continuous integration and publishing | 2411–2443 |
+| 14.3 | ↳ Specification-map verification | 2444–2458 |
+| 15 | Evidence and operational references | 2459–2492 |
+| 15.1 | ↳ Primary implementation evidence | 2461–2482 |
+| 15.2 | ↳ User and historical documentation | 2483–2492 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -525,7 +525,9 @@ your cart` marks the item as already in the cart; otherwise the cart page decide
 (`/cart` moves on to `/cart/cart/<id>` client-side, the rows render after the header
 counter), telling a real cart row (one with a "Move to cart" control) from a
 recommendation. Not being signed in
-(`/cart` redirects to the home page), a security challenge, or no exact ID in the
+(`/cart` redirects to the home page), a security challenge that has not cleared
+itself within 20 seconds (a "Just a moment…" check passes on its own in the user's
+browser and is waited out; only then is the tab brought to the front), or no exact ID in the
 page code makes the item a playlist entry that keeps an exact track URL when there
 is one, with artist/title metadata otherwise.
 

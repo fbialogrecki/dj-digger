@@ -56,7 +56,7 @@ class UserActionTimeout(AutomationError):
 
 
 class SecurityChallengeBlocked(AutomationError):
-    """A production anti-bot challenge refuses the automated browser."""
+    """A store security check that does not clear on its own and needs a person."""
 
 
 @dataclass(frozen=True)

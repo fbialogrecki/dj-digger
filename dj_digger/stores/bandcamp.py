@@ -63,6 +63,9 @@ LOGGER = logging.getLogger(__name__)
 # the tasks it starts, so every quote of that batch reads it without another parameter.
 NYP_PRICE: ContextVar[str] = ContextVar("nyp_price", default="minimum")
 NAVIGATION_TIMEOUT_MS = 30_000
+# A Cloudflare-style "Just a moment..." check usually clears itself in the user's own browser
+# within a few seconds; only one that outlasts this needs a person.
+CHALLENGE_GRACE_SECONDS = 20.0
 BANDCAMP_CART_URL = "https://bandcamp.com/cart"
 
 
@@ -402,6 +405,7 @@ async def _page_products_async(
     if not is_store_url(page.url, store):
         raise UnsafeRedirect(f"{store} page left its canonical domain")
     deadline = time.monotonic() + 5.0
+    challenge_deadline = time.monotonic() + CHALLENGE_GRACE_SECONDS
     last_error: AutomationError | None = None
     while True:
         if cancel is not None:
@@ -410,6 +414,11 @@ async def _page_products_async(
             content = await page.content()
             products = products_from_html(content, page.url, store)
         except SecurityChallengeBlocked:
+            if time.monotonic() < challenge_deadline:
+                # The check reloads the page when it passes; the structure clock restarts then.
+                deadline = time.monotonic() + 5.0
+                await asyncio.sleep(0.5)
+                continue
             await _surface_challenge_async(
                 page, store, "Cart security challenge blocked automation"
             )
