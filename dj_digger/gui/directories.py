@@ -162,6 +162,26 @@ class MusicFolders(QSortFilterProxyModel):
     def path(self, index):
         return self.sourceModel().filePath(self.mapToSource(index))
 
+    def rescan(self, path):
+        """Check a folder and those below it again; each keeps its place until its answer arrives."""
+        top = self._identity(path)
+        for identity in [top, *(i for i in self._audio if i.startswith(top.rstrip(os.sep) + os.sep))]:
+            self._scan(identity, identity)
+
+    def matches(self, index, text):
+        """Whether the folder's name holds ``text`` (any case), or that of a folder below it already read."""
+        if not text or not index.isValid():
+            return True
+        text = text.casefold()
+        pending = [index]
+        while pending:
+            current = pending.pop()
+            if text in os.path.basename(self.path(current).rstrip('/\\')).casefold():
+                return True
+            # Only folders already read: filtering never makes the tree read more of the disk.
+            pending.extend(self.index(row, 0, current) for row in range(self.rowCount(current)))
+        return False
+
     def stop(self):
         self._stop.set()
         self._recheck.stop()

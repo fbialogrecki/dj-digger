@@ -1252,9 +1252,12 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
             return next((found for child in item.childItems() if (found := find_item(child, name))), None)
         scene = window.contentItem()
         tree = find_item(scene, 'directoryTree-music')
+        def folder_row(name):
+            # Tree rows are named after their full path, so two folders called alike stay apart.
+            return 'directory-' + (home / 'Music' / ('House/Deep' if name == 'Deep' else name)).as_posix()
         assert bridge.directoryRoots == [dict(path=str(home / 'Downloads'), kind='downloads'),
                                          dict(path=str(home / 'Music'), kind='music')]
-        assert find_item(scene, 'directory-Sets') is None
+        assert find_item(scene, 'directory-' + (home / 'Sets').as_posix()) is None
         assert find_item(scene, 'addFolder').property('text') == 'Add folder…'
         assert find_item(scene, 'addPlaylist').property('text') == 'Add playlist'
         painted = QSignalSpy(window.frameSwapped)
@@ -1274,14 +1277,14 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
         point = expand.mapToScene(QPointF(expand.width()/2, expand.height()/2)).toPoint()
         QTest.mouseClick(window, Qt.LeftButton, pos=point)
         deadline = time.monotonic() + 5
-        while (find_item(tree, 'directory-House') is None
-               or not find_item(tree, 'directory-House').property('hasChildren')) and time.monotonic() < deadline:
+        while (find_item(tree, folder_row('House')) is None
+               or not find_item(tree, folder_row('House')).property('hasChildren')) and time.monotonic() < deadline:
             QTest.qWait(10)
         # Only folders with music in them or below them are listed.
         assert tree.property('rows') == 2
         for name in ('.hidden', 'Only hidden', 'No music', 'Only partial'):
-            assert find_item(tree, 'directory-' + name) is None
-        leaf = find_item(tree, 'directory-Only audio')
+            assert find_item(tree, folder_row(name)) is None
+        leaf = find_item(tree, folder_row('Only audio'))
         assert leaf is not None and not leaf.property('hasChildren')
         assert not leaf.property('indicator').isVisible()
         # A folder arriving with music in it shows up; an empty one never does.
@@ -1315,14 +1318,14 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
         painted = QSignalSpy(window.frameSwapped)
         window.update()
         assert painted.wait(3000)  # Use the settled delegate geometry for the next click.
-        house = find_item(tree, 'directory-House')
+        house = find_item(tree, folder_row('House'))
         indicator = house.property('indicator')
         point = indicator.mapToScene(QPointF(indicator.width()/2, indicator.height()/2)).toPoint()
         QTest.mouseClick(window, Qt.LeftButton, pos=point)
         deadline = time.monotonic() + 5
-        while find_item(tree, 'directory-Deep') is None and time.monotonic() < deadline:
+        while find_item(tree, folder_row('Deep')) is None and time.monotonic() < deadline:
             QTest.qWait(10)
-        assert find_item(tree, 'directory-Deep') is not None
+        assert find_item(tree, folder_row('Deep')) is not None
         bridge.addFolder(QUrl.fromLocalFile(str(home / 'Sets')).toString())
         action, values = bridge.backend.calls[-1]
         assert action == 'add_folder'
@@ -1503,13 +1506,13 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
             assert contrast(search.property('color'), search_background) >= 4.5
             assert contrast(store.property('indicator').property('color'), store.property('background').property('color')) >= 3
             deadline = time.monotonic() + 3
-            while any(find_item(tree, 'directory-' + name) is None for name in ('House', 'Deep')) and time.monotonic() < deadline:
+            while any(find_item(tree, folder_row(name)) is None for name in ('House', 'Deep')) and time.monotonic() < deadline:
                 QTest.qWait(10)
             for name in ('House', 'Deep'):
-                item = find_item(tree, 'directory-' + name)
+                item = find_item(tree, folder_row(name))
                 assert item is not None, (theme, name, tree.property('rows'), tree.property('height'))
                 background = item.property('background').property('color')
-                icon, label = item.property('contentItem').childItems()
+                icon, label = item.property('contentItem').childItems()[:2]
                 assert label.property('text') == name
                 assert contrast(label.property('color'), background) >= 4.5
                 assert contrast(icon.property('color'), background) >= 3
@@ -1519,23 +1522,29 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
             search.setProperty('enabled', False)
             assert contrast(search.property('color'), search.property('background').property('color')) >= 4.5
             search.setProperty('enabled', True)
-        # A folder whose music is all in subfolders opens and closes in the tree instead of as an empty list.
-        house = find_item(tree, 'directory-House')
+        # The chevron folds a folder; its name always opens it, and one whose music is all
+        # in subfolders also unfolds them, never folds them away.
+        house = find_item(tree, folder_row('House'))
         assert bridge.folderNeedsExpand(str(home / 'Music' / 'House'))
         assert not bridge.folderNeedsExpand(str(home / 'Music' / 'Only audio'))
         calls, rows = len(bridge.backend.calls), tree.property('rows')
         point = house.mapToScene(QPointF(house.width() - 20, house.height() / 2)).toPoint()
+        indicator = house.property('indicator')
+        chevron = indicator.mapToScene(QPointF(indicator.width()/2, indicator.height()/2)).toPoint()
         def rows_become(count):
             deadline = time.monotonic() + 5
             while tree.property('rows') != count and time.monotonic() < deadline:
                 QTest.qWait(10)  # TreeView applies a collapse on its next polish.
             return tree.property('rows') == count
         QTest.mouseClick(window, Qt.LeftButton, pos=point)
-        assert rows_become(rows - 1) and len(bridge.backend.calls) == calls
+        assert rows_become(rows) and bridge.backend.calls[-1][0] == 'folder'
+        assert Path(bridge.backend.calls[-1][1]['path']) == home / 'Music' / 'House'
+        QTest.mouseClick(window, Qt.LeftButton, pos=chevron)
+        assert rows_become(rows - 1) and len(bridge.backend.calls) == calls + 1
         QTest.mouseClick(window, Qt.LeftButton, pos=point)
-        assert rows_become(rows) and len(bridge.backend.calls) == calls
+        assert rows_become(rows) and len(bridge.backend.calls) == calls + 2
         # Folder rows highlight the loaded folder only; loading a playlist clears them.
-        own = find_item(tree, 'directory-Only audio')
+        own = find_item(tree, folder_row('Only audio'))
         point = own.mapToScene(QPointF(own.width() - 20, own.height() / 2)).toPoint()
         QTest.mouseClick(window, Qt.LeftButton, pos=point)
         folder_call = bridge.backend.calls[-1]
@@ -1549,14 +1558,15 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
         # A right click offers to hide a folder; once the backend saved it, the tree leaves it out.
         QTest.mouseClick(window, Qt.RightButton, pos=house.mapToScene(QPointF(house.width() - 20, house.height() / 2)).toPoint())
         assert qml('folderMenu.visible') is True and Path(qml('folderMenu.path')) == home / 'Music' / 'House'
-        qml('folderMenu.itemAt(2).triggered(); folderMenu.close()')
+        assert qml('folderMenu.itemAt(9).text') == 'Hide folder'
+        qml('folderMenu.itemAt(9).triggered(); folderMenu.close()')
         assert bridge.backend.calls[-1][0] == 'hide_folder' and Path(bridge.backend.calls[-1][1]['path']) == home / 'Music' / 'House'
         bridge.receive('sidebar', {'items': [], 'pinned': [], 'hidden': [str(home / 'Music' / 'House')]})
         deadline = time.monotonic() + 5
         while tree.property('rows') != 1 and time.monotonic() < deadline:
             QTest.qWait(10)
         # Only "Only audio" is left: House and the Deep folder inside it are gone.
-        assert tree.property('rows') == 1 and find_item(tree, 'directory-Only audio').isVisible()
+        assert tree.property('rows') == 1 and find_item(tree, folder_row('Only audio')).isVisible()
         bridge.receive('sidebar', {'items': [], 'pinned': [], 'hidden': []})
         assert bridge.samePath(str(home / 'Music' / './House'), str(home / 'Music' / 'House'))
         assert not bridge.samePath('', str(home / 'Music'))

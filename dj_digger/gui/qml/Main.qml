@@ -158,6 +158,24 @@ ApplicationWindow {
         let [kind, target] = recentKey.split("\n")
         recent = [{kind: kind, target: target}].concat(recent.filter(r => r.kind !== kind || r.target !== target)).slice(0, 8)
     }
+    // Sidebar sections folded away from their headers ("playlists", "folders"); saved in gui.json.
+    property var sidebarCollapsed: []
+    function sectionOpen(section) { return sidebarCollapsed.indexOf(section) < 0 }
+    function toggleSection(section) {
+        sidebarCollapsed = sectionOpen(section) ? sidebarCollapsed.concat([section]) : sidebarCollapsed.filter(s => s !== section)
+    }
+    // The sidebar filter, lower case; playlists and folders whose names hold it stay listed.
+    readonly property string sidebarQuery: sidebarFilter.text.trim().toLowerCase()
+    function sidebarMatch(name) { return !sidebarQuery || String(name).toLowerCase().indexOf(sidebarQuery) >= 0 }
+    // Keyboard moves inside the sidebar keep the focused row in view.
+    function revealInSidebar(item) {
+        let flick = sidebarScroll.contentItem
+        let y = item.mapToItem(flick.contentItem, 0, 0).y
+        if (y < flick.contentY) flick.contentY = y
+        else if (y + item.height > flick.contentY + flick.height) flick.contentY = y + item.height - flick.height
+    }
+    // What selected tracks dragged from the table carry; only local playlists accept it.
+    readonly property string trackDragKey: "application/x-dj-digger-tracks"
     property bool shuttingDown: false
     property bool isMuted: false
     property real volume: desktop.volume
@@ -379,6 +397,7 @@ ApplicationWindow {
         if (s.compactRows === true) compactRows = true
         sidebarWidth = Math.max(160, Math.min(400, Number(s.sidebarWidth) || 220))
         if (s.sidebarVisible === false) sidebarVisible = false
+        if (Array.isArray(s.sidebarCollapsed)) sidebarCollapsed = s.sidebarCollapsed.filter(v => v === "playlists" || v === "folders")
         if (s.animations === false) animations = false
         keyNotation = s.keyNotation === "classic" ? "classic" : "camelot"
         if (typeof s.colors === "string" && colorPairs.hasOwnProperty(s.colors)) colorPair = s.colors
@@ -393,7 +412,7 @@ ApplicationWindow {
         if (!shuttingDown) {
             shuttingDown = true
             for (let i of allColumns) if (i !== titleColumn && columnVisible(i)) columnWidths[i] = table.columnWidth(i)
-            desktop.saveSettings({sidebarWidth: sidebar.width, sidebarVisible: sidebarVisible, width: width, height: height, language: languageCode,
+            desktop.saveSettings({sidebarWidth: sidebar.width, sidebarVisible: sidebarVisible, sidebarCollapsed: sidebarCollapsed, width: width, height: height, language: languageCode,
                                   theme: themeChoice, columnWidths: columnWidths, hiddenColumns: hiddenColumns, columnOrder: columnOrder,
                                   keyNotation: keyNotation, animations: animations, colors: colorPair, recent: recent,
                                   sortColumn: desktop.model.sortColumn, sortReverse: desktop.model.sortReverse, compactRows: compactRows})
@@ -745,10 +764,56 @@ ApplicationWindow {
         Accessible.name: text
         ToolTip.visible: hovered; ToolTip.text: text + (keys ? " (" + keys + ")" : "")
     }
-    component SectionHeader: Label {
-        Layout.fillWidth: true; Layout.topMargin: 6; Layout.bottomMargin: 2; Layout.leftMargin: 10; Layout.rightMargin: 10
-        horizontalAlignment: Text.AlignHCenter; textFormat: Text.PlainText; elide: Text.ElideRight
-        font.bold: true; font.pixelSize: 11; font.letterSpacing: 1; font.capitalization: Font.AllUppercase; color: root.muted
+    // A sidebar section's centred, uppercase name: a click folds the section away or back,
+    // the button on the right (or a right click) opens the section's menu.
+    component SidebarHeader: ItemDelegate {
+        id: sidebarHeader
+        property string section
+        property Menu menu
+        readonly property bool open: root.sectionOpen(section)
+        width: parent ? parent.width : 0; height: 30
+        padding: 0; leftPadding: 6; rightPadding: 6
+        focusPolicy: Qt.StrongFocus
+        background: Rectangle { color: sidebarHeader.hovered ? root.hoverSurface : "transparent"; border.color: sidebarHeader.visualFocus ? root.accent : "transparent" }
+        contentItem: RowLayout {
+            spacing: 4
+            Item {
+                implicitWidth: 20; implicitHeight: 20
+                ColorImage {
+                    anchors.centerIn: parent; width: 10; height: 10; sourceSize: Qt.size(10, 10)
+                    source: "icons/chevron.svg"; rotation: sidebarHeader.open ? 90 : 0; color: root.muted
+                }
+            }
+            Label {
+                Layout.fillWidth: true; text: sidebarHeader.text
+                horizontalAlignment: Text.AlignHCenter; textFormat: Text.PlainText; elide: Text.ElideRight
+                font.bold: true; font.pixelSize: 11; font.letterSpacing: 1; font.capitalization: Font.AllUppercase; color: root.muted
+            }
+            FlatButton {
+                implicitWidth: 20; implicitHeight: 20; padding: 0; focusPolicy: Qt.NoFocus
+                icon.source: "icons/more.svg"; icon.color: root.muted
+                text: qsTr("%1 menu").arg(sidebarHeader.text)
+                onClicked: sidebarHeader.menu.popup(this, 0, height)
+            }
+        }
+        Accessible.name: text
+        Accessible.description: open ? qsTr("Expanded") : qsTr("Collapsed")
+        onClicked: root.toggleSection(section)
+        Keys.onMenuPressed: menu.popup(this, 0, height)
+        TapHandler { acceptedButtons: Qt.RightButton; onTapped: sidebarHeader.menu.popup() }
+    }
+    // Tracks in the open folder: known only for the folder whose page is loaded.
+    component FolderCount: Label {
+        text: desktop.folder.total || ""
+        visible: !!desktop.folder.total
+        font.pixelSize: 11; font.features: root.tabular; color: root.selectionText
+    }
+    // Marks a folder the user pinned (Add folder…, Pin folder).
+    component PinMark: ColorImage {
+        property bool selected: false
+        width: 12; height: 12; sourceSize: Qt.size(12, 12); source: "icons/pin.svg"
+        color: selected ? root.selectionText : root.muted
+        Accessible.name: qsTr("Pinned")
     }
     // A quiet full-width row with a centred "+" right under the last entry of a sidebar list, shaped
     // like the rows above it and only lit on hover; the name stays in the tooltip.
@@ -1025,178 +1090,317 @@ ApplicationWindow {
         SplitView {
             Layout.fillWidth: true; Layout.fillHeight: true
             orientation: Qt.Horizontal
-            // Draggable but invisible: the columns separate themselves by content.
-            handle: Rectangle { implicitWidth: 6; implicitHeight: 6; color: "transparent" }
-            SplitView {
+            // A thin line between the sidebar and the tracks, lit while dragged or hovered;
+            // a double click puts the sidebar back to its default width.
+            handle: Item {
+                implicitWidth: 6; implicitHeight: 6
+                Rectangle {
+                    anchors.horizontalCenter: parent.horizontalCenter; width: 1; height: parent.height
+                    color: parent.SplitHandle.pressed || parent.SplitHandle.hovered ? root.accent : root.alternate
+                }
+                TapHandler { onDoubleTapped: sidebar.SplitView.preferredWidth = 220 }
+            }
+            ColumnLayout {
                 id: sidebar
                 visible: root.sidebarVisible
-                orientation: Qt.Vertical
-                handle: Rectangle { implicitWidth: 6; implicitHeight: 6; color: "transparent" }
+                spacing: 0
                 SplitView.preferredWidth: root.sidebarWidth; SplitView.minimumWidth: 160
                 SplitView.maximumWidth: Math.max(160, root.width - 520)
-                ColumnLayout {
-                    SplitView.preferredHeight: parent.height / 2; SplitView.minimumHeight: 120
-                    spacing: 2
-                    SectionHeader { text: qsTr("Playlists") }
-                    Item {
-                    Layout.fillWidth: true; Layout.fillHeight: true
-                    ListView {
-                        id: playlistList
-                        anchors.fill: parent; clip: true
-                        model: desktop.playlists
-                        delegate: ItemDelegate {
-                            id: playlistItem
-                            objectName: "playlist-" + modelData.source
-                            background: Rectangle { color: playlistItem.highlighted ? root.selection : playlistItem.hovered ? root.hoverSurface : "transparent" }
-                            required property var modelData
-                            width: ListView.view.width; height: 28
-                            padding: 0; leftPadding: 10; rightPadding: 6
-                            highlighted: modelData.source === desktop.view.source
-                            // A playlist still importing is listed at once, with a spinner; it opens when saved.
-                            readonly property bool pending: !!modelData.pending
-                            contentItem: RowLayout {
-                                spacing: 6
-                                Label { visible: !playlistItem.pending; text: modelData.source.startsWith("local-playlist:") ? "▣" : "☁"; color: playlistItem.highlighted ? root.selectionText : root.muted }
-                                BusyIndicator {
-                                    visible: playlistItem.pending; running: visible
-                                    implicitWidth: 16; implicitHeight: 16; padding: 0
-                                    palette.dark: playlistItem.highlighted ? root.selectionText : root.accent
-                                }
-                                Label { Layout.fillWidth: true; text: modelData.title; textFormat: Text.PlainText; elide: Text.ElideRight; color: playlistItem.highlighted ? root.selectionText : root.fg }
-                            }
-                            onClicked: if (!pending) desktop.load(modelData.source)
-                            onPressAndHold: { playlistMenu.source = modelData.source; playlistMenu.popup() }
-                            TapHandler { acceptedButtons: Qt.RightButton; onTapped: { playlistMenu.source = playlistItem.modelData.source; playlistMenu.popup() } }
-                        }
-                        footer: AddButton { buttonName: "addPlaylist"; text: qsTr("Add playlist"); onAdd: desktop.action("dig") }
-                        ScrollBar.vertical: ScrollBar {}
+                TextField {
+                    id: sidebarFilter; objectName: "sidebarFilter"
+                    Layout.fillWidth: true; Layout.margins: 6; Layout.bottomMargin: 2
+                    placeholderText: qsTr("Filter playlists and folders")
+                    selectByMouse: true
+                    background: Rectangle {
+                        implicitHeight: 30; radius: 6; color: root.bg
+                        border.color: sidebarFilter.activeFocus ? root.accent : root.alternate
                     }
-                    Label { anchors.centerIn: parent; width: parent.width - 16; visible: playlistList.count === 0; wrapMode: Text.WordWrap; horizontalAlignment: Text.AlignHCenter; color: root.muted; text: qsTr("No playlists yet. Add a SoundCloud link to start digging.") }
+                    Keys.onEscapePressed: event => { text = ""; event.accepted = true }
+                    Keys.onDownPressed: playlistList.forceActiveFocus()
+                    Accessible.name: placeholderText
+                }
+                // Playlists and folders scroll together in one panel; each section folds away from its header.
+                ScrollView {
+                    id: sidebarScroll
+                    Layout.fillWidth: true; Layout.fillHeight: true
+                    contentWidth: availableWidth
+                    Column {
+                        width: sidebarScroll.availableWidth
+                        SidebarHeader { objectName: "playlistsHeader"; section: "playlists"; text: qsTr("Playlists"); menu: playlistsSectionMenu }
+                        ListView {
+                            id: playlistList; objectName: "playlistList"
+                            visible: root.sectionOpen("playlists")
+                            width: parent.width; height: visible ? contentHeight : 0
+                            // The panel scrolls, not the list; arrows and Enter still move through it.
+                            interactive: false; keyNavigationEnabled: true; activeFocusOnTab: true
+                            currentIndex: -1
+                            model: desktop.playlists.filter(p => root.sidebarMatch(p.title))
+                            onCurrentItemChanged: if (activeFocus && currentItem) root.revealInSidebar(currentItem)
+                            Keys.onReturnPressed: if (currentItem) currentItem.open()
+                            Keys.onEnterPressed: if (currentItem) currentItem.open()
+                            Keys.onMenuPressed: if (currentItem) root.playlistMenuAt(currentItem.modelData.source)
+                            delegate: ItemDelegate {
+                                id: playlistItem
+                                objectName: "playlist-" + modelData.source
+                                required property var modelData
+                                required property int index
+                                readonly property bool local: modelData.source.startsWith("local-playlist:")
+                                // A playlist still importing is listed at once, with a spinner; it opens when saved.
+                                readonly property bool pending: !!modelData.pending
+                                // A press held long enough on a touch screen opens the menu, never the playlist too.
+                                property bool held: false
+                                width: ListView.view.width; height: 28
+                                padding: 0; leftPadding: 10; rightPadding: 8
+                                highlighted: modelData.source === desktop.view.source
+                                background: Rectangle {
+                                    color: playlistItem.highlighted ? root.selection : playlistItem.hovered ? root.hoverSurface : "transparent"
+                                    border.color: playlistDrop.containsDrag || (playlistItem.ListView.isCurrentItem && playlistList.activeFocus) ? root.accent : "transparent"
+                                }
+                                contentItem: RowLayout {
+                                    spacing: 6
+                                    ColorImage {
+                                        visible: !playlistItem.pending
+                                        width: 14; height: 14; sourceSize: Qt.size(14, 14)
+                                        source: playlistItem.local ? "icons/playlist.svg" : "icons/cloud.svg"
+                                        color: playlistItem.highlighted ? root.selectionText : root.muted
+                                        Accessible.name: playlistItem.local ? qsTr("Local playlist") : qsTr("SoundCloud playlist")
+                                    }
+                                    BusyIndicator {
+                                        visible: playlistItem.pending; running: visible
+                                        implicitWidth: 16; implicitHeight: 16; padding: 0
+                                        palette.dark: playlistItem.highlighted ? root.selectionText : root.accent
+                                    }
+                                    Label { Layout.fillWidth: true; text: modelData.title; textFormat: Text.PlainText; elide: Text.ElideRight; color: playlistItem.highlighted ? root.selectionText : root.fg }
+                                    Label {
+                                        objectName: "playlistCount"
+                                        visible: !playlistItem.pending && modelData.count !== undefined
+                                        text: modelData.count !== undefined ? modelData.count : ""
+                                        font.pixelSize: 11; font.features: root.tabular
+                                        color: playlistItem.highlighted ? root.selectionText : root.muted
+                                    }
+                                }
+                                Accessible.name: modelData.title
+                                function open() { if (!pending) desktop.load(modelData.source) }
+                                onPressed: held = false
+                                onClicked: {
+                                    playlistList.currentIndex = index
+                                    playlistList.forceActiveFocus()
+                                    if (held) held = false
+                                    else open()
+                                }
+                                onPressAndHold: { held = true; root.playlistMenuAt(modelData.source) }
+                                TapHandler { acceptedButtons: Qt.RightButton; onTapped: root.playlistMenuAt(playlistItem.modelData.source) }
+                                // Tracks dragged from the table join a local playlist; SoundCloud playlists follow SoundCloud.
+                                DropArea {
+                                    id: playlistDrop
+                                    anchors.fill: parent; keys: [root.trackDragKey]
+                                    enabled: playlistItem.local && !playlistItem.pending
+                                    onDropped: drop => { desktop.addToPlaylist(playlistItem.modelData.source); drop.accept(Qt.CopyAction) }
+                                }
+                            }
+                            footer: AddButton { buttonName: "addPlaylist"; text: qsTr("Add playlist"); onAdd: desktop.action("dig") }
+                        }
+                        Label {
+                            width: parent.width; padding: 8
+                            visible: root.sectionOpen("playlists") && playlistList.count === 0
+                            wrapMode: Text.WordWrap; horizontalAlignment: Text.AlignHCenter; color: root.muted
+                            text: desktop.playlists.length > 0 ? qsTr("No playlists match the filter.") : qsTr("No playlists yet. Add a SoundCloud link to start digging.")
+                        }
+                        // Folders dropped here from the file manager are added like Add folder… does.
+                        Item {
+                            width: parent.width; height: folderSection.height
+                            Column {
+                                id: folderSection
+                                width: parent.width
+                                SidebarHeader { objectName: "foldersHeader"; section: "folders"; text: qsTr("Folders"); menu: foldersSectionMenu }
+                                Column {
+                                    width: parent.width
+                                    visible: root.sectionOpen("folders")
+                                    Repeater {
+                                        model: desktop.directoryRoots
+                                        Column {
+                                            id: folderRoot
+                                            required property var modelData
+                                            width: parent.width
+                                            property bool expanded: false
+                                            readonly property bool expandable: {
+                                                // Refresh after Qt's background directory enumeration.
+                                                const revision = desktop.directoryModel.revision
+                                                return desktop.directoryHasChildren(modelData.path)
+                                            }
+                                            readonly property string name: modelData.kind === "downloads" ? qsTr("Downloads")
+                                                : modelData.kind === "music" ? qsTr("Music")
+                                                : modelData.path.split(/[\\/]/).filter(p => p).pop() || modelData.path
+                                            visible: {
+                                                const revision = desktop.directoryModel.revision
+                                                return root.sidebarMatch(name) || !!root.sidebarQuery && desktop.folderMatches(desktop.directoryIndex(modelData.path), root.sidebarQuery)
+                                            }
+                                            onExpandableChanged: if (!expandable) expanded = false
+                                            // The name opens the folder; one whose music is all in folders below also unfolds them.
+                                            function open() {
+                                                desktop.openFolder(modelData.path, 0)
+                                                if (expandable && desktop.folderNeedsExpand(modelData.path)) expanded = true
+                                            }
+                                            ItemDelegate {
+                                                id: rootItem
+                                                objectName: "root-" + (folderRoot.modelData.kind === "custom" ? folderRoot.modelData.path : folderRoot.modelData.kind)
+                                                property bool held: false
+                                                width: parent.width; height: 28
+                                                padding: 0; leftPadding: 6; rightPadding: 8
+                                                focusPolicy: Qt.StrongFocus
+                                                highlighted: root.folderView && desktop.samePath(desktop.folder.path, folderRoot.modelData.path)
+                                                background: Rectangle {
+                                                    color: rootItem.highlighted ? root.selection : rootItem.hovered ? root.hoverSurface : "transparent"
+                                                    border.color: rootItem.visualFocus ? root.accent : "transparent"
+                                                }
+                                                contentItem: RowLayout {
+                                                    spacing: 4
+                                                    // The chevron's place stays empty without subfolders, so every name lines up.
+                                                    Item {
+                                                        implicitWidth: 20; implicitHeight: 20
+                                                        FlatButton {
+                                                            objectName: "expand-" + folderRoot.modelData.kind
+                                                            anchors.fill: parent; padding: 0
+                                                            enabled: folderRoot.expandable; visible: enabled
+                                                            text: folderRoot.expanded ? qsTr("Collapse") : qsTr("Expand")
+                                                            icon.source: "icons/chevron.svg"; icon.width: 10; icon.height: 10
+                                                            icon.color: rootItem.highlighted ? root.selectionText : root.muted
+                                                            rotation: folderRoot.expanded ? 90 : 0
+                                                            focusPolicy: Qt.NoFocus
+                                                            Accessible.name: text + " " + folderRoot.name
+                                                            onClicked: folderRoot.expanded = !folderRoot.expanded
+                                                        }
+                                                    }
+                                                    FolderIcon { selected: rootItem.highlighted }
+                                                    Label {
+                                                        Layout.fillWidth: true; text: folderRoot.name
+                                                        textFormat: Text.PlainText; elide: Text.ElideMiddle
+                                                        color: rootItem.highlighted ? root.selectionText : root.fg
+                                                    }
+                                                    FolderCount { visible: rootItem.highlighted }
+                                                    PinMark { visible: folderRoot.modelData.kind === "custom"; selected: rootItem.highlighted }
+                                                }
+                                                ToolTip.visible: hovered; ToolTip.text: folderRoot.modelData.path
+                                                Accessible.name: folderRoot.name
+                                                Accessible.description: folderRoot.modelData.path
+                                                onActiveFocusChanged: if (activeFocus) root.revealInSidebar(rootItem)
+                                                onPressed: held = false
+                                                onClicked: {
+                                                    if (held) held = false
+                                                    else folderRoot.open()
+                                                }
+                                                onPressAndHold: { held = true; root.folderMenuAt(folderRoot.modelData.path) }
+                                                Keys.onReturnPressed: folderRoot.open()
+                                                Keys.onEnterPressed: folderRoot.open()
+                                                Keys.onRightPressed: if (folderRoot.expandable) folderRoot.expanded = true
+                                                Keys.onLeftPressed: folderRoot.expanded = false
+                                                Keys.onDownPressed: nextItemInFocusChain(true).forceActiveFocus()
+                                                Keys.onUpPressed: nextItemInFocusChain(false).forceActiveFocus()
+                                                Keys.onMenuPressed: root.folderMenuAt(folderRoot.modelData.path)
+                                                TapHandler { acceptedButtons: Qt.RightButton; onTapped: root.folderMenuAt(folderRoot.modelData.path) }
+                                            }
+                                            TreeView {
+                                                id: directoryTree
+                                                objectName: "directoryTree-" + (folderRoot.modelData.kind === "custom" ? folderRoot.modelData.path : folderRoot.modelData.kind)
+                                                width: parent.width
+                                                // As tall as its rows: the sidebar panel scrolls, never the tree inside it.
+                                                height: visible ? contentHeight : 0
+                                                visible: folderRoot.expanded && folderRoot.expandable
+                                                interactive: false; activeFocusOnTab: true
+                                                clip: true; model: desktop.directoryModel
+                                                rootIndex: desktop.directoryIndex(folderRoot.modelData.path)
+                                                editTriggers: TableView.NoEditTriggers
+                                                selectionBehavior: TableView.SelectRows
+                                                selectionModel: ItemSelectionModel { model: desktop.directoryModel }
+                                                columnWidthProvider: column => column === 0 ? width : 0
+                                                // The sidebar filter hides folders whose names (and those below, as far as read) miss it.
+                                                rowHeightProvider: row => !root.sidebarQuery || desktop.folderMatches(index(row, 0), root.sidebarQuery) ? 28 : 0
+                                                Connections { target: root; function onSidebarQueryChanged() { directoryTree.forceLayout() } }
+                                                onCurrentRowChanged: if (activeFocus && itemAtCell(Qt.point(0, currentRow))) root.revealInSidebar(itemAtCell(Qt.point(0, currentRow)))
+                                                delegate: TreeViewDelegate {
+                                                    id: directoryDelegate
+                                                    objectName: "directory-" + filePath
+                                                    required property string fileName
+                                                    required property string filePath
+                                                    property bool held: false
+                                                    implicitWidth: directoryTree.width; implicitHeight: 28
+                                                    // Highlight follows the loaded view, not the tree's own selection,
+                                                    // so opening a playlist clears the folder highlight.
+                                                    highlighted: root.folderView && desktop.samePath(desktop.folder.path, filePath)
+                                                    // Children sit one step right of the root row's chevron and share its icon.
+                                                    leftMargin: 24; indentation: 16; spacing: 4
+                                                    indicator: Item {
+                                                        x: directoryDelegate.leftMargin + directoryDelegate.depth * directoryDelegate.indentation
+                                                        y: (directoryDelegate.height - height) / 2
+                                                        implicitWidth: 16; implicitHeight: 28
+                                                        ColorImage {
+                                                            anchors.centerIn: parent; width: 10; height: 10; sourceSize: Qt.size(10, 10)
+                                                            source: "icons/chevron.svg"; rotation: directoryDelegate.expanded ? 90 : 0
+                                                            color: directoryDelegate.highlighted ? root.selectionText : root.muted
+                                                        }
+                                                    }
+                                                    background: Rectangle {
+                                                        color: directoryDelegate.highlighted ? root.selection : directoryDelegate.hovered ? root.hoverSurface : root.bg
+                                                        border.color: directoryDelegate.current && directoryTree.activeFocus ? root.accent : "transparent"
+                                                    }
+                                                    contentItem: RowLayout {
+                                                        spacing: 6
+                                                        FolderIcon { selected: directoryDelegate.highlighted }
+                                                        Label { Layout.fillWidth: true; text: directoryDelegate.fileName; textFormat: Text.PlainText; elide: Text.ElideRight; color: directoryDelegate.highlighted ? root.selectionText : root.fg }
+                                                        FolderCount { visible: directoryDelegate.highlighted }
+                                                        PinMark {
+                                                            visible: (desktop.pinnedFolders, desktop.isPinned(directoryDelegate.filePath))
+                                                            selected: directoryDelegate.highlighted
+                                                        }
+                                                    }
+                                                    palette.windowText: highlighted ? root.selectionText : root.fg
+                                                    onExpandedChanged: if (expanded) Qt.callLater(() => { if (expanded) desktop.expandDirectory(filePath) })
+                                                    Accessible.name: fileName
+                                                    Accessible.description: filePath
+                                                    // The chevron unfolds (TreeViewDelegate handles it); the name opens, and a folder
+                                                    // whose music is all in folders below also unfolds them.
+                                                    function open() {
+                                                        desktop.openFolder(filePath, 0)
+                                                        if (!expanded && desktop.folderNeedsExpand(filePath)) directoryTree.expand(row)
+                                                    }
+                                                    onPressed: held = false
+                                                    onClicked: {
+                                                        directoryTree.selectionModel.setCurrentIndex(directoryTree.index(row, 0), ItemSelectionModel.NoUpdate)
+                                                        directoryTree.forceActiveFocus()
+                                                        if (held) held = false
+                                                        else open()
+                                                    }
+                                                    onPressAndHold: { held = true; root.folderMenuAt(filePath) }
+                                                    TapHandler { acceptedButtons: Qt.RightButton; onTapped: root.folderMenuAt(directoryDelegate.filePath) }
+                                                }
+                                                function currentDelegate() { return currentRow >= 0 ? itemAtCell(Qt.point(0, currentRow)) : null }
+                                                Keys.onReturnPressed: if (currentDelegate()) currentDelegate().open()
+                                                Keys.onEnterPressed: if (currentDelegate()) currentDelegate().open()
+                                                Keys.onMenuPressed: if (currentDelegate()) root.folderMenuAt(currentDelegate().filePath)
+                                            }
+                                        }
+                                    }
+                                    AddButton { buttonName: "addFolder"; text: qsTr("Add folder…"); onAdd: folderDialog.open() }
+                                }
+                            }
+                            DropArea {
+                                id: folderDrop; objectName: "folderDrop"
+                                anchors.fill: parent; keys: ["text/uri-list"]
+                                onDropped: drop => {
+                                    for (let url of drop.urls) desktop.addFolder(url.toString())
+                                    drop.acceptProposedAction()
+                                }
+                                Rectangle { anchors.fill: parent; color: "transparent"; border.color: root.accent; border.width: 2; visible: folderDrop.containsDrag }
+                            }
+                        }
                     }
                 }
-                ColumnLayout {
-                    SplitView.minimumHeight: 120
-                    spacing: 2
-                    SectionHeader { text: qsTr("Folders") }
-                    ScrollView {
-                        id: folderScroll
-                        Layout.fillWidth: true; Layout.fillHeight: true
-                        contentWidth: availableWidth
-                        Column {
-                            width: folderScroll.availableWidth
-                            Repeater {
-                                model: desktop.directoryRoots
-                                Column {
-                                    id: folderRoot
-                                    required property var modelData
-                                    width: parent.width
-                                    property bool expanded: false
-                                    readonly property bool expandable: {
-                                        // Refresh after Qt's background directory enumeration.
-                                        const revision = desktop.directoryModel.revision
-                                        return desktop.directoryHasChildren(modelData.path)
-                                    }
-                                    onExpandableChanged: if (!expandable) expanded = false
-                                    ItemDelegate {
-                                        id: rootItem
-                                        objectName: "root-" + folderRoot.modelData.kind
-                                        width: parent.width; height: 28
-                                        padding: 0; leftPadding: 6; rightPadding: 6
-                                        highlighted: root.folderView && desktop.folder.path === folderRoot.modelData.path
-                                        background: Rectangle { color: rootItem.highlighted ? root.selection : rootItem.hovered ? root.hoverSurface : "transparent" }
-                                        contentItem: RowLayout {
-                                            spacing: 4
-                                            FlatButton {
-                                                objectName: "expand-" + folderRoot.modelData.kind
-                                                text: folderRoot.expanded ? qsTr("Collapse") : qsTr("Expand")
-                                                icon.source: "icons/chevron.svg"; icon.width: 10; icon.height: 10
-                                                icon.color: rootItem.highlighted ? root.selectionText : root.muted
-                                                rotation: folderRoot.expanded ? 90 : 0
-                                                enabled: folderRoot.expandable
-                                                opacity: enabled ? 1 : 0
-                                                implicitWidth: 20; implicitHeight: 20; padding: 0
-                                                ToolTip.visible: false
-                                                Accessible.ignored: !enabled
-                                                Accessible.name: text + " " + folderRoot.modelData.path
-                                                onClicked: folderRoot.expanded = !folderRoot.expanded
-                                            }
-                                            FolderIcon { selected: rootItem.highlighted }
-                                            Label {
-                                                Layout.fillWidth: true
-                                                text: folderRoot.modelData.kind === "downloads" ? qsTr("Downloads")
-                                                    : folderRoot.modelData.kind === "music" ? qsTr("Music")
-                                                    : folderRoot.modelData.path.split(/[\\/]/).filter(p => p).pop() || folderRoot.modelData.path
-                                                textFormat: Text.PlainText; elide: Text.ElideMiddle
-                                                color: rootItem.highlighted ? root.selectionText : root.fg
-                                            }
-                                        }
-                                        ToolTip.visible: hovered; ToolTip.text: folderRoot.modelData.path
-                                        // A folder whose music is all in subfolders opens in the tree, not as an empty list.
-                                        onClicked: if (folderRoot.expandable && desktop.folderNeedsExpand(folderRoot.modelData.path)) folderRoot.expanded = !folderRoot.expanded
-                                                   else desktop.openFolder(folderRoot.modelData.path, 0)
-                                        TapHandler { acceptedButtons: Qt.RightButton; onTapped: root.folderMenuAt(folderRoot.modelData.path) }
-                                    }
-                                    TreeView {
-                                        id: directoryTree
-                                        objectName: "directoryTree-" + folderRoot.modelData.kind
-                                        width: parent.width
-                                        height: visible ? Math.min(contentHeight, Math.max(96, folderScroll.availableHeight - 64)) : 0
-                                        visible: folderRoot.expanded && folderRoot.expandable
-                                        clip: true; model: desktop.directoryModel
-                                        rootIndex: desktop.directoryIndex(folderRoot.modelData.path)
-                                        editTriggers: TableView.NoEditTriggers
-                                        selectionBehavior: TableView.SelectRows
-                                        selectionModel: ItemSelectionModel { model: desktop.directoryModel }
-                                        columnWidthProvider: column => column === 0 ? width : 0
-                                        delegate: TreeViewDelegate {
-                                            id: directoryDelegate
-                                            objectName: "directory-" + fileName
-                                            required property string fileName
-                                            required property string filePath
-                                            implicitWidth: directoryTree.width; implicitHeight: 28
-                                            // Highlight follows the loaded view, not the tree's own selection,
-                                            // so opening a playlist clears the folder highlight.
-                                            highlighted: root.folderView && desktop.samePath(desktop.folder.path, filePath)
-                                            // Children sit one step right of the root row's chevron and share its icon.
-                                            leftMargin: 24; indentation: 16; spacing: 4
-                                            indicator: Item {
-                                                x: directoryDelegate.leftMargin + directoryDelegate.depth * directoryDelegate.indentation
-                                                y: (directoryDelegate.height - height) / 2
-                                                implicitWidth: 16; implicitHeight: 28
-                                                ColorImage {
-                                                    anchors.centerIn: parent; width: 10; height: 10; sourceSize: Qt.size(10, 10)
-                                                    source: "icons/chevron.svg"; rotation: directoryDelegate.expanded ? 90 : 0
-                                                    color: directoryDelegate.highlighted ? root.selectionText : root.muted
-                                                }
-                                            }
-                                            background: Rectangle { color: directoryDelegate.highlighted ? root.selection : directoryDelegate.hovered ? root.hoverSurface : root.bg }
-                                            contentItem: RowLayout {
-                                                spacing: 6
-                                                FolderIcon { selected: directoryDelegate.highlighted }
-                                                Label { Layout.fillWidth: true; text: directoryDelegate.fileName; textFormat: Text.PlainText; elide: Text.ElideRight; color: directoryDelegate.highlighted ? root.selectionText : root.fg }
-                                            }
-                                            palette.windowText: highlighted ? root.selectionText : root.fg
-                                            onExpandedChanged: if (expanded) Qt.callLater(() => { if (expanded) desktop.expandDirectory(filePath) })
-                                            Accessible.name: fileName
-                                            onClicked: if (desktop.folderNeedsExpand(filePath)) directoryTree.toggleExpanded(row)
-                                                       else desktop.openFolder(filePath, 0)
-                                            TapHandler { acceptedButtons: Qt.RightButton; onTapped: root.folderMenuAt(directoryDelegate.filePath) }
-                                        }
-                                        Keys.onReturnPressed: if (currentRow >= 0) desktop.openDirectory(index(currentRow, 0))
-                                        ScrollBar.vertical: ScrollBar {}
-                                    }
-                                }
-                            }
-                            AddButton { buttonName: "addFolder"; text: qsTr("Add folder…"); onAdd: folderDialog.open() }
-                        }
-                    }
-                    RowLayout {
-                        visible: root.folderView && desktop.folder.total > 250
-                        Layout.leftMargin: 6; Layout.rightMargin: 6; spacing: 0
-                        FlatButton { icon.source: "icons/chevron.svg"; icon.width: 10; icon.height: 10; icon.color: enabled ? root.muted : root.disabledFg; rotation: 180; implicitWidth: 24; implicitHeight: 24; text: qsTr("Previous page"); enabled: desktop.folder.offset > 0; onClicked: desktop.openFolder(desktop.folder.path, Math.max(0, desktop.folder.offset-250)) }
-                        Label { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; color: root.muted; font.pixelSize: 12; text: (desktop.folder.offset + 1) + "–" + Math.min(desktop.folder.offset + 250, desktop.folder.total) + " / " + desktop.folder.total }
-                        FlatButton { icon.source: "icons/chevron.svg"; icon.width: 10; icon.height: 10; icon.color: enabled ? root.muted : root.disabledFg; implicitWidth: 24; implicitHeight: 24; text: qsTr("Next page"); enabled: desktop.folder.offset + 250 < desktop.folder.total; onClicked: desktop.openFolder(desktop.folder.path, desktop.folder.offset+250) }
-                    }
+                RowLayout {
+                    visible: root.folderView && desktop.folder.total > 250
+                    Layout.leftMargin: 6; Layout.rightMargin: 6; spacing: 0
+                    FlatButton { icon.source: "icons/chevron.svg"; icon.width: 10; icon.height: 10; icon.color: enabled ? root.muted : root.disabledFg; rotation: 180; implicitWidth: 24; implicitHeight: 24; text: qsTr("Previous page"); enabled: desktop.folder.offset > 0; onClicked: desktop.openFolder(desktop.folder.path, Math.max(0, desktop.folder.offset-250)) }
+                    Label { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; color: root.muted; font.pixelSize: 12; text: (desktop.folder.offset + 1) + "–" + Math.min(desktop.folder.offset + 250, desktop.folder.total) + " / " + desktop.folder.total }
+                    FlatButton { icon.source: "icons/chevron.svg"; icon.width: 10; icon.height: 10; icon.color: enabled ? root.muted : root.disabledFg; implicitWidth: 24; implicitHeight: 24; text: qsTr("Next page"); enabled: desktop.folder.offset + 250 < desktop.folder.total; onClicked: desktop.openFolder(desktop.folder.path, desktop.folder.offset+250) }
                 }
             }
             ColumnLayout {
@@ -1879,20 +2083,29 @@ ApplicationWindow {
                             preventStealing: true
                             property int dragRow: -1
                             // A plain press on a selected row waits for the release: it may be a slow second
-                            // click that renames, or the start of a drag. (A drag of the selection onto the
-                            // sidebar would start from here too.)
+                            // click that renames, or, in local views, the start of a drag of the selection onto
+                            // a local playlist in the sidebar. A drag from an unselected row selects rows instead.
                             property bool deferred: false
+                            property point pressedAt
                             onPressed: function(mouse) {
                                 // Taking focus first saves an open in-place edit (its editor saves on focus loss)
                                 // before the selection or the menu change anything.
                                 table.forceActiveFocus()
                                 dragRow = row
+                                pressedAt = Qt.point(mouse.x, mouse.y)
                                 let toggle = (mouse.modifiers & Qt.ControlModifier) !== 0, extend = (mouse.modifiers & Qt.ShiftModifier) !== 0
                                 deferred = mouse.button === Qt.LeftButton && chosen && !toggle && !extend
                                 if (mouse.button === Qt.RightButton ? !chosen : !deferred) desktop.model.select(row, toggle, extend)
                             }
                             onPositionChanged: function(mouse) {
                                 if (!(mouse.buttons & Qt.LeftButton) || dragRow < 0) return
+                                if (trackDrag.Drag.active) { trackDrag.follow(mapToItem(null, mouse.x, mouse.y)); return }
+                                if (deferred && desktop.view.local
+                                        && Math.hypot(mouse.x - pressedAt.x, mouse.y - pressedAt.y) > Application.styleHints.startDragDistance) {
+                                    deferred = false
+                                    trackDrag.start(mapToItem(null, mouse.x, mouse.y))
+                                    return
+                                }
                                 // The row under the pointer; past the top or bottom edge the view scrolls a row per move.
                                 let y = mapToItem(table.contentItem, mouse.x, mouse.y).y
                                 let top = table.contentY, bottom = table.contentY + table.height - 1
@@ -1908,13 +2121,14 @@ ApplicationWindow {
                             }
                             onReleased: {
                                 dragRow = -1
+                                if (trackDrag.Drag.active) { trackDrag.Drag.drop(); return }
                                 if (!deferred) return
                                 deferred = false
                                 let only = desktop.model.counts.selected === 1
                                 desktop.model.select(row, false, false)
                                 if (only && cell.editable) { slowClick.key = cell.trackKey; slowClick.column = cell.column; slowClick.restart() }
                             }
-                            onCanceled: { dragRow = -1; deferred = false }
+                            onCanceled: { dragRow = -1; deferred = false; trackDrag.Drag.cancel() }
                             onClicked: function(mouse) { if (mouse.button === Qt.RightButton) contextMenu.popup() }
                             // A double click always plays; renaming is F2 or a slow second click on a selected name.
                             onDoubleClicked: function(mouse) {
@@ -2081,22 +2295,93 @@ ApplicationWindow {
         }
     }
     FolderDialog { id: folderDialog; title: qsTr("Add folder"); onAccepted: desktop.addFolder(selectedFolder.toString()) }
-    function folderMenuAt(path) { folderMenu.path = path; folderMenu.popup() }
+    // Follows the pointer while selected tracks are dragged from the table.
+    Rectangle {
+        id: trackDrag; objectName: "trackDrag"
+        property point at
+        function follow(scenePoint) { at = root.contentItem.mapFromItem(null, scenePoint) }
+        function start(scenePoint) { follow(scenePoint); Drag.active = true }
+        x: at.x + 12; y: at.y + 12; z: 100
+        visible: Drag.active
+        width: dragLabel.implicitWidth + 16; height: 24; radius: 4
+        color: root.panel; border.color: root.accent
+        Drag.keys: [root.trackDragKey]
+        Drag.hotSpot: Qt.point(-12, -12)
+        Label { id: dragLabel; anchors.centerIn: parent; text: desktop.model.counts.selected === 1 ? qsTr("1 track") : qsTr("%1 tracks").arg(desktop.model.counts.selected); color: root.fg; font.pixelSize: 12 }
+    }
+    // The sidebar menus act on the row they were opened on, not on the view that is loaded.
+    function folderMenuAt(path) { folderMenu.path = path; folderMenu.pinned = desktop.isPinned(path); folderMenu.popup() }
     AppMenu {
         id: folderMenu
         objectName: "folderMenu"
         property string path
+        property bool pinned: false
         AppMenuItem { text: qsTr("Open"); onTriggered: desktop.openFolder(folderMenu.path, 0) }
+        AppMenuItem { text: qsTr("Analyze folder"); enabled: !desktop.busy; onTriggered: desktop.folderAction("analyze_folder", folderMenu.path) }
+        AppMenuItem {
+            text: qsTr("Rescan")
+            onTriggered: {
+                desktop.rescanFolder(folderMenu.path)
+                if (root.folderView && desktop.samePath(desktop.folder.path, folderMenu.path)) desktop.openFolder(desktop.folder.path, desktop.folder.offset)
+            }
+        }
         AppSeparator {}
-        // Brought back from Settings → Preferences, Hidden folders.
-        AppMenuItem { text: qsTr("Hide folder"); onTriggered: desktop.hideFolder(folderMenu.path) }
+        AppMenuItem { text: qsTr("Show in file manager"); onTriggered: desktop.showFolder(folderMenu.path) }
+        AppMenuItem { text: qsTr("Copy path"); onTriggered: desktop.copyText(folderMenu.path) }
+        AppSeparator {}
+        // A pinned folder is a root of its own; unpinning takes it off the list.
+        AppMenuItem { text: qsTr("Pin folder"); visible: !folderMenu.pinned; onTriggered: desktop.folderAction("pin", folderMenu.path) }
+        AppMenuItem { text: qsTr("Unpin folder"); visible: folderMenu.pinned; onTriggered: desktop.folderAction("unpin", folderMenu.path) }
+        // Brought back from the Folders menu, Hidden folders.
+        AppMenuItem { text: qsTr("Hide folder"); onTriggered: desktop.folderAction("hide_folder", folderMenu.path) }
+    }
+    function playlistMenuAt(source) {
+        playlistMenu.source = source
+        playlistMenu.local = source.startsWith("local-playlist:")
+        playlistMenu.pending = desktop.playlists.some(p => p.source === source && p.pending)
+        playlistMenu.popup()
     }
     AppMenu {
         id: playlistMenu
+        objectName: "playlistMenu"
         property string source
-        AppMenuItem { text: qsTr("Open"); onTriggered: desktop.load(playlistMenu.source) }
+        property bool local: false
+        property bool pending: false
+        AppMenuItem { text: qsTr("Open"); enabled: !playlistMenu.pending; onTriggered: desktop.load(playlistMenu.source) }
+        // SoundCloud playlists import again from SoundCloud; local ones have nothing to fetch.
+        AppMenuItem { text: qsTr("Refresh"); visible: !playlistMenu.local; enabled: !desktop.busy && !playlistMenu.pending; onTriggered: desktop.playlistAction("refresh", playlistMenu.source) }
+        AppMenuItem { text: qsTr("Rename…"); enabled: !playlistMenu.pending; onTriggered: desktop.playlistAction("rename_playlist", playlistMenu.source) }
+        AppMenuItem { text: qsTr("Duplicate…"); visible: playlistMenu.local; onTriggered: desktop.playlistAction("duplicate_playlist", playlistMenu.source) }
         AppSeparator {}
-        AppMenuItem { text: qsTr("Delete playlist…"); keys: "Shift+X"; onTriggered: desktop.deletePlaylist(playlistMenu.source) }
+        AppMenuItem { text: qsTr("Delete playlist…"); enabled: !playlistMenu.pending; onTriggered: desktop.deletePlaylist(playlistMenu.source) }
+    }
+    AppMenu {
+        id: playlistsSectionMenu
+        AppMenuItem { text: qsTr("Add playlist…"); onTriggered: desktop.action("dig") }
+        AppMenuItem { text: qsTr("Import profile playlists…"); onTriggered: desktop.action("profile") }
+    }
+    AppMenu {
+        id: foldersSectionMenu
+        objectName: "foldersSectionMenu"
+        AppMenuItem { text: qsTr("Add folder…"); onTriggered: folderDialog.open() }
+        AppSeparator {}
+        // Hidden folders are listed here; choosing one shows it in the tree again.
+        AppMenu {
+            id: hiddenFoldersMenu
+            objectName: "hiddenFoldersMenu"
+            title: qsTr("Hidden folders")
+            AppMenuItem { text: qsTr("None"); enabled: false; visible: desktop.hiddenFolders.length === 0 }
+            Instantiator {
+                model: desktop.hiddenFolders
+                delegate: AppMenuItem {
+                    required property string modelData
+                    text: modelData
+                    onTriggered: desktop.folderAction("unhide_folder", modelData)
+                }
+                onObjectAdded: (index, object) => hiddenFoldersMenu.insertItem(index + 1, object)
+                onObjectRemoved: (index, object) => hiddenFoldersMenu.removeItem(object)
+            }
+        }
     }
     TextMetrics { id: fitMetrics }
     TextMetrics { id: badgeMetrics; font.pixelSize: 12 }

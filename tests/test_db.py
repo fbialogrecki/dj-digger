@@ -127,6 +127,7 @@ def test_crate_headers_come_without_the_tracks(tmp_path: Path) -> None:
             "title": "One",
             "updated": "2026-01-01T00:00:00+00:00",
             "partial": True,
+            "count": 3,
         }
     ]
 

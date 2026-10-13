@@ -34,6 +34,8 @@ class CrateRecord:
     partial: bool = False
     preserve_order: bool = False
     provider_id: int | None = None
+    # The user renamed it: a refresh keeps this title instead of the provider's.
+    renamed: bool = False
 
     @property
     def active_tracks(self) -> list[Track]:
@@ -78,6 +80,7 @@ class CrateRecord:
             partial=bool(data.get("partial")),
             preserve_order=bool(data.get("preserve_order")),
             provider_id=data.get("provider_id"),
+            renamed=bool(data.get("renamed")),
         )
 
 
@@ -88,5 +91,7 @@ class CrateHeader(NamedTuple):
     title: str
     updated: str
     partial: bool = False
+    # Active tracks, counted by SQLite without loading the record.
+    count: int = 0
 
 

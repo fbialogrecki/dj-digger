@@ -3,6 +3,7 @@ import asyncio
 import contextlib
 import json
 import logging
+import os
 import stat
 import threading
 import time
@@ -178,7 +179,7 @@ class Backend:
 
     async def sidebar(self):
         headers = await self.io(self.services.library.headers)
-        self.saved_playlists = [dict(title=h.title, source=h.source) for h in headers]
+        self.saved_playlists = [dict(title=h.title, source=h.source, count=h.count) for h in headers]
         self.send_sidebar()
 
     def send_sidebar(self):
@@ -361,6 +362,9 @@ class Backend:
             self.send_sidebar()
 
     async def action_refresh(self, values):
+        # The sidebar refreshes the playlist it was asked about, shown first.
+        if (source := values.get('source')) and not (self.record and self.record.source == source):
+            await self.action_load({'source': source})
         if self.record and not self.record.source.startswith('local-playlist:'):
             await self.action_dig({'target': self.record.source})
         elif self.folder:
@@ -728,6 +732,45 @@ class Backend:
             raise ValueError('Ambiguous playlist name')
         source = matches[0].source if matches else 'local-playlist:' + uuid4().hex
         await self.io(self.services.state.db.save_local_playlist, source, title, [t.local_id for t in tracks])
+        await self.sidebar()
+
+    async def action_add_to_playlist(self, values):
+        """Tracks dropped on a local playlist in the sidebar join it at the end."""
+        source = values['source']
+        if not source.startswith('local-playlist:'):
+            raise ValueError('Tracks can only be added to a local playlist')
+        ids = [r.track.local_id for r in self.targets(values) if r.track.local_id]
+        headers = await self.io(self.services.library.headers)
+        if not ids or not any(h.source == source for h in headers):
+            return
+        await self.io(self.services.state.db.save_local_playlist, source, '', ids)
+        await self.sidebar()
+        if self.record and self.record.source == source:
+            await self.action_load({'source': source})
+
+    async def action_rename_playlist(self, values):
+        source = values['source']
+        headers = await self.io(self.services.library.headers)
+        current = next((h.title for h in headers if h.source == source), None)
+        if current is None:
+            return
+        answer = await self.form('Rename playlist', '', [field('title', 'Playlist name', current)], required('title'), ok='Rename')
+        await self.io(self.services.state.db.rename_crate, source, answer['title'].strip())
+        await self.sidebar()
+        if self.record and self.record.source == source:
+            await self.action_load({'source': source})
+
+    async def action_duplicate_playlist(self, values):
+        """A copy of a local playlist under a new name; the files are shared, not copied."""
+        source = values['source']
+        if not source.startswith('local-playlist:'):
+            raise ValueError('Only local playlists can be duplicated')
+        db = self.services.state.db
+        media = await self.io(db.local_playlist_media, source)
+        headers = await self.io(self.services.library.headers)
+        title = next((h.title for h in headers if h.source == source), '')
+        answer = await self.form('Duplicate playlist', '', [field('title', 'Playlist name', title)], required('title'), ok='Duplicate')
+        await self.io(db.save_local_playlist, 'local-playlist:' + uuid4().hex, answer['title'].strip(), [m['id'] for m in media])
         await self.sidebar()
 
     async def action_remove(self, values):
@@ -1104,9 +1147,10 @@ class Backend:
         await self.ask('Diagnostics', str(path or ''), [field('log', '', text, 'log')], ok='Close')
 
     async def action_analyze_folder(self, values):
-        if self.folder is None:
+        # The sidebar names the folder it was asked about; the menu bar means the open one.
+        folder = Path(values['path']) if values.get('path') else self.folder
+        if folder is None:
             return
-        folder = self.folder
         paths = await self.io(self.local.selection, folder)
         await self.analyze_paths(paths)
 
@@ -1162,8 +1206,22 @@ class Backend:
         await self.sidebar()
 
     async def action_pin(self, values):
-        if self.folder:
-            await self.pin(self.folder)
+        folder = values.get('path') or self.folder
+        if folder:
+            await self.pin(Path(folder).expanduser().absolute())
+
+    async def action_unpin(self, values):
+        await self.forget_folder('pinned_directories', values['path'])
+
+    async def action_unhide_folder(self, values):
+        await self.forget_folder('hidden_directories', values['path'])
+
+    async def forget_folder(self, preference, path):
+        """Take a folder off a saved folder list, however its path was spelled there."""
+        same = lambda value: os.path.normcase(os.path.normpath(os.path.expanduser(value)))  # noqa: E731
+        kept = [folder for folder in getattr(self.services.config, preference) if same(folder) != same(path)]
+        await self.io(self.services.accounts.save_preferences, {preference: kept})
+        await self.sidebar()
 
     async def action_add_folder(self, values):
         path = await self.io(Path(values['path']).expanduser().resolve, strict=True)

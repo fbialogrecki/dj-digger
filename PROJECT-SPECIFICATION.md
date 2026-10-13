@@ -587,18 +587,11 @@ two-column grid; track labels and reasons are rendered as literal text.
 
 ### 3.7 Local library, analysis and audio export
 
-The sidebar has playlists above a lazy directory explorer, initially 50/50.
-Both section headings are centered and use the same muted text color.
-Saved splits are 30/70, 50/50 and 70/30; `ctrl+r` switches visible sections,
-including on short terminals. Pins, configured directories, downloads and mounted
-volumes form the roots. `ctrl+f` opens any explicit directory; `ctrl+n` cycles
-250-file pages. The explorer uses one-cell scrollbars, with the horizontal
-thumb drawn as a thin underline retaining native click/drag behavior, and a one-line
-“+ Open folder” button matching “+ Add playlist”. Shortcut hints and file counters
-are omitted; a compact “Next page” button appears only for multi-page folders.
+The desktop sidebar (§3.8) lists playlists above a lazy folder explorer in one
+scrolling panel. A folder opens as 250-file pages; previous/next page controls
+appear under the sidebar only for folders above one page.
 Names load before metadata; no audio analysis or content hashing
-runs just because a directory is opened. At most 1000 immediate subdirectories
-are shown per expanded tree node; additional paths can be entered directly.
+runs just because a directory is opened.
 Local rows do not require a `LinkRecord`. `ctrl+l` creates/appends a local playlist.
 A local track's name is its file name on disk without the extension, never a tag
 title. Its artist is, in order, the one set by hand (`manual_json` `artist`), the
@@ -898,14 +891,43 @@ shown only once. Each root has a native Qt `TreeView` backed by the shared `gui/
 through `MusicFolders`, a filter proxy that lists only folders holding audio (the formats and partial-file rule of the folder page) in them or below them.
 Two worker threads check each folder breadth-first, skipping dot entries and symbolic links and giving up as "no music" after 20000 entries;
 a folder shows once its check finds audio, folders without music of their own are checked again every 30 s, and roots and the folders above them always show.
-The check tells a folder holding audio itself from one whose audio is only in folders below it; clicking a root or tree row of the second kind
-expands or collapses it in the tree instead of opening an empty list (an unchecked folder opens as before). Right-clicking a root or tree row
-opens a menu with Open and Hide folder; a hidden folder, root or not, is saved in `hidden_directories`, leaves the tree with everything
-below it, and comes back by removing it from Settings → Preferences → Hidden folders (one per line). Both sidebar sections, Playlists and Folders, have a centred uppercase header; right under the last entry of each list sits a full-width, rectangular, borderless row with a centred muted “+” (Add playlist, Add folder…, named in its tooltip and accessible name) that lights only on hover and scrolls with the list. Root rows and tree rows share one 28 px row style: a small chevron that turns when expanded, a folder icon, 16 px indentation per level, a hover surface and the accent selection background; rows without visible subfolders show no chevron. Native hidden directories
+The check tells a folder holding audio itself from one whose audio is only in folders below it. A row's chevron folds and unfolds
+its subfolders; clicking its name (or Enter on the focused row) opens the folder, and a folder of the second kind also unfolds,
+never folds, its subfolders. Right-clicking a root or tree row, the Menu key, or a press held on a touch screen (which then does
+not open the folder) opens a menu acting on that folder, whatever view is loaded: Open, Analyze folder (its immediate audio files,
+§3.7), Rescan (checks it and the folders below it for music again, each keeping its place until its answer arrives, and reloads
+it when it is the open folder), Show in file manager (§8.3), Copy path, Pin folder or, for a pinned folder, Unpin folder (which
+takes a pinned root off the list), and Hide folder. A hidden folder, root or not, is saved in `hidden_directories` and leaves the
+tree with everything below it; the Folders section menu lists the hidden folders under Hidden folders, and choosing one shows it
+again (Settings → Preferences → Hidden folders still edits the list, one per line). Folders dropped on the Folders section from a
+file manager are added as Add folder… adds them.
+
+The sidebar is one scrolling panel: a filter field, then the Playlists and Folders sections, each under a centred uppercase
+header with a chevron. Clicking a header folds its section away or back (persisted, see below); the header's “⋯” button or a right
+click opens the section menu: Add playlist… and Import profile playlists… for Playlists, Add folder… and Hidden folders for
+Folders. The filter (any case) keeps playlists whose title holds it, and roots and tree rows whose name holds it or that hold such
+a folder among those the tree has already read; it never reads more of the disk. Expanded trees are as tall as their rows, so only
+the panel scrolls. Right under the last entry of each list sits a full-width, rectangular, borderless row with a centred muted “+”
+(Add playlist, Add folder…, named in its tooltip and accessible name) that lights only on hover.
+
+Playlist rows show an SVG icon with an accessible name (a list with a note for local playlists, a cloud for SoundCloud ones), the
+title and the number of active tracks (§7.2); a playlist still importing shows a spinner and no count. Arrows move through the
+list and Enter opens the current playlist, as a click does. The playlist menu acts on that playlist: Open, Refresh (SoundCloud
+playlists: shows the playlist and imports it again), Rename… (a SoundCloud playlist keeps the new title over SoundCloud's on
+refresh, §7.3), Duplicate… (local playlists: a new local playlist with the same files) and Delete playlist…. In local views,
+selected tracks dragged from the table onto a local playlist are added at its end (the drag starts on a selected row; one started on an unselected row selects rows
+instead); SoundCloud playlists accept no drops.
+
+Root rows and tree rows share one 28 px row style: a 20 px chevron slot (empty, but keeping its place, without visible
+subfolders, so names line up), a folder icon, 16 px indentation per level, a hover surface and the accent selection background.
+Root rows take keyboard focus (Right unfolds, Left folds, Up and Down move on); tree rows use the tree's own arrow keys. Pinned
+folders carry a pin icon, and the row of the loaded folder shows that folder's file count. Tree rows are named after their full
+path (`directory-<path>`), which is also their accessible description. The splitter between the sidebar and the tracks is a thin
+line, lit on hover or drag; a double click restores the 220 px default width. Native hidden directories
 and dot-prefixed directories are excluded, including on Windows. Qt background
 enumeration checks visible subdirectories before showing an expansion arrow;
 folders with only files or hidden subfolders remain selectable leaves.
-Large expanded roots have a bounded, scrollable tree viewport. Selecting a folder opens its tracks in the paged table, and the page range appears only for folders above one page. Root and tree rows highlight only the folder whose tracks are loaded (paths compared after normalization), so opening a playlist clears the folder highlight. It provides
+Selecting a folder opens its tracks in the paged table, and the page range appears only for folders above one page. Root and tree rows highlight only the folder whose tracks are loaded (paths compared after normalization), so opening a playlist clears the folder highlight. It provides
 search, store filtering with per-store counts derived from the loaded view,
 hide-handled filtering, stable-key selection, numeric sorting with a header
 arrow (a click sorts ascending, a second descending, a third returns to source order; ties fall back to artist, then title, ascending; the sort persists across restarts), resizable columns, keyboard navigation and native clipboard copying. The title column is headed Track name and absorbs the remaining width up to the pane's right edge (the scroll bar floats over it) so status and store columns stay on screen at the default window size, unless the user has dragged or fitted it. Default widths are status 110, artist 150, genre 85, BPM and key 64, year 58, label 95, time 70 and stores 140; status, BPM, key, year and time never go below 104, 56, 56, 58 and 70 px, whatever width was saved or dragged. Dragging a header divider resizes that column and the width provider honours the explicit width. Double-clicking a divider fits the column to its widest visible value or header; the divider strip does not sort. Right-clicking a header opens a column menu with Fit column to contents, Fit all columns, Reset column widths, Reset column order and a checkable entry per column; the title column cannot be hidden and BPM/key stay unavailable outside local views. Two more columns, Format (the file's extension plus its bitrate once probed, e.g. `MP3 320 kbps`) and Comment (the file's comment tag on one line), exist for local views only and are hidden by default, also for settings saved before they existed; date added, last played, rating and energy are not shown because no per-track value for them is stored. Dragging a header moves the column; delegates, widths and sorting keep their logical column, and the visual order is restored at startup. Rows are never reordered: every model reset drops the row mapping that Qt 6.11 freezes when a column moves, which otherwise aborted the app when a larger view loaded, while the column order stays. Status cells read `New`, a muted `Played`, `○ Opened`, `✓ Got` and `✗ Skipped`,
@@ -977,7 +999,7 @@ selected rows pair their foreground with the selected background in both themes.
 Playlist and pinned-folder selection explicitly pair the accent background
 with selection text in both themes. At the 760×520 minimum window size, sidebar width is constrained to leave room for transport controls, volume is flexible, and the selection bar keeps to one icon-only row. The track table retains horizontal
 scrolling for columns that do not fit.
-Window dimensions, column widths, hidden columns, column order, sidebar width and visibility, language, theme, colour pair (`colors`), key notation, the animation switch, the table sort (`sortColumn`, `sortReverse`), row density (`compactRows`) and the recent playlists and folders (`recent`: kind and target only) persist privately in `config_dir()/gui.json`; unknown keys (including the removed pulse timing) are dropped when saving and values are validated when loading. The playback level is a shared `volume` field in the
+Window dimensions, column widths, hidden columns, column order, sidebar width, visibility and folded sections (`sidebarCollapsed`), language, theme, colour pair (`colors`), key notation, the animation switch, the table sort (`sortColumn`, `sortReverse`), row density (`compactRows`) and the recent playlists and folders (`recent`: kind and target only) persist privately in `config_dir()/gui.json`; unknown keys (including the removed pulse timing) are dropped when saving and values are validated when loading. The playback level is a shared `volume` field in the
 common configuration: the runtime applies it when the player is created and
 saves it on shutdown, so the desktop starts at the level last set. Existing data, credentials and configuration paths stay
 unchanged on every platform.
@@ -1369,8 +1391,12 @@ The default database is `digger.db`. `schema.open_database()` recognizes or crea
 - `track_local_files(key PRIMARY KEY, path)`;
 - `crates(source PRIMARY KEY, title, updated, record_json)`.
 
-`list_crate_headers()` returns source, title, updated, and the `partial` flag
-(through `json_extract`) so the sidebar never deserializes tracks;
+`list_crate_headers()` returns source, title, updated, the `partial` flag
+(through `json_extract`) and `count`, the active tracks (a local playlist's items, or
+the stored tracks less the removed keys through `json_array_length`; a removed key
+no longer among the tracks still counts against them), so the sidebar never
+deserializes tracks. `rename_crate()` sets a title the user chose and marks the record
+`renamed`, so `remember_collection()` keeps it over the provider's title on refresh;
 `upsert_local_files()` writes scanner rows in one transaction.
 `set_track_status()` stamps `updated` itself.
 
@@ -1415,8 +1441,8 @@ explicit backup restore. POSIX private file modes do not promise Windows ACLs.
 ### 7.3 Crate persistence and deletion
 
 `CrateRecord` version 1 stores source, title, complete `Track` values, removed
-keys, newly arrived keys, import/refresh timestamps, and a partial flag inside
-`record_json`. Unknown track fields are ignored when reading, while known fields
+keys, newly arrived keys, import/refresh timestamps, a partial flag and a `renamed`
+flag (the user gave it its title) inside `record_json`. Unknown track fields are ignored when reading, while known fields
 are reconstructed. Stream URLs are not part of `Track` and are not persisted.
 
 The source string is the crate primary key. Full import saves a complete record;
@@ -1504,7 +1530,8 @@ than trusting old category labels.
 ### 8.3 URL-opening contract
 
 Only HTTP and HTTPS URLs with a network location are handed to the operating
-system. Browser configuration is accepted only when it matches a browser value
+system, apart from the sidebar's Show in file manager, which hands it the local
+file URL of a folder from the folder tree. Browser configuration is accepted only when it matches a browser value
 discovered on the current machine; otherwise the system default is used. WSL may
 delegate to `wslview`, `explorer.exe`, or a PowerShell `Start-Process` fallback.
 For PowerShell, the untrusted URL travels in an environment variable rather than

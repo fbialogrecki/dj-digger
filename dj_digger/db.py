@@ -191,7 +191,9 @@ class Database:
                 if arrived:
                     current["new_track_keys"] = arrived
                 current["tracks"] = incoming["tracks"]
-                current["title"] = incoming.get("title") or current["title"]
+                # A title the user gave the playlist survives a refresh.
+                if not current.get("renamed"):
+                    current["title"] = incoming.get("title") or current["title"]
                 current["partial"] = incoming["partial"]
                 if "preserve_order" in incoming:
                     current["preserve_order"] = incoming["preserve_order"]
@@ -299,9 +301,16 @@ class Database:
         """
 
         with self.connection() as conn:
+            # ponytail: removed keys are subtracted without checking each is still among the tracks,
+            # so a refresh that drops a removed track undercounts until it is restored.
             rows = conn.execute(
                 """SELECT source, title, updated,
-                          json_extract(record_json, '$.partial') AS partial
+                          json_extract(record_json, '$.partial') AS partial,
+                          CASE WHEN source LIKE 'local-playlist:%'
+                               THEN (SELECT COUNT(*) FROM local_playlist_items p WHERE p.source = crates.source)
+                               ELSE MAX(0, COALESCE(json_array_length(record_json, '$.tracks'), 0)
+                                           - COALESCE(json_array_length(record_json, '$.removed_track_keys'), 0))
+                          END AS count
                    FROM crates ORDER BY updated DESC"""
             ).fetchall()
         return [
@@ -310,9 +319,21 @@ class Database:
                 "title": row["title"],
                 "updated": row["updated"],
                 "partial": bool(row["partial"]),
+                "count": row["count"],
             }
             for row in rows
         ]
+
+    @owned
+    def rename_crate(self, source: str, title: str) -> bool:
+        """Give a playlist the user's own title, kept over the provider's on refresh."""
+        with self.connection(write=True):
+            record = self.load_crate(source)
+            if record is None:
+                return False
+            record["title"], record["renamed"] = title, True
+            self.save_crate(record)
+            return True
 
     @owned
     def delete_crate(self, source: str) -> None:

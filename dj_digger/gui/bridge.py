@@ -108,6 +108,8 @@ class Bridge(QObject):
     model = Property(QObject, lambda self: self.table, constant=True)
     view = Property('QVariantMap', lambda self: self._view, notify=changed)
     playlists = Property('QVariantList', lambda self: self._sidebar, notify=playlistsChanged)
+    pinnedFolders = Property('QVariantList', lambda self: self._pinned, notify=playlistsChanged)
+    hiddenFolders = Property('QVariantList', lambda self: self._hidden, notify=playlistsChanged)
     level = Property(str, lambda self: self._level, notify=changed)
     directoryModel = Property(QObject, lambda self: self._folders, constant=True)
     directoryRoots = Property('QVariantList', lambda self: self._roots, notify=rootsChanged)
@@ -174,7 +176,8 @@ class Bridge(QObject):
         elif kind == 'sidebar':
             self._sidebar = values['items']
             self._pinned = values.get('pinned', [])
-            self._folders.set_hidden(values.get('hidden', []))
+            self._hidden = values.get('hidden', [])
+            self._folders.set_hidden(self._hidden)
             self._refresh_roots()
             self.playlistsChanged.emit()
         elif kind == 'folder':
@@ -312,18 +315,44 @@ class Bridge(QObject):
         from .directories import NESTED
         return self._folders.music(self.localPath(path)) == NESTED
 
+    @Slot(str, str)
+    def folderAction(self, name, path):
+        """A sidebar folder menu action (pin, unpin, hide_folder, unhide_folder, analyze_folder) on that folder."""
+        self.backend.submit(name, {'path': self.localPath(path)})
+
+    @Slot(str, str)
+    def playlistAction(self, name, source):
+        """A sidebar playlist menu action (refresh, rename_playlist, duplicate_playlist) on that playlist."""
+        self.backend.submit(name, {'source': source})
+
     @Slot(str)
-    def hideFolder(self, path):
-        self.backend.submit('hide_folder', {'path': self.localPath(path)})
+    def addToPlaylist(self, source):
+        """The selected tracks, dragged onto a local playlist in the sidebar."""
+        self.backend.submit('add_to_playlist', dict(source=source, keys=self.table.keys(), generation=self._view['generation']))
+
+    @Slot(str, result=bool)
+    def isPinned(self, path):
+        return any(self.samePath(path, pinned) for pinned in self._pinned)
+
+    @Slot(str)
+    def rescanFolder(self, path):
+        self._folders.rescan(self.localPath(path))
+
+    @Slot(str)
+    def showFolder(self, path):
+        """Open a sidebar folder itself in the file manager."""
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+        QDesktopServices.openUrl(QUrl.fromLocalFile(self.localPath(path)))
+
+    @Slot(QModelIndex, str, result=bool)
+    def folderMatches(self, index, text):
+        """The sidebar filter keeps a folder whose name holds the text, or one holding such a folder among those read so far."""
+        return self._folders.matches(index, text)
 
     @Slot(str)
     def addFolder(self, path):
         self.backend.submit('add_folder', {'path': self.localPath(path)})
-
-    @Slot(QModelIndex)
-    def openDirectory(self, index):
-        if index.isValid() and index.model() is self._folders:
-            self.openFolder(self._folders.path(index), 0)
 
     @Slot('QVariantList', int, result='QVariantList')
     def waveformLevels(self, samples, width):
@@ -424,7 +453,7 @@ class Bridge(QObject):
     def saveSettings(self, values):
         # Only this fixed presentation shape is persisted; no service preferences.
         allowed = {'width', 'height', 'language', 'theme', 'sidebarWidth', 'sidebarVisible', 'columnWidths', 'hiddenColumns', 'columnOrder',
-                   'keyNotation', 'animations', 'colors', 'recent', 'sortColumn', 'sortReverse', 'compactRows'}
+                   'keyNotation', 'animations', 'colors', 'recent', 'sortColumn', 'sortReverse', 'compactRows', 'sidebarCollapsed'}
         self._settings = {k: v for k, v in values.items() if k in allowed}
 
     @Slot()
