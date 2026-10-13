@@ -221,7 +221,7 @@ class Connection:
         self.id = next(listener._ids)
         self.hello: dict | None = None
         self.instance: str | None = None
-        self.last_active = time.monotonic()
+        self.last_active = time.perf_counter()  # orders relays; monotonic ticks 15 ms on Windows
         self.closed = False
         self._listener = listener
         self._raw = raw
@@ -356,7 +356,7 @@ class Connection:
             return
         if not isinstance(frame, dict):
             return
-        self.last_active = time.monotonic()
+        self.last_active = time.perf_counter()
         if "id" in frame:
             with self._lock:
                 entry = self._pending.pop(frame["id"], None) if isinstance(frame["id"], int) else None

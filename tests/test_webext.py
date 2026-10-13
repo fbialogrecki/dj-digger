@@ -245,8 +245,13 @@ def test_events_are_routed_to_the_session_of_the_connection(listener, address):
     while len(listener.connections()) < 2 and time.monotonic() < deadline:
         time.sleep(0.01)
     assert len(listener.connections()) == 2
+    relay = next(c for c in listener.connections() if c.instance == "b")
+    before = relay.last_active
     second.send_bytes(b'{"event":"noop"}')  # make `second` the most recently active
-    time.sleep(0.1)
+    # Wait until the relay has read it: a slow runner can take longer than any fixed sleep.
+    deadline = time.monotonic() + 3
+    while relay.last_active == before and time.monotonic() < deadline:
+        time.sleep(0.01)
     session = listener.session(1)
     other = [c for c in listener.connections() if c is not session.connection][0].session()
     second.send_bytes(json.dumps({"event": "tab.created", "tabId": 5}).encode())
