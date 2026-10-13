@@ -445,6 +445,7 @@ function connect() {
   p.onDisconnect.addListener(() => {
     const e = api.runtime.lastError ?? p.error;
     port = null;
+    setPlayer(null);
     retry(e);
   });
   setStatus({ connected: true });
@@ -454,6 +455,34 @@ function retry(e) {
   setStatus({ connected: false, error: redactMessage(e?.message) });
   setTimeout(connect, Math.min(30000, 1000 * 2 ** failures++));
 }
+
+// ---------------------------------------------------------------- player panel (popup.html)
+
+// The app sends {cmd: "player.state", args} (no id, no reply) when its player changes and on hello. It is
+// kept, checked, in storage.session (djdPlayer; null while the app is gone), where the popup reads it, and
+// never leaves the browser. The popup asks for one of three ops by runtime.sendMessage; only the popup page
+// of this extension is heard (content scripts and the offscreen document are not), and the op goes to the
+// app as {event: "player.command", op}.
+const PLAYER_OPS = ["prev", "toggle", "next"];
+const MAX_ARTWORK = 48 * 1024;
+const ARTWORK = /^data:image\/(?:jpeg|png);base64,[A-Za-z0-9+/]+={0,2}$/;
+const COLOR = /^#[0-9a-f]{6}$/i;
+const cut = (v, n) => (typeof v === "string" ? v.slice(0, n) : "");
+function playerState(a) {
+  a = a && typeof a === "object" ? a : {};
+  const colors = Array.isArray(a.colors) && a.colors.length === 4 && a.colors.every((c) => typeof c === "string" && COLOR.test(c)) ? a.colors : null;
+  return {
+    title: cut(a.title, 300), artist: cut(a.artist, 300), playing: a.playing === true,
+    seed: Number.isInteger(a.seed) && a.seed >= 0 && a.seed < 2 ** 32 ? a.seed : 7,
+    artwork: typeof a.artwork === "string" && a.artwork.length <= MAX_ARTWORK && ARTWORK.test(a.artwork) ? a.artwork : "",
+    colors, dark: a.dark === true,
+  };
+}
+const setPlayer = (s) => api.storage.session.set({ djdPlayer: s }).catch(() => {});
+api.runtime.onMessage.addListener((m, sender) => {
+  if (sender.id !== api.runtime.id || sender.url !== api.runtime.getURL("popup.html")) return;
+  if (PLAYER_OPS.includes(m?.op)) send({ event: "player.command", op: m.op });
+});
 
 // ---------------------------------------------------------------- commands
 
@@ -472,8 +501,10 @@ function onMessage(m) {
   if (m.event === "app-offline") {
     // the relay lost the app: its sessions are over, leave no work window behind
     for (const id of [...windows.keys()]) dropWindow(id);
+    setPlayer(null);
     return;
   }
+  if (m.cmd === "player.state") return setPlayer(playerState(m.args)); // no id, no reply
   if (m.cmd === "cancel") {
     running.get(m.args?.id)?.abort();
     return send({ id: m.id, ok: true, result: null });

@@ -564,3 +564,10 @@ def test_the_label_is_the_picture_cut_to_a_circle_with_its_colours_untouched():
     assert label.pixelColor(32, 32) == QColor(200, 30, 60)
     assert label.pixelColor(1, 1).alpha() == 0, 'outside the circle stays transparent'
     assert label_image(b'not a picture') == ''
+    # The browser panel's cover: a small square JPEG, well under link.MAX_ARTWORK.
+    from dj_digger.gui.artwork import BROWSER_PIXELS
+    from dj_digger.webext.link import MAX_ARTWORK
+    small = label_image(bytes(encoded), BROWSER_PIXELS, circle=False, jpeg=True)
+    assert small.startswith('data:image/jpeg;base64,') and len(small) < MAX_ARTWORK
+    square = QImage.fromData(base64.b64decode(small.split(',', 1)[1]))
+    assert (square.width(), square.height()) == (BROWSER_PIXELS, BROWSER_PIXELS)

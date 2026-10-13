@@ -135,6 +135,9 @@ def test_manifest_permissions_and_entry_points():
         "webRequest", "webNavigation", "storage", "alarms", "offscreen",
     }  # fmt: skip
     assert "externally_connectable" not in MANIFEST
+    assert "web_accessible_resources" not in MANIFEST
+    popup = (EXTENSION / "popup.html").read_text(encoding="utf-8")
+    assert re.findall(r"<script[^>]*>", popup) == ['<script src="popup.js">']  # MV3 CSP: no inline code
     assert "content_scripts" not in MANIFEST
     assert "optional_permissions" not in MANIFEST
     assert MANIFEST["version"] == "1.4.0"
@@ -151,6 +154,8 @@ def test_manifest_permissions_and_entry_points():
         background["service_worker"],
         *background["scripts"],
         MANIFEST["options_ui"]["page"],
+        MANIFEST["action"]["default_popup"],
+        *MANIFEST["action"]["default_icon"].values(),
     ):
         assert (EXTENSION / name).is_file()
 
@@ -201,10 +206,16 @@ def test_no_remote_code_and_one_input_channel(path):
     assert "importScripts(" not in source or path.name == "background.js"
     for forbidden in (
         "onMessageExternal", "onConnectExternal", "externally_connectable",
-        "runtime.onMessage", 'addEventListener("message"',
-        "executeScript({ target, code", "sendMessage(",
+        'addEventListener("message"', "executeScript({ target, code",
     ):  # fmt: skip
         assert forbidden not in source, forbidden
+    # The toolbar panel: popup.js sends {op}, the background's one onMessage hears only popup.html.
+    assert ("runtime.onMessage" in source) == (path.name == "background.js")
+    assert source.count("runtime.onMessage") <= 1
+    assert ("sendMessage(" in source) == (path.name == "popup.js")
+    if path.name == "background.js":
+        assert 'sender.url !== api.runtime.getURL("popup.html")' in source
+        assert "sender.id !== api.runtime.id" in source
     # plan F4b: the offscreen document and the frame content script each open one port to
     # the background, which has the one runtime.onConnect (it admits only those two, see
     # the harness); nothing else listens for or opens a runtime channel.

@@ -545,6 +545,7 @@ ApplicationWindow {
         previewStart = s.previewStart === "drop" || s.previewStart === "30" ? s.previewStart : ""
         spectral = s.spectral !== false
         vinylArtwork = s.vinyl !== false
+        desktop.browserLook(pairColors, dark)
         desktop.language(languageCode)
         table.forceActiveFocus()
     }
@@ -1249,6 +1250,8 @@ ApplicationWindow {
         "indigo-lime": { dark: ["#3556db", "#538705", "#338bff", "#99ff00"], light: ["#4d70ff", "#5d9706", "#3db1ff", "#71bd00"] }
     })
     readonly property var pairColors: colorPairs[colorPair][dark ? "dark" : "light"]
+    // The browser extension's player panel wears the same pair and theme.
+    onPairColorsChanged: desktop.browserLook(pairColors, dark)
     readonly property color waveRestFoot: pairColors[0]
     readonly property color waveRestTop: pairColors[1]
     readonly property color waveNeonFoot: pairColors[2]

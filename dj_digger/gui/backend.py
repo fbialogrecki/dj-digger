@@ -27,6 +27,17 @@ LOGGER = logging.getLogger(__name__)
 RELEASES_URL = 'https://github.com/fbialogrecki/dj-digger/releases'
 # Opening or downloading more tracks than this asks first.
 CONFIRM_ABOVE = 10
+# The browser extension's panel sends at most one player.state per this many seconds.
+BROWSER_DEBOUNCE = .2
+
+
+def cover_hash(text):
+    """``cover.hash`` in Main.qml (32-bit multiply-add over UTF-16 units, then its magnitude):
+    the browser panel draws the same record from it without ever seeing the track key."""
+    value = 7
+    for unit in memoryview(text.encode('utf-16-le')).cast('H'):
+        value = (value * 31 + unit) & 0xFFFFFFFF
+    return abs(value - (1 << 32) if value & 0x80000000 else value)
 
 
 class Backend:
@@ -65,6 +76,13 @@ class Backend:
         self.seek_request = None
         self.seeking = False
         self.seeks = 0
+        # The browser extension's panel (webext player.state): the window's colours and theme,
+        # the details last shown, the small cover for the loaded key, and what was last queued.
+        self.browser_look = {}
+        self.now_playing = {}
+        self.browser_artwork = ('', '')
+        self.browser_state = None
+        self.browser_timer = None
         self.thread.start()
 
     def _run(self):
@@ -152,6 +170,9 @@ class Backend:
                 if self.connect_browser_link:
                     try:
                         await self.io(self.services.connect_browser)
+                        # The panel's buttons arrive on a connection thread and take the window's path.
+                        self.services.browser_link.on_player_command = lambda op: self.submit('remote', {'op': op})
+                        self.publish_browser()
                     except Exception as exc:
                         LOGGER.warning('Browser extension channel unavailable: %s', log_safe_text(exc))
                 self.local = LocalLibrary(self.services.state.db)
@@ -1064,7 +1085,7 @@ class Backend:
         """The label picture: the track's own artwork, else the default cover from Settings."""
         from ..local_audio import artwork
         from ..services.playback import remote_artwork
-        from .artwork import SQUARE_PIXELS, label_image
+        from .artwork import BROWSER_PIXELS, SQUARE_PIXELS, label_image
         track, url = loaded.track, loaded.stream.artwork_url
         def picture():
             data = None
@@ -1083,12 +1104,16 @@ class Backend:
                     label = label_image(data)
                 except OSError as exc:
                     LOGGER.debug('Default cover unavailable: %s', log_safe_text(exc))
-            # The record label's circle, and the same picture as a plain square.
-            return label, label_image(data, SQUARE_PIXELS, circle=False) if label else ''
-        label, square = await self.io(picture)
+            # The record label's circle, the same picture as a plain square, and a small one for the browser.
+            if not label:
+                return '', '', ''
+            return label, label_image(data, SQUARE_PIXELS, circle=False), label_image(data, BROWSER_PIXELS, circle=False, jpeg=True)
+        label, square, browser = await self.io(picture)
         async with self.player_lock:
             if not cancel.is_set() and self.services.player.loaded is loaded:
                 self.send('artwork', dict(key=track.key, image=label, square=square), copy=False)
+                self.browser_artwork = (track.key, browser)
+                self.publish_browser()
 
     def publish_audio(self):
         # The per-tick snapshot stays small: the waveform travels separately and only when it changes.
@@ -1099,7 +1124,51 @@ class Backend:
         snapshot = dict(key=p.loaded.track.key, title=p.loaded.track.label, playing=p.playing, position=p.position,
                         duration=p.duration, heard=p.heard(), at=time.time(), seeks=self.seeks) if p.loaded else {}
         self.send('audio', snapshot)
+        self.publish_browser()
         return snapshot
+
+    def publish_browser(self):
+        """The browser extension's panel: title, artist, playing, the record's seed, a small
+        cover and the window's colours, queued when any of them changes (webext player.state)."""
+        if getattr(self.services, 'browser_link', None) is None:
+            return
+        p = self.services.player
+        state = dict(title='', artist='', playing=False, seed=cover_hash(''), artwork='', **self.browser_look)
+        if p.loaded:
+            track, key = p.loaded.track, p.loaded.track.key
+            shown = self.now_playing if self.now_playing.get('key') == key else {}
+            state.update(title=shown.get('name') or track.title or track.label, artist=shown.get('artist', track.artist or ''),
+                         playing=bool(p.playing), seed=cover_hash(key),
+                         artwork=self.browser_artwork[1] if self.browser_artwork[0] == key else '')
+        if state == self.browser_state:
+            return
+        self.browser_state = state
+        if self.browser_timer is None:
+            self.browser_timer = self.loop.call_later(BROWSER_DEBOUNCE, self.flush_browser)
+
+    def flush_browser(self):
+        self.browser_timer = None
+        if self.closing:
+            return
+        task = self.loop.create_task(self.io(self.services.browser_link.publish_player, self.browser_state))
+        self.tasks.add(task)
+        task.add_done_callback(self.tasks.discard)
+
+    async def action_look(self, values):
+        """The window's colour pair (rest foot, rest top, neon foot, neon top) and theme, for the panel."""
+        colors = [c for c in values.get('colors') or [] if isinstance(c, str) and len(c) == 7 and c[0] == '#'
+                  and all(x in '0123456789abcdefABCDEF' for x in c[1:])]
+        self.browser_look = dict(colors=colors[:4], dark=bool(values.get('dark')))
+        self.publish_browser()
+
+    async def action_remote(self, values):
+        """The panel's buttons (webext player.command), the same steps as the window's own."""
+        if not self.services.player.loaded:
+            return
+        if values.get('op') == 'toggle':
+            await self.action_transport({'operation': 'toggle'})
+        elif values.get('op') in ('prev', 'next'):
+            await self.action_step({'direction': -1 if values['op'] == 'prev' else 1})
 
     def publish_now_playing(self, track=None):
         """Details for the player panel, sent when a track loads or its details
@@ -1109,8 +1178,10 @@ class Backend:
             return
         t = track or p.loaded.track
         classic, camelot = key_names(t.key_signature) or ('', '')
-        self.send('nowPlaying', dict(key=p.loaded.track.key, artist=t.artist or '', name=t.title or t.label,
-                                     bpm=float(t.bpm or 0), classicKey=classic, camelot=camelot))
+        self.now_playing = dict(key=p.loaded.track.key, artist=t.artist or '', name=t.title or t.label,
+                                bpm=float(t.bpm or 0), classicKey=classic, camelot=camelot)
+        self.send('nowPlaying', self.now_playing)
+        self.publish_browser()
 
     def playable(self, track):
         if track.local_path or track.key not in self.preview_paths:
@@ -1200,6 +1271,7 @@ class Backend:
                 old, self.prepared = self.prepared, None
                 await self.io(old.close)
             self.send('audio', {})
+            self.publish_browser()
         elif operation == 'toggle':
             await self.player_call(player.toggle)
             self.publish_audio()

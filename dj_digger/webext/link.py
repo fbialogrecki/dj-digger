@@ -62,6 +62,8 @@ SOCKET_PATH_LIMIT = 100  # sun_path is 104 bytes on macOS, 108 on Linux
 PIPE_PREFIX = "\\\\.\\pipe\\"
 SOCKET_NAME = "webext.sock"
 ANOTHER_APP = "another dj-digger is already connected to the browser extension"
+PLAYER_OPS = ("prev", "toggle", "next")  # what the extension's toolbar panel may ask of the player
+MAX_ARTWORK = 48 * 1024  # the panel's cover, a data: URL; a larger one is left out
 
 
 class ExtensionMissing(AutomationError):
@@ -364,6 +366,8 @@ class Connection:
                 self._reply(frame, *entry)
         elif frame.get("event") == "hello":
             self._hello(frame)
+        elif frame.get("event") == "player.command":
+            self._listener._player_command(frame.get("op"))
         elif "event" in frame:
             with self._lock:
                 sessions = list(self._sessions)
@@ -392,8 +396,17 @@ class Connection:
             restarted = self.hello is not None and instance != self.instance
             self.hello, self.instance = frame, instance
             self._listener._cond.notify_all()
+            player = self._listener._player if self.compatible else None
         if restarted:
             self._end_sessions()
+        if player is not None:
+            self._send_quietly(player)
+
+    def _send_quietly(self, frame: dict) -> None:
+        try:
+            self._send(frame)
+        except AutomationError:
+            pass  # the reader thread sees the dead connection
 
 
 class Listener:
@@ -408,6 +421,11 @@ class Listener:
         self._conns: list[Connection] = []
         self._cond = threading.Condition()
         self._ids = itertools.count(1)
+        # The desktop's player for the extension's toolbar panel: the last ``player.state`` frame,
+        # replayed to every browser that says hello, and the callback for its three buttons. The
+        # CLI sets neither, so the panel's buttons do nothing there.
+        self._player: dict | None = None
+        self.on_player_command: Callable[[str], None] | None = None
 
     def start(self) -> None:
         if self._listener is not None:
@@ -489,6 +507,23 @@ class Listener:
     def session(self, timeout: float = HELLO_TIMEOUT) -> Session:
         return self.connection(timeout).session()
 
+    def publish_player(self, state: dict) -> None:
+        """Send the player's state to every compatible browser, not to a session.
+
+        ``{"cmd": "player.state", "args": state}`` carries no id and gets no reply, like
+        ``cancel``; a browser that says hello later gets the last one. An artwork above
+        ``MAX_ARTWORK`` is left out, so the frame stays far below the 1 MB relay limit.
+        """
+
+        if len(str(state.get("artwork", ""))) > MAX_ARTWORK:
+            state = dict(state, artwork="")
+        frame = {"cmd": "player.state", "args": state}
+        with self._cond:
+            self._player = frame
+            conns = [c for c in self._conns if c.compatible]
+        for conn in conns:
+            conn._send_quietly(frame)
+
     # -- internals ------------------------------------------------------
 
     def _accept_loop(self) -> None:
@@ -506,6 +541,18 @@ class Listener:
                     raw.close()
                 return
             Connection(self, raw, self._authkey).start()
+
+    def _player_command(self, op: Any) -> None:
+        """``{"event": "player.command", op}`` from the toolbar panel; on the reader thread."""
+
+        callback = self.on_player_command
+        if callback is None or op not in PLAYER_OPS:
+            LOGGER.debug("webext player command ignored")  # never the op itself: it is untrusted
+            return
+        try:
+            callback(op)
+        except Exception:  # a GUI bug must not kill the reader thread
+            LOGGER.exception("webext player command failed")
 
     def _adopt(self, conn: Connection) -> None:
         with self._cond:

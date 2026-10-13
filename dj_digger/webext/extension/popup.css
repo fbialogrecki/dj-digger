@@ -1,0 +1,75 @@
+/* popup.css - the toolbar panel. Surfaces and text are the desktop's own (Main.qml); --c1..--c4 are
+   the colour pair the app sends (rest foot, rest top, neon foot, neon top), set by popup.js. */
+:root {
+  --bg: #fafafb; --fg: #111217; --silver: #666a73; --muted: #50535c;
+  --hover: #d6dae1; --press: #c1c6cf; --disabled: #9a9da5;
+  --c1: #ff2187; --c2: #4d77ff; --c3: #ff0094; --c4: #42b1ff;
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --bg: #141418; --fg: #ececef; --silver: #c9ccd3; --muted: #a3a6ad;
+  --hover: #26262e; --press: #35353f; --disabled: #5f626b;
+  --c1: #b8286a; --c2: #3a5fd6; --c3: #ff2fa8; --c4: #1e9bff;
+  color-scheme: dark;
+}
+html, body { margin: 0; background: var(--bg); }
+body { width: 320px; font: 14px/1.4 system-ui, sans-serif; color: var(--fg); }
+main { display: grid; gap: 14px; padding: 14px 16px 18px; }
+p { margin: 0; }
+
+header { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: .04em; }
+
+/* The cover: the pair's colours behind a record whose label carries the artwork. */
+.tile { position: relative; width: 288px; height: 288px; border-radius: 12px; overflow: hidden; }
+#backdrop { position: absolute; inset: 0; width: 100%; height: 100%; }
+.disc {
+  position: absolute; left: 8%; top: 8%; width: 84%; height: 84%; border-radius: 50%;
+  background: #0c0c0e; box-shadow: 0 8px 24px rgb(0 0 0 / .35);
+  animation: spin 4s linear infinite paused;
+}
+.playing .disc { animation-play-state: running; }
+#code { position: absolute; inset: 0; width: 100%; height: 100%; transition: opacity .6s; }
+.label {
+  position: absolute; left: 29%; top: 29%; width: 42%; height: 42%; border-radius: 50%;
+  overflow: hidden; background: var(--label, #fff); transition: background-color .6s;
+}
+#art { display: block; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity .3s; }
+#art.ready { opacity: 1; }
+/* Nothing loaded: a plain record with a white label and no code, as in the desktop. */
+.idle #code { opacity: 0; }
+.idle .label { background: #fff; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.meta { min-width: 0; text-align: center; }
+.title, .artist { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.title { font-size: 15px; font-weight: 600; }
+.artist { margin-top: 2px; color: var(--silver); }
+.idle .title { font-weight: 500; color: var(--muted); }
+
+.transport { display: flex; justify-content: center; align-items: center; gap: 22px; }
+button {
+  appearance: none; display: grid; place-items: center; width: 44px; height: 44px; padding: 0;
+  border: 0; border-radius: 50%; background: transparent; color: var(--fg); cursor: pointer;
+  transition: transform .15s, box-shadow .3s; /* not the colours: the theme arrives after the first paint */
+}
+button svg { width: 22px; height: 22px; fill: currentColor; }
+button:hover:not(:disabled) { background: var(--hover); }
+button:active:not(:disabled) { background: var(--press); transform: scale(.94); }
+button:disabled { color: var(--disabled); cursor: default; }
+button:focus-visible { outline: 2px solid var(--c4); outline-offset: 2px; }
+/* Play/pause: the theme's text colour inside a ring of the pair, glowing while it plays. */
+button.play {
+  width: 58px; height: 58px; border: 3px solid transparent; color: var(--bg);
+  background: linear-gradient(var(--fg), var(--fg)) padding-box, linear-gradient(135deg, var(--c1), var(--c2)) border-box;
+}
+button.play svg { width: 24px; height: 24px; }
+button.play:hover:not(:disabled), button.play:active:not(:disabled) {
+  background: linear-gradient(var(--fg), var(--fg)) padding-box, linear-gradient(135deg, var(--c3), var(--c4)) border-box;
+}
+.playing button.play { box-shadow: 0 0 18px -2px var(--c3); }
+button.play:disabled { background: var(--hover); color: var(--disabled); }
+
+@media (prefers-reduced-motion: reduce) {
+  .disc { animation: none; }
+  #code, .label, #art, button { transition: none; }
+}

@@ -6,11 +6,12 @@ from PySide6.QtGui import QImage, QPainter, QPainterPath
 
 LABEL_PIXELS = 256
 SQUARE_PIXELS = 384  # The plain artwork fills the whole cover, at twice the label's size.
+BROWSER_PIXELS = 192  # The browser extension's panel: a small JPEG, well under link.MAX_ARTWORK.
 
 
-def label_image(data: bytes, size: int = LABEL_PIXELS, circle: bool = True) -> str:
-    """A PNG data URL of the picture's centre square, in a circle unless ``circle`` is
-    False; '' when it is not an image.
+def label_image(data: bytes, size: int = LABEL_PIXELS, circle: bool = True, jpeg: bool = False) -> str:
+    """A PNG (``jpeg``: JPEG, for a square) data URL of the picture's centre square, in a
+    circle unless ``circle`` is False; '' when it is not an image.
 
     QImage works off the GUI thread. Cutting here keeps the label free of shaders,
     which the software renderer does not run.
@@ -33,5 +34,6 @@ def label_image(data: bytes, size: int = LABEL_PIXELS, circle: bool = True) -> s
     encoded = QByteArray()
     buffer = QBuffer(encoded)
     buffer.open(QBuffer.WriteOnly)
-    label.save(buffer, 'PNG')
-    return 'data:image/png;base64,' + base64.b64encode(bytes(encoded)).decode('ascii')
+    label.save(buffer, 'JPEG' if jpeg else 'PNG', 80 if jpeg else -1)
+    kind = 'jpeg' if jpeg else 'png'
+    return f'data:image/{kind};base64,' + base64.b64encode(bytes(encoded)).decode('ascii')

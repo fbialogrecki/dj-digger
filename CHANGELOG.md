@@ -128,6 +128,13 @@
   button is never pressed for you. The extension now also works on
   `toneden.io` (a new host permission: reload the unpacked extension, and in
   Firefox grant it on the extension's page).
+- The browser extension has a face: its toolbar button opens a small player
+  panel with the desktop's record (the playing track's cover on the label, the
+  same barcode and backdrop, turning while it plays) in the desktop's colour
+  pair and theme, the title and artist, and previous, play/pause and next
+  buttons that control the desktop's player. It says "Open dj-digger to control
+  playback" while the desktop is closed and "Nothing playing" when nothing is
+  loaded. No new permission; reload the unpacked extension to get the button.
 
 ### Changed
 

@@ -449,6 +449,11 @@ class Bridge(QObject):
     def transport(self, operation, value=0):
         self.backend.submit('transport', dict(operation=operation, value=value))
 
+    @Slot('QVariantList', bool)
+    def browserLook(self, colors, dark):
+        """The colour pair and theme, for the browser extension's player panel."""
+        self.backend.submit('look', dict(colors=[str(c) for c in colors], dark=bool(dark)))
+
     @Slot(str, 'QVariantMap', bool)
     def answer(self, ident, values, accepted):
         self.backend.answer(ident, values if accepted else None)

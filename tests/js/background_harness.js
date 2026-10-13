@@ -36,7 +36,7 @@ function fakeBrowser({ offscreen = true, failOffscreen = false } = {}) {
   for (const name of ["tabs.onCreated", "tabs.onUpdated", "tabs.onRemoved", "windows.onRemoved", "alarms.onAlarm",
     "webNavigation.onBeforeNavigate", "webNavigation.onCommitted", "webNavigation.onDOMContentLoaded",
     "webNavigation.onErrorOccurred", "webRequest.onResponseStarted", "webRequest.onBeforeRedirect",
-    "webRequest.onCompleted", "downloads.onCreated", "downloads.onChanged", "runtime.onInstalled", "runtime.onConnect"]) {
+    "webRequest.onCompleted", "downloads.onCreated", "downloads.onChanged", "runtime.onInstalled", "runtime.onConnect", "runtime.onMessage"]) {
     e[name] = event();
   }
   const port = { onMessage: event(), onDisconnect: event(), postMessage: (m) => sent.push(JSON.parse(JSON.stringify(m))) };
@@ -86,6 +86,8 @@ function fakeBrowser({ offscreen = true, failOffscreen = false } = {}) {
     }),
     runtime: {
       onConnect: e["runtime.onConnect"],
+      onMessage: e["runtime.onMessage"],
+      id: "djd",
       getManifest: () => JSON.parse(read("manifest.json")),
       getURL: (n) => n,
       connectNative: () => port,
@@ -596,6 +598,35 @@ async function start(fake = fakeBrowser()) {
   assert.equal((await x.call("tab.goto", { tabId: bt, url: "https://bandcamp.com/cart" })).error.code, "not_owned");
   await x.call("window.close", { windowId: bg.windowId });
   assert.deepEqual([x.tabs.has(bt), x.tabs.has(bt2), x.tabs.has(theirs.id), x.wins.has(mine2)], [true, false, true, true]);
+  // the toolbar panel: the app's player.state is kept checked, only popup.html may send prev/toggle/next
+  x = await start();
+  const art = "data:image/jpeg;base64,/9j/4AAQ==";
+  x.port.onMessage.fire({ cmd: "player.state", args: {
+    title: "T".repeat(500), artist: "A", playing: true, seed: 123, artwork: art,
+    colors: ["#b8286a", "#3a5fd6", "#ff2fa8", "#1e9bff"], dark: true, extra: "dropped" } });
+  await tick();
+  assert.deepEqual(x.session.djdPlayer, { title: "T".repeat(300), artist: "A", playing: true, seed: 123, artwork: art,
+    colors: ["#b8286a", "#3a5fd6", "#ff2fa8", "#1e9bff"], dark: true });
+  assert.equal(x.sent.filter((m) => "id" in m || m.ok !== undefined).length, 0); // no reply to it
+  x.port.onMessage.fire({ cmd: "player.state", args: { title: 5, playing: "yes", seed: -1, dark: 1,
+    artwork: "data:image/svg+xml;base64,PHN2Zz4=", colors: ["red", "#000000", "#000000", "#000000"] } });
+  await tick();
+  assert.deepEqual(x.session.djdPlayer, { title: "", artist: "", playing: false, seed: 7, artwork: "", colors: null, dark: false });
+  x.port.onMessage.fire({ cmd: "player.state", args: { artwork: "data:image/png;base64," + "A".repeat(48 * 1024) } });
+  await tick();
+  assert.equal(x.session.djdPlayer.artwork, "");
+  const popup = { id: "djd", url: "popup.html" };
+  for (const [m, sender] of [[{ op: "next" }, popup], [{ op: "toggle" }, popup], [{ op: "prev" }, popup],
+    [{ op: "stop" }, popup], [{ op: "next" }, { id: "djd", url: "offscreen.html" }],
+    [{ op: "next" }, { id: "djd", url: "https://hypeddit.com/x", tab: { id: 3 } }],
+    [{ op: "next" }, { id: "other", url: "popup.html" }], [null, popup]]) {
+    x.e["runtime.onMessage"].fire(m, sender);
+  }
+  assert.deepEqual(x.events("player.command").map((m) => m.op), ["next", "toggle", "prev"]);
+  x.port.onMessage.fire({ event: "app-offline" });
+  await tick();
+  assert.equal(x.session.djdPlayer, null);
+
   // a browser with no window of its own gets one, and the session closes it again
   x = await start();
   const lone = (await x.call("window.open", { visible: false, background: true })).result.windowId;

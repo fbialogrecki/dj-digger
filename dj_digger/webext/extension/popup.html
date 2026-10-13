@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>dj-digger</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main id="panel" class="idle">
+    <header><img src="icons/icon-32.png" alt="" width="16" height="16"><span>dj-digger</span></header>
+    <div class="tile" aria-hidden="true">
+      <canvas id="backdrop"></canvas>
+      <div class="disc">
+        <canvas id="code"></canvas>
+        <div class="label"><img id="art" alt=""></div>
+      </div>
+    </div>
+    <div class="meta" aria-live="polite">
+      <p id="title" class="title">Open dj-digger to control playback</p>
+      <p id="artist" class="artist"></p>
+    </div>
+    <div class="transport">
+      <button id="prev" type="button" aria-label="Previous track" title="Previous track" disabled>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4 H7 V20 H4 Z M20 4 L8 12 L20 20 Z"/></svg>
+      </button>
+      <button id="toggle" class="play" type="button" aria-label="Play" title="Play" disabled>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path id="toggleIcon" d="M7 4 L21 12 L7 20 Z"/></svg>
+      </button>
+      <button id="next" type="button" aria-label="Next track" title="Next track" disabled>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 4 H20 V20 H17 Z M4 4 L16 12 L4 20 Z"/></svg>
+      </button>
+    </div>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>

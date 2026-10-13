@@ -276,6 +276,41 @@ def test_on_event_callback_replaces_the_queue(listener, address):
     assert session.next_event(0) is None
 
 
+def test_player_commands_reach_the_callback_not_the_sessions(listener, address):
+    client = connect(address)
+    session = listener.session(2)
+    seen = []
+    for op in ("next", "stop", ["toggle"], None):  # nothing registered yet (the CLI): ignored
+        client.send_bytes(json.dumps({"event": "player.command", "op": op}).encode())
+    client.send_bytes(b'{"event":"tab.created","tabId":0}')
+    assert session.next_event(3) == {"event": "tab.created", "tabId": 0}  # all of them read
+    listener.on_player_command = seen.append
+    for op in ("prev", "eval", {"op": "next"}, "toggle", "next"):
+        client.send_bytes(json.dumps({"event": "player.command", "op": op}).encode())
+    client.send_bytes(b'{"event":"tab.created","tabId":1}')
+    assert session.next_event(3) == {"event": "tab.created", "tabId": 1}  # other events still go to sessions
+    assert seen == ["prev", "toggle", "next"]
+    assert session.next_event(0) is None
+
+
+def test_player_state_goes_to_every_compatible_browser_and_to_later_hellos(listener, address):
+    first, old = connect(address), connect(address, {**HELLO, "instance": "o", "protocol": 99})
+    deadline = time.monotonic() + 3
+    while len(listener.connections()) < 2 and time.monotonic() < deadline:
+        time.sleep(0.01)
+    state = {"title": "T", "artist": "A", "playing": True, "seed": 7, "artwork": "data:image/jpeg;base64,AA=="}
+    listener.publish_player(state)
+    assert recv(first) == {"cmd": "player.state", "args": state}  # no id: nothing waits for a reply
+    assert not old.poll(0.3)  # an incompatible extension gets nothing
+    big = dict(state, artwork="data:image/png;base64," + "A" * link.MAX_ARTWORK)
+    listener.publish_player(big)
+    assert recv(first)["args"] == dict(state, artwork="")
+    late = connect(address, {**HELLO, "instance": "l"})
+    assert recv(late) == {"cmd": "player.state", "args": dict(state, artwork="")}
+    for client in (first, old, late):
+        client.close()
+
+
 def test_wrong_authkey_is_rejected(listener, address):
     with pytest.raises(mpc.AuthenticationError):
         mpc.Client(address, authkey=b"x" * 32)

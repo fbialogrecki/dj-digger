@@ -224,3 +224,64 @@ def test_new_view_settings_are_kept(tmp_path, monkeypatch, app):  # noqa: F811
     values = {'remainingTime': True, 'previewStart': 'drop', 'spectral': False, 'vinyl': False}
     bridge.saveSettings(dict(values, other=1))
     assert bridge._settings == values
+
+
+def test_the_browser_panel_mirrors_the_player_and_drives_it(backend, monkeypatch):  # noqa: F811
+    """webext player.state on every change (deduplicated) and player.command onto the window's own steps."""
+    from dj_digger.gui import backend as module
+    from dj_digger.models import Track
+    from dj_digger.player import Loaded
+    from dj_digger.services.playback import Stream
+
+    assert [module.cover_hash(s) for s in ('', '123456', 'local:abc', 'https://soundcloud.com/a/b-ü')] == [
+        7, 926833366, 1713381292, 1141811965]  # Main.qml's cover.hash, computed by node
+    worker, events = backend
+    monkeypatch.setattr(module, 'BROWSER_DEBOUNCE', 0)
+    published = []
+    worker.services.browser_link = type('Link', (), {'publish_player': lambda self, state: published.append(state)})()
+    run = lambda coroutine: asyncio.run_coroutine_threadsafe(coroutine, worker.loop).result(timeout=5)  # noqa: E731
+
+    def latest(count):
+        for _ in range(250):
+            if len(published) >= count:
+                return published[-1]
+            run(asyncio.sleep(.02))
+        raise AssertionError(published)
+
+    steps = []
+    monkeypatch.setattr(worker, 'action_step', lambda values: asyncio.sleep(0, steps.append(values)))
+    monkeypatch.setattr(worker, 'action_transport', lambda values: asyncio.sleep(0, steps.append(values)))
+    run(worker.action_remote({'op': 'next'}))  # nothing loaded: nothing to step
+    pair = ['#b8286a', '#3a5fd6', '#ff2fa8', '#1e9bff']
+    run(worker.action_look({'colors': pair + ['red'], 'dark': True}))
+    assert latest(1) == dict(title='', artist='', playing=False, seed=7, artwork='', colors=pair, dark=True)
+    track = Track('Song', '', artist='Artist', local_path='synthetic.wav', local_id='abc')
+    worker.services.player._loaded = Loaded(track, Stream('synthetic.wav', duration=100))
+    try:
+        worker.loop.call_soon_threadsafe(worker.publish_now_playing)
+        assert latest(2) == dict(title='Song', artist='Artist', playing=False, seed=1713381292, artwork='', colors=pair, dark=True)
+        worker.browser_artwork = (track.key, 'data:image/jpeg;base64,AA==')
+        worker.loop.call_soon_threadsafe(worker.publish_browser)
+        worker.loop.call_soon_threadsafe(worker.publish_browser)  # unchanged: not sent again
+        assert latest(3)['artwork'] == 'data:image/jpeg;base64,AA=='
+        run(asyncio.sleep(.1))
+        assert len(published) == 3
+        for op in ('prev', 'toggle', 'next', 'stop'):
+            run(worker.action_remote({'op': op}))
+        assert steps == [{'direction': -1}, {'operation': 'toggle'}, {'direction': 1}]
+    finally:
+        worker.services.player._loaded = None
+
+
+def test_the_window_tells_the_browser_panel_its_colours(window):
+    root, bridge = window
+    looks = [c[1] for c in bridge.backend.calls if c[0] == 'look']
+    dark = qml(root, 'root.dark')
+    assert looks and looks[-1] == {'colors': ['#b8286a', '#3a5fd6', '#ff2fa8', '#1e9bff'] if dark else
+                                   ['#ff2187', '#4d77ff', '#ff0094', '#42b1ff'], 'dark': dark}
+    root.setProperty('colorPair', 'green-yellow')
+    assert [c[1] for c in bridge.backend.calls if c[0] == 'look'][-1]['colors'][0] == ('#1a8f45' if dark else '#069d3e')
+    root.setProperty('themeChoice', 'light' if dark else 'dark')
+    assert [c[1] for c in bridge.backend.calls if c[0] == 'look'][-1] == {
+        'colors': ['#069d3e', '#a18606', '#00c43e', '#c1a900'] if dark else ['#1a8f45', '#a88d0a', '#2bff6e', '#ffe000'],
+        'dark': not dark}

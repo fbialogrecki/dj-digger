@@ -5,8 +5,8 @@
 - Product version verified: 1.4.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-10-08
-- Document lines: <!-- SPEC TOTAL LINES -->2459<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->2459<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->2490<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->2490<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -83,34 +83,34 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 9 | Authentication and authorization | 1649–1715 |
 | 9.1 | ↳ SoundCloud authentication | 1651–1682 |
 | 9.2 | ↳ Gate action consent | 1683–1715 |
-| 10 | External integrations | 1716–2000 |
+| 10 | External integrations | 1716–2018 |
 | 10.1 | ↳ SoundCloud API and media | 1718–1729 |
 | 10.2 | ↳ Link hubs and download gates | 1730–1867 |
 | 10.2 · block | ↳ ↳ Hypeddit | 1738–1824 |
 | 10.2 · block | ↳ ↳ ToneDen | 1826–1850 |
 | 10.2 · block | ↳ ↳ Other resolvers | 1852–1860 |
 | 10.2 · block | ↳ ↳ Network-write boundary | 1862–1867 |
-| 10.3 | ↳ Browsers and clipboard | 1868–1947 |
-| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 1948–2000 |
-| 11 | Security requirements and threat model | 2001–2163 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2003–2021 |
-| 11.2 | ↳ Secret and personal-data handling | 2022–2037 |
-| 11.3 | ↳ File and mutation safety | 2038–2059 |
-| 11.4 | ↳ Browser-extension trust boundary | 2060–2163 |
-| 12 | Privacy, lifecycle, and retention | 2164–2216 |
-| 12.1 | ↳ Data stored locally | 2166–2190 |
-| 12.2 | ↳ Data sent to third parties | 2191–2203 |
-| 12.3 | ↳ User-controlled deletion | 2204–2216 |
-| 13 | Failure behavior and current limitations | 2217–2326 |
-| 13.1 | ↳ Error isolation and reporting | 2219–2240 |
-| 13.2 | ↳ Confirmed limitations | 2241–2326 |
-| 14 | Verification, CI, and release | 2327–2425 |
-| 14.1 | ↳ Offline and live test suites | 2329–2377 |
-| 14.2 | ↳ Continuous integration and publishing | 2378–2410 |
-| 14.3 | ↳ Specification-map verification | 2411–2425 |
-| 15 | Evidence and operational references | 2426–2459 |
-| 15.1 | ↳ Primary implementation evidence | 2428–2449 |
-| 15.2 | ↳ User and historical documentation | 2450–2459 |
+| 10.3 | ↳ Browsers and clipboard | 1868–1965 |
+| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 1966–2018 |
+| 11 | Security requirements and threat model | 2019–2193 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2021–2039 |
+| 11.2 | ↳ Secret and personal-data handling | 2040–2055 |
+| 11.3 | ↳ File and mutation safety | 2056–2077 |
+| 11.4 | ↳ Browser-extension trust boundary | 2078–2193 |
+| 12 | Privacy, lifecycle, and retention | 2194–2247 |
+| 12.1 | ↳ Data stored locally | 2196–2220 |
+| 12.2 | ↳ Data sent to third parties | 2221–2234 |
+| 12.3 | ↳ User-controlled deletion | 2235–2247 |
+| 13 | Failure behavior and current limitations | 2248–2357 |
+| 13.1 | ↳ Error isolation and reporting | 2250–2271 |
+| 13.2 | ↳ Confirmed limitations | 2272–2357 |
+| 14 | Verification, CI, and release | 2358–2456 |
+| 14.1 | ↳ Offline and live test suites | 2360–2408 |
+| 14.2 | ↳ Continuous integration and publishing | 2409–2441 |
+| 14.3 | ↳ Specification-map verification | 2442–2456 |
+| 15 | Evidence and operational references | 2457–2490 |
+| 15.1 | ↳ Primary implementation evidence | 2459–2480 |
+| 15.2 | ↳ User and historical documentation | 2481–2490 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -1892,6 +1892,24 @@ error: {code, message}}`, events `{event, ...}`. The extension's first frame is
 `hello` (browser, extension and browser versions, protocol 1, a per-start
 instance id, whether host permissions are granted).
 
+The toolbar button opens the extension's player panel (`popup.html`, the manifest's
+`action`). The desktop, never the CLI, sends `{cmd: "player.state", args}` without an
+id (no reply, like `cancel`) to every compatible connection, not to a session, when
+the loaded track, its title or artist, play/pause, its artwork or the window's colour
+pair or theme changes (only changes, at most one per 0.2 s), and `Listener` replays
+the last one after each `hello`. `args` are `title`, `artist`, `playing`, `seed` (Main.qml's
+cover hash of the track key, never the key), `artwork` (a 192 px JPEG `data:` URL,
+left out above 48 KB) and, once the window has reported them, `colors` (the pair's
+four colours) and `dark`. The panel draws the desktop's record from them: the
+backdrop, the barcode and the label colour come from the seed, the artwork sits on
+the label, and the record turns while playing (still under `prefers-reduced-motion`).
+Its buttons send `{event: "player.command", op}` with `op` `prev`, `toggle` or
+`next`; `link.py` hands that event to `Listener.on_player_command` instead of the
+sessions, and the desktop runs the window's own previous track, play/pause and next
+track on its backend loop, only while a track is loaded. Any other op, or no callback
+(the CLI), is ignored and logged without the op. With no state (the app is gone) the
+panel says "Open dj-digger to control playback", with an empty title "Nothing playing".
+
 One automation batch is a session pinned to the connection it started on, chosen
 as the most recently active compatible one. A dropped connection or a new
 extension instance ends the session with "browser extension restarted"; it never
@@ -2109,8 +2127,8 @@ Python caller, enforces its own limits, whatever the application sends:
   a live virtual tab as the port name); Chrome sets `sender.frameId` only together
   with a tab, so it is not used. Anything else is disconnected at once, and what a
   frame sends is untrusted page data. A refused offscreen start answers
-  `offscreen:false` with `offscreenError`. There is still no `runtime.onMessage`, no
-  external messaging and no new host. The frame script and the document are removed
+  `offscreen:false` with `offscreenError`. There is no external messaging and no new
+  host; the one `runtime.onMessage` belongs to the player panel (below). The frame script and the document are removed
   with the last offscreen window (`window.close`, the app going away, a background
   restart, the offscreen document disappearing). Firefox has no offscreen API:
   `window.open` then answers `offscreen:false` and the session is the hidden
@@ -2140,10 +2158,22 @@ Python caller, enforces its own limits, whatever the application sends:
   inputs and `cc-*` payment fields.
 - **No remote code.** There is no `eval`; the only page-world functions are the
   named read-only ones in `dom.js`, whose results are untrusted and capped at
-  100,000 bytes. The only input is the native port: the manifest has no
-  `externally_connectable`, there is no external-message handler and no page script
-  listens to `window.postMessage`. `welcome.html` can only request the host
-  permissions.
+  100,000 bytes. The only command input is the native port: the manifest has no
+  `externally_connectable` and no `web_accessible_resources`, there is no
+  external-message handler and no page script listens to `window.postMessage`.
+  `welcome.html` can only request the host permissions.
+- **Player panel.** `popup.html` (no inline script) can do one thing: ask for the
+  previous track, play/pause or the next track of the local desktop's player. Its
+  `runtime.sendMessage({op})` reaches the background's only `runtime.onMessage`,
+  which acts only when `sender.id` is this extension and `sender.url` is exactly its
+  `popup.html` (content scripts, frames, the offscreen document and other pages are
+  ignored) and the op is one of the three; it touches no tab and opens no page. What
+  the app sends (`player.state`) is checked in the background (strings cut to 300
+  characters, `playing`/`dark` booleans, `seed` a non-negative 32-bit integer,
+  `artwork` only a `data:image/jpeg` or `png` base64 URL up to 48 KB, `colors` four
+  `#rrggbb`), kept in `storage.session` as `djdPlayer` (set to `null` on `app-offline`
+  and when the native port drops) and read by the panel; it is never sent to the
+  network.
 - **Two cookie operations**, both hard-coded: read `oauth_token` of
   `soundcloud.com`, delete `filedownloading` at the Hypeddit hosts. There is no
   general cookie access.
@@ -2196,7 +2226,8 @@ hosts receive ordinary HTTP request metadata. A gate may receive the configured
 name, real email, and comment only in the provider flows described in §10.2.
 Store sites receive navigation from the user's own signed-in browser session and
 verified Bandcamp add-to-cart actions; gate providers see the browser's accounts
-(§9.2). The extension sends nothing to any server. Soundiiz receives no request
+(§9.2). The extension sends nothing to any server; the player panel's title,
+artist, small cover and colours stay in the browser's session storage. Soundiiz receives no request
 until the user chooses the Beatport playlist result; the application then sends
 the playlist title plus accepted track titles and artists to its public import
 endpoint and opens the temporary review URL returned by Soundiiz.

@@ -218,7 +218,9 @@ reported as unsupported. Then, in the browser:
   Add-on** and select `browser-extension/manifest.json` (it is removed when Firefox
   restarts).
 
-Open the extension's welcome page to grant the site permissions it asks for. To
+Open the extension's welcome page to grant the site permissions it asks for. While
+the desktop runs, the extension's toolbar button opens a small player panel: the
+playing track on the desktop's record, with previous, play/pause and next. To
 disconnect, run `dj-digger browser unregister` or use **Disconnect browsers…** in the
 desktop's Settings menu (the desktop registers again at its next start); the extension
 itself is removed from the browser's extensions page.

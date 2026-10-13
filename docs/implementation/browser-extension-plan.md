@@ -772,6 +772,29 @@ Rozpoznanie (tylko odczyt, publiczny JS ToneDen) w spike'u, sekcja „ToneDen”
       ToneDen, dozwolone/odrzucone popupy, redakcja, przypisanie pobrania).
 - [ ] Na żywo: patrz checklista GATE-14; otwarte pytania w spec §13.2.
 
+### F12. Panel odtwarzacza w pasku narzędzi (prośba właściciela 2026-10-13)
+
+Kliknięcie ikony rozszerzenia otwiera `popup.html`: płyta jak w desktopie (tło z pary kolorów,
+kod kreskowy z hasha klucza, okładka na etykiecie, obrót w trakcie grania, bez obrotu przy
+`prefers-reduced-motion`), tytuł, wykonawca i przyciski poprzedni / play-pauza / następny.
+Bez nowych uprawnień (`action.default_popup`), bez nowych hostów i bez komunikacji zewnętrznej.
+
+- [x] Aplikacja → rozszerzenie: `{cmd: "player.state", args}` bez `id` i bez odpowiedzi (jak `cancel`)
+      do każdego zgodnego połączenia (`Listener.publish_player`), ostatni stan powtarzany po `hello`.
+      `args`: `title`, `artist`, `playing`, `seed` (hash klucza, nie sam klucz), `artwork` (JPEG 192 px,
+      okładka powyżej 48 KB pomijana), `colors` (4 kolory pary), `dark`. Backend wysyła tylko zmiany,
+      najwyżej raz na 0,2 s; QML podaje parę i motyw (`browserLook`).
+- [x] Rozszerzenie: tło sprawdza stan (typy, długości, `data:image/(jpeg|png)`, `#rrggbb`) i trzyma go
+      w `storage.session` (`djdPlayer`, `null` po `app-offline` i rozłączeniu portu); popup czyta go stamtąd.
+- [x] Rozszerzenie → aplikacja: popup `runtime.sendMessage({op})`; jedyny `runtime.onMessage` w tle
+      przyjmuje tylko `sender.id === runtime.id` i `sender.url === getURL("popup.html")` oraz op
+      `prev|toggle|next` i wysyła `{event: "player.command", op}`. `link.py` kieruje to zdarzenie do
+      `Listener.on_player_command` (nie do sesji); GUI mapuje je na `step(-1)`, `transport toggle`,
+      `step(1)` tylko przy załadowanym utworze. CLI nie rejestruje callbacku.
+- [x] Testy: `test_webext.py` (routing, nieznane op, rozsyłanie i limit okładki), harness (walidacja,
+      nadawca, `app-offline`), `test_gui_player.py` (stan, deduplikacja, mapowanie, kolory z QML).
+- [ ] Na żywo: przeładować rozpakowane rozszerzenie; sprawdzić panel w Chrome i Firefoksie.
+
 ## 7. Testy
 
 | Poziom | Co | Gdzie / marker |
