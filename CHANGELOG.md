@@ -24,6 +24,11 @@
 
 ### Added
 
+- Desktop accessibility and polish: one accent focus ring for keyboard focus,
+  clearly dimmer disabled controls, text that follows the system font size,
+  short toasts for confirmations, an error banner announced to screen readers,
+  an empty-library screen with Add playlist / Add folder / Import profile
+  playlists, and View → Theme → High contrast.
 - Desktop first start opens Welcome: paste your SoundCloud profile link and every
   playlist the profile created is imported in the background, with a summary; then
   the download folder, name and email, and Connect browser. Every step can be
