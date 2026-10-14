@@ -9,6 +9,11 @@ HEADERS = ('Status', 'Artist', 'Track name', 'Genre', 'BPM', 'Key', 'Year', 'Lab
 FLASH_LIMIT = 100
 # A played track is not decided on yet; the view mutes it, so the listening history still shows.
 STATUS_LABELS = {'new': 'New', 'played': 'Played', 'opened': '○ Opened', 'got': '✓ Got', 'skip': '✗ Skipped'}
+# How a link category reads in the Stores column and on the store pills; the filter keeps the category.
+# Gates already read as their site (Hypeddit, ToneDen ...). The generic words are in the catalogs.
+STORE_LABELS = {'soundcloud': 'SoundCloud', 'no-link': 'No link', 'bandcamp': 'Bandcamp', 'beatport': 'Beatport',
+                'traxsource': 'Traxsource', 'junodownload': 'Juno Download', 'apple': 'Apple Music', 'shop': 'Shop',
+                'gate': 'Gate', 'smartlink': 'Smart link', 'streaming': 'Streaming', 'others': 'Others'}
 
 
 def clock(seconds):
@@ -112,7 +117,7 @@ class TrackModel(QAbstractTableModel):
             label = STATUS_LABELS.get(value, value)
             return self.tr(label) if label else ''
         if name == 'stores':
-            return row.get('storeNames', value)  # the filter keeps the categories
+            return ', '.join(self.store_label(store) for store in store_names(row))
         if name == 'duration':
             return clock(int(value or 0) // 1000)
         if name == 'bpm' and value != '':
@@ -120,6 +125,9 @@ class TrackModel(QAbstractTableModel):
         if name == 'keySignature':
             return row.get('camelot' if self.key_notation == 'camelot' else 'classicKey') or str(value)
         return str(value)
+
+    def store_label(self, name):
+        return self.tr(STORE_LABELS.get(name, name))
 
     def headerData(self, section, orientation, role=Qt.DisplayRole):
         if orientation == Qt.Horizontal and role == Qt.DisplayRole:
@@ -206,7 +214,7 @@ class TrackModel(QAbstractTableModel):
         for row in self.rows:
             for store in store_names(row):
                 counts[store] = counts.get(store, 0) + 1
-        return [dict(name=name, count=count) for name, count in sorted(counts.items(), key=lambda item: -item[1])]
+        return [dict(name=name, label=self.store_label(name), count=count) for name, count in sorted(counts.items(), key=lambda item: -item[1])]
 
     def summary(self):
         got = sum(r['status'] == 'got' for r in self.rows)

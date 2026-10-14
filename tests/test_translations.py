@@ -8,7 +8,7 @@ pytest.importorskip('PySide6')
 from PySide6.QtCore import QTranslator  # noqa: E402
 
 from dj_digger.gui.bridge import LANGUAGES  # noqa: E402
-from dj_digger.gui.model import HEADERS, STATUS_LABELS  # noqa: E402
+from dj_digger.gui.model import HEADERS, STATUS_LABELS, STORE_LABELS  # noqa: E402
 
 FOLDER = Path('dj_digger/gui/translations')
 PLACEHOLDERS = re.compile(r'%n|%\d|\{\d*\}|<[^>]+>')
@@ -47,6 +47,9 @@ def test_every_qml_string_is_in_the_catalog():
     assert catalog - used == set(), 'obsolete Main entries'
     model = {source for context, source, _, _ in messages('pl') if context == 'TrackModel'}
     assert {*HEADERS, *STATUS_LABELS.values(), '✗ Failed'} <= model
+    # Generic store words are translated; store and site names stay as they are.
+    generic = {'No link', 'Shop', 'Gate', 'Smart link', 'Streaming', 'Others'}
+    assert generic <= model and model.isdisjoint(set(STORE_LABELS.values()) - generic)
 
 
 @pytest.mark.parametrize('code', LANGUAGES)

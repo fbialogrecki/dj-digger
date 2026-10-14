@@ -472,7 +472,8 @@ class Bridge(QObject):
         self.engine.retranslate()
         self.table.headerDataChanged.emit(Qt.Horizontal, 0, 9)
         if self.table.visible:
-            self.table.dataChanged.emit(self.table.index(0, 0), self.table.index(len(self.table.visible) - 1, 0))
+            self.table.dataChanged.emit(self.table.index(0, 0), self.table.index(len(self.table.visible) - 1, 9))
+        self.table._changed(stores=True)  # the store pills name their stores in the language too
         self.changed.emit()
 
     @Slot(result='QVariantMap')

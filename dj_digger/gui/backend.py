@@ -1473,28 +1473,41 @@ class Backend:
                 return self.with_extension(lambda: session.run_batch(requests, handle.cancel, approve=approve,
                                                                      nyp_price=self.services.config.nyp_price),
                                            handle.cancel)
+            def mark_in_cart(results):
+                # A track now in a store's cart was acted on, as an opened link is (§3.3).
+                for result in results:
+                    if result.status in ('added', 'already_in_cart', 'manual'):
+                        self.services.state.mark_opened(result.track_key)
             outcome = await batch(requests) if requests else CartBatchOutcome(())
             while True:
+                await self.io(mark_in_cart, outcome.results)
                 if source and outcome.beatport_playlist_ready:
                     await self.io(self.services.library.remember_beatport, source, source_generation, outcome)
                 results = unlinked + outcome.results
                 missed = [r for r in results if r.track_key in tracks and r.status not in ('added', 'already_in_cart')]
-                options = [['close', 'Close']]
-                if outcome.cart_stores:
-                    options.append(['focus', 'Show carts in browser'])
-                if missed:
-                    options.append(['links', 'Open the links that were not added in the browser'])
-                if outcome.manual_candidates:
-                    options.append(['manual', 'Finish in browser'])
+                # One footer button per step, the likeliest first and preselected; Close dismisses.
+                options = []
                 if outcome.retryable_targets:
                     options.append(['retry', 'Retry failed items'])
+                if outcome.manual_candidates:
+                    options.append(['manual', 'Finish in browser'])
                 if outcome.beatport_playlist_ready:
-                    options.append(['playlist', 'Send Beatport playlist metadata to Soundiiz'])
+                    options.append(['playlist', 'Send playlist to Soundiiz'])
+                if missed:
+                    options.append(['links', 'Open links not added'])
+                if outcome.cart_stores:
+                    options.append(['focus', 'Show carts'])
                 counts = dict(field('summary', '', 'Added to the carts: {0}. Not added: {1}.', 'note'),
                               args=[len(results) - len(missed), len(missed)])
-                answer = await self.ask('Cart results', '',
-                                        [counts, field('results', '', '\n'.join(r.track_label + ': ' + result_status(r) + ' ' + r.reason for r in results), 'log'),
-                                         field('next', 'Next step', 'close', 'choice', options)], handle.cancel, ok='Continue')
+                try:
+                    answer = await self.ask('Cart results', '',
+                                            [counts, field('results', '', '\n'.join(r.track_label + ': ' + result_status(r) + ' ' + r.reason for r in results), 'log'),
+                                             field('next', '', options[0][0] if options else '', 'buttons', options)],
+                                            handle.cancel, dismiss='Close')
+                except Cancelled:
+                    if self.closing or is_cancelled(handle.cancel):
+                        raise
+                    break
                 answer = {answer['next']: True}
                 if answer.get('focus'):
                     await session.focus_carts()
@@ -1514,9 +1527,10 @@ class Backend:
                         self.send('message', {'text': str(exported.path or '') + (' — Soundiiz import failed' if exported.import_failed else '')})
                 if answer.get('manual'):
                     results = await session.finish_manually(list(outcome.manual_candidates), manual, handle.cancel)
+                    await self.io(mark_in_cart, results)
                     self.send('message', {'text': '\n'.join(r.track_label + ': ' + r.status for r in results)})
                 if not answer.get('retry'):
-                    if answer.get('close') or answer.get('links'):
+                    if answer.get('links') or not options:
                         break
                     continue
                 retry = [replace(request, links=tuple((store, url) for store, url in request.links

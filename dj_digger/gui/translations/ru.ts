@@ -1039,8 +1039,8 @@
       <translation>Добавлено в корзины: {0}. Не добавлено: {1}.</translation>
     </message>
     <message>
-      <source>Open the links that were not added in the browser</source>
-      <translation>Открыть в браузере ссылки, которые не были добавлены</translation>
+      <source>Open links not added</source>
+      <translation>Открыть недобавленные ссылки</translation>
     </message>
     <message>
       <source>Bandcamp name-your-price items go into the cart at</source>
@@ -1331,12 +1331,12 @@
       <translation>Заменить существующий файл</translation>
     </message>
     <message>
-      <source>Show carts in browser</source>
-      <translation>Показать корзины в браузере</translation>
+      <source>Show carts</source>
+      <translation>Показать корзины</translation>
     </message>
     <message>
-      <source>Send Beatport playlist metadata to Soundiiz</source>
-      <translation>Отправить метаданные плейлиста Beatport в Soundiiz</translation>
+      <source>Send playlist to Soundiiz</source>
+      <translation>Отправить плейлист в Soundiiz</translation>
     </message>
     <message>
       <source>Retry failed items</source>
@@ -1387,10 +1387,6 @@
       <translation>Импортировать</translation>
     </message>
     <message>
-      <source>Continue</source>
-      <translation>Продолжить</translation>
-    </message>
-    <message>
       <source>Open</source>
       <translation>Открыть</translation>
     </message>
@@ -1409,10 +1405,6 @@
     <message>
       <source>Format</source>
       <translation>Формат</translation>
-    </message>
-    <message>
-      <source>Next step</source>
-      <translation>Следующий шаг</translation>
     </message>
     <message>
       <source>System default</source>
@@ -1876,6 +1868,30 @@
     <message>
       <source>✗ Failed</source>
       <translation>✗ Ошибка</translation>
+    </message>
+    <message>
+      <source>No link</source>
+      <translation>Без ссылки</translation>
+    </message>
+    <message>
+      <source>Shop</source>
+      <translation>Магазин</translation>
+    </message>
+    <message>
+      <source>Gate</source>
+      <translation>Гейт</translation>
+    </message>
+    <message>
+      <source>Smart link</source>
+      <translation>Смартлинк</translation>
+    </message>
+    <message>
+      <source>Streaming</source>
+      <translation>Стриминг</translation>
+    </message>
+    <message>
+      <source>Others</source>
+      <translation>Другие</translation>
     </message>
   </context>
 </TS>

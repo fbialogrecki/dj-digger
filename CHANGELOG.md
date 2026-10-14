@@ -188,6 +188,18 @@
 
 ### Fixed
 
+- Desktop toolbar: the filtered count (`3 / 144`) has its own room after the store
+  pills instead of being drawn over the last one; another playlist starts its pills
+  scrolled back to the first; the status filter is as wide as its longest option in
+  every language (no more "All statuse…").
+- Store pills and Stores badges read proper names (SoundCloud, Bandcamp, Juno
+  Download, Apple Music, Smart link, No link, …) like the gate sites already did; the
+  generic ones are translated, filtering still keys on the category.
+- Cart results shows its next steps as buttons (Retry failed items, Finish in
+  browser, Send playlist to Soundiiz, Open links not added, Show carts) with Close,
+  instead of a "Next step" list plus Cancel / Continue; the dialog widens so they fit.
+- A track put in a store cart now reads Opened instead of New, as an opened link does.
+
 - Store carts wait up to 20 s for a "Just a moment…" security check that clears
   itself in your browser (seen on Beatport) instead of failing at once and bringing
   the tab to the front; only a check that does not clear asks for you.

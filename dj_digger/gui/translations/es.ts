@@ -1034,8 +1034,8 @@
       <translation>Añadidos a los carritos: {0}. No añadidos: {1}.</translation>
     </message>
     <message>
-      <source>Open the links that were not added in the browser</source>
-      <translation>Abrir en el navegador los enlaces no añadidos</translation>
+      <source>Open links not added</source>
+      <translation>Abrir enlaces no añadidos</translation>
     </message>
     <message>
       <source>Bandcamp name-your-price items go into the cart at</source>
@@ -1326,12 +1326,12 @@
       <translation>Reemplazar archivo existente</translation>
     </message>
     <message>
-      <source>Show carts in browser</source>
-      <translation>Mostrar carritos en el navegador</translation>
+      <source>Show carts</source>
+      <translation>Mostrar carritos</translation>
     </message>
     <message>
-      <source>Send Beatport playlist metadata to Soundiiz</source>
-      <translation>Enviar metadatos de la playlist de Beatport a Soundiiz</translation>
+      <source>Send playlist to Soundiiz</source>
+      <translation>Enviar lista a Soundiiz</translation>
     </message>
     <message>
       <source>Retry failed items</source>
@@ -1382,10 +1382,6 @@
       <translation>Importar</translation>
     </message>
     <message>
-      <source>Continue</source>
-      <translation>Continuar</translation>
-    </message>
-    <message>
       <source>Open</source>
       <translation>Abrir</translation>
     </message>
@@ -1404,10 +1400,6 @@
     <message>
       <source>Format</source>
       <translation>Formato</translation>
-    </message>
-    <message>
-      <source>Next step</source>
-      <translation>Siguiente paso</translation>
     </message>
     <message>
       <source>System default</source>
@@ -1871,6 +1863,30 @@
     <message>
       <source>✗ Failed</source>
       <translation>✗ Fallida</translation>
+    </message>
+    <message>
+      <source>No link</source>
+      <translation>Sin enlace</translation>
+    </message>
+    <message>
+      <source>Shop</source>
+      <translation>Tienda</translation>
+    </message>
+    <message>
+      <source>Gate</source>
+      <translation>Gate</translation>
+    </message>
+    <message>
+      <source>Smart link</source>
+      <translation>Enlace inteligente</translation>
+    </message>
+    <message>
+      <source>Streaming</source>
+      <translation>Streaming</translation>
+    </message>
+    <message>
+      <source>Others</source>
+      <translation>Otros</translation>
     </message>
   </context>
 </TS>

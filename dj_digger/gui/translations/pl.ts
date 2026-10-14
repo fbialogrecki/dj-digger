@@ -1039,8 +1039,8 @@
       <translation>Dodano do koszyków: {0}. Nie dodano: {1}.</translation>
     </message>
     <message>
-      <source>Open the links that were not added in the browser</source>
-      <translation>Otwórz w przeglądarce linki, których nie dodano</translation>
+      <source>Open links not added</source>
+      <translation>Otwórz niedodane linki</translation>
     </message>
     <message>
       <source>Bandcamp name-your-price items go into the cart at</source>
@@ -1331,12 +1331,12 @@
       <translation>Zastąp istniejący plik</translation>
     </message>
     <message>
-      <source>Show carts in browser</source>
-      <translation>Pokaż koszyki w przeglądarce</translation>
+      <source>Show carts</source>
+      <translation>Pokaż koszyki</translation>
     </message>
     <message>
-      <source>Send Beatport playlist metadata to Soundiiz</source>
-      <translation>Wyślij metadane playlisty Beatport do Soundiiz</translation>
+      <source>Send playlist to Soundiiz</source>
+      <translation>Wyślij playlistę do Soundiiz</translation>
     </message>
     <message>
       <source>Retry failed items</source>
@@ -1387,10 +1387,6 @@
       <translation>Importuj</translation>
     </message>
     <message>
-      <source>Continue</source>
-      <translation>Kontynuuj</translation>
-    </message>
-    <message>
       <source>Open</source>
       <translation>Otwórz</translation>
     </message>
@@ -1409,10 +1405,6 @@
     <message>
       <source>Format</source>
       <translation>Format</translation>
-    </message>
-    <message>
-      <source>Next step</source>
-      <translation>Następny krok</translation>
     </message>
     <message>
       <source>System default</source>
@@ -1876,6 +1868,30 @@
     <message>
       <source>✗ Failed</source>
       <translation>✗ Nieudane</translation>
+    </message>
+    <message>
+      <source>No link</source>
+      <translation>Brak linku</translation>
+    </message>
+    <message>
+      <source>Shop</source>
+      <translation>Sklep</translation>
+    </message>
+    <message>
+      <source>Gate</source>
+      <translation>Bramka</translation>
+    </message>
+    <message>
+      <source>Smart link</source>
+      <translation>Smart link</translation>
+    </message>
+    <message>
+      <source>Streaming</source>
+      <translation>Streaming</translation>
+    </message>
+    <message>
+      <source>Others</source>
+      <translation>Inne</translation>
     </message>
   </context>
 </TS>

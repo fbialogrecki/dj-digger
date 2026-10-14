@@ -930,7 +930,7 @@ def test_model_counts_store_summary_and_status_labels(app):
     rows[2]['stores'] = 'beatport, bandcamp'
     model.replace(rows)
     assert model.summary() == dict(visible=3, total=3, got=1, skipped=0, selected=0)
-    assert model.store_counts() == [dict(name='bandcamp', count=3), dict(name='beatport', count=1)]
+    assert model.store_counts() == [dict(name='bandcamp', label='Bandcamp', count=3), dict(name='beatport', label='Beatport', count=1)]
     assert model.data(model.index(1, 0)) == '\u2713 Got'
     assert model.data(model.index(0, 4)) == '120'
     model.selectAll()
@@ -951,10 +951,10 @@ def test_a_gate_reads_and_filters_as_its_site(app):
     assert links.gate_name('https://hypd.it/x') == 'Hypeddit'
     model = TrackModel()
     model.replace([{**row('a', 'Alpha'), 'stores': 'gate, bandcamp', 'storeNames': 'Hypeddit, bandcamp'}])
-    assert model.data(model.index(0, 9)) == 'Hypeddit, bandcamp'
+    assert model.data(model.index(0, 9)) == 'Hypeddit, Bandcamp'
     assert model.data(model.index(0, 9), Qt.UserRole + 6) == 'gate, bandcamp'
     # The store pills name a gate by its site too, as the Stores column does.
-    assert dict(name='Hypeddit', count=1) in model.store_counts()
+    assert dict(name='Hypeddit', label='Hypeddit', count=1) in model.store_counts()
 
 
 def keyed(key, title, key_signature, bpm=120):
@@ -1928,7 +1928,11 @@ def test_cart_runs_without_review_and_offers_the_links_it_could_not_add(backend)
     assert seen == [(['1', '2'], 'suggested', None)]
     summary, log, choice = question['fields']
     assert summary['args'] == [1, 2] and 'no Bandcamp or Beatport link' in log['value']
-    assert 'links' in [value for value, _label in choice['options']]
+    # The steps are footer buttons (Close is the dialog's own), the playlist preselected.
+    assert choice['kind'] == 'buttons' and question['cancel'] == 'Close'
+    assert [value for value, _label in choice['options']] == ['playlist', 'links', 'focus'] and choice['value'] == 'playlist'
+    # In a cart counts as acted on, like an opened link; the playlist entry is not in a cart.
+    assert [worker.services.state.get(key) for key in ('1', '2')] == ['opened', 'new']
     worker.answer(question['id'], {'next': 'links'})
     while wait_event(events, 'busy')['value']:
         pass

@@ -1034,8 +1034,8 @@
       <translation>Aggiunti ai carrelli: {0}. Non aggiunti: {1}.</translation>
     </message>
     <message>
-      <source>Open the links that were not added in the browser</source>
-      <translation>Apri nel browser i link non aggiunti</translation>
+      <source>Open links not added</source>
+      <translation>Apri i link non aggiunti</translation>
     </message>
     <message>
       <source>Bandcamp name-your-price items go into the cart at</source>
@@ -1326,12 +1326,12 @@
       <translation>Sostituisci file esistente</translation>
     </message>
     <message>
-      <source>Show carts in browser</source>
-      <translation>Mostra carrelli nel browser</translation>
+      <source>Show carts</source>
+      <translation>Mostra i carrelli</translation>
     </message>
     <message>
-      <source>Send Beatport playlist metadata to Soundiiz</source>
-      <translation>Invia metadati della playlist Beatport a Soundiiz</translation>
+      <source>Send playlist to Soundiiz</source>
+      <translation>Invia la playlist a Soundiiz</translation>
     </message>
     <message>
       <source>Retry failed items</source>
@@ -1382,10 +1382,6 @@
       <translation>Importa</translation>
     </message>
     <message>
-      <source>Continue</source>
-      <translation>Continua</translation>
-    </message>
-    <message>
       <source>Open</source>
       <translation>Apri</translation>
     </message>
@@ -1404,10 +1400,6 @@
     <message>
       <source>Format</source>
       <translation>Formato</translation>
-    </message>
-    <message>
-      <source>Next step</source>
-      <translation>Passaggio successivo</translation>
     </message>
     <message>
       <source>System default</source>
@@ -1871,6 +1863,30 @@
     <message>
       <source>✗ Failed</source>
       <translation>✗ Non riuscito</translation>
+    </message>
+    <message>
+      <source>No link</source>
+      <translation>Nessun link</translation>
+    </message>
+    <message>
+      <source>Shop</source>
+      <translation>Negozio</translation>
+    </message>
+    <message>
+      <source>Gate</source>
+      <translation>Gate</translation>
+    </message>
+    <message>
+      <source>Smart link</source>
+      <translation>Smart link</translation>
+    </message>
+    <message>
+      <source>Streaming</source>
+      <translation>Streaming</translation>
+    </message>
+    <message>
+      <source>Others</source>
+      <translation>Altri</translation>
     </message>
   </context>
 </TS>

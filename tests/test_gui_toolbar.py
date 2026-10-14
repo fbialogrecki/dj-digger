@@ -27,6 +27,8 @@ def test_store_filter_takes_several_store_names(app):
     model.replace([track('a', 'bandcamp'), track('b', 'beatport'), track('c', 'gate', storeNames='Hypeddit'),
                    track('d', 'bandcamp, beatport'), track('e', 'no-link')])
     assert {s['name']: s['count'] for s in model.stores} == {'bandcamp': 2, 'beatport': 2, 'Hypeddit': 1, 'no-link': 1}
+    # Pills read display names; the filter below still takes the names.
+    assert {s['name']: s['label'] for s in model.stores} == {'bandcamp': 'Bandcamp', 'beatport': 'Beatport', 'Hypeddit': 'Hypeddit', 'no-link': model.tr('No link')}
     model.filter('', {'stores': ['beatport', 'Hypeddit']})
     assert keys(model) == ['b', 'c', 'd']
     # Names, not substrings or positions: a store missing from the view matches nothing.
@@ -154,12 +156,22 @@ def test_toolbar_pills_status_filter_and_view_change(app, tmp_path, monkeypatch)
         bridge.receive('view', dict(title='Playlist', source='sc:1', local=False, generation=1, rows=rows))
         settle()
         assert pill('all').property('checked')
-        assert [pill(n).property('text') for n in ('bandcamp', 'beatport')] == ['bandcamp 2', 'beatport 2']
+        assert [pill(n).property('text') for n in ('bandcamp', 'beatport')] == ['Bandcamp 2', 'Beatport 2']
         click(pill('beatport'))
         assert bridge.table.store_filter == {'beatport'} and keys(bridge.table) == ['b', 'c']
         click(pill('bandcamp'))
         assert bridge.table.store_filter == {'beatport', 'bandcamp'}
-        assert window.findChild(QQuickItem, 'filterCount').property('text') == '3 / 3'
+        count = window.findChild(QQuickItem, 'filterCount')
+        assert count.property('text') == '3 / 3'
+        # The count has its own room after the pills, never over the last one, even when they must scroll.
+        pills = window.findChild(QQuickItem, 'storePills')
+        window.setWidth(600)
+        settle()
+        assert pills.width() < pills.property('contentWidth')
+        assert count.mapToScene(QPointF(0, 0)).x() >= pills.mapToScene(QPointF(pills.width(), 0)).x() + 16
+        assert count.width() >= count.implicitWidth()
+        window.setWidth(1400)
+        settle()
         click(pill('all'))
         assert bridge.table.store_filter == set()
         # H toggles the status filter between all and unhandled; the combo box follows.
@@ -175,8 +187,10 @@ def test_toolbar_pills_status_filter_and_view_change(app, tmp_path, monkeypatch)
         settle()
         assert bridge.table.store_filter == set()
         assert qml('search.text') == 'a'
+        qml('storePills.contentX = 40')
         bridge.receive('view', dict(title='Other', source='sc:2', local=False, generation=3, rows=rows))
         settle()
+        assert qml('storePills.contentX') == 0, 'another view starts at its first pill'
         assert qml('search.text') == '' and bridge.table.statuses == {'new', 'played', 'opened'}
         # Nothing left to show: the empty state offers to clear the filters.
         qml('search.text = "zzz"')

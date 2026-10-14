@@ -1034,8 +1034,8 @@
       <translation>In die Warenkörbe gelegt: {0}. Nicht hinzugefügt: {1}.</translation>
     </message>
     <message>
-      <source>Open the links that were not added in the browser</source>
-      <translation>Nicht hinzugefügte Links im Browser öffnen</translation>
+      <source>Open links not added</source>
+      <translation>Nicht hinzugefügte Links öffnen</translation>
     </message>
     <message>
       <source>Bandcamp name-your-price items go into the cart at</source>
@@ -1326,12 +1326,12 @@
       <translation>Vorhandene Datei ersetzen</translation>
     </message>
     <message>
-      <source>Show carts in browser</source>
-      <translation>Warenkörbe im Browser anzeigen</translation>
+      <source>Show carts</source>
+      <translation>Warenkörbe zeigen</translation>
     </message>
     <message>
-      <source>Send Beatport playlist metadata to Soundiiz</source>
-      <translation>Beatport-Playlist-Metadaten an Soundiiz senden</translation>
+      <source>Send playlist to Soundiiz</source>
+      <translation>Playlist an Soundiiz senden</translation>
     </message>
     <message>
       <source>Retry failed items</source>
@@ -1382,10 +1382,6 @@
       <translation>Importieren</translation>
     </message>
     <message>
-      <source>Continue</source>
-      <translation>Weiter</translation>
-    </message>
-    <message>
       <source>Open</source>
       <translation>Öffnen</translation>
     </message>
@@ -1404,10 +1400,6 @@
     <message>
       <source>Format</source>
       <translation>Format</translation>
-    </message>
-    <message>
-      <source>Next step</source>
-      <translation>Nächster Schritt</translation>
     </message>
     <message>
       <source>System default</source>
@@ -1871,6 +1863,30 @@
     <message>
       <source>✗ Failed</source>
       <translation>✗ Fehlgeschlagen</translation>
+    </message>
+    <message>
+      <source>No link</source>
+      <translation>Kein Link</translation>
+    </message>
+    <message>
+      <source>Shop</source>
+      <translation>Shop</translation>
+    </message>
+    <message>
+      <source>Gate</source>
+      <translation>Gate</translation>
+    </message>
+    <message>
+      <source>Smart link</source>
+      <translation>Smartlink</translation>
+    </message>
+    <message>
+      <source>Streaming</source>
+      <translation>Streaming</translation>
+    </message>
+    <message>
+      <source>Others</source>
+      <translation>Andere</translation>
     </message>
   </context>
 </TS>

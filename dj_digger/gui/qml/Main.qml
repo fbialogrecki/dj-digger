@@ -458,7 +458,8 @@ ApplicationWindow {
         applyFilters()
     }
     readonly property string viewIdentity: desktop.view.source || desktop.view.title || ""
-    onViewIdentityChanged: resetFilters(false)
+    // Another view starts its store pills from the first one.
+    onViewIdentityChanged: { resetFilters(false); storePills.contentX = 0 }
     Connections {
         target: desktop.model
         // A store that left the view leaves the filter too; counts changing never shift it.
@@ -2163,7 +2164,7 @@ ApplicationWindow {
                                     Toggle {
                                         required property var modelData
                                         objectName: "storePill-" + modelData.name
-                                        text: modelData.name + " " + modelData.count
+                                        text: modelData.label + " " + modelData.count
                                         checked: root.storeFilter.indexOf(modelData.name) >= 0
                                         onClicked: root.toggleStore(modelData.name)
                                     }
@@ -2175,6 +2176,8 @@ ApplicationWindow {
                         Label {
                             objectName: "filterCount"
                             visible: root.filtersActive && desktop.model.counts.total > 0
+                            // Its own room, apart from a pill cut off by the scrolling row, so it never reads as part of it.
+                            Layout.minimumWidth: implicitWidth; Layout.leftMargin: 10
                             text: desktop.model.counts.visible + " / " + desktop.model.counts.total
                             color: root.accent; font.features: root.tabular
                             Accessible.name: text; Accessible.description: qsTr("Tracks the filters leave, of all tracks in this view")
@@ -2185,7 +2188,8 @@ ApplicationWindow {
                         Layout.row: toolbar.oneRow ? 0 : 1; Layout.column: 1; spacing: 6
                         ComboBox {
                             id: statusBox; objectName: "statusFilter"
-                            implicitHeight: 32; Layout.preferredWidth: 130
+                            // As wide as its longest option in the current language.
+                            implicitHeight: 32; implicitContentWidthPolicy: ComboBox.WidestText
                             readonly property var values: ["", "unhandled", "new", "opened", "got", "skip"]
                             model: [qsTr("All statuses"), qsTr("Unhandled"), qsTr("New"), qsTr("Opened"), qsTr("Owned"), qsTr("Skipped")]
                             Binding on currentIndex { value: Math.max(0, statusBox.values.indexOf(root.statusFilter)) }
@@ -3082,7 +3086,8 @@ ApplicationWindow {
             for (let i = index; i >= 0; i--) if (fields[i].kind === "section") return fields[i].name
             return ""
         }
-        anchors.centerIn: parent; width: Math.min(650, root.width - 50)
+        // Wider when its footer buttons need it, so none is pushed outside.
+        anchors.centerIn: parent; width: Math.min(Math.max(650, footer.implicitWidth), root.width - 50)
         height: Math.min(root.height - 50, implicitHeight)
         standardButtons: info ? Dialog.Ok : choiceField ? Dialog.Cancel : Dialog.Ok | Dialog.Cancel
         onOkTextChanged: { let ok = standardButton(Dialog.Ok); if (ok) ok.text = okText || qsTr("OK") }
