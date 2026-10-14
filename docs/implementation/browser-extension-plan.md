@@ -892,7 +892,7 @@ Dodatkowo: `npx web-ext lint` bez błędów, a domyślny pytest zielony w CI na 
 | R5 | „Pytaj, gdzie zapisać”, `danger` dla `.zip`, limit wielu pobrań w Chrome, niejednoznaczne przypisanie pobrania | zatrzymany ukryty przebieg albo plik bez właściciela | `download.blocked` → widoczne okno i komunikat; jedno pobranie naraz; brak zgadywania przypisania (D5) |
 | R6 | Restart background/service workera w trakcie partii | zgubione komendy, karty bez właściciela | stan w `storage.session`; nowe `instance` kończy sesje czystym błędem; reconnect przez `alarms` |
 | R7 | Użytkownik ma kilka przeglądarek z rozszerzeniem | nieprzewidywalny wybór | sesja przypięta do połączenia (D2); Ustawienia pokazują aktywną |
-| R8 | Zmiana ID rozszerzenia po publikacji w Chrome Web Store | host odrzuca połączenie | `allowed_origins` zawiera ID dev (z `key`) i ID sklepu |
+| R8 | Zmiana ID rozszerzenia po publikacji w Chrome Web Store | host odrzuca połączenie | `allowed_origins` zawiera ID dev (z `key`) i ID sklepu (`register.CHROME_STORE_ID`, ustawiane po pierwszym uploadzie; paczka sklepowa bez `key` z `scripts/package_extension.py`, kroki w `docs/store/PUBLISHING-pl.md`) |
 | R9 | `dom.js` (nowy silnik lokatorów) bez testów automatycznych | subtelne różnice względem Playwrighta | silnik mały, semantyka spisana w §1/§3, `selftest.html` w macierzy (W11), F0 sprawdza na żywych stronach |
 | R10 | Rozszerzenie spoza sklepu w Chrome/Edge na Windows/macOS | ostrzeżenia trybu deweloperskiego, gorszy onboarding dla użytkowników 1.4.0 | decyzja W11 w §10 przed wydaniem |
 

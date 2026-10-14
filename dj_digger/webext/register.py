@@ -8,6 +8,8 @@ are only reported, never written to. Both operations are idempotent.
 
 The Chrome extension ID is computed from the ``key`` in the extension's
 ``manifest.json``; the Firefox ID is its ``browser_specific_settings.gecko.id``.
+A Chrome Web Store install has the ID the store assigned (``CHROME_STORE_ID``),
+which Chromium-family manifests allow as well.
 """
 
 from __future__ import annotations
@@ -29,6 +31,8 @@ from ..private_json import write_json_atomic
 HOST_NAME = "com.github.fbialogrecki.djdigger"
 HOST_EXECUTABLE = "dj-digger-host"
 EXTENSION_SOURCE = Path(__file__).parent / "extension"
+# The Chrome Web Store item ID, known after the first upload; empty: unpacked installs only.
+CHROME_STORE_ID = ""
 
 
 class RegistrationError(RuntimeError):
@@ -198,7 +202,8 @@ def _manifest(kind: str, host: Path, manifest: dict) -> dict:
             "path": str(host), "type": "stdio"}
     if kind == "firefox":
         return {**body, "allowed_extensions": [gecko_id]}
-    return {**body, "allowed_origins": [f"chrome-extension://{chrome_id}/"]}
+    ids = [chrome_id] + ([CHROME_STORE_ID] if CHROME_STORE_ID and CHROME_STORE_ID != chrome_id else [])
+    return {**body, "allowed_origins": [f"chrome-extension://{i}/" for i in ids]}
 
 
 def _windows_manifest_path(kind: str) -> Path:

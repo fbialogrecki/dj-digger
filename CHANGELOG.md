@@ -24,6 +24,11 @@
 
 ### Added
 
+- Chrome Web Store preparation for the browser extension:
+  `scripts/package_extension.py` builds clean, reproducible Chrome and Firefox
+  uploads (`dist/extension/`), the native host also accepts the store's extension
+  ID once `CHROME_STORE_ID` is set, and `CHROMEWEBSTORE.md`, `PRIVACY.md` and
+  `docs/store/` hold the listing, privacy policy, screenshots and publishing steps.
 - Desktop accessibility and polish: one accent focus ring for keyboard focus,
   clearly dimmer disabled controls, text that follows the system font size,
   short toasts for confirmations, an error banner announced to screen readers,

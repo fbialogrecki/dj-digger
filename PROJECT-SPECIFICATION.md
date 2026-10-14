@@ -5,8 +5,8 @@
 - Product version verified: 1.4.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-10-08
-- Document lines: <!-- SPEC TOTAL LINES -->2554<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->2554<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->2564<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->2564<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -83,34 +83,34 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 9 | Authentication and authorization | 1656–1723 |
 | 9.1 | ↳ SoundCloud authentication | 1658–1690 |
 | 9.2 | ↳ Gate action consent | 1691–1723 |
-| 10 | External integrations | 1724–2054 |
+| 10 | External integrations | 1724–2064 |
 | 10.1 | ↳ SoundCloud API and media | 1726–1737 |
 | 10.2 | ↳ Link hubs and download gates | 1738–1875 |
 | 10.2 · block | ↳ ↳ Hypeddit | 1746–1832 |
 | 10.2 · block | ↳ ↳ ToneDen | 1834–1858 |
 | 10.2 · block | ↳ ↳ Other resolvers | 1860–1868 |
 | 10.2 · block | ↳ ↳ Network-write boundary | 1870–1875 |
-| 10.3 | ↳ Browsers and clipboard | 1876–2001 |
-| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 2002–2054 |
-| 11 | Security requirements and threat model | 2055–2254 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2057–2075 |
-| 11.2 | ↳ Secret and personal-data handling | 2076–2091 |
-| 11.3 | ↳ File and mutation safety | 2092–2113 |
-| 11.4 | ↳ Browser-extension trust boundary | 2114–2254 |
-| 12 | Privacy, lifecycle, and retention | 2255–2311 |
-| 12.1 | ↳ Data stored locally | 2257–2281 |
-| 12.2 | ↳ Data sent to third parties | 2282–2298 |
-| 12.3 | ↳ User-controlled deletion | 2299–2311 |
-| 13 | Failure behavior and current limitations | 2312–2421 |
-| 13.1 | ↳ Error isolation and reporting | 2314–2335 |
-| 13.2 | ↳ Confirmed limitations | 2336–2421 |
-| 14 | Verification, CI, and release | 2422–2520 |
-| 14.1 | ↳ Offline and live test suites | 2424–2472 |
-| 14.2 | ↳ Continuous integration and publishing | 2473–2505 |
-| 14.3 | ↳ Specification-map verification | 2506–2520 |
-| 15 | Evidence and operational references | 2521–2554 |
-| 15.1 | ↳ Primary implementation evidence | 2523–2544 |
-| 15.2 | ↳ User and historical documentation | 2545–2554 |
+| 10.3 | ↳ Browsers and clipboard | 1876–2011 |
+| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 2012–2064 |
+| 11 | Security requirements and threat model | 2065–2264 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2067–2085 |
+| 11.2 | ↳ Secret and personal-data handling | 2086–2101 |
+| 11.3 | ↳ File and mutation safety | 2102–2123 |
+| 11.4 | ↳ Browser-extension trust boundary | 2124–2264 |
+| 12 | Privacy, lifecycle, and retention | 2265–2321 |
+| 12.1 | ↳ Data stored locally | 2267–2291 |
+| 12.2 | ↳ Data sent to third parties | 2292–2308 |
+| 12.3 | ↳ User-controlled deletion | 2309–2321 |
+| 13 | Failure behavior and current limitations | 2322–2431 |
+| 13.1 | ↳ Error isolation and reporting | 2324–2345 |
+| 13.2 | ↳ Confirmed limitations | 2346–2431 |
+| 14 | Verification, CI, and release | 2432–2530 |
+| 14.1 | ↳ Offline and live test suites | 2434–2482 |
+| 14.2 | ↳ Continuous integration and publishing | 2483–2515 |
+| 14.3 | ↳ Specification-map verification | 2516–2530 |
+| 15 | Evidence and operational references | 2531–2564 |
+| 15.1 | ↳ Primary implementation evidence | 2533–2554 |
+| 15.2 | ↳ User and historical documentation | 2555–2564 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -1988,7 +1988,9 @@ functions), and a page above 2,000,000 bytes is refused rather than returned.
 
 `register()` writes the host manifest for each browser whose profile directory
 exists, with `allowed_origins` for the Chromium family (the extension ID derived
-from the public `key` in its `manifest.json`) and `allowed_extensions`
+from the public `key` in its `manifest.json`, plus the Chrome Web Store item ID
+`register.CHROME_STORE_ID` when that constant is set; it is empty until the
+store assigns one) and `allowed_extensions`
 (`dj-digger@fbialogrecki.github.io`) for Firefox; on Windows it also writes the
 HKCU registry key, pointing at a manifest under `data_dir()`. Flatpak and Snap
 browsers are reported as unsupported and never written to. It also copies the
@@ -1998,6 +2000,14 @@ differs. The desktop registers at every start in a background thread;
 removes the manifests and registry keys until the next registration. The extension
 is installed by the user (Load unpacked, or Load Temporary Add-on in Firefox);
 `welcome.html` shows the link state and can request the host permissions again.
+`scripts/package_extension.py` (stdlib) builds the store uploads
+`dist/extension/dj-digger-chrome-<version>.zip` and `dj-digger-firefox-<version>.zip`
+from the same folder: every file except `selftest.html`/`selftest.js`, sorted entries
+with fixed timestamps, and a per-browser `manifest.json` without `key` (the Chrome
+one also without `browser_specific_settings` and `background.scripts`, the Firefox
+one without `background.service_worker`), otherwise unchanged. The listing,
+permission justifications and data disclosures live in `CHROMEWEBSTORE.md`, the
+extension's privacy policy in `PRIVACY.md`.
 
 ### 10.4 Bandcamp and Beatport carts, Beatport playlists
 

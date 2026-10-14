@@ -572,6 +572,21 @@ def test_register_and_unregister_on_linux(sandbox, monkeypatch):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="posix layout")
+def test_register_also_allows_the_chrome_web_store_id(sandbox, monkeypatch):
+    home, source, expected, launcher = sandbox
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setattr(register, "CHROME_STORE_ID", "a" * 32)
+    (home / ".config/chromium").mkdir(parents=True)
+    (home / ".mozilla/firefox").mkdir(parents=True)
+    register.register()
+    name = register.HOST_NAME + ".json"
+    chrome = json.loads((home / ".config/chromium/NativeMessagingHosts" / name).read_text())
+    assert chrome["allowed_origins"] == [f"chrome-extension://{expected}/", f"chrome-extension://{'a' * 32}/"]
+    firefox = json.loads((home / ".mozilla/native-messaging-hosts" / name).read_text())
+    assert firefox["allowed_extensions"] == ["dj-digger@fbialogrecki.github.io"]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="posix layout")
 def test_register_on_macos_and_without_browsers(sandbox, monkeypatch):
     home, *_ = sandbox
     monkeypatch.setattr(sys, "platform", "darwin")
