@@ -4,7 +4,7 @@ import asyncio
 import contextlib
 import logging
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import AsyncIterator, Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -257,13 +257,14 @@ async def _manual_result(
 
 
 class CartBrowserSession:
-    """One lazy background session of the browser extension shared by all cart batches.
+    """A lazy background session of the browser extension, one per cart batch.
 
     The work - product lookup, revalidation, the cart clicks - runs in inactive
     tabs of the person's own browser window: no window appears (plan Z1). The
     finished cart is one tab per store, made active and handed over to them;
-    items to finish by hand open as tabs only when they ask. There is no second
-    browser and no cookie copying.
+    items to finish by hand open as tabs only when they ask. Every other tab
+    closes when the batch ends (``_batch``). There is no second browser and no
+    cookie copying.
     """
 
     def __init__(self) -> None:
@@ -317,12 +318,23 @@ class CartBrowserSession:
         return new
 
     async def close(self) -> None:
+        async with self._batch():
+            pass
+
+    @contextlib.asynccontextmanager
+    async def _batch(self) -> AsyncIterator[None]:
+        """One batch at a time. Its work tabs (lookups, skipped items, a cart view that failed)
+        close with it however it ends; the released cart tabs are the person's and stay."""
+
         async with self._lock:
-            context, self._context = self._context, None
-            if context is not None:
-                with contextlib.suppress(Exception):
-                    await context.close(reason="dj-digger cart session closed")
-            self._owned_pages.clear()
+            try:
+                yield
+            finally:
+                context, self._context = self._context, None
+                if context is not None:
+                    with contextlib.suppress(Exception):
+                        await context.close(reason="dj-digger cart session closed")
+                self._owned_pages.clear()
 
     async def _preflight_one(
         self,
@@ -736,7 +748,7 @@ class CartBrowserSession:
     ) -> CartBatchOutcome:
         request_list = tuple(requests)
         bandcamp.NYP_PRICE.set(nyp_price)  # this task's context: its preflight workers inherit it
-        async with self._lock:
+        async with self._batch():
             LOGGER.info("Cart batch started: tracks=%d", len(request_list))
             bandcamp._emit_progress(progress, CartProgress("starting", 0, len(request_list)))
             pages = await self._work_pages(2)
@@ -818,13 +830,13 @@ class CartBrowserSession:
         by_store: dict[str, list[CartItem]] = defaultdict(list)
         for item in items:
             by_store[item.store].append(item)
-        async with self._lock:
+        async with self._batch():
             return await self._finish_manually(by_store, manual, cancel, None)
 
     async def focus_carts(self) -> None:
         """The result screen's 'Show carts': the cart tabs were handed over, so each opens afresh."""
 
-        async with self._lock:
+        async with self._batch():
             for store in self._cart_stores:
                 page, _missing = await self._show_store_cart(store, [], [])
                 await page.bring_to_front()

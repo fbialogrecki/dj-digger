@@ -885,6 +885,40 @@ def test_cart_session_opens_one_hidden_window_and_reuses_it(opened_contexts):
     assert opened_contexts[0].closed
 
 
+def test_every_batch_closes_its_work_tabs_however_it_ends(opened_contexts, monkeypatch):
+    """The work tabs (lookups, a skipped item's page) never outlive their batch; released carts are not theirs."""
+
+    session = cart.CartBrowserSession()
+
+    async def nothing_ready(*_args, **_kwargs):
+        raise cart_models.ProductUnavailable("linked release has no exact track")
+
+    async def broken(*_args, **_kwargs):
+        raise RuntimeError("the page fell over")
+
+    async def scenario():
+        monkeypatch.setattr(bandcamp_adapter, "_resolve_cart_item_async", nothing_ready)
+        outcome = await session.run_batch(async_requests(2), asyncio.Event(), approve=None)  # ends at preflight
+        assert not outcome.cart_stores
+        monkeypatch.setattr(session, "_preflight", broken)
+        with pytest.raises(RuntimeError):
+            await session.run_batch(async_requests(1), asyncio.Event(), approve=None)
+        async def view_fails(_store, _items, _verified):
+            await (await session._shown_context()).new_page()  # the cart tab, never handed over
+            raise RuntimeError("the cart did not load")
+
+        monkeypatch.setattr(session, "_show_store_cart", view_fails)
+        session._cart_stores = ("bandcamp",)
+        with pytest.raises(RuntimeError):
+            await session.focus_carts()
+
+    asyncio.run(scenario())
+
+    assert len(opened_contexts) == 3, "each batch has a session of its own"
+    assert all(context.closed for context in opened_contexts), "no work tab survives a batch"
+    assert session._context is None and session._owned_pages == []
+
+
 def test_a_lost_window_is_replaced_and_its_pages_forgotten(opened_contexts):
     session = cart.CartBrowserSession()
 
