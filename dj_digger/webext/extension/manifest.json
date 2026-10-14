@@ -15,7 +15,7 @@
   },
   "permissions": [
     "nativeMessaging", "tabs", "scripting", "downloads", "cookies",
-    "webRequest", "webNavigation", "storage", "alarms", "offscreen"
+    "webRequest", "webNavigation", "storage", "alarms", "offscreen", "activeTab", "contextMenus"
   ],
   "host_permissions": [
     "https://hypeddit.com/*",

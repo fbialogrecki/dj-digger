@@ -2,6 +2,8 @@
 import asyncio
 import math
 import os
+import threading
+import time
 from pathlib import Path
 
 import numpy as np
@@ -244,7 +246,7 @@ def test_the_browser_panel_mirrors_the_player_and_drives_it(backend, monkeypatch
     def latest(count):
         for _ in range(250):
             if len(published) >= count:
-                return published[-1]
+                return {k: v for k, v in published[-1].items() if k != 'at'}
             run(asyncio.sleep(.02))
         raise AssertionError(published)
 
@@ -252,25 +254,133 @@ def test_the_browser_panel_mirrors_the_player_and_drives_it(backend, monkeypatch
     monkeypatch.setattr(worker, 'action_step', lambda values: asyncio.sleep(0, steps.append(values)))
     monkeypatch.setattr(worker, 'action_transport', lambda values: asyncio.sleep(0, steps.append(values)))
     run(worker.action_remote({'op': 'next'}))  # nothing loaded: nothing to step
+    run(worker.action_remote({'op': 'seek', 'fraction': .5}))
     pair = ['#b8286a', '#3a5fd6', '#ff2fa8', '#1e9bff']
+    idle = dict(busy=False, label='', done=0, total=0)
     run(worker.action_look({'colors': pair + ['red'], 'dark': True}))
-    assert latest(1) == dict(title='', artist='', playing=False, seed=7, artwork='', colors=pair, dark=True)
+    assert latest(1) == dict(title='', artist='', playing=False, position=0.0, duration=0.0, seed=7, artwork='', colors=pair,
+                             dark=True, jobs=idle, needs=0)
     track = Track('Song', '', artist='Artist', local_path='synthetic.wav', local_id='abc')
-    worker.services.player._loaded = Loaded(track, Stream('synthetic.wav', duration=100))
+    player = worker.services.player
+    player._loaded = Loaded(track, Stream('synthetic.wav', duration=100))
     try:
         worker.loop.call_soon_threadsafe(worker.publish_now_playing)
-        assert latest(2) == dict(title='Song', artist='Artist', playing=False, seed=1713381292, artwork='', colors=pair, dark=True)
+        assert latest(2) == dict(title='Song', artist='Artist', playing=False, position=0.0, duration=100.0, seed=1713381292,
+                                 artwork='', colors=pair, dark=True, jobs=idle, needs=0)
+        assert abs(published[-1]['at'] - time.time()) < 5  # when the position was read: the panel's clock runs from there
         worker.browser_artwork = (track.key, 'data:image/jpeg;base64,AA==')
         worker.loop.call_soon_threadsafe(worker.publish_browser)
         worker.loop.call_soon_threadsafe(worker.publish_browser)  # unchanged: not sent again
         assert latest(3)['artwork'] == 'data:image/jpeg;base64,AA=='
         run(asyncio.sleep(.1))
         assert len(published) == 3
+        # While playing the position alone goes at most every BROWSER_POSITION_EVERY seconds; a seek goes at once.
+        player._playing, player._offset = True, 30.0
+        worker.loop.call_soon_threadsafe(worker.publish_browser)
+        assert latest(4)['playing'] and latest(4)['position'] == 30.0
+        player._offset = 31.0
+        worker.loop.call_soon_threadsafe(worker.publish_browser)
+        run(asyncio.sleep(.1))
+        assert len(published) == 4
+        worker.browser_sent -= module.BROWSER_POSITION_EVERY
+        worker.loop.call_soon_threadsafe(worker.publish_browser)
+        assert latest(5)['position'] == 31.0
+        player._offset, worker.seeks = 70.0, worker.seeks + 1
+        worker.loop.call_soon_threadsafe(worker.publish_browser)
+        assert latest(6)['position'] == 70.0
+        player._playing = False
         for op in ('prev', 'toggle', 'next', 'stop'):
             run(worker.action_remote({'op': op}))
-        assert steps == [{'direction': -1}, {'operation': 'toggle'}, {'direction': 1}]
+        run(worker.action_remote({'op': 'seek', 'fraction': .25}))
+        assert steps == [{'direction': -1}, {'operation': 'toggle'}, {'direction': 1}, {'operation': 'seek', 'value': 25.0}]
     finally:
-        worker.services.player._loaded = None
+        player._loaded, player._playing, player._offset = None, False, 0.0
+
+
+def test_the_browser_panel_follows_the_job_and_cancels_it(backend, monkeypatch):  # noqa: F811
+    """jobs mirrors the status bar ('busy', 'importProgress'), also from a worker thread; cancel is its Cancel."""
+    from dj_digger.gui import backend as module
+
+    worker, events = backend
+    monkeypatch.setattr(module, 'BROWSER_DEBOUNCE', 0)
+    published = []
+    worker.services.browser_link = type('Link', (), {'publish_player': lambda self, state: published.append(state)})()
+    run = lambda coroutine: asyncio.run_coroutine_threadsafe(coroutine, worker.loop).result(timeout=5)  # noqa: E731
+
+    def jobs():
+        run(asyncio.sleep(.1))
+        return published[-1]['jobs']
+
+    async def job(handle):
+        threading.Thread(target=worker.send, args=('importProgress', dict(stage='Importing playlists', done=2, total=5))).start()
+        await asyncio.sleep(.2)
+        assert jobs_now() == dict(busy=True, label='Importing playlists', done=2, total=5)
+        await worker.dispatch('remote', {'op': 'cancel'})
+        assert handle.cancel.is_set()
+        worker.send('importProgress', {})
+        await asyncio.sleep(.1)
+        assert jobs_now() == dict(busy=True, label='Collecting tracks', done=0, total=0)
+
+    jobs_now = lambda: published[-1]['jobs']  # noqa: E731
+    run(worker.job('Collecting tracks', job))
+    assert jobs() == dict(busy=False, label='', done=0, total=0)
+
+
+def test_the_browser_panel_answers_only_the_gates_question_on_screen(backend, monkeypatch):  # noqa: F811
+    """needs counts the gates of the open "Gates need you" question; gates answers that one and no other."""
+    from dj_digger.gui import backend as module
+
+    worker, events = backend
+    monkeypatch.setattr(module, 'BROWSER_DEBOUNCE', 0)
+    published = []
+    worker.services.browser_link = type('Link', (), {'publish_player': lambda self, state: published.append(state)})()
+    run = lambda coroutine: asyncio.run_coroutine_threadsafe(coroutine, worker.loop).result(timeout=5)  # noqa: E731
+    asked = []
+
+    async def scenario():
+        other = asyncio.ensure_future(worker.ask('Settings'))  # an older question is on screen first
+        await asyncio.sleep(0)
+        gates = asyncio.ensure_future(worker.ask('Gates need you', opened=lambda ident: (
+            setattr(worker, 'gates_waiting', (ident, 3)), worker.publish_browser(), asked.append(ident))))
+        await asyncio.sleep(.1)
+        assert published[-1]['needs'] == 3
+        await worker.action_remote({'op': 'gates', 'choice': 'skip'})
+        await asyncio.sleep(.05)
+        assert not gates.done() and not other.done()  # not the one on screen: ignored
+        worker.answer(next(iter(worker.questions)), {})
+        await other
+        await worker.action_remote({'op': 'gates', 'choice': 'skip'})
+        assert await gates == {'next': 'skip'}
+
+    run(scenario())
+    assert asked
+
+
+def test_import_target_takes_only_soundcloud_sets_and_profiles():
+    from dj_digger.gui.backend import import_target
+
+    assert import_target('https://soundcloud.com/some-dj/sets/deep_cuts-2') == ('set', 'https://soundcloud.com/some-dj/sets/deep_cuts-2')
+    assert import_target('https://m.soundcloud.com/some-dj/sets/x/?in=y#t') == ('set', 'https://soundcloud.com/some-dj/sets/x')
+    for url in ('https://soundcloud.com/some-dj', 'https://www.soundcloud.com/some-dj/sets', 'https://soundcloud.com/some-dj/tracks?x=1'):
+        assert import_target(url) == ('profile', 'https://soundcloud.com/some-dj'), url
+    for url in ('http://soundcloud.com/some-dj', 'https://evil.com/some-dj', 'https://soundcloud.com.evil.com/a',
+                'https://api.soundcloud.com/a', 'https://user@soundcloud.com/a', 'https://soundcloud.com:444/a',
+                'https://soundcloud.com/a/track-name', 'https://soundcloud.com/a/sets/b/s-secret', 'https://soundcloud.com/',
+                'https://soundcloud.com/a%2Fb', 'https://soundcloud.com//a', 'javascript:alert(1)', 'https://[::1', '',
+                'https://soundcloud.com/' + 'a' * 500):
+        assert import_target(url) is None, url
+
+
+def test_the_browser_import_starts_the_windows_own_import(backend, monkeypatch):  # noqa: F811
+    worker, events = backend
+    run = lambda coroutine: asyncio.run_coroutine_threadsafe(coroutine, worker.loop).result(timeout=5)  # noqa: E731
+    started = []
+    monkeypatch.setattr(worker, 'action_dig', lambda values: asyncio.sleep(0, started.append(('dig', values))))
+    monkeypatch.setattr(worker, 'action_profile', lambda values: asyncio.sleep(0, started.append(('profile', values))))
+    for url in ('https://soundcloud.com/a/sets/b?x=1', 'https://www.soundcloud.com/a/reposts', 'https://soundcloud.com/a/t'):
+        run(worker.action_remote({'op': 'import', 'url': url}))
+    assert started == [('dig', {'target': 'https://soundcloud.com/a/sets/b', 'add': True}),
+                       ('profile', {'url': 'https://soundcloud.com/a'})]
 
 
 def test_the_window_tells_the_browser_panel_its_colours(window):

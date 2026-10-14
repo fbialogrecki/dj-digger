@@ -62,8 +62,28 @@ SOCKET_PATH_LIMIT = 100  # sun_path is 104 bytes on macOS, 108 on Linux
 PIPE_PREFIX = "\\\\.\\pipe\\"
 SOCKET_NAME = "webext.sock"
 ANOTHER_APP = "another dj-digger is already connected to the browser extension"
-PLAYER_OPS = ("prev", "toggle", "next")  # what the extension's toolbar panel may ask of the player
+PLAYER_OPS = ("prev", "toggle", "next", "cancel")  # the toolbar panel's asks that take no argument
+MAX_IMPORT_URL = 512  # a SoundCloud set or profile link from the panel or the context menu
 MAX_ARTWORK = 48 * 1024  # the panel's cover, a data: URL; a larger one is left out
+
+
+def player_command(frame: dict) -> dict | None:
+    """The extension's command with only the arguments its op takes, checked; None for anything else.
+
+    ``prev``/``toggle``/``next``/``cancel`` take none, ``seek`` a ``fraction`` in [0, 1], ``gates`` a
+    ``choice`` of ``open``/``skip`` and ``import`` a ``url`` string of at most ``MAX_IMPORT_URL``
+    characters (the desktop checks what it points at, ``backend.import_target``)."""
+
+    op = frame.get("op")
+    if op in PLAYER_OPS:
+        return {"op": op}
+    if op == "seek" and type(frame.get("fraction")) in (int, float) and 0 <= frame["fraction"] <= 1:
+        return {"op": op, "fraction": float(frame["fraction"])}
+    if op == "gates" and frame.get("choice") in ("open", "skip"):
+        return {"op": op, "choice": frame["choice"]}
+    if op == "import" and isinstance(frame.get("url"), str) and len(frame["url"]) <= MAX_IMPORT_URL:
+        return {"op": op, "url": frame["url"]}
+    return None
 
 
 class ExtensionMissing(AutomationError):
@@ -367,7 +387,7 @@ class Connection:
         elif frame.get("event") == "hello":
             self._hello(frame)
         elif frame.get("event") == "player.command":
-            self._listener._player_command(frame.get("op"))
+            self._listener._player_command(frame)
         elif "event" in frame:
             with self._lock:
                 sessions = list(self._sessions)
@@ -422,10 +442,10 @@ class Listener:
         self._cond = threading.Condition()
         self._ids = itertools.count(1)
         # The desktop's player for the extension's toolbar panel: the last ``player.state`` frame,
-        # replayed to every browser that says hello, and the callback for its three buttons. The
-        # CLI sets neither, so the panel's buttons do nothing there.
+        # replayed to every browser that says hello, and the callback for its checked commands
+        # (player_command). The CLI sets neither, so the panel's buttons do nothing there.
         self._player: dict | None = None
-        self.on_player_command: Callable[[str], None] | None = None
+        self.on_player_command: Callable[[dict], None] | None = None
 
     def start(self) -> None:
         if self._listener is not None:
@@ -542,15 +562,17 @@ class Listener:
                 return
             Connection(self, raw, self._authkey).start()
 
-    def _player_command(self, op: Any) -> None:
-        """``{"event": "player.command", op}`` from the toolbar panel; on the reader thread."""
+    def _player_command(self, frame: dict) -> None:
+        """``{"event": "player.command", op, ...}`` from the toolbar panel or the context menu; on
+        the reader thread. Only a checked command (``player_command``) reaches the callback."""
 
         callback = self.on_player_command
-        if callback is None or op not in PLAYER_OPS:
-            LOGGER.debug("webext player command ignored")  # never the op itself: it is untrusted
+        command = player_command(frame)
+        if callback is None or command is None:
+            LOGGER.debug("webext player command ignored")  # never its content: it is untrusted
             return
         try:
-            callback(op)
+            callback(command)
         except Exception:  # a GUI bug must not kill the reader thread
             LOGGER.exception("webext player command failed")
 

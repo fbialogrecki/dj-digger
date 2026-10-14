@@ -36,7 +36,8 @@ function fakeBrowser({ offscreen = true, failOffscreen = false } = {}) {
   for (const name of ["tabs.onCreated", "tabs.onUpdated", "tabs.onRemoved", "windows.onRemoved", "alarms.onAlarm",
     "webNavigation.onBeforeNavigate", "webNavigation.onCommitted", "webNavigation.onDOMContentLoaded",
     "webNavigation.onErrorOccurred", "webRequest.onResponseStarted", "webRequest.onBeforeRedirect",
-    "webRequest.onCompleted", "downloads.onCreated", "downloads.onChanged", "runtime.onInstalled", "runtime.onConnect", "runtime.onMessage"]) {
+    "webRequest.onCompleted", "downloads.onCreated", "downloads.onChanged", "runtime.onInstalled", "runtime.onConnect", "runtime.onMessage",
+    "runtime.onStartup", "contextMenus.onClicked"]) {
     e[name] = event();
   }
   const port = { onMessage: event(), onDisconnect: event(), postMessage: (m) => sent.push(JSON.parse(JSON.stringify(m))) };
@@ -52,6 +53,7 @@ function fakeBrowser({ offscreen = true, failOffscreen = false } = {}) {
   };
   const off = { docs: 0, closed: 0, port: null, scripts: [], unregistered: 0 };
   const user = { window: null, created: [] }; // the person's last focused window; windows made
+  const ui = { badge: "", badgeColor: null, menus: {} };
   const api = {
     scripting: {
       registerContentScripts: async (list) => {
@@ -92,6 +94,25 @@ function fakeBrowser({ offscreen = true, failOffscreen = false } = {}) {
       getURL: (n) => n,
       connectNative: () => port,
       onInstalled: e["runtime.onInstalled"],
+      onStartup: e["runtime.onStartup"],
+    },
+    // the badge and the context menu as the browser keeps them
+    action: {
+      setBadgeText: async ({ text }) => void (ui.badge = text),
+      setBadgeBackgroundColor: async ({ color }) => void (ui.badgeColor = color),
+    },
+    contextMenus: {
+      create: (props, done) => {
+        if (ui.menus[props.id]) api.runtime.lastError = { message: "duplicate id" };
+        else ui.menus[props.id] = JSON.parse(JSON.stringify(props));
+        done?.();
+        delete api.runtime.lastError;
+      },
+      update: async (id, props) => {
+        if (!ui.menus[id]) throw new Error("no such menu");
+        Object.assign(ui.menus[id], props);
+      },
+      onClicked: e["contextMenus.onClicked"],
     },
     permissions: { contains: async () => true },
     alarms: { create() {}, onAlarm: e["alarms.onAlarm"] },
@@ -152,7 +173,7 @@ function fakeBrowser({ offscreen = true, failOffscreen = false } = {}) {
     downloads: { onCreated: e["downloads.onCreated"], onChanged: e["downloads.onChanged"], search: async () => [] },
     cookies: {},
   };
-  return { api, e, port, sent, calls, tabs, wins, newTab, session, off, user };
+  return { api, e, port, sent, calls, tabs, wins, newTab, session, off, user, ui };
 }
 
 async function start(fake = fakeBrowser()) {
@@ -601,31 +622,92 @@ async function start(fake = fakeBrowser()) {
   // the toolbar panel: the app's player.state is kept checked, only popup.html may send prev/toggle/next
   x = await start();
   const art = "data:image/jpeg;base64,/9j/4AAQ==";
-  x.port.onMessage.fire({ cmd: "player.state", args: {
-    title: "T".repeat(500), artist: "A", playing: true, seed: 123, artwork: art,
-    colors: ["#b8286a", "#3a5fd6", "#ff2fa8", "#1e9bff"], dark: true, extra: "dropped" } });
+  x.e["runtime.onInstalled"].fire({ reason: "update" });
+  x.e["runtime.onStartup"].fire(); // again: the entries already there are kept, nothing throws
   await tick();
-  assert.deepEqual(x.session.djdPlayer, { title: "T".repeat(300), artist: "A", playing: true, seed: 123, artwork: art,
-    colors: ["#b8286a", "#3a5fd6", "#ff2fa8", "#1e9bff"], dark: true });
+  assert.deepEqual(Object.keys(x.ui.menus), ["djd-dig-link", "djd-dig-page"]);
+  const scPatterns = ["https://soundcloud.com/*", "https://www.soundcloud.com/*", "https://m.soundcloud.com/*"];
+  assert.deepEqual(x.ui.menus["djd-dig-link"], { id: "djd-dig-link", title: "Dig in dj-digger", contexts: ["link"],
+    targetUrlPatterns: scPatterns, visible: false }); // no app yet: hidden
+  assert.deepEqual(x.ui.menus["djd-dig-page"].documentUrlPatterns, scPatterns);
+  const pair = ["#b8286a", "#3a5fd6", "#ff2fa8", "#1e9bff"];
+  x.port.onMessage.fire({ cmd: "player.state", args: {
+    title: "T".repeat(500), artist: "A", playing: true, position: 61.5, duration: 200, at: 1700000000.25, seed: 123,
+    artwork: art, colors: pair, dark: true, extra: "dropped",
+    jobs: { busy: true, label: "L".repeat(200), done: 3, total: 10, more: 1 }, needs: 2 } });
+  await tick();
+  assert.deepEqual(x.session.djdPlayer, { title: "T".repeat(300), artist: "A", playing: true, position: 61.5, duration: 200,
+    at: 1700000000.25, seed: 123, artwork: art, colors: pair, dark: true,
+    jobs: { busy: true, label: "L".repeat(120), done: 3, total: 10 }, needs: 2 });
+  assert.deepEqual([x.ui.badge, x.ui.badgeColor], ["2", "#ff2fa8"]); // the count in the pair's neon foot
+  assert.equal(x.ui.menus["djd-dig-link"].visible && x.ui.menus["djd-dig-page"].visible, true);
   assert.equal(x.sent.filter((m) => "id" in m || m.ok !== undefined).length, 0); // no reply to it
   x.port.onMessage.fire({ cmd: "player.state", args: { title: 5, playing: "yes", seed: -1, dark: 1,
-    artwork: "data:image/svg+xml;base64,PHN2Zz4=", colors: ["red", "#000000", "#000000", "#000000"] } });
+    artwork: "data:image/svg+xml;base64,PHN2Zz4=", colors: ["red", "#000000", "#000000", "#000000"],
+    position: NaN, duration: -1, at: "now", jobs: { busy: 1, label: 7, done: -1, total: 1.5 }, needs: 1000 } });
   await tick();
-  assert.deepEqual(x.session.djdPlayer, { title: "", artist: "", playing: false, seed: 7, artwork: "", colors: null, dark: false });
-  x.port.onMessage.fire({ cmd: "player.state", args: { artwork: "data:image/png;base64," + "A".repeat(48 * 1024) } });
+  const empty = { busy: false, label: "", done: 0, total: 0 };
+  assert.deepEqual(x.session.djdPlayer, { title: "", artist: "", playing: false, position: 0, duration: 0, at: 0, seed: 7,
+    artwork: "", colors: null, dark: false, jobs: empty, needs: 0 });
+  assert.equal(x.ui.badge, ""); // no gates waiting: cleared
+  x.port.onMessage.fire({ cmd: "player.state", args: { artwork: "data:image/png;base64," + "A".repeat(48 * 1024), jobs: "busy", needs: 1 } });
   await tick();
-  assert.equal(x.session.djdPlayer.artwork, "");
+  assert.deepEqual([x.session.djdPlayer.artwork, x.session.djdPlayer.jobs, x.ui.badge, x.ui.badgeColor], ["", empty, "1", "#ff0094"]);
   const popup = { id: "djd", url: "popup.html" };
+  const SET = "https://soundcloud.com/some-dj/sets/deep_cuts-2";
   for (const [m, sender] of [[{ op: "next" }, popup], [{ op: "toggle" }, popup], [{ op: "prev" }, popup],
+    [{ op: "cancel", id: 3 }, popup], [{ op: "seek", fraction: 0.25, extra: 1 }, popup], [{ op: "seek", fraction: 1 }, popup],
+    [{ op: "gates", choice: "skip" }, popup], [{ op: "import", url: "https://m.soundcloud.com/some-dj/sets/deep_cuts-2?in=x#t=1" }, popup],
     [{ op: "stop" }, popup], [{ op: "next" }, { id: "djd", url: "offscreen.html" }],
+    [{ op: "seek", fraction: 1.5 }, popup], [{ op: "seek", fraction: NaN }, popup], [{ op: "seek", fraction: "0.5" }, popup],
+    [{ op: "gates", choice: "all" }, popup], [{ op: "import", url: "https://evil.example/some-dj" }, popup],
+    [{ op: "import", url: SET }, { id: "djd", url: "offscreen.html" }], [{ op: "page", url: SET }, { id: "djd", url: "welcome.html" }],
+    [{ op: "gates", choice: "open" }, { id: "djd", url: "https://hypeddit.com/x", tab: { id: 3 } }],
     [{ op: "next" }, { id: "djd", url: "https://hypeddit.com/x", tab: { id: 3 } }],
-    [{ op: "next" }, { id: "other", url: "popup.html" }], [null, popup]]) {
-    x.e["runtime.onMessage"].fire(m, sender);
+    [{ op: "cancel" }, { id: "other", url: "popup.html" }], [null, popup], ["next", popup]]) {
+    x.e["runtime.onMessage"].fire(m, sender, () => assert.fail("only the popup's page question is answered"));
   }
-  assert.deepEqual(x.events("player.command").map((m) => m.op), ["next", "toggle", "prev"]);
+  assert.deepEqual(x.events("player.command"), [{ event: "player.command", op: "next" }, { event: "player.command", op: "toggle" },
+    { event: "player.command", op: "prev" }, { event: "player.command", op: "cancel" },
+    { event: "player.command", op: "seek", fraction: 0.25 }, { event: "player.command", op: "seek", fraction: 1 },
+    { event: "player.command", op: "gates", choice: "skip" }, { event: "player.command", op: "import", url: SET }]);
+  // what the popup may offer for its page, and what an import may carry: nothing but these shapes
+  const kind = (url) => {
+    let answer;
+    x.e["runtime.onMessage"].fire({ op: "page", url }, popup, (r) => (answer = r));
+    return answer.kind;
+  };
+  for (const [url, expected] of [
+    [SET, "set"], ["https://www.soundcloud.com/some-dj/sets/deep_cuts-2/", "set"], ["https://SoundCloud.com/some-dj", "profile"],
+    ["https://soundcloud.com/some-dj", "profile"], ["https://soundcloud.com/some-dj/sets", "profile"],
+    ["https://soundcloud.com/some-dj/tracks?ref=x", "profile"], ["https://m.soundcloud.com/some-dj/popular-tracks", "profile"],
+    ["https://soundcloud.com/some-dj/a-single-track", null], ["https://soundcloud.com/some-dj/sets/x/s-SECRET", null],
+    ["https://soundcloud.com/discover", null], ["https://soundcloud.com/you/sets", null], ["https://soundcloud.com/", null],
+    ["http://soundcloud.com/some-dj", null], ["https://evil.com/some-dj", null], ["https://soundcloud.com.evil.com/some-dj", null],
+    ["https://api.soundcloud.com/some-dj", null], ["https://user:pw@soundcloud.com/some-dj", null],
+    ["https://soundcloud.com:8443/some-dj", null], ["https://soundcloud.com/some%2Fdj", null],
+    ["https://soundcloud.com/some-dj%2Fsets%2Fx", null], ["https://soundcloud.com/..%2F..%2Fsome-dj", null],
+    ["https://soundcloud.com/some-dj/../evil", "profile"], // the URL parser resolves the dots: /evil
+    ["javascript:alert(1)//soundcloud.com/x", null], ["data:text/html,https://soundcloud.com/x", null],
+    ["https://soundcloud.com/" + "a".repeat(500), null], [42, null], [undefined, null]]) {
+    assert.equal(kind(url), expected, String(url));
+  }
+  // the context menu: the link or the page clicked, the same check
+  const sentBefore = x.events("player.command").length;
+  for (const info of [{ menuItemId: "djd-dig-link", linkUrl: "https://soundcloud.com/some-dj/sets/x?si=1", pageUrl: "https://example.com/" },
+    { menuItemId: "djd-dig-page", pageUrl: "https://www.soundcloud.com/other_dj/albums" },
+    { menuItemId: "djd-dig-link", linkUrl: "https://soundcloud.com/some-dj/a-track" },
+    { menuItemId: "djd-dig-page", linkUrl: SET, pageUrl: "https://soundcloud.com/some-dj/a-track" },
+    { menuItemId: "someone-else", linkUrl: SET }]) {
+    x.e["contextMenus.onClicked"].fire(info, { id: 5 });
+  }
+  assert.deepEqual(x.events("player.command").slice(sentBefore).map((m) => m.url),
+    ["https://soundcloud.com/some-dj/sets/x", "https://soundcloud.com/other_dj"]);
   x.port.onMessage.fire({ event: "app-offline" });
   await tick();
   assert.equal(x.session.djdPlayer, null);
+  assert.equal(x.ui.badge, ""); // the app is gone: no count, no menu
+  assert.equal(x.ui.menus["djd-dig-link"].visible || x.ui.menus["djd-dig-page"].visible, false);
 
   // a browser with no window of its own gets one, and the session closes it again
   x = await start();
@@ -634,6 +716,14 @@ async function start(fake = fakeBrowser()) {
   await x.call("tab.new", { windowId: lone });
   await x.call("window.close", { windowId: lone });
   assert.equal(x.wins.has(made), false);
+  // ... unless a cart was handed over in it: then that window holds the person's tab and stays
+  x.user.created.length = 0;
+  const lone2 = (await x.call("window.open", { visible: false, background: true })).result.windowId;
+  const work = (await x.call("tab.new", { windowId: lone2, url: "https://bandcamp.com/" })).result.tabId;
+  const cartTab = (await x.call("tab.new", { windowId: lone2, url: "https://bandcamp.com/cart" })).result.tabId;
+  await x.call("tab.release", { tabId: cartTab });
+  await x.call("window.close", { windowId: lone2 });
+  assert.deepEqual([x.wins.has(x.user.created[0]), x.tabs.has(cartTab), x.tabs.has(work)], [true, true, false]);
   console.log("ok");
 })().catch((error) => {
   console.error(error);

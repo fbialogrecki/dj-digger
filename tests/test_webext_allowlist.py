@@ -130,10 +130,12 @@ def test_manifest_host_permissions_match_allowlist():
 
 def test_manifest_permissions_and_entry_points():
     assert MANIFEST["manifest_version"] == 3
-    assert set(MANIFEST["permissions"]) == {
+    # activeTab and contextMenus: the owner's approval of 2026-10-14 (plan F13), nothing more
+    assert sorted(MANIFEST["permissions"]) == sorted([
         "nativeMessaging", "tabs", "scripting", "downloads", "cookies",
         "webRequest", "webNavigation", "storage", "alarms", "offscreen",
-    }  # fmt: skip
+        "activeTab", "contextMenus",
+    ])  # fmt: skip
     assert "externally_connectable" not in MANIFEST
     assert "web_accessible_resources" not in MANIFEST
     popup = (EXTENSION / "popup.html").read_text(encoding="utf-8")
@@ -216,6 +218,12 @@ def test_no_remote_code_and_one_input_channel(path):
     if path.name == "background.js":
         assert 'sender.url !== api.runtime.getURL("popup.html")' in source
         assert "sender.id !== api.runtime.id" in source
+    # plan F13: the context menu is the background's, and only the popup reads the active tab (activeTab)
+    assert ("contextMenus." in source) == (path.name == "background.js")
+    assert source.count("contextMenus.onClicked") <= 1
+    assert ("tabs.query(" in source) == (path.name in {"background.js", "popup.js"})
+    if path.name == "popup.js":
+        assert source.count("tabs.query(") == 1 and "tabs.query({ active: true, currentWindow: true })" in source
     # plan F4b: the offscreen document and the frame content script each open one port to
     # the background, which has the one runtime.onConnect (it admits only those two, see
     # the harness); nothing else listens for or opens a runtime channel.

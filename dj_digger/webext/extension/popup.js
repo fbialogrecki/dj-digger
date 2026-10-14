@@ -1,6 +1,8 @@
-// popup.js - the toolbar panel: the desktop app's player as its record, with previous, play/pause and next.
-// It reads what the background keeps in storage.session (djdPlayer: the app's checked player.state, null
-// while the app is gone) and asks the background, which alone talks to the app, for one of three ops.
+// popup.js - the toolbar panel: the desktop app's player as its record, with previous, play/pause, next and
+// a seek bar; the app's running job with Cancel; the gates waiting for a person; and the import of the
+// SoundCloud set or profile this panel was opened over. It reads what the background keeps in
+// storage.session (djdPlayer: the app's checked player.state, null while the app is gone) and asks the
+// background, which alone talks to the app and checks every ask again.
 "use strict";
 const api = globalThis.browser ?? globalThis.chrome;
 const $ = (id) => document.getElementById(id);
@@ -78,8 +80,45 @@ function drawCode(seed) {
 const darker = (hex) =>
   "#" + [1, 3, 5].map((i) => Math.round(parseInt(hex.slice(i, i + 2), 16) * 0.8).toString(16).padStart(2, "0")).join("");
 
+const clock = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+// The track time now: the app's position runs on from when it was read while playing.
+const elapsed = (s) => Math.min(s.duration, s.position + (s.playing && s.at ? Math.max(0, Date.now() / 1000 - s.at) : 0));
+
+let state = null;
+let dragging = false; // the seek bar is in the person's hand: the clock leaves it alone
+let offer = null; // "set" or "profile": what the active tab's page can be imported as
+let sent = false;
+function tickSeek() {
+  const on = !!state?.title && state.duration > 0;
+  $("seek").disabled = !on;
+  if (dragging) return;
+  const t = on ? elapsed(state) : 0;
+  $("seek").value = on ? Math.round((t / state.duration) * 1000) : 0;
+  $("elapsed").textContent = clock(t);
+  $("total").textContent = clock(on ? state.duration : 0);
+}
+
 let drawn = "";
 function render(s) {
+  state = s;
+  // The cards: gates waiting for a person, the import this page offers, the running job.
+  const needs = s?.needs ?? 0;
+  $("gates").hidden = !needs;
+  $("gatesText").textContent = needs === 1 ? "1 gate needs you" : `${needs} gates need you`;
+  $("import").hidden = !s || !offer;
+  $("importButton").textContent = offer === "set" ? "Import this playlist into dj-digger" : "Import all playlists of this profile";
+  $("importButton").hidden = sent;
+  $("importDone").hidden = !sent;
+  const job = s?.jobs;
+  $("job").hidden = !job?.busy;
+  if (job?.busy) {
+    const label = job.label || "Working…";
+    $("jobLabel").textContent = job.total ? `${label} ${job.done} / ${job.total}` : label;
+    $("jobBar").hidden = !job.total;
+    $("jobBar").value = job.total ? Math.min(1, job.done / job.total) : 0;
+  }
+  $("panel").classList.toggle("extra", !$("gates").hidden || !$("import").hidden || !$("job").hidden);
+  tickSeek();
   const loaded = !!s?.title;
   const dark = s ? s.dark : matchMedia("(prefers-color-scheme: dark)").matches;
   const pair = s?.colors ?? DEFAULT_PAIR[dark ? "dark" : "light"];
@@ -88,7 +127,7 @@ function render(s) {
   root.dataset.theme = dark ? "dark" : "light";
   pair.forEach((c, i) => root.style.setProperty(`--c${i + 1}`, c));
   root.style.setProperty("--label", darker((seed >> 5) % 2 ? pair[0] : pair[1]));
-  const look = `${seed}|${pair}`;
+  const look = `${seed}|${pair}|${$("backdrop").clientWidth}`; // the record shrinks while a card shows
   if (look !== drawn) {
     drawn = look;
     drawBackdrop(seed, pair[0], pair[1]);
@@ -113,10 +152,35 @@ function render(s) {
   for (const id of ["prev", "toggle", "next"]) $(id).disabled = !loaded;
 }
 
+const ask = (m) => Promise.resolve(api.runtime.sendMessage(m)).catch(() => {});
 $("art").addEventListener("load", () => $("art").classList.add("ready"));
-for (const op of ["prev", "toggle", "next"]) {
-  $(op).addEventListener("click", () => Promise.resolve(api.runtime.sendMessage({ op })).catch(() => {}));
-}
+for (const op of ["prev", "toggle", "next", "cancel"]) $(op).addEventListener("click", () => ask({ op }));
+$("gatesOpen").addEventListener("click", () => ask({ op: "gates", choice: "open" }));
+$("gatesSkip").addEventListener("click", () => ask({ op: "gates", choice: "skip" }));
+$("seek").addEventListener("input", () => {
+  dragging = true;
+  $("elapsed").textContent = clock((state?.duration ?? 0) * ($("seek").value / 1000));
+});
+$("seek").addEventListener("change", () => {
+  const fraction = $("seek").value / 1000;
+  dragging = false;
+  if (state?.duration) state = { ...state, position: fraction * state.duration, at: Date.now() / 1000 }; // until the app says
+  ask({ op: "seek", fraction });
+});
+setInterval(tickSeek, 250);
 api.storage.session.onChanged.addListener((changes) => changes.djdPlayer && render(changes.djdPlayer.newValue));
 render(null);
 api.storage.session.get("djdPlayer").then(({ djdPlayer }) => render(djdPlayer));
+
+// The page this panel was opened over: a SoundCloud set or profile can be imported. The URL is read only
+// now (the activeTab grant of this click) and only the background decides what it is.
+api.tabs.query({ active: true, currentWindow: true }).then(async ([tab]) => {
+  const url = tab?.url ?? "";
+  offer = url ? (await ask({ op: "page", url }))?.kind ?? null : null;
+  $("importButton").onclick = () => {
+    sent = true;
+    ask({ op: "import", url });
+    render(state);
+  };
+  render(state);
+}, () => {});

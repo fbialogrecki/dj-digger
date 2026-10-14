@@ -458,31 +458,92 @@ function retry(e) {
 
 // ---------------------------------------------------------------- player panel (popup.html)
 
-// The app sends {cmd: "player.state", args} (no id, no reply) when its player changes and on hello. It is
-// kept, checked, in storage.session (djdPlayer; null while the app is gone), where the popup reads it, and
-// never leaves the browser. The popup asks for one of three ops by runtime.sendMessage; only the popup page
-// of this extension is heard (content scripts and the offscreen document are not), and the op goes to the
-// app as {event: "player.command", op}.
-const PLAYER_OPS = ["prev", "toggle", "next"];
+// The app sends {cmd: "player.state", args} (no id, no reply) when its player, its running job or the gates
+// waiting for a person change, and on hello. It is kept, checked, in storage.session (djdPlayer; null while
+// the app is gone), where the popup reads it, and never leaves the browser; `needs` is also the action's
+// badge. The popup asks by runtime.sendMessage; only the popup page of this extension is heard (content
+// scripts, frames and the offscreen document are not), and a checked command (command()) goes to the app
+// as {event: "player.command", op, ...}. The context menu's "Dig in dj-digger" sends the same import.
+const PLAYER_OPS = ["prev", "toggle", "next", "cancel"];
 const MAX_ARTWORK = 48 * 1024;
 const ARTWORK = /^data:image\/(?:jpeg|png);base64,[A-Za-z0-9+/]+={0,2}$/;
 const COLOR = /^#[0-9a-f]{6}$/i;
 const cut = (v, n) => (typeof v === "string" ? v.slice(0, n) : "");
+const count = (v, max) => (Number.isInteger(v) && v >= 0 && v <= max ? v : 0);
+const seconds = (v, max) => (typeof v === "number" && v >= 0 && v <= max ? v : 0); // NaN fails both
 function playerState(a) {
   a = a && typeof a === "object" ? a : {};
+  const j = a.jobs && typeof a.jobs === "object" ? a.jobs : {};
   const colors = Array.isArray(a.colors) && a.colors.length === 4 && a.colors.every((c) => typeof c === "string" && COLOR.test(c)) ? a.colors : null;
   return {
     title: cut(a.title, 300), artist: cut(a.artist, 300), playing: a.playing === true,
+    position: seconds(a.position, 1e6), duration: seconds(a.duration, 1e6), at: seconds(a.at, 1e11),
     seed: Number.isInteger(a.seed) && a.seed >= 0 && a.seed < 2 ** 32 ? a.seed : 7,
     artwork: typeof a.artwork === "string" && a.artwork.length <= MAX_ARTWORK && ARTWORK.test(a.artwork) ? a.artwork : "",
     colors, dark: a.dark === true,
+    jobs: { busy: j.busy === true, label: cut(j.label, 120), done: count(j.done, 1e9), total: count(j.total, 1e9) },
+    needs: count(a.needs, 999),
   };
 }
-const setPlayer = (s) => api.storage.session.set({ djdPlayer: s }).catch(() => {});
-api.runtime.onMessage.addListener((m, sender) => {
-  if (sender.id !== api.runtime.id || sender.url !== api.runtime.getURL("popup.html")) return;
-  if (PLAYER_OPS.includes(m?.op)) send({ event: "player.command", op: m.op });
+const quiet = (p) => Promise.resolve(p).catch(() => {}); // Chrome before 123 answers some of these with no promise
+function setPlayer(s) {
+  api.storage.session.set({ djdPlayer: s }).catch(() => {});
+  const needs = s?.needs ?? 0;
+  quiet(api.action.setBadgeText({ text: needs ? String(needs) : "" }));
+  if (needs) quiet(api.action.setBadgeBackgroundColor({ color: s.colors?.[2] ?? "#ff0094" })); // the neon foot
+  showMenus(!!s);
+}
+// the import entries only while an app is there to take them
+const showMenus = (on) => MENUS.forEach((id) => quiet(api.contextMenus.update(id, { visible: on })));
+
+// "Dig in dj-digger": a SoundCloud set or profile, from the popup (the active tab's URL, read only once the
+// person opened it: activeTab) or a context-menu click (that link, or that page). importTarget() is the only
+// gate: https, exactly soundcloud.com, www. or m., no credentials or port, at most 512 characters, the path
+// /<user>/sets/<name>, /<user> or /<user>/<tab>; it returns the canonical https://soundcloud.com/... link,
+// without query or fragment. A single track has no import, so it is not offered.
+const SC_HOSTS = ["soundcloud.com", "www.soundcloud.com", "m.soundcloud.com"];
+const SC_SET = /^\/([A-Za-z0-9_-]+)\/sets\/([A-Za-z0-9_-]+)\/?$/;
+const SC_PROFILE = /^\/([A-Za-z0-9_-]+)(?:\/(?:sets|tracks|albums|popular-tracks|reposts))?\/?$/;
+// SoundCloud's own pages that look like a profile
+const SC_PAGES = new Set(["discover", "feed", "stream", "you", "search", "upload", "charts", "settings", "messages",
+  "notifications", "pages", "signin", "logout", "people", "tags", "terms-of-use", "pro", "mobile", "jobs", "imprint"]);
+function importTarget(url) {
+  const u = typeof url === "string" && url.length <= 512 ? parse(url) : null;
+  if (!u || u.protocol !== "https:" || u.username || u.password || u.port || !SC_HOSTS.includes(u.hostname)) return null;
+  const set = SC_SET.exec(u.pathname);
+  if (set) return { kind: "set", url: `https://soundcloud.com/${set[1]}/sets/${set[2]}` };
+  const profile = SC_PROFILE.exec(u.pathname);
+  return profile && !SC_PAGES.has(profile[1].toLowerCase()) ? { kind: "profile", url: `https://soundcloud.com/${profile[1]}` } : null;
+}
+// What the popup may ask of the app, checked; null for anything else.
+function command(m) {
+  if (PLAYER_OPS.includes(m.op)) return { op: m.op };
+  if (m.op === "seek" && typeof m.fraction === "number" && m.fraction >= 0 && m.fraction <= 1) return { op: "seek", fraction: m.fraction };
+  if (m.op === "gates" && (m.choice === "open" || m.choice === "skip")) return { op: "gates", choice: m.choice };
+  const target = m.op === "import" ? importTarget(m.url) : null;
+  return target && { op: "import", url: target.url };
+}
+api.runtime.onMessage.addListener((m, sender, reply) => {
+  if (sender.id !== api.runtime.id || sender.url !== api.runtime.getURL("popup.html") || !m || typeof m !== "object") return;
+  if (m.op === "page") return void reply({ kind: importTarget(m.url)?.kind ?? null }); // what the popup may offer
+  const c = command(m);
+  if (c) send({ event: "player.command", ...c });
 });
+// Two entries: "page" is shown only where no link is under the pointer, so they never appear together.
+const MENUS = ["djd-dig-link", "djd-dig-page"];
+const SC_PATTERNS = SC_HOSTS.map((h) => `https://${h}/*`);
+// Made on install, update and browser start; one that is already there (a duplicate id) is left as it is.
+function createMenus() {
+  const done = () => void api.runtime.lastError;
+  api.contextMenus.create({ id: MENUS[0], title: "Dig in dj-digger", contexts: ["link"], targetUrlPatterns: SC_PATTERNS, visible: false }, done);
+  api.contextMenus.create({ id: MENUS[1], title: "Dig in dj-digger", contexts: ["page"], documentUrlPatterns: SC_PATTERNS, visible: false }, done);
+  api.storage.session.get("djdPlayer").then(({ djdPlayer }) => showMenus(!!djdPlayer), () => {});
+}
+api.contextMenus.onClicked.addListener((info) => {
+  const c = command({ op: "import", url: info.menuItemId === MENUS[0] ? info.linkUrl : info.pageUrl });
+  if (c && MENUS.includes(info.menuItemId)) send({ event: "player.command", ...c });
+});
+api.runtime.onStartup.addListener(createMenus);
 
 // ---------------------------------------------------------------- commands
 
@@ -738,6 +799,9 @@ const commands = {
   // drives or guards it any more - checkout from it is theirs.
   async "tab.release"({ tabId }) {
     realTab(tabId);
+    // a window made for a browser that had none now holds the person's tab: it is theirs, never closed here
+    const w = windows.get(owned.get(tabId).windowId);
+    if (w?.background) w.ownsHost = false;
     owned.delete(tabId);
     persist();
     emit({ event: "tab.removed", tabId });
@@ -944,5 +1008,6 @@ const ready = (async () => {
 })();
 api.alarms.onAlarm.addListener(() => ready.then(connect));
 api.runtime.onInstalled.addListener((d) => {
+  createMenus();
   if (d.reason === "install") api.tabs.create({ url: api.runtime.getURL("welcome.html") });
 });

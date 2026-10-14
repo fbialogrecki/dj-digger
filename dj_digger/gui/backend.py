@@ -29,6 +29,11 @@ RELEASES_URL = 'https://github.com/fbialogrecki/dj-digger/releases'
 CONFIRM_ABOVE = 10
 # The browser extension's panel sends at most one player.state per this many seconds.
 BROWSER_DEBOUNCE = .2
+# While a track plays, its position alone goes to the panel this rarely; the panel runs its own clock.
+BROWSER_POSITION_EVERY = 5.0
+# SoundCloud links the browser extension may hand over for an import (backend.import_target).
+IMPORT_HOSTS = frozenset({'soundcloud.com', 'www.soundcloud.com', 'm.soundcloud.com'})
+PROFILE_TABS = frozenset({'sets', 'tracks', 'albums', 'popular-tracks', 'reposts'})
 
 
 def cover_hash(text):
@@ -83,6 +88,14 @@ class Backend:
         self.browser_artwork = ('', '')
         self.browser_state = None
         self.browser_timer = None
+        # What changed the panel last (its state with no position, the seeks served) and when it went.
+        self.browser_key = None
+        self.browser_sent = 0.0
+        # The running job as the status bar shows it ('busy' and 'importProgress'), and the open
+        # "Gates need you" question as (question id, gates) while it waits for an answer.
+        self.browser_job = dict(busy=False, label='')
+        self.browser_progress = {}
+        self.gates_waiting = None
         self.thread.start()
 
     def _run(self):
@@ -100,6 +113,9 @@ class Backend:
         if kind in {'error', 'message'} and 'text' in detached:
             detached['text'] = log_safe_text(detached['text'])
         self.emit(kind, detached)
+        if kind in ('busy', 'importProgress') and not self.loop.is_closed():
+            # Also sent from worker threads: the panel's copy is kept on the loop.
+            self.loop.call_soon_threadsafe(self.note_job, kind, detached)
 
     def submit(self, action, values=None):
         self.ready.wait()
@@ -119,12 +135,15 @@ class Backend:
                 future.set_result(deepcopy(values))
         self.loop.call_soon_threadsafe(deliver)
 
-    async def ask(self, title, body='', fields=(), cancel=None, ok='', error='', dismiss=''):
-        """``dismiss`` names the Cancel button; answering with it raises Cancelled."""
+    async def ask(self, title, body='', fields=(), cancel=None, ok='', error='', dismiss='', opened=None):
+        """``dismiss`` names the Cancel button; answering with it raises Cancelled.
+        ``opened`` is told the question's id once it is asked."""
         ident = uuid4().hex
         future = self.loop.create_future()
         self.questions[ident] = future
         self.send('question', dict(id=ident, title=title, body=body, fields=list(fields), ok=ok, error=error, cancel=dismiss))
+        if opened:
+            opened(ident)
         try:
             while not future.done():
                 if self.closing or (is_cancelled(cancel)):
@@ -170,8 +189,8 @@ class Backend:
                 if self.connect_browser_link:
                     try:
                         await self.io(self.services.connect_browser)
-                        # The panel's buttons arrive on a connection thread and take the window's path.
-                        self.services.browser_link.on_player_command = lambda op: self.submit('remote', {'op': op})
+                        # The panel's commands arrive checked on a connection thread and take the window's path.
+                        self.services.browser_link.on_player_command = lambda command: self.submit('remote', command)
                         self.publish_browser()
                     except Exception as exc:
                         LOGGER.warning('Browser extension channel unavailable: %s', log_safe_text(exc))
@@ -329,10 +348,11 @@ class Backend:
     async def action_dig(self, values):
         target = values.get('target')
         # A refresh keeps its rows until the new ones are in; a new import shows itself at once.
-        adding = not target
+        # ``add`` is a link the browser extension handed over, already checked (action_remote).
+        adding = not target or values.get('add')
         if adding:
-            target = (await self.form('Add playlist', '', [field('target', 'Paste a link to your SoundCloud playlist')],
-                                      soundcloud_link('target'), ok='Add'))['target'].strip()
+            target = target or (await self.form('Add playlist', '', [field('target', 'Paste a link to your SoundCloud playlist')],
+                                                soundcloud_link('target'), ok='Add'))['target'].strip()
             self.generation += 1
             self.record, self.folder = None, None
             self.importing = dict(title=target, source=target, pending=True)
@@ -483,17 +503,24 @@ class Backend:
                 # Nothing of the browser is shown unless the person asks for it here (plan Z2).
                 async def question():
                     gates = '\n'.join(labels.get(key, key) + ': ' + reason for key, reason in reasons.items())
+                    def waiting(ident):
+                        # The browser panel shows how many and may answer this question (action_remote).
+                        self.gates_waiting = (ident, len(reasons))
+                        self.publish_browser()
                     try:
                         answer = await self.ask('Gates need you', 'These gates want something only you can do, '
                                                 'such as a login or a CAPTCHA.',
                                                 [field('gates', '', gates, 'log'),
                                                  field('next', '', 'open', 'buttons',
                                                        [['open', 'Open in browser'], ['skip', 'Skip these']])],
-                                                handle.cancel, dismiss='Stop download')
+                                                handle.cancel, dismiss='Stop download', opened=waiting)
                     except Cancelled:
                         # Stop download ends the whole download, not just this question.
                         self.services.operations.cancel(handle)
                         raise
+                    finally:
+                        self.gates_waiting = None
+                        self.publish_browser()
                     return answer['next'] == 'open'
                 return asyncio.run_coroutine_threadsafe(question(), self.loop).result()
             put, flushing = self.progress_batch(values)
@@ -1128,21 +1155,33 @@ class Backend:
         return snapshot
 
     def publish_browser(self):
-        """The browser extension's panel: title, artist, playing, the record's seed, a small
-        cover and the window's colours, queued when any of them changes (webext player.state)."""
+        """The browser extension's panel: title, artist, playing, position and duration (seconds,
+        read at ``at``), the record's seed, a small cover, the window's colours, the running job and
+        how many gates wait for a person, queued when any of them changes (webext player.state).
+        While a track plays its position alone goes every BROWSER_POSITION_EVERY seconds; the panel
+        runs its own clock from ``at``."""
         if getattr(self.services, 'browser_link', None) is None:
             return
         p = self.services.player
-        state = dict(title='', artist='', playing=False, seed=cover_hash(''), artwork='', **self.browser_look)
+        progress = self.browser_progress
+        jobs = dict(busy=self.browser_job['busy'], label=progress.get('stage') or self.browser_job['label'],
+                    done=int(progress.get('done') or 0), total=int(progress.get('total') or 0))
+        state = dict(title='', artist='', playing=False, position=0.0, duration=0.0, seed=cover_hash(''), artwork='',
+                     jobs=jobs, needs=self.gates_waiting[1] if self.gates_waiting else 0, **self.browser_look)
         if p.loaded:
             track, key = p.loaded.track, p.loaded.track.key
             shown = self.now_playing if self.now_playing.get('key') == key else {}
             state.update(title=shown.get('name') or track.title or track.label, artist=shown.get('artist', track.artist or ''),
-                         playing=bool(p.playing), seed=cover_hash(key),
+                         playing=bool(p.playing), seed=cover_hash(key), position=round(p.position, 1),
+                         duration=round(p.duration, 1),
                          artwork=self.browser_artwork[1] if self.browser_artwork[0] == key else '')
-        if state == self.browser_state:
+        # A seek changes the position on purpose; otherwise the position alone waits its turn.
+        changed = dict(state, position=None, seeks=self.seeks)
+        now = time.monotonic()
+        if changed == self.browser_key and not (state['playing'] and now - self.browser_sent >= BROWSER_POSITION_EVERY):
             return
-        self.browser_state = state
+        self.browser_key, self.browser_sent = changed, now
+        self.browser_state = dict(state, at=round(time.time(), 3))
         if self.browser_timer is None:
             self.browser_timer = self.loop.call_later(BROWSER_DEBOUNCE, self.flush_browser)
 
@@ -1161,14 +1200,41 @@ class Backend:
         self.browser_look = dict(colors=colors[:4], dark=bool(values.get('dark')))
         self.publish_browser()
 
+    def note_job(self, kind, values):
+        """The status bar's job ('busy') and import progress, for the panel."""
+        if kind == 'busy':
+            self.browser_job = dict(busy=bool(values['value']),
+                                    label=values['text'] or (self.browser_job['label'] if values['value'] else ''))
+        else:
+            self.browser_progress = values
+        self.publish_browser()
+
     async def action_remote(self, values):
-        """The panel's buttons (webext player.command), the same steps as the window's own."""
-        if not self.services.player.loaded:
+        """The panel's and the context menu's commands (webext player.command, checked by
+        ``link.player_command``), each the same step as the window's own."""
+        op, player = values.get('op'), self.services.player
+        if op == 'cancel':
+            await self.dispatch('cancel', {})  # the status bar's Cancel
+        elif op == 'gates':
+            # Only the "Gates need you" question on screen (the oldest open one) is answered.
+            if self.gates_waiting and next(iter(self.questions), None) == self.gates_waiting[0]:
+                self.answer(self.gates_waiting[0], {'next': values['choice']})
+        elif op == 'import':
+            target = import_target(values['url'])
+            if target is None:
+                LOGGER.debug('Browser import ignored')  # never the link: it is untrusted
+            elif target[0] == 'profile':
+                await self.action_profile({'url': target[1]})
+            else:
+                await self.action_dig({'target': target[1], 'add': True})
+        elif not player.loaded:
             return
-        if values.get('op') == 'toggle':
+        elif op == 'toggle':
             await self.action_transport({'operation': 'toggle'})
-        elif values.get('op') in ('prev', 'next'):
-            await self.action_step({'direction': -1 if values['op'] == 'prev' else 1})
+        elif op in ('prev', 'next'):
+            await self.action_step({'direction': -1 if op == 'prev' else 1})
+        elif op == 'seek':
+            await self.action_transport({'operation': 'seek', 'value': values['fraction'] * player.duration})
 
     def publish_now_playing(self, track=None):
         """Details for the player panel, sent when a track loads or its details
@@ -1806,6 +1872,33 @@ def profile_summary(report, error=''):
     if lines:
         rows.append(field('details', 'Not imported', '\n'.join(lines), 'log'))
     return rows
+
+
+def import_target(url):
+    """A link the browser extension handed over (untrusted) as ``('set', link)`` for Add playlist or
+    ``('profile', link)`` for the profile import, normalised; None for anything else. Only https on
+    soundcloud.com (also www. and m.) with no credentials or port, and only these path shapes:
+    ``/<user>/sets/<name>``, ``/<user>`` and ``/<user>/<tab>`` (sets, tracks, albums, popular-tracks,
+    reposts). The query and fragment are dropped. The extension checks the same before sending."""
+    from urllib.parse import urlsplit
+
+    from ..services.profile_import import PROFILE_NAME, profile_url
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return None
+    if parts.scheme != 'https' or parts.netloc not in IMPORT_HOSTS or len(url) > 512:
+        return None
+    names = parts.path.removeprefix('/').removesuffix('/').split('/')
+    if not all(PROFILE_NAME.fullmatch(name) for name in names):
+        return None
+    if len(names) == 3 and names[1] == 'sets':
+        link = 'https://soundcloud.com/' + '/'.join(names)
+        soundcloud_link('target')({'target': link})  # what Add playlist accepts
+        return 'set', link
+    if len(names) == 1 or (len(names) == 2 and names[1] in PROFILE_TABS):
+        return 'profile', profile_url(url)
+    return None
 
 
 def soundcloud_link(name):

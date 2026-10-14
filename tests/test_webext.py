@@ -289,8 +289,28 @@ def test_player_commands_reach_the_callback_not_the_sessions(listener, address):
         client.send_bytes(json.dumps({"event": "player.command", "op": op}).encode())
     client.send_bytes(b'{"event":"tab.created","tabId":1}')
     assert session.next_event(3) == {"event": "tab.created", "tabId": 1}  # other events still go to sessions
-    assert seen == ["prev", "toggle", "next"]
+    assert seen == [{"op": "prev"}, {"op": "toggle"}, {"op": "next"}]
     assert session.next_event(0) is None
+
+
+def test_player_commands_carry_only_their_own_checked_arguments():
+    url = "https://soundcloud.com/a/sets/b"
+    accepted = [
+        ({"op": "cancel", "id": 4}, {"op": "cancel"}),
+        ({"op": "seek", "fraction": 0}, {"op": "seek", "fraction": 0.0}),
+        ({"op": "seek", "fraction": 0.5, "seconds": 9}, {"op": "seek", "fraction": 0.5}),
+        ({"op": "gates", "choice": "open"}, {"op": "gates", "choice": "open"}),
+        ({"op": "import", "url": url, "kind": "x"}, {"op": "import", "url": url}),
+    ]
+    for frame, command in accepted:
+        assert link.player_command(frame) == command
+    for frame in (
+        {"op": "seek", "fraction": 1.01}, {"op": "seek", "fraction": -0.1}, {"op": "seek", "fraction": True},
+        {"op": "seek", "fraction": float("nan")}, {"op": "seek", "fraction": "0.5"}, {"op": "seek"},
+        {"op": "gates", "choice": "all"}, {"op": "gates"}, {"op": "import", "url": ["x"]},
+        {"op": "import", "url": "https://soundcloud.com/" + "a" * 500}, {"op": "eval"}, {"op": None}, {},
+    ):  # fmt: skip
+        assert link.player_command(frame) is None, frame
 
 
 def test_player_state_goes_to_every_compatible_browser_and_to_later_hellos(listener, address):
