@@ -801,6 +801,15 @@ def test_offscreen_falls_back_to_a_normal_window_when_the_browser_cannot(world):
         assert [r["args"] for r in ext.commands("window.open")[2:]] == [{"visible": True}, {"visible": False}]
 
 
+def test_background_session_asks_for_no_window_of_its_own(world):
+    listener, ext = world  # the SoundCloud cookie read (auth.py): nothing may appear on screen
+    ext.handlers["window.open"] = lambda a: {"windowId": -4, "offscreen": False, "background": True}
+    with webpage.session(listener=listener, background=True) as context:
+        context.cookies(["https://soundcloud.com"])
+    assert ext.commands("window.open")[0]["args"] == {"visible": False, "background": True}
+    assert ext.wait_for("window.close")["args"] == {"windowId": -4}
+
+
 def test_async_offscreen_session(world):
     listener, ext = world
     ext.handlers["window.open"] = lambda a: {"windowId": -3, "offscreen": True}

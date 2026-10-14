@@ -48,13 +48,14 @@ class _Context:
 
 
 def _browser(monkeypatch, context):
-    """``webpage.session`` yields ``context``; the opened visibility is recorded."""
+    """``webpage.session`` yields ``context``; each opened kind is recorded: "background" (no
+    window at all) or the work window's visibility."""
 
     opened = []
 
     @contextmanager
-    def session(visible=False, listener=None):
-        opened.append(visible)
+    def session(visible=False, listener=None, *, background=False):
+        opened.append("background" if background else visible)
         yield context
 
     monkeypatch.setattr(auth.webpage, "session", session)
@@ -185,7 +186,7 @@ def test_a_token_already_in_the_browser_is_saved_without_showing_a_window(monkey
 
     assert result == ("secret-token", "DJ", 7)
     assert saved == [("secret-token", "DJ", 7)]
-    assert opened == [False] and not context.shown and context.page.visited == []
+    assert opened == ["background"] and not context.shown and context.page.visited == []
 
 
 def test_browser_login_reads_only_oauth_token_after_the_sign_in_page(monkeypatch):
@@ -200,7 +201,7 @@ def test_browser_login_reads_only_oauth_token_after_the_sign_in_page(monkeypatch
             ]
 
     context = Context()
-    _browser(monkeypatch, context)
+    opened = _browser(monkeypatch, context)
     _verify(monkeypatch, {"secret-token"}, saved)
 
     result = auth.login_with_browser("client", cancel=Event())
@@ -208,6 +209,7 @@ def test_browser_login_reads_only_oauth_token_after_the_sign_in_page(monkeypatch
     assert result == ("secret-token", "DJ", 7)
     assert saved == [("secret-token", "DJ", 7)]
     assert context.page.visited == [auth.SOUNDCLOUD_SIGN_IN_URL]
+    assert opened == ["background", False]  # the work window only once the sign-in page is needed
 
 
 def test_a_rejected_browser_token_is_ignored_until_login_changes_it(monkeypatch):

@@ -282,13 +282,16 @@ def login_with_browser(
 
     try:
         status("Looking for a SoundCloud login in your browser…")
+        # A background session opens no window (Wayland maps even a minimized one for a moment).
+        with webpage.session(background=True) as context:
+            token = _oauth_cookie(context.cookies([SOUNDCLOUD_URL]))
+        rejected: set[str] = set()
+        if token:
+            try:
+                return verify_and_save(token, client_id)
+            except SoundCloudAuthError:
+                rejected.add(token)
         with webpage.session(visible=False) as context:
-            rejected: set[str] = set()
-            if token := _oauth_cookie(context.cookies([SOUNDCLOUD_URL])):
-                try:
-                    return verify_and_save(token, client_id)
-                except SoundCloudAuthError:
-                    rejected.add(token)
             return _wait_for_oauth_cookie(context, client_id, timeout, cancel, status, rejected)
     except (SoundCloudAuthError, KeyboardInterrupt):
         raise

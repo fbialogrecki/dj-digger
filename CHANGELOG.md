@@ -197,6 +197,9 @@
 
 ### Fixed
 
+- Signing in to SoundCloud while your browser is already signed in no longer
+  flashes an empty browser window: the login cookie is read without opening any
+  window, and the work window opens only when the sign-in page is needed.
 - Store carts no longer leave their work tabs (product lookups, the page of a
   skipped or already bought item) open in your browser next to the finished cart
   tab: each cart run closes them when it ends, however it ends.

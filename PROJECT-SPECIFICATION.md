@@ -5,8 +5,8 @@
 - Product version verified: 1.4.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-10-08
-- Document lines: <!-- SPEC TOTAL LINES -->2553<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->2553<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->2554<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->2554<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -80,37 +80,37 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 8.1 | ↳ CLI arguments and exit behavior | 1599–1627 |
 | 8.2 | ↳ JSON and CSV summary input | 1628–1643 |
 | 8.3 | ↳ URL-opening contract | 1644–1655 |
-| 9 | Authentication and authorization | 1656–1722 |
-| 9.1 | ↳ SoundCloud authentication | 1658–1689 |
-| 9.2 | ↳ Gate action consent | 1690–1722 |
-| 10 | External integrations | 1723–2053 |
-| 10.1 | ↳ SoundCloud API and media | 1725–1736 |
-| 10.2 | ↳ Link hubs and download gates | 1737–1874 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1745–1831 |
-| 10.2 · block | ↳ ↳ ToneDen | 1833–1857 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1859–1867 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1869–1874 |
-| 10.3 | ↳ Browsers and clipboard | 1875–2000 |
-| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 2001–2053 |
-| 11 | Security requirements and threat model | 2054–2253 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2056–2074 |
-| 11.2 | ↳ Secret and personal-data handling | 2075–2090 |
-| 11.3 | ↳ File and mutation safety | 2091–2112 |
-| 11.4 | ↳ Browser-extension trust boundary | 2113–2253 |
-| 12 | Privacy, lifecycle, and retention | 2254–2310 |
-| 12.1 | ↳ Data stored locally | 2256–2280 |
-| 12.2 | ↳ Data sent to third parties | 2281–2297 |
-| 12.3 | ↳ User-controlled deletion | 2298–2310 |
-| 13 | Failure behavior and current limitations | 2311–2420 |
-| 13.1 | ↳ Error isolation and reporting | 2313–2334 |
-| 13.2 | ↳ Confirmed limitations | 2335–2420 |
-| 14 | Verification, CI, and release | 2421–2519 |
-| 14.1 | ↳ Offline and live test suites | 2423–2471 |
-| 14.2 | ↳ Continuous integration and publishing | 2472–2504 |
-| 14.3 | ↳ Specification-map verification | 2505–2519 |
-| 15 | Evidence and operational references | 2520–2553 |
-| 15.1 | ↳ Primary implementation evidence | 2522–2543 |
-| 15.2 | ↳ User and historical documentation | 2544–2553 |
+| 9 | Authentication and authorization | 1656–1723 |
+| 9.1 | ↳ SoundCloud authentication | 1658–1690 |
+| 9.2 | ↳ Gate action consent | 1691–1723 |
+| 10 | External integrations | 1724–2054 |
+| 10.1 | ↳ SoundCloud API and media | 1726–1737 |
+| 10.2 | ↳ Link hubs and download gates | 1738–1875 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1746–1832 |
+| 10.2 · block | ↳ ↳ ToneDen | 1834–1858 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1860–1868 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1870–1875 |
+| 10.3 | ↳ Browsers and clipboard | 1876–2001 |
+| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 2002–2054 |
+| 11 | Security requirements and threat model | 2055–2254 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2057–2075 |
+| 11.2 | ↳ Secret and personal-data handling | 2076–2091 |
+| 11.3 | ↳ File and mutation safety | 2092–2113 |
+| 11.4 | ↳ Browser-extension trust boundary | 2114–2254 |
+| 12 | Privacy, lifecycle, and retention | 2255–2311 |
+| 12.1 | ↳ Data stored locally | 2257–2281 |
+| 12.2 | ↳ Data sent to third parties | 2282–2298 |
+| 12.3 | ↳ User-controlled deletion | 2299–2311 |
+| 13 | Failure behavior and current limitations | 2312–2421 |
+| 13.1 | ↳ Error isolation and reporting | 2314–2335 |
+| 13.2 | ↳ Confirmed limitations | 2336–2421 |
+| 14 | Verification, CI, and release | 2422–2520 |
+| 14.1 | ↳ Offline and live test suites | 2424–2472 |
+| 14.2 | ↳ Continuous integration and publishing | 2473–2505 |
+| 14.3 | ↳ Specification-map verification | 2506–2520 |
+| 15 | Evidence and operational references | 2521–2554 |
+| 15.1 | ↳ Primary implementation evidence | 2523–2544 |
+| 15.2 | ↳ User and historical documentation | 2545–2554 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -1666,8 +1666,9 @@ Login first accepts a valid stored/environment token, then scans plaintext
 Firefox `moz_cookies` databases on Linux/macOS and mounted Windows profiles,
 then asks the browser extension (§10.3), with a hidden manual token fallback in
 the CLI. The extension reads the one `oauth_token` cookie of the user's own
-browser; when that token verifies, no window opens. Otherwise
-`soundcloud.com/signin` opens in the extension's work window and the cookie is
+browser in a background session (`window.open {background: true}`, §10.3), so no
+window opens or flashes; when that token verifies, nothing else opens. Otherwise
+`soundcloud.com/signin` opens in a new work window of the extension and the cookie is
 polled for up to five minutes, a rejected token being ignored until it changes.
 Closing the sign-in tab (or the work window) before a token appears ends the wait
 at once with "The SoundCloud sign-in tab was closed; no credentials were saved."
@@ -1956,7 +1957,7 @@ tab run in order; cancelling sends `cancel`, which stops the wait in the extensi
 
 Several sessions may be open at once, each with its own work window.
 `window.open {visible}` always creates a new window and returns `{windowId}`;
-`window.open {background: true}` (carts) creates none: it returns a virtual
+`window.open {background: true}` (carts, the SoundCloud login's cookie read) creates none: it returns a virtual
 `windowId` whose `tab.new` makes an inactive tab in the user's last focused normal
 window (a new unfocused window only when the browser has none, closed with the
 session), `window.show`/`window.hide` do nothing, `tab.capture` fails with

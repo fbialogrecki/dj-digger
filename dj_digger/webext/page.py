@@ -698,11 +698,12 @@ class ExtensionContext(_Context):
 
     @classmethod
     def open(
-        cls, visible: bool = False, listener: Listener | None = None, *, offscreen: bool = False
+        cls, visible: bool = False, listener: Listener | None = None, *, offscreen: bool = False,
+        background: bool = False,
     ) -> ExtensionContext:
         context = cls(_listener_for(listener).session())
         try:
-            context._run(_Cmd("window.open", _open_args(visible, offscreen),
+            context._run(_Cmd("window.open", _open_args(visible, offscreen, background),
                               post=context._opened(visible, new_window=True)))
         except BaseException:
             context._finish()
@@ -852,13 +853,15 @@ class AsyncExtensionContext(_Context):
 
 @contextmanager
 def session(
-    visible: bool = False, listener: Listener | None = None, *, offscreen: bool = False
+    visible: bool = False, listener: Listener | None = None, *, offscreen: bool = False,
+    background: bool = False,
 ) -> Iterator[ExtensionContext]:
     """One work window for a batch; leaving the block closes its tabs and the window (only its own:
     other sessions keep theirs). ``offscreen`` asks for a hidden session without any browser window
-    (Chromium); check ``context.offscreen``, as other browsers answer with a normal hidden window."""
+    (Chromium); check ``context.offscreen``, as other browsers answer with a normal hidden window.
+    ``background`` puts the session's tabs, inactive, in the person's own window: no new window."""
 
-    context = ExtensionContext.open(visible, listener, offscreen=offscreen)
+    context = ExtensionContext.open(visible, listener, offscreen=offscreen, background=background)
     try:
         yield context
     finally:
