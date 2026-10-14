@@ -551,7 +551,7 @@ def test_register_and_unregister_on_linux(sandbox, monkeypatch):
     result = register.register()
     name = register.HOST_NAME + ".json"
     chrome = json.loads((home / ".config/google-chrome/NativeMessagingHosts" / name).read_text())
-    assert chrome["allowed_origins"] == [f"chrome-extension://{expected}/"]
+    assert chrome["allowed_origins"] == [f"chrome-extension://{i}/" for i in (expected, register.CHROME_STORE_ID)]
     assert chrome["path"] == str(launcher) and chrome["type"] == "stdio" and chrome["name"] == register.HOST_NAME
     assert (home / ".config/BraveSoftware/Brave-Browser/NativeMessagingHosts" / name).is_file()
     assert not (home / ".config/chromium").exists() and not (home / ".config/microsoft-edge").exists()
@@ -644,7 +644,7 @@ def test_register_and_unregister_on_windows_with_a_fake_registry(sandbox, monkey
     firefox_key = rf"Software\Mozilla\NativeMessagingHosts\{register.HOST_NAME}"
     assert set(k[0] for k in fake.values) == {chrome_key, firefox_key}
     chrome_manifest = Path(fake.values[(chrome_key, "")])
-    assert json.loads(chrome_manifest.read_text())["allowed_origins"] == [f"chrome-extension://{expected}/"]
+    assert json.loads(chrome_manifest.read_text())["allowed_origins"] == [f"chrome-extension://{i}/" for i in (expected, register.CHROME_STORE_ID)]
     assert json.loads(Path(fake.values[(firefox_key, "")]).read_text())["allowed_extensions"]
     assert home in chrome_manifest.parents and len(result.written) == 2
     register.unregister()
