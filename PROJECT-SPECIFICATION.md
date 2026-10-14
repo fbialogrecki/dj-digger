@@ -5,8 +5,8 @@
 - Product version verified: 1.4.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-10-08
-- Document lines: <!-- SPEC TOTAL LINES -->2494<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->2494<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->2553<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->2553<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,66 +51,66 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 145–190 |
 | 2.1 | ↳ Problem and product boundary | 147–160 |
 | 2.2 | ↳ Execution modes | 161–190 |
-| 3 | User-visible capabilities | 191–1200 |
+| 3 | User-visible capabilities | 191–1203 |
 | 3.1 | ↳ Track collection | 193–218 |
 | 3.2 | ↳ Link classification and exports | 219–237 |
 | 3.3 | ↳ Track statuses | 238–248 |
 | 3.4 | ↳ Audio preview | 249–425 |
 | 3.5 | ↳ Downloads and local-file matching | 426–481 |
-| 3.6 | ↳ Store purchase assistance | 482–602 |
-| 3.7 | ↳ Local library, analysis and audio export | 603–780 |
-| 3.8 | ↳ Qt Quick desktop | 781–1200 |
-| 4 | System context and data flow | 1201–1245 |
-| 4.1 | ↳ Context diagram | 1203–1229 |
-| 4.2 | ↳ Collection-to-library flow | 1230–1245 |
-| 5 | Repository layout and component ownership | 1246–1332 |
-| 5.1 | ↳ Entry, orchestration, and models | 1248–1259 |
-| 5.2 | ↳ Network and external-system adapters | 1260–1291 |
-| 5.3 | ↳ Persistence, local media, and UI | 1292–1332 |
-| 6 | Runtime architecture and environments | 1333–1476 |
-| 6.1 | ↳ Runtime and dependencies | 1335–1363 |
-| 6.2 | ↳ Concurrency and lifecycle | 1364–1441 |
-| 6.3 | ↳ Local paths and environment variables | 1442–1476 |
-| 7 | Data model and persistence | 1477–1593 |
-| 7.1 | ↳ Domain objects and identity | 1479–1493 |
-| 7.2 | ↳ SQLite schema and invariants | 1494–1550 |
-| 7.3 | ↳ Crate persistence and deletion | 1551–1566 |
-| 7.4 | ↳ Configuration and credential stores | 1567–1593 |
-| 8 | Public interfaces and contracts | 1594–1652 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1596–1624 |
-| 8.2 | ↳ JSON and CSV summary input | 1625–1640 |
-| 8.3 | ↳ URL-opening contract | 1641–1652 |
-| 9 | Authentication and authorization | 1653–1719 |
-| 9.1 | ↳ SoundCloud authentication | 1655–1686 |
-| 9.2 | ↳ Gate action consent | 1687–1719 |
-| 10 | External integrations | 1720–2022 |
-| 10.1 | ↳ SoundCloud API and media | 1722–1733 |
-| 10.2 | ↳ Link hubs and download gates | 1734–1871 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1742–1828 |
-| 10.2 · block | ↳ ↳ ToneDen | 1830–1854 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1856–1864 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1866–1871 |
-| 10.3 | ↳ Browsers and clipboard | 1872–1969 |
-| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 1970–2022 |
-| 11 | Security requirements and threat model | 2023–2197 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2025–2043 |
-| 11.2 | ↳ Secret and personal-data handling | 2044–2059 |
-| 11.3 | ↳ File and mutation safety | 2060–2081 |
-| 11.4 | ↳ Browser-extension trust boundary | 2082–2197 |
-| 12 | Privacy, lifecycle, and retention | 2198–2251 |
-| 12.1 | ↳ Data stored locally | 2200–2224 |
-| 12.2 | ↳ Data sent to third parties | 2225–2238 |
-| 12.3 | ↳ User-controlled deletion | 2239–2251 |
-| 13 | Failure behavior and current limitations | 2252–2361 |
-| 13.1 | ↳ Error isolation and reporting | 2254–2275 |
-| 13.2 | ↳ Confirmed limitations | 2276–2361 |
-| 14 | Verification, CI, and release | 2362–2460 |
-| 14.1 | ↳ Offline and live test suites | 2364–2412 |
-| 14.2 | ↳ Continuous integration and publishing | 2413–2445 |
-| 14.3 | ↳ Specification-map verification | 2446–2460 |
-| 15 | Evidence and operational references | 2461–2494 |
-| 15.1 | ↳ Primary implementation evidence | 2463–2484 |
-| 15.2 | ↳ User and historical documentation | 2485–2494 |
+| 3.6 | ↳ Store purchase assistance | 482–605 |
+| 3.7 | ↳ Local library, analysis and audio export | 606–783 |
+| 3.8 | ↳ Qt Quick desktop | 784–1203 |
+| 4 | System context and data flow | 1204–1248 |
+| 4.1 | ↳ Context diagram | 1206–1232 |
+| 4.2 | ↳ Collection-to-library flow | 1233–1248 |
+| 5 | Repository layout and component ownership | 1249–1335 |
+| 5.1 | ↳ Entry, orchestration, and models | 1251–1262 |
+| 5.2 | ↳ Network and external-system adapters | 1263–1294 |
+| 5.3 | ↳ Persistence, local media, and UI | 1295–1335 |
+| 6 | Runtime architecture and environments | 1336–1479 |
+| 6.1 | ↳ Runtime and dependencies | 1338–1366 |
+| 6.2 | ↳ Concurrency and lifecycle | 1367–1444 |
+| 6.3 | ↳ Local paths and environment variables | 1445–1479 |
+| 7 | Data model and persistence | 1480–1596 |
+| 7.1 | ↳ Domain objects and identity | 1482–1496 |
+| 7.2 | ↳ SQLite schema and invariants | 1497–1553 |
+| 7.3 | ↳ Crate persistence and deletion | 1554–1569 |
+| 7.4 | ↳ Configuration and credential stores | 1570–1596 |
+| 8 | Public interfaces and contracts | 1597–1655 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1599–1627 |
+| 8.2 | ↳ JSON and CSV summary input | 1628–1643 |
+| 8.3 | ↳ URL-opening contract | 1644–1655 |
+| 9 | Authentication and authorization | 1656–1722 |
+| 9.1 | ↳ SoundCloud authentication | 1658–1689 |
+| 9.2 | ↳ Gate action consent | 1690–1722 |
+| 10 | External integrations | 1723–2053 |
+| 10.1 | ↳ SoundCloud API and media | 1725–1736 |
+| 10.2 | ↳ Link hubs and download gates | 1737–1874 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1745–1831 |
+| 10.2 · block | ↳ ↳ ToneDen | 1833–1857 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1859–1867 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1869–1874 |
+| 10.3 | ↳ Browsers and clipboard | 1875–2000 |
+| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 2001–2053 |
+| 11 | Security requirements and threat model | 2054–2253 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2056–2074 |
+| 11.2 | ↳ Secret and personal-data handling | 2075–2090 |
+| 11.3 | ↳ File and mutation safety | 2091–2112 |
+| 11.4 | ↳ Browser-extension trust boundary | 2113–2253 |
+| 12 | Privacy, lifecycle, and retention | 2254–2310 |
+| 12.1 | ↳ Data stored locally | 2256–2280 |
+| 12.2 | ↳ Data sent to third parties | 2281–2297 |
+| 12.3 | ↳ User-controlled deletion | 2298–2310 |
+| 13 | Failure behavior and current limitations | 2311–2420 |
+| 13.1 | ↳ Error isolation and reporting | 2313–2334 |
+| 13.2 | ↳ Confirmed limitations | 2335–2420 |
+| 14 | Verification, CI, and release | 2421–2519 |
+| 14.1 | ↳ Offline and live test suites | 2423–2471 |
+| 14.2 | ↳ Continuous integration and publishing | 2472–2504 |
+| 14.3 | ↳ Specification-map verification | 2505–2519 |
+| 15 | Evidence and operational references | 2520–2553 |
+| 15.1 | ↳ Primary implementation evidence | 2522–2543 |
+| 15.2 | ↳ User and historical documentation | 2544–2553 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -485,12 +485,15 @@ Store assistance is explicitly initiated by the user. Bandcamp uses verified
 cart automation; Beatport uses the same verified cart when the browser is signed in
 to Beatport with an exact track ID and otherwise produces a playlist for a supported
 transfer. The application never logs in to either store. The work runs in the user's own
-browser through the extension (§10.3). The desktop owns one lazy background
-session of it for its lifetime: product discovery, revalidation and mutation run
+browser through the extension (§10.3). Each batch (and the result screen's Finish
+in browser and Show carts) opens one lazy background session of it and closes it
+when it ends, however it ends: product discovery, revalidation and mutation run
 in at most two inactive tabs of the user's own last focused browser window, so no
 window appears, nothing is brought forward and the user's current tab stays
 active (a browser without any window gets one new window, closed with the
-session). The only automatic visible effect is the end of a batch: one cart tab
+session unless a cart tab was handed over in it). Closing the session closes every
+work tab it still owns (lookups, a skipped item's page, a cart view that failed to
+load). The only automatic visible effect is the end of a batch: one cart tab
 per store with verified items is made active and handed over to the user, who
 reviews and checks out there; the extension no longer owns, guards or closes that
 tab. Items to finish by hand open as tabs only when the user picks that on the
@@ -1428,10 +1431,10 @@ Resources in use by an unfinished thread are not closed underneath it.
 
 Cart automation uses the extension adapter's native asyncio flavour on its own
 event loop: a cancelled command is cancelled in the extension, and its tab stays
-busy until the extension answers, so commands of one tab never overlap. One lazily
-opened background session serves all batches of the desktop run: its tabs are
-inactive tabs of the user's last focused window, and the final carts are handed
-over (`tab.release`). Every session owns its own window or virtual window, so the
+busy until the extension answers, so commands of one tab never overlap. Each cart
+batch lazily opens one background session and closes it at its end
+(`CartBrowserSession._batch`): its tabs are inactive tabs of the user's last focused
+window, the final carts are handed over (`tab.release`) and every other tab closes. Every session owns its own window or virtual window, so the
 cart session, a gate batch and a SoundCloud login can be open at once and closing
 one never closes another's pages. If the user closes the window the cart session
 works in, its pages are closed, its context's `close` callbacks fire, and the cart
@@ -1899,19 +1902,46 @@ instance id, whether host permissions are granted).
 The toolbar button opens the extension's player panel (`popup.html`, the manifest's
 `action`). The desktop, never the CLI, sends `{cmd: "player.state", args}` without an
 id (no reply, like `cancel`) to every compatible connection, not to a session, when
-the loaded track, its title or artist, play/pause, its artwork or the window's colour
-pair or theme changes (only changes, at most one per 0.2 s), and `Listener` replays
-the last one after each `hello`. `args` are `title`, `artist`, `playing`, `seed` (Main.qml's
-cover hash of the track key, never the key), `artwork` (a 192 px JPEG `data:` URL,
-left out above 48 KB) and, once the window has reported them, `colors` (the pair's
-four colours) and `dark`. The panel draws the desktop's record from them: the
-backdrop, the barcode and the label colour come from the seed, the artwork sits on
-the label, and the record turns while playing (still under `prefers-reduced-motion`).
-Its buttons send `{event: "player.command", op}` with `op` `prev`, `toggle` or
-`next`; `link.py` hands that event to `Listener.on_player_command` instead of the
-sessions, and the desktop runs the window's own previous track, play/pause and next
-track on its backend loop, only while a track is loaded. Any other op, or no callback
-(the CLI), is ignored and logged without the op. With no state (the app is gone) the
+the loaded track, its title or artist, play/pause, a seek, its artwork, the window's
+colour pair or theme, the running job or the gates waiting for a person change (only
+changes, at most one per 0.2 s; while a track plays its position alone at most every
+5 s), and `Listener` replays the last one after each `hello`. `args` are `title`,
+`artist`, `playing`, `position` and `duration` (seconds) with `at` (the epoch seconds
+the position was read), `seed` (Main.qml's cover hash of the track key, never the
+key), `artwork` (a 192 px JPEG `data:` URL, left out above 48 KB), `jobs` (`busy`, `label`
+— the status bar's English job or import stage —, `done`, `total`, from the backend's
+`busy` and `importProgress` events), `needs` (the gates of an open "Gates need you"
+question, else 0) and, once the window has reported them, `colors` (the pair's four
+colours) and `dark`. The panel draws the desktop's record from them: the backdrop, the
+barcode and the label colour come from the seed, the artwork sits on the label, and the
+record turns while playing (still under `prefers-reduced-motion`); a seek bar runs its
+own clock from `position` + (now − `at`) while playing and shows elapsed / total time.
+A busy job shows its label (with "done / total" and a progress bar when `total` > 0)
+and Cancel; `needs` > 0 shows "N gates need you" with Open them / Skip them and is the
+action's badge text (in the pair's neon foot colour; cleared at 0 and when the app is
+gone). When the panel is opened over an https `soundcloud.com` (also `www.`, `m.`) set
+(`/<user>/sets/<name>`) or profile (`/<user>`, or `/<user>/sets`, `tracks`, `albums`,
+`popular-tracks`, `reposts`) and the app is there, it offers "Import this playlist into
+dj-digger" or "Import all playlists of this profile" and then says "Importing in
+dj-digger…"; a track page offers nothing. The context menu entry "Dig in dj-digger"
+(on a link to, or the page of, a `soundcloud.com`, `www.` or `m.` URL; hidden while
+the app is gone) sends the same import for a set or profile and nothing otherwise.
+
+Everything goes to the app as `{event: "player.command", op, ...}`: `prev`, `toggle`,
+`next`, `cancel`, `seek {fraction}` (0–1), `gates {choice: "open"|"skip"}` and `import
+{url}` (the canonical `https://soundcloud.com/...` link). `link.py` hands the event to
+`Listener.on_player_command` instead of the sessions, with only the arguments its op
+takes after `player_command` checks them (types, the fraction's range, a URL of at
+most 512 characters); any other op, or no callback (the CLI), is ignored and logged
+without its content. The desktop runs each on its backend loop as the window's own
+step: previous/next track, play/pause and the transport seek (`fraction` × duration)
+only while a track is loaded; `cancel` is the status bar's Cancel; `gates` answers the
+"Gates need you" question (`next` = the choice) only while it is the oldest open
+question, the one on screen, and is ignored otherwise; `import` is checked again by
+`backend.import_target` (the same hosts and path shapes, Add playlist's
+`soundcloud_link` for a set, `profile_import.profile_url` for a profile) and starts
+Add playlist (as a new import, no dialog) or the profile import of public playlists,
+each with its normal job, progress and summary. With no state (the app is gone) the
 panel says "Open dj-digger to control playback", with an empty title "Nothing playing".
 
 One automation batch is a session pinned to the connection it started on, chosen
@@ -1933,7 +1963,8 @@ session), `window.show`/`window.hide` do nothing, `tab.capture` fails with
 `background` (it would activate the tab), a popup is never minimized with the
 user's window, and `window.close` closes the session's tabs, never the user's
 window. `tab.release` hands an own tab over: it is no longer owned, guarded or
-closed by any session (the finished cart);
+closed by any session (the finished cart), and a window the extension had to create
+for that session is then the user's too and is not closed with it;
 `window.show`, `window.hide`, `window.close` and `tab.new` take that `windowId`
 (an unknown one is `no_window`, and `window.close` of one that is gone is quietly
 accepted). A tab belongs to the window that opened it and a popup to its opener's
@@ -2132,7 +2163,8 @@ Python caller, enforces its own limits, whatever the application sends:
   with a tab, so it is not used. Anything else is disconnected at once, and what a
   frame sends is untrusted page data. A refused offscreen start answers
   `offscreen:false` with `offscreenError`. There is no external messaging and no new
-  host; the one `runtime.onMessage` belongs to the player panel (below). The frame script and the document are removed
+  host; the one `runtime.onMessage` belongs to the player panel and the one
+  `contextMenus.onClicked` to its import entry (below). The frame script and the document are removed
   with the last offscreen window (`window.close`, the app going away, a background
   restart, the offscreen document disappearing). Firefox has no offscreen API:
   `window.open` then answers `offscreen:false` and the session is the hidden
@@ -2166,18 +2198,42 @@ Python caller, enforces its own limits, whatever the application sends:
   `externally_connectable` and no `web_accessible_resources`, there is no
   external-message handler and no page script listens to `window.postMessage`.
   `welcome.html` can only request the host permissions.
-- **Player panel.** `popup.html` (no inline script) can do one thing: ask for the
-  previous track, play/pause or the next track of the local desktop's player. Its
-  `runtime.sendMessage({op})` reaches the background's only `runtime.onMessage`,
+- **Player panel and context menu** (permissions `activeTab` and `contextMenus`, the
+  owner's approval of 2026-10-14). `popup.html` (no inline script) can only ask the
+  local desktop for previous/next track, play/pause, a seek, Cancel of its running job,
+  an answer to its "Gates need you" question and the import of a SoundCloud set or
+  profile. Its `runtime.sendMessage` reaches the background's only `runtime.onMessage`,
   which acts only when `sender.id` is this extension and `sender.url` is exactly its
   `popup.html` (content scripts, frames, the offscreen document and other pages are
-  ignored) and the op is one of the three; it touches no tab and opens no page. What
-  the app sends (`player.state`) is checked in the background (strings cut to 300
-  characters, `playing`/`dark` booleans, `seed` a non-negative 32-bit integer,
-  `artwork` only a `data:image/jpeg` or `png` base64 URL up to 48 KB, `colors` four
-  `#rrggbb`), kept in `storage.session` as `djdPlayer` (set to `null` on `app-offline`
-  and when the native port drops) and read by the panel; it is never sent to the
-  network.
+  ignored) and the ask passes `command()`: an op from the list of §10.3 with only its
+  own arguments (`fraction` a number in 0–1, `choice` `open` or `skip`). The one other
+  ask, `{op: "page", url}`, is answered with the kind of import the URL allows (`set`,
+  `profile` or none) and goes nowhere else. The panel reads the active tab's URL once,
+  when the user has opened it (`tabs.query({active, currentWindow})`, the `activeTab`
+  grant of that click), and hands it to the background; a context-menu click hands
+  over the clicked link's URL (or the page's URL for the page entry) inside the
+  background (`contextMenus.onClicked`), and nothing else about the page or link is
+  read. Every import URL passes `importTarget()`: https only, host exactly
+  `soundcloud.com`, `www.soundcloud.com` or `m.soundcloud.com`, no credentials or port,
+  at most 512 characters, the raw path exactly `/<user>/sets/<name>`, `/<user>` or
+  `/<user>/<sets|tracks|albums|popular-tracks|reposts>` with names of
+  `[A-Za-z0-9_-]` (so no percent-encoded or `..` tricks; SoundCloud's own pages such as
+  `/discover` or `/you` are not profiles); only the canonical
+  `https://soundcloud.com/...` link without query or fragment is sent to the app, which
+  checks it again (§10.3) and never opens it. The `tabs` permission the extension
+  already holds would expose other tabs' URLs; the code reads none but its own work
+  tabs'. The menu entries are created idempotently on install, update and browser start,
+  their match patterns are the three SoundCloud origins (no new host permission: the
+  `contextMenus` patterns grant no access), and they are visible only while the app's
+  state is there. Nothing here touches a tab or opens a page. What the app sends
+  (`player.state`) is checked in the background (strings cut to 300 characters, the job
+  label to 120, `playing`/`dark`/`jobs.busy` booleans, `position`/`duration` 0 to
+  10⁶ s, `at` a non-negative number, `seed` a non-negative 32-bit integer,
+  `jobs.done`/`jobs.total` non-negative integers, `needs` 0–999, `artwork` only a
+  `data:image/jpeg` or `png` base64 URL up to 48 KB, `colors` four `#rrggbb`; anything
+  else falls back to empty), kept in `storage.session` as `djdPlayer` (set to `null` on
+  `app-offline` and when the native port drops, which also clears the badge and hides
+  the menu) and read by the panel; it is never sent to the network.
 - **Two cookie operations**, both hard-coded: read `oauth_token` of
   `soundcloud.com`, delete `filedownloading` at the Hypeddit hosts. There is no
   general cookie access.
@@ -2231,7 +2287,10 @@ name, real email, and comment only in the provider flows described in §10.2.
 Store sites receive navigation from the user's own signed-in browser session and
 verified Bandcamp add-to-cart actions; gate providers see the browser's accounts
 (§9.2). The extension sends nothing to any server; the player panel's title,
-artist, small cover and colours stay in the browser's session storage. Soundiiz receives no request
+artist, position, small cover, colours, job label and gate count stay in the browser's session
+storage. A SoundCloud set or profile link the user imports from the panel or the context menu
+goes only to the local application, which then reads it from SoundCloud's API exactly as Add
+playlist or the profile import does; no other page URL leaves the browser. Soundiiz receives no request
 until the user chooses the Beatport playlist result; the application then sends
 the playlist title plus accepted track titles and artists to its public import
 endpoint and opens the temporary review URL returned by Soundiiz.

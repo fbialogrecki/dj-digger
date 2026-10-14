@@ -135,6 +135,15 @@
   buttons that control the desktop's player. It says "Open dj-digger to control
   playback" while the desktop is closed and "Nothing playing" when nothing is
   loaded. No new permission; reload the unpacked extension to get the button.
+- The extension's panel does more: a seek bar with elapsed and total time; the
+  desktop's running job with its progress and a Cancel button; "N gates need
+  you" with Open them / Skip them, which answer the desktop's question (the
+  count is also the toolbar button's badge); and, opened on a SoundCloud
+  playlist or profile page, "Import this playlist into dj-digger" or "Import all
+  playlists of this profile", which start the desktop's Add playlist or profile
+  import. Right-click a SoundCloud playlist or profile link (or such a page) for
+  **Dig in dj-digger**. The extension asks for two new permissions, `activeTab`
+  and `contextMenus`; reload the unpacked extension.
 
 ### Changed
 
@@ -188,6 +197,9 @@
 
 ### Fixed
 
+- Store carts no longer leave their work tabs (product lookups, the page of a
+  skipped or already bought item) open in your browser next to the finished cart
+  tab: each cart run closes them when it ends, however it ends.
 - Desktop toolbar: the filtered count (`3 / 144`) has its own room after the store
   pills instead of being drawn over the last one; another playlist starts its pills
   scrolled back to the first; the status filter is as wide as its longest option in

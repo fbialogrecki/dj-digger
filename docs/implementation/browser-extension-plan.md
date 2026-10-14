@@ -795,6 +795,45 @@ Bez nowych uprawnień (`action.default_popup`), bez nowych hostów i bez komunik
       nadawca, `app-offline`), `test_gui_player.py` (stan, deduplikacja, mapowanie, kolory z QML).
 - [ ] Na żywo: przeładować rozpakowane rozszerzenie; sprawdzić panel w Chrome i Firefoksie.
 
+### F13. Import, zadania, bramki i przewijanie w panelu (zgoda właściciela 2026-10-14, w tym `activeTab` i `contextMenus`)
+
+Dwa nowe uprawnienia i nic poza nimi: bez nowych hostów, bez `externally_connectable`,
+bez `web_accessible_resources`. Nadawcą jest nadal tylko `popup.html`; klik w menu kontekstowe
+obsługuje samo tło.
+
+- [x] Import z SoundCloud: popup po otwarciu czyta adres aktywnej karty (`tabs.query`, grant
+      `activeTab` kliknięcia) i pyta tło `{op: "page", url}`; tło (`importTarget`: https, dokładnie
+      `soundcloud.com`/`www.`/`m.`, bez danych logowania i portu, ≤ 512 znaków, ścieżka
+      `/<user>/sets/<name>`, `/<user>` lub `/<user>/<sets|tracks|albums|popular-tracks|reposts>`,
+      bez stron SoundClouda typu `/discover`) odpowiada `set`/`profile`/nic. Przycisk wysyła
+      `{op: "import", url}`, tło wysyła `{event: "player.command", op: "import", url}` z linkiem
+      kanonicznym. Aplikacja: `link.player_command` (typ, długość), `backend.import_target`
+      (te same kształty, `soundcloud_link` / `profile_url`), potem Add playlist (`action_dig`
+      z `add`) albo import profilu (`action_profile`), z ich zwykłym zadaniem i podsumowaniem.
+- [x] Menu kontekstowe „Dig in dj-digger”: dwa wpisy (`link` z `targetUrlPatterns`, `page` z
+      `documentUrlPatterns`, trzy originy SoundClouda), tworzone w `onInstalled` i `onStartup`
+      (duplikat ignorowany), widoczne tylko gdy jest stan aplikacji; klik → ta sama ścieżka.
+- [x] Zadania: `player.state.jobs` (`busy`, `label`, `done`, `total`) z backendowych `busy` i
+      `importProgress`; popup pokazuje etykietę, pasek postępu i Cancel → `{op: "cancel"}` →
+      ten sam Cancel co pasek stanu.
+- [x] Bramki: `player.state.needs` = liczba bramek otwartego pytania „Gates need you”; plakietka
+      akcji (kolor neonowej stopy pary, czyszczona przy 0 i rozłączeniu); popup „N gates need you”
+      z Open them / Skip them → `{op: "gates", choice}` odpowiada na to pytanie tylko gdy jest
+      najstarszym otwartym (tym na ekranie).
+- [x] Przewijanie: `position`, `duration`, `at`; wysyłane przy play/pauzie/seeku/zmianie utworu
+      i co najwyżej co 5 s w trakcie grania; popup liczy czas sam; suwak → `{op: "seek",
+      fraction}` → `transport seek`.
+- [x] Pozostawione karty po koszykach (pkt 6 zlecenia): sesja koszyka żyła do zamknięcia aplikacji,
+      więc dwie karty robocze (lookup, strona pominiętego utworu) i niezaładowany widok koszyka
+      zostawały obok oddanej karty. Teraz każda partia, Finish in browser i Show carts zamyka swoją
+      sesję (`CartBrowserSession._batch`); okno utworzone dla przeglądarki bez okien zostaje, gdy
+      oddano w nim koszyk.
+- [x] Testy: `test_webext.py` (walidacja op), `test_gui_player.py` (stan, dławienie pozycji, zadania,
+      Cancel, odpowiedź na bramki, `import_target`, mapowanie importu), `test_cart.py` (zamykanie
+      kart), harness (walidacja stanu, plakietka, menu, nadawca, wrogie adresy), `test_webext_allowlist.py`.
+- [ ] Na żywo: przeładować rozszerzenie (nowe uprawnienia: Chrome poprosi o zgodę przy aktualizacji
+      spakowanego, rozpakowane po przeładowaniu ma je od razu).
+
 ## 7. Testy
 
 | Poziom | Co | Gdzie / marker |

@@ -220,7 +220,12 @@ reported as unsupported. Then, in the browser:
 
 Open the extension's welcome page to grant the site permissions it asks for. While
 the desktop runs, the extension's toolbar button opens a small player panel: the
-playing track on the desktop's record, with previous, play/pause and next. To
+playing track on the desktop's record, with previous, play/pause, next and a seek bar,
+the running job with Cancel, and "N gates need you" (also the button's badge) with
+Open them / Skip them. Opened on a SoundCloud playlist or profile page it offers to
+import it; right-clicking a SoundCloud playlist or profile link offers **Dig in
+dj-digger**. For these two the extension asks for the `activeTab` and `contextMenus`
+permissions; it reads the current tab's address only when you open the panel. To
 disconnect, run `dj-digger browser unregister` or use **Disconnect browsers…** in the
 desktop's Settings menu (the desktop registers again at its next start); the extension
 itself is removed from the browser's extensions page.
