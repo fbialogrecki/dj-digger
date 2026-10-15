@@ -1711,12 +1711,24 @@
       <translation>Добавление в корзины магазинов</translation>
     </message>
     <message>
-      <source>1. Open a new tab and go to the address below.
-2. Switch on Developer mode (top right).
-3. Click Load unpacked and choose the extension folder below.</source>
-      <translation>1. Откройте новую вкладку и перейдите по адресу ниже.
-2. Включите режим разработчика (справа вверху).
-3. Нажмите «Загрузить распакованное расширение» и выберите папку расширения ниже.</translation>
+      <source>Install dj-digger from the Chrome Web Store, then click Check connection.</source>
+      <translation>Установите dj-digger из Chrome Web Store, затем нажмите «Проверить подключение».</translation>
+    </message>
+    <message>
+      <source>Edge asks to allow extensions from other stores: allow it.</source>
+      <translation>Edge спросит, разрешить ли расширения из других магазинов: разрешите.</translation>
+    </message>
+    <message>
+      <source>Open Chrome Web Store</source>
+      <translation>Открыть Chrome Web Store</translation>
+    </message>
+    <message>
+      <source>Developer install (Chrome, Edge, Brave)</source>
+      <translation>Установка для разработчиков (Chrome, Edge, Brave)</translation>
+    </message>
+    <message>
+      <source>Go to the address below, switch on Developer mode, click Load unpacked and choose the extension folder above.</source>
+      <translation>Перейдите по адресу ниже, включите режим разработчика, нажмите «Загрузить распакованное расширение» и выберите папку расширения выше.</translation>
     </message>
     <message>
       <source>1. Open a new tab and go to the address below.

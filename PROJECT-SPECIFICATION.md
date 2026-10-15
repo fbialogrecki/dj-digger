@@ -5,8 +5,8 @@
 - Product version verified: 1.4.0 (working tree)
 - Owner: Filip Białogrecki
 - Updated: 2026-10-08
-- Document lines: <!-- SPEC TOTAL LINES -->2563<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->2563<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->2571<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->2571<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,7 +51,7 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 145–190 |
 | 2.1 | ↳ Problem and product boundary | 147–160 |
 | 2.2 | ↳ Execution modes | 161–190 |
-| 3 | User-visible capabilities | 191–1203 |
+| 3 | User-visible capabilities | 191–1207 |
 | 3.1 | ↳ Track collection | 193–218 |
 | 3.2 | ↳ Link classification and exports | 219–237 |
 | 3.3 | ↳ Track statuses | 238–248 |
@@ -59,58 +59,58 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 3.5 | ↳ Downloads and local-file matching | 426–481 |
 | 3.6 | ↳ Store purchase assistance | 482–605 |
 | 3.7 | ↳ Local library, analysis and audio export | 606–783 |
-| 3.8 | ↳ Qt Quick desktop | 784–1203 |
-| 4 | System context and data flow | 1204–1248 |
-| 4.1 | ↳ Context diagram | 1206–1232 |
-| 4.2 | ↳ Collection-to-library flow | 1233–1248 |
-| 5 | Repository layout and component ownership | 1249–1335 |
-| 5.1 | ↳ Entry, orchestration, and models | 1251–1262 |
-| 5.2 | ↳ Network and external-system adapters | 1263–1294 |
-| 5.3 | ↳ Persistence, local media, and UI | 1295–1335 |
-| 6 | Runtime architecture and environments | 1336–1479 |
-| 6.1 | ↳ Runtime and dependencies | 1338–1366 |
-| 6.2 | ↳ Concurrency and lifecycle | 1367–1444 |
-| 6.3 | ↳ Local paths and environment variables | 1445–1479 |
-| 7 | Data model and persistence | 1480–1596 |
-| 7.1 | ↳ Domain objects and identity | 1482–1496 |
-| 7.2 | ↳ SQLite schema and invariants | 1497–1553 |
-| 7.3 | ↳ Crate persistence and deletion | 1554–1569 |
-| 7.4 | ↳ Configuration and credential stores | 1570–1596 |
-| 8 | Public interfaces and contracts | 1597–1655 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1599–1627 |
-| 8.2 | ↳ JSON and CSV summary input | 1628–1643 |
-| 8.3 | ↳ URL-opening contract | 1644–1655 |
-| 9 | Authentication and authorization | 1656–1723 |
-| 9.1 | ↳ SoundCloud authentication | 1658–1690 |
-| 9.2 | ↳ Gate action consent | 1691–1723 |
-| 10 | External integrations | 1724–2063 |
-| 10.1 | ↳ SoundCloud API and media | 1726–1737 |
-| 10.2 | ↳ Link hubs and download gates | 1738–1875 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1746–1832 |
-| 10.2 · block | ↳ ↳ ToneDen | 1834–1858 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1860–1868 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1870–1875 |
-| 10.3 | ↳ Browsers and clipboard | 1876–2010 |
-| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 2011–2063 |
-| 11 | Security requirements and threat model | 2064–2263 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2066–2084 |
-| 11.2 | ↳ Secret and personal-data handling | 2085–2100 |
-| 11.3 | ↳ File and mutation safety | 2101–2122 |
-| 11.4 | ↳ Browser-extension trust boundary | 2123–2263 |
-| 12 | Privacy, lifecycle, and retention | 2264–2320 |
-| 12.1 | ↳ Data stored locally | 2266–2290 |
-| 12.2 | ↳ Data sent to third parties | 2291–2307 |
-| 12.3 | ↳ User-controlled deletion | 2308–2320 |
-| 13 | Failure behavior and current limitations | 2321–2430 |
-| 13.1 | ↳ Error isolation and reporting | 2323–2344 |
-| 13.2 | ↳ Confirmed limitations | 2345–2430 |
-| 14 | Verification, CI, and release | 2431–2529 |
-| 14.1 | ↳ Offline and live test suites | 2433–2481 |
-| 14.2 | ↳ Continuous integration and publishing | 2482–2514 |
-| 14.3 | ↳ Specification-map verification | 2515–2529 |
-| 15 | Evidence and operational references | 2530–2563 |
-| 15.1 | ↳ Primary implementation evidence | 2532–2553 |
-| 15.2 | ↳ User and historical documentation | 2554–2563 |
+| 3.8 | ↳ Qt Quick desktop | 784–1207 |
+| 4 | System context and data flow | 1208–1252 |
+| 4.1 | ↳ Context diagram | 1210–1236 |
+| 4.2 | ↳ Collection-to-library flow | 1237–1252 |
+| 5 | Repository layout and component ownership | 1253–1339 |
+| 5.1 | ↳ Entry, orchestration, and models | 1255–1266 |
+| 5.2 | ↳ Network and external-system adapters | 1267–1298 |
+| 5.3 | ↳ Persistence, local media, and UI | 1299–1339 |
+| 6 | Runtime architecture and environments | 1340–1483 |
+| 6.1 | ↳ Runtime and dependencies | 1342–1370 |
+| 6.2 | ↳ Concurrency and lifecycle | 1371–1448 |
+| 6.3 | ↳ Local paths and environment variables | 1449–1483 |
+| 7 | Data model and persistence | 1484–1600 |
+| 7.1 | ↳ Domain objects and identity | 1486–1500 |
+| 7.2 | ↳ SQLite schema and invariants | 1501–1557 |
+| 7.3 | ↳ Crate persistence and deletion | 1558–1573 |
+| 7.4 | ↳ Configuration and credential stores | 1574–1600 |
+| 8 | Public interfaces and contracts | 1601–1659 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1603–1631 |
+| 8.2 | ↳ JSON and CSV summary input | 1632–1647 |
+| 8.3 | ↳ URL-opening contract | 1648–1659 |
+| 9 | Authentication and authorization | 1660–1727 |
+| 9.1 | ↳ SoundCloud authentication | 1662–1694 |
+| 9.2 | ↳ Gate action consent | 1695–1727 |
+| 10 | External integrations | 1728–2070 |
+| 10.1 | ↳ SoundCloud API and media | 1730–1741 |
+| 10.2 | ↳ Link hubs and download gates | 1742–1879 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1750–1836 |
+| 10.2 · block | ↳ ↳ ToneDen | 1838–1862 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1864–1872 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1874–1879 |
+| 10.3 | ↳ Browsers and clipboard | 1880–2017 |
+| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 2018–2070 |
+| 11 | Security requirements and threat model | 2071–2270 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2073–2091 |
+| 11.2 | ↳ Secret and personal-data handling | 2092–2107 |
+| 11.3 | ↳ File and mutation safety | 2108–2129 |
+| 11.4 | ↳ Browser-extension trust boundary | 2130–2270 |
+| 12 | Privacy, lifecycle, and retention | 2271–2327 |
+| 12.1 | ↳ Data stored locally | 2273–2297 |
+| 12.2 | ↳ Data sent to third parties | 2298–2314 |
+| 12.3 | ↳ User-controlled deletion | 2315–2327 |
+| 13 | Failure behavior and current limitations | 2328–2438 |
+| 13.1 | ↳ Error isolation and reporting | 2330–2351 |
+| 13.2 | ↳ Confirmed limitations | 2352–2438 |
+| 14 | Verification, CI, and release | 2439–2537 |
+| 14.1 | ↳ Offline and live test suites | 2441–2489 |
+| 14.2 | ↳ Continuous integration and publishing | 2490–2522 |
+| 14.3 | ↳ Specification-map verification | 2523–2537 |
+| 15 | Evidence and operational references | 2538–2571 |
+| 15.1 | ↳ Primary implementation evidence | 2540–2561 |
+| 15.2 | ↳ User and historical documentation | 2562–2571 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -1107,12 +1107,16 @@ Spotify, Deezer or Apple Music, on the accounts logged in to the user's browser
 (§9.2). The Settings menu offers Connect browser… or, with a connected extension, Connected: <browser> — Disconnect…. A cart
 batch or the SoundCloud login that finds no connected extension opens the Connect
 browser dialog and repeats the call once the extension says hello (Not now is
-reported as cancelled): it registers the host (§10.3), gives numbered steps for
-Chrome, Edge, Brave (Developer mode, Load unpacked) and Firefox (Load Temporary Add-on with
-`manifest.json`), shows `chrome://extensions` and `about:debugging#/runtime/this-firefox`
-as text with Copy buttons (a link cannot open a browser's own pages), shows the extension folder as a
-read-only path with a Copy path button, and lists registration notes such as
-unsupported Flatpak/Snap browsers. Check connection waits five seconds for a hello; without
+reported as cancelled): it registers the host (§10.3), tells Chrome, Edge and Brave
+users to install dj-digger from the Chrome Web Store (with a hint that Edge asks to allow
+extensions from other stores) and offers footer buttons Open Chrome Web Store, which opens
+`register.CHROME_STORE_URL` through `browser.open_url` with the Open links in browser choice
+and shows the dialog again, and Check connection. It gives numbered steps for Firefox (Load
+Temporary Add-on with `manifest.json`) and, in a folded Developer install (Chrome, Edge, Brave)
+section, one line for Developer mode and Load unpacked; it shows `chrome://extensions` and
+`about:debugging#/runtime/this-firefox` as text with Copy buttons (a link cannot open a
+browser's own pages), shows the extension folder as a read-only path with a Copy path button,
+and lists registration notes such as unsupported Flatpak/Snap browsers. Check connection waits five seconds for a hello; without
 one the dialog comes back with "The extension still isn't answering…", and with one the
 status line says "Connected: <Browser> <major version>. SoundCloud sign-in, gates and carts
 will open there." A successful sign-in reports "Signed in as <user> in <Browser> <version>";
@@ -1989,7 +1993,8 @@ functions), and a page above 2,000,000 bytes is refused rather than returned.
 `register()` writes the host manifest for each browser whose profile directory
 exists, with `allowed_origins` for the Chromium family (the extension ID derived
 from the public `key` in its `manifest.json`, plus the Chrome Web Store item ID
-`register.CHROME_STORE_ID`, `ndimmdooibgcajgnoncdnckolhlmnnkb`) and `allowed_extensions`
+`register.CHROME_STORE_ID`, `ndimmdooibgcajgnoncdnckolhlmnnkb`, listed unlisted at
+`register.CHROME_STORE_URL`) and `allowed_extensions`
 (`dj-digger@fbialogrecki.github.io`) for Firefox; on Windows it also writes the
 HKCU registry key, pointing at a manifest under `data_dir()`. Flatpak and Snap
 browsers are reported as unsupported and never written to. It also copies the
@@ -1997,7 +2002,9 @@ extension to `data_dir()/browser-extension/` when the content hash of the folder
 differs. The desktop registers at every start in a background thread;
 `dj-digger browser register` does the same from a terminal, and `unregister`
 removes the manifests and registry keys until the next registration. The extension
-is installed by the user (Load unpacked, or Load Temporary Add-on in Firefox);
+is installed by the user: from the Chrome Web Store in Chrome, Edge and Brave (Load
+unpacked from that copy remains the developer install), or with Load Temporary Add-on in
+Firefox; `dj-digger browser register` prints the store link and the folder;
 `welcome.html` shows the link state and can request the host permissions again.
 `scripts/package_extension.py` (stdlib) builds the store uploads
 `dist/extension/dj-digger-chrome-<version>.zip` and `dj-digger-firefox-<version>.zip`
@@ -2370,9 +2377,10 @@ as player events instead of escaping through Python-CFFI.
   work tabs are visible in the tab strip while a batch runs (inactive; Beatport refuses
   framing, so they cannot be offscreen), and a hidden tab's timers may be throttled by
   the browser.
-- The extension is installed unpacked by the user (Developer mode and Load
-  unpacked in Chrome, Edge and Brave; a temporary add-on in Firefox, removed when
-  Firefox restarts); the repository builds no store listing or signed package.
+- The extension is installed by the user from the unlisted Chrome Web Store item in
+  Chrome, Edge and Brave (Edge asks to allow extensions from other stores), or as a
+  temporary add-on in Firefox, removed when Firefox restarts; there is no addons.mozilla.org
+  listing yet.
   Flatpak and Snap browsers cannot start the host and are unsupported, and
   private windows and Firefox containers are not used. Outside Chromium's
   offscreen mode the hidden work window is an unfocused normal window, not a

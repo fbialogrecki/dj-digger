@@ -152,13 +152,15 @@ extension in your own browser; the app downloads no browser of its own. The firs
 time one of those features needs it, the app shows the steps. In short:
 
 1. Open dj-digger: the desktop registers itself with your browsers at every start,
-   and its **Connect browser…** dialog (Settings menu) shows the folder to load,
-   with a **Copy path** button and **Check connection**. Without the desktop, run
-   `dj-digger browser register` in a terminal (it cannot run while the desktop is
-   open).
-2. **Chrome, Edge, Brave:** open the extensions page, turn on **Developer mode**,
-   choose **Load unpacked** and select the `browser-extension` folder inside the
-   dj-digger data folder (the app and the command both print its exact location).
+   and its **Connect browser…** dialog (Settings menu) has **Open Chrome Web Store**,
+   **Check connection** and the extension folder with a **Copy path** button. Without
+   the desktop, run `dj-digger browser register` in a terminal (it cannot run while
+   the desktop is open).
+2. **Chrome, Edge, Brave:** install
+   [dj-digger from the Chrome Web Store](https://chromewebstore.google.com/detail/dj-digger/ndimmdooibgcajgnoncdnckolhlmnnkb). Edge asks to allow extensions from
+   other stores: allow it. Developer install: `chrome://extensions` → **Developer
+   mode** → **Load unpacked** → the `browser-extension` folder inside the dj-digger
+   data folder (the app and the command both print its exact location).
 3. **Firefox:** install the signed extension file when the release provides one, or
    for a trial use `about:debugging#/runtime/this-firefox` → **Load Temporary
    Add-on** → `manifest.json` from that folder (removed when Firefox restarts).

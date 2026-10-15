@@ -555,12 +555,14 @@ def test_missing_extension_shows_the_connect_dialog_and_retries(extension, choic
 
     result = run_in(worker, worker.with_extension(call, threading.Event()))
     question = next_of(events, 'question')[1]
-    assert question['title'] == 'Connect browser' and question['ok'] == 'Check connection'
+    assert question['title'] == 'Connect browser'
     fields = {f['name']: f for f in question['fields']}
+    assert fields['next']['options'] == [['store', 'Open Chrome Web Store'], ['check', 'Check connection']]
     assert fields['status']['value'] == 'Not connected: install the dj-digger extension in your browser'
     assert fields['folder'] == dict(fields['folder'], kind='path', value=str(folder))
     assert fields['notes']['value'] == 'No browser'
-    assert {'chrome_steps', 'firefox_steps'} <= set(fields) and 'Chromium' not in str(question)
+    assert {'chrome_steps', 'chrome_steps_developer', 'firefox_steps'} <= set(fields) and 'Chromium' not in str(question)
+    assert fields['section_developer']['collapsed'] is True
     assert (fields['chrome_page']['kind'], fields['chrome_page']['value']) == ('copy', 'chrome://extensions')
     assert fields['firefox_page']['value'] == 'about:debugging#/runtime/this-firefox' and question['cancel'] == 'Not now'
     worker.answer(question['id'], {} if choice == 'check' else None)

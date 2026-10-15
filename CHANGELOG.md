@@ -24,6 +24,11 @@
 
 ### Added
 
+- The browser extension is available in the Chrome Web Store (unlisted, published
+  2026-10-15). Connect browser in the desktop has an Open Chrome Web Store button
+  for Chrome, Edge and Brave (Edge asks to allow extensions from other stores), and
+  `dj-digger browser register` prints the store link; Load unpacked stays as a folded
+  developer install. Firefox still uses a temporary add-on.
 - Chrome Web Store preparation for the browser extension:
   `scripts/package_extension.py` builds clean, reproducible Chrome and Firefox
   uploads (`dist/extension/`), the native host also accepts the store's extension

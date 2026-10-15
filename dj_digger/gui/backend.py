@@ -1638,22 +1638,31 @@ class Backend:
             # Browsers do not let a link open their own extensions page, so its address is there to copy.
             fields = [dict(field('status', 'Status', status, 'note'), args=args),
                       section('section_chrome', 'Chrome, Edge, Brave'),
-                      field('chrome_steps', '', '1. Open a new tab and go to the address below.\n'
-                            '2. Switch on Developer mode (top right).\n'
-                            '3. Click Load unpacked and choose the extension folder below.', 'note'),
-                      field('chrome_page', '', 'chrome://extensions', 'copy'),
+                      field('chrome_steps', '', 'Install dj-digger from the Chrome Web Store, then click Check connection.',
+                            'note', hint='Edge asks to allow extensions from other stores: allow it.'),
                       section('section_firefox', 'Firefox'),
                       field('firefox_steps', '', '1. Open a new tab and go to the address below.\n'
                             '2. Click Load Temporary Add-on.\n'
                             '3. Choose manifest.json in the extension folder below.', 'note'),
                       field('firefox_page', '', 'about:debugging#/runtime/this-firefox', 'copy'),
-                      field('folder', 'Extension folder', folder, 'path')]
+                      field('folder', 'Extension folder', folder, 'path'),
+                      section('section_developer', 'Developer install (Chrome, Edge, Brave)', collapsed=True),
+                      field('chrome_steps_developer', '', 'Go to the address below, switch on Developer mode, '
+                            'click Load unpacked and choose the extension folder above.', 'note'),
+                      field('chrome_page', '', 'chrome://extensions', 'copy'),
+                      field('next', '', 'check', 'buttons',
+                            [['store', 'Open Chrome Web Store'], ['check', 'Check connection']])]
             if notes:
                 fields.insert(1, field('notes', 'Notes', '\n'.join(notes), 'note'))
-            await self.ask('Connect browser', 'dj-digger controls your own browser through an extension, so it works with '
-                           'the accounts you are logged in to. SoundCloud sign-in, gates and carts open in the browser where you install '
-                           'the extension - pick the one you are signed in to.', fields, cancel, ok='Check connection',
-                           error=error, dismiss='Not now')
+            answer = await self.ask('Connect browser', 'dj-digger controls your own browser through an extension, so it works with '
+                                    'the accounts you are logged in to. SoundCloud sign-in, gates and carts open in the browser where '
+                                    'you install the extension - pick the one you are signed in to.', fields, cancel,
+                                    error=error, dismiss='Not now')
+            if answer.get('next') == 'store':
+                from ..browser import open_url
+                await self.io(open_url, register.CHROME_STORE_URL, self.services.config.browser)
+                error = ''
+                continue
             try:
                 if self.services.browser_link is None:
                     raise link.ExtensionMissing('No extension channel')

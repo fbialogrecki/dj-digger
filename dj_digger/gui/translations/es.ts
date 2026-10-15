@@ -1706,12 +1706,24 @@
       <translation>Añadiendo a los carritos de las tiendas</translation>
     </message>
     <message>
-      <source>1. Open a new tab and go to the address below.
-2. Switch on Developer mode (top right).
-3. Click Load unpacked and choose the extension folder below.</source>
-      <translation>1. Abre una pestaña nueva y ve a la dirección de abajo.
-2. Activa el modo de desarrollador (arriba a la derecha).
-3. Haz clic en «Cargar descomprimida» y elige la carpeta de la extensión de abajo.</translation>
+      <source>Install dj-digger from the Chrome Web Store, then click Check connection.</source>
+      <translation>Instala dj-digger desde la Chrome Web Store y luego haz clic en «Comprobar conexión».</translation>
+    </message>
+    <message>
+      <source>Edge asks to allow extensions from other stores: allow it.</source>
+      <translation>Edge pide permitir extensiones de otras tiendas: permítelo.</translation>
+    </message>
+    <message>
+      <source>Open Chrome Web Store</source>
+      <translation>Abrir Chrome Web Store</translation>
+    </message>
+    <message>
+      <source>Developer install (Chrome, Edge, Brave)</source>
+      <translation>Instalación para desarrolladores (Chrome, Edge, Brave)</translation>
+    </message>
+    <message>
+      <source>Go to the address below, switch on Developer mode, click Load unpacked and choose the extension folder above.</source>
+      <translation>Ve a la dirección de abajo, activa el modo de desarrollador, haz clic en «Cargar descomprimida» y elige la carpeta de la extensión de arriba.</translation>
     </message>
     <message>
       <source>1. Open a new tab and go to the address below.

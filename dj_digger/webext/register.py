@@ -33,6 +33,7 @@ HOST_EXECUTABLE = "dj-digger-host"
 EXTENSION_SOURCE = Path(__file__).parent / "extension"
 # The Chrome Web Store item ID, known after the first upload; empty: unpacked installs only.
 CHROME_STORE_ID = "ndimmdooibgcajgnoncdnckolhlmnnkb"
+CHROME_STORE_URL = f"https://chromewebstore.google.com/detail/dj-digger/{CHROME_STORE_ID}"
 
 
 class RegistrationError(RuntimeError):

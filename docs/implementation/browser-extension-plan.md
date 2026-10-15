@@ -928,15 +928,13 @@ Dodatkowo: `npx web-ext lint` bez błędów, a domyślny pytest zielony w CI na 
 
 ### Otwarte
 
-7. **W11, dystrybucja przed wydaniem 1.4.0** (nie blokuje merge, decyzja odłożona).
-   Rekomendacja:
-   - Chrome Web Store jako *unlisted* (link tylko dla użytkowników aplikacji). Działa na
-     Windows/macOS bez trybu deweloperskiego i daje automatyczne aktualizacje. Wymaga konta
-     dewelopera (jednorazowa opłata) i przeglądu.
-   - AMO *unlisted* z `update_url` wskazującym plik aktualizacji w GitHub Releases.
-
-   Alternatywa: wydać 1.4.0 z instalacją w trybie deweloperskim i zaakceptować ostrzeżenia.
-8. Przycisk „Open extensions page” w Connect browser odłożony do publikacji rozszerzenia w Chrome Web Store / AMO; wtedy linkuje do strony w sklepie zamiast `chrome://extensions` (decyzja właściciela 2026-10-13).
+7. **W11, dystrybucja przed wydaniem 1.4.0 — rozstrzygnięte:** Chrome Web Store jako
+   *unlisted*, opublikowane 2026-10-15 (ID `ndimmdooibgcajgnoncdnckolhlmnnkb`,
+   `register.CHROME_STORE_URL`). Firefox: nadal tymczasowy dodatek; AMO *unlisted* z
+   `update_url` w GitHub Releases pozostaje otwarte.
+8. **Zrobione (2026-10-15):** Connect browser ma przycisk „Open Chrome Web Store”, który
+   otwiera stronę rozszerzenia w sklepie przez `browser.open_url`; „Load unpacked” zostało
+   jako zwinięta sekcja „Developer install”. Odpowiednik dla AMO czeka na listing.
 
 ## 11. Kryteria merge do `main`
 

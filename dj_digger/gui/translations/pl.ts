@@ -1711,12 +1711,24 @@
       <translation>Dodawanie do koszyków w sklepach</translation>
     </message>
     <message>
-      <source>1. Open a new tab and go to the address below.
-2. Switch on Developer mode (top right).
-3. Click Load unpacked and choose the extension folder below.</source>
-      <translation>1. Otwórz nową kartę i przejdź pod adres poniżej.
-2. Włącz tryb dewelopera (w prawym górnym rogu).
-3. Kliknij „Załaduj rozpakowane” i wybierz folder rozszerzenia poniżej.</translation>
+      <source>Install dj-digger from the Chrome Web Store, then click Check connection.</source>
+      <translation>Zainstaluj dj-digger z Chrome Web Store, a potem kliknij „Sprawdź połączenie”.</translation>
+    </message>
+    <message>
+      <source>Edge asks to allow extensions from other stores: allow it.</source>
+      <translation>Edge zapyta o zezwolenie na rozszerzenia z innych sklepów: zezwól.</translation>
+    </message>
+    <message>
+      <source>Open Chrome Web Store</source>
+      <translation>Otwórz Chrome Web Store</translation>
+    </message>
+    <message>
+      <source>Developer install (Chrome, Edge, Brave)</source>
+      <translation>Instalacja deweloperska (Chrome, Edge, Brave)</translation>
+    </message>
+    <message>
+      <source>Go to the address below, switch on Developer mode, click Load unpacked and choose the extension folder above.</source>
+      <translation>Przejdź pod adres poniżej, włącz tryb dewelopera, kliknij „Załaduj rozpakowane” i wybierz folder rozszerzenia powyżej.</translation>
     </message>
     <message>
       <source>1. Open a new tab and go to the address below.

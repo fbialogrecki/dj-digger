@@ -352,7 +352,8 @@ def handle_browser(args: argparse.Namespace) -> int:
         show(f"Registered {item}")
     for note in result.notes:
         show(f"Note: {note}")
-    show(f"Load the unpacked extension from: {result.extension_dir}")
+    show(f"Chrome, Edge, Brave: install the extension from {register.CHROME_STORE_URL}")
+    show(f"Firefox, or a developer install (Load unpacked): {result.extension_dir}")
     return 0 if result.written else 1
 
 

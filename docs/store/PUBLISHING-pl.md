@@ -92,8 +92,8 @@ Brave i Edge (Edge: „Allow extensions from other stores”). Kolejność dla
 użytkownika: zainstaluj i uruchom aplikację dj-digger (wersję z `CHROME_STORE_ID`),
 zainstaluj rozszerzenie z linku, otwórz jego stronę statusu → „Desktop app link”.
 Instalacja przez „Load unpacked” dalej działa (inne ID, z `key`) — to ścieżka dla
-deweloperów. Okno „Connect browser” w aplikacji wciąż opisuje „Load unpacked”;
-warto je przestawić na link do sklepu.
+deweloperów. Okno „Connect browser” w aplikacji otwiera stronę w sklepie
+(`register.CHROME_STORE_URL`), a „Load unpacked” zostało w zwiniętej sekcji „Developer install”.
 
 ## 7. Aktualizacje
 

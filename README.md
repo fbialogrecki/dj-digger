@@ -210,9 +210,10 @@ directory (`~/.local/share/dj-digger`, or `$XDG_DATA_HOME/dj-digger`), printing 
 exact path. Browsers installed as Flatpak or Snap cannot start the host and are
 reported as unsupported. Then, in the browser:
 
-- **Chrome, Edge, Brave, Chromium:** open `chrome://extensions` (`edge://extensions`,
-  `brave://extensions`), turn on **Developer mode**, choose **Load unpacked** and select
-  that `browser-extension/` folder.
+- **Chrome, Edge, Brave, Chromium:** install
+  [dj-digger from the Chrome Web Store](https://chromewebstore.google.com/detail/dj-digger/ndimmdooibgcajgnoncdnckolhlmnnkb) (Edge asks to allow extensions from
+  other stores: allow it). Developer install: `chrome://extensions` → **Developer
+  mode** → **Load unpacked** → that `browser-extension/` folder.
 - **Firefox:** install the signed extension file when the release provides one, or for
   a trial open `about:debugging#/runtime/this-firefox`, choose **Load Temporary
   Add-on** and select `browser-extension/manifest.json` (it is removed when Firefox

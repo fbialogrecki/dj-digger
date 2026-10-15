@@ -211,13 +211,33 @@ def test_connect_browser_says_so_while_the_extension_is_missing_then_names_the_b
     worker.services.browser_link = Link()
     worker.submit('connect_browser', {})
     first = wait_event(events, 'question')
-    assert first['error'] == '' and first['ok'] == 'Check connection' and first['cancel'] == 'Not now'
+    assert first['error'] == '' and first['cancel'] == 'Not now'
     worker.answer(first['id'], {})
     second = wait_event(events, 'question')
     assert second['error'] == "The extension still isn't answering. Install/enable it, then click Check connection again."
     worker.answer(second['id'], {})
     message = next_of(events, 'message', 'error')[1]
     assert message['text'].format(*message['args']) == 'Connected: Chrome 141. SoundCloud sign-in, gates and carts will open there.'
+
+
+def test_connect_browser_opens_the_chrome_web_store_and_asks_again(extension, monkeypatch):
+    from dj_digger import browser
+    from dj_digger.webext.register import CHROME_STORE_URL
+    worker, events, *_ = extension
+    worker.services.browser_link = FakeLink(dict(browser='edge', browserVersion='141.0', version='0.3.1', protocol=1))
+    opened = []
+    monkeypatch.setattr(browser, 'open_url', lambda url, choice: opened.append(url) or True)
+    worker.submit('connect_browser', {})
+    first = wait_event(events, 'question')
+    fields = {f['name']: f for f in first['fields']}
+    assert fields['chrome_page']['value'] == 'chrome://extensions' and fields['section_developer']['collapsed'] is True
+    assert fields['next']['options'][0] == ['store', 'Open Chrome Web Store']
+    worker.answer(first['id'], {'next': 'store'})
+    second = wait_event(events, 'question')
+    assert opened == [CHROME_STORE_URL] == ['https://chromewebstore.google.com/detail/dj-digger/ndimmdooibgcajgnoncdnckolhlmnnkb']
+    assert second['title'] == 'Connect browser' and second['error'] == ''
+    worker.answer(second['id'], {'next': 'check'})
+    assert next_of(events, 'message', 'error')[1]['text'].startswith('Connected: ')
 
 
 def test_signing_in_names_the_account_and_the_browser(extension):
