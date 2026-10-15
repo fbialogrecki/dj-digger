@@ -89,6 +89,8 @@ def test_profile_import_reports_every_set_with_progress(tmp_path):
     ('other', 'something odd', 'something odd', False),
     ('left', '', 'not started; run it again', False),
     ('login', '', 'needs a SoundCloud sign-in', True),
+    ('browser', 'browser extension restarted',
+     'the browser was closed or the extension restarted (browser extension restarted)', False),
 ])
 def test_download_failures_read_as_plain_reasons(group, message, text, human):
     assert failure_reason(group, message) == (text, human)
@@ -302,6 +304,7 @@ def test_download_results_open_first_when_a_person_must_act(backend):
     [row] = online_rows(1)
     future = run_in(worker, worker.download_results([(row.track, 'https://hypeddit.com/x')],
                                                     {row.track.key: ('captcha', 'CAPTCHA')}, set(), False, threading.Event()))
+    assert wait_event(events, 'busy') == {'value': False, 'text': ''}, 'the batch is over: no background job shown'
     question = wait_event(events, 'question')
     choice = next(f for f in question['fields'] if f['kind'] == 'buttons')
     assert choice['value'] == 'open' and [o[0] for o in choice['options']] == ['open', 'retry']

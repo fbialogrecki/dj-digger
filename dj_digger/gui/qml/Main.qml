@@ -825,12 +825,14 @@ ApplicationWindow {
                 enabled: !desktop.busy
                 onTriggered: desktop.action(signedIn ? "logout" : "login")
             }
+            // Always there: a second browser can be connected, and Check connection reached, while one is.
+            Action { text: qsTr("Connect browser…"); onTriggered: desktop.action("connect_browser") }
             Action {
                 readonly property string browser: desktop.account.browser || ""
-                text: browser ? qsTr("Connected: %1 — Disconnect…").arg(browser) : qsTr("Connect browser…")
+                text: browser ? qsTr("Connected: %1 — Disconnect…").arg(browser) : qsTr("No browser connected")
                 // Disconnecting closes the browser's channel, so not in the middle of a job.
-                enabled: !browser || !desktop.busy
-                onTriggered: desktop.action(browser ? "disconnect_browsers" : "connect_browser")
+                enabled: !!browser && !desktop.busy
+                onTriggered: desktop.action("disconnect_browsers")
             }
         }
         AppMenu {

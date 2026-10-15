@@ -199,11 +199,15 @@ def test_qml_menu_bar(app, tmp_path, monkeypatch):
         bridge.receive('busy', {'value': False, 'text': ''})
         # One account entry and one browser entry, each saying what it will do.
         settings = 'menuBar.menuAt(4)'
-        assert texts(settings)[2:] == ['Sign in to SoundCloud…', 'Connect browser…']
+        assert texts(settings)[2:] == ['Sign in to SoundCloud…', 'Connect browser…', 'No browser connected']
+        assert qml(f'{settings}.itemAt(4).enabled') is False
         bridge.receive('account', dict(signedIn=True, name='digger', browser='Chrome'))
-        assert texts(settings)[2:] == ['Signed in as digger — Sign out…', 'Connected: Chrome — Disconnect…']
-        qml(f'{settings}.itemAt(2).action.trigger(); {settings}.itemAt(3).action.trigger()')
-        assert [c[0] for c in bridge.backend.calls[-2:]] == ['logout', 'disconnect_browsers']
+        # Connect browser… stays while one is connected: a second browser, or Check connection.
+        assert texts(settings)[2:] == ['Signed in as digger — Sign out…', 'Connect browser…',
+                                       'Connected: Chrome — Disconnect…']
+        qml(f'{settings}.itemAt(2).action.trigger(); {settings}.itemAt(3).action.trigger(); '
+            f'{settings}.itemAt(4).action.trigger()')
+        assert [c[0] for c in bridge.backend.calls[-3:]] == ['logout', 'connect_browser', 'disconnect_browsers']
         # Checked follows the state whichever side changes it.
         sidebar = 'menuBar.menuAt(3).itemAt(0)'
         qml('sidebarAction.trigger()')

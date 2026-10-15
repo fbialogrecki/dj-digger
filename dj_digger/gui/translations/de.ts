@@ -724,6 +724,10 @@
       <translation>Verbunden: %1 — Trennen…</translation>
     </message>
     <message>
+      <source>No browser connected</source>
+      <translation>Kein Browser verbunden</translation>
+    </message>
+    <message>
       <source>Open data folder</source>
       <translation>Datenordner öffnen</translation>
     </message>

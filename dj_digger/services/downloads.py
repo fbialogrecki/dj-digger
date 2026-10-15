@@ -1,5 +1,6 @@
 """Persist completed file effects independently of the lifetime of the view."""
 
+import logging
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
@@ -15,6 +16,8 @@ from ..files import copy_local_file
 from ..gates.providers import can_resolve
 from ..models import Cancelled, LinkRecord, Track, check_cancelled
 from . import collection
+
+LOGGER = logging.getLogger(__name__)
 
 DIRECT_STORE_CATEGORIES = frozenset(
     {"beatport", "bandcamp", "traxsource", "junodownload", "apple", "shop", "streaming"}
@@ -130,6 +133,7 @@ FAILURE_GROUPS = (
     ("consent", (gate_models.GateSocialActionsDisabled,)),
     ("manual", (gate_models.GateManualActionRequired,)),
     ("protocol", (gate_models.GateProtocolChanged, gate_models.GateUnavailable)),
+    ("browser", (gate_models.GateBrowserLost,)),
     ("rejected", (gate_models.GateRejected,)),
     ("download", (gate_models.GateDownloadError, soundcloud.SoundCloudError)),
 )
@@ -153,6 +157,18 @@ def downloadable(track: Track, gate_url: str | None) -> bool:
 
 def _gate_failure_group(error: Exception) -> str:
     return next((name for name, types in FAILURE_GROUPS if isinstance(error, types)), "other")
+
+
+def _log_outcome(track: Track, url: str | None, status: str, error: Exception | None = None) -> None:
+    """One row's result in the log: site, track, status and failure group; never a query or an email."""
+
+    site = links_module.host_of(url) if url else "soundcloud.com"
+    label = log_safe_text(track.label)[:120]
+    if error is None:
+        LOGGER.info("Download %s %s: %s", site, label, status)
+    else:
+        LOGGER.warning("Download %s %s: %s [%s] %s", site, label, status, _gate_failure_group(error),
+                       log_safe_text(error)[:200])
 
 
 @dataclass
@@ -352,6 +368,7 @@ class DownloadWorkflow:
     def run_batch(self, items, allow_retry=True):
         items = [item for item in items if downloadable(*item)]
         progress = _BatchProgress(total=len(items))
+        LOGGER.info("Download batch started: %d tracks", len(items))
         # Exiting the pool waits for actual thread completion, including cancel.
         with ThreadPoolExecutor(max_workers=8) as pool:
             futures = [pool.submit(self.attempt, item) for item in items]
@@ -360,6 +377,8 @@ class DownloadWorkflow:
                 verdict = progress.record(
                     track, url, outcome, result, changed, retry_prerequisites=allow_retry
                 )
+                if verdict != "waiting":
+                    _log_outcome(track, url, verdict, result if verdict == "failed" else None)
                 if verdict == "downloaded":
                     self.send("downloaded", key=track.key, path=Path(result))
                 elif verdict == "failed":
@@ -373,6 +392,9 @@ class DownloadWorkflow:
         if progress.deferred:
             self.send("deferred", count=progress.deferred)
         pending = len(progress.profile_items) + len(progress.auth_items)
+        LOGGER.info("Download batch ended: %d downloaded, %d failed, %d cancelled, %d left for another run, "
+                    "%d waiting for settings or sign-in, of %d", progress.completed, progress.failed,
+                    progress.cancelled, progress.deferred, pending, progress.total)
         self.send(
             "summary",
             summary=DownloadSummary(
@@ -407,6 +429,8 @@ class DownloadWorkflow:
 
     def browser_pass(self, progress):
         tracks = {track.key: track for track, _url in progress.browser_items}
+        urls = {track.key: url for track, url in progress.browser_items}
+        LOGGER.info("Browser gate batch started: %d gates", len(tracks))
         self.send("browser_started", count=len(tracks))
         try:
             check_cancelled(self.handle.cancel)
@@ -426,10 +450,14 @@ class DownloadWorkflow:
             )
         finally:
             self.send("browser_finished")
+        LOGGER.info("Browser gate batch ended: %d downloaded, %d failed%s", len(result.completed),
+                    len(result.failures), ", cancelled" if result.cancelled else "")
         for complete in result.completed:
+            _log_outcome(tracks[complete.key], urls[complete.key], "downloaded in the browser")
             progress.completed += 1
             self.send("downloaded", key=complete.key, path=complete.path)
         for key, exc in result.failures:
+            _log_outcome(tracks[key], urls[key], "failed in the browser", exc)
             progress.failed += 1
             progress.failure_groups[_gate_failure_group(exc)] += 1
             reason = progress.browser_reasons.get(key)

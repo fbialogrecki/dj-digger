@@ -530,6 +530,11 @@ class _Context:
     def is_closed(self) -> bool:
         return self._closed
 
+    @property
+    def lost(self) -> AutomationError | None:
+        """Why the browser link ended under this window (browser closed, extension restarted)."""
+        return self._session.error
+
     def _make_page(self, tab_id: int, url: str = "about:blank", opener: _Page | None = None) -> _Page:
         page = self._pages[tab_id] = self._page_cls(self, tab_id, url, opener)
         return page

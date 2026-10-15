@@ -724,6 +724,10 @@
       <translation>Подключено: %1 — Отключить…</translation>
     </message>
     <message>
+      <source>No browser connected</source>
+      <translation>Браузер не подключён</translation>
+    </message>
+    <message>
       <source>Open data folder</source>
       <translation>Открыть папку данных</translation>
     </message>

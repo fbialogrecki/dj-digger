@@ -207,6 +207,18 @@
 
 ### Fixed
 
+- Closing the browser, or the extension restarting, during a gate download no
+  longer asks "Gates need you" or reports the rows as needing a step only you
+  can do: they fail with "the browser was closed or the extension restarted",
+  Download results offers Retry first (and Connect browser and retry when no
+  browser is connected), and the status bar no longer shows "Downloading gates
+  in the background" while the results wait for an answer.
+- Download batches, gate batches included, now write their start, each row's
+  outcome (site, track, status, failure group) and their end counts to
+  `dj-digger.log`; failures are warnings. No emails, names, tokens or query
+  strings are logged.
+- Settings → Connect browser… stays in the menu while a browser is connected,
+  so a second browser can be connected and Check connection reached.
 - Signing in to SoundCloud while your browser is already signed in no longer
   flashes an empty browser window: the login cookie is read without opening any
   window, and the work window opens only when the sign-in page is needed.

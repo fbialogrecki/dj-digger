@@ -185,3 +185,37 @@ def test_toneden_rows_go_to_the_browser_pass_and_gone_gates_fail_at_once():
     assert record(three, "https://gaterush.me/x", live) == "failed"  # no browser driver for it
     assert [track.key for track, _url in progress.browser_items] == ["1"]
     assert progress.failed == 2 and progress.failure_groups == {"protocol": 1, "auth": 1}
+
+
+def test_a_gate_batch_logs_start_outcome_and_end_without_secrets(tmp_path, monkeypatch, caplog):
+    import logging
+
+    from dj_digger.gate_models import GateBrowserLost, GateManualActionRequired
+    from dj_digger.services.downloads import FileBatchResult, FileResult
+
+    gate = 'https://hypeddit.com/test/track?email=me%40example.com&token=s3cret'
+    with ApplicationServices(state=TrackState(tmp_path / 'library.db')) as services:
+        class Client:
+            def download_track(self, track, *args, **kwargs):
+                raise GateManualActionRequired('manual')
+
+        def finish(items, *args, **kwargs):
+            return FileBatchResult(completed=(FileResult('1', tmp_path / '1.wav', True),),
+                                   failures=(('2', GateBrowserLost('browser extension restarted')),))
+
+        monkeypatch.setattr(services.downloads, 'finish_gates', finish)
+        handle = services.operations.start('Downloading')
+        workflow = DownloadWorkflow(services.downloads, DownloadRequest('', 'initial', tmp_path, 20), handle,
+                                    client=Client, config=services.config, emit=lambda event: None,
+                                    prerequisites=lambda *args: [])
+        with caplog.at_level(logging.INFO, logger='dj_digger'):
+            workflow.run_batch([(track, gate) for track in tracks()])
+        services.operations.finish(handle)
+
+    text = caplog.text
+    assert 'Download batch started: 2 tracks' in text and 'Browser gate batch started: 2 gates' in text
+    assert 'Download hypeddit.com 1: downloaded in the browser' in text
+    failed = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert any('hypeddit.com 2: failed in the browser [browser]' in r.getMessage() for r in failed)
+    assert 'Download batch ended: 1 downloaded, 1 failed' in text
+    assert 'example.com' not in text and 's3cret' not in text and 'email=' not in text

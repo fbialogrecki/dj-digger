@@ -1915,8 +1915,29 @@ def test_without_a_connected_browser_every_row_is_unavailable(tmp_path, monkeypa
 
     assert result.completed == () and not result.cancelled
     assert [key for key, _error in result.failures] == ["1", "2"]
-    assert all(isinstance(failure, gate_models.GateUnavailable) for _key, failure in result.failures)
+    assert all(isinstance(failure, gate_models.GateBrowserLost) for _key, failure in result.failures)
     assert all(wanted in str(failure) for _key, failure in result.failures)
+
+
+def test_a_browser_lost_mid_batch_fails_the_rows_without_asking_a_person(tmp_path, monkeypatch):
+    """Closing the browser or a restarting extension ends the link: not a step for a person."""
+
+    class Page(_GatePage):
+        def goto(self, url, **kwargs):
+            self.context.lost = AutomationError("browser extension restarted")
+            raise self.context.lost
+
+    launches = _gate_browser(monkeypatch, lambda ctx: Page(ctx, steps=("email", "dw")), offscreen=True)
+    asked = []
+
+    result = gate_browser.download_hypeddit_batch_in_browser(
+        [(track, f"https://hypeddit.com/track/{track.id}") for track in _tracks(1, 2)],
+        tmp_path, None, config=_DJ, attend=asked.append,
+    )
+
+    assert asked == [] and len(launches) == 1, "no question, no window, no second gate on a dead link"
+    assert [key for key, _error in result.failures] == ["1", "2"] and not result.cancelled
+    assert all(isinstance(error, gate_models.GateBrowserLost) for _key, error in result.failures)
 
 
 @pytest.mark.parametrize('closed', ['first', 'other', 'completed', 'parent_with_popup', 'window'])

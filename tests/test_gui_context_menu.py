@@ -150,3 +150,4 @@ def test_menu_opens_from_keyboard_and_empty_area_and_saves_an_edit(window):
     qml(win, 'contextMenu.close()')
     settle(win)
     assert table.hasActiveFocus()
+

@@ -542,6 +542,8 @@ class Backend:
                 elif event.kind == 'browser_started':
                     browser[0] = True
                     self.send('busy', {'value': True, 'text': 'Downloading gates in the background'})
+                elif event.kind == 'browser_finished':
+                    self.send('busy', {'value': True, 'text': 'Downloading'})
                 elif event.kind == 'status':
                     self.send('message', {'text': event.message})
             workflow = DownloadWorkflow(self.services.downloads, request, handle,
@@ -580,6 +582,8 @@ class Backend:
             options.reverse()
         if browser_used and not (self.services.browser_link and self.services.browser_link.connections()):
             options.append(['connect', 'Connect browser and retry'])
+        # The batch has ended: nothing runs while the results wait for an answer.
+        self.send('busy', {'value': False, 'text': ''})
         try:
             answer = await self.ask('Download results', '', [field('results', '', '\n'.join(lines), 'log'),
                                                               field('next', '', options[0][0], 'buttons', options)],
@@ -595,9 +599,12 @@ class Backend:
                 await self.io(self.services.opening.open_one, url or track.permalink_url, track.key,
                               self.services.config.browser)
             return []
+        if answer['next'] not in {'retry', 'connect'}:
+            return []
+        self.send('busy', {'value': True, 'text': 'Downloading'})
         if answer['next'] == 'connect':
             await self.connect_browser(cancel)
-        return chosen if answer['next'] in {'retry', 'connect'} else []
+        return chosen
 
     def progress_batch(self, values):
         """Download threads `put` progress; inside `flushing()` the loop sends it every 100 ms."""
@@ -1845,6 +1852,7 @@ FAILURE_REASONS = {
     'protocol': ('the gate is gone or has changed', True),
     'login': ('needs a SoundCloud sign-in', True),
     'profile': ('needs your name and email (Settings)', True),
+    'browser': ('the browser was closed or the extension restarted', False),
     'download': ('the download failed', False),
     'left': ('not started; run it again', False),
 }

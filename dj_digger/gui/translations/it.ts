@@ -724,6 +724,10 @@
       <translation>Connesso: %1 — Scollega…</translation>
     </message>
     <message>
+      <source>No browser connected</source>
+      <translation>Nessun browser connesso</translation>
+    </message>
+    <message>
       <source>Open data folder</source>
       <translation>Apri cartella dei dati</translation>
     </message>

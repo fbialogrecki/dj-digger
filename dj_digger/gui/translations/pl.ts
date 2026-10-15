@@ -724,6 +724,10 @@
       <translation>Połączono: %1 — Odłącz…</translation>
     </message>
     <message>
+      <source>No browser connected</source>
+      <translation>Brak połączonej przeglądarki</translation>
+    </message>
+    <message>
       <source>Open data folder</source>
       <translation>Otwórz folder danych</translation>
     </message>

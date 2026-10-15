@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from dj_digger.gate_models import (
+    GateBrowserLost,
     GateDownloadError,
     GateError,
     GateManualActionRequired,
@@ -27,6 +28,7 @@ from dj_digger.gate_models import (
 
 from ..automation_errors import AutomationError
 from ..config import DEFAULT_NAME
+from ..diagnostics import log_safe_text
 from ..http import is_fetchable
 from ..links import host_of, is_hypeddit_url, is_toneden_url
 from ..models import Cancelled, is_cancelled
@@ -955,14 +957,16 @@ def _browser_pass(
     """See ``rows`` through in the batch's one work window, hidden or shown.
 
     True when the batch was cancelled. A hidden pass always has a time limit:
-    nobody can close its tabs. Browser failures propagate to the batch.
+    nobody can close its tabs. Browser failures propagate to the batch, a lost link
+    included: what the pass then deferred or failed was the link, not the gate.
     """
 
     watch.attended, watch.status, watch.scope = not hidden, status, set(rows)
     watch.offscreen = bool(getattr(context, "offscreen", False))
     watch.turn.holder = None
+    before = set(watch.failures)
     pages = _open_gate_tabs(context, rows, watch)
-    return _await_downloads(
+    cancelled = _await_downloads(
         context,
         pages,
         watch,
@@ -973,6 +977,14 @@ def _browser_pass(
         attended=not hidden,
         time_limit=PROVIDER_WAIT_SECONDS if hidden else time_limit,
     )
+    lost = getattr(context, "lost", None)
+    if lost is not None and not cancelled:
+        for key in rows:
+            watch.deferred.pop(key, None)
+            if key not in before:
+                watch.failures.pop(key, None)
+        raise lost
+    return cancelled
 
 
 def _window_batch(
@@ -1066,11 +1078,13 @@ def _browser_batch(
                 hidden=False, social=social, email=email, name=name, time_limit=time_limit,
             )
     except ExtensionMissing as exc:
-        error = GateUnavailable(
+        LOGGER.warning("Gate batch: no browser extension connected: %s", log_safe_text(exc))
+        error = GateBrowserLost(
             f"{exc}. Connect the dj-digger browser extension in your browser, then try again"
         )
     except AutomationError as exc:
-        error = GateUnavailable(str(exc))
+        LOGGER.warning("Gate batch: the browser link failed: %s", log_safe_text(exc))
+        error = GateBrowserLost(str(exc))
     # The window is gone: nothing unfinished (deferred rows included) can continue.
     watch.deferred.clear()
     for key in pending:
@@ -1082,6 +1096,8 @@ def _browser_batch(
 def _attended(watch: _TabWatch, reasons: dict[str, str], attend: AttendCallback | None) -> bool:
     """Whether the deferred rows go on in a window; the ones the person skips fail with their reason."""
 
+    LOGGER.info("Gate batch: %d gate(s) need a person: %s", len(reasons),
+                log_safe_text("; ".join(sorted(set(reasons.values())))))
     if attend is None or attend(dict(reasons)):
         return True
     for key, reason in reasons.items():
