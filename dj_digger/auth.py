@@ -297,6 +297,7 @@ def login_with_browser(
         raise
     except link.ExtensionMissing as exc:
         raise SoundCloudAuthError(
+            f"{exc}, then log in again." if str(exc) == link.SITE_ACCESS else
             "Connect the dj-digger browser extension to your browser first "
             "(desktop: Connect browser; terminal: 'dj-digger browser register'), "
             "then log in again."

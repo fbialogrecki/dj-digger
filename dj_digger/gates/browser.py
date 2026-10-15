@@ -16,6 +16,7 @@ from typing import Any
 
 from dj_digger.gate_models import (
     GateBrowserLost,
+    GateBrowserPageFailed,
     GateDownloadError,
     GateError,
     GateManualActionRequired,
@@ -33,7 +34,7 @@ from ..http import is_fetchable
 from ..links import host_of, is_hypeddit_url, is_toneden_url
 from ..models import Cancelled, is_cancelled
 from ..webext import page as webpage
-from ..webext.link import ExtensionMissing
+from ..webext.link import SITE_ACCESS, ExtensionMissing
 from .providers import (
     CLICK_THROUGH_STEPS,
     DIRECT_STEP,
@@ -771,7 +772,7 @@ def _goto_gate(page: Any, key: str, watch: _TabWatch) -> None:
         if watch.offscreen:  # nothing was seen of the page: a real window gets to try
             watch.deferred[key] = f"the hidden browser could not open the gate: {exc}"
         else:
-            watch.failures[key] = GateUnavailable(f"Could not open {site} in the browser: {exc}")
+            watch.failures[key] = GateBrowserPageFailed(f"{site} did not load in the browser: {exc}")
 
 
 def _close_settled_tabs(context: Any, watch: _TabWatch) -> None:
@@ -1080,7 +1081,8 @@ def _browser_batch(
     except ExtensionMissing as exc:
         LOGGER.warning("Gate batch: no browser extension connected: %s", log_safe_text(exc))
         error = GateBrowserLost(
-            f"{exc}. Connect the dj-digger browser extension in your browser, then try again"
+            str(exc) if str(exc) == SITE_ACCESS
+            else f"{exc}. Connect the dj-digger browser extension in your browser, then try again"
         )
     except AutomationError as exc:
         LOGGER.warning("Gate batch: the browser link failed: %s", log_safe_text(exc))

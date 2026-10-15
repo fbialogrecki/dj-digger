@@ -659,11 +659,13 @@ def test_disconnecting_browsers_asks_first(extension, confirm):
     question = wait_event(events, 'question')
     assert question['title'] == 'Disconnect browsers' and question['ok'] == 'Disconnect' and not removed
     worker.answer(question['id'], {} if confirm else None)
+    if not confirm:
+        worker.submit('no_such_action', {})  # the next thing said after the dialog closed
     message = next_of(events, 'message', 'error')[1]
     if confirm:
         assert removed and message == {'text': 'Browsers disconnected: {0}', 'args': [1]}
-    else:
-        assert not removed and message['text'] == 'Cancelled'
+    else:  # a dialog closed, nothing was running: no "Cancelled"
+        assert not removed and message['text'] == 'Unknown desktop action'
 
 
 def test_store_login_is_gone():
@@ -1029,8 +1031,21 @@ def test_summary_overwrite_needs_separate_confirmation(backend, tmp_path):
     confirmation = wait_event(events, 'question')
     assert confirmation['title'] == 'Replace existing file'
     worker.answer(confirmation['id'], None)
-    wait_event(events, 'message')
+    worker.submit('no_such_action', {})
+    assert next_of(events, 'message', 'error')[1]['text'] == 'Unknown desktop action'  # no "Cancelled"
     assert path.read_text(encoding='utf-8') == 'keep existing content'
+
+
+def test_closing_settings_is_not_a_cancelled_job_but_cancelling_a_job_is(backend):
+    worker, events = backend
+    worker.submit('settings', {})
+    worker.answer(wait_event(events, 'question')['id'], None)
+    worker.submit('no_such_action', {})
+    assert next_of(events, 'message', 'error')[1]['text'] == 'Unknown desktop action'
+    worker.rows = online_rows(11)
+    worker.submit('download', {'keys': [str(i) for i in range(1, 12)], 'generation': 0})
+    worker.answer(wait_event(events, 'question')['id'], None)  # "Download 11 tracks?" of a running job
+    assert next_of(events, 'message', 'error')[1]['text'] == 'Cancelled'
 
 
 def test_local_waveform_arrives_after_pause_without_blocking_play(backend, tmp_path, monkeypatch):

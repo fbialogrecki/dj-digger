@@ -49,6 +49,11 @@ class GateBrowserLost(GateError):
     connected): nothing a person can do at the gate; connect the browser and retry."""
 
 
+class GateBrowserPageFailed(GateError):
+    """The browser could not load the gate page (a network error, a navigation it aborted):
+    the gate is not known to be gone; retry."""
+
+
 # Failures the HTTP flow cannot get past, but a person in the browser
 # can: a provider login, a CAPTCHA, an unknown step, a changed protocol, a
 # gate that refused the unlock, or social steps the user has disabled here.

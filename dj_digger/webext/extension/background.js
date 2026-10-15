@@ -421,14 +421,19 @@ async function browserInfo() {
   const m = ua.match(/(Edg|OPR)\/([\d.]+)/) ?? ua.match(/(Chrome)\/([\d.]+)/);
   return { name: { Edg: "edge", OPR: "opera", Chrome: "chrome" }[m?.[1]] ?? "unknown", version: m?.[2] ?? "" };
 }
+const siteAccess = () => api.permissions.contains({ origins: manifest.host_permissions });
 async function hello() {
   const info = await browserInfo();
-  const permissions = await api.permissions.contains({ origins: manifest.host_permissions });
+  const permissions = await siteAccess();
   send({
     event: "hello", browser: info.name, version: manifest.version, browserVersion: info.version,
     protocol: PROTOCOL, instance: INSTANCE, permissions,
   });
 }
+// Site access granted or taken back in the browser's extension settings: the app learns it live.
+const sitesChanged = () => siteAccess().then((granted) => emit({ event: "permissions", granted }), () => {});
+api.permissions.onAdded.addListener(sitesChanged);
+api.permissions.onRemoved.addListener(sitesChanged);
 function connect() {
   if (port) return;
   let p;
@@ -654,6 +659,11 @@ async function runDom(op, a, ctx) {
 // Navigation: listeners go in before the navigation starts. Ready = DOMContentLoaded of the
 // top frame after its commit; status = last main_frame onCompleted; errors from webNavigation.
 const ABORT_GRACE_MS = 3000;
+// A navigation superseded by another (a redirect, the site's own next one): Chromium says net::ERR_ABORTED,
+// Firefox "Error code <nsresult>" for NS_BINDING_ABORTED, NS_BINDING_REDIRECTED and NS_ERROR_ABORT.
+const isAbort = (error) =>
+  /^net::ERR_ABORTED$|NS_BINDING_(ABORTED|REDIRECTED)|NS_ERROR_ABORT|^Error code (2152398850|2152398859|2147500036)$/
+    .test(error ?? "");
 async function navigate(tabId, start, timeoutMs, ctx) {
   const st = { committed: false, dcl: false, status: null, error: null };
   const top = (d) => d.tabId === tabId && d.frameId === 0;
@@ -671,7 +681,7 @@ async function navigate(tabId, start, timeoutMs, ctx) {
     // An aborted navigation is often just superseded by the site's own next one (Beatport track to
     // track): wait a little for that one to load before reporting the abort.
     const settled = () =>
-      st.dcl || (st.error && (st.error !== "net::ERR_ABORTED" || Date.now() - st.errorAt > ABORT_GRACE_MS));
+      st.dcl || (st.error && (!isAbort(st.error) || Date.now() - st.errorAt > ABORT_GRACE_MS));
     await pollUntil(settled, timeoutMs, ctx.signal, "page load");
     if (!st.dcl) throw new Err("navigation_failed", st.error);
     if (st.status === null) await sleep(300); // onCompleted can trail DOMContentLoaded

@@ -1746,6 +1746,10 @@
       <translation>L'extension ne répond toujours pas. Installez-la ou activez-la, puis cliquez à nouveau sur « Vérifier la connexion ».</translation>
     </message>
     <message>
+      <source>Allow dj-digger site access in the browser's extension settings</source>
+      <translation>Autorisez l’accès aux sites pour dj-digger dans les paramètres des extensions du navigateur</translation>
+    </message>
+    <message>
       <source>Connected: {0}. SoundCloud sign-in, gates and carts will open there.</source>
       <translation>Connecté : {0}. La connexion à SoundCloud, les gates et les paniers s'ouvriront là.</translation>
     </message>

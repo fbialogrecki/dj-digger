@@ -37,7 +37,7 @@ function fakeBrowser({ offscreen = true, failOffscreen = false } = {}) {
     "webNavigation.onBeforeNavigate", "webNavigation.onCommitted", "webNavigation.onDOMContentLoaded",
     "webNavigation.onErrorOccurred", "webRequest.onResponseStarted", "webRequest.onBeforeRedirect",
     "webRequest.onCompleted", "downloads.onCreated", "downloads.onChanged", "runtime.onInstalled", "runtime.onConnect", "runtime.onMessage",
-    "runtime.onStartup", "contextMenus.onClicked"]) {
+    "runtime.onStartup", "contextMenus.onClicked", "permissions.onAdded", "permissions.onRemoved"]) {
     e[name] = event();
   }
   const port = { onMessage: event(), onDisconnect: event(), postMessage: (m) => sent.push(JSON.parse(JSON.stringify(m))) };
@@ -53,7 +53,7 @@ function fakeBrowser({ offscreen = true, failOffscreen = false } = {}) {
   };
   const off = { docs: 0, closed: 0, port: null, scripts: [], unregistered: 0 };
   const user = { window: null, created: [] }; // the person's last focused window; windows made
-  const ui = { badge: "", badgeColor: null, menus: {} };
+  const ui = { badge: "", badgeColor: null, menus: {}, sites: true };
   const api = {
     scripting: {
       registerContentScripts: async (list) => {
@@ -114,7 +114,7 @@ function fakeBrowser({ offscreen = true, failOffscreen = false } = {}) {
       },
       onClicked: e["contextMenus.onClicked"],
     },
-    permissions: { contains: async () => true },
+    permissions: { contains: async () => ui.sites, onAdded: e["permissions.onAdded"], onRemoved: e["permissions.onRemoved"] },
     alarms: { create() {}, onAlarm: e["alarms.onAlarm"] },
     storage: {
       session: {
@@ -285,6 +285,17 @@ async function start(fake = fakeBrowser()) {
   assert.ok(second.wins.has(mine.windowId) && second.tabs.has(mine.id)); // the user's window stays
   assert.deepEqual([second.session.djdRegistry.windows, second.session.djdRegistry.owned], [[], []]);
 
+  // site access taken back or granted in the browser's settings reaches the app at once, not only in hello
+  x = await start();
+  assert.equal(x.events("hello")[0].permissions, true);
+  x.ui.sites = false;
+  x.e["permissions.onRemoved"].fire({ origins: ["https://hypeddit.com/*"] });
+  await tick();
+  x.ui.sites = true;
+  x.e["permissions.onAdded"].fire({ origins: ["https://hypeddit.com/*"] });
+  await tick();
+  assert.deepEqual(x.events("permissions"), [{ event: "permissions", granted: false }, { event: "permissions", granted: true }]);
+
   // an aborted navigation superseded by the site's next one that loads is a success (Beatport)
   x = await start();
   const nw = (await x.call("window.open", {})).result.windowId;
@@ -295,6 +306,22 @@ async function start(fake = fakeBrowser()) {
   x.e["webNavigation.onCommitted"].fire({ tabId: nt, frameId: 0 });
   x.e["webNavigation.onDOMContentLoaded"].fire({ tabId: nt, frameId: 0 });
   assert.equal((await going).ok, true);
+  // Firefox reports the same abort/redirect family as nsresult codes; the next load still wins (Hypeddit)
+  const later = () => new Promise((r) => setTimeout(r, 150)); // past a poll, inside the grace
+  for (const error of ["net::ERR_ABORTED", "Error code 2152398850", "Error code 2152398859", "Error code 2147500036"]) {
+    const loading = x.call("tab.goto", { tabId: nt, url: "https://hypeddit.com/1rjvpc" });
+    await tick();
+    x.e["webNavigation.onErrorOccurred"].fire({ tabId: nt, frameId: 0, error });
+    await later();
+    x.e["webNavigation.onCommitted"].fire({ tabId: nt, frameId: 0 });
+    x.e["webNavigation.onDOMContentLoaded"].fire({ tabId: nt, frameId: 0 });
+    assert.equal((await loading).ok, true, error);
+  }
+  // any other error (connection refused) fails at once
+  const refused = x.call("tab.goto", { tabId: nt, url: "https://hypeddit.com/1rjvpc" });
+  await tick();
+  x.e["webNavigation.onErrorOccurred"].fire({ tabId: nt, frameId: 0, error: "Error code 2152398861" });
+  assert.equal((await refused).error.code, "navigation_failed");
   // checkout stays closed under a locale prefix and at Bandcamp's real checkout entry
   for (const url of ["https://www.beatport.com/de/checkout/main/1", "https://www.beatport.com/en-us/checkout/a/1",
     "https://bandcamp.com/cart/checkout_start?x=1"]) {

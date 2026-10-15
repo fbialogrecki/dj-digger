@@ -357,6 +357,26 @@ def test_protocol_mismatch_asks_for_a_reload(listener, address):
     client.close()
 
 
+def test_site_access_follows_the_permissions_event_and_gates_new_sessions(listener, address):
+    client = connect(address, {**HELLO, "permissions": False})
+    with pytest.raises(link.ExtensionMissing, match="Allow dj-digger site access"):
+        listener.session(1)  # refused up front, nothing is sent to the browser
+    assert not client.poll(0.1)
+    client.send_bytes(json.dumps({"event": "permissions", "granted": True}).encode())
+    deadline = time.monotonic() + 3
+    while listener.connections()[0].hello.get("permissions") is not True:
+        assert time.monotonic() < deadline
+        time.sleep(0.01)
+    session = listener.session(1)
+    client.send_bytes(json.dumps({"event": "permissions", "granted": False}).encode())
+    assert session.next_event(0.2) is None  # the event only updates the hello, sessions never see it
+    deadline = time.monotonic() + 3
+    while listener.connections()[0].hello.get("permissions") is not False:
+        assert time.monotonic() < deadline
+        time.sleep(0.01)
+    client.close()
+
+
 def test_connection_drop_ends_the_session(listener, address):
     client = connect(address)
     session = listener.session(2)

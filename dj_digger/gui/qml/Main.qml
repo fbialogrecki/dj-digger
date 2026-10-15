@@ -3246,7 +3246,8 @@ ApplicationWindow {
                                     text: String(fieldItem.modelData.value); textFormat: Text.PlainText
                                     readOnly: fieldItem.modelData.kind === "log"; selectByMouse: true
                                     wrapMode: Text.Wrap
-                                    font.family: fieldItem.modelData.kind === "log" ? "monospace" : Qt.application.font.family
+                                    // Logs too: "monospace" has no fallback for the emoji and scripts in track titles.
+                                    font.family: Qt.application.font.family
                                     // Only the person's edits are answers, not the text set when the dialog opens.
                                     onTextChanged: if (!readOnly && activeFocus) dialog.values[fieldItem.modelData.name] = text
                                     Accessible.name: fieldItem.modelData.label

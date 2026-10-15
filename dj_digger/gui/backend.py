@@ -3,6 +3,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import stat
 import threading
 import time
@@ -43,6 +44,10 @@ def cover_hash(text):
     for unit in memoryview(text.encode('utf-16-le')).cast('H'):
         value = (value * 31 + unit) & 0xFFFFFFFF
     return abs(value - (1 << 32) if value & 0x80000000 else value)
+
+
+class Dismissed(Cancelled):
+    """A dialog of no running job closed with Cancel or Escape: nothing was cancelled."""
 
 
 class Backend:
@@ -136,8 +141,8 @@ class Backend:
         self.loop.call_soon_threadsafe(deliver)
 
     async def ask(self, title, body='', fields=(), cancel=None, ok='', error='', dismiss='', opened=None):
-        """``dismiss`` names the Cancel button; answering with it raises Cancelled.
-        ``opened`` is told the question's id once it is asked."""
+        """``dismiss`` names the Cancel button; answering with it raises Cancelled, or Dismissed for a
+        dialog of no running job (no ``cancel``). ``opened`` is told the question's id once it is asked."""
         ident = uuid4().hex
         future = self.loop.create_future()
         self.questions[ident] = future
@@ -151,7 +156,7 @@ class Backend:
                 await asyncio.wait({future}, timeout=.1)
             answer = future.result()
             if answer is None:
-                raise Cancelled()
+                raise Cancelled() if cancel is not None else Dismissed()
             check_cancelled(cancel)
             return answer
         finally:
@@ -220,6 +225,8 @@ class Backend:
                     await handler(values)
             else:
                 await handler(values)
+        except Dismissed:
+            pass  # a dialog closed, nothing was running: no "Cancelled"
         except (Cancelled, CartCancelled, asyncio.CancelledError):
             self.send('message', {'text': 'Cancelled'})
         except Exception as exc:
@@ -1674,8 +1681,9 @@ class Backend:
                 if self.services.browser_link is None:
                     raise link.ExtensionMissing('No extension channel')
                 connection = await self.io(self.services.browser_link.connection, 5)
-            except link.ExtensionMissing:
-                error = "The extension still isn't answering. Install/enable it, then click Check connection again."
+            except link.ExtensionMissing as exc:
+                error = link.SITE_ACCESS if str(exc) == link.SITE_ACCESS else \
+                    "The extension still isn't answering. Install/enable it, then click Check connection again."
                 continue
             browser = self.connected_browser(connection)
             self.send('message', {'text': 'Connected: {0}. SoundCloud sign-in, gates and carts will open there.',
@@ -1853,22 +1861,30 @@ FAILURE_REASONS = {
     'login': ('needs a SoundCloud sign-in', True),
     'profile': ('needs your name and email (Settings)', True),
     'browser': ('the browser was closed or the extension restarted', False),
+    'navigation': ('the browser could not open the gate page', False),
     'download': ('the download failed', False),
     'left': ('not started; run it again', False),
 }
 
 
 def failure_reason(group, message):
-    """(text, needs a person) for one failed row; the original message follows in brackets."""
-    lowered = message.lower()
+    """(text, needs a person) for one failed row: the plain phrase, then in brackets the one part of the
+    original message (``error (after: earlier reason)``) that does not just repeat the phrase."""
+    main, _, after = message.partition(' (after: ')
+    lowered = main.lower()  # what failed, not what came before it
     if 'no longer exists' in lowered:
         phrase, human = 'the gate is gone', True
+    elif 'site access' in lowered:
+        phrase, human = 'the extension has no site access', False
     elif 'timed out' in lowered or 'timeout' in lowered:
         phrase, human = 'timed out', False
     else:
         phrase, human = FAILURE_REASONS.get(group, ('', False))
-    detail = log_safe_text(message)[:200]
-    text = phrase + (f' ({detail})' if detail and detail != phrase else '') if phrase else detail or 'failed'
+    words = set(re.findall(r'\w+', phrase.lower()))
+    after = after.removesuffix(')')
+    parts = [log_safe_text(part).strip()[:200] for part in (main, after and 'after: ' + after)]
+    detail = next((part for part in parts if not set(re.findall(r'\w+', part.lower())) <= words), '')
+    text = phrase + (f' ({detail})' if detail else '') if phrase else detail or 'failed'
     return text, human
 
 

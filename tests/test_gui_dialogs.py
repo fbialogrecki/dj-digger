@@ -89,8 +89,15 @@ def test_profile_import_reports_every_set_with_progress(tmp_path):
     ('other', 'something odd', 'something odd', False),
     ('left', '', 'not started; run it again', False),
     ('login', '', 'needs a SoundCloud sign-in', True),
-    ('browser', 'browser extension restarted',
-     'the browser was closed or the extension restarted (browser extension restarted)', False),
+    ('browser', 'browser extension restarted', 'the browser was closed or the extension restarted', False),
+    # one detail, never nested: the original error, or what came before it when the error only repeats the phrase
+    ('browser', 'browser extension restarted (after: Hypeddit did not unlock the download)',
+     'the browser was closed or the extension restarted (after: Hypeddit did not unlock the download)', False),
+    ('captcha', 'Hypeddit CAPTCHA (after: the hidden browser timed out)', 'needs a CAPTCHA solved (Hypeddit CAPTCHA)', True),
+    ('browser', "Allow dj-digger site access in the browser's extension settings",
+     "the extension has no site access (Allow dj-digger site access in the browser's extension settings)", False),
+    ('navigation', 'Hypeddit did not load in the browser: Error code 2152398850',
+     'the browser could not open the gate page (Hypeddit did not load in the browser: Error code 2152398850)', False),
 ])
 def test_download_failures_read_as_plain_reasons(group, message, text, human):
     assert failure_reason(group, message) == (text, human)

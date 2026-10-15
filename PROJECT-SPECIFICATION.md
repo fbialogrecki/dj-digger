@@ -2,11 +2,11 @@
 
 - Status: current implemented system
 - Document version: 1.1
-- Product version verified: 1.4.0 (working tree)
+- Product version verified: 1.4.0 (working tree; `pyproject.toml` 1.4.0, browser extension manifest 1.4.1)
 - Owner: Filip Białogrecki
-- Updated: 2026-10-08
-- Document lines: <!-- SPEC TOTAL LINES -->2586<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->2586<!-- END SPEC MAP LIMIT -->
+- Updated: 2026-10-15
+- Document lines: <!-- SPEC TOTAL LINES -->2607<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->2607<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,66 +51,66 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 145–190 |
 | 2.1 | ↳ Problem and product boundary | 147–160 |
 | 2.2 | ↳ Execution modes | 161–190 |
-| 3 | User-visible capabilities | 191–1213 |
+| 3 | User-visible capabilities | 191–1218 |
 | 3.1 | ↳ Track collection | 193–218 |
 | 3.2 | ↳ Link classification and exports | 219–237 |
 | 3.3 | ↳ Track statuses | 238–248 |
 | 3.4 | ↳ Audio preview | 249–425 |
-| 3.5 | ↳ Downloads and local-file matching | 426–484 |
-| 3.6 | ↳ Store purchase assistance | 485–608 |
-| 3.7 | ↳ Local library, analysis and audio export | 609–786 |
-| 3.8 | ↳ Qt Quick desktop | 787–1213 |
-| 4 | System context and data flow | 1214–1258 |
-| 4.1 | ↳ Context diagram | 1216–1242 |
-| 4.2 | ↳ Collection-to-library flow | 1243–1258 |
-| 5 | Repository layout and component ownership | 1259–1345 |
-| 5.1 | ↳ Entry, orchestration, and models | 1261–1272 |
-| 5.2 | ↳ Network and external-system adapters | 1273–1304 |
-| 5.3 | ↳ Persistence, local media, and UI | 1305–1345 |
-| 6 | Runtime architecture and environments | 1346–1489 |
-| 6.1 | ↳ Runtime and dependencies | 1348–1376 |
-| 6.2 | ↳ Concurrency and lifecycle | 1377–1454 |
-| 6.3 | ↳ Local paths and environment variables | 1455–1489 |
-| 7 | Data model and persistence | 1490–1606 |
-| 7.1 | ↳ Domain objects and identity | 1492–1506 |
-| 7.2 | ↳ SQLite schema and invariants | 1507–1563 |
-| 7.3 | ↳ Crate persistence and deletion | 1564–1579 |
-| 7.4 | ↳ Configuration and credential stores | 1580–1606 |
-| 8 | Public interfaces and contracts | 1607–1668 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1609–1640 |
-| 8.2 | ↳ JSON and CSV summary input | 1641–1656 |
-| 8.3 | ↳ URL-opening contract | 1657–1668 |
-| 9 | Authentication and authorization | 1669–1736 |
-| 9.1 | ↳ SoundCloud authentication | 1671–1703 |
-| 9.2 | ↳ Gate action consent | 1704–1736 |
-| 10 | External integrations | 1737–2085 |
-| 10.1 | ↳ SoundCloud API and media | 1739–1750 |
-| 10.2 | ↳ Link hubs and download gates | 1751–1894 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1759–1851 |
-| 10.2 · block | ↳ ↳ ToneDen | 1853–1877 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1879–1887 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1889–1894 |
-| 10.3 | ↳ Browsers and clipboard | 1895–2032 |
-| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 2033–2085 |
-| 11 | Security requirements and threat model | 2086–2285 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2088–2106 |
-| 11.2 | ↳ Secret and personal-data handling | 2107–2122 |
-| 11.3 | ↳ File and mutation safety | 2123–2144 |
-| 11.4 | ↳ Browser-extension trust boundary | 2145–2285 |
-| 12 | Privacy, lifecycle, and retention | 2286–2342 |
-| 12.1 | ↳ Data stored locally | 2288–2312 |
-| 12.2 | ↳ Data sent to third parties | 2313–2329 |
-| 12.3 | ↳ User-controlled deletion | 2330–2342 |
-| 13 | Failure behavior and current limitations | 2343–2453 |
-| 13.1 | ↳ Error isolation and reporting | 2345–2366 |
-| 13.2 | ↳ Confirmed limitations | 2367–2453 |
-| 14 | Verification, CI, and release | 2454–2552 |
-| 14.1 | ↳ Offline and live test suites | 2456–2504 |
-| 14.2 | ↳ Continuous integration and publishing | 2505–2537 |
-| 14.3 | ↳ Specification-map verification | 2538–2552 |
-| 15 | Evidence and operational references | 2553–2586 |
-| 15.1 | ↳ Primary implementation evidence | 2555–2576 |
-| 15.2 | ↳ User and historical documentation | 2577–2586 |
+| 3.5 | ↳ Downloads and local-file matching | 426–487 |
+| 3.6 | ↳ Store purchase assistance | 488–611 |
+| 3.7 | ↳ Local library, analysis and audio export | 612–789 |
+| 3.8 | ↳ Qt Quick desktop | 790–1218 |
+| 4 | System context and data flow | 1219–1263 |
+| 4.1 | ↳ Context diagram | 1221–1247 |
+| 4.2 | ↳ Collection-to-library flow | 1248–1263 |
+| 5 | Repository layout and component ownership | 1264–1350 |
+| 5.1 | ↳ Entry, orchestration, and models | 1266–1277 |
+| 5.2 | ↳ Network and external-system adapters | 1278–1309 |
+| 5.3 | ↳ Persistence, local media, and UI | 1310–1350 |
+| 6 | Runtime architecture and environments | 1351–1494 |
+| 6.1 | ↳ Runtime and dependencies | 1353–1381 |
+| 6.2 | ↳ Concurrency and lifecycle | 1382–1459 |
+| 6.3 | ↳ Local paths and environment variables | 1460–1494 |
+| 7 | Data model and persistence | 1495–1611 |
+| 7.1 | ↳ Domain objects and identity | 1497–1511 |
+| 7.2 | ↳ SQLite schema and invariants | 1512–1568 |
+| 7.3 | ↳ Crate persistence and deletion | 1569–1584 |
+| 7.4 | ↳ Configuration and credential stores | 1585–1611 |
+| 8 | Public interfaces and contracts | 1612–1673 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1614–1645 |
+| 8.2 | ↳ JSON and CSV summary input | 1646–1661 |
+| 8.3 | ↳ URL-opening contract | 1662–1673 |
+| 9 | Authentication and authorization | 1674–1741 |
+| 9.1 | ↳ SoundCloud authentication | 1676–1708 |
+| 9.2 | ↳ Gate action consent | 1709–1741 |
+| 10 | External integrations | 1742–2104 |
+| 10.1 | ↳ SoundCloud API and media | 1744–1755 |
+| 10.2 | ↳ Link hubs and download gates | 1756–1902 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1764–1859 |
+| 10.2 · block | ↳ ↳ ToneDen | 1861–1885 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1887–1895 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1897–1902 |
+| 10.3 | ↳ Browsers and clipboard | 1903–2051 |
+| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 2052–2104 |
+| 11 | Security requirements and threat model | 2105–2306 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2107–2125 |
+| 11.2 | ↳ Secret and personal-data handling | 2126–2141 |
+| 11.3 | ↳ File and mutation safety | 2142–2163 |
+| 11.4 | ↳ Browser-extension trust boundary | 2164–2306 |
+| 12 | Privacy, lifecycle, and retention | 2307–2363 |
+| 12.1 | ↳ Data stored locally | 2309–2333 |
+| 12.2 | ↳ Data sent to third parties | 2334–2350 |
+| 12.3 | ↳ User-controlled deletion | 2351–2363 |
+| 13 | Failure behavior and current limitations | 2364–2474 |
+| 13.1 | ↳ Error isolation and reporting | 2366–2387 |
+| 13.2 | ↳ Confirmed limitations | 2388–2474 |
+| 14 | Verification, CI, and release | 2475–2573 |
+| 14.1 | ↳ Offline and live test suites | 2477–2525 |
+| 14.2 | ↳ Continuous integration and publishing | 2526–2558 |
+| 14.3 | ↳ Specification-map verification | 2559–2573 |
+| 15 | Evidence and operational references | 2574–2607 |
+| 15.1 | ↳ Primary implementation evidence | 2576–2597 |
+| 15.2 | ↳ User and historical documentation | 2598–2607 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -455,9 +455,12 @@ a gate unless the user opens one (§10.2). A batch with failed rows, or rows it
 handed on and never started (more gates than one browser batch takes), ends in a
 "Download results" screen listing each with a plain reason from its failure group
 (needs a sign-in on the gate site, a CAPTCHA solved, a step only you can do, the gate
-refused or is gone, the browser was closed or the extension restarted, timed out, the
+refused or is gone, the browser was closed or the extension restarted, the browser could not
+open the gate page, the extension has no site access, timed out, the
 download failed, needs a SoundCloud sign-in or your name and email, not started) followed
-by the original message, wrapped; Open in browser is the default only when a reason needs a
+in brackets by one part of the original message: the error itself, or, when its words only repeat
+the reason, what happened before it (`after: …`), never both nested; the list uses the UI font, so
+emoji and non-Latin titles render; Open in browser is the default only when a reason needs a
 person, else Retry these. While the screen waits the status bar shows no running job (a
 retry shows Downloading again). Retry these runs them
 again, Open in browser opens each one's gate (or its SoundCloud page),
@@ -1058,10 +1061,12 @@ and seeks publish a snapshot as soon as they are applied; seeks arriving faster 
 them collapse to the newest, and nudges queued behind one add up.
 Dialogs size to their content, share the panel surface with a compact title, and place normal-sized buttons on the right; Cancel and Close use the application catalog rather than the Qt base translation, which the frozen bundle does not carry. Forms use choice lists for enumerated values,
 numeric validators, framed multi-line editors, labelled checkboxes, inline
-folder/file pickers and a monospace read-only view for logs and plans; the
+folder/file pickers and a read-only view for logs and plans (in the UI font, which falls back for emoji); the
 confirming button carries the action name. Validation runs before a form
 closes: an invalid answer re-opens the same dialog with the entered values and
-the error message instead of discarding the input.
+the error message instead of discarding the input. Closing a dialog that belongs to no running job
+(Settings, a confirmation before anything started) with Cancel or Escape says nothing; "Cancelled"
+is shown only when a running job or one of its questions was cancelled.
 Language selection (View → Language, listed by endonym) supports English, German, Spanish,
 French, Italian, Polish and Russian UI catalogs; the first start follows the system locale's
 language when it is one of these and English otherwise. Provider diagnostics
@@ -1823,6 +1828,9 @@ to a person: the batch stops there, and every row not yet settled, the ones the 
 deferred or failed after the loss included, fails as `GateBrowserLost` (failure group
 `browser`, which Download results words as "the browser was closed or the extension
 restarted", Retry first, Connect browser and retry offered when no extension is connected).
+A gate page the browser could not load in a visible window (a network error, a navigation it reports
+failed) fails as `GateBrowserPageFailed` (group `navigation`, "the browser could not open the gate
+page", Retry first), never as a gone or changed gate.
 Nothing outside Hypeddit's page is ever clicked. A hidden pass always ends five
 minutes after its driving; a single gate's window has the same limit, a
 batch's window lasts as long as a tab stays open. Downloads are accepted only for
@@ -1917,7 +1925,11 @@ stdin, retries the application every second, replays the extension's cached
 1 MB. Requests are `{id, cmd, args}`, replies `{id, ok, result}` or `{id, ok,
 error: {code, message}}`, events `{event, ...}`. The extension's first frame is
 `hello` (browser, extension and browser versions, protocol 1, a per-start
-instance id, whether host permissions are granted).
+instance id, whether host permissions are granted). When the person grants or removes site access
+in the browser's extension settings (`permissions.onAdded`/`onRemoved`), the extension sends
+`{event: "permissions", granted}`; the application updates that connection's `hello` with it (it
+never reaches a session), so the Settings and Connect browser status show "missing site access"
+without a reload.
 
 The toolbar button opens the extension's player panel (`popup.html`, the manifest's
 `action`). The desktop, never the CLI, sends `{cmd: "player.state", args}` without an
@@ -1969,10 +1981,17 @@ as the most recently active compatible one. A dropped connection or a new
 extension instance ends the session with "browser extension restarted"; it never
 moves to another browser. With no compatible `hello` within three seconds the
 application raises `ExtensionMissing` ("not connected", or "reload or update the
-extension" on a protocol mismatch). A command times out after 15 seconds
+extension" on a protocol mismatch). When the chosen connection's `hello` says host permissions are
+not granted, a new session is refused up front with `ExtensionMissing` "Allow dj-digger site access in
+the browser's extension settings": gates fail their rows with exactly that, carts and the desktop login
+open Connect browser, whose Check connection shows it. A command times out after 15 seconds
 (navigation 30); commands that wait for an element wait inside the extension for
 their own timeout and the application allows two seconds more. Commands for one
 tab run in order; cancelling sends `cancel`, which stops the wait in the extension.
+A top-frame navigation that fails as superseded (Chromium `net::ERR_ABORTED`; Firefox
+`Error code` 2152398850 `NS_BINDING_ABORTED`, 2152398859 `NS_BINDING_REDIRECTED` or 2147500036
+`NS_ERROR_ABORT`) is reported only if no next navigation loads within three seconds; any other
+error fails it at once (`navigation_failed`).
 
 Several sessions may be open at once, each with its own work window.
 `window.open {visible}` always creates a new window and returns `{windowId}`;
@@ -2229,7 +2248,9 @@ Python caller, enforces its own limits, whatever the application sends:
   100,000 bytes. The only command input is the native port: the manifest has no
   `externally_connectable` and no `web_accessible_resources`, there is no
   external-message handler and no page script listens to `window.postMessage`.
-  `welcome.html` can only request the host permissions.
+  `welcome.html` can only request the host permissions. Changes to them are only
+  observed (`permissions.onAdded`/`onRemoved`) and reported to the application as a
+  boolean `permissions` event; nothing requests, widens or narrows them on its own.
 - **Player panel and context menu** (permissions `activeTab` and `contextMenus`, the
   owner's approval of 2026-10-14). `popup.html` (no inline script) can only ask the
   local desktop for previous/next track, play/pause, a seek, Cancel of its running job,

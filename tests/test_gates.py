@@ -21,7 +21,7 @@ from dj_digger.gates.providers import (
     resolve_toneden_download_url,
 )
 from dj_digger.models import Track
-from dj_digger.webext.link import ExtensionMissing
+from dj_digger.webext.link import SITE_ACCESS, ExtensionMissing
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -1919,6 +1919,16 @@ def test_without_a_connected_browser_every_row_is_unavailable(tmp_path, monkeypa
     assert all(wanted in str(failure) for _key, failure in result.failures)
 
 
+def test_a_browser_without_site_access_is_told_so_not_to_connect(tmp_path, monkeypatch):
+    def session(*_args, **_kwargs):
+        raise ExtensionMissing(SITE_ACCESS)
+
+    monkeypatch.setattr("dj_digger.webext.page.session", session)
+    result = gate_browser.download_hypeddit_batch_in_browser(
+        [(track, f"https://hypeddit.com/track/{track.id}") for track in _tracks(1)], tmp_path, None)
+    assert [str(failure) for _key, failure in result.failures] == [SITE_ACCESS]
+
+
 def test_a_browser_lost_mid_batch_fails_the_rows_without_asking_a_person(tmp_path, monkeypatch):
     """Closing the browser or a restarting extension ends the link: not a step for a person."""
 
@@ -2352,3 +2362,25 @@ def test_browser_cancellation_keeps_completed_files_and_real_errors_only(tmp_pat
     assert progress.completed == progress.failed == progress.cancelled == 1
     assert [event.key for event in events if event.kind == 'cancelled'] == ['3']
     operations.finish(handle)
+
+
+def test_a_page_the_browser_could_not_load_is_a_browser_failure_not_a_gone_gate(tmp_path):
+    from threading import Event
+    from types import SimpleNamespace
+
+    from dj_digger.gates import browser as adapter
+    from dj_digger.models import Track
+    from dj_digger.services.downloads import _gate_failure_group
+    from dj_digger.webext.page import PageError
+
+    track = Track(id=1, title='1', permalink_url='https://soundcloud.com/a/1')
+    watch = adapter._TabWatch({'1': (track, 'https://hypeddit.com/a/b')}, tmp_path, Event(), {})
+    watch.offscreen = False
+
+    def goto(*args, **kwargs):
+        raise PageError('navigation_failed', 'Error code 2152398861')
+
+    adapter._goto_gate(SimpleNamespace(goto=goto, url='about:blank'), '1', watch)
+    failure = watch.failures['1']
+    assert isinstance(failure, gate_models.GateBrowserPageFailed)
+    assert _gate_failure_group(failure) == 'navigation'

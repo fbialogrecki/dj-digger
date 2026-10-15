@@ -1751,6 +1751,10 @@
       <translation>Расширение всё ещё не отвечает. Установите или включите его, затем снова нажмите «Проверить подключение».</translation>
     </message>
     <message>
+      <source>Allow dj-digger site access in the browser's extension settings</source>
+      <translation>Разрешите dj-digger доступ к сайтам в настройках расширений браузера</translation>
+    </message>
+    <message>
       <source>Connected: {0}. SoundCloud sign-in, gates and carts will open there.</source>
       <translation>Подключено: {0}. Вход в SoundCloud, гейты и корзины будут открываться там.</translation>
     </message>

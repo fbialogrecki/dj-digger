@@ -142,7 +142,7 @@ def test_manifest_permissions_and_entry_points():
     assert re.findall(r"<script[^>]*>", popup) == ['<script src="popup.js">']  # MV3 CSP: no inline code
     assert "content_scripts" not in MANIFEST
     assert "optional_permissions" not in MANIFEST
-    assert MANIFEST["version"] == "1.4.0"
+    assert MANIFEST["version"] == "1.4.1"
     assert MANIFEST["name"] == "dj-digger"
     assert MANIFEST["minimum_chrome_version"] == "121"
     assert MANIFEST["browser_specific_settings"]["gecko"] == {

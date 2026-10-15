@@ -207,6 +207,25 @@
 
 ### Fixed
 
+- Firefox: gates sent to the browser no longer fail within seconds with "Could
+  not open Hypeddit in the browser: Error code 2152398850". A navigation Firefox
+  reports as aborted or redirected (`NS_BINDING_ABORTED`, `NS_BINDING_REDIRECTED`,
+  `NS_ERROR_ABORT`) is followed to the page that loads, as Chrome's
+  `ERR_ABORTED` already was. A gate page the browser really could not load now
+  reads "the browser could not open the gate page" with Retry first, not "the
+  gate is gone or has changed". The browser extension is 1.4.1.
+- Granting or removing the extension's site access in the browser's settings is
+  reported to dj-digger at once, so Settings and Connect browser show "missing
+  site access" without reloading the extension; gates, carts and the SoundCloud
+  login then stop up front with "Allow dj-digger site access in the browser's
+  extension settings" instead of an obscure error.
+- Download results no longer nest reasons ("… (browser extension restarted
+  (after: …))"): each row shows the plain reason and at most one detail.
+- Emoji and non-Latin characters in track titles show in the Download results
+  and Cart results lists.
+- Closing Settings or another dialog with Cancel or Escape no longer shows
+  "Cancelled"; it is shown only when a running job was cancelled.
+- The package version is 1.4.0 (`pyproject.toml` still said 1.3.0).
 - Closing the browser, or the extension restarting, during a gate download no
   longer asks "Gates need you" or reports the rows as needing a step only you
   can do: they fail with "the browser was closed or the extension restarted",

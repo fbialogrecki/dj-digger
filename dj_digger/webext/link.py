@@ -58,6 +58,7 @@ DEFAULT_TIMEOUT = 15.0
 MAX_TO_BROWSER = 1024 * 1024  # Native Messaging host -> browser limit
 MAX_FROM_BROWSER = 64 * 1024 * 1024 + 4096  # browser -> host limit, plus slack
 RESTARTED = "browser extension restarted"
+SITE_ACCESS = "Allow dj-digger site access in the browser's extension settings"
 SOCKET_PATH_LIMIT = 100  # sun_path is 104 bytes on macOS, 108 on Linux
 PIPE_PREFIX = "\\\\.\\pipe\\"
 SOCKET_NAME = "webext.sock"
@@ -386,6 +387,10 @@ class Connection:
                 self._reply(frame, *entry)
         elif frame.get("event") == "hello":
             self._hello(frame)
+        elif frame.get("event") == "permissions":
+            with self._listener._cond:
+                if self.hello is not None and isinstance(frame.get("granted"), bool):
+                    self.hello = {**self.hello, "permissions": frame["granted"]}
         elif frame.get("event") == "player.command":
             self._listener._player_command(frame)
         elif "event" in frame:
@@ -506,7 +511,8 @@ class Listener:
     def connection(self, timeout: float = HELLO_TIMEOUT) -> Connection:
         """Most recently active compatible connection, for NEW sessions.
 
-        Waits up to ``timeout`` for a hello; raises :class:`ExtensionMissing`.
+        Waits up to ``timeout`` for a hello; raises :class:`ExtensionMissing`, also when that
+        browser has not granted the extension its site access (``SITE_ACCESS``).
         """
 
         deadline = time.monotonic() + timeout
@@ -515,7 +521,10 @@ class Listener:
                 ready = [c for c in self._conns if c.hello is not None]
                 usable = [c for c in ready if c.compatible]
                 if usable:
-                    return max(usable, key=lambda c: c.last_active)
+                    best = max(usable, key=lambda c: c.last_active)
+                    if best.hello.get("permissions") is False:
+                        raise ExtensionMissing(SITE_ACCESS)
+                    return best
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     raise ExtensionMissing(

@@ -134,6 +134,7 @@ FAILURE_GROUPS = (
     ("manual", (gate_models.GateManualActionRequired,)),
     ("protocol", (gate_models.GateProtocolChanged, gate_models.GateUnavailable)),
     ("browser", (gate_models.GateBrowserLost,)),
+    ("navigation", (gate_models.GateBrowserPageFailed,)),
     ("rejected", (gate_models.GateRejected,)),
     ("download", (gate_models.GateDownloadError, soundcloud.SoundCloudError)),
 )

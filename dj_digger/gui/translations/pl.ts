@@ -1751,6 +1751,10 @@
       <translation>Rozszerzenie nadal nie odpowiada. Zainstaluj je lub włącz, a potem ponownie kliknij „Sprawdź połączenie”.</translation>
     </message>
     <message>
+      <source>Allow dj-digger site access in the browser's extension settings</source>
+      <translation>Zezwól dj-digger na dostęp do witryn w ustawieniach rozszerzenia w przeglądarce</translation>
+    </message>
+    <message>
       <source>Connected: {0}. SoundCloud sign-in, gates and carts will open there.</source>
       <translation>Połączono: {0}. Logowanie do SoundCloud, bramki i koszyki będą otwierane tam.</translation>
     </message>
