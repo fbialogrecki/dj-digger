@@ -1,0 +1,41 @@
+name: Publish to Chrome Web Store
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Submit for review (unchecked uploads a draft only)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  chrome-web-store:
+    # Prereleases skip, like publish.yml.
+    if: github.event_name == 'workflow_dispatch' || github.event.release.prerelease == false
+    name: Upload the extension to the Chrome Web Store
+    runs-on: ubuntu-latest
+    # The owner can require approval for this environment; the secrets live in it.
+    # Without them the job ends green with a notice (scripts/chrome_web_store.py).
+    environment: chrome-web-store
+    steps:
+      # Pinned to a commit like the other workflows: the job holds store credentials.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build the store zip
+        run: python3 scripts/package_extension.py
+      - name: Upload and submit for review
+        env:
+          CWS_SERVICE_ACCOUNT_JSON: ${{ secrets.CWS_SERVICE_ACCOUNT_JSON }}
+          CWS_PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
+          DRAFT: ${{ github.event_name == 'workflow_dispatch' && !inputs.publish }}
+        run: |
+          version=$(python3 -c 'import json; print(json.load(open("dj_digger/webext/extension/manifest.json"))["version"])')
+          args=("dist/extension/dj-digger-chrome-$version.zip")
+          if [ "$DRAFT" = true ]; then args+=(--draft); fi
+          python3 scripts/chrome_web_store.py "${args[@]}"

@@ -5,8 +5,8 @@
 - Product version verified: 1.4.0 (released 2026-10-16; `pyproject.toml` 1.4.0, browser extension manifest 1.4.2)
 - Owner: Filip Białogrecki
 - Updated: 2026-10-16
-- Document lines: <!-- SPEC TOTAL LINES -->2612<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->2612<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->2628<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->2628<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -104,13 +104,13 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 13 | Failure behavior and current limitations | 2369–2479 |
 | 13.1 | ↳ Error isolation and reporting | 2371–2392 |
 | 13.2 | ↳ Confirmed limitations | 2393–2479 |
-| 14 | Verification, CI, and release | 2480–2578 |
+| 14 | Verification, CI, and release | 2480–2594 |
 | 14.1 | ↳ Offline and live test suites | 2482–2530 |
-| 14.2 | ↳ Continuous integration and publishing | 2531–2563 |
-| 14.3 | ↳ Specification-map verification | 2564–2578 |
-| 15 | Evidence and operational references | 2579–2612 |
-| 15.1 | ↳ Primary implementation evidence | 2581–2602 |
-| 15.2 | ↳ User and historical documentation | 2603–2612 |
+| 14.2 | ↳ Continuous integration and publishing | 2531–2579 |
+| 14.3 | ↳ Specification-map verification | 2580–2594 |
+| 15 | Evidence and operational references | 2595–2628 |
+| 15.1 | ↳ Primary implementation evidence | 2597–2618 |
+| 15.2 | ↳ User and historical documentation | 2619–2628 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -2560,6 +2560,22 @@ with `uv build`, and publishes to PyPI through a pinned action using trusted
 publisher OIDC for `dj-sc-digger`. The publish job has `id-token: write`; other workflow permissions
 default to read-only contents. GitHub prereleases skip both jobs, allowing test
 installers to be shared without a PyPI upload.
+
+`.github/workflows/chrome-web-store.yml` runs for the same stable releases and by
+manual dispatch in the `chrome-web-store` environment with read-only contents. It
+builds the Chrome zip with `scripts/package_extension.py` and runs
+`scripts/chrome_web_store.py`, a standard-library client of Chrome Web Store API
+v2 (`fetchStatus`, `upload`, `publish` under
+`publishers/{CWS_PUBLISHER_ID}/items/{CHROME_STORE_ID}`). It authenticates as a
+service account linked in the developer dashboard: an RS256 JWT signed by
+`openssl` is exchanged at `oauth2.googleapis.com/token` for a
+`chromewebstore`-scoped token, which is masked in the log. Missing
+`CWS_SERVICE_ACCOUNT_JSON`/`CWS_PUBLISHER_ID` secrets, a store version equal to or
+newer than the manifest's, or a submission pending review end the job
+successfully with a notice and no upload. Otherwise it uploads the zip, requires
+`SUCCEEDED` (polling while in progress), and submits for review; a manual run
+uploads a draft only unless its `publish` input is set. API errors fail the job
+with the API's message.
 
 ### 14.3 Specification-map verification
 

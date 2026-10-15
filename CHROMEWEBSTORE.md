@@ -180,6 +180,12 @@ The extension is the companion of the dj-digger desktop app and needs it to do a
 
 ## Version History
 
+Package uploads are automated: a published GitHub release runs
+`.github/workflows/chrome-web-store.yml`, which uploads the Chrome zip and submits
+it for review when `manifest.json`'s version is newer than the store's (setup in
+`docs/store/PUBLISHING-pl.md`, section 8). Listing text, screenshots and
+justifications are still edited by hand in the dashboard.
+
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
 | 1.4.0 | 2026-10-14 | First store submission: gates, Bandcamp/Beatport carts, SoundCloud sign-in, toolbar player panel and SoundCloud import | Draft |

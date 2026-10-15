@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Publishing a GitHub release now uploads the browser extension to the Chrome Web
+  Store and submits it for review (`.github/workflows/chrome-web-store.yml`, Chrome
+  Web Store API v2 with a service account). It skips with a notice when the store
+  already has the extension's version, a submission is pending review, or the
+  secrets are not configured; a manual run can upload a draft only.
+
 ## 1.4.0 — 2026-10-16
 
 ### Breaking

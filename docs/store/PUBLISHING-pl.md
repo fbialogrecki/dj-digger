@@ -109,6 +109,71 @@ deweloperów. Okno „Connect browser” w aplikacji otwiera stronę w sklepie
    kilku godzin).
 
 ID sklepu się nie zmienia, więc `CHROME_STORE_ID` ustawia się tylko raz.
+Kroki 2–4 robi też automatycznie GitHub Actions przy każdym wydaniu (sekcja 8).
+
+## 8. Automatyczne wydawanie przez GitHub Actions
+
+Workflow `.github/workflows/chrome-web-store.yml` robi kroki 2–4 z sekcji 7 sam:
+buduje zip (`scripts/package_extension.py`), pyta sklep o stan (Chrome Web Store
+API v2, `fetchStatus`), wgrywa paczkę (`upload`) i wysyła ją do recenzji
+(`publish`). Logika jest w `scripts/chrome_web_store.py` (sama biblioteka
+standardowa + `openssl` do podpisu JWT). API V1/v1.1 jest wycofane (wsparcie do
+15.10.2026), więc używamy V2 i konta usługi (service account), nie osobistego
+refresh tokena.
+
+### Jednorazowa konfiguracja
+
+1. **Projekt Google Cloud**: https://console.cloud.google.com → nowy projekt
+   (np. `dj-digger-cws`).
+2. **Włącz API**: APIs & Services → Library → „Chrome Web Store API” → Enable.
+3. **Konto usługi**: IAM & Admin → Service Accounts → Create service account
+   (np. `cws-publisher`). Ról IAM nie trzeba nadawać. Na koncie usługi:
+   Keys → Add key → Create new key → JSON. Pobrany plik to sekret — nie
+   commituj go, po wklejeniu do GitHuba usuń z dysku.
+   (Jeśli organizacja blokuje klucze kont usług — polityka
+   `iam.disableServiceAccountKeyCreation` — użyj prywatnego projektu.)
+4. **Powiąż konto usługi ze sklepem**: Developer Dashboard
+   (https://chrome.google.com/webstore/devconsole) → **Account** → sekcja kont
+   usług → dodaj e-mail konta usługi
+   (`cws-publisher@<projekt>.iam.gserviceaccount.com`). Na wydawcę przypada
+   obecnie jedno konto usługi.
+5. **Publisher ID**: Developer Dashboard → **Publisher → Settings** → skopiuj
+   „Publisher ID”.
+6. **GitHub**: repo → Settings → Environments → **New environment**
+   `chrome-web-store`. Zalecane: „Required reviewers” = Ty (każdy upload czeka na
+   Twoje zatwierdzenie) i „Deployment branches and tags” ograniczone do tagów
+   `v*`/`main`. W tym środowisku dodaj **Environment secrets**:
+   - `CWS_SERVICE_ACCOUNT_JSON` — cała zawartość pliku JSON z kroku 3,
+   - `CWS_PUBLISHER_ID` — ID z kroku 5.
+
+Bez tych sekretów job kończy się na zielono z komunikatem „skipped” — wydanie
+nigdy przez to nie pada. ID rozszerzenia bierze się z
+`dj_digger/webext/register.py` (`CHROME_STORE_ID`).
+
+### Jak wydawać
+
+1. Zmieniłeś pliki w `dj_digger/webext/extension/`? Podbij `"version"` w
+   `manifest.json` (sklep odrzuca wersję ≤ tej, którą już ma) i dopisz wiersz w
+   „Version History” w `CHROMEWEBSTORE.md`.
+2. Opublikuj wydanie na GitHubie (zwykła ścieżka, nie prerelease). Workflow
+   rusza razem z `publish.yml`: wgrywa zip i wysyła go do recenzji.
+3. Workflow nic nie robi (komunikat, status zielony), gdy sklep ma już tę wersję
+   lub nowszą (np. wydanie bez zmian w rozszerzeniu) albo gdy poprzednia wersja
+   wciąż czeka na recenzję — wtedy poczekaj albo anuluj recenzję w dashboardzie
+   i uruchom workflow ręcznie.
+4. Nowe uprawnienia, zrzuty ekranu i uzasadnienia nadal zmieniasz ręcznie w
+   dashboardzie (API wgrywa tylko paczkę). Zmiana widoczności w dashboardzie
+   wymaga jednej ręcznej publikacji, zanim API znów opublikuje.
+
+### Ręczne uruchomienie
+
+Actions → **Publish to Chrome Web Store** → **Run workflow** (gałąź `main`):
+
+- `publish` odznaczone (domyślnie) — tylko upload jako szkic; wyślij do recenzji
+  w dashboardzie albo uruchom ponownie z zaznaczonym,
+- `publish` zaznaczone — upload i wysłanie do recenzji.
+
+Z terminala: `gh workflow run chrome-web-store.yml -f publish=true`.
 
 ## Firefox (później): addons.mozilla.org
 
