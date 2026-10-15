@@ -35,7 +35,7 @@ function fakeBrowser({ offscreen = true, failOffscreen = false } = {}) {
   const e = {};
   for (const name of ["tabs.onCreated", "tabs.onUpdated", "tabs.onRemoved", "windows.onRemoved", "alarms.onAlarm",
     "webNavigation.onBeforeNavigate", "webNavigation.onCommitted", "webNavigation.onDOMContentLoaded",
-    "webNavigation.onErrorOccurred", "webRequest.onResponseStarted", "webRequest.onBeforeRedirect",
+    "webNavigation.onErrorOccurred", "webNavigation.onCreatedNavigationTarget", "webRequest.onResponseStarted", "webRequest.onBeforeRedirect",
     "webRequest.onCompleted", "downloads.onCreated", "downloads.onChanged", "runtime.onInstalled", "runtime.onConnect", "runtime.onMessage",
     "runtime.onStartup", "contextMenus.onClicked", "permissions.onAdded", "permissions.onRemoved"]) {
     e[name] = event();
@@ -166,7 +166,7 @@ function fakeBrowser({ offscreen = true, failOffscreen = false } = {}) {
       },
       onCreated: e["tabs.onCreated"], onUpdated: e["tabs.onUpdated"], onRemoved: e["tabs.onRemoved"],
     },
-    webNavigation: Object.fromEntries(["onBeforeNavigate", "onCommitted", "onDOMContentLoaded", "onErrorOccurred"]
+    webNavigation: Object.fromEntries(["onBeforeNavigate", "onCommitted", "onDOMContentLoaded", "onErrorOccurred", "onCreatedNavigationTarget"]
       .map((n) => [n, e["webNavigation." + n]])),
     webRequest: Object.fromEntries(["onResponseStarted", "onBeforeRedirect", "onCompleted"]
       .map((n) => [n, e["webRequest." + n]])),
@@ -188,10 +188,10 @@ async function start(fake = fakeBrowser()) {
   vm.runInContext(read("background.js"), sandbox);
   await tick();
   let id = 0;
-  const call = async (cmd, args = {}) => {
+  const call = async (cmd, args = {}, waitMs = 2000) => {
     const mine = ++id;
     fake.port.onMessage.fire({ id: mine, cmd, args });
-    for (let i = 0; i < 100; i++) {
+    for (let i = 0; i < waitMs / 20; i++) {
       const reply = fake.sent.find((m) => m.id === mine);
       if (reply) return reply;
       await tick();
@@ -322,6 +322,55 @@ async function start(fake = fakeBrowser()) {
   await tick();
   x.e["webNavigation.onErrorOccurred"].fire({ tabId: nt, frameId: 0, error: "Error code 2152398861" });
   assert.equal((await refused).error.code, "navigation_failed");
+  // Firefox, first navigation of a new window: aborted with no further event while the page still loads;
+  // once the grace is over the tab is asked, and the page that completes later is a success
+  const HYP = "https://hypeddit.com/1rjvpc";
+  const grace = () => new Promise((r) => setTimeout(r, 3300));
+  const fw = (await x.call("window.open", {})).result.windowId;
+  const ft = (await x.call("tab.new", { windowId: fw })).result.tabId;
+  x.tabs.get(ft).status = "loading";
+  const slow = x.call("tab.goto", { tabId: ft, url: HYP, timeoutMs: 15000 }, 10000);
+  await tick();
+  x.e["webNavigation.onErrorOccurred"].fire({ tabId: ft, frameId: 0, error: "Error code 2152398850" });
+  await grace();
+  x.tabs.get(ft).status = "complete"; // loaded, but no commit or DOMContentLoaded reached us
+  assert.equal((await slow).ok, true);
+  // a real abort: the tab stays a finished about:blank; the navigation is started once more, then it fails
+  const blankTab = (await x.call("tab.new", { windowId: fw })).result.tabId;
+  x.tabs.get(blankTab).status = "complete";
+  const realUpdate = x.api.tabs.update;
+  const starts = [];
+  x.api.tabs.update = async (id, props) => (props.url && starts.push(id), x.tabs.get(id)); // the load never begins
+  const stuck = x.call("tab.goto", { tabId: blankTab, url: HYP, timeoutMs: 15000 }, 10000);
+  await tick();
+  x.e["webNavigation.onErrorOccurred"].fire({ tabId: blankTab, frameId: 0, error: "Error code 2152398850" });
+  assert.equal((await stuck).error.code, "navigation_failed");
+  assert.deepEqual(starts, [blankTab, blankTab]);
+  x.api.tabs.update = realUpdate;
+
+  // Firefox: a window.open popup in a window of its own has no openerTabId; webNavigation names its
+  // source, so it is the session's and closes with it. Chromium reports both: adopted once.
+  const pw = (await x.call("window.open", {})).result.windowId;
+  const pt = (await x.call("tab.new", { windowId: pw })).result.tabId;
+  x.wins.add(90);
+  const fx = x.newTab(90, { url: "about:blank" });
+  x.e["tabs.onCreated"].fire(fx);
+  x.e["webNavigation.onCreatedNavigationTarget"].fire({ sourceTabId: pt, sourceFrameId: 0, tabId: fx.id, url: "https://soundcloud.com/x" });
+  x.wins.add(91);
+  const cr = x.newTab(91, { openerTabId: pt, pendingUrl: "https://www.instagram.com/x" });
+  x.e["tabs.onCreated"].fire(cr);
+  x.e["webNavigation.onCreatedNavigationTarget"].fire({ sourceTabId: pt, sourceFrameId: 0, tabId: cr.id, url: "https://www.instagram.com/x" });
+  x.wins.add(92);
+  const other = x.newTab(92); // a popup of a tab that is not ours
+  x.e["webNavigation.onCreatedNavigationTarget"].fire({ sourceTabId: 999, sourceFrameId: 0, tabId: other.id, url: "https://soundcloud.com/y" });
+  await tick();
+  assert.deepEqual(x.events("tab.created").map((m) => [m.tabId, m.openerTabId, m.url]),
+    [[cr.id, pt, "https://www.instagram.com/"], [fx.id, pt, "https://soundcloud.com/x"]]);
+  assert.ok(x.tabs.get(fx.id).muted);
+  assert.deepEqual(x.calls.filter((c) => c[1] === 90 || c[1] === 91).map((c) => c[0]), ["windows.update", "windows.update"]);
+  assert.equal((await x.call("window.close", { windowId: pw })).ok, true);
+  assert.ok(!x.wins.has(90) && !x.wins.has(91) && !x.tabs.has(fx.id) && !x.tabs.has(cr.id));
+  assert.ok(x.wins.has(92) && x.tabs.has(other.id));
   // checkout stays closed under a locale prefix and at Bandcamp's real checkout entry
   for (const url of ["https://www.beatport.com/de/checkout/main/1", "https://www.beatport.com/en-us/checkout/a/1",
     "https://bandcamp.com/cart/checkout_start?x=1"]) {

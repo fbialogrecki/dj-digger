@@ -664,7 +664,13 @@ const ABORT_GRACE_MS = 3000;
 const isAbort = (error) =>
   /^net::ERR_ABORTED$|NS_BINDING_(ABORTED|REDIRECTED)|NS_ERROR_ABORT|^Error code (2152398850|2152398859|2147500036)$/
     .test(error ?? "");
-async function navigate(tabId, start, timeoutMs, ctx) {
+// Same document: origin and path (a redirect elsewhere is not the target).
+const sameDoc = (a, b) => {
+  const x = parse(a);
+  const y = parse(b);
+  return !!x && !!y && x.origin === y.origin && x.pathname === y.pathname;
+};
+async function navigate(tabId, start, target, timeoutMs, ctx) {
   const st = { committed: false, dcl: false, status: null, error: null };
   const top = (d) => d.tabId === tabId && d.frameId === 0;
   const onCommitted = (d) => top(d) && (st.committed = true);
@@ -682,8 +688,25 @@ async function navigate(tabId, start, timeoutMs, ctx) {
     // track): wait a little for that one to load before reporting the abort.
     const settled = () =>
       st.dcl || (st.error && (!isAbort(st.error) || Date.now() - st.errorAt > ABORT_GRACE_MS));
-    await pollUntil(settled, timeoutMs, ctx.signal, "page load");
-    if (!st.dcl) throw new Err("navigation_failed", st.error);
+    const end = Date.now() + timeoutMs;
+    let retried = false;
+    for (;;) {
+      await pollUntil(settled, end - Date.now(), ctx.signal, "page load");
+      if (st.dcl) break;
+      if (!isAbort(st.error)) throw new Err("navigation_failed", st.error);
+      // The grace is over with no further event: ask the tab. Firefox aborts the first navigation of a
+      // new window (its initial about:blank) and may then load the page, or nothing, without telling us.
+      const tab = await getTab(tabId);
+      const url = currentUrl(tab);
+      if (tab.status === "complete" && sameDoc(url, target)) break; // it loaded, the events went missing
+      if (tab.status === "complete" && isBlank(url) && !retried) {
+        retried = true; // the navigation never started: once more
+        await start();
+      } else if (tab.status !== "loading") {
+        throw new Err("navigation_failed", st.error);
+      }
+      st.errorAt = Date.now(); // still loading (or retried): another grace, within the timeout
+    }
     if (st.status === null) await sleep(300); // onCompleted can trail DOMContentLoaded
     return { url: safeUrl(currentUrl(await getTab(tabId))), status: st.status };
   } finally {
@@ -778,12 +801,12 @@ const commands = {
     const target = navigable(url);
     await pageTab(tabId, { nav: true });
     if (isVirtual(tabId)) return navigateFrame(tabId, target, timeoutMs ?? GOTO_TIMEOUT_MS, ctx);
-    return navigate(tabId, () => api.tabs.update(tabId, { url: target }), timeoutMs ?? GOTO_TIMEOUT_MS, ctx);
+    return navigate(tabId, () => api.tabs.update(tabId, { url: target }), target, timeoutMs ?? GOTO_TIMEOUT_MS, ctx);
   },
   async "tab.reload"({ tabId, timeoutMs }, ctx) {
-    await pageTab(tabId, { nav: true });
+    const tab = await pageTab(tabId, { nav: true });
     if (isVirtual(tabId)) return navigateFrame(tabId, navigable(frames.get(tabId).url), timeoutMs ?? GOTO_TIMEOUT_MS, ctx);
-    return navigate(tabId, () => api.tabs.reload(tabId), timeoutMs ?? GOTO_TIMEOUT_MS, ctx);
+    return navigate(tabId, () => api.tabs.reload(tabId), currentUrl(tab), timeoutMs ?? GOTO_TIMEOUT_MS, ctx);
   },
   async "tab.close"({ tabId }) {
     need(tabId);
@@ -898,9 +921,9 @@ const commands = {
 // registry are loaded.
 const on = (event, fn, ...extra) => event.addListener((...a) => ready.then(() => fn(...a)), ...extra);
 
-on(api.tabs.onCreated, (tab) => {
-  const opener = tab.openerTabId;
-  if (opener == null || !owned.has(opener) || owned.has(tab.id)) return; // popup of an own tab
+// A popup of an own tab is the opener's session's: muted, and closed with its window.
+function adopt(tab, opener, url) {
+  if (opener == null || !owned.has(opener) || owned.has(tab.id)) return;
   const windowId = owned.get(opener).windowId;
   owned.set(tab.id, { popup: true, windowId });
   persist();
@@ -910,7 +933,13 @@ on(api.tabs.onCreated, (tab) => {
   if (tab.windowId !== windowId && w?.visible === false && !w.background) {
     api.windows.update(tab.windowId, hiddenProps()).catch(() => {});
   }
-  emit({ event: "tab.created", tabId: tab.id, openerTabId: opener, url: safeUrl(tab.pendingUrl || tab.url || "") });
+  emit({ event: "tab.created", tabId: tab.id, openerTabId: opener, url: safeUrl(url) });
+}
+on(api.tabs.onCreated, (tab) => adopt(tab, tab.openerTabId, tab.pendingUrl || tab.url || ""));
+// Firefox gives a window.open popup in a window of its own no openerTabId; webNavigation names its
+// source tab in both browsers (Chromium: whichever comes first adopts it).
+on(api.webNavigation.onCreatedNavigationTarget, (d) => {
+  if (owned.has(d.sourceTabId)) api.tabs.get(d.tabId).then((tab) => adopt(tab, d.sourceTabId, d.url), () => {});
 });
 on(api.tabs.onUpdated, (tabId, change) => {
   if (owned.has(tabId) && change.url !== undefined) emit({ event: "tab.updated", tabId, url: safeUrl(change.url) });

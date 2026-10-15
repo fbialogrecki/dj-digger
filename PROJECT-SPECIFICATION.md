@@ -2,11 +2,11 @@
 
 - Status: current implemented system
 - Document version: 1.1
-- Product version verified: 1.4.0 (working tree; `pyproject.toml` 1.4.0, browser extension manifest 1.4.1)
+- Product version verified: 1.4.0 (working tree; `pyproject.toml` 1.4.0, browser extension manifest 1.4.2)
 - Owner: Filip Białogrecki
 - Updated: 2026-10-15
-- Document lines: <!-- SPEC TOTAL LINES -->2607<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->2607<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->2612<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->2612<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -83,34 +83,34 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 9 | Authentication and authorization | 1674–1741 |
 | 9.1 | ↳ SoundCloud authentication | 1676–1708 |
 | 9.2 | ↳ Gate action consent | 1709–1741 |
-| 10 | External integrations | 1742–2104 |
+| 10 | External integrations | 1742–2109 |
 | 10.1 | ↳ SoundCloud API and media | 1744–1755 |
 | 10.2 | ↳ Link hubs and download gates | 1756–1902 |
 | 10.2 · block | ↳ ↳ Hypeddit | 1764–1859 |
 | 10.2 · block | ↳ ↳ ToneDen | 1861–1885 |
 | 10.2 · block | ↳ ↳ Other resolvers | 1887–1895 |
 | 10.2 · block | ↳ ↳ Network-write boundary | 1897–1902 |
-| 10.3 | ↳ Browsers and clipboard | 1903–2051 |
-| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 2052–2104 |
-| 11 | Security requirements and threat model | 2105–2306 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2107–2125 |
-| 11.2 | ↳ Secret and personal-data handling | 2126–2141 |
-| 11.3 | ↳ File and mutation safety | 2142–2163 |
-| 11.4 | ↳ Browser-extension trust boundary | 2164–2306 |
-| 12 | Privacy, lifecycle, and retention | 2307–2363 |
-| 12.1 | ↳ Data stored locally | 2309–2333 |
-| 12.2 | ↳ Data sent to third parties | 2334–2350 |
-| 12.3 | ↳ User-controlled deletion | 2351–2363 |
-| 13 | Failure behavior and current limitations | 2364–2474 |
-| 13.1 | ↳ Error isolation and reporting | 2366–2387 |
-| 13.2 | ↳ Confirmed limitations | 2388–2474 |
-| 14 | Verification, CI, and release | 2475–2573 |
-| 14.1 | ↳ Offline and live test suites | 2477–2525 |
-| 14.2 | ↳ Continuous integration and publishing | 2526–2558 |
-| 14.3 | ↳ Specification-map verification | 2559–2573 |
-| 15 | Evidence and operational references | 2574–2607 |
-| 15.1 | ↳ Primary implementation evidence | 2576–2597 |
-| 15.2 | ↳ User and historical documentation | 2598–2607 |
+| 10.3 | ↳ Browsers and clipboard | 1903–2056 |
+| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 2057–2109 |
+| 11 | Security requirements and threat model | 2110–2311 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2112–2130 |
+| 11.2 | ↳ Secret and personal-data handling | 2131–2146 |
+| 11.3 | ↳ File and mutation safety | 2147–2168 |
+| 11.4 | ↳ Browser-extension trust boundary | 2169–2311 |
+| 12 | Privacy, lifecycle, and retention | 2312–2368 |
+| 12.1 | ↳ Data stored locally | 2314–2338 |
+| 12.2 | ↳ Data sent to third parties | 2339–2355 |
+| 12.3 | ↳ User-controlled deletion | 2356–2368 |
+| 13 | Failure behavior and current limitations | 2369–2479 |
+| 13.1 | ↳ Error isolation and reporting | 2371–2392 |
+| 13.2 | ↳ Confirmed limitations | 2393–2479 |
+| 14 | Verification, CI, and release | 2480–2578 |
+| 14.1 | ↳ Offline and live test suites | 2482–2530 |
+| 14.2 | ↳ Continuous integration and publishing | 2531–2563 |
+| 14.3 | ↳ Specification-map verification | 2564–2578 |
+| 15 | Evidence and operational references | 2579–2612 |
+| 15.1 | ↳ Primary implementation evidence | 2581–2602 |
+| 15.2 | ↳ User and historical documentation | 2603–2612 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -1990,8 +1990,11 @@ their own timeout and the application allows two seconds more. Commands for one
 tab run in order; cancelling sends `cancel`, which stops the wait in the extension.
 A top-frame navigation that fails as superseded (Chromium `net::ERR_ABORTED`; Firefox
 `Error code` 2152398850 `NS_BINDING_ABORTED`, 2152398859 `NS_BINDING_REDIRECTED` or 2147500036
-`NS_ERROR_ABORT`) is reported only if no next navigation loads within three seconds; any other
-error fails it at once (`navigation_failed`).
+`NS_ERROR_ABORT`) is reported only if no next navigation loads within three seconds; the tab is
+then asked: complete on the target's origin and path is a success (the page loaded, its events went
+missing), still loading waits further within the navigation timeout, and a complete `about:blank`
+(Firefox aborting the first navigation of a new window) starts the navigation once more before it
+fails; any other error fails it at once (`navigation_failed`).
 
 Several sessions may be open at once, each with its own work window.
 `window.open {visible}` always creates a new window and returns `{windowId}`;
@@ -2007,7 +2010,9 @@ for that session is then the user's too and is not closed with it;
 `window.show`, `window.hide`, `window.close` and `tab.new` take that `windowId`
 (an unknown one is `no_window`, and `window.close` of one that is gone is quietly
 accepted). A tab belongs to the window that opened it and a popup to its opener's
-window, wherever the browser places it. `window.close` closes only that window's
+window, wherever the browser places it: the opener is the new tab's `openerTabId` or, since
+Firefox sets none for a `window.open` popup in a window of its own, the `sourceTabId` of
+`webNavigation.onCreatedNavigationTarget` (whichever arrives first adopts it). `window.close` closes only that window's
 tabs and sends `tab.removed {tabId}` for each owned tab it closed, then
 `window.removed {windowId}`; a window the user closes by hand produces the same
 events. The adapter keeps its `windowId`, ignores events for other windows and

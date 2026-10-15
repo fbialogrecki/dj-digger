@@ -213,7 +213,13 @@
   `NS_ERROR_ABORT`) is followed to the page that loads, as Chrome's
   `ERR_ABORTED` already was. A gate page the browser really could not load now
   reads "the browser could not open the gate page" with Retry first, not "the
-  gate is gone or has changed". The browser extension is 1.4.1.
+  gate is gone or has changed". The first gate after a new work window no
+  longer fails this way when Firefox aborts that window's first navigation:
+  the tab is asked once the wait is over, and a navigation that never started
+  is started once more.
+- Firefox: the sign-in and follow popups a gate opens (SoundCloud, Instagram)
+  close with the gate session instead of staying open as separate windows.
+  The browser extension is 1.4.2.
 - Granting or removing the extension's site access in the browser's settings is
   reported to dj-digger at once, so Settings and Connect browser show "missing
   site access" without reloading the extension; gates, carts and the SoundCloud
