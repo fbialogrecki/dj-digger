@@ -2,9 +2,9 @@
 
 - Status: current implemented system
 - Document version: 1.1
-- Product version verified: 1.4.0 (working tree; `pyproject.toml` 1.4.0, browser extension manifest 1.4.2)
+- Product version verified: 1.4.0 (released 2026-10-16; `pyproject.toml` 1.4.0, browser extension manifest 1.4.2)
 - Owner: Filip Białogrecki
-- Updated: 2026-10-15
+- Updated: 2026-10-16
 - Document lines: <!-- SPEC TOTAL LINES -->2612<!-- END SPEC TOTAL LINES -->
 - Section map covers through line: <!-- SPEC MAP LIMIT -->2612<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
