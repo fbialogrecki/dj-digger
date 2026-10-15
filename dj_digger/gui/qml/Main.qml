@@ -1795,13 +1795,14 @@ ApplicationWindow {
                             // What is on screen, for the next track change to scatter from.
                             if (moving) shown = values
                         }
-                        // Loading flickers; with nothing loaded the same noise drifts about eight times slower.
+                        // Loading flickers; with nothing loaded the noise rests once the old waveform has
+                        // scattered into it (an idle drift every frame cost a fifth of a core at idle).
                         // It moves on every frame the display shows, by the time that frame took, so it glides
                         // instead of stepping (a 15 fps timer stuttered visibly).
                         FrameAnimation {
-                            // The idle drift is decoration: it rests while another window is in front.
+                            objectName: "noiseAnimation"
                             running: waveform.moving && waveform.visible && root.motion && root.visibility !== Window.Minimized
-                                     && (root.loaded || root.active || !waveform.ready && waveform.blend < 1)
+                                     && (root.loaded || waveform.blend < 1)
                             onTriggered: {
                                 if (!waveform.ready) waveform.wander += Math.min(frameTime, .1) * (root.loaded ? 1 : .12)
                                 waveform.refreshNoise()

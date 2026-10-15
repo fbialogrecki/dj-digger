@@ -219,6 +219,9 @@
   strings are logged.
 - Settings → Connect browser… stays in the menu while a browser is connected,
   so a second browser can be connected and Check connection reached.
+- The desktop no longer uses a fifth of a CPU core at idle: the waveform noise
+  shown with no track loaded no longer drifts on every frame (it stands still);
+  nothing animates or ticks while no track plays and nothing runs.
 - Signing in to SoundCloud while your browser is already signed in no longer
   flashes an empty browser window: the login cookie is read without opening any
   window, and the work window opens only when the sign-in page is needed.

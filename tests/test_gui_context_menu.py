@@ -151,3 +151,19 @@ def test_menu_opens_from_keyboard_and_empty_area_and_saves_an_edit(window):
     settle(win)
     assert table.hasActiveFocus()
 
+
+def test_nothing_animates_or_ticks_at_idle(window):
+    """No track, nothing busy, window active: no frame loop, animation or timer is left running (idle CPU)."""
+    from PySide6.QtCore import QObject
+    from PySide6.QtTest import QTest
+    win, _bridge = window
+    win.setProperty('animations', True)
+    win.show()
+    win.requestActivate()
+    settle(win)
+    QTest.qWait(1000)  # start-up one-shots (the play button's pop, 50 ms settles) end
+
+    running = sorted(o.objectName() or o.metaObject().className() for o in win.findChildren(QObject)
+                     if any(kind in o.metaObject().className() for kind in ('Animation', 'Timer'))
+                     and o.property('running') and not o.property('paused'))
+    assert qml(win, 'motion') is True and running == []
