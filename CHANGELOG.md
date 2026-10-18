@@ -1,6 +1,18 @@
 # Changelog
 
-## Unreleased
+## 1.4.1 — 2026-10-19
+
+### Fixed
+
+- SoundCloud previews play again. SoundCloud stopped offering MP3 streams in
+  October 2026 and now serves AAC over HLS (fragmented MP4, from
+  `playback.media-streaming.soundcloud.cloud`), so every preview failed with
+  "SoundCloud did not offer a supported MP3 stream". The player now prefers MP3
+  when a track still has it and otherwise plays the best AAC stream, decoded by
+  FFmpeg in memory; seeking and the waveform work as before. FFmpeg is required
+  for these previews (the Windows and macOS installers bundle it; a PyPI install
+  says so if it is missing). DRM-protected (encrypted) streams are never played;
+  such a track says it is DRM-protected instead.
 
 ### Added
 
