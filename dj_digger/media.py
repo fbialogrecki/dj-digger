@@ -138,11 +138,14 @@ def fsync_directory(path: Path) -> None:
         os.close(descriptor)
 
 
-def pcm_blocks(path: Path, *, rate=None, sample_format='f64le', filters=None, channels=None, seek=0, cancel=None):
-    """Decode continuously, with a bounded queue and interruptible pipe reads."""
+def pcm_blocks(path: Path | None, *, rate=None, sample_format='f64le', filters=None, channels=None, seek=0, cancel=None, feed=None):
+    """Decode continuously, with a bounded queue and interruptible pipe reads.
+
+    ``feed`` yields an MP4 held in memory, decoded from a pipe instead of ``path``."""
     import queue
 
-    args = [binary('ffmpeg'), '-v', 'error', '-xerror', '-nostdin', *(['-ss', str(seek)] if seek else []), *input_args(path), '-map', '0:a:0']
+    source = ['-protocol_whitelist', 'pipe', '-f', 'mp4', '-i', 'pipe:0'] if feed is not None else input_args(path)
+    args = [binary('ffmpeg'), '-v', 'error', '-xerror', '-nostdin', *(['-ss', str(seek)] if seek else []), *source, '-map', '0:a:0']
     if channels:
         args += ['-ac', str(channels)]
     if rate:
@@ -150,14 +153,32 @@ def pcm_blocks(path: Path, *, rate=None, sample_format='f64le', filters=None, ch
     if filters:
         args += ['-af', filters]
     args += ['-f', sample_format, '-']
-    process = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE,
+    process = subprocess.Popen(args, stdin=subprocess.DEVNULL if feed is None else subprocess.PIPE,
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
                                start_new_session=os.name != "nt" and os.environ.get("DJ_DIGGER_ANALYSIS_CHILD") != "1")
     register(process)
     chunks = queue.Queue(maxsize=8)
     stopped = threading.Event()
     errors = bytearray()
+
+    def write():
+        try:
+            for chunk in feed:
+                if stopped.is_set():
+                    break
+                process.stdin.write(chunk)
+        except Exception:
+            pass  # FFmpeg stopped, or the feed failed and its owner reports why.
+        finally:
+            try:
+                process.stdin.close()
+            except OSError:
+                pass
+
+    if feed is not None:
+        # Not joined: it may be waiting on the network, and ends at its next write.
+        threading.Thread(target=write, daemon=True).start()
 
     def produce():
         try:

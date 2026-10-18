@@ -96,10 +96,25 @@ def test_unsupported_codec_is_reported_with_track_id_without_authorization(caplo
     payload = playable_payload(media={"transcodings": [
         {"format": {"protocol": "hls", "mime_type": "audio/ogg"}}
     ]})
-    with pytest.raises(SoundCloudError, match="supported MP3"):
+    with pytest.raises(SoundCloudError, match="can play"):
         playback.resolve_stream(FakeClient(payload), 123)
     assert "track 123" in caplog.text
     assert "token-123" not in caplog.text
+
+
+def test_aac_hls_from_october_2026_is_chosen_but_drm_only_is_reported():
+    # Every track tried on 2026-10-18 offered only these three, no MP3 at all.
+    def aac(preset, quality):
+        return {"preset": preset, "quality": quality, "url": f"https://api/media/{preset}",
+                "format": {"protocol": "hls", "mime_type": 'audio/mp4; codecs="mp4a.40.2"'}}
+
+    abr = {"preset": "abr_sq", "quality": "sq", "url": "https://api/media/abr",
+           "format": {"protocol": "hls", "mime_type": "audio/mpegurl"}}
+    client = FakeClient(playable_payload(media={"transcodings": [aac("aac_96k", "lq"), abr, aac("aac_160k", "sq")]}))
+    assert playback.resolve_stream(client, 1).protocol == "hls"
+    assert client.authorize_calls[0][0] == "https://api/media/aac_160k"
+    drm = {"format": {"protocol": "ctr-encrypted-hls", "mime_type": 'audio/mp4; codecs="mp4a.40.2"'}}
+    assert "DRM" in playback.unplayable_reason(playable_payload(media={"transcodings": [drm]}))
 
 
 # Resolving the stream

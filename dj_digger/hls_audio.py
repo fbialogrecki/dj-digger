@@ -1,7 +1,10 @@
-"""SoundCloud MP3 HLS: ordered segments form one seekable in-memory MP3."""
+"""SoundCloud HLS: ordered segments form one in-memory track, MP3 or AAC in fragmented MP4."""
 
+import array
+import re
 import threading
 import time
+from contextlib import closing
 from urllib.parse import urljoin, urlsplit
 
 import requests
@@ -22,7 +25,8 @@ def _cdn_url(url: str) -> str:
         port = parsed.port
     except ValueError:
         raise SoundCloudError("Invalid SoundCloud media address") from None
-    if (parsed.scheme != "https" or not host.endswith(".sndcdn.com")
+    # SoundCloud also serves HLS from media-streaming.soundcloud.cloud (seen October 2026).
+    if (parsed.scheme != "https" or not host.endswith((".sndcdn.com", ".media-streaming.soundcloud.cloud"))
             or port not in (None, 443) or parsed.username is not None
             or parsed.password is not None):
         raise SoundCloudError("Refusing an untrusted SoundCloud media address")
@@ -64,26 +68,36 @@ def _segments(session, url):
         raise SoundCloudError("SoundCloud sent an invalid HLS manifest") from None
     if not lines or lines[0] != "#EXTM3U" or "#EXT-X-ENDLIST" not in lines:
         raise SoundCloudError("SoundCloud did not provide a complete HLS track")
-    # These require a different decoder/container contract; never concatenate
-    # encrypted media, byte ranges or a master playlist as if they were MP3.
-    unsupported = ("#EXT-X-KEY:", "#EXT-X-MAP:", "#EXT-X-BYTERANGE:", "#EXT-X-STREAM-INF:", "#EXT-X-DISCONTINUITY")
+    # Encrypted media is DRM and stays unplayed; byte ranges or a master
+    # playlist are not one track to concatenate.
+    if any(line.startswith("#EXT-X-KEY:") for line in lines):
+        raise SoundCloudError("Encrypted (DRM) SoundCloud streams are not supported")
+    unsupported = ("#EXT-X-BYTERANGE:", "#EXT-X-STREAM-INF:", "#EXT-X-DISCONTINUITY")
     if any(line.startswith(unsupported) for line in lines):
+        raise SoundCloudError("This SoundCloud HLS format is not supported")
+    # One EXT-X-MAP init segment makes the rest fragmented MP4 (AAC) rather than MP3.
+    maps = [line for line in lines if line.startswith("#EXT-X-MAP:")]
+    init = [re.fullmatch(r'#EXT-X-MAP:URI="([^"]+)"', line.strip()) for line in maps]
+    if len(maps) > 1 or not all(init):
         raise SoundCloudError("This SoundCloud HLS format is not supported")
     segments = [_cdn_url(urljoin(url, line.strip())) for line in lines if line.strip() and not line.startswith("#")]
     if not segments or len(segments) > 10000:
         raise SoundCloudError("SoundCloud HLS has an invalid segment count")
-    return segments
+    return [_cdn_url(urljoin(url, match.group(1))) for match in init] + segments, bool(maps)
 
 
 class HlsSourceMixin:
-    """Buffer MP3 segments off the decoder thread; seeks reuse received bytes.
+    """Buffer segments off the decoder thread; seeks reuse received bytes.
+
+    MP3 is decoded by miniaudio. AAC in fragmented MP4 goes through FFmpeg,
+    fed from this buffer through a pipe, so nothing is written to disk.
 
     The same 50 MiB memory ceiling as a buffered progressive track applies.
     Larger HLS tracks fail explicitly rather than growing memory without bound.
     """
 
     def __init__(self, session, url):
-        segments = _segments(session, url)
+        segments, self._mp4 = _segments(session, url)
         self._condition = threading.Condition()
         self._buffer = bytearray()
         self._offset = 0
@@ -133,6 +147,38 @@ class HlsSourceMixin:
                 self._condition.wait(.2)
             return bytes(self._buffer) if self._done and not self._error and not self._closed else None
 
+    def _chunks(self):
+        """The track from its first byte as it arrives, for a decoder reading on its own;
+        ends early after a failure, which ``stream`` then reports."""
+        offset = 0
+        while True:
+            with self._condition:
+                while not (self._closed or self._done) and len(self._buffer) <= offset:
+                    self._condition.wait(1)
+                data = b"" if self._closed else bytes(self._buffer[offset:offset + 64 * 1024])
+            if not data:
+                return
+            offset += len(data)
+            yield data
+
+    def _aac(self, seek_frame):
+        """Stereo 44.1 kHz PCM from FFmpeg. A pipe cannot seek, so a seek decodes
+        from the top: about 0.3 s for a five minute track."""
+        from .media import pcm_blocks
+
+        blocks = pcm_blocks(None, rate=44100, channels=2, sample_format="s16le",
+                            seek=seek_frame / 44100, feed=self._chunks())
+        pending = b""
+        with closing(blocks):
+            for block in blocks:
+                pending += block
+                whole = len(pending) // 4 * 4
+                if whole:
+                    out = array.array("h")
+                    out.frombytes(pending[:whole])
+                    pending = pending[whole:]
+                    yield out
+
     def read(self, num_bytes):
         if num_bytes <= 0:
             return b""
@@ -164,22 +210,26 @@ class HlsSourceMixin:
 
     @property
     def length(self):
-        """Bytes of the whole track once every segment arrived, so a seek can open
-        at the right byte; unknown before that."""
+        """Bytes of the whole MP3 once every segment arrived, so a seek can open
+        at the right byte; unknown before that, and for MP4."""
         with self._condition:
-            return len(self._buffer) if self._done and not self._error else None
+            return len(self._buffer) if self._done and not self._error and not self._mp4 else None
 
     def stream(self, seek_frame, start=0):
-        import miniaudio
+        if self._mp4:
+            source, frames = self, self._aac(seek_frame)
+        else:
+            import miniaudio
 
-        from .player import starts_at_type
+            from .player import starts_at_type
 
-        source = starts_at_type(miniaudio)(self, start) if start else self
-        try:
-            yield from miniaudio.stream_any(
+            source = starts_at_type(miniaudio)(self, start) if start else self
+            frames = miniaudio.stream_any(
                 source, source_format=miniaudio.FileFormat.MP3,
                 sample_rate=44100, nchannels=2, seek_frame=0 if start else seek_frame,
             )
+        try:
+            yield from frames
         except Exception:
             if self._error or self.error_in_readcallback or source.error_in_readcallback:
                 raise SoundCloudError(self._error or "SoundCloud HLS transfer failed; try playing again") from None

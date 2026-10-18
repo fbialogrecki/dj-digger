@@ -29,14 +29,35 @@ def unplayable_reason(payload: dict) -> str | None:
     transcodings = (payload.get("media") or {}).get("transcodings") or []
     if not transcodings:
         return "SoundCloud did not provide any audio streams for this track"
-    if not any(_supported(item) for item in transcodings):
-        return "SoundCloud did not offer a supported MP3 stream (progressive or HLS)"
+    if not any(_rank(item) is not None for item in transcodings):
+        if any("encrypted" in str((item.get("format") or {}).get("protocol")) for item in transcodings):
+            return "SoundCloud only offers this track as a DRM-protected stream, which dj-digger cannot play"
+        return "SoundCloud did not offer a stream dj-digger can play (MP3 or AAC)"
     return None
 
 
-def _supported(item: dict) -> bool:
+QUALITY = {"hq": 0, "sq": 1, "lq": 2}
+
+
+def _rank(item: dict) -> tuple | None:
+    """Sort key among the streams we can decode, None for the rest.
+
+    MP3 first, as miniaudio plays it without FFmpeg; then AAC in fragmented-MP4
+    HLS, which is all SoundCloud served for most tracks in October 2026.
+    ``encrypted-hls`` protocols and the ``abr`` master playlist never match.
+    """
+
     fmt = item.get("format") or {}
-    return fmt.get("protocol") in {"progressive", "hls"} and fmt.get("mime_type") == "audio/mpeg"
+    protocol, mime = fmt.get("protocol"), str(fmt.get("mime_type") or "")
+    if protocol == "progressive" and mime == "audio/mpeg":
+        codec = 0
+    elif protocol == "hls" and mime == "audio/mpeg":
+        codec = 1
+    elif protocol == "hls" and mime.startswith("audio/mp4") and "mp4a" in mime:
+        codec = 2
+    else:
+        return None
+    return codec, QUALITY.get(item.get("quality"), 1)
 
 
 @dataclass
@@ -49,7 +70,7 @@ class Stream:
 
 
 def resolve_stream(client: SoundCloudPlayback, track_id: int) -> Stream:
-    """Signed MP3 URL and protocol, artwork URL and duration, from one refetch.
+    """Signed MP3 or AAC URL and protocol, artwork URL and duration, from one refetch.
 
     The payload is fetched fresh every time because ``track_authorization`` and
     the signature on the returned URL both expire. Duration comes from here too,
@@ -68,11 +89,7 @@ def resolve_stream(client: SoundCloudPlayback, track_id: int) -> Stream:
         )
         raise SoundCloudError(reason)
 
-    candidates = sorted(
-        (item for item in payload["media"]["transcodings"] if _supported(item)),
-        key=lambda item: item["format"]["protocol"] != "progressive",
-    )
-    chosen = candidates[0]
+    chosen = min((item for item in payload["media"]["transcodings"] if _rank(item) is not None), key=_rank)
     authorized = client.authorize(
         chosen["url"], track_authorization=payload.get("track_authorization")
     )

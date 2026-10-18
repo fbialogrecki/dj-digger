@@ -204,11 +204,18 @@ def waveform(path, cancel=None):
 
 
 def encoded_waveform(data):
-    """The same 1024 peaks and bands from a whole encoded file held in memory (a streamed MP3)."""
-    import miniaudio
-    decoded = miniaudio.decode(bytes(data), output_format=miniaudio.SampleFormat.SIGNED16, nchannels=2, sample_rate=4000)
+    """The same 1024 peaks and bands from a whole encoded file held in memory: a
+    streamed MP3, or SoundCloud's AAC in fragmented MP4 through FFmpeg."""
+    if bytes(data[4:8]) == b'ftyp':
+        pcm = b''.join(pcm_blocks(None, rate=4000, channels=2, sample_format='s16le', feed=[bytes(data)]))
+        frames = len(pcm) // 4
+        pcm = pcm[:frames * 4]
+    else:
+        import miniaudio
+        decoded = miniaudio.decode(bytes(data), output_format=miniaudio.SampleFormat.SIGNED16, nchannels=2, sample_rate=4000)
+        pcm, frames = decoded.samples.tobytes(), decoded.num_frames
     peaks, bands = np.zeros(1024, dtype=np.int32), np.zeros((1024, 3))
-    pcm, frames_per_bin = decoded.samples.tobytes(), max(1, -(-decoded.num_frames // 1024))
+    frames_per_bin = max(1, -(-frames // 1024))
     fold_bands(bands, pcm, 0, frames_per_bin)
     _fold_peaks(peaks, pcm, 0, frames_per_bin)
     return dict(peaks=peaks.tolist(), bands=band_levels(bands))

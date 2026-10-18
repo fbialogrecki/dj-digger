@@ -67,7 +67,7 @@ def test_untrusted_segment_and_redirect_targets_are_never_requested(target):
     assert session.calls == [BASE + "track.m3u8"]
 
 
-@pytest.mark.parametrize("tag", [b"#EXT-X-KEY:METHOD=AES-128", b"#EXT-X-MAP:URI=init.mp4", b"#EXT-X-BYTERANGE:20@0", b"#EXT-X-STREAM-INF:BANDWIDTH=128000"])
+@pytest.mark.parametrize("tag", [b"#EXT-X-KEY:METHOD=AES-128", b"#EXT-X-MAP:URI=init.mp4,BYTERANGE=20@0", b"#EXT-X-BYTERANGE:20@0", b"#EXT-X-STREAM-INF:BANDWIDTH=128000"])
 def test_other_hls_containers_are_not_misread_as_mp3(tag):
     with pytest.raises(SoundCloudError, match="not supported"):
         hls_audio.HlsSourceMixin(Session(MANIFEST.replace(b"#EXTINF:2,", tag, 1)), BASE + "track.m3u8")
