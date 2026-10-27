@@ -85,3 +85,49 @@ def test_antiphase_stereo_and_arbitrary_block_boundaries(tmp_path, monkeypatch):
     assert reference['key']
     assert reference['bpm'] == streaming['bpm']
     assert camelot('C') == '8B' and camelot('Am') == '8A'
+
+
+def drum_loop(path, bpm, kicks, snares, hats, snare_level=.9, seconds=30):
+    """Mono WAV of 16-step patterns: a falling kick with a click, a noisy snare, hats and a sub-bass."""
+    import wave
+
+    import numpy as np
+
+    rate, rng = 22050, np.random.default_rng(7)
+    t = np.arange(rate // 4) / rate
+    kick = np.sin(2 * np.pi * np.cumsum(50 + 100 * np.exp(-30 * t)) / rate) * np.exp(-12 * t)
+    kick[:110] += rng.standard_normal(110) * np.exp(-np.arange(110) / 25)
+    snare = (rng.standard_normal(len(t)) * .8 + .5 * np.sin(2 * np.pi * 190 * t)) * np.exp(-18 * t) * snare_level
+    hat = np.diff(rng.standard_normal(882), prepend=0) * np.exp(-90 * t[:882]) * .15
+    step = 60 / bpm / 4
+    seconds_axis = np.arange(rate * seconds) / rate
+    bass_note = np.where(seconds_axis % (32 * step) < 16 * step, 41.2, 49.0)
+    audio = .3 * np.sin(2 * np.pi * np.cumsum(bass_note) / rate)
+    for index in range(int(seconds / step)):
+        start = round(index * step * rate)
+        for sound, pattern in ((kick, kicks), (snare, snares), (hat, hats)):
+            if pattern[index % 16] == 'x':
+                piece = sound[:len(audio) - start]
+                audio[start:start + len(piece)] += piece
+    audio *= .8 / abs(audio).max()
+    with wave.open(str(path), 'wb') as output:
+        output.setparams((1, 2, rate, 0, 'NONE', 'not compressed'))
+        output.writeframes((audio * 32767).astype('<i2').tobytes())
+    return path
+
+
+@pytest.mark.parametrize('bpm, kicks, snares, hats, snare_level', [
+    # Drum & bass two-step: snare on 2 and 4, kicks on 1 and the "and" of 3, 16th hats.
+    # The previous estimator heard the snares' half tempo, 86 BPM.
+    (174, 'x.........x.....', '....x.......x...', 'x' * 16, .9),
+    # Kick-heavy mix with kicks on 1, the "and" of 2 and the "and" of 3: previously
+    # the dotted-quarter kick spacing won under a 120 BPM prior, 117 BPM.
+    (174, 'x.....x...x.....', '....x.......x...', 'x' * 16, .4),
+    # Regressions: four-on-the-floor house and a hip-hop beat keep their tempo.
+    (124, 'x...x...x...x...', '....x.......x...', '..x...x...x...x.', .9),
+    (90, 'x.......x.x.....', '....x.......x...', 'x.x.x.x.x.x.x.x.', .9),
+])
+def test_tempo_is_the_dj_tempo_not_a_half_or_two_thirds_relative(tmp_path, bpm, kicks, snares, hats, snare_level):
+    result = analyze_file(str(drum_loop(tmp_path / 'loop.wav', bpm, kicks, snares, hats, snare_level)))
+    assert result['bpm'] == pytest.approx(bpm, abs=2)
+    assert type(result['bpm']) is float

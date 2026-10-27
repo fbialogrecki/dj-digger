@@ -5,8 +5,8 @@
 - Product version verified: 1.4.1 (released 2026-10-19; `pyproject.toml` 1.4.1, browser extension manifest 1.4.2)
 - Owner: Filip Białogrecki
 - Updated: 2026-10-16
-- Document lines: <!-- SPEC TOTAL LINES -->2628<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->2628<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->2638<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->2638<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,66 +51,66 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 145–190 |
 | 2.1 | ↳ Problem and product boundary | 147–160 |
 | 2.2 | ↳ Execution modes | 161–190 |
-| 3 | User-visible capabilities | 191–1218 |
+| 3 | User-visible capabilities | 191–1228 |
 | 3.1 | ↳ Track collection | 193–218 |
 | 3.2 | ↳ Link classification and exports | 219–237 |
 | 3.3 | ↳ Track statuses | 238–248 |
 | 3.4 | ↳ Audio preview | 249–425 |
 | 3.5 | ↳ Downloads and local-file matching | 426–487 |
 | 3.6 | ↳ Store purchase assistance | 488–611 |
-| 3.7 | ↳ Local library, analysis and audio export | 612–789 |
-| 3.8 | ↳ Qt Quick desktop | 790–1218 |
-| 4 | System context and data flow | 1219–1263 |
-| 4.1 | ↳ Context diagram | 1221–1247 |
-| 4.2 | ↳ Collection-to-library flow | 1248–1263 |
-| 5 | Repository layout and component ownership | 1264–1350 |
-| 5.1 | ↳ Entry, orchestration, and models | 1266–1277 |
-| 5.2 | ↳ Network and external-system adapters | 1278–1309 |
-| 5.3 | ↳ Persistence, local media, and UI | 1310–1350 |
-| 6 | Runtime architecture and environments | 1351–1494 |
-| 6.1 | ↳ Runtime and dependencies | 1353–1381 |
-| 6.2 | ↳ Concurrency and lifecycle | 1382–1459 |
-| 6.3 | ↳ Local paths and environment variables | 1460–1494 |
-| 7 | Data model and persistence | 1495–1611 |
-| 7.1 | ↳ Domain objects and identity | 1497–1511 |
-| 7.2 | ↳ SQLite schema and invariants | 1512–1568 |
-| 7.3 | ↳ Crate persistence and deletion | 1569–1584 |
-| 7.4 | ↳ Configuration and credential stores | 1585–1611 |
-| 8 | Public interfaces and contracts | 1612–1673 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1614–1645 |
-| 8.2 | ↳ JSON and CSV summary input | 1646–1661 |
-| 8.3 | ↳ URL-opening contract | 1662–1673 |
-| 9 | Authentication and authorization | 1674–1741 |
-| 9.1 | ↳ SoundCloud authentication | 1676–1708 |
-| 9.2 | ↳ Gate action consent | 1709–1741 |
-| 10 | External integrations | 1742–2109 |
-| 10.1 | ↳ SoundCloud API and media | 1744–1755 |
-| 10.2 | ↳ Link hubs and download gates | 1756–1902 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1764–1859 |
-| 10.2 · block | ↳ ↳ ToneDen | 1861–1885 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1887–1895 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1897–1902 |
-| 10.3 | ↳ Browsers and clipboard | 1903–2056 |
-| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 2057–2109 |
-| 11 | Security requirements and threat model | 2110–2311 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2112–2130 |
-| 11.2 | ↳ Secret and personal-data handling | 2131–2146 |
-| 11.3 | ↳ File and mutation safety | 2147–2168 |
-| 11.4 | ↳ Browser-extension trust boundary | 2169–2311 |
-| 12 | Privacy, lifecycle, and retention | 2312–2368 |
-| 12.1 | ↳ Data stored locally | 2314–2338 |
-| 12.2 | ↳ Data sent to third parties | 2339–2355 |
-| 12.3 | ↳ User-controlled deletion | 2356–2368 |
-| 13 | Failure behavior and current limitations | 2369–2479 |
-| 13.1 | ↳ Error isolation and reporting | 2371–2392 |
-| 13.2 | ↳ Confirmed limitations | 2393–2479 |
-| 14 | Verification, CI, and release | 2480–2594 |
-| 14.1 | ↳ Offline and live test suites | 2482–2530 |
-| 14.2 | ↳ Continuous integration and publishing | 2531–2579 |
-| 14.3 | ↳ Specification-map verification | 2580–2594 |
-| 15 | Evidence and operational references | 2595–2628 |
-| 15.1 | ↳ Primary implementation evidence | 2597–2618 |
-| 15.2 | ↳ User and historical documentation | 2619–2628 |
+| 3.7 | ↳ Local library, analysis and audio export | 612–799 |
+| 3.8 | ↳ Qt Quick desktop | 800–1228 |
+| 4 | System context and data flow | 1229–1273 |
+| 4.1 | ↳ Context diagram | 1231–1257 |
+| 4.2 | ↳ Collection-to-library flow | 1258–1273 |
+| 5 | Repository layout and component ownership | 1274–1360 |
+| 5.1 | ↳ Entry, orchestration, and models | 1276–1287 |
+| 5.2 | ↳ Network and external-system adapters | 1288–1319 |
+| 5.3 | ↳ Persistence, local media, and UI | 1320–1360 |
+| 6 | Runtime architecture and environments | 1361–1504 |
+| 6.1 | ↳ Runtime and dependencies | 1363–1391 |
+| 6.2 | ↳ Concurrency and lifecycle | 1392–1469 |
+| 6.3 | ↳ Local paths and environment variables | 1470–1504 |
+| 7 | Data model and persistence | 1505–1621 |
+| 7.1 | ↳ Domain objects and identity | 1507–1521 |
+| 7.2 | ↳ SQLite schema and invariants | 1522–1578 |
+| 7.3 | ↳ Crate persistence and deletion | 1579–1594 |
+| 7.4 | ↳ Configuration and credential stores | 1595–1621 |
+| 8 | Public interfaces and contracts | 1622–1683 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1624–1655 |
+| 8.2 | ↳ JSON and CSV summary input | 1656–1671 |
+| 8.3 | ↳ URL-opening contract | 1672–1683 |
+| 9 | Authentication and authorization | 1684–1751 |
+| 9.1 | ↳ SoundCloud authentication | 1686–1718 |
+| 9.2 | ↳ Gate action consent | 1719–1751 |
+| 10 | External integrations | 1752–2119 |
+| 10.1 | ↳ SoundCloud API and media | 1754–1765 |
+| 10.2 | ↳ Link hubs and download gates | 1766–1912 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1774–1869 |
+| 10.2 · block | ↳ ↳ ToneDen | 1871–1895 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1897–1905 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1907–1912 |
+| 10.3 | ↳ Browsers and clipboard | 1913–2066 |
+| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 2067–2119 |
+| 11 | Security requirements and threat model | 2120–2321 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2122–2140 |
+| 11.2 | ↳ Secret and personal-data handling | 2141–2156 |
+| 11.3 | ↳ File and mutation safety | 2157–2178 |
+| 11.4 | ↳ Browser-extension trust boundary | 2179–2321 |
+| 12 | Privacy, lifecycle, and retention | 2322–2378 |
+| 12.1 | ↳ Data stored locally | 2324–2348 |
+| 12.2 | ↳ Data sent to third parties | 2349–2365 |
+| 12.3 | ↳ User-controlled deletion | 2366–2378 |
+| 13 | Failure behavior and current limitations | 2379–2489 |
+| 13.1 | ↳ Error isolation and reporting | 2381–2402 |
+| 13.2 | ↳ Confirmed limitations | 2403–2489 |
+| 14 | Verification, CI, and release | 2490–2604 |
+| 14.1 | ↳ Offline and live test suites | 2492–2540 |
+| 14.2 | ↳ Continuous integration and publishing | 2541–2589 |
+| 14.3 | ↳ Specification-map verification | 2590–2604 |
+| 15 | Evidence and operational references | 2605–2638 |
+| 15.1 | ↳ Primary implementation evidence | 2607–2628 |
+| 15.2 | ↳ User and historical documentation | 2629–2638 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -659,8 +659,18 @@ and bounded JSON output. It does not inherit multiprocessing resource-tracker
 descriptors from the host process's captured stderr. Cancellation terminates and reaps the
 analysis process group, including FFmpeg, before deleting its temporary workspace.
 The algorithm uses continuous
-FFmpeg resampling and overlapping STFT frames (`center=False` semantics), one
-global onset envelope and aggregated chroma. Channel powers are combined before
+FFmpeg resampling and overlapping STFT frames (`center=False` semantics), two
+global onset envelopes (spectral rise below 150 Hz for kick and bass, and at or
+above 150 Hz for snares, claps and hats) and aggregated chroma. Tempo uses NumPy
+only, with no tempo prior: a comb averages the autocorrelation of both bands
+over eight whole beats for every tempo from 60 to 200 BPM in 0.05 steps, so the
+tempo's metrical family outscores 3:2 relatives and long lags resolve the tempo
+finer than one frame. Because half tempo shares every comb peak, the octave
+(half, same or double, within 60–200) moves only when the bright band's backbeat
+(repeating more at two beats than at one, less the kick band's own difference)
+is clearly stronger there, by 0.1. Results below 78 BPM are doubled, so half-time
+dubstep and trap read 140. A comb peak under 0.1 abstains with `no_reliable_pulse`.
+Channel powers are combined before
 feature aggregation to avoid anti-phase cancellation. Feature envelopes use a
 temporary disk file rather than keeping decoded audio in RAM. Automatic results
 are estimates; no confidence percentage is claimed. `ctrl+k` edits BPM/key and
@@ -669,7 +679,7 @@ analysis, and source tags are stored separately with that priority. Cache checks
 include file signature, SHA-256, algorithm version and parameters. Audio tags and
 rekordbox data are never written by analysis.
 Results include separate missing-key and missing-tempo reason codes. Analysis
-version `onset-chroma-2` invalidates older cache entries when analysis is requested
+version `onset-chroma-3` invalidates older cache entries when analysis is requested
 so these reasons can be recomputed. Per-file errors retain the analyzer traceback
 in the diagnostic log. Missing BPM/key results also log their per-file reason at
 INFO level. Completion shows a short notification with keys found, no clear key,
