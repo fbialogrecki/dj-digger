@@ -792,14 +792,6 @@
       <translation>Drop</translation>
     </message>
     <message>
-      <source>Time left; click to show the time played</source>
-      <translation>Restzeit; klicke für die gespielte Zeit</translation>
-    </message>
-    <message>
-      <source>Time played; click to show the time left</source>
-      <translation>Gespielte Zeit; klicke für die Restzeit</translation>
-    </message>
-    <message>
       <source>Clear search</source>
       <translation>Suche löschen</translation>
     </message>

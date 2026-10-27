@@ -792,14 +792,6 @@
       <translation>Дроп</translation>
     </message>
     <message>
-      <source>Time left; click to show the time played</source>
-      <translation>Оставшееся время; щёлкните, чтобы показать прошедшее</translation>
-    </message>
-    <message>
-      <source>Time played; click to show the time left</source>
-      <translation>Прошедшее время; щёлкните, чтобы показать оставшееся</translation>
-    </message>
-    <message>
       <source>Clear search</source>
       <translation>Очистить поиск</translation>
     </message>

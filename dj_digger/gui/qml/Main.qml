@@ -93,20 +93,7 @@ ApplicationWindow {
             root.kickStart = desktop.kicks.start || 0
             root.kickStep = desktop.kicks.step || .01
             root.kickLevels = desktop.kicks.levels || []
-            root.anchorBeat()
         }
-    }
-    // Where the zoomed waveform's beat ticks line up: a strong kick, kept while the next ones fall on
-    // the grid of the analysed BPM; -1 without a BPM or a kick.
-    property real beatAnchor: -1
-    function anchorBeat() {
-        let bpm = desktop.nowPlaying.bpm || 0, levels = kickLevels, best = .6, at = -1
-        if (bpm <= 0 || kickKey !== desktop.audioKey) { beatAnchor = -1; return }
-        for (let i = 0; i < levels.length; i++) if (levels[i] > best) { best = levels[i]; at = i }
-        if (at < 0) return
-        let time = kickStart + at * kickStep, period = 60 / bpm
-        let off = beatAnchor < 0 ? period / 2 : ((time - beatAnchor) % period + period) % period
-        if (Math.min(off, period - off) > .04) beatAnchor = time
     }
     readonly property bool pulsing: live && motion
     // The track time reaching the speaker at clockAt, from the player's own
@@ -213,8 +200,6 @@ ApplicationWindow {
     property bool shuttingDown: false
     readonly property bool isMuted: desktop.muted
     property real volume: desktop.volume
-    // The clock shows the time left instead of the time played; a click on it switches.
-    property bool remainingTime: false
     // Where a newly started track begins: "" at its start, "drop" at the estimated drop, "30" at 30 %.
     property string previewStart: ""
     // Bars coloured by their low/mid/high mix (warm lows, cool highs) instead of the colour pair.
@@ -542,7 +527,6 @@ ApplicationWindow {
         if (list(s.recent))
             recent = list(s.recent).filter(r => r && (r.kind === "folder" || r.kind === "playlist") && typeof r.target === "string" && r.target)
                              .slice(0, 8).map(r => ({kind: r.kind, target: r.target}))
-        remainingTime = s.remainingTime === true
         previewStart = s.previewStart === "drop" || s.previewStart === "30" ? s.previewStart : ""
         spectral = s.spectral !== false
         vinylArtwork = s.vinyl !== false
@@ -559,7 +543,7 @@ ApplicationWindow {
                                   theme: themeChoice, columnWidths: columnWidths, hiddenColumns: hiddenColumns, columnOrder: columnOrder,
                                   keyNotation: keyNotation, animations: animations, colors: colorPair, recent: recent,
                                   sortColumn: desktop.model.sortColumn, sortReverse: desktop.model.sortReverse, compactRows: compactRows,
-                                  remainingTime: remainingTime, previewStart: previewStart, spectral: spectral, vinyl: vinylArtwork})
+                                  previewStart: previewStart, spectral: spectral, vinyl: vinylArtwork})
             desktop.close()
         }
     }
@@ -1686,51 +1670,6 @@ ApplicationWindow {
                             Item { Layout.fillWidth: true }
                         }
                     }
-                    // A close-up of the 15 s around the playhead, drawn as moving rectangles from the same
-                    // per-bin levels, with ticks on the beat grid when the track's BPM and kicks are known.
-                    Item {
-                        id: zoom; objectName: "zoomStrip"
-                        Layout.fillWidth: true; Layout.preferredHeight: 22
-                        visible: root.loaded; clip: true
-                        readonly property real span: 15
-                        readonly property var strip: desktop.waveformColumns(desktop.waveform.length, desktop.waveformKey)
-                        readonly property int bins: waveform.ready ? strip.levels.length : 0
-                        readonly property real binSeconds: bins > 0 ? waveform.duration / bins : 0
-                        readonly property real now: waveform.fraction * waveform.duration
-                        readonly property real start: now - span / 2
-                        readonly property real period: (desktop.nowPlaying.bpm || 0) > 0 ? 60 / desktop.nowPlaying.bpm : 0
-                        // Colours once per waveform, not per frame.
-                        readonly property var colours: {
-                            let list = [], top = root.waveRestTop
-                            for (let i = 0; i < bins; i++)
-                                list.push(root.spectral && strip.bands.length === bins ? root.spectralColor(strip.bands[i])
-                                          : Qt.tint(root.waveRestFoot, Qt.rgba(top.r, top.g, top.b, strip.levels[i])))
-                            return list
-                        }
-                        Repeater {
-                            model: zoom.binSeconds > 0 ? Math.ceil(zoom.span / zoom.binSeconds) + 2 : 0
-                            Rectangle {
-                                required property int index
-                                readonly property int bin: Math.floor(zoom.start / zoom.binSeconds) + index
-                                readonly property real level: bin >= 0 && bin < zoom.bins ? zoom.strip.levels[bin] : 0
-                                x: (bin * zoom.binSeconds - zoom.start) / zoom.span * zoom.width
-                                width: Math.max(1, zoom.binSeconds / zoom.span * zoom.width - 1)
-                                height: Math.max(1, level * zoom.height); y: zoom.height - height
-                                color: zoom.colours[bin] || "transparent"
-                                opacity: (bin + 1) * zoom.binSeconds <= zoom.now ? 1 : root.dark ? .38 : .45
-                            }
-                        }
-                        Repeater {
-                            objectName: "beatTicks"
-                            model: zoom.period > 0 && root.beatAnchor >= 0 ? Math.ceil(zoom.span / zoom.period) + 1 : 0
-                            Rectangle {
-                                required property int index
-                                readonly property real time: root.beatAnchor + (Math.ceil((zoom.start - root.beatAnchor) / zoom.period) + index) * zoom.period
-                                x: (time - zoom.start) / zoom.span * zoom.width; width: 1; height: 5; color: root.muted
-                            }
-                        }
-                        Rectangle { x: zoom.width / 2 - 1; width: 2; height: zoom.height; color: root.fg }
-                    }
                     Item {
                         id: waveform; objectName: "waveform"
                         Layout.fillWidth: true; Layout.fillHeight: true
@@ -1899,26 +1838,17 @@ ApplicationWindow {
                                 }
                             }
                         }
+                        // On a kick the whole played side, everything left of the cursor, lights up in neon.
                         Item {
                             clip: true; visible: waveform.ready && !waveform.moving
                             anchors { top: parent.top; bottom: parent.bottom; left: parent.left }
                             width: waveform.fraction * waveform.width
                             WaveformBars { objectName: "playedBars"; width: waveform.width; height: waveform.height; played: true }
-                        }
-                        // On a kick only the bars just played light up in neon: the last 2 s left of the
-                        // cursor, at least 40 px, so the light stays where the sound is.
-                        Item {
-                            id: neonBand; objectName: "neonBand"
-                            clip: true; visible: waveform.ready && !waveform.moving
-                            readonly property real span: Math.max(40, 2 / Math.max(1, waveform.duration) * waveform.width)
-                            x: Math.max(0, waveform.fraction * waveform.width - span)
-                            anchors { top: parent.top; bottom: parent.bottom }
-                            width: waveform.fraction * waveform.width - x
                             // Painted once per waveform like the bars under it; the light only fades it in and
-                            // out, and the clip above keeps it to the band behind the cursor.
+                            // out, and the clip above keeps it to the played side.
                             WaveformBars {
                                 id: neonBars; objectName: "kickBars"
-                                x: -neonBand.x; width: waveform.width; height: waveform.height; played: true; neon: true
+                                width: waveform.width; height: waveform.height; played: true; neon: true
                                 // Drawn by the glow effect when there is one, which fades it itself.
                                 opacity: kickGlow.active ? 1 : root.glow
                                 visible: !kickGlow.active
@@ -2017,6 +1947,9 @@ ApplicationWindow {
                         }
                         Button { text: qsTr("Next track"); enabled: root.loaded; display: AbstractButton.IconOnly; implicitWidth: 40; icon.source: "icons/next.svg"; icon.color: palette.buttonText; icon.width: root.iconLarge; icon.height: root.iconLarge; Accessible.name: text; ToolTip.visible: hovered; ToolTip.delay: root.tipDelay; ToolTip.text: text + " (N)"; onClicked: desktop.step(1) }
                         Button { text: qsTr("Stop"); enabled: root.loaded; display: AbstractButton.IconOnly; implicitWidth: 40; icon.source: "icons/stop.svg"; icon.color: palette.buttonText; icon.width: root.iconLarge; icon.height: root.iconLarge; Accessible.name: text; ToolTip.visible: hovered; ToolTip.delay: root.tipDelay; ToolTip.text: text + " (" + stopAction.shortcut + ")"; onClicked: stopAction.trigger() }
+                        Label { visible: root.loaded; text: root.clock(desktop.audio.position) + " / " + root.clock(desktop.audio.duration); color: root.muted; font.features: root.tabular }
+                        Item { visible: root.loaded; Layout.fillWidth: true; Layout.minimumWidth: 0 }
+                        Label { visible: !root.loaded; text: root.hasSelection ? qsTr("Press Space to play the selected track") : qsTr("Select a track to play"); color: root.muted; elide: Text.ElideRight; Layout.fillWidth: true; Layout.minimumWidth: 0 }
                         // A speaker, struck through while muted; the words stay for tooltips and screen readers.
                         ToolButton {
                             objectName: "muteButton"
@@ -2062,41 +1995,18 @@ ApplicationWindow {
                             Accessible.name: qsTr("Volume")
                             ToolTip.visible: hovered || pressed; ToolTip.delay: pressed ? 0 : root.tipDelay; ToolTip.text: qsTr("Volume") + " " + Math.round(value * 100) + "%"
                         }
-                        Item { visible: root.loaded; Layout.fillWidth: true; Layout.minimumWidth: 0 }
-                        Label { visible: !root.loaded; text: root.hasSelection ? qsTr("Press Space to play the selected track") : qsTr("Select a track to play"); color: root.muted; elide: Text.ElideRight; Layout.fillWidth: true; Layout.minimumWidth: 0 }
-                        // The time played, or after a click the time left, large; the other one and the length beside it.
-                        Label {
-                            objectName: "clock"
-                            visible: root.loaded
-                            readonly property real timeLeft: Math.max(0, (desktop.audio.duration || 0) - (desktop.audio.position || 0))
-                            text: root.remainingTime ? "−" + root.clock(timeLeft) : root.clock(desktop.audio.position)
-                            font.pixelSize: root.fontDisplay; font.bold: true; font.features: root.tabular; color: root.fg
-                            TapHandler { onTapped: root.remainingTime = !root.remainingTime }
-                            HoverHandler { id: clockHover; cursorShape: Qt.PointingHandCursor }
-                            ToolTip.visible: clockHover.hovered; ToolTip.delay: root.tipDelay
-                            ToolTip.text: root.remainingTime ? qsTr("Time left; click to show the time played") : qsTr("Time played; click to show the time left")
-                            Accessible.role: Accessible.Button; Accessible.name: ToolTip.text
-                        }
-                        Label {
-                            visible: root.loaded
-                            text: (root.remainingTime ? root.clock(desktop.audio.position) : "−" + root.clock(Math.max(0, (desktop.audio.duration || 0) - (desktop.audio.position || 0))))
-                                  + " / " + root.clock(desktop.audio.duration)
-                            color: root.muted; font.features: root.tabular
-                        }
                     }
                 }
                 }
             }
-                // Search and store pills, the status and other filters, then the actions on the selection:
-                // one row when the pane has room for all, otherwise search and pills on the first row
-                // and the actions with the status filter below them.
-                GridLayout {
+                // The search across the whole width; below it the actions on the selection, the store
+                // pills, then the status and other filters.
+                ColumnLayout {
                     id: toolbar
                     Layout.fillWidth: true; Layout.minimumWidth: 0; Layout.rightMargin: root.edge
-                    readonly property bool oneRow: width >= 880
                     // Without room for their names the action buttons keep their icons and tooltips only.
-                    readonly property bool compact: oneRow ? width < 1400 : width < 640
-                    columns: 3; columnSpacing: 10; rowSpacing: 8
+                    readonly property bool compact: width < 1200
+                    spacing: 8
                     // Every control of the toolbar is 32 px high with the same faint outline; a filter
                     // that is on takes the selection colour and an accent outline.
                     component Toggle: ToolButton {
@@ -2112,39 +2022,77 @@ ApplicationWindow {
                         }
                         Accessible.name: text; Accessible.checkable: true; Accessible.checked: checked
                     }
+                    TextField {
+                        id: search; objectName: "trackSearch"; placeholderText: qsTr("Search artist, title, genre, tag or label")
+                        Layout.fillWidth: true; Layout.minimumWidth: 0
+                        rightPadding: (slashKey.visible ? slashKey.width : clearSearch.visible ? clearSearch.width : 0) + 18
+                        // Framed like the toolbar buttons: a faint outline, the accent only while typing.
+                        background: Rectangle {
+                            implicitHeight: 32; radius: 6; color: root.bg
+                            border.color: search.activeFocus ? root.accent : root.alternate
+                        }
+                        // The key that jumps here, shown as a key rather than as part of the hint.
+                        Rectangle {
+                            id: slashKey
+                            visible: !search.activeFocus && !search.text
+                            anchors.right: parent.right; anchors.rightMargin: 8; anchors.verticalCenter: parent.verticalCenter
+                            width: 22; height: 22; radius: 4; color: "transparent"; border.color: root.alternate
+                            Label { anchors.centerIn: parent; text: "/"; color: root.muted; font.pixelSize: root.fontCaption }
+                        }
+                        FlatButton {
+                            id: clearSearch; objectName: "clearSearch"
+                            visible: search.text.length > 0
+                            anchors.right: parent.right; anchors.rightMargin: 4; anchors.verticalCenter: parent.verticalCenter
+                            text: qsTr("Clear search"); icon.source: "icons/close.svg"
+                            focusPolicy: Qt.NoFocus
+                            onClicked: search.text = ""
+                        }
+                        onTextChanged: filterTimer.restart()
+                        Keys.onReturnPressed: table.forceActiveFocus()
+                        Keys.onDownPressed: table.forceActiveFocus()
+                        Accessible.name: qsTr("Search tracks")
+                    }
                     RowLayout {
-                        id: filterRow
-                        Layout.row: 0; Layout.column: 0; Layout.columnSpan: toolbar.oneRow ? 1 : 3
                         Layout.fillWidth: true; Layout.minimumWidth: 0; spacing: 6
-                        TextField {
-                            id: search; objectName: "trackSearch"; placeholderText: qsTr("Search artist, title, genre, tag or label")
-                            Layout.fillWidth: true; Layout.minimumWidth: 140; Layout.preferredWidth: 220; Layout.maximumWidth: 420
-                            rightPadding: (slashKey.visible ? slashKey.width : clearSearch.visible ? clearSearch.width : 0) + 18
-                            // Framed like the toolbar buttons: a faint outline, the accent only while typing.
-                            background: Rectangle {
-                                implicitHeight: 32; radius: 6; color: root.bg
-                                border.color: search.activeFocus ? root.accent : root.alternate
+                        // The actions on the selected tracks, with how many are selected.
+                        RowLayout {
+                            id: trackActions
+                            objectName: "trackActions"
+                            // Present as soon as a view is loaded; entries that need a selection are disabled without one.
+                            // Never narrower than its buttons: the store pills give way first.
+                            visible: !!desktop.view.title
+                            spacing: 6
+                            // Each button is its own outlined tile with room around it, so the row never
+                            // reads as one run of text.
+                            component ActionButton: FlatButton {
+                                id: actionButton
+                                display: toolbar.compact ? AbstractButton.IconOnly : AbstractButton.TextBesideIcon
+                                icon.width: root.iconSmall; icon.height: root.iconSmall
+                                implicitHeight: 32; padding: 6; leftPadding: 10; rightPadding: 10; spacing: 6
+                                // Only a faint outline at rest; the surface appears on hover.
+                                background: Rectangle {
+                                    radius: 6; border.color: root.alternate
+                                    color: actionButton.down ? root.pressedSurface : actionButton.hovered ? root.hoverSurface : "transparent"
+                                }
                             }
-                            // The key that jumps here, shown as a key rather than as part of the hint.
-                            Rectangle {
-                                id: slashKey
-                                visible: !search.activeFocus && !search.text
-                                anchors.right: parent.right; anchors.rightMargin: 8; anchors.verticalCenter: parent.verticalCenter
-                                width: 22; height: 22; radius: 4; color: "transparent"; border.color: root.alternate
-                                Label { anchors.centerIn: parent; text: "/"; color: root.muted; font.pixelSize: root.fontCaption }
+                            Label {
+                                objectName: "selectionCount"
+                                visible: root.hasSelection
+                                text: qsTr("%n selected", "", desktop.model.counts.selected)
+                                color: root.muted; font.features: root.tabular
                             }
-                            FlatButton {
-                                id: clearSearch; objectName: "clearSearch"
-                                visible: search.text.length > 0
-                                anchors.right: parent.right; anchors.rightMargin: 4; anchors.verticalCenter: parent.verticalCenter
-                                text: qsTr("Clear search"); icon.source: "icons/close.svg"
-                                focusPolicy: Qt.NoFocus
-                                onClicked: search.text = ""
+                            // The same actions as the shortcuts, so a tooltip always names the key that works.
+                            // Playlist actions show in playlist views, file actions in local views.
+                            ActionButton { objectName: "openButton"; action: openAction; icon.source: "icons/link.svg"; visible: !desktop.view.local }
+                            ActionButton { action: downloadAction; icon.source: "icons/download.svg"; visible: !desktop.view.local }
+                            ActionButton { action: ownedAction; icon.source: "icons/owned.svg"; visible: !desktop.view.local }
+                            ActionButton { objectName: "skipButton"; action: skipAction; icon.source: "icons/skip.svg" }
+                            ActionButton { action: analyzeAction; icon.source: "icons/analyze.svg"; visible: !!desktop.view.local }
+                            ActionButton {
+                                id: moreActions
+                                text: qsTr("More actions"); icon.source: "icons/more.svg"; display: AbstractButton.IconOnly
+                                onClicked: contextMenu.popup(moreActions, 0, moreActions.height)
                             }
-                            onTextChanged: filterTimer.restart()
-                            Keys.onReturnPressed: table.forceActiveFocus()
-                            Keys.onDownPressed: table.forceActiveFocus()
-                            Accessible.name: qsTr("Search tracks")
                         }
                         // One pill per store in the view, several at once; none chosen shows every store.
                         // They scroll sideways when the row is too narrow for all of them.
@@ -2186,9 +2134,6 @@ ApplicationWindow {
                             Accessible.name: text; Accessible.description: qsTr("Tracks the filters leave, of all tracks in this view")
                         }
                         Item { Layout.fillWidth: true; Layout.minimumWidth: 0 }
-                    }
-                    RowLayout {
-                        Layout.row: toolbar.oneRow ? 0 : 1; Layout.column: 1; spacing: 6
                         ComboBox {
                             id: statusBox; objectName: "statusFilter"
                             // As wide as its longest option in the current language.
@@ -2266,48 +2211,6 @@ ApplicationWindow {
                                     }
                                 }
                             }
-                        }
-                    }
-                    // The actions on the selected tracks, with how many are selected.
-                    RowLayout {
-                        id: trackActions
-                        objectName: "trackActions"
-                        // Present as soon as a view is loaded; entries that need a selection are disabled without one.
-                        // Never narrower than its buttons: the filters give way first.
-                        Layout.row: toolbar.oneRow ? 0 : 1; Layout.column: toolbar.oneRow ? 2 : 0
-                        Layout.fillWidth: !toolbar.oneRow
-                        visible: !!desktop.view.title
-                        spacing: 6
-                        // Each button is its own outlined tile with room around it, so the row never
-                        // reads as one run of text.
-                        component ActionButton: FlatButton {
-                            id: actionButton
-                            display: toolbar.compact ? AbstractButton.IconOnly : AbstractButton.TextBesideIcon
-                            icon.width: root.iconSmall; icon.height: root.iconSmall
-                            implicitHeight: 32; padding: 6; leftPadding: 10; rightPadding: 10; spacing: 6
-                            // Only a faint outline at rest; the surface appears on hover.
-                            background: Rectangle {
-                                radius: 6; border.color: root.alternate
-                                color: actionButton.down ? root.pressedSurface : actionButton.hovered ? root.hoverSurface : "transparent"
-                            }
-                        }
-                        Label {
-                            objectName: "selectionCount"
-                            visible: root.hasSelection
-                            text: qsTr("%n selected", "", desktop.model.counts.selected)
-                            color: root.muted; font.features: root.tabular
-                        }
-                        // The same actions as the shortcuts, so a tooltip always names the key that works.
-                        // Playlist actions show in playlist views, file actions in local views.
-                        ActionButton { objectName: "openButton"; action: openAction; icon.source: "icons/link.svg"; visible: !desktop.view.local }
-                        ActionButton { action: downloadAction; icon.source: "icons/download.svg"; visible: !desktop.view.local }
-                        ActionButton { action: ownedAction; icon.source: "icons/owned.svg"; visible: !desktop.view.local }
-                        ActionButton { objectName: "skipButton"; action: skipAction; icon.source: "icons/skip.svg" }
-                        ActionButton { action: analyzeAction; icon.source: "icons/analyze.svg"; visible: !!desktop.view.local }
-                        ActionButton {
-                            id: moreActions
-                            text: qsTr("More actions"); icon.source: "icons/more.svg"; display: AbstractButton.IconOnly
-                            onClicked: contextMenu.popup(moreActions, 0, moreActions.height)
                         }
                     }
                 }

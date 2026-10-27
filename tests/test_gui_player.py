@@ -223,7 +223,7 @@ def test_new_view_settings_are_kept(tmp_path, monkeypatch, app):  # noqa: F811
             pass
 
     bridge = Bridge(None, backend_factory=PassiveBackend, home_path=tmp_path)
-    values = {'remainingTime': True, 'previewStart': 'drop', 'spectral': False, 'vinyl': False}
+    values = {'previewStart': 'drop', 'spectral': False, 'vinyl': False}
     bridge.saveSettings(dict(values, other=1))
     assert bridge._settings == values
 

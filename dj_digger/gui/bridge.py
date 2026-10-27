@@ -489,7 +489,7 @@ class Bridge(QObject):
         # Only this fixed presentation shape is persisted; no service preferences.
         allowed = {'width', 'height', 'language', 'theme', 'sidebarWidth', 'sidebarVisible', 'columnWidths', 'hiddenColumns', 'columnOrder',
                    'keyNotation', 'animations', 'colors', 'recent', 'sortColumn', 'sortReverse', 'compactRows', 'sidebarCollapsed',
-                   'remainingTime', 'previewStart', 'spectral', 'vinyl'}
+                   'previewStart', 'spectral', 'vinyl'}
         self._settings = {k: v for k, v in values.items() if k in allowed}
 
     @Slot()

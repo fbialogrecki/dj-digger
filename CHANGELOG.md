@@ -7,6 +7,12 @@
 - "Import to DJ digger" on SoundCloud: the track rows of a playlist page or a
   station (Discover → track stations) now get the icon before ⋯ too. Browser
   extension 1.4.4.
+- Desktop player: the volume slider is back at the right end of the transport,
+  the time played / length beside the buttons; the 15 s zoom strip above the
+  waveform and the large clock are gone. A kick lights the whole played side
+  of the waveform again, not only the last 2 s.
+- Desktop toolbar: the search field spans the whole width; below it the
+  actions on the selection come first, then the store pills and filters.
 
 ## 1.5.0 — 2026-10-27
 

@@ -1420,17 +1420,13 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
         assert played.property('opacity') == 1 and kick.property('opacity') == pytest.approx(1)
         assert cover.property('opacity') == 1
         assert find_item(cover, 'coverGlow').property('opacity') == pytest.approx(1)
-        # The neon covers only the last 2 s (at least 40 px) left of the cursor: full-width bars,
-        # aligned with the played ones, under a clip ending at the cursor; no shader glow under the
-        # software renderer. In this 4 s track 2 s is half the panel, so here all of the played side.
-        band, cursor_x = kick.parentItem(), canvas.property('fraction') * canvas.width()
-        assert kick.property('width') == canvas.width() and kick.property('x') == -band.x()
-        assert band.x() == pytest.approx(max(0, cursor_x - max(40, canvas.width() / 2)))
-        assert band.x() + band.width() == pytest.approx(cursor_x)
+        # The neon covers the whole played side: full-width bars under the played bars' clip, which
+        # ends at the cursor; no shader glow under the software renderer.
+        cursor_x = canvas.property('fraction') * canvas.width()
+        assert kick.property('width') == canvas.width() and kick.parentItem() == played.parentItem()
         assert played.parentItem().width() == pytest.approx(cursor_x)
         window.setProperty('playhead', 3.5)
-        assert band.x() == pytest.approx(canvas.width() * 3.5 / 4 - canvas.width() / 2)
-        assert band.x() + band.width() == pytest.approx(canvas.width() * 3.5 / 4)
+        assert played.parentItem().width() == pytest.approx(canvas.width() * 3.5 / 4)
         window.setProperty('playhead', 1.01)
         assert find_item(canvas, 'kickGlow').property('active') is False
         # Then it dies away like a lamp, by e every 75 ms, slower than the levels drop,
