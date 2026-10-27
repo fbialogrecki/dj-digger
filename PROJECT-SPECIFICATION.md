@@ -2,11 +2,11 @@
 
 - Status: current implemented system
 - Document version: 1.1
-- Product version verified: 1.5.0 (released 2026-10-27; `pyproject.toml` 1.5.0, browser extension manifest 1.4.3)
+- Product version verified: 1.5.0 (released 2026-10-27; `pyproject.toml` 1.5.0, browser extension manifest 1.4.4)
 - Owner: Filip Białogrecki
 - Updated: 2026-10-27
-- Document lines: <!-- SPEC TOTAL LINES -->2707<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->2707<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->2708<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->2708<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -83,34 +83,34 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 9 | Authentication and authorization | 1685–1752 |
 | 9.1 | ↳ SoundCloud authentication | 1687–1719 |
 | 9.2 | ↳ Gate action consent | 1720–1752 |
-| 10 | External integrations | 1753–2162 |
+| 10 | External integrations | 1753–2163 |
 | 10.1 | ↳ SoundCloud API and media | 1755–1766 |
 | 10.2 | ↳ Link hubs and download gates | 1767–1913 |
 | 10.2 · block | ↳ ↳ Hypeddit | 1775–1870 |
 | 10.2 · block | ↳ ↳ ToneDen | 1872–1896 |
 | 10.2 · block | ↳ ↳ Other resolvers | 1898–1906 |
 | 10.2 · block | ↳ ↳ Network-write boundary | 1908–1913 |
-| 10.3 | ↳ Browsers and clipboard | 1914–2109 |
-| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 2110–2162 |
-| 11 | Security requirements and threat model | 2163–2381 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2165–2183 |
-| 11.2 | ↳ Secret and personal-data handling | 2184–2199 |
-| 11.3 | ↳ File and mutation safety | 2200–2221 |
-| 11.4 | ↳ Browser-extension trust boundary | 2222–2381 |
-| 12 | Privacy, lifecycle, and retention | 2382–2439 |
-| 12.1 | ↳ Data stored locally | 2384–2408 |
-| 12.2 | ↳ Data sent to third parties | 2409–2426 |
-| 12.3 | ↳ User-controlled deletion | 2427–2439 |
-| 13 | Failure behavior and current limitations | 2440–2550 |
-| 13.1 | ↳ Error isolation and reporting | 2442–2463 |
-| 13.2 | ↳ Confirmed limitations | 2464–2550 |
-| 14 | Verification, CI, and release | 2551–2673 |
-| 14.1 | ↳ Offline and live test suites | 2553–2604 |
-| 14.2 | ↳ Continuous integration and publishing | 2605–2658 |
-| 14.3 | ↳ Specification-map verification | 2659–2673 |
-| 15 | Evidence and operational references | 2674–2707 |
-| 15.1 | ↳ Primary implementation evidence | 2676–2697 |
-| 15.2 | ↳ User and historical documentation | 2698–2707 |
+| 10.3 | ↳ Browsers and clipboard | 1914–2110 |
+| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 2111–2163 |
+| 11 | Security requirements and threat model | 2164–2382 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2166–2184 |
+| 11.2 | ↳ Secret and personal-data handling | 2185–2200 |
+| 11.3 | ↳ File and mutation safety | 2201–2222 |
+| 11.4 | ↳ Browser-extension trust boundary | 2223–2382 |
+| 12 | Privacy, lifecycle, and retention | 2383–2440 |
+| 12.1 | ↳ Data stored locally | 2385–2409 |
+| 12.2 | ↳ Data sent to third parties | 2410–2427 |
+| 12.3 | ↳ User-controlled deletion | 2428–2440 |
+| 13 | Failure behavior and current limitations | 2441–2551 |
+| 13.1 | ↳ Error isolation and reporting | 2443–2464 |
+| 13.2 | ↳ Confirmed limitations | 2465–2551 |
+| 14 | Verification, CI, and release | 2552–2674 |
+| 14.1 | ↳ Offline and live test suites | 2554–2605 |
+| 14.2 | ↳ Continuous integration and publishing | 2606–2659 |
+| 14.3 | ↳ Specification-map verification | 2660–2674 |
+| 15 | Evidence and operational references | 2675–2708 |
+| 15.1 | ↳ Primary implementation evidence | 2677–2698 |
+| 15.2 | ↳ User and historical documentation | 2699–2708 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -1980,7 +1980,8 @@ works: in the action row of a track or set page (`.listenEngagement__actions
 .sc-button-group`) after Add to playlist (`.sc-button-addtoset`), else before More
 (`.sc-button-more`), for the page's own URL; before More in the action row of each
 track or playlist of a stream, profile or search list (`.sound__soundActions
-.sc-button-group`, icon only like its neighbours); and as the last item of each More
+.sc-button-group`) and of each track of a set's or station's track list
+(`.trackItem__actions .sc-button-group`), icon only like its neighbours; and as the last item of each More
 menu (`.dropdownMenu .moreActions`, as on library and discover tiles and list rows),
 for the item of the button that owns the menu (`aria-owns`). The button copies its
 neighbour's `sc-button-*`/`moreActions__button` classes and label class. The link is

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- "Import to DJ digger" on SoundCloud: the track rows of a playlist page or a
+  station (Discover → track stations) now get the icon before ⋯ too. Browser
+  extension 1.4.4.
+
 ## 1.5.0 — 2026-10-27
 
 ### Added

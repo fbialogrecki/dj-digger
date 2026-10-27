@@ -144,7 +144,7 @@ def test_manifest_permissions_and_entry_points():
     assert MANIFEST["content_scripts"] == [{"matches": ["https://soundcloud.com/*"], "js": ["soundcloud.js"]}]
     assert set(MANIFEST["content_scripts"][0]["matches"]) <= set(MANIFEST["host_permissions"])
     assert "optional_permissions" not in MANIFEST
-    assert MANIFEST["version"] == "1.4.3"
+    assert MANIFEST["version"] == "1.4.4"
     assert MANIFEST["name"] == "dj-digger"
     assert MANIFEST["minimum_chrome_version"] == "121"
     assert MANIFEST["browser_specific_settings"]["gecko"] == {
