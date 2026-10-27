@@ -1,5 +1,39 @@
 # Changelog
 
+## 1.5.0 — 2026-10-27
+
+### Added
+
+- "Import to DJ digger" on SoundCloud. With the browser extension (1.4.3), a
+  track or playlist page gets an "Import to DJ digger" button after "Add to
+  playlist", every ⋯ menu gets an "Import to DJ digger" item, and track and
+  playlist rows get an icon before ⋯. Each sends that link to the running app,
+  which imports it. The link is checked again in the extension and the app: https,
+  soundcloud.com only. The extension asks for no new permissions.
+- Single SoundCloud tracks can be imported, as a one-track playlist. The
+  extension's right-click "Dig in dj-digger" now offers tracks too.
+- The extension tells a missing desktop app from a stopped one. When the app is
+  not installed, or too old to know the store extension, its status page and
+  toolbar panel offer a Download button to the latest GitHub release.
+- A project landing page (`site/`, Astro + three.js), with a GitHub Pages
+  workflow.
+
+### Fixed
+
+- Drum & bass no longer reads at 2/3 or half tempo (about 116 or 87 instead of
+  174). BPM analysis now weighs the kick and bass band separately from snares and
+  hats. It searches 60–200 BPM without leaning towards 120, and resolves to about
+  0.05 BPM instead of one frame. It moves to half or double tempo only when the
+  backbeat clearly calls for it. Results below 78 BPM are doubled. Tracks are
+  re-analysed with the new algorithm the next time they are analysed.
+  Half-time DnB can still read as about 87, and genuine 70–77 BPM tracks now
+  read double.
+- The README's recommended install now includes the `gui` extra, so
+  `dj-digger-gui` starts after `uv tool install` or `pipx install`.
+- The sdist carries only the package, its tests, scripts and packaging files.
+  It used to pick up whatever lay in the build checkout: 1.4.1's was 18 MB, and
+  1.5.0's would have been 92 MB with the site's `node_modules`.
+
 ## 1.4.1 — 2026-10-19
 
 ### Fixed

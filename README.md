@@ -114,9 +114,9 @@ for commands, coverage and remaining platform checks.
 
 ## 📦 Installation
 
-**Version 1.4.1 is available on [PyPI](https://pypi.org/project/dj-sc-digger/1.4.1/)
-and [GitHub Releases](https://github.com/fbialogrecki/dj-digger/releases/tag/v1.4.1).**
-Install the package `dj-sc-digger`; launch it with `dj-digger`.
+**Version 1.5.0 is available on [PyPI](https://pypi.org/project/dj-sc-digger/1.5.0/)
+and [GitHub Releases](https://github.com/fbialogrecki/dj-digger/releases/tag/v1.5.0).**
+Install the package `dj-sc-digger`; launch the desktop app with `dj-digger-gui` and the CLI with `dj-digger`.
 
 Upgrading from `dj-soundcloud-digger`? Follow the
 [package-name migration instructions](#upgrade-from-the-old-package-name) first.
@@ -124,16 +124,16 @@ Upgrading from `dj-soundcloud-digger`? Follow the
 ### Recommended (via `uv` or `pipx`)
 
 ```bash
-# Install with audio preview and local BPM/key analysis
-uv tool install 'dj-sc-digger[analyze]'
-dj-digger
+# Install the desktop app with audio preview and local BPM/key analysis
+uv tool install 'dj-sc-digger[gui,analyze]'
+dj-digger-gui
 ```
 
 or with `pipx`:
 
 ```bash
-pipx install 'dj-sc-digger[analyze]'
-dj-digger
+pipx install 'dj-sc-digger[gui,analyze]'
+dj-digger-gui
 ```
 
 ### From Source (Development)
@@ -558,15 +558,15 @@ Do not install them together. Choose the commands for the manager you used:
 ```sh
 # pip, inside the same virtual environment
 python -m pip uninstall dj-soundcloud-digger
-python -m pip install 'dj-sc-digger[analyze]'
+python -m pip install 'dj-sc-digger[gui,analyze]'
 
 # pipx
 pipx uninstall dj-soundcloud-digger
-pipx install 'dj-sc-digger[analyze]'
+pipx install 'dj-sc-digger[gui,analyze]'
 
 # uv tools
 uv tool uninstall dj-soundcloud-digger
-uv tool install 'dj-sc-digger[analyze]'
+uv tool install 'dj-sc-digger[gui,analyze]'
 ```
 
 The `dj_digger` module, `dj-digger` command, configuration and data directories
