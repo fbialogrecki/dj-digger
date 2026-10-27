@@ -604,14 +604,6 @@
       <translation>30 s vor</translation>
     </message>
     <message>
-      <source>Jump to drop</source>
-      <translation>Zum Drop springen</translation>
-    </message>
-    <message>
-      <source>Start previews at the drop</source>
-      <translation>Vorschau ab dem Drop starten</translation>
-    </message>
-    <message>
       <source>Start previews at 30 %</source>
       <translation>Vorschau bei 30 % starten</translation>
     </message>
@@ -700,10 +692,6 @@
       <translation>Hoher Kontrast</translation>
     </message>
     <message>
-      <source>Spectral waveform</source>
-      <translation>Spektrale Wellenform</translation>
-    </message>
-    <message>
       <source>Vinyl artwork</source>
       <translation>Cover auf Vinyl</translation>
     </message>
@@ -788,18 +776,6 @@
       <translation>Keine Playlist passt zum Filter.</translation>
     </message>
     <message>
-      <source>Drop</source>
-      <translation>Drop</translation>
-    </message>
-    <message>
-      <source>Time left; click to show the time played</source>
-      <translation>Restzeit; klicke für die gespielte Zeit</translation>
-    </message>
-    <message>
-      <source>Time played; click to show the time left</source>
-      <translation>Gespielte Zeit; klicke für die Restzeit</translation>
-    </message>
-    <message>
       <source>Clear search</source>
       <translation>Suche löschen</translation>
     </message>
@@ -878,13 +854,6 @@
     <message>
       <source>Clear filters</source>
       <translation>Filter zurücksetzen</translation>
-    </message>
-    <message numerus="yes">
-      <source>%n selected</source>
-      <translation>
-        <numerusform>%n ausgewählt</numerusform>
-        <numerusform>%n ausgewählt</numerusform>
-      </translation>
     </message>
     <message>
       <source>Artist</source>

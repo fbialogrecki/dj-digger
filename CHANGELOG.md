@@ -7,6 +7,24 @@
 - "Import to DJ digger" on SoundCloud: the track rows of a playlist page or a
   station (Discover → track stations) now get the icon before ⋯ too. Browser
   extension 1.4.4.
+- Desktop player: the volume slider is back at the right end of the transport,
+  the time played / length beside the buttons; the 15 s zoom strip above the
+  waveform and the large clock are gone. A kick lights the whole played side
+  of the waveform again, not only the last 2 s.
+- Desktop toolbar: the search field spans the whole width; below it the
+  actions on the selection come first, then the store pills and filters. The
+  action buttons are icons only (names in their tooltips), without the
+  “N selected” count.
+- Desktop: selected tracks, playlists, folders and store pills, and the
+  accent, follow the colour pair chosen in View → Colours instead of a fixed blue.
+
+### Removed
+
+- Desktop player: the estimated drop (the “Drop” marker, Jump to drop (J) and
+  Start previews at the drop), View → Spectral waveform and the time shown
+  while hovering the waveform. The bars are drawn
+  in the chosen colour pair again, and waveforms are computed without the
+  low/mid/high bands; ones stored by 1.4.0-1.5.0 keep working.
 
 ## 1.5.0 — 2026-10-27
 

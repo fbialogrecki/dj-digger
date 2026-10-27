@@ -499,18 +499,17 @@ def test_a_played_waveform_is_kept_in_the_library(tmp_path, db, monkeypatch):
     source = SimpleNamespace(whole=lambda cancel: whole.append(1) or audio.getvalue())
     remote = Track('Remote', 'Artist', id=7)
     first = track_waveform(db, remote, source)
-    assert len(first['peaks']) == 1024 and max(first['peaks']) > 0, 'computed here from the streamed audio'
-    assert len(first['bands']) == 1024 and all(len(b) == 3 for b in first['bands'])
+    assert len(first) == 1024 and max(first) > 0, 'computed here from the streamed audio'
     assert track_waveform(db, remote, source) == first
     assert len(whole) == 1, 'the second play reads the library'
     unfinished = Track('Unfinished', 'Artist', id=8)
-    assert track_waveform(db, unfinished, SimpleNamespace(whole=lambda cancel: None)) == dict(peaks=[], bands=[])
+    assert track_waveform(db, unfinished, SimpleNamespace(whole=lambda cancel: None)) == []
     assert db.waveform(unfinished.key, '') is None, 'nothing is kept for a stream that never completed'
 
     path = tmp_path / 'local.wav'
     path.write_bytes(b'one')
     decoded = []
-    envelope = dict(peaks=[5, 6], bands=[[1, 2, 3], [4, 5, 6]])
+    envelope = [5, 6]
     monkeypatch.setattr(local_audio, 'waveform', lambda source, cancel: decoded.append(source) or envelope)
     local = Track('Local', '', local_path=str(path), local_id='x')
     assert track_waveform(db, local, '', None) == envelope
@@ -518,12 +517,9 @@ def test_a_played_waveform_is_kept_in_the_library(tmp_path, db, monkeypatch):
     path.write_bytes(b'changed')
     track_waveform(db, local, '', None)
     assert len(decoded) == 2, 'a changed file is decoded again'
-    # A row kept before bands existed is decoded again, and kept when that yields nothing.
-    db.save_waveform(local.key, signature(path), [7, 8])
-    assert track_waveform(db, local, '', None) == envelope and len(decoded) == 3
-    db.save_waveform(local.key, signature(path), [7, 8])
-    monkeypatch.setattr(local_audio, 'waveform', lambda source, cancel: [])
-    assert track_waveform(db, local, '', None) == dict(peaks=[7, 8], bands=[])
+    # A row kept by 1.4.0-1.5.0 with colour bands gives its peaks without a new decode.
+    db.save_waveform(local.key, signature(path), dict(peaks=[7, 8], bands=[[1, 2, 3], [4, 5, 6]]))
+    assert track_waveform(db, local, '', None) == [7, 8] and len(decoded) == 2
 
 
 def test_local_artwork_is_the_embedded_picture_else_a_cover_beside_the_file(tmp_path):

@@ -1104,12 +1104,11 @@ class Backend:
 
     async def load_waveform(self, loaded, source, cancel):
         from ..services.playback import track_waveform
-        from ..waveform import drop
-        envelope = dict(peaks=[], bands=[])
+        samples = []
         try:
             async with self.waveform_lock:
                 check_cancelled(cancel)
-                envelope = await self.io(track_waveform, self.services.state.db, loaded.track, source, cancel)
+                samples = await self.io(track_waveform, self.services.state.db, loaded.track, source, cancel)
         except (Cancelled, asyncio.CancelledError):
             return
         except Exception as exc:
@@ -1119,9 +1118,7 @@ class Backend:
         # Sent even when empty: the window stops waiting for it and shows the track.
         async with self.player_lock:
             if not cancel.is_set() and self.services.player.loaded is loaded:
-                # ``drop`` is the fraction of the track where the first drop lands, -1 without one.
-                self.send('waveform', dict(key=loaded.track.key, samples=envelope['peaks'], bands=envelope['bands'],
-                                           drop=drop(envelope['peaks'], envelope['bands'])), copy=False)
+                self.send('waveform', dict(key=loaded.track.key, samples=samples), copy=False)
 
     async def load_artwork(self, loaded, cancel):
         """The label picture: the track's own artwork, else the default cover from Settings."""

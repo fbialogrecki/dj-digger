@@ -462,7 +462,7 @@ class Database:
                          ON CONFLICT(media_id) DO UPDATE SET manual_json=excluded.manual_json''',
                          (media_id, json.dumps(values)))
 
-    # ponytail: one ~16 KB row (peaks and bands) per played track, never pruned; prune by age if the library grows past that.
+    # ponytail: one ~4 KB row per played track, never pruned; prune by age if the library grows past that.
     @owned
     def waveform(self, key: str, signature: str) -> list[int] | dict | None:
         with self.connection() as conn:
@@ -470,7 +470,7 @@ class Database:
         return json.loads(row['samples_json']) if row else None
 
     @owned
-    def save_waveform(self, key: str, signature: str, samples: list[int] | dict) -> None:
+    def save_waveform(self, key: str, signature: str, samples: list[int]) -> None:
         with self.connection(write=True) as conn:
             conn.execute('''INSERT INTO waveforms(key,signature,samples_json) VALUES(?,?,?) ON CONFLICT(key)
                          DO UPDATE SET signature=excluded.signature,samples_json=excluded.samples_json''',

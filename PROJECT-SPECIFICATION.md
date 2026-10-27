@@ -5,8 +5,8 @@
 - Product version verified: 1.5.0 (released 2026-10-27; `pyproject.toml` 1.5.0, browser extension manifest 1.4.4)
 - Owner: Filip Białogrecki
 - Updated: 2026-10-27
-- Document lines: <!-- SPEC TOTAL LINES -->2708<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->2708<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->2689<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->2689<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,66 +51,66 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 145–190 |
 | 2.1 | ↳ Problem and product boundary | 147–160 |
 | 2.2 | ↳ Execution modes | 161–190 |
-| 3 | User-visible capabilities | 191–1228 |
+| 3 | User-visible capabilities | 191–1209 |
 | 3.1 | ↳ Track collection | 193–218 |
 | 3.2 | ↳ Link classification and exports | 219–237 |
 | 3.3 | ↳ Track statuses | 238–248 |
-| 3.4 | ↳ Audio preview | 249–425 |
-| 3.5 | ↳ Downloads and local-file matching | 426–487 |
-| 3.6 | ↳ Store purchase assistance | 488–611 |
-| 3.7 | ↳ Local library, analysis and audio export | 612–799 |
-| 3.8 | ↳ Qt Quick desktop | 800–1228 |
-| 4 | System context and data flow | 1229–1273 |
-| 4.1 | ↳ Context diagram | 1231–1257 |
-| 4.2 | ↳ Collection-to-library flow | 1258–1273 |
-| 5 | Repository layout and component ownership | 1274–1361 |
-| 5.1 | ↳ Entry, orchestration, and models | 1276–1287 |
-| 5.2 | ↳ Network and external-system adapters | 1288–1320 |
-| 5.3 | ↳ Persistence, local media, and UI | 1321–1361 |
-| 6 | Runtime architecture and environments | 1362–1505 |
-| 6.1 | ↳ Runtime and dependencies | 1364–1392 |
-| 6.2 | ↳ Concurrency and lifecycle | 1393–1470 |
-| 6.3 | ↳ Local paths and environment variables | 1471–1505 |
-| 7 | Data model and persistence | 1506–1622 |
-| 7.1 | ↳ Domain objects and identity | 1508–1522 |
-| 7.2 | ↳ SQLite schema and invariants | 1523–1579 |
-| 7.3 | ↳ Crate persistence and deletion | 1580–1595 |
-| 7.4 | ↳ Configuration and credential stores | 1596–1622 |
-| 8 | Public interfaces and contracts | 1623–1684 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1625–1656 |
-| 8.2 | ↳ JSON and CSV summary input | 1657–1672 |
-| 8.3 | ↳ URL-opening contract | 1673–1684 |
-| 9 | Authentication and authorization | 1685–1752 |
-| 9.1 | ↳ SoundCloud authentication | 1687–1719 |
-| 9.2 | ↳ Gate action consent | 1720–1752 |
-| 10 | External integrations | 1753–2163 |
-| 10.1 | ↳ SoundCloud API and media | 1755–1766 |
-| 10.2 | ↳ Link hubs and download gates | 1767–1913 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1775–1870 |
-| 10.2 · block | ↳ ↳ ToneDen | 1872–1896 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1898–1906 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1908–1913 |
-| 10.3 | ↳ Browsers and clipboard | 1914–2110 |
-| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 2111–2163 |
-| 11 | Security requirements and threat model | 2164–2382 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2166–2184 |
-| 11.2 | ↳ Secret and personal-data handling | 2185–2200 |
-| 11.3 | ↳ File and mutation safety | 2201–2222 |
-| 11.4 | ↳ Browser-extension trust boundary | 2223–2382 |
-| 12 | Privacy, lifecycle, and retention | 2383–2440 |
-| 12.1 | ↳ Data stored locally | 2385–2409 |
-| 12.2 | ↳ Data sent to third parties | 2410–2427 |
-| 12.3 | ↳ User-controlled deletion | 2428–2440 |
-| 13 | Failure behavior and current limitations | 2441–2551 |
-| 13.1 | ↳ Error isolation and reporting | 2443–2464 |
-| 13.2 | ↳ Confirmed limitations | 2465–2551 |
-| 14 | Verification, CI, and release | 2552–2674 |
-| 14.1 | ↳ Offline and live test suites | 2554–2605 |
-| 14.2 | ↳ Continuous integration and publishing | 2606–2659 |
-| 14.3 | ↳ Specification-map verification | 2660–2674 |
-| 15 | Evidence and operational references | 2675–2708 |
-| 15.1 | ↳ Primary implementation evidence | 2677–2698 |
-| 15.2 | ↳ User and historical documentation | 2699–2708 |
+| 3.4 | ↳ Audio preview | 249–421 |
+| 3.5 | ↳ Downloads and local-file matching | 422–483 |
+| 3.6 | ↳ Store purchase assistance | 484–607 |
+| 3.7 | ↳ Local library, analysis and audio export | 608–795 |
+| 3.8 | ↳ Qt Quick desktop | 796–1209 |
+| 4 | System context and data flow | 1210–1254 |
+| 4.1 | ↳ Context diagram | 1212–1238 |
+| 4.2 | ↳ Collection-to-library flow | 1239–1254 |
+| 5 | Repository layout and component ownership | 1255–1342 |
+| 5.1 | ↳ Entry, orchestration, and models | 1257–1268 |
+| 5.2 | ↳ Network and external-system adapters | 1269–1301 |
+| 5.3 | ↳ Persistence, local media, and UI | 1302–1342 |
+| 6 | Runtime architecture and environments | 1343–1486 |
+| 6.1 | ↳ Runtime and dependencies | 1345–1373 |
+| 6.2 | ↳ Concurrency and lifecycle | 1374–1451 |
+| 6.3 | ↳ Local paths and environment variables | 1452–1486 |
+| 7 | Data model and persistence | 1487–1603 |
+| 7.1 | ↳ Domain objects and identity | 1489–1503 |
+| 7.2 | ↳ SQLite schema and invariants | 1504–1560 |
+| 7.3 | ↳ Crate persistence and deletion | 1561–1576 |
+| 7.4 | ↳ Configuration and credential stores | 1577–1603 |
+| 8 | Public interfaces and contracts | 1604–1665 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1606–1637 |
+| 8.2 | ↳ JSON and CSV summary input | 1638–1653 |
+| 8.3 | ↳ URL-opening contract | 1654–1665 |
+| 9 | Authentication and authorization | 1666–1733 |
+| 9.1 | ↳ SoundCloud authentication | 1668–1700 |
+| 9.2 | ↳ Gate action consent | 1701–1733 |
+| 10 | External integrations | 1734–2144 |
+| 10.1 | ↳ SoundCloud API and media | 1736–1747 |
+| 10.2 | ↳ Link hubs and download gates | 1748–1894 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1756–1851 |
+| 10.2 · block | ↳ ↳ ToneDen | 1853–1877 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1879–1887 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1889–1894 |
+| 10.3 | ↳ Browsers and clipboard | 1895–2091 |
+| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 2092–2144 |
+| 11 | Security requirements and threat model | 2145–2363 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2147–2165 |
+| 11.2 | ↳ Secret and personal-data handling | 2166–2181 |
+| 11.3 | ↳ File and mutation safety | 2182–2203 |
+| 11.4 | ↳ Browser-extension trust boundary | 2204–2363 |
+| 12 | Privacy, lifecycle, and retention | 2364–2421 |
+| 12.1 | ↳ Data stored locally | 2366–2390 |
+| 12.2 | ↳ Data sent to third parties | 2391–2408 |
+| 12.3 | ↳ User-controlled deletion | 2409–2421 |
+| 13 | Failure behavior and current limitations | 2422–2532 |
+| 13.1 | ↳ Error isolation and reporting | 2424–2445 |
+| 13.2 | ↳ Confirmed limitations | 2446–2532 |
+| 14 | Verification, CI, and release | 2533–2655 |
+| 14.1 | ↳ Offline and live test suites | 2535–2586 |
+| 14.2 | ↳ Continuous integration and publishing | 2587–2640 |
+| 14.3 | ↳ Specification-map verification | 2641–2655 |
+| 15 | Evidence and operational references | 2656–2689 |
+| 15.1 | ↳ Primary implementation evidence | 2658–2679 |
+| 15.2 | ↳ User and historical documentation | 2680–2689 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -260,7 +260,7 @@ underrun is padding the player drops: the device hears silence and the media
 position does not advance, while EOF and decoder failures remain distinct. Playback sources hold leases
 until their decoder has actually stopped; prefetched files are also protected
 from replacement. Local waveforms are generated independently after playback has
-started, at most 1024 peaks with a low/mid/high level each, and kept in the library (§7.2).
+started, at most 1024 peaks, and kept in the library (§7.2).
 The rendered waveform updates when these peaks arrive; pause and seek do not
 discard them, while switching the loaded audio rejects obsolete results.
 This playback PCM is never reused for analysis or export.
@@ -380,12 +380,8 @@ follows:
 On PipeWire with 50 ms periods the measured queue is about 50-70 ms.
 `services.playback.track_waveform()` returns a track's envelope from the library's
 `waveforms` table (§7.2) or computes it from the track's own audio and stores a
-non-empty result as `{peaks, bands}`: 1024 peaks and, per peak, the 62-125 Hz,
-187-625 Hz and 687-2000 Hz energy of 16 ms Hann-windowed FFT frames (stereo
-powers added), each band as an amplitude 0-255 against its own loudest bin
-(`waveform.fold_bands`/`band_levels`); highs stop at the decode's 2 kHz Nyquist.
-A row stored before bands existed (a bare peak list) is computed again and kept
-as it was when that yields nothing. A local file is decoded by FFmpeg at 4 kHz; a
+non-empty result as a list of 1024 peaks. A row kept by 1.4.0-1.5.0 as
+`{peaks, bands}` gives its peaks without a new decode. A local file is decoded by FFmpeg at 4 kHz; a
 stream is decoded by `miniaudio` at 4 kHz from the whole file once its buffered
 progressive or HLS source reports it complete (`whole()`). A source that does
 not hold the whole file (an unbuffered or failed progressive download, a
@@ -805,11 +801,7 @@ sit above the virtualized track table beside it. Status is the first table colum
 appear only in local views. Transport buttons use SVG icons with accessible labels and tooltips. The window icon is the packaged application icon (`gui/qml/icons/app.png`, 256 px: a record carrying an artwork-style barcode seeded from `dj-digger`, with a white label, on a blue-to-bordeaux tile; `scripts/app_icon.py` draws it and writes the same design to the Windows `.ico` and macOS `.icns`), so the title bar and taskbar show it alongside the executable's shortcut icon. The desktop file name (the Wayland app_id) is `dj-digger`, so a Linux desktop entry named `dj-digger.desktop` supplies the dock name and icon of the open window; the repository does not ship that entry. The desktop waveform rises
 from the bottom edge of its panel, never mirrored, filling the space down to the
 transport row; the desktop uses the same averaged, normalized envelope and
-level curve in `waveform.py`. With View → Spectral waveform (on by default) each bar
-takes its own colour, its column's low/mid/high shares (`waveform.column_bands`, each band
-against its own maximum, as Rekordbox does) mixing a warm amber (lows), a green (mids)
-and a cool blue (highs), per theme; none is a saturated red and each keeps 3:1
-against the panel (asserted offline). Off, or for a waveform without bands, desktop bars share one vertical gradient from the
+level curve in `waveform.py`. Desktop bars share one vertical gradient from the
 first to the second resting colour of the colour pair chosen in View → Colours,
 bottom to top of the panel; the unplayed layer
 draws it with reduced opacity (0.38 dark theme, 0.45 light theme), and a 2 px
@@ -842,11 +834,10 @@ The window shows these as they are heard:
   served) clears it; a re-anchor alone, such as a late snapshot after an audio
   hiccup that moved the position, does not.
 - The waveform and the artwork keep their base colours at rest, including while
-  paused, and the unplayed region never pulses. With a kick only the bars just
-  played, the last 2 s left of the cursor (at least 40 px), fade in to `flash` in the same gradient
-  in neon (spectral bars: each bar's colour through the same peak-colour step as
-  the backdrop): a full-width neon copy of the bars, painted once per waveform, colour
-  pair and size, clipped to that band, which ends at the cursor.
+  paused, and the unplayed region never pulses. With a kick the whole played
+  side, everything left of the cursor, fades in to `flash` in the same gradient
+  in neon: a full-width neon copy of the bars, painted once per waveform, colour
+  pair and size, under the played bars' clip, which ends at the cursor.
   Where the scene graph runs on the GPU, a `MultiEffect` (`QtQuick.Effects`)
   adds a glow around those bars, a zero-offset shadow in the pair's second neon colour; the
   software renderer runs no shaders, so there the colour alone carries the
@@ -896,10 +887,12 @@ peak colours. The backdrop is never dimmed. The cover is square and shrinks with
 panel, down to 72 px, and is hidden only below 480 px. These
 details arrive in a separate `nowPlaying` event when a track loads or its rows
 refresh (for example after analysis or an edit), not in the position snapshots.
-The palette is near-black (light theme: silver-grey) with an electric-blue
-accent, a bordeaux second accent and silver secondary text. Selected rows,
-playlists and folders use a soft low-chroma blue (dark `#34466f` with white
-text, light `#b8c9f0` with near-black text, distinct from both zebra row colours), and chips on a selected row sit
+The palette is near-black (light theme: silver-grey) with a bordeaux second accent and silver
+secondary text; the accent and the selection follow the colour pair chosen in View → Colours. The
+accent is the pair's first neon colour on the dark theme and its first resting colour darkened 1.45×
+(HSV value) on the light theme, at least 5:1 against panel and window background for every pair. Selected rows,
+playlists and folders, and store pills or filters that are on, use the pair's first resting colour faded
+into the panel (40 % dark, 30 % light) with white (dark) or near-black (light) text, and chips on a selected row sit
 on the panel colour; clocks, BPM and
 counts use tabular digits. Secondary (silver) text keeps 4.5:1 against the panel (light `#666a73`), and disabled
 text and icons are clearly dimmer than muted text (dark `#5f626b`, light `#9a9da5`); a disabled menu entry that names
@@ -909,7 +902,7 @@ click; menus keep their highlight instead, and the playlist list and folder tree
 Text sizes come from one scale on the system font (`Qt.application.font`): small 0.8×, caption 0.86×, large 1.07×,
 title 1.2× and display 1.43× the body size, which at the 14 px desktop default are the 11, 12, 15, 17 and 20 px the window
 was drawn with. Icon buttons use 16 px icons (toolbar, sidebar, search, banner) or 20 px (transport); disclosure chevrons stay
-10 px. Hover tooltips appear after 500 ms (the waveform's time readout after 300 ms, the volume readout at once while dragging). In local views BPM and key render as chips; BPM shows
+10 px. Hover tooltips appear after 500 ms (the volume readout at once while dragging). In local views BPM and key render as chips; BPM shows
 one decimal place when fractional. Keys are parsed from common spellings (`Am`,
 `A minor`, `Amin`, `8A`, enharmonic sharps/flats) by `analysis.key_names`, shown
 in Camelot or classic notation (View → Key notation, default Camelot), sorted
@@ -1010,9 +1003,9 @@ Enter or leaving the field saves, Esc cancels and no shortcut fires while typing
 continuous progress fill spans the full row background while downloading, with
 the percentage in the Status column and text drawn above the fill. The fill
 follows column widths and horizontal scrolling; selection remains visible in
-both themes. The player card, search field, toolbar and table share one 8 px right margin. The toolbar above the table holds the search field, the store pills, a visible / total count, the status filter and Filters, then the actions on the selection; it is one row from 880 px of toolbar width, otherwise search and pills fill the first row and the actions, followed by the status filter and Filters, the second. Every toolbar control is 32 px high. The search field has rounded corners and the toolbar buttons' faint outline on the window background (accent while focused), shows `/`, its shortcut, as a key at its right end while empty and unfocused, and a clear (×) button while it holds text. Dialog field outlines, checkbox frames and scroll handles use the `border` colour (palette `mid`), at least 3:1 against both surfaces; menu separators stay in the quieter `alternate` colour. In playlist views the store pills follow the search: “All stores”, then one pill per store or gate site present in the view, named and counted as the Stores column names them (`Bandcamp 12`, `Hypeddit 3`), most frequent first; they scroll sideways when the row is too narrow, and another view starts them scrolled back to the first pill. Several pills can be on at once (a track matching any of them shows) and none on shows every store; the filter keeps store names, so changing counts never shift it, and a store that leaves the view leaves the filter. The status filter is as wide as its longest option in the current language and offers All statuses, Unhandled (new, played and opened), New (new and played), Opened, Owned and Skipped; H switches it between All statuses and Unhandled. Filters opens a small popup with a BPM range and “Mixes with the playing track” (Camelot-compatible keys, local views only) and a genre fragment, plus Clear filters; it takes the selection colour and an accent outline while any of these is set, like a pill that is on. While any filter or search is active the count beside the pills shows visible / total in the accent colour, in its own slot after the pill row (never over the pills); when nothing matches, the empty table says so and offers Clear filters. With no view open the table shows a start state:
+both themes. The player card, search field, toolbar and table share one 8 px right margin. The toolbar above the table has two rows: the search field across its whole width, then the actions on the selection at the left, the store pills, a visible / total count and, at the right end, the status filter and Filters. Every toolbar control is 32 px high. The search field has rounded corners and the toolbar buttons' faint outline on the window background (accent while focused), shows `/`, its shortcut, as a key at its right end while empty and unfocused, and a clear (×) button while it holds text. Dialog field outlines, checkbox frames and scroll handles use the `border` colour (palette `mid`), at least 3:1 against both surfaces; menu separators stay in the quieter `alternate` colour. In playlist views the store pills follow the search: “All stores”, then one pill per store or gate site present in the view, named and counted as the Stores column names them (`Bandcamp 12`, `Hypeddit 3`), most frequent first; they scroll sideways when the row is too narrow, and another view starts them scrolled back to the first pill. Several pills can be on at once (a track matching any of them shows) and none on shows every store; the filter keeps store names, so changing counts never shift it, and a store that leaves the view leaves the filter. The status filter is as wide as its longest option in the current language and offers All statuses, Unhandled (new, played and opened), New (new and played), Opened, Owned and Skipped; H switches it between All statuses and Unhandled. Filters opens a small popup with a BPM range and “Mixes with the playing track” (Camelot-compatible keys, local views only) and a genre fragment, plus Clear filters; it takes the selection colour and an accent outline while any of these is set, like a pill that is on. While any filter or search is active the count beside the pills shows visible / total in the accent colour, in its own slot after the pill row (never over the pills); when nothing matches, the empty table says so and offers Clear filters. With no view open the table shows a start state:
 a playlist icon, “Start digging”, a line pointing at the sidebar, Add playlist…, Add folder… and Import profile
-playlists… buttons, and the shortcuts beneath. Esc clears the selection, then the search, then every filter. Opening another view (another source or title, not another page or a refresh) clears the search, store, BPM, key and genre filters and keeps the status filter. Whenever a view is loaded the action group shows “N selected” with a selection and icon buttons for Open in browser, Download and Mark owned (playlist views only), Skip, Analyze BPM / key (local views only) and More actions, each a 32 px tile with a faint outline, transparent until hovered, with 6 px between tiles; buttons that need a selection are disabled without one. Open in browser and Download wait while an operation runs. Playlist actions (open, download, mark owned, cart, their whole-view variants and Export links in the Tracks menu) are hidden or disabled in local views, local-file actions in playlist views. The buttons use the same `Action` objects as the shortcuts, so their tooltips name the key that works. A right click on a row or below the last row, the Menu key or Shift+F10 at the keyboard row, and More actions open the same row menu (described below). The action buttons show their names only with room (from 1400 px of toolbar width on one row, 640 px on their own row), icons otherwise; tooltips name the action and its shortcut. A status bar spans the whole window below the sidebar and the table with visible/total/owned/skipped counts on the left, the busy indicator, a Cancel button during operations and the last message; during a playlist import the message shows the stage with done / total counts beside a progress bar, at most ten updates a second. Add playlist asks to paste a link to a SoundCloud playlist and re-opens with an error until the text is a soundcloud.com link. The import is listed at the top of the playlist sidebar at once, with a spinner and the link as its name until SoundCloud reports the title, and cannot be opened from there; the table opens on it and fills batch by batch in playlist order. These provisional rows are not saved: when the import succeeds they are replaced by the saved playlist, and when it fails, is cancelled or finds nothing the view is withdrawn and the sidebar entry disappears. Refresh keeps the current rows until the new ones are saved. The menu bar holds actions with no button elsewhere plus the transport: Library (refresh; Open recent, the last eight playlists and folders opened, newest first, playlists no longer in the sidebar left out; headed sections Import — import profile playlists, import saved summary, restore removed tracks —, Folder — pin folder, analyze folder, scan local library — and Export — resume interrupted export; quit; the less obvious entries carry a short tooltip), Tracks (select all Ctrl+A, select none Ctrl+Shift+A, invert selection Ctrl+I — the visible rows not selected —, undo status change; open, download and add to store carts for all visible; save local playlist, export links), Playback (the player's own play/pause, stop, previous/next, 10 s and 30 s seeks, jump to drop, the two preview-start toggles and volume/mute `Action`s with their keys), View (show sidebar Ctrl+B, full screen F11, which returns to the windowed or maximized state it left; a Columns submenu mirroring the header menu's visibility toggles; Reset layout, which restores default column widths and order and the 220 px sidebar; language, theme, colours, key notation; spectral waveform, vinyl artwork; animations, compact rows), Settings (Preferences, Shift+S or Ctrl+,; one SoundCloud entry, “Sign in to SoundCloud…” or “Signed in as <name> — Sign out…”; two browser entries, “Connect browser…” always and “Connected: <browser> — Disconnect…” or a disabled “No browser connected”) and Help (keyboard shortcuts, F1 or ?; messages; diagnostics; open data folder; open log folder, the folder of the current log file; check for updates, which opens the GitHub releases page through the safe `open_url` and makes no request of its own; About dj-digger…, a dialog with the version, the Apache License 2.0 and the data folder as a copyable path). The backend sends the SoundCloud and browser state (`account`: signed in, the saved user name only when the stored token is the one in use, and the most recently active compatible extension's browser — never the token) at start, after sign-in, sign-out, Connect browser and Disconnect, and whenever the Settings menu opens. Sign-in/sign-out, the imports, restore and disconnect are disabled while an operation runs. Checkable View entries bind `checked` to the window state and set the state from the new check when triggered. Each colour entry shows a two-colour swatch of the pair's neon colours, and the pairs are grouped by the first colour's family between separators. Actions the toolbar, the row menu or the sidebar already offer (open, download, mark owned, skip, reset, BPM/key analysis and editing, cart, remove, add playlist, add folder, delete playlist, search, hide handled (switches the status filter)) are window-level `Action`s outside the menus, so their shortcuts still work, and the Help dialog lists them under Selected tracks and Other after the menus, whose entries — submenus included — it lists with every key that works, and ends with a Waveform section for the digit, hot-cue and wheel keys. Entries that open a dialog or a sign-in end in “…”; Delete playlist sits after a separator in the playlist menu. Every menu entry, including the row and playlist context menus, uses one layout: a fixed check column, the label and the shortcut (or colour swatch) in the muted color, and menus size to their widest entry after retranslation. Space is the shortcut of the Play / pause action. Single-key shortcuts (add, refresh, open, download, got/skip/reset, undo, remove, search, hide handled, seek, percentage jumps, next/previous, stop, jump to drop, volume, mute, sidebar) and Shift+S for Preferences are listed in a generated Help dialog; they are suppressed while text fields or modal dialogs have focus. Actions that need a selection are disabled without one;
+playlists… buttons, and the shortcuts beneath. Esc clears the selection, then the search, then every filter. Opening another view (another source or title, not another page or a refresh) clears the search, store, BPM, key and genre filters and keeps the status filter. Whenever a view is loaded the action group shows icon buttons for Open in browser, Download and Mark owned (playlist views only), Skip, Analyze BPM / key (local views only) and More actions, each a 32 px tile with a faint outline, transparent until hovered, with 6 px between tiles; buttons that need a selection are disabled without one. Open in browser and Download wait while an operation runs. Playlist actions (open, download, mark owned, cart, their whole-view variants and Export links in the Tracks menu) are hidden or disabled in local views, local-file actions in playlist views. The buttons use the same `Action` objects as the shortcuts, so their tooltips name the key that works. A right click on a row or below the last row, the Menu key or Shift+F10 at the keyboard row, and More actions open the same row menu (described below). The action buttons show icons only; tooltips name the action and its shortcut. A status bar spans the whole window below the sidebar and the table with visible/total/owned/skipped counts on the left, the busy indicator, a Cancel button during operations and the last message; during a playlist import the message shows the stage with done / total counts beside a progress bar, at most ten updates a second. Add playlist asks to paste a link to a SoundCloud playlist and re-opens with an error until the text is a soundcloud.com link. The import is listed at the top of the playlist sidebar at once, with a spinner and the link as its name until SoundCloud reports the title, and cannot be opened from there; the table opens on it and fills batch by batch in playlist order. These provisional rows are not saved: when the import succeeds they are replaced by the saved playlist, and when it fails, is cancelled or finds nothing the view is withdrawn and the sidebar entry disappears. Refresh keeps the current rows until the new ones are saved. The menu bar holds actions with no button elsewhere plus the transport: Library (refresh; Open recent, the last eight playlists and folders opened, newest first, playlists no longer in the sidebar left out; headed sections Import — import profile playlists, import saved summary, restore removed tracks —, Folder — pin folder, analyze folder, scan local library — and Export — resume interrupted export; quit; the less obvious entries carry a short tooltip), Tracks (select all Ctrl+A, select none Ctrl+Shift+A, invert selection Ctrl+I — the visible rows not selected —, undo status change; open, download and add to store carts for all visible; save local playlist, export links), Playback (the player's own play/pause, stop, previous/next, 10 s and 30 s seeks, the start-previews-at-30 % toggle and volume/mute `Action`s with their keys), View (show sidebar Ctrl+B, full screen F11, which returns to the windowed or maximized state it left; a Columns submenu mirroring the header menu's visibility toggles; Reset layout, which restores default column widths and order and the 220 px sidebar; language, theme, colours, key notation; vinyl artwork; animations, compact rows), Settings (Preferences, Shift+S or Ctrl+,; one SoundCloud entry, “Sign in to SoundCloud…” or “Signed in as <name> — Sign out…”; two browser entries, “Connect browser…” always and “Connected: <browser> — Disconnect…” or a disabled “No browser connected”) and Help (keyboard shortcuts, F1 or ?; messages; diagnostics; open data folder; open log folder, the folder of the current log file; check for updates, which opens the GitHub releases page through the safe `open_url` and makes no request of its own; About dj-digger…, a dialog with the version, the Apache License 2.0 and the data folder as a copyable path). The backend sends the SoundCloud and browser state (`account`: signed in, the saved user name only when the stored token is the one in use, and the most recently active compatible extension's browser — never the token) at start, after sign-in, sign-out, Connect browser and Disconnect, and whenever the Settings menu opens. Sign-in/sign-out, the imports, restore and disconnect are disabled while an operation runs. Checkable View entries bind `checked` to the window state and set the state from the new check when triggered. Each colour entry shows a two-colour swatch of the pair's neon colours, and the pairs are grouped by the first colour's family between separators. Actions the toolbar, the row menu or the sidebar already offer (open, download, mark owned, skip, reset, BPM/key analysis and editing, cart, remove, add playlist, add folder, delete playlist, search, hide handled (switches the status filter)) are window-level `Action`s outside the menus, so their shortcuts still work, and the Help dialog lists them under Selected tracks and Other after the menus, whose entries — submenus included — it lists with every key that works, and ends with a Waveform section for the digit, hot-cue and wheel keys. Entries that open a dialog or a sign-in end in “…”; Delete playlist sits after a separator in the playlist menu. Every menu entry, including the row and playlist context menus, uses one layout: a fixed check column, the label and the shortcut (or colour swatch) in the muted color, and menus size to their widest entry after retranslation. Space is the shortcut of the Play / pause action. Single-key shortcuts (add, refresh, open, download, got/skip/reset, undo, remove, search, hide handled, seek, percentage jumps, next/previous, stop, volume, mute, sidebar) and Shift+S for Preferences are listed in a generated Help dialog; they are suppressed while text fields or modal dialogs have focus. Actions that need a selection are disabled without one;
 whole-view variants (open all visible, download all visible, cart for all
 visible) are separate explicit commands, and opening more than ten links or
 downloading more than ten tracks asks first, naming the count. Errors appear in a separate, dismissible banner with a
@@ -1040,29 +1033,17 @@ than one track selected, Export, Remove and Delete name the count (“Delete 5 f
 click below the last row keeps the selection. A right click while a name is edited in place saves
 the edit before the menu opens, and the table takes the keyboard back when the menu closes.
 
-The transport collapses to one row when nothing is loaded. Its row holds previous, play/pause, next, stop,
-then the mute toggle and the volume slider, and at the right end a large (20 px, bold) clock of the time
-played, or of the time left (“−m:ss”) after a click on it, followed in muted text by the other one and the
-length; the choice persists (`remainingTime`). It shows a position cursor, hover
-time, drag seeking and a mute toggle drawn as a speaker icon that is struck through while muted (its
+The transport collapses to one row when nothing is loaded. Its row holds previous, play/pause, next, stop
+and the time played / length in muted text, then at the right end the mute toggle and the volume slider.
+It shows a position cursor, drag seeking and a mute toggle drawn as a speaker icon that is struck through while muted (its
 Mute/Unmute name stays in the tooltip and accessible name). Mute lives only in the player: a mute or
 volume command answers with a `volume` event (volume, muted) and the button shows the bridge's `muted`;
-a dragged volume slider sends at most one level every 50 ms, the latest. Above the overview a 22 px strip
-shows the 15 s around the playhead from the same per-bin levels and colours (rectangles moved each frame,
-no repaint), with a centre line and, when the track has an analysed BPM and a kick level of at least 0.6 has
-been heard, ticks on that beat grid, anchored on the kick and re-anchored only when a strong kick lands more
-than 40 ms off it. The overview carries numbered hot-cue lines (accent) and a “Drop” line (warning colour)
-at the estimated drop. The mouse wheel over the waveform seeks 5 s a notch (120 units, forward when turned
+a dragged volume slider sends at most one level every 50 ms, the latest. The overview carries numbered hot-cue lines (accent). The mouse wheel over the waveform seeks 5 s a notch (120 units, forward when turned
 up; touchpad deltas add up). Shortcuts: [ and ] seek 10 s, { and } (Shift+[ / Shift+] on most layouts) 30 s;
 1-9 jump to 10-90 % and 0 to the start; Ctrl+1-4 set hot cue 1-4 at the playhead and Alt+1-4 jump to it;
-J jumps to the drop; S stops. Hot cues are kept per track key in memory for the session only (the library has
-no place for them). The backend's `waveform` event carries `drop`, the fraction of the track where
-`waveform.drop` finds the first drop: the low band (the envelope without bands) smoothed over 1/128 of the
-track, the steepest rise in the first window after the first 5 % whose preceding 1/40 of the track sits under
-60 % of the 80th-percentile level while the following 1/40 reaches 85 % of it, rising by at least 30 % of it;
--1 when no such rise exists. View → Start previews at the drop / at 30 % (exclusive, persisted as
-`previewStart`) makes each newly loaded track seek there once, the drop waiting for the waveform and falling
-back to 30 % without one, unless a seek was served for the track first. The waveform arrives in its own event once per loaded track, after
+S stops. Hot cues are kept per track key in memory for the session only (the library has
+no place for them). Playback → Start previews at 30 % (persisted as `previewStart`) makes each newly
+loaded track seek there once, unless a seek was served for the track first. The waveform arrives in its own event once per loaded track, after
 playback has started and empty when none could be had, and is painted in cached normal and peak layers; progress moves a clip edge and the
 cursor. The 25 ms position snapshots carry only key, title, state, position and duration and
 notify audio bindings alone. Dragging on the waveform shows the pointer's time and sends one seek on
@@ -1099,7 +1080,7 @@ selected rows pair their foreground with the selected background in both themes.
 Playlist and pinned-folder selection explicitly pair the accent background
 with selection text in both themes. At the 760×520 minimum window size, sidebar width is constrained to leave room for transport controls, volume is flexible, and the selection bar keeps to one icon-only row. The track table retains horizontal
 scrolling for columns that do not fit.
-Window dimensions, column widths, hidden columns, column order, sidebar width, visibility and folded sections (`sidebarCollapsed`), language, theme, colour pair (`colors`), key notation, the animation switch, the table sort (`sortColumn`, `sortReverse`), row density (`compactRows`), the remaining-time clock (`remainingTime`), preview start (`previewStart`), spectral waveform (`spectral`), vinyl artwork (`vinyl`) and the recent playlists and folders (`recent`: kind and target only) persist privately in `config_dir()/gui.json`; unknown keys (including the removed pulse timing) are dropped when saving and values are validated when loading. The playback level is a shared `volume` field in the
+Window dimensions, column widths, hidden columns, column order, sidebar width, visibility and folded sections (`sidebarCollapsed`), language, theme, colour pair (`colors`), key notation, the animation switch, the table sort (`sortColumn`, `sortReverse`), row density (`compactRows`), preview start (`previewStart`), vinyl artwork (`vinyl`) and the recent playlists and folders (`recent`: kind and target only) persist privately in `config_dir()/gui.json`; unknown keys (including the removed pulse timing) are dropped when saving and values are validated when loading. The playback level is a shared `volume` field in the
 common configuration: the runtime applies it when the player is created and
 saves it on shutdown, so the desktop starts at the level last set. Existing data, credentials and configuration paths stay
 unchanged on every platform.
@@ -1561,7 +1542,7 @@ rounding from conflating distinct IDs.
 
 `PRAGMA user_version=3` is created for new libraries. Schema 3 adds only
 `waveforms(key PRIMARY KEY, signature, samples_json)`, the envelope of each played
-track (`samples_json` holds `{peaks, bands}`, or a bare peak list in rows kept before bands) with the local file's signature (`''` for a stream); rows are not pruned. A
+track (`samples_json` holds a peak list, or `{peaks, bands}` in rows kept by 1.4.0-1.5.0) with the local file's signature (`''` for a stream); rows are not pruned. A
 v2 library gains it inside the opening `BEGIN IMMEDIATE` transaction, without a backup. Existing recognized v0/v1
 shapes are checked read-only first, then under `BEGIN IMMEDIATE`. A separate
 committed reader performs `Connection.backup()` while the writer is reserved.

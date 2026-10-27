@@ -604,14 +604,6 @@
       <translation>Вперёд на 30 с</translation>
     </message>
     <message>
-      <source>Jump to drop</source>
-      <translation>Перейти к дропу</translation>
-    </message>
-    <message>
-      <source>Start previews at the drop</source>
-      <translation>Начинать прослушивание с дропа</translation>
-    </message>
-    <message>
       <source>Start previews at 30 %</source>
       <translation>Начинать прослушивание с 30 %</translation>
     </message>
@@ -700,10 +692,6 @@
       <translation>Высокая контрастность</translation>
     </message>
     <message>
-      <source>Spectral waveform</source>
-      <translation>Спектральная форма волны</translation>
-    </message>
-    <message>
       <source>Vinyl artwork</source>
       <translation>Обложка на виниле</translation>
     </message>
@@ -788,18 +776,6 @@
       <translation>Нет плейлистов, подходящих под фильтр.</translation>
     </message>
     <message>
-      <source>Drop</source>
-      <translation>Дроп</translation>
-    </message>
-    <message>
-      <source>Time left; click to show the time played</source>
-      <translation>Оставшееся время; щёлкните, чтобы показать прошедшее</translation>
-    </message>
-    <message>
-      <source>Time played; click to show the time left</source>
-      <translation>Прошедшее время; щёлкните, чтобы показать оставшееся</translation>
-    </message>
-    <message>
       <source>Clear search</source>
       <translation>Очистить поиск</translation>
     </message>
@@ -878,14 +854,6 @@
     <message>
       <source>Clear filters</source>
       <translation>Сбросить фильтры</translation>
-    </message>
-    <message numerus="yes">
-      <source>%n selected</source>
-      <translation>
-        <numerusform>%n выбран</numerusform>
-        <numerusform>%n выбрано</numerusform>
-        <numerusform>%n выбрано</numerusform>
-      </translation>
     </message>
     <message>
       <source>Artist</source>

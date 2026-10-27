@@ -181,13 +181,10 @@ def test_qml_menu_bar(app, tmp_path, monkeypatch):
         assert qml('menuBar.menuAt(2).itemAt(0).action === playAction') is True
         assert [t for t in texts('menuBar.menuAt(2)') if t] == ['Play / pause', 'Stop', 'Previous track', 'Next track',
                                                                'Seek backward 10 s', 'Seek forward 10 s', 'Seek backward 30 s',
-                                                               'Seek forward 30 s', 'Jump to drop', 'Start previews at the drop',
-                                                               'Start previews at 30 %', 'Volume down', 'Volume up', 'Mute']
-        # The preview starts are one or the other: checking one unchecks the other, unchecking leaves none.
-        qml('previewDropAction.trigger()')
-        assert qml('previewStart') == 'drop' and qml('previewDropAction.checked') and not qml('previewThirtyAction.checked')
+                                                               'Seek forward 30 s', 'Start previews at 30 %', 'Volume down', 'Volume up', 'Mute']
+        # Start previews at 30 % checks and unchecks.
         qml('previewThirtyAction.trigger()')
-        assert qml('previewStart') == '30' and not qml('previewDropAction.checked')
+        assert qml('previewStart') == '30' and qml('previewThirtyAction.checked')
         qml('previewThirtyAction.trigger()')
         assert qml('previewStart') == '' and not qml('previewThirtyAction.checked')
         library = texts('menuBar.menuAt(0)')
