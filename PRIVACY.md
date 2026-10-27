@@ -1,6 +1,6 @@
 # Privacy Policy for the dj-digger browser extension
 
-Last updated: 2026-10-14
+Last updated: 2026-10-27
 
 The dj-digger browser extension (Chrome, Chromium, Brave, Edge, Firefox) is the
 companion of the dj-digger desktop app. It lets the app complete browser steps
@@ -21,7 +21,10 @@ The extension exchanges data only with:
    Beatport (beatport.com) and SoundCloud (soundcloud.com, sign-in page only).
 
 The extension itself makes no network request of its own. It does not work on
-any other website.
+any other website. When the desktop app is not installed, the status page and the
+toolbar panel show a Download button; it only opens the app's releases page on
+GitHub (https://github.com/fbialogrecki/dj-digger/releases/latest) in a new tab,
+like any link you click, and sends nothing with it.
 
 ## What data is handled, and why
 

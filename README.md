@@ -219,7 +219,10 @@ reported as unsupported. Then, in the browser:
   Add-on** and select `browser-extension/manifest.json` (it is removed when Firefox
   restarts).
 
-Open the extension's welcome page to grant the site permissions it asks for. While
+Open the extension's welcome page to grant the site permissions it asks for. If the
+extension finds no dj-digger on this computer (not installed, never started, or too
+old to know the store extension), the welcome page and the toolbar panel say so and
+link to the [latest release](https://github.com/fbialogrecki/dj-digger/releases/latest). While
 the desktop runs, the extension's toolbar button opens a small player panel: the
 playing track on the desktop's record, with previous, play/pause, next and a seek bar,
 the running job with Cancel, and "N gates need you" (also the button's badge) with

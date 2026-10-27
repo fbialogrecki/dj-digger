@@ -175,6 +175,13 @@ def test_native_host_name_is_pinned():
     )
 
 
+def test_a_missing_app_is_offered_from_its_latest_release_only():
+    latest = "https://github.com/fbialogrecki/dj-digger/releases/latest"
+    for name in ("popup.js", "welcome.html"):
+        source = (EXTENSION / name).read_text(encoding="utf-8")
+        assert set(re.findall(r"https://[^\s\"<>)]+", source)) == {latest}, name
+
+
 def test_forbidden_paths_cover_checkout_for_both_stores():
     for store in store_urls.STORE_HOSTS:
         assert {"/checkout", "/cart/checkout", "/payment"} <= set(GROUPS[store]["forbiddenPaths"])
