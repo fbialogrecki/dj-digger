@@ -140,7 +140,9 @@ def test_manifest_permissions_and_entry_points():
     assert "web_accessible_resources" not in MANIFEST
     popup = (EXTENSION / "popup.html").read_text(encoding="utf-8")
     assert re.findall(r"<script[^>]*>", popup) == ['<script src="popup.js">']  # MV3 CSP: no inline code
-    assert "content_scripts" not in MANIFEST
+    # soundcloud.js only, on a host the extension already has (its import button, below)
+    assert MANIFEST["content_scripts"] == [{"matches": ["https://soundcloud.com/*"], "js": ["soundcloud.js"]}]
+    assert set(MANIFEST["content_scripts"][0]["matches"]) <= set(MANIFEST["host_permissions"])
     assert "optional_permissions" not in MANIFEST
     assert MANIFEST["version"] == "1.4.2"
     assert MANIFEST["name"] == "dj-digger"
@@ -173,6 +175,13 @@ def test_native_host_name_is_pinned():
         'const HOST = "com.github.fbialogrecki.djdigger"'
         in (EXTENSION / "background.js").read_text()
     )
+
+
+def test_a_missing_app_is_offered_from_its_latest_release_only():
+    latest = "https://github.com/fbialogrecki/dj-digger/releases/latest"
+    for name in ("popup.js", "welcome.html"):
+        source = (EXTENSION / name).read_text(encoding="utf-8")
+        assert set(re.findall(r"https://[^\s\"<>)]+", source)) == {latest}, name
 
 
 def test_forbidden_paths_cover_checkout_for_both_stores():
@@ -214,10 +223,15 @@ def test_no_remote_code_and_one_input_channel(path):
     # The toolbar panel: popup.js sends {op}, the background's one onMessage hears only popup.html.
     assert ("runtime.onMessage" in source) == (path.name == "background.js")
     assert source.count("runtime.onMessage") <= 1
-    assert ("sendMessage(" in source) == (path.name == "popup.js")
+    assert ("sendMessage(" in source) == (path.name in {"popup.js", "soundcloud.js"})
     if path.name == "background.js":
         assert 'sender.url !== api.runtime.getURL("popup.html")' in source
         assert "sender.id !== api.runtime.id" in source
+        # soundcloud.js is heard only from a soundcloud.com top frame, and only for an import
+        assert 'sender.frameId === 0 && parse(sender.url)?.origin === "https://soundcloud.com"' in source
+        assert 'const c = m.op === "import" ? command(m) : null;' in source
+    if path.name == "soundcloud.js":
+        assert source.count("sendMessage(") == 1 and 'sendMessage({ op: "import", url })' in source
     # plan F13: the context menu is the background's, and only the popup reads the active tab (activeTab)
     assert ("contextMenus." in source) == (path.name == "background.js")
     assert source.count("contextMenus.onClicked") <= 1
@@ -241,13 +255,20 @@ def test_the_frame_script_is_inert_outside_the_offscreen_document():
 
 def test_the_frame_script_is_registered_dynamically_for_the_gate_hosts_only():
     background = (EXTENSION / "background.js").read_text(encoding="utf-8")
-    assert "content_scripts" not in MANIFEST
+    assert [script["js"] for script in MANIFEST["content_scripts"]] == [["soundcloud.js"]]
     assert background.count("scripting.registerContentScripts(") == 1
     start = background.index("async function startOffscreen")
     registering = background[start : background.index("scripting.registerContentScripts(")]
     assert "filter((g) => g.frames)" in registering  # see test_only_the_gates_run_in_offscreen_frames
     assert 'js: ["dom.js", "frame.js"]' in background
     assert 'js: ["frame-main.js"]' in background  # page world: no popups, no sound
+
+
+def test_the_soundcloud_button_shows_the_app_icon():
+    source = (EXTENSION / "soundcloud.js").read_text(encoding="utf-8")
+    icon = base64.b64encode((EXTENSION / "icons" / "icon-32.png").read_bytes()).decode()
+    assert f'const DJD_ICON = "data:image/png;base64,{icon}";' in source  # re-inline it when the icon changes
+    assert "window.top === window" in source  # top frames only, like the manifest's default
 
 
 def test_the_page_world_frame_script_is_inert_outside_an_extension_frame():

@@ -219,13 +219,18 @@ reported as unsupported. Then, in the browser:
   Add-on** and select `browser-extension/manifest.json` (it is removed when Firefox
   restarts).
 
-Open the extension's welcome page to grant the site permissions it asks for. While
+Open the extension's welcome page to grant the site permissions it asks for. If the
+extension finds no dj-digger on this computer (not installed, never started, or too
+old to know the store extension), the welcome page and the toolbar panel say so and
+link to the [latest release](https://github.com/fbialogrecki/dj-digger/releases/latest). While
 the desktop runs, the extension's toolbar button opens a small player panel: the
 playing track on the desktop's record, with previous, play/pause, next and a seek bar,
 the running job with Cancel, and "N gates need you" (also the button's badge) with
 Open them / Skip them. Opened on a SoundCloud playlist or profile page it offers to
-import it; right-clicking a SoundCloud playlist or profile link offers **Dig in
-dj-digger**. For these two the extension asks for the `activeTab` and `contextMenus`
+import it; right-clicking a SoundCloud playlist, track or profile link offers **Dig in
+dj-digger**, and on soundcloud.com itself track and playlist controls (the action row,
+list rows and "More" menus) carry an **Import to DJ digger** button with the app icon.
+A track is imported as a one-track playlist. For these two the extension asks for the `activeTab` and `contextMenus`
 permissions; it reads the current tab's address only when you open the panel. To
 disconnect, run `dj-digger browser unregister` or use **Disconnect browsers…** in the
 desktop's Settings menu (the desktop registers again at its next start); the extension

@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — dj-digger
 
-> Last Updated: 2026-10-14
+> Last Updated: 2026-10-27
 >
 > Copy-paste source for the Chrome Developer Dashboard. Step-by-step upload
 > instructions (Polish): [docs/store/PUBLISHING-pl.md](docs/store/PUBLISHING-pl.md).
@@ -28,6 +28,7 @@ Lets the dj-digger desktop app drive download gates and store carts in your own 
 dj-digger is the browser companion of the free dj-digger desktop app for DJs. It lets the app do the browser steps of crate digging in your own browser, on the sites you are already signed in to, and puts the app's player in your toolbar.
 
 IMPORTANT: this extension does nothing on its own. It needs the dj-digger desktop app (Windows, macOS, Linux), installed and started on the same computer: https://github.com/fbialogrecki/dj-digger
+When the app is not installed (or too old), the extension's status page and toolbar panel say so and offer a Download button that opens the app's latest release on GitHub: https://github.com/fbialogrecki/dj-digger/releases/latest
 
 WHAT IT DOES
 • Free-download gates: when the desktop app cannot finish a Hypeddit or ToneDen download gate by itself, it finishes it here, in your browser, and the downloaded file goes to the app.
@@ -38,7 +39,7 @@ WHAT IT DOES
 
 HOW TO USE
 1. Install and start the dj-digger desktop app. It connects itself to this browser.
-2. Install this extension. Its status page shows "Desktop app link" and "Site access".
+2. Install this extension. Its status page shows "Desktop app link" and "Site access". Installed the extension first? The status page and the panel link to the app's download.
 3. Use the app as usual. When it needs the browser it opens its own window or a background tab, and closes it when done. Your other tabs are never read or changed.
 
 SOCIAL ACTIONS ON DOWNLOAD GATES
@@ -109,7 +110,7 @@ share one field (text at the end of the table).
 | alarms | permissions | A 30-second alarm that reconnects to the desktop app after the app was closed or the background was stopped. |
 | offscreen | permissions | Runs download gates (Hypeddit, ToneDen) in hidden frames of an offscreen document (reason IFRAME_SCRIPTING), so no browser window pops up during a hidden gate batch; some desktops cannot keep a browser window hidden. Gate media is muted there. |
 | activeTab | permissions | When the user opens the toolbar panel, its address is read once to decide whether the page is a SoundCloud playlist or profile that can be imported into the app; nothing else of the page is read. |
-| contextMenus | permissions | Adds "Dig in dj-digger" to the right-click menu on SoundCloud pages and links, which imports that playlist or profile into the desktop app. Shown only while the app is running. |
+| contextMenus | permissions | Adds "Dig in dj-digger" to the right-click menu on SoundCloud pages and links, which imports that playlist, track or profile into the desktop app. Shown only while the app is running. |
 
 **Host permissions justification** (one field):
 
@@ -118,7 +119,7 @@ Each host is a site the dj-digger desktop app works with, and the extension acts
 - hypeddit.com, www.hypeddit.com, hypd.it, www.hypd.it, toneden.io, www.toneden.io: free-download gates. The extension opens the gate, completes its steps (e-mail form, follow/like/repost/comment steps when the user allows social actions in the app) and starts the download.
 - bandcamp.com and *.bandcamp.com (artist pages are subdomains): adds the tracks the user picked in the app to the user's own Bandcamp cart. Checkout and payment pages are never opened; buttons named like checkout, pay or buy now are never clicked (except Bandcamp's "Buy Digital Track/Album", which only opens the price and add-to-cart panel).
 - beatport.com and *.beatport.com: looks up tracks and adds them to the user's Beatport cart; checkout, payment and billing pages are never opened.
-- soundcloud.com: only the sign-in page, opened when the user signs the app in to SoundCloud and the browser has no session yet, and the reading of SoundCloud's oauth_token cookie. SoundCloud pages are never read or clicked.
+- soundcloud.com: the sign-in page, opened when the user signs the app in to SoundCloud and the browser has no session yet, and the reading of SoundCloud's oauth_token cookie. On SoundCloud pages the user opens, a bundled content script adds an "Import to DJ digger" button to SoundCloud's track and playlist controls; it reads only the addresses of those track and playlist links, and only a click on the button sends that link to the desktop app. Nothing on SoundCloud is clicked by the extension.
 ```
 
 **Are you using remote code?** No. All JavaScript is in the package; there is no
@@ -175,7 +176,7 @@ The repository is public; the URL is live once `PRIVACY.md` is on `main`
 **Test instructions for the reviewer** (dashboard field, optional but recommended):
 
 ```
-The extension is the companion of the dj-digger desktop app and needs it to do anything. Install the app from https://github.com/fbialogrecki/dj-digger (the Windows/macOS installers under Releases, or "pipx install 'dj-sc-digger[gui]'" and run dj-digger-gui), start it, then open the extension's options page: "Desktop app link" shows the connection. With the app running, the toolbar panel shows the app's player; on a SoundCloud playlist page the panel offers "Import this playlist into dj-digger". No account is needed for the panel and the import.
+The extension is the companion of the dj-digger desktop app and needs it to do anything. Without the app, the options page and the toolbar panel show "The dj-digger desktop app is not installed" with a Download button to https://github.com/fbialogrecki/dj-digger/releases/latest. Install the app from https://github.com/fbialogrecki/dj-digger (the Windows/macOS installers under Releases, or "pipx install 'dj-sc-digger[gui]'" and run dj-digger-gui), start it, then open the extension's options page: "Desktop app link" shows the connection. With the app running, the toolbar panel shows the app's player; on a SoundCloud playlist page the panel offers "Import this playlist into dj-digger". No account is needed for the panel and the import.
 ```
 
 ## Version History
@@ -191,6 +192,7 @@ justifications are still edited by hand in the dashboard.
 | 1.4.0 | 2026-10-14 | First store submission: gates, Bandcamp/Beatport carts, SoundCloud sign-in, toolbar player panel and SoundCloud import | Draft |
 | 1.4.1 | — | Update: a navigation Firefox reports as aborted or redirected is followed like Chrome's ERR_ABORTED; site access granted or removed in the browser's settings is reported to the app at once. No permission changes | Superseded by 1.4.2 |
 | 1.4.2 | — | Update: an aborted navigation with no further event asks the tab (loaded, still loading, or retried once from a blank tab); popups of own tabs are also recognised by webNavigation's source tab (Firefox popups have no opener) and closed with the session. No permission changes | To upload |
+| next | — | The status page and the toolbar panel tell a missing (or too old) desktop app from a stopped one and offer a Download button to the app's latest GitHub release. No permission changes. Bump `manifest.json`'s version before the upload | Unreleased |
 
 ## Review Notes
 
@@ -223,8 +225,10 @@ justifications are still edited by hand in the dashboard.
   desktop app act in the browser and be controlled from it). A reviewer may still
   ask for a narrower statement.
 - **Minimum functionality.** Without the desktop app the extension only shows its
-  status page. The description says so in its first lines and the test
-  instructions tell the reviewer how to get the app.
+  status page and panel, both saying the app is not installed with a Download
+  button to the app's latest GitHub release (the welcome page opens once on
+  install; nothing else opens on its own). The description says so in its first
+  lines and the test instructions tell the reviewer how to get the app.
 - **Other sites' names.** Hypeddit, ToneDen, Bandcamp, Beatport and SoundCloud are
   named descriptively (what the extension works with), not in the name or icon.
 - **Store purchases.** The cart flow never checks out; worth stating if asked.

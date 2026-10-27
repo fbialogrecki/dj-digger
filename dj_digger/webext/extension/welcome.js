@@ -11,7 +11,10 @@ async function render() {
     ? "not started yet"
     : s.connected
       ? "connected, waiting for the app"
-      : `not connected${s.error ? ` (${s.error})` : ""}. Is dj-digger installed and has it been started once?`;
+      : s.missing
+        ? "dj-digger desktop app not installed (or out of date)"
+        : `not connected${s.error ? ` (${s.error})` : ""}. Is dj-digger installed and has it been started once?`;
+  $("install").hidden = !s?.missing;
   const granted = await api.permissions.contains({ origins });
   $("access").textContent = granted ? "granted" : "missing";
   $("grant").hidden = granted;

@@ -403,6 +403,7 @@ async function navigateFrame(tabId, url, timeoutMs, ctx) {
 
 let port = null;
 let failures = 0;
+let missing = false; // the last disconnect said there is no usable host (NO_HOST)
 const send = (m) => {
   try {
     port?.postMessage(m);
@@ -445,6 +446,10 @@ function connect() {
   port = p;
   p.onMessage.addListener((m) => {
     failures = 0;
+    if (missing) {
+      missing = false; // the host was installed meanwhile
+      setStatus({ connected: true });
+    }
     onMessage(m);
   });
   p.onDisconnect.addListener(() => {
@@ -453,11 +458,20 @@ function connect() {
     setPlayer(null);
     retry(e);
   });
-  setStatus({ connected: true });
+  // A missing host only ever disconnects: until a host answers, the status stays "missing" between retries
+  // (the relay answers at once, app-offline without the app).
+  if (!missing) setStatus({ connected: true });
   hello().catch(() => {});
 }
+// No usable host: never registered (the app is not installed or never started: Chrome "Specified native
+// messaging host not found.", Firefox "No such native application ..."), or registered by an app too old
+// to list this extension's ID ("... is forbidden.", Firefox "... does not have permission ..."). The
+// welcome page and the panel then offer the download of the desktop app.
+const NO_HOST = /not found|no such native application|forbidden|not have permission/i;
 function retry(e) {
-  setStatus({ connected: false, error: redactMessage(e?.message) });
+  const error = redactMessage(e?.message);
+  missing = NO_HOST.test(error);
+  setStatus({ connected: false, error, missing });
   setTimeout(connect, Math.min(30000, 1000 * 2 ** failures++));
 }
 
@@ -466,9 +480,10 @@ function retry(e) {
 // The app sends {cmd: "player.state", args} (no id, no reply) when its player, its running job or the gates
 // waiting for a person change, and on hello. It is kept, checked, in storage.session (djdPlayer; null while
 // the app is gone), where the popup reads it, and never leaves the browser; `needs` is also the action's
-// badge. The popup asks by runtime.sendMessage; only the popup page of this extension is heard (content
-// scripts, frames and the offscreen document are not), and a checked command (command()) goes to the app
-// as {event: "player.command", op, ...}. The context menu's "Dig in dj-digger" sends the same import.
+// badge. The popup asks by runtime.sendMessage; only the popup page of this extension is heard (frames, the
+// offscreen document and other content scripts are not; soundcloud.js only for an import), and a checked
+// command (command()) goes to the app as {event: "player.command", op, ...}. The context menu's "Dig in
+// dj-digger" and soundcloud.js's "Import to DJ digger" send the same import.
 const PLAYER_OPS = ["prev", "toggle", "next", "cancel"];
 const MAX_ARTWORK = 48 * 1024;
 const ARTWORK = /^data:image\/(?:jpeg|png);base64,[A-Za-z0-9+/]+={0,2}$/;
@@ -501,14 +516,17 @@ function setPlayer(s) {
 // the import entries only while an app is there to take them
 const showMenus = (on) => MENUS.forEach((id) => quiet(api.contextMenus.update(id, { visible: on })));
 
-// "Dig in dj-digger": a SoundCloud set or profile, from the popup (the active tab's URL, read only once the
-// person opened it: activeTab) or a context-menu click (that link, or that page). importTarget() is the only
-// gate: https, exactly soundcloud.com, www. or m., no credentials or port, at most 512 characters, the path
-// /<user>/sets/<name>, /<user> or /<user>/<tab>; it returns the canonical https://soundcloud.com/... link,
-// without query or fragment. A single track has no import, so it is not offered.
+// "Dig in dj-digger": a SoundCloud set, track or profile, from the popup (the active tab's URL, read only
+// once the person opened it: activeTab; sets and profiles only), a context-menu click (that link, or that
+// page) or soundcloud.js's "Import to DJ digger" (a track or set). importTarget() is the only gate: https,
+// exactly soundcloud.com, www. or m., no credentials or port, at most 512 characters, the path
+// /<user>/sets/<name>, /<user>/<track>, /<user> or /<user>/<tab>; it returns the canonical
+// https://soundcloud.com/... link, without query or fragment.
 const SC_HOSTS = ["soundcloud.com", "www.soundcloud.com", "m.soundcloud.com"];
 const SC_SET = /^\/([A-Za-z0-9_-]+)\/sets\/([A-Za-z0-9_-]+)\/?$/;
 const SC_PROFILE = /^\/([A-Za-z0-9_-]+)(?:\/(?:sets|tracks|albums|popular-tracks|reposts))?\/?$/;
+const SC_TRACK = /^\/([A-Za-z0-9_-]+)\/([A-Za-z0-9_-]+)\/?$/; // after SC_PROFILE, so a profile tab is never one
+const SC_NOT_TRACKS = new Set(["likes", "followers", "following", "comments", "spotlight"]);
 // SoundCloud's own pages that look like a profile
 const SC_PAGES = new Set(["discover", "feed", "stream", "you", "search", "upload", "charts", "settings", "messages",
   "notifications", "pages", "signin", "logout", "people", "tags", "terms-of-use", "pro", "mobile", "jobs", "imprint"]);
@@ -518,7 +536,11 @@ function importTarget(url) {
   const set = SC_SET.exec(u.pathname);
   if (set) return { kind: "set", url: `https://soundcloud.com/${set[1]}/sets/${set[2]}` };
   const profile = SC_PROFILE.exec(u.pathname);
-  return profile && !SC_PAGES.has(profile[1].toLowerCase()) ? { kind: "profile", url: `https://soundcloud.com/${profile[1]}` } : null;
+  const track = profile ? null : SC_TRACK.exec(u.pathname);
+  const user = (profile ?? track)?.[1];
+  if (!user || SC_PAGES.has(user.toLowerCase())) return null;
+  if (profile) return { kind: "profile", url: `https://soundcloud.com/${user}` };
+  return SC_NOT_TRACKS.has(track[2]) ? null : { kind: "track", url: `https://soundcloud.com/${user}/${track[2]}` };
 }
 // What the popup may ask of the app, checked; null for anything else.
 function command(m) {
@@ -528,9 +550,25 @@ function command(m) {
   const target = m.op === "import" ? importTarget(m.url) : null;
   return target && { op: "import", url: target.url };
 }
+// soundcloud.js, in the top frame of a soundcloud.com tab: an import and nothing else, answered with
+// whether the app was there to take it
+const fromSoundCloud = (sender) => !!sender.tab && sender.frameId === 0 && parse(sender.url)?.origin === "https://soundcloud.com";
 api.runtime.onMessage.addListener((m, sender, reply) => {
-  if (sender.id !== api.runtime.id || sender.url !== api.runtime.getURL("popup.html") || !m || typeof m !== "object") return;
-  if (m.op === "page") return void reply({ kind: importTarget(m.url)?.kind ?? null }); // what the popup may offer
+  if (sender.id !== api.runtime.id || !m || typeof m !== "object") return;
+  if (fromSoundCloud(sender)) {
+    const c = m.op === "import" ? command(m) : null;
+    if (!c) return;
+    api.storage.session.get("djdPlayer").then(({ djdPlayer }) => !!(djdPlayer && port), () => false).then((app) => {
+      if (app) send({ event: "player.command", ...c });
+      reply({ ok: app });
+    });
+    return true; // answered once storage says whether the app is there
+  }
+  if (sender.url !== api.runtime.getURL("popup.html")) return;
+  if (m.op === "page") { // what the popup may offer: a set or a profile
+    const kind = importTarget(m.url)?.kind;
+    return void reply({ kind: kind === "set" || kind === "profile" ? kind : null });
+  }
   const c = command(m);
   if (c) send({ event: "player.command", ...c });
 });

@@ -5,8 +5,8 @@
 - Product version verified: 1.4.1 (released 2026-10-19; `pyproject.toml` 1.4.1, browser extension manifest 1.4.2)
 - Owner: Filip Białogrecki
 - Updated: 2026-10-16
-- Document lines: <!-- SPEC TOTAL LINES -->2628<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->2628<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->2707<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->2707<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -51,66 +51,66 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 2 | Product purpose and execution modes | 145–190 |
 | 2.1 | ↳ Problem and product boundary | 147–160 |
 | 2.2 | ↳ Execution modes | 161–190 |
-| 3 | User-visible capabilities | 191–1218 |
+| 3 | User-visible capabilities | 191–1228 |
 | 3.1 | ↳ Track collection | 193–218 |
 | 3.2 | ↳ Link classification and exports | 219–237 |
 | 3.3 | ↳ Track statuses | 238–248 |
 | 3.4 | ↳ Audio preview | 249–425 |
 | 3.5 | ↳ Downloads and local-file matching | 426–487 |
 | 3.6 | ↳ Store purchase assistance | 488–611 |
-| 3.7 | ↳ Local library, analysis and audio export | 612–789 |
-| 3.8 | ↳ Qt Quick desktop | 790–1218 |
-| 4 | System context and data flow | 1219–1263 |
-| 4.1 | ↳ Context diagram | 1221–1247 |
-| 4.2 | ↳ Collection-to-library flow | 1248–1263 |
-| 5 | Repository layout and component ownership | 1264–1350 |
-| 5.1 | ↳ Entry, orchestration, and models | 1266–1277 |
-| 5.2 | ↳ Network and external-system adapters | 1278–1309 |
-| 5.3 | ↳ Persistence, local media, and UI | 1310–1350 |
-| 6 | Runtime architecture and environments | 1351–1494 |
-| 6.1 | ↳ Runtime and dependencies | 1353–1381 |
-| 6.2 | ↳ Concurrency and lifecycle | 1382–1459 |
-| 6.3 | ↳ Local paths and environment variables | 1460–1494 |
-| 7 | Data model and persistence | 1495–1611 |
-| 7.1 | ↳ Domain objects and identity | 1497–1511 |
-| 7.2 | ↳ SQLite schema and invariants | 1512–1568 |
-| 7.3 | ↳ Crate persistence and deletion | 1569–1584 |
-| 7.4 | ↳ Configuration and credential stores | 1585–1611 |
-| 8 | Public interfaces and contracts | 1612–1673 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1614–1645 |
-| 8.2 | ↳ JSON and CSV summary input | 1646–1661 |
-| 8.3 | ↳ URL-opening contract | 1662–1673 |
-| 9 | Authentication and authorization | 1674–1741 |
-| 9.1 | ↳ SoundCloud authentication | 1676–1708 |
-| 9.2 | ↳ Gate action consent | 1709–1741 |
-| 10 | External integrations | 1742–2109 |
-| 10.1 | ↳ SoundCloud API and media | 1744–1755 |
-| 10.2 | ↳ Link hubs and download gates | 1756–1902 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1764–1859 |
-| 10.2 · block | ↳ ↳ ToneDen | 1861–1885 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1887–1895 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1897–1902 |
-| 10.3 | ↳ Browsers and clipboard | 1903–2056 |
-| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 2057–2109 |
-| 11 | Security requirements and threat model | 2110–2311 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2112–2130 |
-| 11.2 | ↳ Secret and personal-data handling | 2131–2146 |
-| 11.3 | ↳ File and mutation safety | 2147–2168 |
-| 11.4 | ↳ Browser-extension trust boundary | 2169–2311 |
-| 12 | Privacy, lifecycle, and retention | 2312–2368 |
-| 12.1 | ↳ Data stored locally | 2314–2338 |
-| 12.2 | ↳ Data sent to third parties | 2339–2355 |
-| 12.3 | ↳ User-controlled deletion | 2356–2368 |
-| 13 | Failure behavior and current limitations | 2369–2479 |
-| 13.1 | ↳ Error isolation and reporting | 2371–2392 |
-| 13.2 | ↳ Confirmed limitations | 2393–2479 |
-| 14 | Verification, CI, and release | 2480–2594 |
-| 14.1 | ↳ Offline and live test suites | 2482–2530 |
-| 14.2 | ↳ Continuous integration and publishing | 2531–2579 |
-| 14.3 | ↳ Specification-map verification | 2580–2594 |
-| 15 | Evidence and operational references | 2595–2628 |
-| 15.1 | ↳ Primary implementation evidence | 2597–2618 |
-| 15.2 | ↳ User and historical documentation | 2619–2628 |
+| 3.7 | ↳ Local library, analysis and audio export | 612–799 |
+| 3.8 | ↳ Qt Quick desktop | 800–1228 |
+| 4 | System context and data flow | 1229–1273 |
+| 4.1 | ↳ Context diagram | 1231–1257 |
+| 4.2 | ↳ Collection-to-library flow | 1258–1273 |
+| 5 | Repository layout and component ownership | 1274–1361 |
+| 5.1 | ↳ Entry, orchestration, and models | 1276–1287 |
+| 5.2 | ↳ Network and external-system adapters | 1288–1320 |
+| 5.3 | ↳ Persistence, local media, and UI | 1321–1361 |
+| 6 | Runtime architecture and environments | 1362–1505 |
+| 6.1 | ↳ Runtime and dependencies | 1364–1392 |
+| 6.2 | ↳ Concurrency and lifecycle | 1393–1470 |
+| 6.3 | ↳ Local paths and environment variables | 1471–1505 |
+| 7 | Data model and persistence | 1506–1622 |
+| 7.1 | ↳ Domain objects and identity | 1508–1522 |
+| 7.2 | ↳ SQLite schema and invariants | 1523–1579 |
+| 7.3 | ↳ Crate persistence and deletion | 1580–1595 |
+| 7.4 | ↳ Configuration and credential stores | 1596–1622 |
+| 8 | Public interfaces and contracts | 1623–1684 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1625–1656 |
+| 8.2 | ↳ JSON and CSV summary input | 1657–1672 |
+| 8.3 | ↳ URL-opening contract | 1673–1684 |
+| 9 | Authentication and authorization | 1685–1752 |
+| 9.1 | ↳ SoundCloud authentication | 1687–1719 |
+| 9.2 | ↳ Gate action consent | 1720–1752 |
+| 10 | External integrations | 1753–2162 |
+| 10.1 | ↳ SoundCloud API and media | 1755–1766 |
+| 10.2 | ↳ Link hubs and download gates | 1767–1913 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1775–1870 |
+| 10.2 · block | ↳ ↳ ToneDen | 1872–1896 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1898–1906 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1908–1913 |
+| 10.3 | ↳ Browsers and clipboard | 1914–2109 |
+| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 2110–2162 |
+| 11 | Security requirements and threat model | 2163–2381 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2165–2183 |
+| 11.2 | ↳ Secret and personal-data handling | 2184–2199 |
+| 11.3 | ↳ File and mutation safety | 2200–2221 |
+| 11.4 | ↳ Browser-extension trust boundary | 2222–2381 |
+| 12 | Privacy, lifecycle, and retention | 2382–2439 |
+| 12.1 | ↳ Data stored locally | 2384–2408 |
+| 12.2 | ↳ Data sent to third parties | 2409–2426 |
+| 12.3 | ↳ User-controlled deletion | 2427–2439 |
+| 13 | Failure behavior and current limitations | 2440–2550 |
+| 13.1 | ↳ Error isolation and reporting | 2442–2463 |
+| 13.2 | ↳ Confirmed limitations | 2464–2550 |
+| 14 | Verification, CI, and release | 2551–2673 |
+| 14.1 | ↳ Offline and live test suites | 2553–2604 |
+| 14.2 | ↳ Continuous integration and publishing | 2605–2658 |
+| 14.3 | ↳ Specification-map verification | 2659–2673 |
+| 15 | Evidence and operational references | 2674–2707 |
+| 15.1 | ↳ Primary implementation evidence | 2676–2697 |
+| 15.2 | ↳ User and historical documentation | 2698–2707 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -659,8 +659,18 @@ and bounded JSON output. It does not inherit multiprocessing resource-tracker
 descriptors from the host process's captured stderr. Cancellation terminates and reaps the
 analysis process group, including FFmpeg, before deleting its temporary workspace.
 The algorithm uses continuous
-FFmpeg resampling and overlapping STFT frames (`center=False` semantics), one
-global onset envelope and aggregated chroma. Channel powers are combined before
+FFmpeg resampling and overlapping STFT frames (`center=False` semantics), two
+global onset envelopes (spectral rise below 150 Hz for kick and bass, and at or
+above 150 Hz for snares, claps and hats) and aggregated chroma. Tempo uses NumPy
+only, with no tempo prior: a comb averages the autocorrelation of both bands
+over eight whole beats for every tempo from 60 to 200 BPM in 0.05 steps, so the
+tempo's metrical family outscores 3:2 relatives and long lags resolve the tempo
+finer than one frame. Because half tempo shares every comb peak, the octave
+(half, same or double, within 60–200) moves only when the bright band's backbeat
+(repeating more at two beats than at one, less the kick band's own difference)
+is clearly stronger there, by 0.1. Results below 78 BPM are doubled, so half-time
+dubstep and trap read 140. A comb peak under 0.1 abstains with `no_reliable_pulse`.
+Channel powers are combined before
 feature aggregation to avoid anti-phase cancellation. Feature envelopes use a
 temporary disk file rather than keeping decoded audio in RAM. Automatic results
 are estimates; no confidence percentage is claimed. `ctrl+k` edits BPM/key and
@@ -669,7 +679,7 @@ analysis, and source tags are stored separately with that priority. Cache checks
 include file signature, SHA-256, algorithm version and parameters. Audio tags and
 rekordbox data are never written by analysis.
 Results include separate missing-key and missing-tempo reason codes. Analysis
-version `onset-chroma-2` invalidates older cache entries when analysis is requested
+version `onset-chroma-3` invalidates older cache entries when analysis is requested
 so these reasons can be recomputed. Per-file errors retain the analyzer traceback
 in the diagnostic log. Missing BPM/key results also log their per-file reason at
 INFO level. Completion shows a short notification with keys found, no clear key,
@@ -1297,6 +1307,7 @@ playback time and are not stored in the crate record.
   is the MV3 extension shipped as package data: `manifest.json`,
   `allowlist.json` (the single source of hosts and forbidden paths),
   `background.js` (dispatcher and trust boundary), `dom.js` (locator engine),
+  `soundcloud.js` (the "Import to DJ digger" content script on soundcloud.com),
   `welcome.*` (status and host permissions) and `selftest.*` (manual `dom.js`
   check). `auth.py`, `gates/browser.py`, `services/purchases.py` and
   `stores/bandcamp.py` and `stores/beatport.py` use `webext.page`; no other module talks to a browser.
@@ -1957,11 +1968,39 @@ gone). When the panel is opened over an https `soundcloud.com` (also `www.`, `m.
 dj-digger" or "Import all playlists of this profile" and then says "Importing in
 dj-digger…"; a track page offers nothing. The context menu entry "Dig in dj-digger"
 (on a link to, or the page of, a `soundcloud.com`, `www.` or `m.` URL; hidden while
-the app is gone) sends the same import for a set or profile and nothing otherwise.
+the app is gone) sends the same import for a set, track (`/<user>/<track>`, not
+`likes`, `followers`, `following`, `comments` or `spotlight`) or profile and nothing
+otherwise.
+
+On `https://soundcloud.com/*` the manifest's one static content script, `soundcloud.js`
+(top frames only), adds "Import to DJ digger" with the app icon (`icons/icon-32.png`,
+inlined as a `data:` URL because the extension has no web-accessible resources) to
+SoundCloud's own controls, found by class name, never by text, so any UI language
+works: in the action row of a track or set page (`.listenEngagement__actions
+.sc-button-group`) after Add to playlist (`.sc-button-addtoset`), else before More
+(`.sc-button-more`), for the page's own URL; before More in the action row of each
+track or playlist of a stream, profile or search list (`.sound__soundActions
+.sc-button-group`, icon only like its neighbours); and as the last item of each More
+menu (`.dropdownMenu .moreActions`, as on library and discover tiles and list rows),
+for the item of the button that owns the menu (`aria-owns`). The button copies its
+neighbour's `sc-button-*`/`moreActions__button` classes and label class. The link is
+the first track or set link (raw `href`, taken against `https://soundcloud.com/`) in
+the control's item (`.trackItem`, `.soundBadge`, `.playableTile`, `.sound`,
+`.soundList__item`, `.badgeList__item`), or the page's URL inside
+`.listenEngagement`; `djdTarget` keeps only `https://soundcloud.com/<user>/<track>`
+or `/<user>/sets/<name>` (no query, fragment, private-share segment or SoundCloud's own
+pages) and a control without one gets no button. One `MutationObserver` on the body
+rescans at most once per animation frame, and a group that already holds the button is
+skipped, so SoundCloud's single-page navigation and re-renders are followed. A click
+(its default and SoundCloud's own handlers stopped, so a menu stays open) sends
+`runtime.sendMessage({op: "import", url})`; the button shows "Sending to DJ digger…",
+then "Sent to DJ digger" or "dj-digger app not running" (no app state, no native port,
+or the extension reloaded under the page) for three seconds.
 
 Everything goes to the app as `{event: "player.command", op, ...}`: `prev`, `toggle`,
 `next`, `cancel`, `seek {fraction}` (0–1), `gates {choice: "open"|"skip"}` and `import
-{url}` (the canonical `https://soundcloud.com/...` link). `link.py` hands the event to
+{url}` (the canonical `https://soundcloud.com/...` link, from the panel, the context
+menu or `soundcloud.js`). `link.py` hands the event to
 `Listener.on_player_command` instead of the sessions, with only the arguments its op
 takes after `player_command` checks them (types, the fraction's range, a URL of at
 most 512 characters); any other op, or no callback (the CLI), is ignored and logged
@@ -1971,9 +2010,10 @@ only while a track is loaded; `cancel` is the status bar's Cancel; `gates` answe
 "Gates need you" question (`next` = the choice) only while it is the oldest open
 question, the one on screen, and is ignored otherwise; `import` is checked again by
 `backend.import_target` (the same hosts and path shapes, Add playlist's
-`soundcloud_link` for a set, `profile_import.profile_url` for a profile) and starts
-Add playlist (as a new import, no dialog) or the profile import of public playlists,
-each with its normal job, progress and summary. With no state (the app is gone) the
+`soundcloud_link` for a set or track, `profile_import.profile_url` for a profile) and
+starts Add playlist (as a new import, no dialog; a track becomes a one-track playlist,
+§3.1) or the profile import of public playlists, each with its normal job, progress and
+summary. With no state (the app is gone) the
 panel says "Open dj-digger to control playback", with an empty title "Nothing playing".
 
 One automation batch is a session pinned to the connection it started on, chosen
@@ -2045,6 +2085,19 @@ is installed by the user: from the Chrome Web Store in Chrome, Edge and Brave (L
 unpacked from that copy remains the developer install), or with Load Temporary Add-on in
 Firefox; `dj-digger browser register` prints the store link and the folder;
 `welcome.html` shows the link state and can request the host permissions again.
+The background opens `welcome.html` once, on install. It keeps the link state in
+`storage.session` (`djdStatus`): `connected` when it opens the native port, and on a
+disconnect `connected: false`, the redacted `error` and `missing` when the error says
+no usable host is registered (Chrome's "Specified native messaging host not found."
+or "… is forbidden.", Firefox's "No such native application …" or "… does not have
+permission …": the desktop app is not installed, was never started, or is too old to
+list this extension's ID). `missing` stays through the reconnect retries until a host
+answers; an installed host whose app is not running stays connected (the relay sends
+`app-offline`), so "not installed" and "not running" never mix. While `missing`,
+`welcome.html` and the panel show "The dj-digger desktop app is not installed" with a
+Download link (the panel: a button, `tabs.create`) that opens
+`https://github.com/fbialogrecki/dj-digger/releases/latest` in a new tab; nothing opens
+on its own.
 `scripts/package_extension.py` (stdlib) builds the store uploads
 `dist/extension/dj-digger-chrome-<version>.zip` and `dj-digger-firefox-<version>.zip`
 from the same folder: every file except `selftest.html`/`selftest.js`, sorted entries
@@ -2176,7 +2229,7 @@ Python caller, enforces its own limits, whatever the application sends:
   and the manifest's `host_permissions`. Only `https`, default port, no credentials:
   `hypeddit.com` and `hypd.it` (also `www.`), `toneden.io` (also `www.`), `bandcamp.com` and `beatport.com`
   with their subdomains, and `soundcloud.com` for `/signin` only (its tab is never
-  read or clicked). A navigation elsewhere is refused.
+  read or clicked; the import button below is no automation). A navigation elsewhere is refused.
 - **Offscreen frames (Chromium).** The hidden gate pass runs in iframes of
   `offscreen.html` (permission `offscreen`; reason `IFRAME_SCRIPTING`), one per
   virtual tab. A virtual window and tab have negative ids (from -2: -1 is the
@@ -2219,8 +2272,8 @@ Python caller, enforces its own limits, whatever the application sends:
   with a tab, so it is not used. Anything else is disconnected at once, and what a
   frame sends is untrusted page data. A refused offscreen start answers
   `offscreen:false` with `offscreenError`. There is no external messaging and no new
-  host; the one `runtime.onMessage` belongs to the player panel and the one
-  `contextMenus.onClicked` to its import entry (below). The frame script and the document are removed
+  host; the one `runtime.onMessage` belongs to the player panel and the SoundCloud
+  import button and the one `contextMenus.onClicked` to its import entry (below). The frame script and the document are removed
   with the last offscreen window (`window.close`, the app going away, a background
   restart, the offscreen document disappearing). Firefox has no offscreen API:
   `window.open` then answers `offscreen:false` and the session is the hidden
@@ -2253,17 +2306,19 @@ Python caller, enforces its own limits, whatever the application sends:
   100,000 bytes. The only command input is the native port: the manifest has no
   `externally_connectable` and no `web_accessible_resources`, there is no
   external-message handler and no page script listens to `window.postMessage`.
-  `welcome.html` can only request the host permissions. Changes to them are only
+  `welcome.html` can only request the host permissions and link to the desktop app's
+  latest GitHub release. Changes to them are only
   observed (`permissions.onAdded`/`onRemoved`) and reported to the application as a
   boolean `permissions` event; nothing requests, widens or narrows them on its own.
 - **Player panel and context menu** (permissions `activeTab` and `contextMenus`, the
-  owner's approval of 2026-10-14). `popup.html` (no inline script) can only ask the
-  local desktop for previous/next track, play/pause, a seek, Cancel of its running job,
+  owner's approval of 2026-10-14). `popup.html` (no inline script) can only open the
+  desktop app's latest GitHub release in a new tab (while the host is missing, §10.3)
+  and ask the local desktop for previous/next track, play/pause, a seek, Cancel of its running job,
   an answer to its "Gates need you" question and the import of a SoundCloud set or
   profile. Its `runtime.sendMessage` reaches the background's only `runtime.onMessage`,
   which acts only when `sender.id` is this extension and `sender.url` is exactly its
   `popup.html` (content scripts, frames, the offscreen document and other pages are
-  ignored) and the ask passes `command()`: an op from the list of §10.3 with only its
+  ignored, except `soundcloud.js` below) and the ask passes `command()`: an op from the list of §10.3 with only its
   own arguments (`fraction` a number in 0–1, `choice` `open` or `skip`). The one other
   ask, `{op: "page", url}`, is answered with the kind of import the URL allows (`set`,
   `profile` or none) and goes nowhere else. The panel reads the active tab's URL once,
@@ -2274,7 +2329,9 @@ Python caller, enforces its own limits, whatever the application sends:
   read. Every import URL passes `importTarget()`: https only, host exactly
   `soundcloud.com`, `www.soundcloud.com` or `m.soundcloud.com`, no credentials or port,
   at most 512 characters, the raw path exactly `/<user>/sets/<name>`, `/<user>` or
-  `/<user>/<sets|tracks|albums|popular-tracks|reposts>` with names of
+  `/<user>/<sets|tracks|albums|popular-tracks|reposts>` (a profile), or any other
+  `/<user>/<track>` but `likes`, `followers`, `following`, `comments` and `spotlight`
+  (a track; the panel offers sets and profiles only), with names of
   `[A-Za-z0-9_-]` (so no percent-encoded or `..` tricks; SoundCloud's own pages such as
   `/discover` or `/you` are not profiles); only the canonical
   `https://soundcloud.com/...` link without query or fragment is sent to the app, which
@@ -2292,6 +2349,19 @@ Python caller, enforces its own limits, whatever the application sends:
   else falls back to empty), kept in `storage.session` as `djdPlayer` (set to `null` on
   `app-offline` and when the native port drops, which also clears the badge and hides
   the menu) and read by the panel; it is never sent to the network.
+- **SoundCloud import button** (the static content script `soundcloud.js`, owner's
+  request of 2026-10-27). It runs only on `https://soundcloud.com/*`, a host the
+  extension already holds (no new permission), in top frames, in the isolated world.
+  It reads the page's class names and the raw `href` of track and set links only (never
+  text, cookies, the account or other tabs), adds buttons and nothing else, has no
+  page-world code, no `window.postMessage` listener and no network request. Its only
+  output is `runtime.sendMessage({op: "import", url})`. The background hears a content
+  script only when `sender.id` is this extension, `sender.tab` is set, `sender.frameId`
+  is 0 and `sender.url`'s origin is exactly `https://soundcloud.com`, and then only an
+  `import` that passes `command()`/`importTarget()` (anything else is dropped
+  unanswered); it reads `djdPlayer` from `storage.session`, sends the import to the app
+  only while that state and the native port are there, and answers `{ok}`. The app
+  checks the link again (§10.3).
 - **Two cookie operations**, both hard-coded: read `oauth_token` of
   `soundcloud.com`, delete `filedownloading` at the Hypeddit hosts. There is no
   general cookie access.
@@ -2346,7 +2416,8 @@ Store sites receive navigation from the user's own signed-in browser session and
 verified Bandcamp add-to-cart actions; gate providers see the browser's accounts
 (§9.2). The extension sends nothing to any server; the player panel's title,
 artist, position, small cover, colours, job label and gate count stay in the browser's session
-storage. A SoundCloud set or profile link the user imports from the panel or the context menu
+storage. A SoundCloud set, track or profile link the user imports from the panel, the context menu
+or the "Import to DJ digger" button on soundcloud.com
 goes only to the local application, which then reads it from SoundCloud's API exactly as Add
 playlist or the profile import does; no other page URL leaves the browser. Soundiiz receives no request
 until the user chooses the Beatport playlist result; the application then sends
@@ -2514,7 +2585,10 @@ restarted instances, a source check that the pickling `send`/`recv` never appear
 `dj_digger/webext/`, host registration under a temporary home, consistency of
 `allowlist.json` with the Python host lists and the manifest, and the page adapters
 against an in-process fake extension speaking the protocol (waits, cancellation,
-event order, truncation, redacted popup URLs). The JavaScript of `dom.js` has no
+event order, truncation, redacted popup URLs). `tests/js/background_harness.js` runs the
+real `background.js` on a fake browser API (work windows, the panel, context menu and
+`soundcloud.js` imports and their sender checks) and `soundcloud.js`'s `djdTarget`
+outside a page. The JavaScript of `dom.js` has no
 automatic test: the extension's `selftest.html` runs synthetic cases in a browser.
 Unavailable Hypeddit fixtures are skipped, not passed. The current
 Lights On live fixture is album-only; moved-track recovery remains covered offline.
@@ -2560,6 +2634,11 @@ with `uv build`, and publishes to PyPI through a pinned action using trusted
 publisher OIDC for `dj-sc-digger`. The publish job has `id-token: write`; other workflow permissions
 default to read-only contents. GitHub prereleases skip both jobs, allowing test
 installers to be shared without a PyPI upload.
+
+`.github/workflows/pages.yml` builds the static landing page in `site/` (Astro and
+three.js, Node; not part of the Python package) and deploys it to GitHub Pages on
+pushes to `main` that touch `site/` or the repository images it imports, and by
+manual dispatch. Only its deploy job has `pages: write` and `id-token: write`.
 
 `.github/workflows/chrome-web-store.yml` runs for the same stable releases and by
 manual dispatch in the `chrome-web-store` environment with read-only contents. It

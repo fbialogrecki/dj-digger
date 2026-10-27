@@ -10,8 +10,10 @@ from pathlib import Path
 from .media import MediaError, digest, pcm_blocks, probe, run, signature
 from .models import check_cancelled
 
-ALGORITHM = 'onset-chroma-2'
+ALGORITHM = 'onset-chroma-3'
 RATE, FFT, HOP = 22050, 2048, 512
+FPS = RATE / HOP
+KICK_HZ = 150  # onset bands: kick/bass below, snares, claps and hats above
 PARAMETERS = {'rate': RATE, 'fft': FFT, 'hop': HOP, 'center': False}
 NOTES = ('C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B')
 MAJOR_CAMELOT = (8, 3, 10, 5, 12, 7, 2, 9, 4, 11, 6, 1)
@@ -56,12 +58,16 @@ MINOR_PROFILE = (6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.3
 
 
 def _scan(source: Path, channels: int, envelope_path: Path, cancel):
-    """Stream PCM once: write the onset envelope and sum chroma overall and per section."""
+    """Stream PCM once: write the low/high onset envelopes and sum chroma overall and per section."""
     import librosa
     import numpy as np
 
     pending = np.empty((0, channels), dtype=np.float64)
     window = np.hanning(FFT + 1)[:-1]
+    frequencies = np.fft.rfftfreq(FFT, 1 / RATE)
+    # Bands, not a mean over linear bins: the kick spans ~1% of the bins and
+    # would vanish under snares and hats, leaving only half-tempo backbeats.
+    low_band, high_band = (frequencies >= 30) & (frequencies < KICK_HZ), frequencies >= KICK_HZ
     chroma_filter = librosa.filters.chroma(sr=RATE, n_fft=FFT)
     chroma_sum = np.zeros(12)
     section_sum, sections = np.zeros(12), []
@@ -79,8 +85,8 @@ def _scan(source: Path, channels: int, envelope_path: Path, cancel):
                 # stereo must remain audible to the analyzer.
                 power = np.mean(abs(np.fft.rfft(segment * window[:, None], axis=0)) ** 2, axis=1)
                 spectrum = np.log1p(np.sqrt(power))
-                onset = 0. if previous is None else np.maximum(0, spectrum - previous).mean()
-                output.write(np.float32(onset).tobytes())
+                rise = np.zeros_like(spectrum) if previous is None else np.maximum(0, spectrum - previous)
+                output.write(np.array((rise[low_band].mean(), rise[high_band].mean()), dtype='<f4').tobytes())
                 previous = spectrum
                 chroma = chroma_filter @ power
                 total = chroma.sum()
@@ -97,26 +103,66 @@ def _scan(source: Path, channels: int, envelope_path: Path, cancel):
     return chroma_sum, section_sum, sections, frame_count
 
 
+def _autocorrelation(values):
+    import numpy as np
+
+    second = round(FPS)
+    values = values - np.convolve(values, np.ones(second) / second, 'same')  # drop loudness drift
+    result = np.fft.irfft(abs(np.fft.rfft(values, 2 * len(values))) ** 2)[:len(values)]
+    result /= result[0] or 1  # a silent band stays all zero
+    # Onsets rarely sit on frame boundaries: let each lag see its neighbours' peak.
+    return np.maximum(np.maximum(result, np.roll(result, 1)), np.roll(result, -1))
+
+
+def _pick_tempo(low, high):
+    """BPM in the DJ range from per-frame kick/bass and snare/clap/hat onset strength, or None."""
+    import numpy as np
+
+    low, high = (band / band.std() if band.std() > 0 else band for band in (low, high))
+    full, bass, bright = _autocorrelation(low + high), _autocorrelation(low), _autocorrelation(high)
+
+    def at(curve, bpm):  # the curve at one beat's lag, between frames too
+        return np.interp(60 * FPS / bpm, np.arange(len(curve)), curve, right=0)
+
+    # Comb: mean autocorrelation over two bars of whole beats. The tempo's metrical
+    # family outscores 3:2 relatives (116 vs 174), and long lags resolve the tempo
+    # finer than one frame (a frame is 172.3 vs 184.6 BPM at 174). No tempo prior.
+    tempos = np.arange(60, 200, .05)
+    comb = np.mean([at(full, tempos / beats) for beats in range(1, 9)], axis=0)
+    if comb.max() < .1:
+        return None
+    best = tempos[np.argmax(comb)]
+
+    # Half tempo shares every comb peak, so the octave needs other evidence:
+    # snares and claps mark the backbeat, repeating in the bright band at two
+    # beats more than at one. Hats repeat at both lags and cancel; the kick
+    # band's own difference removes what kick clicks add to the bright band.
+    def backbeat(bpm):
+        return at(bright, bpm / 2) - at(bright, bpm) - at(bass, bpm / 2) + at(bass, bpm)
+
+    # ponytail: rhythm alone cannot tell half-time DnB from 87 BPM hip-hop; a user
+    # BPM-range preference is the upgrade path if real crates disagree.
+    choice = max((bpm for bpm in (best / 2, best, best * 2) if 60 <= bpm <= 200), key=backbeat)
+    if backbeat(choice) < backbeat(best) + .1:
+        choice = best
+    while choice < 78:  # half-time feel (dubstep, trap) is labelled at the full tempo
+        choice *= 2
+    return float(choice)
+
+
 def _estimate_bpm(envelope_path: Path, frame_count: int):
-    import librosa
     import numpy as np
 
     bpm = None
     bpm_reason = 'insufficient_audio'
     if frame_count > 8:
         bpm_reason = 'no_reliable_pulse'
-        envelope = np.memmap(envelope_path, dtype='float32', mode='r')
-        try:
-            if np.max(envelope) > 1e-5 and np.std(envelope) > 1e-5:
-                tempo, beats = librosa.beat.beat_track(onset_envelope=envelope, sr=RATE, hop_length=HOP)
-                if len(beats) >= 4:
-                    bpm = round(float(np.asarray(tempo).reshape(-1)[0]), 2)
-                    bpm_reason = None
-        finally:
-            # NumPy/Numba may retain views; Windows requires an explicit
-            # release before the temporary directory can be removed.
-            envelope._mmap.close()
-            del envelope
+        envelope = np.fromfile(envelope_path, dtype='<f4').astype(np.float64).reshape(-1, 2)
+        if np.max(envelope) > 1e-5 and np.std(envelope) > 1e-5:
+            tempo = _pick_tempo(envelope[:, 0], envelope[:, 1])
+            if tempo is not None:
+                bpm = round(tempo, 2)
+                bpm_reason = None
     return bpm, bpm_reason
 
 
