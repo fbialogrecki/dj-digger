@@ -855,13 +855,6 @@
       <source>Clear filters</source>
       <translation>Filter zurücksetzen</translation>
     </message>
-    <message numerus="yes">
-      <source>%n selected</source>
-      <translation>
-        <numerusform>%n ausgewählt</numerusform>
-        <numerusform>%n ausgewählt</numerusform>
-      </translation>
-    </message>
     <message>
       <source>Artist</source>
       <translation>Interpret</translation>

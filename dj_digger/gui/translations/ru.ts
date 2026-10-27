@@ -855,14 +855,6 @@
       <source>Clear filters</source>
       <translation>Сбросить фильтры</translation>
     </message>
-    <message numerus="yes">
-      <source>%n selected</source>
-      <translation>
-        <numerusform>%n выбран</numerusform>
-        <numerusform>%n выбрано</numerusform>
-        <numerusform>%n выбрано</numerusform>
-      </translation>
-    </message>
     <message>
       <source>Artist</source>
       <translation>Исполнитель</translation>

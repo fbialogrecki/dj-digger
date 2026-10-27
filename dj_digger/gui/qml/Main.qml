@@ -26,10 +26,13 @@ ApplicationWindow {
     property color pressedSurface: dark ? "#35353f" : "#c1c6cf"
     // Clearly dimmer than muted: disabled controls must not read as merely secondary.
     property color disabledFg: highContrast ? "#8b8e96" : dark ? "#5f626b" : "#9a9da5"
-    // Selection is a soft, low-chroma blue: a whole list selected must not glare.
-    property color selection: dark ? "#34466f" : "#b8c9f0"
+    // Selection and accent follow the colour pair (View → Colours). The selection is the pair's
+    // first colour faded into the panel, so a whole list selected does not glare; the accent is
+    // its neon on the dark theme and a darker shade on the light one, at least 5:1 against both
+    // surfaces for every pair.
+    property color selection: Qt.tint(panel, Qt.rgba(waveRestFoot.r, waveRestFoot.g, waveRestFoot.b, dark ? .4 : .3))
     property color selectionText: dark ? "#ffffff" : "#111217"
-    property color accent: dark ? "#2f63ea" : "#1f4fd1"
+    property color accent: dark ? waveNeonFoot : Qt.darker(waveRestFoot, 1.45)
     property color accent2: dark ? "#c02a4e" : "#8c1a36"
     // Secondary text (the artist): 4.5:1 against the panel in both themes.
     property color silver: highContrast ? "#e2e3e6" : dark ? "#c9ccd3" : "#666a73"
@@ -1862,9 +1865,9 @@ ApplicationWindow {
                         }
                         MouseArea {
                             id: waveformMouse
-                            // Nothing to seek in or time to show until a track is loaded.
+                            // Nothing to seek in until a track is loaded.
                             enabled: root.loaded
-                            anchors.fill: parent; hoverEnabled: true
+                            anchors.fill: parent
                             function fractionAt(x) { return Math.max(0, Math.min(1, x / width)) }
                             onPressed: mouse => waveform.scrub = fractionAt(mouse.x)
                             onPositionChanged: mouse => { if (pressed) waveform.scrub = fractionAt(mouse.x) }
@@ -1884,8 +1887,6 @@ ApplicationWindow {
                                     root.nudge(5 * step)
                                 }
                             }
-                            ToolTip.visible: containsMouse; ToolTip.delay: 300
-                            ToolTip.text: root.clock(mouseX / width * waveform.duration)
                         }
                         Accessible.role: Accessible.Slider
                         Accessible.name: qsTr("Waveform")
@@ -1970,8 +1971,6 @@ ApplicationWindow {
                 ColumnLayout {
                     id: toolbar
                     Layout.fillWidth: true; Layout.minimumWidth: 0; Layout.rightMargin: root.edge
-                    // Without room for their names the action buttons keep their icons and tooltips only.
-                    readonly property bool compact: width < 1200
                     spacing: 8
                     // Every control of the toolbar is 32 px high with the same faint outline; a filter
                     // that is on takes the selection colour and an accent outline.
@@ -2032,7 +2031,6 @@ ApplicationWindow {
                             // reads as one run of text.
                             component ActionButton: FlatButton {
                                 id: actionButton
-                                display: toolbar.compact ? AbstractButton.IconOnly : AbstractButton.TextBesideIcon
                                 icon.width: root.iconSmall; icon.height: root.iconSmall
                                 implicitHeight: 32; padding: 6; leftPadding: 10; rightPadding: 10; spacing: 6
                                 // Only a faint outline at rest; the surface appears on hover.
@@ -2040,12 +2038,6 @@ ApplicationWindow {
                                     radius: 6; border.color: root.alternate
                                     color: actionButton.down ? root.pressedSurface : actionButton.hovered ? root.hoverSurface : "transparent"
                                 }
-                            }
-                            Label {
-                                objectName: "selectionCount"
-                                visible: root.hasSelection
-                                text: qsTr("%n selected", "", desktop.model.counts.selected)
-                                color: root.muted; font.features: root.tabular
                             }
                             // The same actions as the shortcuts, so a tooltip always names the key that works.
                             // Playlist actions show in playlist views, file actions in local views.
