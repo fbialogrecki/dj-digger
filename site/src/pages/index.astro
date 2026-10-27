@@ -1,0 +1,641 @@
+---
+import { Image } from "astro:assets";
+// Images come straight from the repository so the site never holds stale copies.
+import appIcon from "../../../dj_digger/gui/qml/icons/app.png";
+import extIcon from "../../../dj_digger/webext/extension/icons/icon-128.png";
+import shotPlayer from "../../../docs/store/screenshots/1-player.png";
+import shotImport from "../../../docs/store/screenshots/2-import.png";
+import shotGates from "../../../docs/store/screenshots/3-jobs-gates.png";
+import promo from "../../../docs/store/screenshots/promo-small-440x280.png";
+
+const repo = "https://github.com/fbialogrecki/dj-digger";
+const releases = `${repo}/releases/latest`;
+const chromeStore = "https://chromewebstore.google.com/detail/dj-digger/ndimmdooibgcajgnoncdnckolhlmnnkb";
+const description =
+  "A local-first crate-digging app for DJs: turn SoundCloud playlists, likes and profiles into an auditionable library, then find the safest way to download or buy each track.";
+const ogImage = new URL(promo.src, Astro.site).href;
+
+const features = [
+  {
+    title: "Whole playlists, not a scrolled page",
+    body: "Reads SoundCloud playlists, likes, reposts, artist profiles and single tracks through SoundCloud's API, so nothing hides past the last rendered row. A 300-track playlist arrives in about three seconds. Sign in to read your own private playlists.",
+  },
+  {
+    title: "Every link, sorted",
+    body: "Purchase and download links are classified into Bandcamp, Beatport, Traxsource, Juno, Apple, record shops, download gates, smart links and free SoundCloud downloads. Link hubs are opened so the store links behind them land on the track.",
+  },
+  {
+    title: "Download gates, handled",
+    body: "Follow-to-download gates on Hypeddit, ToneDen, GateRush and Droploud are resolved through their own download flows. Social steps run only if you allow them in Settings; CAPTCHAs stay with you.",
+  },
+  {
+    title: "Carts, never checkout",
+    body: "Puts the tracks you pick into your Bandcamp cart, and into your Beatport cart when the exact track is known, or prepares a Beatport playlist instead. Every addition is verified. Login, payment and checkout stay in your hands.",
+  },
+  {
+    title: "Preview that feels the kick",
+    body: "Stream a SoundCloud preview or play the file on disk, with waveform, seeking and prefetch of the next tracks. The waveform and the record's backdrop light up on every kick, learned per track from the audio itself.",
+  },
+  {
+    title: "Crates that remember",
+    body: "Mark tracks got, skipped or untouched; the decision follows the track into every playlist it appears in. Refreshing a playlist puts what it gained at the top, marked NEW.",
+  },
+  {
+    title: "Knows what you already own",
+    body: "Scans your music folders and matches files by artist and title, so tracks you already have are marked got and play from disk instead of the stream.",
+  },
+  {
+    title: "Ready for the decks",
+    body: "Browse local folders, build local playlists, estimate BPM and key, and export copies in formats checked against documented deck audio profiles. It never formats a drive or touches your rekordbox library.",
+  },
+  {
+    title: "A CLI for your scripts",
+    body: "The headless dj-digger command collects a playlist, saves it to the library and exports its links as JSON or CSV, ready for your own pipelines.",
+  },
+];
+
+const shots = [
+  { src: shotPlayer, alt: "The extension's toolbar panel playing a track from the desktop app, with seek bar and transport buttons." },
+  { src: shotImport, alt: "The extension's panel on a SoundCloud playlist page, offering to import it into dj-digger." },
+  { src: shotGates, alt: "The extension's panel showing three download gates that need attention and a running playlist import with a Cancel button." },
+];
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0d0c12" />
+    <title>dj-digger: crate digging for DJs</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={Astro.url.href} />
+    <link rel="icon" type="image/png" href={appIcon.src} />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="dj-digger" />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={ogImage} />
+    <meta name="twitter:card" content="summary_large_image" />
+  </head>
+  <body>
+    <a class="skip-link" href="#content">Skip to content</a>
+    <header class="site-header">
+      <a class="brand" href={import.meta.env.BASE_URL}>
+        <img src={appIcon.src} width="28" height="28" alt="" />
+        dj-digger
+      </a>
+      <nav aria-label="Primary">
+        <ul>
+          <li><a href="#features">Features</a></li>
+          <li><a href="#extension">Extension</a></li>
+          <li><a href="#privacy">Privacy</a></li>
+          <li><a href={repo}>GitHub</a></li>
+        </ul>
+      </nav>
+    </header>
+
+    <main id="content" tabindex="-1">
+      <section class="hero wrap" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="eyebrow">Free and open source · Windows · macOS · Linux</p>
+          <h1 id="hero-title">Dig deeper.<br /><span class="grad">Buy smarter.</span></h1>
+          <p class="lede">{description}</p>
+          <div class="cta">
+            <a class="button primary" href={releases}>Download</a>
+            <a class="button" href={repo}>View on GitHub</a>
+          </div>
+          <p class="note">
+            Installers for Windows 10/11 and macOS 15+ (Apple Silicon and Intel). They are unsigned previews, so
+            your system may warn you first: the{" "}
+            <a href={`${repo}/blob/main/docs/installation.md`}>installation guide</a> explains why.
+          </p>
+          <div class="install">
+            <p>Or install from PyPI (Python 3.12+, FFmpeg on your PATH):</p>
+            <pre><code>uv tool install 'dj-sc-digger[gui,analyze]'
+dj-digger-gui</code></pre>
+            <p class="small">pipx works too: <code>pipx install 'dj-sc-digger[gui,analyze]'</code></p>
+          </div>
+        </div>
+        <div class="hero-visual" data-hero>
+          <img src={appIcon.src} width="256" height="256" alt="" fetchpriority="high" />
+        </div>
+      </section>
+
+      <section id="features" class="wrap" aria-labelledby="features-title">
+        <h2 id="features-title">The whole digging loop in one app</h2>
+        <p class="section-lede">
+          Collect a playlist, audition it, decide, and follow verified store or download links, in a keyboard-driven
+          desktop app.
+        </p>
+        <ul class="features">
+          {
+            features.map((f) => (
+              <li class="card reveal">
+                <h3>{f.title}</h3>
+                <p>{f.body}</p>
+              </li>
+            ))
+          }
+        </ul>
+      </section>
+
+      <section id="extension" class="wrap" aria-labelledby="extension-title">
+        <div class="split">
+          <div>
+            <Image src={extIcon} width={64} height={64} alt="" class="ext-icon" />
+            <h2 id="extension-title">Your browser, with the app in charge</h2>
+            <p>
+              Download gates, store carts and the SoundCloud sign-in run in your own browser through a small companion
+              extension, on the sites you are already signed in to. dj-digger ships and downloads no browser of its own.
+            </p>
+            <ul class="ticks">
+              <li>Finishes Hypeddit and ToneDen gates and hands the file to the app.</li>
+              <li>Fills your Bandcamp and Beatport carts in background tabs, then gives you the cart.</li>
+              <li>Toolbar panel: play, pause, skip and seek the desktop player, follow and cancel jobs.</li>
+              <li>On a SoundCloud playlist or profile, import it, or right-click a link: Dig in dj-digger.</li>
+            </ul>
+            <div class="cta">
+              <a class="button primary" href={chromeStore}>Chrome Web Store</a>
+              <a class="button" href={`${repo}#connect-your-browser`}>Firefox setup</a>
+            </div>
+            <p class="small">
+              Chrome, Edge, Brave and Chromium install from the Chrome Web Store. Firefox uses the signed file from a
+              release when one is provided, or a temporary add-on. The extension needs the desktop app running on the
+              same computer.
+            </p>
+          </div>
+          <ul class="shots" aria-label="Extension screenshots">
+            {
+              shots.map((s) => (
+                <li class="reveal">
+                  <Image src={s.src} alt={s.alt} widths={[640, 1280]} sizes="(min-width: 60rem) 34rem, 92vw" />
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+      </section>
+
+      <section id="privacy" class="wrap privacy reveal" aria-labelledby="privacy-title">
+        <h2 id="privacy-title">Local-first, by design</h2>
+        <p>
+          Your playlists, decisions, credentials and library stay on your computer. There is no account and no backend
+          run by the project. The extension talks only to the app on your machine and to the site of the step it is
+          completing; it sends nothing to the developer and has no analytics, tracking or ads. Logs redact credentials
+          and are never uploaded.
+        </p>
+        <p><a href={`${repo}/blob/main/PRIVACY.md`}>Read the privacy policy</a></p>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap">
+        <p>
+          dj-digger by Filip Białogrecki ·{" "}
+          <a href={`${repo}/blob/main/LICENSE`}>Apache License 2.0</a>
+        </p>
+        <ul>
+          <li><a href={repo}>GitHub</a></li>
+          <li><a href={`${repo}/releases`}>Releases</a></li>
+          <li><a href="https://pypi.org/project/dj-sc-digger/">PyPI</a></li>
+          <li><a href={`${repo}/issues`}>Issues</a></li>
+        </ul>
+      </div>
+    </footer>
+
+    <script>
+      // three.js loads only after the page is idle and only with WebGL2;
+      // otherwise the static icon in the hero simply stays.
+      const box = document.querySelector<HTMLElement>("[data-hero]");
+      const probe = document.createElement("canvas").getContext("webgl2");
+      probe?.getExtension("WEBGL_lose_context")?.loseContext();
+      if (box && probe) {
+        const idle = window.requestIdleCallback ?? ((fn: () => void) => setTimeout(fn, 200));
+        idle(() =>
+          import("../scripts/hero-scene.js")
+            .then((m) => m.start(box))
+            .catch(() => {}),
+        );
+      }
+    </script>
+  </body>
+</html>
+
+<style is:global>
+  :root {
+    --bg: #0d0c12;
+    --surface: #17151f;
+    --line: #2a2735;
+    --text: #ecebf2;
+    --muted: #aeabbd;
+    --pink: #ff4fa3;
+    --blue: #6f8fff;
+    --grad: linear-gradient(120deg, #3f5bd8, #c43a6e);
+    --radius: 14px;
+    color-scheme: dark;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 1rem/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  img {
+    max-width: 100%;
+    height: auto;
+  }
+
+  a {
+    color: var(--pink);
+    text-underline-offset: 0.2em;
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--blue);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+
+  h1,
+  h2,
+  h3 {
+    line-height: 1.15;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  code,
+  pre {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.9em;
+  }
+
+  .wrap {
+    width: min(72rem, 100% - 2rem);
+    margin-inline: auto;
+  }
+
+  section {
+    padding-block: clamp(3rem, 8vw, 6rem);
+  }
+
+  .skip-link {
+    position: absolute;
+    left: 1rem;
+    top: -4rem;
+    padding: 0.5rem 1rem;
+    background: var(--surface);
+    border-radius: 8px;
+    z-index: 10;
+  }
+
+  .skip-link:focus {
+    top: 1rem;
+  }
+
+  main:focus {
+    outline: none;
+  }
+
+  .site-header {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
+    align-items: center;
+    justify-content: space-between;
+    width: min(72rem, 100% - 2rem);
+    margin-inline: auto;
+    padding-block: 1rem;
+  }
+
+  .brand {
+    display: inline-flex;
+    gap: 0.6rem;
+    align-items: center;
+    color: var(--text);
+    font-weight: 700;
+    font-size: 1.15rem;
+    text-decoration: none;
+  }
+
+  .brand img {
+    border-radius: 7px;
+  }
+
+  nav ul,
+  .site-footer ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1.25rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  nav a {
+    color: var(--muted);
+    text-decoration: none;
+  }
+
+  nav a:hover {
+    color: var(--text);
+  }
+
+  /* Hero */
+  .hero {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 2rem;
+    align-items: center;
+    padding-top: clamp(1.5rem, 5vw, 4rem);
+  }
+
+  .eyebrow {
+    color: var(--muted);
+    font-size: 0.9rem;
+    letter-spacing: 0.04em;
+    margin: 0;
+  }
+
+  h1 {
+    font-size: clamp(2.6rem, 7vw, 4.75rem);
+    letter-spacing: -0.03em;
+    margin: 0.5rem 0 1rem;
+  }
+
+  .grad {
+    background: linear-gradient(120deg, var(--pink), var(--blue));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .lede {
+    font-size: 1.15rem;
+    color: var(--muted);
+    max-width: 38rem;
+  }
+
+  .cta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-block: 1.5rem 1rem;
+  }
+
+  .button {
+    display: inline-block;
+    padding: 0.75rem 1.4rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--text);
+    background: var(--surface);
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .button:hover {
+    border-color: var(--muted);
+  }
+
+  .button.primary {
+    border-color: transparent;
+    background: var(--grad);
+    color: #fff;
+  }
+
+  .button.primary:hover {
+    filter: brightness(1.12);
+  }
+
+  .note,
+  .small {
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+
+  .install {
+    margin-top: 1.5rem;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+
+  .install p {
+    margin: 0.5rem 0;
+  }
+
+  pre {
+    margin: 0;
+    padding: 1rem 1.2rem;
+    overflow-x: auto;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    color: var(--text);
+  }
+
+  .hero-visual {
+    position: relative;
+    aspect-ratio: 1;
+    display: grid;
+    place-items: center;
+  }
+
+  /* The backdrop glow pulses with --kick, set by hero-scene.js on every frame. */
+  .hero-visual::before {
+    content: "";
+    position: absolute;
+    inset: 4%;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, rgb(255 79 163 / 0.7) 35%, rgb(79 123 255 / 0.5) 65%, transparent);
+    filter: blur(40px);
+    opacity: calc(0.5 + var(--kick, 0) * 0.5);
+    scale: calc(1 + var(--kick, 0) * 0.06);
+  }
+
+  .hero-visual img {
+    position: relative;
+    width: 56%;
+    border-radius: 22%;
+    box-shadow: 0 30px 80px rgb(0 0 0 / 0.5);
+  }
+
+  .hero-visual canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    animation: fade-in 0.6s ease-out;
+  }
+
+  .hero-visual.is-live img {
+    display: none;
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  /* Features */
+  h2 {
+    font-size: clamp(1.8rem, 4vw, 2.6rem);
+    letter-spacing: -0.02em;
+    margin: 0 0 0.75rem;
+  }
+
+  .section-lede {
+    color: var(--muted);
+    font-size: 1.1rem;
+    max-width: 40rem;
+    margin: 0 0 2.5rem;
+  }
+
+  .features {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(19rem, 100%), 1fr));
+    gap: 1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .card {
+    padding: 1.5rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+  }
+
+  .card h3 {
+    margin: 0 0 0.5rem;
+    font-size: 1.15rem;
+  }
+
+  .card p {
+    margin: 0;
+    color: var(--muted);
+  }
+
+  /* Extension */
+  .split {
+    display: grid;
+    grid-template-columns: 1fr 1.15fr;
+    gap: 3rem;
+    align-items: start;
+  }
+
+  .ext-icon {
+    border-radius: 14px;
+    margin-bottom: 1rem;
+  }
+
+  .ticks {
+    padding-left: 1.2rem;
+  }
+
+  .ticks li {
+    margin-block: 0.4rem;
+  }
+
+  .ticks li::marker {
+    content: "● ";
+    color: var(--pink);
+  }
+
+  .shots {
+    display: grid;
+    gap: 1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .shots img {
+    display: block;
+    border-radius: var(--radius);
+    border: 1px solid var(--line);
+  }
+
+  /* Privacy */
+  .privacy {
+    max-width: 48rem;
+    text-align: center;
+  }
+
+  .privacy p {
+    color: var(--muted);
+    font-size: 1.05rem;
+  }
+
+  .site-footer {
+    border-top: 1px solid var(--line);
+    padding-block: 2rem;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+
+  .site-footer .wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .site-footer p {
+    margin: 0;
+  }
+
+  @media (max-width: 52rem) {
+    .hero,
+    .split {
+      grid-template-columns: 1fr;
+    }
+
+    .hero-visual {
+      width: min(100%, 24rem);
+      margin-inline: auto;
+    }
+  }
+
+  /* Scroll reveal with scroll-driven animations; content is simply visible where unsupported. */
+  @media (prefers-reduced-motion: no-preference) {
+    @supports (animation-timeline: view()) {
+      .reveal {
+        animation: reveal linear backwards;
+        animation-timeline: view();
+        animation-range: entry 0% entry 60%;
+      }
+
+      @keyframes reveal {
+        from {
+          opacity: 0;
+          translate: 0 2rem;
+        }
+      }
+    }
+  }
+</style>

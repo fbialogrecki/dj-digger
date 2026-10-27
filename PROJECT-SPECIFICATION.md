@@ -5,8 +5,8 @@
 - Product version verified: 1.4.1 (released 2026-10-19; `pyproject.toml` 1.4.1, browser extension manifest 1.4.2)
 - Owner: Filip Białogrecki
 - Updated: 2026-10-16
-- Document lines: <!-- SPEC TOTAL LINES -->2628<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->2628<!-- END SPEC MAP LIMIT -->
+- Document lines: <!-- SPEC TOTAL LINES -->2633<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->2633<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -104,13 +104,13 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 13 | Failure behavior and current limitations | 2369–2479 |
 | 13.1 | ↳ Error isolation and reporting | 2371–2392 |
 | 13.2 | ↳ Confirmed limitations | 2393–2479 |
-| 14 | Verification, CI, and release | 2480–2594 |
+| 14 | Verification, CI, and release | 2480–2599 |
 | 14.1 | ↳ Offline and live test suites | 2482–2530 |
-| 14.2 | ↳ Continuous integration and publishing | 2531–2579 |
-| 14.3 | ↳ Specification-map verification | 2580–2594 |
-| 15 | Evidence and operational references | 2595–2628 |
-| 15.1 | ↳ Primary implementation evidence | 2597–2618 |
-| 15.2 | ↳ User and historical documentation | 2619–2628 |
+| 14.2 | ↳ Continuous integration and publishing | 2531–2584 |
+| 14.3 | ↳ Specification-map verification | 2585–2599 |
+| 15 | Evidence and operational references | 2600–2633 |
+| 15.1 | ↳ Primary implementation evidence | 2602–2623 |
+| 15.2 | ↳ User and historical documentation | 2624–2633 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -2560,6 +2560,11 @@ with `uv build`, and publishes to PyPI through a pinned action using trusted
 publisher OIDC for `dj-sc-digger`. The publish job has `id-token: write`; other workflow permissions
 default to read-only contents. GitHub prereleases skip both jobs, allowing test
 installers to be shared without a PyPI upload.
+
+`.github/workflows/pages.yml` builds the static landing page in `site/` (Astro and
+three.js, Node; not part of the Python package) and deploys it to GitHub Pages on
+pushes to `main` that touch `site/` or the repository images it imports, and by
+manual dispatch. Only its deploy job has `pages: write` and `id-token: write`.
 
 `.github/workflows/chrome-web-store.yml` runs for the same stable releases and by
 manual dispatch in the `chrome-web-store` environment with read-only contents. It
