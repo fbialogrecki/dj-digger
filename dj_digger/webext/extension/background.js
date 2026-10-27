@@ -403,6 +403,7 @@ async function navigateFrame(tabId, url, timeoutMs, ctx) {
 
 let port = null;
 let failures = 0;
+let missing = false; // the last disconnect said there is no usable host (NO_HOST)
 const send = (m) => {
   try {
     port?.postMessage(m);
@@ -445,6 +446,10 @@ function connect() {
   port = p;
   p.onMessage.addListener((m) => {
     failures = 0;
+    if (missing) {
+      missing = false; // the host was installed meanwhile
+      setStatus({ connected: true });
+    }
     onMessage(m);
   });
   p.onDisconnect.addListener(() => {
@@ -453,11 +458,20 @@ function connect() {
     setPlayer(null);
     retry(e);
   });
-  setStatus({ connected: true });
+  // A missing host only ever disconnects: until a host answers, the status stays "missing" between retries
+  // (the relay answers at once, app-offline without the app).
+  if (!missing) setStatus({ connected: true });
   hello().catch(() => {});
 }
+// No usable host: never registered (the app is not installed or never started: Chrome "Specified native
+// messaging host not found.", Firefox "No such native application ..."), or registered by an app too old
+// to list this extension's ID ("... is forbidden.", Firefox "... does not have permission ..."). The
+// welcome page and the panel then offer the download of the desktop app.
+const NO_HOST = /not found|no such native application|forbidden|not have permission/i;
 function retry(e) {
-  setStatus({ connected: false, error: redactMessage(e?.message) });
+  const error = redactMessage(e?.message);
+  missing = NO_HOST.test(error);
+  setStatus({ connected: false, error, missing });
   setTimeout(connect, Math.min(30000, 1000 * 2 ** failures++));
 }
 

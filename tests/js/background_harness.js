@@ -800,6 +800,29 @@ async function start(fake = fakeBrowser()) {
   await x.call("tab.release", { tabId: cartTab });
   await x.call("window.close", { windowId: lone2 });
   assert.deepEqual([x.wins.has(x.user.created[0]), x.tabs.has(cartTab), x.tabs.has(work)], [true, true, false]);
+
+  // no usable native host (the app is not installed, or too old for this ID): the status says "missing" and
+  // keeps saying it until a host answers; a host that is there but fails is not "missing". Last: each
+  // disconnect leaves a 1 s reconnect behind.
+  x = await start();
+  assert.equal(x.session.djdStatus.connected, true);
+  const gone = async (message, viaPort) => {
+    if (viaPort) x.port.error = { message }; // Firefox
+    else x.api.runtime.lastError = { message }; // Chrome
+    x.port.onDisconnect.fire();
+    delete x.port.error;
+    delete x.api.runtime.lastError;
+    await tick();
+    return x.session.djdStatus.missing;
+  };
+  assert.equal(await gone("Specified native messaging host not found."), true);
+  assert.equal(x.session.djdStatus.connected, false);
+  assert.equal(await gone("No such native application com.github.fbialogrecki.djdigger", true), true);
+  assert.equal(await gone("Access to the specified native messaging host is forbidden."), true);
+  x.port.onMessage.fire({ event: "app-offline" }); // installed meanwhile: the relay answers
+  await tick();
+  assert.deepEqual([x.session.djdStatus.connected, x.session.djdStatus.missing], [true, undefined]);
+  assert.equal(await gone("Native host has exited."), false);
   console.log("ok");
 })().catch((error) => {
   console.error(error);

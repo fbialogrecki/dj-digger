@@ -11,6 +11,7 @@ const DEFAULT_PAIR = { dark: ["#b8286a", "#3a5fd6", "#ff2fa8", "#1e9bff"], light
 const PLAY = "M7 4 L21 12 L7 20 Z";
 const PAUSE = "M6 4 H10 V20 H6 Z M14 4 H18 V20 H14 Z";
 const EMPTY_SEED = 7; // cover.hash of no track
+const DOWNLOAD = "https://github.com/fbialogrecki/dj-digger/releases/latest";
 
 // root.seeded() in Main.qml (mulberry32): the same seed always draws the same record.
 function seeded(state) {
@@ -88,6 +89,7 @@ let state = null;
 let dragging = false; // the seek bar is in the person's hand: the clock leaves it alone
 let offer = null; // "set" or "profile": what the active tab's page can be imported as
 let sent = false;
+let missing = false; // the background found no usable native host (djdStatus.missing): offer the app's download
 function tickSeek() {
   const on = !!state?.title && state.duration > 0;
   $("seek").disabled = !on;
@@ -105,6 +107,7 @@ function render(s) {
   const needs = s?.needs ?? 0;
   $("gates").hidden = !needs;
   $("gatesText").textContent = needs === 1 ? "1 gate needs you" : `${needs} gates need you`;
+  $("install").hidden = !missing;
   $("import").hidden = !s || !offer;
   $("importButton").textContent = offer === "set" ? "Import this playlist into dj-digger" : "Import all playlists of this profile";
   $("importButton").hidden = sent;
@@ -117,7 +120,7 @@ function render(s) {
     $("jobBar").hidden = !job.total;
     $("jobBar").value = job.total ? Math.min(1, job.done / job.total) : 0;
   }
-  $("panel").classList.toggle("extra", !$("gates").hidden || !$("import").hidden || !$("job").hidden);
+  $("panel").classList.toggle("extra", ["install", "gates", "import", "job"].some((id) => !$(id).hidden));
   tickSeek();
   const loaded = !!s?.title;
   const dark = s ? s.dark : matchMedia("(prefers-color-scheme: dark)").matches;
@@ -168,9 +171,16 @@ $("seek").addEventListener("change", () => {
   ask({ op: "seek", fraction });
 });
 setInterval(tickSeek, 250);
-api.storage.session.onChanged.addListener((changes) => changes.djdPlayer && render(changes.djdPlayer.newValue));
+$("download").addEventListener("click", () => api.tabs.create({ url: DOWNLOAD }));
+api.storage.session.onChanged.addListener((changes) => {
+  if (changes.djdStatus) missing = !!changes.djdStatus.newValue?.missing;
+  if (changes.djdPlayer || changes.djdStatus) render(changes.djdPlayer ? changes.djdPlayer.newValue : state);
+});
 render(null);
-api.storage.session.get("djdPlayer").then(({ djdPlayer }) => render(djdPlayer));
+api.storage.session.get(["djdPlayer", "djdStatus"]).then(({ djdPlayer, djdStatus }) => {
+  missing = !!djdStatus?.missing;
+  render(djdPlayer);
+});
 
 // The page this panel was opened over: a SoundCloud set or profile can be imported. The URL is read only
 // now (the activeTab grant of this click) and only the background decides what it is.

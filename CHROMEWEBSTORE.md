@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — dj-digger
 
-> Last Updated: 2026-10-14
+> Last Updated: 2026-10-27
 >
 > Copy-paste source for the Chrome Developer Dashboard. Step-by-step upload
 > instructions (Polish): [docs/store/PUBLISHING-pl.md](docs/store/PUBLISHING-pl.md).
@@ -28,6 +28,7 @@ Lets the dj-digger desktop app drive download gates and store carts in your own 
 dj-digger is the browser companion of the free dj-digger desktop app for DJs. It lets the app do the browser steps of crate digging in your own browser, on the sites you are already signed in to, and puts the app's player in your toolbar.
 
 IMPORTANT: this extension does nothing on its own. It needs the dj-digger desktop app (Windows, macOS, Linux), installed and started on the same computer: https://github.com/fbialogrecki/dj-digger
+When the app is not installed (or too old), the extension's status page and toolbar panel say so and offer a Download button that opens the app's latest release on GitHub: https://github.com/fbialogrecki/dj-digger/releases/latest
 
 WHAT IT DOES
 • Free-download gates: when the desktop app cannot finish a Hypeddit or ToneDen download gate by itself, it finishes it here, in your browser, and the downloaded file goes to the app.
@@ -38,7 +39,7 @@ WHAT IT DOES
 
 HOW TO USE
 1. Install and start the dj-digger desktop app. It connects itself to this browser.
-2. Install this extension. Its status page shows "Desktop app link" and "Site access".
+2. Install this extension. Its status page shows "Desktop app link" and "Site access". Installed the extension first? The status page and the panel link to the app's download.
 3. Use the app as usual. When it needs the browser it opens its own window or a background tab, and closes it when done. Your other tabs are never read or changed.
 
 SOCIAL ACTIONS ON DOWNLOAD GATES
@@ -175,7 +176,7 @@ The repository is public; the URL is live once `PRIVACY.md` is on `main`
 **Test instructions for the reviewer** (dashboard field, optional but recommended):
 
 ```
-The extension is the companion of the dj-digger desktop app and needs it to do anything. Install the app from https://github.com/fbialogrecki/dj-digger (the Windows/macOS installers under Releases, or "pipx install 'dj-sc-digger[gui]'" and run dj-digger-gui), start it, then open the extension's options page: "Desktop app link" shows the connection. With the app running, the toolbar panel shows the app's player; on a SoundCloud playlist page the panel offers "Import this playlist into dj-digger". No account is needed for the panel and the import.
+The extension is the companion of the dj-digger desktop app and needs it to do anything. Without the app, the options page and the toolbar panel show "The dj-digger desktop app is not installed" with a Download button to https://github.com/fbialogrecki/dj-digger/releases/latest. Install the app from https://github.com/fbialogrecki/dj-digger (the Windows/macOS installers under Releases, or "pipx install 'dj-sc-digger[gui]'" and run dj-digger-gui), start it, then open the extension's options page: "Desktop app link" shows the connection. With the app running, the toolbar panel shows the app's player; on a SoundCloud playlist page the panel offers "Import this playlist into dj-digger". No account is needed for the panel and the import.
 ```
 
 ## Version History
@@ -191,6 +192,7 @@ justifications are still edited by hand in the dashboard.
 | 1.4.0 | 2026-10-14 | First store submission: gates, Bandcamp/Beatport carts, SoundCloud sign-in, toolbar player panel and SoundCloud import | Draft |
 | 1.4.1 | — | Update: a navigation Firefox reports as aborted or redirected is followed like Chrome's ERR_ABORTED; site access granted or removed in the browser's settings is reported to the app at once. No permission changes | Superseded by 1.4.2 |
 | 1.4.2 | — | Update: an aborted navigation with no further event asks the tab (loaded, still loading, or retried once from a blank tab); popups of own tabs are also recognised by webNavigation's source tab (Firefox popups have no opener) and closed with the session. No permission changes | To upload |
+| next | — | The status page and the toolbar panel tell a missing (or too old) desktop app from a stopped one and offer a Download button to the app's latest GitHub release. No permission changes. Bump `manifest.json`'s version before the upload | Unreleased |
 
 ## Review Notes
 
@@ -223,8 +225,10 @@ justifications are still edited by hand in the dashboard.
   desktop app act in the browser and be controlled from it). A reviewer may still
   ask for a narrower statement.
 - **Minimum functionality.** Without the desktop app the extension only shows its
-  status page. The description says so in its first lines and the test
-  instructions tell the reviewer how to get the app.
+  status page and panel, both saying the app is not installed with a Download
+  button to the app's latest GitHub release (the welcome page opens once on
+  install; nothing else opens on its own). The description says so in its first
+  lines and the test instructions tell the reviewer how to get the app.
 - **Other sites' names.** Hypeddit, ToneDen, Bandcamp, Beatport and SoundCloud are
   named descriptively (what the extension works with), not in the name or icon.
 - **Store purchases.** The cart flow never checks out; worth stating if asked.

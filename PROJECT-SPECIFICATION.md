@@ -4,9 +4,9 @@
 - Document version: 1.1
 - Product version verified: 1.4.1 (released 2026-10-19; `pyproject.toml` 1.4.1, browser extension manifest 1.4.2)
 - Owner: Filip Białogrecki
-- Updated: 2026-10-16
-- Document lines: <!-- SPEC TOTAL LINES -->2628<!-- END SPEC TOTAL LINES -->
-- Section map covers through line: <!-- SPEC MAP LIMIT -->2628<!-- END SPEC MAP LIMIT -->
+- Updated: 2026-10-27
+- Document lines: <!-- SPEC TOTAL LINES -->2643<!-- END SPEC TOTAL LINES -->
+- Section map covers through line: <!-- SPEC MAP LIMIT -->2643<!-- END SPEC MAP LIMIT -->
 - Verified against: `pyproject.toml`, `dj_digger/`, `tests/`, `.github/workflows/`, `README.md`, and `CHANGELOG.md`
 
 ## Purpose of this file
@@ -83,34 +83,34 @@ subsection; ordinary emphasized text is never promoted into the map.
 | 9 | Authentication and authorization | 1674–1741 |
 | 9.1 | ↳ SoundCloud authentication | 1676–1708 |
 | 9.2 | ↳ Gate action consent | 1709–1741 |
-| 10 | External integrations | 1742–2109 |
+| 10 | External integrations | 1742–2122 |
 | 10.1 | ↳ SoundCloud API and media | 1744–1755 |
 | 10.2 | ↳ Link hubs and download gates | 1756–1902 |
 | 10.2 · block | ↳ ↳ Hypeddit | 1764–1859 |
 | 10.2 · block | ↳ ↳ ToneDen | 1861–1885 |
 | 10.2 · block | ↳ ↳ Other resolvers | 1887–1895 |
 | 10.2 · block | ↳ ↳ Network-write boundary | 1897–1902 |
-| 10.3 | ↳ Browsers and clipboard | 1903–2056 |
-| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 2057–2109 |
-| 11 | Security requirements and threat model | 2110–2311 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2112–2130 |
-| 11.2 | ↳ Secret and personal-data handling | 2131–2146 |
-| 11.3 | ↳ File and mutation safety | 2147–2168 |
-| 11.4 | ↳ Browser-extension trust boundary | 2169–2311 |
-| 12 | Privacy, lifecycle, and retention | 2312–2368 |
-| 12.1 | ↳ Data stored locally | 2314–2338 |
-| 12.2 | ↳ Data sent to third parties | 2339–2355 |
-| 12.3 | ↳ User-controlled deletion | 2356–2368 |
-| 13 | Failure behavior and current limitations | 2369–2479 |
-| 13.1 | ↳ Error isolation and reporting | 2371–2392 |
-| 13.2 | ↳ Confirmed limitations | 2393–2479 |
-| 14 | Verification, CI, and release | 2480–2594 |
-| 14.1 | ↳ Offline and live test suites | 2482–2530 |
-| 14.2 | ↳ Continuous integration and publishing | 2531–2579 |
-| 14.3 | ↳ Specification-map verification | 2580–2594 |
-| 15 | Evidence and operational references | 2595–2628 |
-| 15.1 | ↳ Primary implementation evidence | 2597–2618 |
-| 15.2 | ↳ User and historical documentation | 2619–2628 |
+| 10.3 | ↳ Browsers and clipboard | 1903–2069 |
+| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 2070–2122 |
+| 11 | Security requirements and threat model | 2123–2326 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2125–2143 |
+| 11.2 | ↳ Secret and personal-data handling | 2144–2159 |
+| 11.3 | ↳ File and mutation safety | 2160–2181 |
+| 11.4 | ↳ Browser-extension trust boundary | 2182–2326 |
+| 12 | Privacy, lifecycle, and retention | 2327–2383 |
+| 12.1 | ↳ Data stored locally | 2329–2353 |
+| 12.2 | ↳ Data sent to third parties | 2354–2370 |
+| 12.3 | ↳ User-controlled deletion | 2371–2383 |
+| 13 | Failure behavior and current limitations | 2384–2494 |
+| 13.1 | ↳ Error isolation and reporting | 2386–2407 |
+| 13.2 | ↳ Confirmed limitations | 2408–2494 |
+| 14 | Verification, CI, and release | 2495–2609 |
+| 14.1 | ↳ Offline and live test suites | 2497–2545 |
+| 14.2 | ↳ Continuous integration and publishing | 2546–2594 |
+| 14.3 | ↳ Specification-map verification | 2595–2609 |
+| 15 | Evidence and operational references | 2610–2643 |
+| 15.1 | ↳ Primary implementation evidence | 2612–2633 |
+| 15.2 | ↳ User and historical documentation | 2634–2643 |
 <!-- END GENERATED SECTION MAP -->
 
 ## 1. Specification governance
@@ -2045,6 +2045,19 @@ is installed by the user: from the Chrome Web Store in Chrome, Edge and Brave (L
 unpacked from that copy remains the developer install), or with Load Temporary Add-on in
 Firefox; `dj-digger browser register` prints the store link and the folder;
 `welcome.html` shows the link state and can request the host permissions again.
+The background opens `welcome.html` once, on install. It keeps the link state in
+`storage.session` (`djdStatus`): `connected` when it opens the native port, and on a
+disconnect `connected: false`, the redacted `error` and `missing` when the error says
+no usable host is registered (Chrome's "Specified native messaging host not found."
+or "… is forbidden.", Firefox's "No such native application …" or "… does not have
+permission …": the desktop app is not installed, was never started, or is too old to
+list this extension's ID). `missing` stays through the reconnect retries until a host
+answers; an installed host whose app is not running stays connected (the relay sends
+`app-offline`), so "not installed" and "not running" never mix. While `missing`,
+`welcome.html` and the panel show "The dj-digger desktop app is not installed" with a
+Download link (the panel: a button, `tabs.create`) that opens
+`https://github.com/fbialogrecki/dj-digger/releases/latest` in a new tab; nothing opens
+on its own.
 `scripts/package_extension.py` (stdlib) builds the store uploads
 `dist/extension/dj-digger-chrome-<version>.zip` and `dj-digger-firefox-<version>.zip`
 from the same folder: every file except `selftest.html`/`selftest.js`, sorted entries
@@ -2253,12 +2266,14 @@ Python caller, enforces its own limits, whatever the application sends:
   100,000 bytes. The only command input is the native port: the manifest has no
   `externally_connectable` and no `web_accessible_resources`, there is no
   external-message handler and no page script listens to `window.postMessage`.
-  `welcome.html` can only request the host permissions. Changes to them are only
+  `welcome.html` can only request the host permissions and link to the desktop app's
+  latest GitHub release. Changes to them are only
   observed (`permissions.onAdded`/`onRemoved`) and reported to the application as a
   boolean `permissions` event; nothing requests, widens or narrows them on its own.
 - **Player panel and context menu** (permissions `activeTab` and `contextMenus`, the
-  owner's approval of 2026-10-14). `popup.html` (no inline script) can only ask the
-  local desktop for previous/next track, play/pause, a seek, Cancel of its running job,
+  owner's approval of 2026-10-14). `popup.html` (no inline script) can only open the
+  desktop app's latest GitHub release in a new tab (while the host is missing, §10.3)
+  and ask the local desktop for previous/next track, play/pause, a seek, Cancel of its running job,
   an answer to its "Gates need you" question and the import of a SoundCloud set or
   profile. Its `runtime.sendMessage` reaches the background's only `runtime.onMessage`,
   which acts only when `sender.id` is this extension and `sender.url` is exactly its
