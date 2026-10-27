@@ -191,8 +191,8 @@ justifications are still edited by hand in the dashboard.
 |---------|------|---------|--------|
 | 1.4.0 | 2026-10-14 | First store submission: gates, Bandcamp/Beatport carts, SoundCloud sign-in, toolbar player panel and SoundCloud import | Draft |
 | 1.4.1 | — | Update: a navigation Firefox reports as aborted or redirected is followed like Chrome's ERR_ABORTED; site access granted or removed in the browser's settings is reported to the app at once. No permission changes | Superseded by 1.4.2 |
-| 1.4.2 | — | Update: an aborted navigation with no further event asks the tab (loaded, still loading, or retried once from a blank tab); popups of own tabs are also recognised by webNavigation's source tab (Firefox popups have no opener) and closed with the session. No permission changes | To upload |
-| next | — | The status page and the toolbar panel tell a missing (or too old) desktop app from a stopped one and offer a Download button to the app's latest GitHub release. No permission changes. Bump `manifest.json`'s version before the upload | Unreleased |
+| 1.4.2 | — | Update: an aborted navigation with no further event asks the tab (loaded, still loading, or retried once from a blank tab); popups of own tabs are also recognised by webNavigation's source tab (Firefox popups have no opener) and closed with the session. No permission changes | Superseded by 1.4.3 |
+| 1.4.3 | — | Update: the status page and the toolbar panel tell a missing (or too old) desktop app from a stopped one and offer a Download button to the app's latest GitHub release; on soundcloud.com an "Import to DJ digger" button (track and playlist pages, ⋯ menus, track and playlist rows) sends that track or playlist to the running app, and single tracks can be imported. New content script on soundcloud.com, an already declared host; no permission changes | To upload |
 
 ## Review Notes
 

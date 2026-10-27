@@ -2,7 +2,7 @@
 
 - Status: current implemented system
 - Document version: 1.1
-- Product version verified: 1.4.1 (released 2026-10-19; `pyproject.toml` 1.4.1, browser extension manifest 1.4.2)
+- Product version verified: 1.4.1 (released 2026-10-19; `pyproject.toml` 1.4.1, browser extension manifest 1.4.3)
 - Owner: Filip Białogrecki
 - Updated: 2026-10-16
 - Document lines: <!-- SPEC TOTAL LINES -->2707<!-- END SPEC TOTAL LINES -->
