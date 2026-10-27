@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dj-sc-digger"
-version = "1.4.1"
+version = "1.5.0"
 description = "Dig purchase and free-download links out of SoundCloud playlists, likes and profiles"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -56,6 +56,10 @@ Changelog = "https://github.com/fbialogrecki/dj-digger/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
 packages = ["dj_digger"]
+
+# Only the package and its tests: the checkout also holds site/node_modules, agent worktrees and build output.
+[tool.hatch.build.targets.sdist]
+only-include = ["dj_digger", "tests", "scripts", "packaging", "CHANGELOG.md", "PRIVACY.md"]
 
 [tool.ruff]
 line-length = 100
