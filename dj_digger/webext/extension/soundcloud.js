@@ -1,10 +1,11 @@
 // soundcloud.js - the manifest's one static content script, on https://soundcloud.com/* top frames only.
 // It adds "Import to DJ digger" (the app icon) to SoundCloud's own controls: the action row of a track or
 // set page (after "Add to playlist", else before "More"), before "More" on each track or playlist row of a
-// stream, profile or search list, and as an item of each "More" menu of a track or set (library tiles,
-// list rows). A click sends {op: "import", url} to background.js, which checks it again and hands it to the
-// desktop app like the context menu's import. The page is untrusted: only the shape of a link is read
-// (djdTarget), never its text; class names, not the UI language, find the controls. Nothing else is read.
+// stream, profile or search list and each track row of a set or station, and as an item of each "More" menu
+// of a track or set (library tiles, list rows). A click sends {op: "import", url} to background.js, which
+// checks it again and hands it to the desktop app like the context menu's import. The page is untrusted:
+// only the shape of a link is read (djdTarget), never its text; class names, not the UI language, find the
+// controls. Nothing else is read.
 "use strict";
 const DJD_LABEL = "Import to DJ digger";
 // icons/icon-32.png (a test keeps them equal): with no web_accessible_resources the page cannot load the file
@@ -103,8 +104,8 @@ if (globalThis.document && window.top === window) {
       const more = g.querySelector(":scope > .sc-button-more");
       add(after ?? more ?? first(g), (b) => (after ? after.after(b) : g.insertBefore(b, more)), () => djdTarget(location.href));
     }
-    // a track or playlist row of a list: icon only, like its neighbours
-    for (const g of document.querySelectorAll(".sound__soundActions .sc-button-group")) {
+    // a track or playlist row of a list, or a track row of a set or station: icon only, like its neighbours
+    for (const g of document.querySelectorAll(".sound__soundActions .sc-button-group, .trackItem__actions .sc-button-group")) {
       if (mine(g)) continue;
       const more = g.querySelector(":scope > .sc-button-more");
       add(more ?? first(g), (b) => g.insertBefore(b, more), () => djdItemUrl(g, location.href));
