@@ -64,7 +64,7 @@ PIPE_PREFIX = "\\\\.\\pipe\\"
 SOCKET_NAME = "webext.sock"
 ANOTHER_APP = "another dj-digger is already connected to the browser extension"
 PLAYER_OPS = ("prev", "toggle", "next", "cancel")  # the toolbar panel's asks that take no argument
-MAX_IMPORT_URL = 512  # a SoundCloud set or profile link from the panel or the context menu
+MAX_IMPORT_URL = 512  # a SoundCloud set, track or profile link from the panel, menu or page button
 MAX_ARTWORK = 48 * 1024  # the panel's cover, a data: URL; a larger one is left out
 
 

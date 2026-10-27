@@ -18,7 +18,8 @@ The extension exchanges data only with:
 2. **The website you are completing a step on**, in a tab the extension opened
    for the app, exactly as if you used that website yourself: Hypeddit
    (hypeddit.com, hypd.it), ToneDen (toneden.io), Bandcamp (bandcamp.com),
-   Beatport (beatport.com) and SoundCloud (soundcloud.com, sign-in page only).
+   Beatport (beatport.com) and SoundCloud (soundcloud.com: the sign-in page, and on
+   the SoundCloud pages you open yourself an "Import to DJ digger" button, below).
 
 The extension itself makes no network request of its own. It does not work on
 any other website.
@@ -49,6 +50,11 @@ any other website.
 - **The address of your current tab**: read once when you open the toolbar
   panel, to see whether it is a SoundCloud playlist or profile. Only if you then
   choose Import (or "Dig in dj-digger" in the right-click menu) is a clean
+  `https://soundcloud.com/...` link sent to the app.
+- **Track and playlist links on soundcloud.com pages you open**: the extension adds
+  an "Import to DJ digger" button to SoundCloud's own track and playlist controls.
+  It looks only at the addresses of those links (never at text, your account or
+  anything else on the page), and only when you click the button is that clean
   `https://soundcloud.com/...` link sent to the app.
 - **Player state from the app** (track title, artist, position, a small cover
   picture, colours, the running job and how many gates need you): shown in the
