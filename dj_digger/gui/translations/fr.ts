@@ -604,14 +604,6 @@
       <translation>Avancer de 30 s</translation>
     </message>
     <message>
-      <source>Jump to drop</source>
-      <translation>Aller au drop</translation>
-    </message>
-    <message>
-      <source>Start previews at the drop</source>
-      <translation>Démarrer les aperçus au drop</translation>
-    </message>
-    <message>
       <source>Start previews at 30 %</source>
       <translation>Démarrer les aperçus à 30 %</translation>
     </message>
@@ -700,10 +692,6 @@
       <translation>Contraste élevé</translation>
     </message>
     <message>
-      <source>Spectral waveform</source>
-      <translation>Forme d'onde spectrale</translation>
-    </message>
-    <message>
       <source>Vinyl artwork</source>
       <translation>Visuel sur vinyle</translation>
     </message>
@@ -786,10 +774,6 @@
     <message>
       <source>No playlists match the filter.</source>
       <translation>Aucune playlist ne correspond au filtre.</translation>
-    </message>
-    <message>
-      <source>Drop</source>
-      <translation>Drop</translation>
     </message>
     <message>
       <source>Clear search</source>

@@ -200,18 +200,14 @@ ApplicationWindow {
     property bool shuttingDown: false
     readonly property bool isMuted: desktop.muted
     property real volume: desktop.volume
-    // Where a newly started track begins: "" at its start, "drop" at the estimated drop, "30" at 30 %.
+    // Where a newly started track begins: "" at its start, "30" at 30 %.
     property string previewStart: ""
-    // Bars coloured by their low/mid/high mix (warm lows, cool highs) instead of the colour pair.
-    property bool spectral: true
     // The artwork on the record's label; off, the plain square picture fills the cover.
     property bool vinylArtwork: true
     // Hot cues per track key for this session: four track times, or null where none is set.
     // ponytail: kept in memory only; the library has no place for them yet.
     property var cues: ({})
     readonly property var trackCues: cues[desktop.audioKey] || [null, null, null, null]
-    readonly property real dropTime: desktop.waveformKey === desktop.audioKey && desktop.waveformDrop >= 0
-                                     ? desktop.waveformDrop * (desktop.audio.duration || 0) : -1
     property var pendingQuestions: []
     property var messages: []
     property string errorMessage: ""
@@ -377,7 +373,6 @@ ApplicationWindow {
         cues = all
     }
     function jumpCue(index) { if (typeof trackCues[index] === "number") seekTo(trackCues[index]) }
-    function jumpToDrop() { if (dropTime >= 0) seekTo(dropTime) }
     // A newly started track begins where View → Start previews says, once, unless the listener seeks first.
     property string previewKey: ""
     property int previewSeeks: 0
@@ -387,10 +382,8 @@ ApplicationWindow {
         if (key !== previewKey) { previewKey = key; previewSeeks = desktop.audio.seeks || 0; previewDone = !key }
         if (previewDone || !previewStart || duration <= 0) return
         if ((desktop.audio.seeks || 0) !== previewSeeks) { previewDone = true; return }
-        // The drop needs the waveform; a track without one starts at 30 %.
-        if (previewStart === "drop" && desktop.waveformKey !== key) return
         previewDone = true
-        seekTo(previewStart === "drop" && desktop.waveformDrop >= 0 ? desktop.waveformDrop * duration : .3 * duration)
+        seekTo(.3 * duration)
     }
     Connections {
         target: desktop
@@ -527,8 +520,7 @@ ApplicationWindow {
         if (list(s.recent))
             recent = list(s.recent).filter(r => r && (r.kind === "folder" || r.kind === "playlist") && typeof r.target === "string" && r.target)
                              .slice(0, 8).map(r => ({kind: r.kind, target: r.target}))
-        previewStart = s.previewStart === "drop" || s.previewStart === "30" ? s.previewStart : ""
-        spectral = s.spectral !== false
+        previewStart = s.previewStart === "30" ? "30" : ""
         vinylArtwork = s.vinyl !== false
         desktop.browserLook(pairColors, dark)
         desktop.language(languageCode)
@@ -543,7 +535,7 @@ ApplicationWindow {
                                   theme: themeChoice, columnWidths: columnWidths, hiddenColumns: hiddenColumns, columnOrder: columnOrder,
                                   keyNotation: keyNotation, animations: animations, colors: colorPair, recent: recent,
                                   sortColumn: desktop.model.sortColumn, sortReverse: desktop.model.sortReverse, compactRows: compactRows,
-                                  previewStart: previewStart, spectral: spectral, vinyl: vinylArtwork})
+                                  previewStart: previewStart, vinyl: vinylArtwork})
             desktop.close()
         }
     }
@@ -604,9 +596,7 @@ ApplicationWindow {
     // Shift+[ and Shift+] type { and } on most layouts, which is what a shortcut sees.
     Action { id: seekBackLongAction; text: qsTr("Seek backward 30 s"); shortcut: "{"; enabled: root.loaded; onTriggered: root.nudge(-30) }
     Action { id: seekForwardLongAction; text: qsTr("Seek forward 30 s"); shortcut: "}"; enabled: root.loaded; onTriggered: root.nudge(30) }
-    Action { id: dropAction; text: qsTr("Jump to drop"); shortcut: "J"; enabled: root.loaded && root.dropTime >= 0; onTriggered: root.jumpToDrop() }
     // Either, or neither: a track then starts at its beginning.
-    Action { id: previewDropAction; text: qsTr("Start previews at the drop"); checkable: true; checked: root.previewStart === "drop"; onTriggered: root.previewStart = checked ? "drop" : "" }
     Action { id: previewThirtyAction; text: qsTr("Start previews at 30 %"); checkable: true; checked: root.previewStart === "30"; onTriggered: root.previewStart = checked ? "30" : "" }
     // 1-9 jump to 10-90 % of the track and 0 to its start; Ctrl+1-4 set hot cues, Alt+1-4 jump to them.
     readonly property bool seekKeys: loaded && !dialogOpen
@@ -702,9 +692,7 @@ ApplicationWindow {
             AppMenuItem { action: seekForwardAction }
             AppMenuItem { action: seekBackLongAction }
             AppMenuItem { action: seekForwardLongAction }
-            AppMenuItem { action: dropAction }
             AppSeparator {}
-            AppMenuItem { action: previewDropAction }
             AppMenuItem { action: previewThirtyAction }
             AppSeparator {}
             AppMenuItem { action: volumeDownAction }
@@ -789,7 +777,6 @@ ApplicationWindow {
                 Action { text: qsTr("Classic (Am)"); checkable: true; checked: root.keyNotation === "classic"; ActionGroup.group: notationGroup; onTriggered: root.keyNotation = "classic" }
             }
             AppSeparator {}
-            Action { text: qsTr("Spectral waveform"); checkable: true; checked: root.spectral; onTriggered: root.spectral = checked }
             Action { text: qsTr("Vinyl artwork"); checkable: true; checked: root.vinylArtwork; onTriggered: root.vinylArtwork = checked }
             AppSeparator {}
             Action { id: animationsAction; text: qsTr("Animations"); checkable: true; checked: root.animations; onTriggered: root.animations = checked }
@@ -1045,7 +1032,7 @@ ApplicationWindow {
         onHeightChanged: settle.restart()
         onVisibleChanged: requestPaint()
         Connections { target: waveform; function onRepaint() { requestPaint() } }
-        Connections { target: root; function onPairColorsChanged() { requestPaint() } function onSpectralColorsChanged() { requestPaint() } function onSpectralChanged() { requestPaint() } }
+        Connections { target: root; function onPairColorsChanged() { requestPaint() } }
     }
     // A rounded label for BPM and key; a key takes its Camelot hue, a match with the playing track gets a ring.
     component Chip: Rectangle {
@@ -1243,15 +1230,6 @@ ApplicationWindow {
     readonly property color waveRestTop: pairColors[1]
     readonly property color waveNeonFoot: pairColors[2]
     readonly property color waveNeonTop: pairColors[3]
-    // View → Spectral waveform: warm lows, green mids and cool highs, mixed by each bar's shares.
-    // None is a saturated red, and each keeps 3:1 against the panel, like the pairs.
-    readonly property var spectralColors: dark ? ["#ff9a2e", "#5fd068", "#4f8dff"] : ["#b86e00", "#2f8a3a", "#2f62d6"]
-    readonly property var spectralAnchors: spectralColors.map(value => Qt.color(value))
-    function spectralColor(mix) {
-        let c = spectralAnchors
-        return Qt.rgba(c[0].r * mix[0] + c[1].r * mix[1] + c[2].r * mix[2], c[0].g * mix[0] + c[1].g * mix[1] + c[2].g * mix[2],
-                       c[0].b * mix[0] + c[1].b * mix[1] + c[2].b * mix[2], 1)
-    }
     function luminance(color) {
         let linear = c => c <= .04045 ? c / 12.92 : Math.pow((c + .055) / 1.055, 2.4)
         return .2126 * linear(color.r) + .7152 * linear(color.g) + .0722 * linear(color.b)
@@ -1679,10 +1657,8 @@ ApplicationWindow {
                         // Levels follow the bar count 50 ms after a resize settles, not every 3 px of a drag.
                         property int levelColumns: columns
                         Timer { id: levelTimer; interval: 50; onTriggered: waveform.levelColumns = waveform.columns }
-                        // Levels and low/mid/high shares per bar, read from the waveform the bridge holds.
-                        readonly property var columnData: desktop.waveformColumns(levelColumns, desktop.waveformKey)
-                        readonly property var levels: columnData.levels
-                        readonly property var bands: columnData.bands
+                        // Levels per bar, read from the waveform the bridge holds.
+                        readonly property var levels: desktop.waveformColumns(levelColumns, desktop.waveformKey)
                         // The backend sends the waveform for every track, empty when there is none.
                         readonly property bool ready: !!desktop.audioKey && desktop.waveformKey === desktop.audioKey
                         // Until then the bars flicker as noise. A new track scatters the old waveform into the
@@ -1791,15 +1767,12 @@ ApplicationWindow {
                                                  : gradient(ctx, height, root.waveRestFoot, root.waveRestTop)
                             ctx.globalAlpha = played ? 1 : root.dark ? .38 : .45
                             let count = ready && levels.length ? levels.length : columns, step = width / count, bar = Math.max(1, step - 1)
-                            // View → Spectral waveform: each bar in its own low/mid/high mix, brighter for the kick light.
-                            let colours = root.spectral && ready && bands.length === count
                             let values = []
                             for (let i = 0; i < count; i++) values.push(level(i))
                             // What is on screen, for the next track change to scatter from.
                             if (!played && !neon && !moving) shown = values
                             for (let i = 0; i < count; i++) {
                                 let barHeight = Math.max(1, values[i] * (height - 2))
-                                if (colours) ctx.fillStyle = neon ? root.peakColor(root.spectralColor(bands[i])) : root.spectralColor(bands[i])
                                 ctx.fillRect(i * step, height - barHeight, bar, barHeight)
                             }
                         }
@@ -1868,7 +1841,7 @@ ApplicationWindow {
                                 }
                             }
                         }
-                        // Hot cues, numbered, and the estimated drop, over the bars.
+                        // Hot cues, numbered, over the bars.
                         Repeater {
                             model: 4
                             Rectangle {
@@ -1880,13 +1853,6 @@ ApplicationWindow {
                                 color: root.accent
                                 Label { x: 3; text: index + 1; font.pixelSize: root.fontSmall; font.bold: true; color: root.accent }
                             }
-                        }
-                        Rectangle {
-                            objectName: "dropMarker"
-                            visible: root.loaded && root.dropTime >= 0 && waveform.duration > 0
-                            x: root.dropTime / Math.max(1, waveform.duration) * waveform.width; width: 2; height: waveform.height
-                            color: root.warning
-                            Label { x: 3; anchors.bottom: parent.bottom; text: qsTr("Drop"); font.pixelSize: root.fontSmall; font.bold: true; color: root.warning }
                         }
                         // Subpixel position: the playhead slides instead of stepping a pixel at a time.
                         Rectangle {

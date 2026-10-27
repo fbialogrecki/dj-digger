@@ -88,8 +88,6 @@ class Bridge(QObject):
         self._audio = {}
         self._waveform = []
         self._waveform_key = ''
-        self._waveform_bands = []
-        self._waveform_drop = -1.0
         self._muted = False
         self._artwork = {}
         self._now_playing = {}
@@ -125,8 +123,6 @@ class Bridge(QObject):
     playing = Property(bool, lambda self: bool(self._audio.get('playing')), notify=playingChanged)
     waveform = Property('QVariantList', lambda self: self._waveform, notify=waveformChanged)
     waveformKey = Property(str, lambda self: self._waveform_key, notify=waveformChanged)
-    # Where the first drop lands, as a fraction of the loaded track; -1 without one.
-    waveformDrop = Property(float, lambda self: self._waveform_drop, notify=waveformChanged)
     # The loaded track's record label as a PNG data URL, '' while loading or without a picture.
     artwork = Property(str, lambda self: self._artwork.get('image', ''), notify=artworkChanged)
     # The same picture as a plain square, for View → Vinyl artwork turned off.
@@ -209,7 +205,7 @@ class Bridge(QObject):
             self.audioChanged.emit()
             return
         elif kind == 'waveform':
-            self._set_waveform(values['key'], values['samples'], values.get('bands') or [], values.get('drop', -1.0))
+            self._set_waveform(values['key'], values['samples'])
             return
         elif kind == 'volume':
             self._volume = values['volume']
@@ -280,10 +276,9 @@ class Bridge(QObject):
             self.closed.emit()
         self.changed.emit()
 
-    def _set_waveform(self, key, samples, bands=(), drop=-1.0):
+    def _set_waveform(self, key, samples):
         if (key, samples) != (self._waveform_key, self._waveform):
             self._waveform_key, self._waveform = key, samples
-            self._waveform_bands, self._waveform_drop = list(bands), float(drop)
             self.waveformChanged.emit()
 
     @Slot(str)
@@ -374,15 +369,15 @@ class Bridge(QObject):
     def addFolder(self, path):
         self.backend.submit('add_folder', {'path': self.localPath(path)})
 
-    @Slot(int, str, result='QVariantMap')
+    @Slot(int, str, result='QVariantList')
     def waveformColumns(self, width, key=''):
-        """Levels and low/mid/high shares of the loaded waveform in ``width`` columns.
+        """Levels of the loaded waveform in ``width`` columns.
 
         It reads the waveform held here rather than a copy from QML; ``key`` only
         makes a QML binding follow the waveform.
         """
-        from ..waveform import column_bands, column_levels
-        return dict(levels=column_levels(self._waveform, width), bands=column_bands(self._waveform_bands, width))
+        from ..waveform import column_levels
+        return column_levels(self._waveform, width)
 
     @Slot(str, result=str)
     def localPath(self, value):
