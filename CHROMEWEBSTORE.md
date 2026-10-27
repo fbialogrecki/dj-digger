@@ -110,7 +110,7 @@ share one field (text at the end of the table).
 | alarms | permissions | A 30-second alarm that reconnects to the desktop app after the app was closed or the background was stopped. |
 | offscreen | permissions | Runs download gates (Hypeddit, ToneDen) in hidden frames of an offscreen document (reason IFRAME_SCRIPTING), so no browser window pops up during a hidden gate batch; some desktops cannot keep a browser window hidden. Gate media is muted there. |
 | activeTab | permissions | When the user opens the toolbar panel, its address is read once to decide whether the page is a SoundCloud playlist or profile that can be imported into the app; nothing else of the page is read. |
-| contextMenus | permissions | Adds "Dig in dj-digger" to the right-click menu on SoundCloud pages and links, which imports that playlist or profile into the desktop app. Shown only while the app is running. |
+| contextMenus | permissions | Adds "Dig in dj-digger" to the right-click menu on SoundCloud pages and links, which imports that playlist, track or profile into the desktop app. Shown only while the app is running. |
 
 **Host permissions justification** (one field):
 
@@ -119,7 +119,7 @@ Each host is a site the dj-digger desktop app works with, and the extension acts
 - hypeddit.com, www.hypeddit.com, hypd.it, www.hypd.it, toneden.io, www.toneden.io: free-download gates. The extension opens the gate, completes its steps (e-mail form, follow/like/repost/comment steps when the user allows social actions in the app) and starts the download.
 - bandcamp.com and *.bandcamp.com (artist pages are subdomains): adds the tracks the user picked in the app to the user's own Bandcamp cart. Checkout and payment pages are never opened; buttons named like checkout, pay or buy now are never clicked (except Bandcamp's "Buy Digital Track/Album", which only opens the price and add-to-cart panel).
 - beatport.com and *.beatport.com: looks up tracks and adds them to the user's Beatport cart; checkout, payment and billing pages are never opened.
-- soundcloud.com: only the sign-in page, opened when the user signs the app in to SoundCloud and the browser has no session yet, and the reading of SoundCloud's oauth_token cookie. SoundCloud pages are never read or clicked.
+- soundcloud.com: the sign-in page, opened when the user signs the app in to SoundCloud and the browser has no session yet, and the reading of SoundCloud's oauth_token cookie. On SoundCloud pages the user opens, a bundled content script adds an "Import to DJ digger" button to SoundCloud's track and playlist controls; it reads only the addresses of those track and playlist links, and only a click on the button sends that link to the desktop app. Nothing on SoundCloud is clicked by the extension.
 ```
 
 **Are you using remote code?** No. All JavaScript is in the package; there is no

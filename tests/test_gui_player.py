@@ -356,16 +356,17 @@ def test_the_browser_panel_answers_only_the_gates_question_on_screen(backend, mo
     assert asked
 
 
-def test_import_target_takes_only_soundcloud_sets_and_profiles():
+def test_import_target_takes_only_soundcloud_sets_tracks_and_profiles():
     from dj_digger.gui.backend import import_target
 
+    assert import_target('https://www.soundcloud.com/some-dj/a_track-2/?in=some-dj/sets/x') == ('track', 'https://soundcloud.com/some-dj/a_track-2')
     assert import_target('https://soundcloud.com/some-dj/sets/deep_cuts-2') == ('set', 'https://soundcloud.com/some-dj/sets/deep_cuts-2')
     assert import_target('https://m.soundcloud.com/some-dj/sets/x/?in=y#t') == ('set', 'https://soundcloud.com/some-dj/sets/x')
     for url in ('https://soundcloud.com/some-dj', 'https://www.soundcloud.com/some-dj/sets', 'https://soundcloud.com/some-dj/tracks?x=1'):
         assert import_target(url) == ('profile', 'https://soundcloud.com/some-dj'), url
     for url in ('http://soundcloud.com/some-dj', 'https://evil.com/some-dj', 'https://soundcloud.com.evil.com/a',
                 'https://api.soundcloud.com/a', 'https://user@soundcloud.com/a', 'https://soundcloud.com:444/a',
-                'https://soundcloud.com/a/track-name', 'https://soundcloud.com/a/sets/b/s-secret', 'https://soundcloud.com/',
+                'https://soundcloud.com/a/likes', 'https://soundcloud.com/a/track/s-secret', 'https://soundcloud.com/a/sets/b/s-secret', 'https://soundcloud.com/',
                 'https://soundcloud.com/a%2Fb', 'https://soundcloud.com//a', 'javascript:alert(1)', 'https://[::1', '',
                 'https://soundcloud.com/' + 'a' * 500):
         assert import_target(url) is None, url
@@ -377,10 +378,12 @@ def test_the_browser_import_starts_the_windows_own_import(backend, monkeypatch):
     started = []
     monkeypatch.setattr(worker, 'action_dig', lambda values: asyncio.sleep(0, started.append(('dig', values))))
     monkeypatch.setattr(worker, 'action_profile', lambda values: asyncio.sleep(0, started.append(('profile', values))))
-    for url in ('https://soundcloud.com/a/sets/b?x=1', 'https://www.soundcloud.com/a/reposts', 'https://soundcloud.com/a/t'):
+    for url in ('https://soundcloud.com/a/sets/b?x=1', 'https://www.soundcloud.com/a/reposts', 'https://soundcloud.com/a/t',
+                'https://soundcloud.com/a/likes', 'http://soundcloud.com/a/t'):
         run(worker.action_remote({'op': 'import', 'url': url}))
     assert started == [('dig', {'target': 'https://soundcloud.com/a/sets/b', 'add': True}),
-                       ('profile', {'url': 'https://soundcloud.com/a'})]
+                       ('profile', {'url': 'https://soundcloud.com/a'}),
+                       ('dig', {'target': 'https://soundcloud.com/a/t', 'add': True})]  # a track: a one-track playlist
 
 
 def test_the_window_tells_the_browser_panel_its_colours(window):

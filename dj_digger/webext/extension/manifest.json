@@ -30,6 +30,7 @@
     "https://*.beatport.com/*",
     "https://soundcloud.com/*"
   ],
+  "content_scripts": [{"matches": ["https://soundcloud.com/*"], "js": ["soundcloud.js"]}],
   "action": {
     "default_popup": "popup.html",
     "default_title": "dj-digger",

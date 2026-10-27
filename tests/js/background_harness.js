@@ -777,13 +777,48 @@ async function start(fake = fakeBrowser()) {
     { menuItemId: "someone-else", linkUrl: SET }]) {
     x.e["contextMenus.onClicked"].fire(info, { id: 5 });
   }
-  assert.deepEqual(x.events("player.command").slice(sentBefore).map((m) => m.url),
-    ["https://soundcloud.com/some-dj/sets/x", "https://soundcloud.com/other_dj"]);
+  assert.deepEqual(x.events("player.command").slice(sentBefore).map((m) => m.url), ["https://soundcloud.com/some-dj/sets/x",
+    "https://soundcloud.com/other_dj", "https://soundcloud.com/some-dj/a-track", "https://soundcloud.com/some-dj/a-track"]);
+  // soundcloud.js: from the top frame of a soundcloud.com tab, an import only, answered with whether the app took it
+  const content = (m, sender) => new Promise((resolve) => {
+    x.e["runtime.onMessage"].fire(m, { id: "djd", tab: { id: 9 }, frameId: 0, url: "https://soundcloud.com/some-dj", ...sender }, (r) => resolve(JSON.parse(JSON.stringify(r))));
+    setTimeout(() => resolve("unanswered"), 100);
+  });
+  const imported = x.events("player.command").length;
+  assert.deepEqual(await content({ op: "import", url: "https://soundcloud.com/some-dj/a-track?in=x" }), { ok: true });
+  assert.deepEqual(await content({ op: "import", url: SET }, { url: "https://soundcloud.com/you/library" }), { ok: true });
+  for (const [m, sender] of [[{ op: "import", url: SET }, { frameId: 3 }], [{ op: "import", url: SET }, { tab: undefined }],
+    [{ op: "import", url: SET }, { url: "https://evil.example/" }], [{ op: "import", url: SET }, { url: "https://m.soundcloud.com/x" }],
+    [{ op: "import", url: SET }, { id: "other" }], [{ op: "import", url: "https://evil.example/a/b" }, {}],
+    [{ op: "next" }, {}], [{ op: "page", url: SET }, {}], [{ op: "gates", choice: "open" }, {}]]) {
+    assert.equal(await content(m, sender), "unanswered", JSON.stringify([m, sender]));
+  }
+  assert.deepEqual(x.events("player.command").slice(imported), [{ event: "player.command", op: "import", url: "https://soundcloud.com/some-dj/a-track" },
+    { event: "player.command", op: "import", url: SET }]);
   x.port.onMessage.fire({ event: "app-offline" });
   await tick();
   assert.equal(x.session.djdPlayer, null);
   assert.equal(x.ui.badge, ""); // the app is gone: no count, no menu
   assert.equal(x.ui.menus["djd-dig-link"].visible || x.ui.menus["djd-dig-page"].visible, false);
+  assert.deepEqual(await content({ op: "import", url: SET }), { ok: false }); // the app is gone: nothing sent
+  assert.equal(x.events("player.command").length, imported + 2);
+
+  // soundcloud.js's own link check, outside a page (no document: only its functions are defined)
+  const sc = { URL, Set };
+  vm.createContext(sc);
+  vm.runInContext(read("soundcloud.js"), sc);
+  for (const [href, expected] of [[SET, SET], ["https://soundcloud.com/some-dj/sets/deep_cuts-2/?in=x#t", SET],
+    ["https://soundcloud.com/some-dj/a_track-2?in=some-dj/sets/x", "https://soundcloud.com/some-dj/a_track-2"],
+    ["https://soundcloud.com/some-dj", null], ["https://soundcloud.com/some-dj/sets", null], ["https://soundcloud.com/some-dj/likes", null],
+    ["https://soundcloud.com/some-dj/popular-tracks", null], ["https://soundcloud.com/tags/house", null], ["https://soundcloud.com/discover/sets/x", null],
+    ["https://soundcloud.com/some-dj/a-track/s-SECRET", null], ["https://soundcloud.com/some-dj/sets/x/s-SECRET", null],
+    ["https://www.soundcloud.com/some-dj/a-track", null], ["http://soundcloud.com/some-dj/a-track", null],
+    ["https://soundcloud.com.evil.com/some-dj/a-track", null], ["https://user@soundcloud.com/some-dj/a-track", null],
+    ["https://soundcloud.com:8443/some-dj/a-track", null], ["https://soundcloud.com/some%2Fdj/a-track", null],
+    ["javascript:alert(1)//soundcloud.com/a/b", null], ["/some-dj/a-track", "https://soundcloud.com/some-dj/a-track"],
+    ["//evil.example/some-dj/a-track", null], ["#", null], ["", null], [null, null], [undefined, null]]) {
+    assert.equal(sc.djdTarget(href), expected, String(href));
+  }
 
   // a browser with no window of its own gets one, and the session closes it again
   x = await start();

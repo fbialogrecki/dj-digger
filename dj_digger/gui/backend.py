@@ -35,6 +35,7 @@ BROWSER_POSITION_EVERY = 5.0
 # SoundCloud links the browser extension may hand over for an import (backend.import_target).
 IMPORT_HOSTS = frozenset({'soundcloud.com', 'www.soundcloud.com', 'm.soundcloud.com'})
 PROFILE_TABS = frozenset({'sets', 'tracks', 'albums', 'popular-tracks', 'reposts'})
+NOT_TRACKS = frozenset({'likes', 'followers', 'following', 'comments', 'spotlight'})  # /<user>/<this> is no track
 
 
 def cover_hash(text):
@@ -1908,11 +1909,12 @@ def profile_summary(report, error=''):
 
 
 def import_target(url):
-    """A link the browser extension handed over (untrusted) as ``('set', link)`` for Add playlist or
-    ``('profile', link)`` for the profile import, normalised; None for anything else. Only https on
-    soundcloud.com (also www. and m.) with no credentials or port, and only these path shapes:
-    ``/<user>/sets/<name>``, ``/<user>`` and ``/<user>/<tab>`` (sets, tracks, albums, popular-tracks,
-    reposts). The query and fragment are dropped. The extension checks the same before sending."""
+    """A link the browser extension handed over (untrusted) as ``('set', link)`` or ``('track', link)``
+    for Add playlist (a track is a one-track playlist) or ``('profile', link)`` for the profile import,
+    normalised; None for anything else. Only https on soundcloud.com (also www. and m.) with no
+    credentials or port, and only these path shapes: ``/<user>/sets/<name>``, ``/<user>/<track>``,
+    ``/<user>`` and ``/<user>/<tab>`` (sets, tracks, albums, popular-tracks, reposts). The query and
+    fragment are dropped. The extension checks the same before sending."""
     from urllib.parse import urlsplit
 
     from ..services.profile_import import PROFILE_NAME, profile_url
@@ -1931,6 +1933,10 @@ def import_target(url):
         return 'set', link
     if len(names) == 1 or (len(names) == 2 and names[1] in PROFILE_TABS):
         return 'profile', profile_url(url)
+    if len(names) == 2 and names[1] not in NOT_TRACKS:
+        link = 'https://soundcloud.com/' + '/'.join(names)
+        soundcloud_link('target')({'target': link})
+        return 'track', link
     return None
 
 
