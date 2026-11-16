@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Maintain the generated section map in PROJECT-SPECIFICATION.md.
+"""Maintain the generated section map in PROJECT_SPECIFICATION.md.
 
 Numbered Markdown headings are recognised in the form ``## 1. Title`` or
 ``### 1.2 Title``.  A large subsection may expose selected internal blocks by
@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SPEC_PATH = ROOT / "PROJECT-SPECIFICATION.md"
+SPEC_PATH = ROOT / "PROJECT_SPECIFICATION.md"
 
 MAP_BEGIN = "<!-- BEGIN GENERATED SECTION MAP -->"
 MAP_END = "<!-- END GENERATED SECTION MAP -->"
@@ -220,9 +220,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.check:
         if original == expected:
-            print("PROJECT-SPECIFICATION.md section map is current.")
+            print("PROJECT_SPECIFICATION.md section map is current.")
             return 0
-        print("PROJECT-SPECIFICATION.md section map is stale.", file=sys.stderr)
+        print("PROJECT_SPECIFICATION.md section map is stale.", file=sys.stderr)
         diff = difflib.unified_diff(
             original.splitlines(),
             expected.splitlines(),

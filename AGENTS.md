@@ -6,7 +6,7 @@ crate-digging headless CLI and Qt Quick desktop (`dj-digger-gui`).
 ## Required task startup and skills
 
 - At the start of every new task, before analysis, planning, or edits, read
-  `PROJECT-SPECIFICATION.md`: start with its section map and then the relevant
+  `PROJECT_SPECIFICATION.md`: start with its section map and then the relevant
   sections, following this repository's specification-reading rules below.
 - Always load the `graphify` skill and read the existing `graphify-out/graph.json`
   at task startup, including for simple tasks. Inspect its structure and retrieve
@@ -24,38 +24,30 @@ crate-digging headless CLI and Qt Quick desktop (`dj-digger-gui`).
   level or opts out. Do not activate it for prose-only tasks.
 - These are explicit exceptions to any general manual-only skill policy:
   `graphify` for required read-only startup and `ponytail` before coding.
-  Keep `openai-docs` available within its documented scope; other skills require
-  explicit user invocation. Resolve skills from the current skill catalog; on
-  this workstation they live under `/home/peregrin/.agents/skills/`.
+  Other skills require explicit user invocation. Resolve skills from the current
+  skill catalog; on this workstation they live under `~/.agents/skills/`.
 - If the specification, graph, or a required skill is missing or unreadable,
   briefly report it and continue with available sources where possible. Do not
   claim it was read or automatically create, install, or update it.
 - Reuse context already read in this task while files remain unchanged; do not
   repeat startup on every follow-up message.
-- Plan auditing is a separate manual step: run `plan-audit` only when explicitly
-  invoked by the user. Do not automatically audit every plan or treat an audit
-  as authorization to implement it.
 
-## Source of truth
+## Source Of Truth
 
-- Product behavior, architecture boundaries, public interfaces, data models,
-  privacy, and security requirements live in `PROJECT-SPECIFICATION.md`.
-- Never read `PROJECT-SPECIFICATION.md` end to end unless the user explicitly
-  requires an exhaustive audit and repository instructions allow it.
-- Start by running `python3 scripts/spec_section_map.py --print-map`.
-- Read only the mapped sections relevant to the current task. For a known symbol,
-  field, endpoint, environment variable, class, or collection, use `rg`.
-- `PROJECT-SPECIFICATION.md` records shipped behavior only. If behavior is not
-  described and cannot be confirmed in code, do not assume it exists.
-- Update the affected specification sections in the same change whenever
-  modifying product behavior, interfaces, data models, security/privacy behavior,
-  or component ownership.
-- After editing the specification, run `python3 scripts/spec_section_map.py`,
-  followed by `python3 scripts/spec_section_map.py --check`.
-- Plans, target designs, TODOs, open questions, and acceptance checklists belong
-  in `specs/` or `docs/`, not in `PROJECT-SPECIFICATION.md`.
-- Keep `AGENTS.md` concise. Put repository-wide rules here and detailed
-  operational procedures in dedicated documentation.
+- Product, API, data, privacy, and security requirements live in `PROJECT_SPECIFICATION.md`.
+- Never read `PROJECT_SPECIFICATION.md` whole unless its "How to read this file" section says
+  it is small enough. Start with the first read given there (header and section map), then
+  read only the map entries your task touches, or grep when you already know the symbol.
+- That file records shipped behavior only. If it does not describe a behavior, that behavior is not built.
+
+## Specification maintenance
+
+- Update `PROJECT_SPECIFICATION.md` in the same change when altering product behavior, API
+  contracts, data models, privacy/security behavior, or ownership boundaries, then refresh the
+  section map's line ranges (a stale map sends the next reader to the wrong section) with
+  `python3 scripts/spec_section_map.py`, followed by `python3 scripts/spec_section_map.py --check`.
+- Do not put plans, target designs, open questions, acceptance checklists, or TODOs in
+  `PROJECT_SPECIFICATION.md`.
 
 ## Repository map
 
@@ -71,7 +63,8 @@ crate-digging headless CLI and Qt Quick desktop (`dj-digger-gui`).
 - `dj_digger/webext/`: the browser extension (`extension/`), its native-host relay, the app-side
   socket `link.py`, and the Playwright-shaped page adapter that gates, login, and cart drive.
 - `tests/`: offline suite plus explicitly marked live contract checks.
-- `.github/workflows/`: CI, scheduled live monitoring, and PyPI publishing.
+- `.github/workflows/`: CI, desktop installer builds, scheduled live monitoring, the GitHub
+  Pages site, and PyPI and Chrome Web Store publishing.
 
 ## Engineering rules
 
@@ -91,6 +84,8 @@ crate-digging headless CLI and Qt Quick desktop (`dj-digger-gui`).
   fixtures, documentation, and commits.
 - If an intentional shortcut is accepted, document it locally as
   `# ponytail: <reason>`.
+- Keep `AGENTS.md` concise. Put repository-wide rules here and detailed
+  operational procedures in dedicated documentation; plans and TODOs go in `docs/`.
 
 ## Prohibited operations
 
