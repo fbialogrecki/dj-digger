@@ -16,7 +16,7 @@ stay on your machine, and checkout always stays in your hands.
 
 The current implemented behavior, architecture, interfaces, data model, and
 security/privacy boundaries are maintained in
-[PROJECT-SPECIFICATION.md](https://github.com/fbialogrecki/dj-digger/blob/main/PROJECT-SPECIFICATION.md).
+[PROJECT_SPECIFICATION.md](https://github.com/fbialogrecki/dj-digger/blob/main/PROJECT_SPECIFICATION.md).
 
 ```bash
 dj-digger https://soundcloud.com/someone/sets/that-playlist   # headless: export + save to the library
@@ -457,7 +457,7 @@ CLI / Qt desktop controllers
 Controllers own presentation; services own completed effects and resource
 lifecycles. The operation coordinator admits work and tracks cancellation until
 workers finish. See [the architecture guide](https://github.com/fbialogrecki/dj-digger/blob/main/docs/architecture.md) for ownership
-and [the specification](https://github.com/fbialogrecki/dj-digger/blob/main/PROJECT-SPECIFICATION.md) for behavioral contracts.
+and [the specification](https://github.com/fbialogrecki/dj-digger/blob/main/PROJECT_SPECIFICATION.md) for behavioral contracts.
 
 ---
 

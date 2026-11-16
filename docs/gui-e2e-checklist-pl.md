@@ -4,7 +4,7 @@ Stan opracowania: **24.09.2026**, wersja **1.2.0**, `main` **1a7f54f79b0ec30e66c
 
 To instrukcja testów, **nie raport z ich wykonania**. Checkbox zaznaczaj dopiero po uzyskaniu opisanego wyniku. Przy niepowodzeniu dopisz `FAIL`, przy braku danych/konta/sprzętu `NIE TESTOWANO`, a przy przeszkodzie po stronie serwisu `BLOKADA: powód`. Samo otwarcie okna nie zalicza pobierania, logowania ani eksportu.
 
-Podstawa: odpowiednie sekcje `PROJECT-SPECIFICATION.md`, zapytania do graphify oraz bieżący kod QML, bridge, backendu i wspólnych usług. Graf ma 3723 węzły i pochodzi z 09.09.2026; służył do nawigacji, nie do potwierdzania działania ani kompletności nowszego GUI. Zapytania obejmowały słownik `bridge backend settings download playback export cart local analysis playlist gate soundcloud`. Istotne węzły: `Bridge` (`dj_digger/gui/bridge.py`, graf: `L28`), `Backend` (`dj_digger/gui/backend.py`, graf: `L19`), `ApplicationServices`, `DownloadWorkflow`, `LocalLibrary`, `CartRequest` i `CartPlan`. Bieżące lokalizacje są w źródłach na końcu dokumentu.
+Podstawa: odpowiednie sekcje `PROJECT_SPECIFICATION.md`, zapytania do graphify oraz bieżący kod QML, bridge, backendu i wspólnych usług. Graf ma 3723 węzły i pochodzi z 09.09.2026; służył do nawigacji, nie do potwierdzania działania ani kompletności nowszego GUI. Zapytania obejmowały słownik `bridge backend settings download playback export cart local analysis playlist gate soundcloud`. Istotne węzły: `Bridge` (`dj_digger/gui/bridge.py`, graf: `L28`), `Backend` (`dj_digger/gui/backend.py`, graf: `L19`), `ApplicationServices`, `DownloadWorkflow`, `LocalLibrary`, `CartRequest` i `CartPlan`. Bieżące lokalizacje są w źródłach na końcu dokumentu.
 
 Aktualizacja dla 1.4.0: bramki, koszyki i logowanie SoundCloud działają przez rozszerzenie w Twojej przeglądarce, a nie przez Chromium aplikacji (kroki SHOP-01, AUTH-01/02, GATE-05…08 i nowa sekcja 21 z macierzą W1–W14 z `docs/implementation/browser-extension-plan.md` §8). Te kroki wymagają przeglądarki z rozszerzeniem; Flatpak i Snap nie są obsługiwane.
 
@@ -415,7 +415,7 @@ Nie umieszczaj w zgłoszeniu haseł, tokenów, cookies ani nieprzejrzanych danyc
 
 | Zakres checklisty | Bieżące źródło |
 | --- | --- |
-| Kontrakt GUI, układ, skróty, trwałość | [Specyfikacja §3.8](../PROJECT-SPECIFICATION.md#38-qt-quick-desktop), `dj_digger/gui/qml/Main.qml:231`, `dj_digger/gui/bridge.py:167` |
+| Kontrakt GUI, układ, skróty, trwałość | [Specyfikacja §3.8](../PROJECT_SPECIFICATION.md#38-qt-quick-desktop), `dj_digger/gui/qml/Main.qml:231`, `dj_digger/gui/bridge.py:167` |
 | Wejścia SoundCloud, prywatny profil | Specyfikacja §3.1, §9.1; `dj_digger/gui/backend.py:248`, `:508`; `dj_digger/services/profile_import.py:19` |
 | Akcje tabeli i statusy | `dj_digger/gui/model.py:9`, `dj_digger/gui/backend.py:270`, `:485`, `:834` |
 | Foldery, lokalne playlisty, skan | Specyfikacja §3.5, §3.7; `dj_digger/gui/backend.py:215`, `:471`, `:823`, `:843`; `dj_digger/services/local_library.py:54`; `dj_digger/db.py:434` |

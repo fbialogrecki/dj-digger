@@ -1,6 +1,6 @@
 # Kick light v3: a continuous kick level — 2026-10-01
 
-Status: shipped (2026-10-01). `PROJECT-SPECIFICATION.md` §3.4 and §3.8 describe
+Status: shipped (2026-10-01). `PROJECT_SPECIFICATION.md` §3.4 and §3.8 describe
 what runs, and `docs/kick-pulse-validation.md` holds the measurements. This
 replaces v2 (discrete kick decisions, shipped and replaced the same day) and v1
 (2026-09-29).

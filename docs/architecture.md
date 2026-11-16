@@ -2,7 +2,7 @@
 
 The refactor keeps the 1.0 collection, classification, provider protocols and
 export formats. It changes ownership and settlement of concurrent work.
-`PROJECT-SPECIFICATION.md` remains the behavior contract; this document explains
+`PROJECT_SPECIFICATION.md` remains the behavior contract; this document explains
 where an implementation change belongs.
 
 ## Composition and execution

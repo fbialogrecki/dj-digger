@@ -4,11 +4,11 @@
   2026-10-07) wdrożone** (sesja w tle koszyka sprawdzona na żywo; akceptacja W4–W7, W15 na żywo
   czeka). Akceptacja na żywo (§8) po F10.
   Poniżej plan z rewizji 2; opisy „dziś” w §1 dotyczą stanu sprzed zmiany. Zachowanie opisuje
-  `PROJECT-SPECIFICATION.md`.
+  `PROJECT_SPECIFICATION.md`.
 - Branch: `feat/browser-extension` (od `main` @ `1fe6060`, wersja 1.3.0); wydanie docelowe 1.4.0
 - Tryb wdrożenia: bezpośrednia zamiana, bez flag i bez równoległego backendu Playwright.
   Branch merguje się dopiero, gdy przejdzie pełna macierz testów z §8.
-- Źródła: `PROJECT-SPECIFICATION.md` §3.6, §6.1, §9, §10.2–10.4, §13.2; kod wymieniony w §1.
+- Źródła: `PROJECT_SPECIFICATION.md` §3.6, §6.1, §9, §10.2–10.4, §13.2; kod wymieniony w §1.
 - Historia: rew. 3 (2026-10-07) dodaje zasadę „bez okien” (Z1–Z6), F10 i poprawia D3, D7,
   W4–W7. rew. 1 to pierwszy szkic. Rew. 2 dodaje poprawki z przeglądu (K1–K6, W1–W15,
   drobne): semantykę czekania, natywny async, zakaz pickle, przypisywanie pobrań, wspólną
@@ -668,7 +668,7 @@ Hypeddit zostaje przy oknie roboczym.
 
 ### F9. Specyfikacja i dokumentacja
 
-Zmiany w `PROJECT-SPECIFICATION.md` (zachowanie się zmienia, więc w tym samym branchu,
+Zmiany w `PROJECT_SPECIFICATION.md` (zachowanie się zmienia, więc w tym samym branchu,
 zgodnie z AGENTS.md):
 
 - §3.6: koszyk Beatport, okno robocze zamiast headless, brak logowania w Ustawieniach.

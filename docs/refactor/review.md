@@ -2,7 +2,7 @@
 
 Zakres: `171f033` (`v1.0.0`) → `f485591`, branch
 `refactor/post-1.0-architecture`. Review według `AGENTS.md`, odpowiednich sekcji
-`PROJECT-SPECIFICATION.md` i zatwierdzonego planu użytkownika. Dwie niezależne
+`PROJECT_SPECIFICATION.md` i zatwierdzonego planu użytkownika. Dwie niezależne
 osie; poprawki sprawdzono ponownie po implementacji. Data: 2026-09-05.
 
 ## Standardy
