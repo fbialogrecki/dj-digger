@@ -278,6 +278,34 @@ def test_settings_keep_a_browser_this_computer_lacks_and_fold_the_folder_lists(b
     assert saved['browser'] == 'netsurf' and not any(name.startswith('section_') for name in saved)
 
 
+def test_preferences_keep_the_draft_after_an_account_action(backend, tmp_path, monkeypatch):
+    from dj_digger.gui.backend import field
+
+    worker, events = backend
+    signed_out = []
+
+    async def logout(_):
+        signed_out.append(True)
+
+    monkeypatch.setattr(worker, 'action_logout', logout)
+    worker.submit('settings', {'appearance': [field('animations', 'Animations', True, 'bool')]})
+    question = wait_event(events, 'question')
+    draft = {f['name']: f['value'] for f in question['fields']}
+    draft.update(user_name='Digger', download_directory=str(tmp_path), animations=False, previewThirty=True)
+    worker.answer(question['id'], dict(draft, _connectionAction='logout'))
+    reopened = wait_event(events, 'question')
+    assert signed_out == [True]
+    reopened_fields = {f['name']: f for f in reopened['fields']}
+    assert reopened_fields['section_browser']['expanded'] is True
+    assert reopened_fields['user_name']['value'] == 'Digger'
+    assert reopened_fields['animations']['value'] is False
+    worker.answer(reopened['id'], draft)
+    assert wait_event(events, 'presentation') == {'animations': False, 'previewThirty': True}
+    wait_event(events, 'sidebar')
+    saved = json.loads((tmp_path / 'config.json').read_text())
+    assert saved['user_name'] == 'Digger' and 'animations' not in saved and 'previewThirty' not in saved
+
+
 def test_skipping_first_run_settings_still_downloads(backend, tmp_path):
     worker, events = backend
     worker.rows = online_rows(1)
@@ -298,7 +326,7 @@ def test_skipping_first_run_settings_still_downloads(backend, tmp_path):
     worker.services._client = Client()
     worker.submit('download', {'keys': [row.track.key], 'generation': worker.generation})
     question = wait_event(events, 'question')
-    assert question['title'] == 'Settings'
+    assert question['title'] == 'Preferences'
     worker.answer(question['id'], None)
     message = next_of(events, 'message', 'error')[1]
     assert message['text'] == 'Downloading to {0}; change the folder in Settings'

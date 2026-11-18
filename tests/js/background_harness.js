@@ -24,6 +24,116 @@ function fakePort(name, sender) {
   return p;
 }
 
+// The SoundCloud fixture uses the small subset of the DOM that its content script reads.
+function element(tag, className = "", href) {
+  return {
+    tag, className, attributes: href === undefined ? {} : { href }, children: [], parentElement: null, listeners: {}, style: {},
+    get classList() { return this.className.split(" "); },
+    get isConnected() { return this.tag === "body" || !!this.parentElement?.isConnected; },
+    matches(selectors) {
+      return selectors.split(",").some((selector) => {
+        const parts = selector.trim().split(/\s+/);
+        const [, tag, cls, href] = /^(\w+)?(?:\.([\w-]+))?(\[href\])?$/.exec(parts.pop());
+        return (!tag || tag === this.tag) && (!cls || this.classList.includes(cls)) &&
+          (!href || "href" in this.attributes) && (!parts.length || this.parentElement?.closest(parts.join(" ")));
+      });
+    },
+    closest(selector) { return this.matches(selector) ? this : this.parentElement?.closest(selector) ?? null; },
+    querySelectorAll(selector) {
+      if (selector.startsWith(":scope > ")) return this.children.filter((child) => child.matches(selector.slice(9)));
+      return this.children.flatMap((child) => [...(child.matches(selector) ? [child] : []), ...child.querySelectorAll(selector)]);
+    },
+    querySelector(selector) { return this.querySelectorAll(selector)[0] ?? null; },
+    getAttribute(name) { return this.attributes[name] ?? null; },
+    setAttribute(name, value) { this.attributes[name] = value; },
+    append(...children) { for (const child of children) this.insertBefore(child, null); },
+    insertBefore(child, before) {
+      child.remove();
+      this.children.splice(before ? this.children.indexOf(before) : this.children.length, 0, child);
+      child.parentElement = this;
+    },
+    after(child) {
+      const siblings = this.parentElement.children;
+      this.parentElement.insertBefore(child, siblings[siblings.indexOf(this) + 1]);
+    },
+    remove() {
+      if (this.parentElement) this.parentElement.children.splice(this.parentElement.children.indexOf(this), 1);
+      this.parentElement = null;
+    },
+    addEventListener(name, callback) { this.listeners[name] = callback; },
+    click(isTrusted = true) { this.listeners.click({ isTrusted, preventDefault() {}, stopPropagation() {} }); },
+  };
+}
+
+function testSoundCloudTiles() {
+  const body = element("body");
+  const document = { body, querySelectorAll: (selector) => body.querySelectorAll(selector), createElement: element };
+  const window = {};
+  window.top = window;
+  const location = new URL("https://soundcloud.com/discover");
+  const sent = [];
+  const frames = [];
+  let observer;
+  const browser = { runtime: { sendMessage: async (frame) => { sent.push(JSON.parse(JSON.stringify(frame))); return { code: "accepted" }; } } };
+  const MutationObserver = class { constructor(fn) { observer = fn; } observe() {} };
+  const rescan = () => { observer(); frames.shift()(); };
+  const artwork = (href) => element("a", "playableTile__artworkLink", href);
+  const tile = (...links) => {
+    const card = element("div", "playableTile");
+    card.append(...links.map(artwork));
+    body.append(card);
+    return card;
+  };
+  const normalUrl = "/artist/sets/deep-cuts";
+  const dailyUrl = "/discover/sets/new-for-you%3A%3Alistener?si=drop";
+  const weeklyUrl = "/discover/sets/weekly::listener";
+  const normal = tile(normalUrl);
+  const daily = tile(dailyUrl);
+  const weekly = tile(weeklyUrl);
+  const recycled = tile("/artist/sets/recycled");
+  const track = tile("/artist/track");
+  const ambiguous = tile("/artist/sets/first", "/artist/sets/second");
+  const misleading = tile("/artist/track");
+  misleading.append(element("a", "", normalUrl)); // a different link in the tile is not its permalink
+  const row = element("div", "trackItem");
+  const nested = tile(normalUrl);
+  row.append(nested);
+  body.append(row);
+  const header = element("section", "listenEngagement__actions");
+  const actions = element("div", "sc-button-group");
+  header.append(actions);
+  body.append(header);
+  const sandbox = { URL, window, location, document, browser, MutationObserver, setTimeout() {},
+    requestAnimationFrame: (callback) => frames.push(callback) };
+  vm.runInNewContext(read("soundcloud.js"), sandbox);
+  const button = (card) => card.querySelector(":scope > .djd-import");
+  for (const card of [track, ambiguous, misleading, nested, actions]) assert.equal(button(card), null);
+  button(normal).click(false);
+  assert.deepEqual(sent, []);
+  button(normal).click();
+  button(daily).click();
+  const stale = button(weekly);
+  weekly.querySelector("a").setAttribute("href", "/discover/sets/weekly::new-owner");
+  stale.click();
+  assert.deepEqual(sent, [
+    { op: "import", url: "https://soundcloud.com" + normalUrl, tilePage: "/discover" },
+    { op: "import", url: "https://soundcloud.com/discover/sets/new-for-you::listener", tilePage: "/discover" },
+  ]);
+  rescan();
+  assert.notEqual(button(weekly), stale);
+  button(weekly).click();
+  assert.equal(sent.at(-1).url, "https://soundcloud.com/discover/sets/weekly::new-owner");
+  location.href = "https://soundcloud.com" + normalUrl;
+  button(recycled).click(); // stale despite the art still being present and valid
+  assert.equal(sent.length, 3);
+  rescan();
+  button(actions).click();
+  assert.deepEqual(sent.at(-1), { op: "import", url: "https://soundcloud.com" + normalUrl });
+  location.href = "https://soundcloud.com/artist/track";
+  rescan();
+  assert.equal(button(actions), null);
+}
+
 function fakeBrowser({ offscreen = true, failOffscreen = false } = {}) {
   const session = {};
   const tabs = new Map();
@@ -148,8 +258,9 @@ function fakeBrowser({ offscreen = true, failOffscreen = false } = {}) {
       get: async (id) => tabs.get(id) ?? Promise.reject(new Error("no tab")),
       query: async ({ windowId }) => [...tabs.values()].filter((t) => t.windowId === windowId),
       create: async ({ windowId, url, active }) => {
+        windowId ??= user.window;
         if (!wins.has(windowId)) throw new Error("no window");
-        return newTab(windowId, { url, active });
+        return newTab(windowId, { url, active, status: "complete" });
       },
       update: async (id, { url, muted, active }) =>
         Object.assign(tabs.get(id), url ? { url } : {}, muted ? { muted } : {}, active ? { active } : {}),
@@ -176,15 +287,17 @@ function fakeBrowser({ offscreen = true, failOffscreen = false } = {}) {
   return { api, e, port, sent, calls, tabs, wins, newTab, session, off, user, ui };
 }
 
-async function start(fake = fakeBrowser()) {
+async function start(fake = fakeBrowser(), desktopTimeout = 20000) {
   const sandbox = {
-    browser: fake.api, console, URL, Promise, Date, setTimeout, clearTimeout, AbortController, JSON,
+    browser: fake.api, console, URL, Promise, Date, clearTimeout, AbortController, JSON,
+    setTimeout: (fn, ms) => setTimeout(fn, ms === 20000 ? desktopTimeout : ms),
     crypto: { randomUUID: ((n) => () => (n++ ? `nonce-${n}` : "instance"))(0) }, navigator: { userAgent: "Chrome/121.0" },
     fetch: async () => ({ json: async () => JSON.parse(read("allowlist.json")) }),
   };
   sandbox.globalThis = sandbox;
   vm.createContext(sandbox);
   vm.runInContext(read("dom.js"), sandbox);
+  vm.runInContext(read("playlist-write.js"), sandbox);
   vm.runInContext(read("background.js"), sandbox);
   await tick();
   let id = 0;
@@ -202,7 +315,161 @@ async function start(fake = fakeBrowser()) {
   return { ...fake, call, events };
 }
 
+async function testPlaylistWrite() {
+  const x = await start();
+  x.user.window = 80;
+  x.wins.add(80);
+  x.newTab(80); // Keep the user's window and original tab.
+  const account = "https://soundcloud.com/owner";
+  const track = "https://soundcloud.com/artist/track";
+  const destination = account + "/sets/playlist";
+  const request = { track, account, destination };
+  const fresh = { ...request, destination: "", title: "Night set", sharing: "private" };
+  const clicked = [];
+  const phases = [];
+  const calls = { selected: false, link: destination, page: track, owner: account, showForm: false };
+  const element = (name, change, extra = {}) => ({
+    getClientRects: () => [true], click: () => { clicked.push(name); change?.(); }, ...extra,
+  });
+  const title = element("title", null, { value: "", dispatchEvent: ({ type }) => clicked.push(type) });
+  const privateRadio = element("private", () => { privateRadio.checked = true; publicRadio.checked = false; }, { checked: false });
+  const publicRadio = element("public", () => { publicRadio.checked = true; privateRadio.checked = false; }, { checked: true });
+  const save = element("save", () => { calls.saved = true; });
+  const form = { querySelector: (s) => ({
+    ".createPlaylist__title input": title,
+    '.createPlaylist__sharing input[type="radio"][value="private"]': privateRadio,
+    '.createPlaylist__sharing input[type="radio"][value="public"]': publicRadio,
+    "button.createPlaylist__saveButton": save,
+  })[s] };
+  const add = element("add", () => { calls.selected = true; }, {
+    classList: { contains: (c) => c === "sc-button-selected" && calls.selected },
+    getAttribute: (n) => n === "title" ? (calls.title ?? "") : null,
+  });
+  const row = { querySelector: (s) => ({
+    "a.addToPlaylistItem__titleLink": { href: calls.link }, "button.addToPlaylistButton": add,
+  })[s] };
+  const modal = {
+    querySelector: (s) => ({
+      ".createPlaylist": calls.showForm ? form : null,
+      ".createPlaylist__title input": calls.showForm ? title : null,
+      "a.createPlaylist__goToPlaylist": calls.saved ? element("result", null, { href: calls.link }) : null,
+    })[s],
+    querySelectorAll: (s) => ({
+      ".addToPlaylistItem": calls.duplicate ? [row, row] : [row],
+      ".tabs__tabs .tabs__tab": [element("add-tab"), element("create-tab", () => { calls.showForm = true; })],
+    })[s],
+  };
+  const document = { querySelector: (s) => ({
+    "a.header__userNavUsernameButton": { href: calls.owner },
+    ".listenEngagement__actions button.sc-button-addtoset": element("open"), ".addToPlaylistTabs": modal,
+  })[s] };
+  const step = (func, request, phase) => vm.runInNewContext(`(${func.toString()})(request, phase)`, {
+    request, phase, document, location: new URL(calls.page),
+    Event: class { constructor(type) { this.type = type; } },
+  });
+  const injected = async ({ target, func, args: [request, phase] }) => {
+    assert.equal(x.tabs.get(target.tabId).active, false);
+    assert.equal(x.tabs.get(target.tabId).muted, true);
+    phases.push(phase);
+    return [{ result: step(func, request, phase) }];
+  };
+  x.api.scripting.executeScript = injected;
+  const write = (args) => x.call("playlist.writeTrack", args);
+
+  calls.selected = true;
+  assert.deepEqual((await write(request)).result, { destination });
+  assert.deepEqual(clicked.splice(0), ["open"]); // selected is Remove, even for a retry
+  calls.selected = false;
+  assert.deepEqual((await write(request)).result, { destination });
+  assert.deepEqual(clicked.splice(0), ["open", "add"]);
+
+  calls.owner = "https://soundcloud.com/other";
+  assert.equal((await write(request)).error.code, "refused");
+  calls.owner = account;
+  calls.page = "https://soundcloud.com/artist/other";
+  assert.equal((await write(request)).error.code, "refused");
+  calls.page = track;
+  for (const args of [{ ...request, track: track + "/s-PRIVATE" },
+    { ...request, track: track + "?in=owner/sets/playlist" }, { ...request, destination: destination + "/s-PRIVATE" },
+    { ...request, destination: "https://soundcloud.com/other/sets/list" }, { ...fresh, destination: null }]) {
+    const reply = await write(args);
+    assert.equal(reply.error.code, "refused");
+    assert.ok(!JSON.stringify(reply).includes("s-PRIVATE"));
+  }
+  assert.deepEqual(clicked.splice(0), []);
+
+  const isolated = vm.createContext({});
+  vm.runInContext(read("playlist-write.js"), isolated);
+  calls.selected = false;
+  calls.duplicate = true;
+  assert.equal(step(isolated.soundcloudPlaylistStep, request, "add"), null);
+  calls.duplicate = false;
+  calls.link = account + "/sets/other";
+  assert.equal(step(isolated.soundcloudPlaylistStep, request, "add"), null);
+  calls.link = destination;
+  calls.title = "Remove";
+  assert.equal(step(isolated.soundcloudPlaylistStep, request, "add"), null);
+  calls.title = "";
+  assert.deepEqual(clicked.splice(0), []);
+
+  assert.deepEqual((await write(fresh)).result, { destination });
+  assert.equal(title.value, fresh.title);
+  assert.deepEqual(clicked.splice(0), ["open", "create-tab", "input", "change", "private", "save"]);
+  title.value = "changed";
+  assert.equal(step(isolated.soundcloudPlaylistStep, fresh, "save"), null);
+  privateRadio.checked = false;
+  title.value = fresh.title;
+  assert.equal(step(isolated.soundcloudPlaylistStep, fresh, "save"), null);
+  assert.deepEqual(clicked.splice(0), []);
+
+  calls.showForm = calls.saved = publicRadio.checked = false;
+  privateRadio.checked = true;
+  assert.deepEqual((await write({ ...fresh, sharing: "public" })).result, { destination });
+  assert.deepEqual(clicked.splice(0), ["open", "create-tab", "input", "change", "public", "save"]);
+
+  x.api.scripting.executeScript = async () => [{ result: { destination: account + "/sets/wrong" } }];
+  assert.equal((await write(request)).error.code, "unconfirmed");
+  x.api.scripting.executeScript = async () => { throw new Error("Failed on " + destination + "/s-PRIVATE"); };
+  const privateReply = await write(request);
+  assert.equal(privateReply.error.code, "unconfirmed");
+  assert.ok(!JSON.stringify(privateReply).includes("s-PRIVATE"));
+
+  phases.length = 0;
+  calls.selected = false;
+  x.api.scripting.executeScript = async (call) => {
+    const result = await injected(call);
+    if (call.args[1] === "add") x.port.onMessage.fire({ event: "app-offline" });
+    return result;
+  };
+  assert.equal((await write(request)).error.code, "unconfirmed");
+  assert.deepEqual(phases.splice(0), ["open", "add"]);
+  assert.deepEqual(clicked.splice(0), ["open", "add"]); // no retry after the click
+  assert.equal(x.tabs.size, 1);
+
+  const getTab = x.api.tabs.get;
+  let releaseTab;
+  x.api.tabs.get = async (id) => {
+    await new Promise(resolve => { releaseTab = resolve; });
+    return getTab(id);
+  };
+  x.port.onMessage.fire({ id: 200, cmd: "playlist.writeTrack", args: request });
+  for (let i = 0; !releaseTab && i < 50; i++) await tick();
+  assert.ok(releaseTab);
+  const reconnected = fakePort("native");
+  x.api.runtime.connectNative = () => reconnected;
+  x.port.onDisconnect.fire();
+  for (let i = 0; !reconnected.posted.some(message => message.event === "hello") && i < 100; i++) await tick();
+  assert.ok(reconnected.posted.some(message => message.event === "hello"));
+  releaseTab();
+  for (let i = 0; x.tabs.size > 1 && i < 50; i++) await tick();
+  assert.equal(x.tabs.size, 1);
+  assert.deepEqual(phases, []); // native loss while awaiting tabs.get prevents injection
+  assert.ok(!x.sent.some(reply => reply.id === 200));
+  assert.ok(!reconnected.posted.some(reply => reply.id === 200));
+}
+
 (async () => {
+  await testPlaylistWrite();
   // two sessions, two windows; neither opening closes the other
   let x = await start();
   const a = (await x.call("window.open", { visible: false })).result.windowId;
@@ -288,6 +555,7 @@ async function start(fake = fakeBrowser()) {
   // site access taken back or granted in the browser's settings reaches the app at once, not only in hello
   x = await start();
   assert.equal(x.events("hello")[0].permissions, true);
+  assert.equal(x.events("hello")[0].playlistWrite, true);
   x.ui.sites = false;
   x.e["permissions.onRemoved"].fire({ origins: ["https://hypeddit.com/*"] });
   await tick();
@@ -731,9 +999,11 @@ async function start(fake = fakeBrowser()) {
   assert.deepEqual([x.session.djdPlayer.artwork, x.session.djdPlayer.jobs, x.ui.badge, x.ui.badgeColor], ["", empty, "1", "#ff0094"]);
   const popup = { id: "djd", url: "popup.html" };
   const SET = "https://soundcloud.com/some-dj/sets/deep_cuts-2";
+  const SYSTEM = "https://soundcloud.com/discover/sets/new-for-you::listener";
+  const ENCODED_SYSTEM = "https://soundcloud.com/discover/sets/new-for-you%3A%3alistener?si=drop";
   for (const [m, sender] of [[{ op: "next" }, popup], [{ op: "toggle" }, popup], [{ op: "prev" }, popup],
     [{ op: "cancel", id: 3 }, popup], [{ op: "seek", fraction: 0.25, extra: 1 }, popup], [{ op: "seek", fraction: 1 }, popup],
-    [{ op: "gates", choice: "skip" }, popup], [{ op: "import", url: "https://m.soundcloud.com/some-dj/sets/deep_cuts-2?in=x#t=1" }, popup],
+    [{ op: "gates", choice: "skip" }, popup],
     [{ op: "stop" }, popup], [{ op: "next" }, { id: "djd", url: "offscreen.html" }],
     [{ op: "seek", fraction: 1.5 }, popup], [{ op: "seek", fraction: NaN }, popup], [{ op: "seek", fraction: "0.5" }, popup],
     [{ op: "gates", choice: "all" }, popup], [{ op: "import", url: "https://evil.example/some-dj" }, popup],
@@ -746,7 +1016,7 @@ async function start(fake = fakeBrowser()) {
   assert.deepEqual(x.events("player.command"), [{ event: "player.command", op: "next" }, { event: "player.command", op: "toggle" },
     { event: "player.command", op: "prev" }, { event: "player.command", op: "cancel" },
     { event: "player.command", op: "seek", fraction: 0.25 }, { event: "player.command", op: "seek", fraction: 1 },
-    { event: "player.command", op: "gates", choice: "skip" }, { event: "player.command", op: "import", url: SET }]);
+    { event: "player.command", op: "gates", choice: "skip" }]);
   // what the popup may offer for its page, and what an import may carry: nothing but these shapes
   const kind = (url) => {
     let answer;
@@ -755,6 +1025,9 @@ async function start(fake = fakeBrowser()) {
   };
   for (const [url, expected] of [
     [SET, "set"], ["https://www.soundcloud.com/some-dj/sets/deep_cuts-2/", "set"], ["https://SoundCloud.com/some-dj", "profile"],
+    [ENCODED_SYSTEM, "system-set"], ["https://soundcloud.com/discover/sets/weekly::listener", "system-set"],
+    ["https://soundcloud.com/discover/sets/x", null], ["https://soundcloud.com/discover/sets/track-stations:123", null],
+    ["https://soundcloud.com/discover/sets/weekly%253A%253Alistener", null],
     ["https://soundcloud.com/some-dj", "profile"], ["https://soundcloud.com/some-dj/sets", "profile"],
     ["https://soundcloud.com/some-dj/tracks?ref=x", "profile"], ["https://m.soundcloud.com/some-dj/popular-tracks", "profile"],
     ["https://soundcloud.com/some-dj/a-single-track", null], ["https://soundcloud.com/some-dj/sets/x/s-SECRET", null],
@@ -779,46 +1052,99 @@ async function start(fake = fakeBrowser()) {
   }
   assert.deepEqual(x.events("player.command").slice(sentBefore).map((m) => m.url), ["https://soundcloud.com/some-dj/sets/x",
     "https://soundcloud.com/other_dj", "https://soundcloud.com/some-dj/a-track", "https://soundcloud.com/some-dj/a-track"]);
-  // soundcloud.js: from the top frame of a soundcloud.com tab, an import only, answered with whether the app took it
-  const content = (m, sender) => new Promise((resolve) => {
-    x.e["runtime.onMessage"].fire(m, { id: "djd", tab: { id: 9 }, frameId: 0, url: "https://soundcloud.com/some-dj", ...sender }, (r) => resolve(JSON.parse(JSON.stringify(r))));
+  const ask = (m, sender = popup) => new Promise((resolve) => {
+    x.e["runtime.onMessage"].fire(m, sender, (r) => resolve(JSON.parse(JSON.stringify(r))));
     setTimeout(() => resolve("unanswered"), 100);
   });
-  const imported = x.events("player.command").length;
-  assert.deepEqual(await content({ op: "import", url: "https://soundcloud.com/some-dj/a-track?in=x" }), { ok: true });
-  assert.deepEqual(await content({ op: "import", url: SET }, { url: "https://soundcloud.com/you/library" }), { ok: true });
+  const content = (m, sender) => ask(m, { id: "djd", tab: { id: 9 }, frameId: 0, url: SET, ...sender });
+  assert.equal((await ask({ op: "import", url: "https://m.soundcloud.com/some-dj/sets/deep_cuts-2?in=x#t=1" })).code, "sent");
+  assert.equal(x.events("player.command").at(-1).url, SET); // old running app can still import an ordinary set
   for (const [m, sender] of [[{ op: "import", url: SET }, { frameId: 3 }], [{ op: "import", url: SET }, { tab: undefined }],
     [{ op: "import", url: SET }, { url: "https://evil.example/" }], [{ op: "import", url: SET }, { url: "https://m.soundcloud.com/x" }],
+    [{ op: "import", url: SET }, { url: "https://soundcloud.com/you/library" }],
+    [{ op: "import", url: "https://soundcloud.com/some-dj/a-track" }, { url: "https://soundcloud.com/some-dj/a-track" }],
     [{ op: "import", url: SET }, { id: "other" }], [{ op: "import", url: "https://evil.example/a/b" }, {}],
-    [{ op: "next" }, {}], [{ op: "page", url: SET }, {}], [{ op: "gates", choice: "open" }, {}]]) {
+    [{ op: "next" }, {}], [{ op: "launch" }, {}], [{ op: "page", url: SET }, {}], [{ op: "gates", choice: "open" }, {}]]) {
     assert.equal(await content(m, sender), "unanswered", JSON.stringify([m, sender]));
   }
-  assert.deepEqual(x.events("player.command").slice(imported), [{ event: "player.command", op: "import", url: "https://soundcloud.com/some-dj/a-track" },
-    { event: "player.command", op: "import", url: SET }]);
   x.port.onMessage.fire({ event: "app-offline" });
   await tick();
   assert.equal(x.session.djdPlayer, null);
   assert.equal(x.ui.badge, ""); // the app is gone: no count, no menu
   assert.equal(x.ui.menus["djd-dig-link"].visible || x.ui.menus["djd-dig-page"].visible, false);
-  assert.deepEqual(await content({ op: "import", url: SET }), { ok: false }); // the app is gone: nothing sent
-  assert.equal(x.events("player.command").length, imported + 2);
+  assert.equal((await ask({ op: "launch" })).code, "update"); // old relay can't start the GUI
+  x.port.onMessage.fire({ event: "app-offline", canLaunch: true });
+  assert.equal(x.events("desktop.launch").length, 0); // offline alone never opens anything
+  const opening = ask({ op: "launch" });
+  const openingAgain = ask({ op: "launch" });
+  assert.deepEqual(x.events("desktop.launch"), [{ event: "desktop.launch" }]);
+  x.port.onMessage.fire({ event: "desktop.launch-failed" });
+  assert.equal((await opening).code, "launch-failed");
+  assert.equal((await openingAgain).code, "launch-failed");
+  const importing = content({ op: "import", url: SYSTEM }, { url: ENCODED_SYSTEM });
+  const importingAgain = ask({ op: "import", url: ENCODED_SYSTEM });
+  assert.equal((await ask({ op: "import", url: SET })).code, "busy");
+  assert.equal(x.events("desktop.launch").length, 2);
+  assert.equal(x.events("import.request").length, 0);
+  const ready = { cmd: "player.state", args: {}, importInstance: "a".repeat(32) };
+  x.port.onMessage.fire(ready);
+  const [request] = x.events("import.request");
+  assert.equal(request.url, SYSTEM);
+  assert.match(request.date, /^\d{4}-\d{2}-\d{2}$/);
+  x.port.onMessage.fire({ event: "app-offline", canLaunch: true });
+  assert.equal(x.events("desktop.launch").length, 2);
+  x.port.onMessage.fire(ready);
+  assert.deepEqual(x.events("import.request"), [request, request]); // same operation key after reconnect
+  x.port.onMessage.fire({ event: "import.result", request: "wrong", code: "invalid" });
+  x.port.onMessage.fire({ event: "import.result", request: request.request, code: "accepted" });
+  assert.deepEqual(await importing, { ok: true, code: "accepted" });
+  assert.deepEqual(await importingAgain, { ok: true, code: "accepted" });
+  const interrupted = ask({ op: "import", url: SET });
+  const count = x.events("import.request").length;
+  x.port.onMessage.fire({ event: "app-offline", canLaunch: true });
+  x.port.onMessage.fire({ ...ready, importInstance: "b".repeat(32) });
+  assert.equal((await interrupted).code, "interrupted");
+  assert.equal(x.events("import.request").length, count);
+  const launches = x.events("desktop.launch").length;
+  const showing = ask({ op: "launch" });
+  const [activation] = x.events("activate.request");
+  x.port.onMessage.fire({ event: "activate.result", request: activation.request, code: "opened" });
+  assert.deepEqual(await showing, { ok: true, code: "opened" });
+  assert.equal(x.events("desktop.launch").length, launches);
+  const tileImport = content({ op: "import", url: SYSTEM, tilePage: "/discover" }, { url: "https://soundcloud.com/discover" });
+  const tileRequest = x.events("import.request").at(-1);
+  assert.equal(tileRequest.url, SYSTEM);
+  x.port.onMessage.fire({ event: "import.result", request: tileRequest.request, code: "accepted" });
+  assert.equal((await tileImport).code, "accepted");
+  assert.equal(await content({ op: "import", url: SYSTEM, tilePage: "/discover" }, { url: "https://soundcloud.com/you/sets" }), "unanswered");
+  assert.equal(await content({ op: "import", url: "https://soundcloud.com/artist/track", tilePage: "/discover" },
+    { url: "https://soundcloud.com/discover" }), "unanswered");
+  x = await start(fakeBrowser(), 35); // a CLI can hold the native socket without publishing desktop state
+  assert.deepEqual(await ask({ op: "launch" }), { ok: false, code: "timeout" });
+  assert.equal(x.events("desktop.launch").length, 0);
+  x.port.onMessage.fire(ready); // a GUI state could still be buffered when a CLI replaces it
+  assert.deepEqual(await ask({ op: "launch" }), { ok: false, code: "timeout" });
+  assert.equal(x.events("activate.request").length, 1);
 
   // soundcloud.js's own link check, outside a page (no document: only its functions are defined)
   const sc = { URL, Set };
   vm.createContext(sc);
   vm.runInContext(read("soundcloud.js"), sc);
   for (const [href, expected] of [[SET, SET], ["https://soundcloud.com/some-dj/sets/deep_cuts-2/?in=x#t", SET],
-    ["https://soundcloud.com/some-dj/a_track-2?in=some-dj/sets/x", "https://soundcloud.com/some-dj/a_track-2"],
+    [ENCODED_SYSTEM, SYSTEM], ["/discover/sets/weekly::listener", "https://soundcloud.com/discover/sets/weekly::listener"],
+    ["/discover/sets/weekly%3A%3Alistener%2Fbad", null], ["/discover/sets/track-stations:123", null],
+    ["https://soundcloud.com/some-dj/a_track-2?in=some-dj/sets/x", null],
     ["https://soundcloud.com/some-dj", null], ["https://soundcloud.com/some-dj/sets", null], ["https://soundcloud.com/some-dj/likes", null],
     ["https://soundcloud.com/some-dj/popular-tracks", null], ["https://soundcloud.com/tags/house", null], ["https://soundcloud.com/discover/sets/x", null],
     ["https://soundcloud.com/some-dj/a-track/s-SECRET", null], ["https://soundcloud.com/some-dj/sets/x/s-SECRET", null],
     ["https://www.soundcloud.com/some-dj/a-track", null], ["http://soundcloud.com/some-dj/a-track", null],
     ["https://soundcloud.com.evil.com/some-dj/a-track", null], ["https://user@soundcloud.com/some-dj/a-track", null],
     ["https://soundcloud.com:8443/some-dj/a-track", null], ["https://soundcloud.com/some%2Fdj/a-track", null],
-    ["javascript:alert(1)//soundcloud.com/a/b", null], ["/some-dj/a-track", "https://soundcloud.com/some-dj/a-track"],
+    ["javascript:alert(1)//soundcloud.com/a/b", null], ["/some-dj/a-track", null],
     ["//evil.example/some-dj/a-track", null], ["#", null], ["", null], [null, null], [undefined, null]]) {
     assert.equal(sc.djdTarget(href), expected, String(href));
   }
+  testSoundCloudTiles();
 
   // a browser with no window of its own gets one, and the session closes it again
   x = await start();

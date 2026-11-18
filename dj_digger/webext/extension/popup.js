@@ -87,8 +87,16 @@ const elapsed = (s) => Math.min(s.duration, s.position + (s.playing && s.at ? Ma
 
 let state = null;
 let dragging = false; // the seek bar is in the person's hand: the clock leaves it alone
-let offer = null; // "set" or "profile": what the active tab's page can be imported as
-let sent = false;
+let offer = null;
+let pageUrl = "";
+let waiting = false;
+let result = "";
+const actionStatus = {
+  accepted: "Importing in dj-digger…", sent: "Sent to dj-digger", busy: "dj-digger is busy. Try again.",
+  update: "Update dj-digger to use this action.", "launch-failed": "Could not start dj-digger.",
+  timeout: "dj-digger did not respond. Try again.", interrupted: "dj-digger restarted. Try again.",
+  unavailable: "Could not send to dj-digger. Try again.", invalid: "This page could not be imported.",
+};
 let missing = false; // the background found no usable native host (djdStatus.missing): offer the app's download
 function tickSeek() {
   const on = !!state?.title && state.duration > 0;
@@ -108,10 +116,16 @@ function render(s) {
   $("gates").hidden = !needs;
   $("gatesText").textContent = needs === 1 ? "1 gate needs you" : `${needs} gates need you`;
   $("install").hidden = !missing;
-  $("import").hidden = !s || !offer;
-  $("importButton").textContent = offer === "set" ? "Import this playlist into dj-digger" : "Import all playlists of this profile";
-  $("importButton").hidden = sent;
-  $("importDone").hidden = !sent;
+  const done = result === "accepted" || result === "sent";
+  $("import").hidden = missing;
+  $("launchButton").textContent = s ? "Show dj-digger" : "Open dj-digger";
+  $("launchButton").disabled = waiting;
+  $("importButton").textContent = offer === "profile" ? "Import all playlists of this profile" : "Import this playlist into dj-digger";
+  $("importButton").hidden = !offer || done;
+  $("importButton").disabled = waiting;
+  const note = waiting ? (s ? "Sending to dj-digger…" : "Opening dj-digger…") : actionStatus[result] ?? "";
+  $("importDone").textContent = note;
+  $("importDone").hidden = !note;
   const job = s?.jobs;
   $("job").hidden = !job?.busy;
   if (job?.busy) {
@@ -156,6 +170,17 @@ function render(s) {
 }
 
 const ask = (m) => Promise.resolve(api.runtime.sendMessage(m)).catch(() => {});
+async function act(request) {
+  waiting = true;
+  result = "";
+  render(state);
+  const answer = await ask(request);
+  waiting = false;
+  result = answer?.code ?? "timeout";
+  render(state);
+}
+$("launchButton").addEventListener("click", () => act({ op: "launch" }));
+$("importButton").addEventListener("click", () => act({ op: "import", url: pageUrl }));
 $("art").addEventListener("load", () => $("art").classList.add("ready"));
 for (const op of ["prev", "toggle", "next", "cancel"]) $(op).addEventListener("click", () => ask({ op }));
 $("gatesOpen").addEventListener("click", () => ask({ op: "gates", choice: "open" }));
@@ -182,15 +207,10 @@ api.storage.session.get(["djdPlayer", "djdStatus"]).then(({ djdPlayer, djdStatus
   render(djdPlayer);
 });
 
-// The page this panel was opened over: a SoundCloud set or profile can be imported. The URL is read only
+// The page this panel was opened over: a SoundCloud playlist or profile can be imported. The URL is read only
 // now (the activeTab grant of this click) and only the background decides what it is.
 api.tabs.query({ active: true, currentWindow: true }).then(async ([tab]) => {
-  const url = tab?.url ?? "";
-  offer = url ? (await ask({ op: "page", url }))?.kind ?? null : null;
-  $("importButton").onclick = () => {
-    sent = true;
-    ask({ op: "import", url });
-    render(state);
-  };
+  pageUrl = tab?.url ?? "";
+  offer = pageUrl ? (await ask({ op: "page", url: pageUrl }))?.kind ?? null : null;
   render(state);
 }, () => {});

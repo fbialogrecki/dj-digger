@@ -128,6 +128,9 @@ def test_crate_headers_come_without_the_tracks(tmp_path: Path) -> None:
             "updated": "2026-01-01T00:00:00+00:00",
             "partial": True,
             "count": 3,
+            "media_count": 0,
+            "owner_id": None,
+            "provider_id": None,
         }
     ]
 
@@ -221,8 +224,8 @@ def test_legacy_cache_migration_preserves_library_and_backup(legacy_cache_databa
     assert db.load_crate('playlist') == {'source': 'playlist', 'title': 'Saved', 'tracks': []}
     db.upsert_local_files([('C:/Music/two.mp3', 2.0, 'two')])
     db.close()
-    assert writer.execute('PRAGMA user_version').fetchone()[0] == 3
-    assert signature(writer) == expected_signature(3)
+    assert writer.execute('PRAGMA user_version').fetchone()[0] == 4
+    assert signature(writer) == expected_signature(4)
     copies = list((path.parent / 'backups').glob('*.db'))
     assert len(copies) == 1
     with closing(sqlite3.connect(copies[0])) as saved:
@@ -265,7 +268,7 @@ def test_legacy_cache_with_unknown_constraint_is_rejected(legacy_cache_database)
     assert not (path.parent / 'backups').exists()
 
 
-@pytest.mark.parametrize('version', [-1, 2, 3, 99])
+@pytest.mark.parametrize('version', [-1, 2, 3, 4, 99])
 def test_unknown_version_leaves_database_unchanged(tmp_path, version):
     import sqlite3
     from contextlib import closing

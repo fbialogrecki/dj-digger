@@ -194,10 +194,10 @@ XDG_DATA_HOME=/tmp/dj-dev XDG_CONFIG_HOME=/tmp/dj-dev XDG_CACHE_HOME=/tmp/dj-dev
 Download gates, store carts and the SoundCloud login are driven by a small
 extension in your own browser (Chrome, Edge, Brave, Chromium or Firefox). There is
 no managed browser to download, and the extension talks only to dj-digger on this
-computer. Connect it once. The desktop does the registration itself at every start;
-its **Connect browser…** dialog (Settings menu, and opened by the first cart or
-SoundCloud login that needs it) shows the folder to load with a **Copy path** button and
-**Check connection**. From a terminal, with the desktop closed (a `dj-digger` command and
+computer. Connect it once. The desktop registers the host at every start.
+Open **Settings → Preferences → Connect browser…** to see the folder to load, copy
+its path and check the connection. The first cart or SoundCloud login that needs
+the extension can open the same dialog. From a terminal, with the desktop closed (a `dj-digger` command and
 the desktop cannot run together):
 
 ```bash
@@ -226,12 +226,16 @@ link to the [latest release](https://github.com/fbialogrecki/dj-digger/releases/
 the desktop runs, the extension's toolbar button opens a small player panel: the
 playing track on the desktop's record, with previous, play/pause, next and a seek bar,
 the running job with Cancel, and "N gates need you" (also the button's badge) with
-Open them / Skip them. Opened on a SoundCloud playlist or profile page it offers to
-import it; right-clicking a SoundCloud playlist, track or profile link offers **Dig in
-dj-digger**, and on soundcloud.com itself track and playlist controls (the action row,
-list rows and "More" menus) carry an **Import to DJ digger** button with the app icon.
-A track is imported as a one-track playlist. For these two the extension asks for the `activeTab` and `contextMenus`
-permissions; it reads the current tab's address only when you open the panel. To
+Open them / Skip them. Use **Open dj-digger** in the panel to start the registered
+desktop app, or **Show dj-digger** to restore its window while it is running.
+The panel offers an import on SoundCloud playlist and profile pages. On soundcloud.com,
+playlist headers and tiles with their own playlist link offer **Import to DJ digger**.
+An import starts the registered desktop if it is closed. Import Daily Drops or
+Weekly Wave from SoundCloud or paste its playlist link into **Import playlist from link…** to
+save a dated copy. While the app is running, use
+**Dig in dj-digger** in the right-click menu to import a SoundCloud playlist, track,
+or profile. A track becomes a one-track playlist. The panel reads the current tab's
+address when you open it, using `activeTab`, and the right-click menu uses `contextMenus`. To
 disconnect, run `dj-digger browser unregister` or use **Disconnect browsers…** in the
 desktop's Settings menu (the desktop registers again at its next start); the extension
 itself is removed from the browser's extensions page.
@@ -262,6 +266,17 @@ track table with status, artist/title, store badges, genre and duration columns,
 and a player with waveform and transport controls. Press `?` (Help → Keyboard
 shortcuts) for the full generated shortcut list. Running `dj-digger` without a
 link prints a pointer to it and exits.
+
+Select tracks and right-click **Send to → Create playlist from selection…** to name a local playlist.
+The same submenu lists existing local playlists and SoundCloud playlists you own.
+It keeps the selection in table order and skips tracks already present. A local
+playlist can contain both files and SoundCloud tracks. When all selected tracks
+have confirmed SoundCloud identities, you can also create the playlist on your
+SoundCloud account and choose private or public visibility.
+
+For a single track, **Find in** opens search results in Beatport, Bandcamp,
+YouTube, YouTube Music or Spotify using its artist and title. **Open track in
+SoundCloud** opens the original track directly.
 
 ---
 

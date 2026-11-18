@@ -85,6 +85,44 @@ def audio(key, position=0, seeks=0, playing=True):
     return dict(key=key, title=key, playing=playing, position=position, duration=100, seeks=seeks)
 
 
+@pytest.mark.parametrize('playing', [False, True])
+def test_qml_waveform_gaps_survive_live_sidebar_resize(window, playing):
+    from PySide6.QtCore import QPoint, QPointF, Qt
+    from PySide6.QtTest import QTest
+
+    root, bridge = window
+    root.setWidth(1200)
+    bridge.receive('audio', audio('flat', 25, playing=playing))
+    bridge.receive('waveform', dict(key='flat', samples=[1000] * 1024))
+    root.setProperty('animations', True)
+    settle(root)
+    handle = find(root.contentItem(), 'sidebarWidthHandle')
+    waveform = find(root.contentItem(), 'waveform')
+    point = handle.mapToScene(QPointF(handle.width() / 2, handle.height() / 2)).toPoint()
+    background = root.property('panel').rgb()
+
+    def painted_gaps():
+        frame = root.grabWindow()
+        scale = frame.width() / root.width()
+        origin = waveform.mapToScene(QPointF(0, 0))
+        y = round((origin.y() + waveform.height() * .75) * scale)
+        for start, end in ((.08, .18), (.58, .68)):
+            row = range(round((origin.x() + waveform.width() * start) * scale),
+                        round((origin.x() + waveform.width() * end) * scale))
+            assert .15 < sum(frame.pixel(x, y) == background for x in row) / len(row) < .55
+
+    painted_gaps()
+    QTest.mousePress(root, Qt.LeftButton, pos=point)
+    widths = set()
+    for delta in (17, 38, 53, -13, 24):
+        QTest.mouseMove(root, point + QPoint(delta, 0))
+        settle(root)
+        widths.add(waveform.width())
+        painted_gaps()
+    QTest.mouseRelease(root, Qt.LeftButton, pos=point + QPoint(24, 0))
+    assert len(widths) == 5 and any(width % 3 for width in widths)
+
+
 def test_keys_and_cues(window):
     from PySide6.QtCore import Qt
     from PySide6.QtTest import QTest
@@ -294,12 +332,18 @@ def test_import_target_takes_only_soundcloud_sets_tracks_and_profiles():
     assert import_target('https://www.soundcloud.com/some-dj/a_track-2/?in=some-dj/sets/x') == ('track', 'https://soundcloud.com/some-dj/a_track-2')
     assert import_target('https://soundcloud.com/some-dj/sets/deep_cuts-2') == ('set', 'https://soundcloud.com/some-dj/sets/deep_cuts-2')
     assert import_target('https://m.soundcloud.com/some-dj/sets/x/?in=y#t') == ('set', 'https://soundcloud.com/some-dj/sets/x')
+    assert import_target('https://soundcloud.com/discover/sets/new-for-you%3A%3Alistener?si=x') == (
+        'system-set', 'https://soundcloud.com/discover/sets/new-for-you::listener')
+    assert import_target('https://soundcloud.com/discover/sets/weekly::listener') == (
+        'system-set', 'https://soundcloud.com/discover/sets/weekly::listener')
     for url in ('https://soundcloud.com/some-dj', 'https://www.soundcloud.com/some-dj/sets', 'https://soundcloud.com/some-dj/tracks?x=1'):
         assert import_target(url) == ('profile', 'https://soundcloud.com/some-dj'), url
     for url in ('http://soundcloud.com/some-dj', 'https://evil.com/some-dj', 'https://soundcloud.com.evil.com/a',
                 'https://api.soundcloud.com/a', 'https://user@soundcloud.com/a', 'https://soundcloud.com:444/a',
                 'https://soundcloud.com/a/likes', 'https://soundcloud.com/a/track/s-secret', 'https://soundcloud.com/a/sets/b/s-secret', 'https://soundcloud.com/',
                 'https://soundcloud.com/a%2Fb', 'https://soundcloud.com//a', 'javascript:alert(1)', 'https://[::1', '',
+                'https://soundcloud.com/discover/sets/unrelated', 'https://soundcloud.com/discover/sets/track-stations:123',
+                'https://soundcloud.com/discover/sets/weekly%253A%253Alistener',
                 'https://soundcloud.com/' + 'a' * 500):
         assert import_target(url) is None, url
 
@@ -316,6 +360,73 @@ def test_the_browser_import_starts_the_windows_own_import(backend, monkeypatch):
     assert started == [('dig', {'target': 'https://soundcloud.com/a/sets/b', 'add': True}),
                        ('profile', {'url': 'https://soundcloud.com/a'}),
                        ('dig', {'target': 'https://soundcloud.com/a/t', 'add': True})]  # a track: a one-track playlist
+
+
+def test_browser_import_acknowledges_admission_and_retries_only_once(backend, monkeypatch):  # noqa: F811
+    from dj_digger.services.collection import CollectionResult
+
+    worker, _ = backend
+    seen = []
+    url = 'https://soundcloud.com/discover/sets/weekly::listener'
+    date = '2026-11-18'
+    def collect(target, *_args, snapshot_date):
+        seen.append((target, snapshot_date))
+        return CollectionResult(None, None)
+    monkeypatch.setattr(worker.services.collection, 'collect', collect)
+
+    async def scenario():
+        command = {'op': 'import', 'url': url, 'date': date, 'request': 'one', 'reply': seen.append}
+        lock = worker.services.operations.start('Downloading')
+        before = worker.generation
+        try:
+            await worker.action_remote(command)
+            assert worker.generation == before and worker.importing is None
+        finally:
+            worker.services.operations.finish(lock)
+        await worker.action_remote(command)
+        await worker.action_remote(command)
+        await worker.action_remote(dict(command, url='https://soundcloud.com/a/sets/b'))
+
+    asyncio.run_coroutine_threadsafe(scenario(), worker.loop).result(timeout=5)
+    assert seen == ['busy', 'accepted', (url, date), 'accepted', 'invalid']
+
+
+def test_pasting_a_system_playlist_in_the_desktop_captures_the_local_date(backend, monkeypatch):  # noqa: F811
+    from datetime import date
+
+    from dj_digger.services.collection import CollectionResult
+
+    worker, _ = backend
+    calls = []
+    monkeypatch.setattr(worker, 'form', lambda *args, **kwargs: asyncio.sleep(0, {
+        'target': 'https://www.soundcloud.com/discover/sets/weekly%3A%3Alistener/?share=x',
+    }))
+
+    def collect(target, *_args, snapshot_date):
+        calls.append((target, snapshot_date))
+        return CollectionResult(None, None)
+
+    monkeypatch.setattr(worker.services.collection, 'collect', collect)
+    asyncio.run_coroutine_threadsafe(worker.action_dig({}), worker.loop).result(timeout=5)
+    assert calls == [('https://soundcloud.com/discover/sets/weekly::listener', date.today().isoformat())]
+
+
+def test_browser_show_command_reaches_the_ui(backend):  # noqa: F811
+    worker, events = backend
+    replies = []
+    asyncio.run_coroutine_threadsafe(worker.action_remote({'op': 'activate', 'reply': replies.append}), worker.loop).result(timeout=5)
+    assert wait_event(events, 'activate') == {}
+    assert replies == ['opened']
+
+
+def test_browser_show_restores_the_minimized_window(window):
+    from PySide6.QtCore import Qt
+
+    root, bridge = window
+    root.showMinimized()
+    assert root.windowStates() & Qt.WindowMinimized
+    bridge.receive('activate', {})
+    assert not root.windowStates() & Qt.WindowMinimized
 
 
 def test_the_window_tells_the_browser_panel_its_colours(window):

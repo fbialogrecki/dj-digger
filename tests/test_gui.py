@@ -434,7 +434,7 @@ def test_form_reopens_with_entered_values_until_valid(backend, tmp_path):
     answer.update(user_email='not-an-email', user_name='Digger', download_directory=str(tmp_path))
     worker.answer(question['id'], answer)
     retry = wait_event(events, 'question')
-    assert retry['error'] == 'Enter a valid email' and retry['title'] == 'Settings'
+    assert retry['error'] == 'Enter a valid email' and retry['title'] == 'Preferences'
     assert {f['name']: f['value'] for f in retry['fields']}['user_name'] == 'Digger'
     worker.answer(retry['id'], dict(answer, user_email='dj@example.com'))
     wait_event(events, 'dismiss')
@@ -1122,6 +1122,38 @@ def test_local_waveform_arrives_after_pause_without_blocking_play(backend, tmp_p
     assert not wait_event(events, 'audio')['playing']
 
 
+def test_play_loading_is_announced_before_preparation_and_cleared_by_the_current_request(backend, monkeypatch):
+    import asyncio
+
+    from dj_digger.models import Track
+    from dj_digger.rows import Row
+
+    worker, events = backend
+    first, second = Track('First', '', id=101), Track('Second', '', id=102)
+    worker.rows = [Row(0, first, []), Row(1, second, [])]
+    release = threading.Event()
+
+    async def prepare(track):
+        if track.key == first.key:
+            assert await worker.io(release.wait, 5)
+        raise ValueError(track.title)
+
+    monkeypatch.setattr(worker, 'prepare_track', prepare)
+    first_play = asyncio.run_coroutine_threadsafe(worker.action_play({'generation': 0, 'keys': [first.key]}), worker.loop)
+    try:
+        assert wait_event(events, 'playLoading') == {'key': first.key}
+        second_play = asyncio.run_coroutine_threadsafe(worker.action_play({'generation': 0, 'keys': [second.key]}), worker.loop)
+        assert wait_event(events, 'playLoading') == {'key': second.key}
+        with pytest.raises(ValueError, match='Second'):
+            second_play.result(timeout=2)
+        assert wait_event(events, 'playLoading') == {}
+    finally:
+        release.set()
+    with pytest.raises(ValueError, match='First'):
+        first_play.result(timeout=2)
+    assert events.empty()
+
+
 def test_seeks_collapse_to_the_newest_and_nudges_add_up(backend, monkeypatch):
     import asyncio
 
@@ -1255,18 +1287,29 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
         window.update()
         assert painted.wait(3000)
         assert named('cover').isVisible() and named('cover').property('idle') is True
-        assert named('blankSleeve').property('opacity') == 0 and named('whiteLabel').property('opacity') == 1
+        backdrop = named('loadingBackdrop')
+        assert backdrop.property('opacity') == 0 and named('whiteLabel').property('opacity') == 1
         assert named('trackCode').property('opacity') == 0
         assert named('waveform').isVisible() and not named('cursor').isVisible()
         # Moving bars are rectangles; the canvas waits for a settled waveform.
         assert named('noiseBars').isVisible() and not named('unplayedBars').isVisible()
+        # Preparing the source moves the backdrop even before an audio snapshot.
+        window.setProperty('animations', True)
+        bridge.receive('playLoading', {'key': 'w'})
+        QTest.qWait(80)
+        assert backdrop.property('opacity') == 1 and backdrop.property('phase') > 0
+        window.setProperty('animations', False)
+        phase = backdrop.property('phase')
+        QTest.qWait(40)
+        assert backdrop.property('phase') == phase
         bridge.receive('audio', dict(key='w', title='Local fixture.wav', playing=True, position=1, duration=4))
+        bridge.receive('playLoading', {})
         assert named('cover').property('idle') is False and named('cursor').isVisible()
         # Until its waveform arrives the track shows placeholder bars and a blank record.
         loading, blank = window.findChild(QQuickItem, 'waveform'), window.findChild(QQuickItem, 'cover')
         assert not loading.property('ready') and blank.property('reveal') == 0
         bridge.receive('waveform', dict(key='w', samples=[1000] * 512 + [200] * 512))
-        assert loading.property('ready') and blank.property('reveal') == 1
+        assert loading.property('ready') and blank.property('reveal') == 1 and backdrop.property('opacity') == 0
         assert named('unplayedBars').isVisible() and not named('noiseBars').isVisible()
         # Artwork of another track is ignored; the loaded track's goes on the label as it is.
         from PySide6.QtCore import QBuffer, QByteArray
@@ -1302,7 +1345,7 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
                                          dict(path=str(home / 'Music'), kind='music')]
         assert find_item(scene, 'directory-' + (home / 'Sets').as_posix()) is None
         assert find_item(scene, 'addFolder').property('text') == 'Add folder…'
-        assert find_item(scene, 'addPlaylist').property('text') == 'Add playlist'
+        assert find_item(scene, 'addPlaylist').property('text') == 'Import playlist from link…'
         painted = QSignalSpy(window.frameSwapped)
         window.update()
         assert painted.wait(3000)
@@ -1379,7 +1422,7 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
         frame = window.grabWindow()
         assert not frame.isNull()
         origin = canvas.mapToScene(QPointF(0, 0))
-        scale = frame.devicePixelRatio()
+        scale = frame.width() / window.width()
         x, y = int(origin.x() * scale), int(origin.y() * scale)
         width, height = int(canvas.width() * scale), int(canvas.height() * scale)
         # Bars rise from the bottom edge, never mirrored: the loud first half
@@ -1708,9 +1751,10 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
         # The action buttons are present as soon as a view is loaded and enable with a selection.
         actions = window.findChild(QQuickItem, 'trackActions')
         assert actions.isVisible()
-        # A local view offers no store actions: no Open in browser, Download, Mark owned or cart.
-        open_links = window.findChild(QQuickItem, 'openButton')
-        assert not open_links.isVisible()
+        # Local views expose no store actions. Open saved link belongs to the menu.
+        assert window.findChild(QQuickItem, 'openButton') is None
+        download_button = window.findChild(QQuickItem, 'downloadButton')
+        assert not download_button.isVisible()
         skip = window.findChild(QQuickItem, 'skipButton')
         assert not skip.isEnabled()
         bridge.table.select(1)
@@ -1722,7 +1766,7 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
         bridge.receive('view', dict(title='Playlist', source='sc:1', local=False, generation=2, rows=[row('a', 'Alpha'), row('b', 'Beta')]))
         bridge.table.select(1)
         settle()
-        assert open_links.isVisible() and open_links.isEnabled()
+        assert download_button.isVisible() and download_button.isEnabled()
         bridge.receive('view', dict(title='Local', source='fixture', local=True, generation=3, rows=[row('a', 'Alpha'), row('b', 'Beta')]))
         bridge.table.select(1)
         settle()
@@ -1740,7 +1784,7 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
         assert qml('menuBar.menuAt(1).itemAt(0).leftPadding') == qml('menuBar.menuAt(3).itemAt(0).leftPadding')
         assert qml('contextMenu.itemAt(0).shortcutText') == 'Enter'
         # Keys of actions that left the menus still work and are still listed, with the toolbar naming them too.
-        assert open_links.property('keys') == 'O'
+        assert download_button.property('keys') == 'D'
         bridge.backend.calls.clear()
         table = window.findChild(QQuickItem, 'trackTable')
         table.forceActiveFocus()

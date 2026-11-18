@@ -1,6 +1,6 @@
 # GUI dj-digger — ręczna checklista E2E bez zakupów
 
-Stan opracowania: **24.09.2026**, wersja **1.2.0**, `main` **1a7f54f79b0ec30e66ccedfb454a9f2e161677c0**.
+Pierwotne opracowanie: **24.09.2026**, wersja **1.2.0**, `main` **1a7f54f79b0ec30e66ccedfb454a9f2e161677c0**. Zaktualizowano ścieżki menu i scenariusze playlist, preferencji oraz rozszerzenia.
 
 To instrukcja testów, **nie raport z ich wykonania**. Checkbox zaznaczaj dopiero po uzyskaniu opisanego wyniku. Przy niepowodzeniu dopisz `FAIL`, przy braku danych/konta/sprzętu `NIE TESTOWANO`, a przy przeszkodzie po stronie serwisu `BLOKADA: powód`. Samo otwarcie okna nie zalicza pobierania, logowania ani eksportu.
 
@@ -8,11 +8,11 @@ Podstawa: odpowiednie sekcje `PROJECT_SPECIFICATION.md`, zapytania do graphify o
 
 Aktualizacja dla 1.4.0: bramki, koszyki i logowanie SoundCloud działają przez rozszerzenie w Twojej przeglądarce, a nie przez Chromium aplikacji (kroki SHOP-01, AUTH-01/02, GATE-05…08 i nowa sekcja 21 z macierzą W1–W14 z `docs/implementation/browser-extension-plan.md` §8). Te kroki wymagają przeglądarki z rozszerzeniem; Flatpak i Snap nie są obsługiwane.
 
-Pliki GUI oraz sprawdzone usługi w zainstalowanym pakiecie 1.2.0 są identyczne z tym checkoutem. Opisy działania poniżej wynikają z kodu; nie potwierdzają aktualnej dostępności SoundCloud, bramek ani sklepów.
+Dostępność funkcji zależnych od SoundCloud, bramek i sklepów sprawdź podczas przebiegu na właściwym koncie i wersji rozszerzenia.
 
 ## Jak przeprowadzić testy
 
-Najwygodniej wykonuj sekcje po kolei. Nazwy menu podaję po angielsku, tak jak w kodzie: `Library`, `Tracks`, `Playback`, `Tools`, `View`, `Settings`, `Help`. Na czas pierwszego przebiegu wybierz `View → Language → English`; polski interfejs sprawdź osobno.
+Najwygodniej wykonuj sekcje po kolei. Nazwy menu są podane po angielsku. Na czas pierwszego przebiegu wybierz `Settings → Preferences… → Appearance → Language → English`. Polski interfejs sprawdź osobno.
 
 **Granica „bez zakupu”:** wolno sprawdzić produkt, przygotować plan, wpisać cenę i dodać testowy produkt do koszyka Bandcamp. Zatrzymaj się przed `Checkout`, zatwierdzeniem zamówienia, płatnością, zakupem subskrypcji lub podobną akcją. Od 1.4.0 `C` dodaje pozycje bez formularza akceptacji (`Review cart` nie istnieje), w nieaktywnych kartach Twojego okna przeglądarki, a na końcu aktywuje kartę koszyka — przegląd i checkout są Twoje. Nawet pozycję za 0 traktuj tak samo: nie finalizuj zamówienia. Po próbach usuń z koszyka wyłącznie pozycje dodane w ramach testu.
 
@@ -89,15 +89,15 @@ Do TABLE-17 możesz zapisać poniższy tekst jako `~/dj-digger-e2e/summaries/lit
 - [ ] **SET-03 — Błędny e-mail.** Wpisz `abc` lub adres z `.invalid`, spróbuj zapisać. Oczekiwane: błąd w formularzu, zachowane pozostałe wpisane wartości; po poprawieniu zapis działa.
 - [ ] **SET-04 — Pusty folder pobierania.** Wyczyść pole i zapisz. Oczekiwane: odmowa zapisu z komunikatem, bez utraty pozostałych pól.
 - [ ] **SET-05 — Wybór pliku/folderu.** Sprawdź Browse w preferencjach, imporcie i eksporcie, także z polskimi znakami/spacjami. Oczekiwane: właściwy typ systemowego okna, poprawna ścieżka po zatwierdzeniu, brak zmiany po anulowaniu.
-- [ ] **SET-06 — Polski i angielski.** Przełączaj `View → Language`, otwórz wszystkie menu, kontekstowe menu wiersza, formularz, pomoc i błędy. Oczekiwane: tłumaczą się etykiety aplikacji i przyciski; menu nie ucina dłuższych polskich nazw. Teksty dostawców i część raportów usług mogą pozostać angielskie.
-- [ ] **SET-07 — Trzy motywy.** W `View → Theme` sprawdź Light, Dark i System. Oczekiwane: czytelne zaznaczenia, pola, placeholdery, checkboxy, nieaktywne pozycje, tooltipy, postęp pobierania i błędy. Przy System zmień motyw pulpitu i zanotuj reakcję.
-- [ ] **SET-08 — Trwałość wyglądu.** Ustaw język i motyw, zamknij i otwórz. Oczekiwane: wybór zachowany i oznaczony w menu.
+- [ ] **SET-06 — Polski i angielski.** Zmień język w `Settings → Preferences… → Appearance → Language` i zapisz. Otwórz wszystkie menu, kontekstowe menu wiersza, formularz, pomoc i błędy. Etykiety i przyciski mają zmienić język, a polskie nazwy zmieścić się w menu. Teksty dostawców i część raportów usług mogą pozostać angielskie.
+- [ ] **SET-07 — Trzy motywy.** W `Settings → Preferences… → Appearance → Theme` sprawdź Light, Dark i System. Oczekiwane: czytelne zaznaczenia, pola, placeholdery, checkboxy, nieaktywne pozycje, tooltipy, postęp pobierania i błędy. Przy System zmień motyw pulpitu i zanotuj reakcję.
+- [ ] **SET-08 — Trwałość wyglądu.** Zapisz język i motyw, zrestartuj aplikację i otwórz Appearance. Sprawdź wygląd GUI i zapisane wybory.
 - [ ] **SET-09 — Skróty podczas pisania.** W polu tekstowym wpisz litery `a d g k u s e n p m`, spacje i znaki `[]`. Oczekiwane: wpisywanie nie uruchamia akcji na utworach. Powtórz wewnątrz modalnego formularza.
 - [ ] **SET-10 — Zgoda bramek.** Wyłącz i włącz `Allow social actions`, każdorazowo zapisując i otwierając ustawienia ponownie. Oczekiwane: wybór jest zachowany; wpływ na rzeczywistą bramkę sprawdź w GATE-04. Sam checkbox nie dowodzi wykonania ani niewykonania akcji w serwisie.
 
 ## 3. Dodawanie źródeł SoundCloud i odświeżanie
 
-- [ ] **SC-01 — Publiczna playlista.** `Library → Add playlist…` / `A` / plus przy PLAYLISTS → wklej P1 → Add. Oczekiwane: zapis w panelu bocznym, tytuł i dostępne utwory; porównaj liczbę i dane z serwisem. Brakujące niedostępne pozycje zanotuj osobno.
+- [ ] **SC-01 — Publiczna playlista.** `Library → Import playlist from link…` / `A` / plus przy PLAYLISTS → wklej P1 → Add. Oczekiwane: zapis w panelu bocznym, tytuł i dostępne utwory; porównaj liczbę i dane z serwisem. Brakujące niedostępne pozycje zanotuj osobno.
 - [ ] **SC-02 — Pojedynczy utwór.** Dodaj URL utworu. Oczekiwane: widok zawiera ten utwór i jego linki; można odtworzyć dostępny podgląd.
 - [ ] **SC-03 — Różne kolekcje profilu.** Osobno dodaj URL profilu, `/tracks`, `/likes` i `/reposts`. Oczekiwane: każda kolekcja ładuje właściwe utwory; reposty nie są mylone z własnymi uploadami. Zapisz wynik każdej odmiany.
 - [ ] **SC-04 — Ponowne dodanie.** Dodaj P1 drugi raz. Oczekiwane: aktualizacja tej samej zapisanej playlisty, bez niezamierzonego nowego duplikatu źródła i bez utraty statusów.
@@ -106,11 +106,11 @@ Do TABLE-17 możesz zapisać poniższy tekst jako `~/dj-digger-e2e/summaries/lit
 - [ ] **SC-07 — Odświeżenie.** Na własnej testowej playliście zmień zawartość w SoundCloud, wróć do GUI i naciśnij `R`. Oczekiwane: aktualna zawartość i zachowane statusy istniejących utworów.
 - [ ] **SC-08 — Usunięcia lokalne a odświeżenie.** Usuń utwór z widoku przez `X`, potem odśwież źródło. Oczekiwane: lokalnie usunięty utwór nie wraca sam; przywróć go osobną komendą z sekcji 6.
 - [ ] **SC-09 — Anulowanie importu.** Zacznij dłuższe zbieranie, kliknij Cancel. Oczekiwane: operacja kończy się po zatrzymaniu trwających zadań, GUI odzyskuje gotowość, nie zapisuje niepełnej nowej playlisty jako ukończonej.
-- [ ] **SC-10 — Zapisane HTML.** Zapisz stronę playlisty w przeglądarce, w Add playlist wpisz pełną ścieżkę do HTML. Oczekiwane: odczyt utworów obecnych w zapisanym materiale albo wyjaśniony brak danych. HTML może nadal wymagać sieci do uzupełnienia utworów; nie jest gwarancją importu całej prywatnej playlisty.
+- [ ] **SC-10 — Ścieżka do zapisanego HTML.** W `Import playlist from link…` podaj lokalną ścieżkę do zapisanej strony. Formularz ma poprosić o link do SoundCloud. Import playlist z poleceniami sprawdź w W18.
 
 ## 4. Import playlist całego profilu i konto SoundCloud
 
-- [ ] **AUTH-01 — Logowanie.** `Settings → Sign in to SoundCloud`. Jeśli Firefox lub przeglądarka z rozszerzeniem ma ważną sesję SoundCloud, token zostaje zapisany bez okna logowania; w przeciwnym razie w oknie roboczym otwiera się karta `soundcloud.com/signin` i logujesz się w niej. Oczekiwane: powrót do gotowego GUI i potwierdzenie zalogowania; zweryfikuj sesję przez import własnej prywatnej playlisty lub oficjalny download.
+- [ ] **AUTH-01 — Logowanie.** `Settings → Preferences… → Accounts and browser → Sign in to SoundCloud…`. Jeśli Firefox lub przeglądarka z rozszerzeniem ma ważną sesję SoundCloud, token zostaje zapisany bez okna logowania; w przeciwnym razie w oknie roboczym otwiera się karta `soundcloud.com/signin` i logujesz się w niej. Oczekiwane: powrót do gotowego GUI i potwierdzenie zalogowania; zweryfikuj sesję przez import własnej prywatnej playlisty lub oficjalny download.
 - [ ] **AUTH-02 — Przerwane logowanie.** Rozpocznij logowanie (wylogowana przeglądarka) i anuluj operację w GUI. Oczekiwane: aplikacja nie pozostaje zajęta i można spróbować ponownie. Zamknięcie karty logowania (albo okna roboczego) kończy oczekiwanie od razu komunikatem „The SoundCloud sign-in tab was closed; no credentials were saved.”, a nie dopiero po 5 minutach; Cancel też działa.
 - [ ] **AUTH-03 — Publiczny import profilu.** `Library → Import profile playlists…` → własny lub dostępny profil, private wyłączone. Oczekiwane: osobne playlisty w panelu i komunikat z liczbą oraz ścieżką raportu `profile-import-*.json`.
 - [ ] **AUTH-04 — Porównanie profilu.** Porównaj zaimportowane publiczne playlisty, kolejność i liczby utworów z profilem. Powtórz import. Oczekiwane: brak powielania tych samych playlist; raport odróżnia sukces od niepełnej odpowiedzi.
@@ -118,7 +118,7 @@ Do TABLE-17 możesz zapisać poniższy tekst jako `~/dj-digger-e2e/summaries/lit
 - [ ] **AUTH-06 — Odmowa prywatnego importu.** Powtórz bez logowania, a potem na cudzym profilu będąc zalogowanym na swoje konto. Oczekiwane: odmowa wymagająca sesji właściciela; brak deklaracji udanego importu prywatnych danych.
 - [ ] **AUTH-07 — Nieprawidłowy profil.** W imporcie profilu podaj URL pojedynczego utworu. Oczekiwane: informacja, że źródło nie jest profilem; dotychczasowe playlisty pozostają.
 - [ ] **AUTH-08 — Częściowy import i anulowanie.** Anuluj import wielu playlist. Oczekiwane: już zapisane kompletne playlisty mogą pozostać, a stare dane nie są zastępowane niekompletnym zestawem; można uruchomić import ponownie. Nie wymagaj końcowego raportu, jeśli przerwanie nastąpiło przed jego zapisem.
-- [ ] **AUTH-09 — Wylogowanie.** `Settings → Sign out…`: raz anuluj, drugi raz potwierdź. Oczekiwane: po anulowaniu sesja działa; po potwierdzeniu chroniona akcja wymaga konta. Przeglądarka może zachować swoje cookies, a token w zmiennej środowiskowej może nadal obowiązywać — odnotuj taki przypadek.
+- [ ] **AUTH-09 — Wylogowanie.** W `Settings → Preferences… → Accounts and browser` użyj przycisku `Signed in as <nazwa> — Sign out…`. Raz anuluj, drugi raz potwierdź. Oczekiwane: po anulowaniu sesja działa; po potwierdzeniu chroniona akcja wymaga konta. Przeglądarka może zachować swoje cookies, a token w zmiennej środowiskowej może nadal obowiązywać — odnotuj taki przypadek.
 - [ ] **AUTH-10 — Publiczne użycie bez konta.** Po wylogowaniu ponownie dodaj publiczne źródło. Oczekiwane: publiczne zbieranie nie wymaga konta użytkownika.
 
 ## 5. Tabela, filtry, zaznaczanie i układ kolumn
@@ -136,7 +136,7 @@ Do TABLE-17 możesz zapisać poniższy tekst jako `~/dj-digger-e2e/summaries/lit
 - [ ] **TABLE-11 — Kopiowanie.** Zaznacz kilka pozycji, `Ctrl+C`, wklej do edytora. Oczekiwane: wykonawca i tytuł odpowiednich utworów, bez utraty polskich znaków. To nie jest skrót kopiowania ścieżki do audio.
 - [ ] **TABLE-12 — Szerokości kolumn.** Przeciągnij separator, dwukliknij separator, użyj PPM nagłówka → Fit column / Fit all columns. Oczekiwane: zmiana szerokości bez przypadkowego sortowania; tekst i znaczniki mieszczą się lub można przewijać.
 - [ ] **TABLE-13 — Ukrywanie i kolejność.** PPM nagłówka → ukryj kolumnę; przeciągnij nagłówek w inne miejsce. Oczekiwane: dane, sortowanie i szerokości należą do właściwej kolumny. Title nie można ukryć; BPM/Key są dostępne w lokalnym widoku.
-- [ ] **TABLE-14 — Reset i restart.** Sprawdź Reset column widths i Reset column order; potem ustaw własny układ i zrestartuj. Oczekiwane: reset działa, a własne szerokości, kolejność i ukryte kolumny są zapamiętane.
+- [ ] **TABLE-14 — Reset i restart.** Zmień szerokości i kolejność kolumn oraz szerokość panelu bocznego, a następnie wybierz `View → Reset layout` i sprawdź powrót do wartości domyślnych. Ustaw własny układ, ukryj kolumnę przez `View → Columns` i zrestartuj. Sprawdź trwałość zmian.
 - [ ] **TABLE-15 — Menu kontekstowe.** PPM na niezaznaczonym wierszu, potem na wierszu należącym do wielokrotnego zaznaczenia. Oczekiwane: właściwy cel akcji; PPM na zaznaczonym wierszu zachowuje grupę. More actions nie powiela podstawowych przycisków paska.
 - [ ] **TABLE-16 — Kompaktowy pasek.** Zmniejsz szerokość panelu utworów. Oczekiwane: ikony zamiast długich etykiet, tooltipy z nazwą i skrótem, dostęp do More actions i filtrów.
 - [ ] **TABLE-17 — Tekst specjalny.** Zaimportuj testowy JSON z tytułem zawierającym `<b>TEST</b>`, `&`, cudzysłowy i polskie znaki. Oczekiwane: dosłowny tekst, bez interpretacji HTML, uszkodzenia menu lub niezamierzonej nawigacji.
@@ -149,7 +149,7 @@ Do TABLE-17 możesz zapisać poniższy tekst jako `~/dj-digger-e2e/summaries/lit
 - [ ] **STATE-04 — Hide handled.** Włącz H, nadaj G/K widocznej pozycji. Oczekiwane: znika z widoku; U po wyłączeniu H i ponowne H pokazuje ją jako nieobsłużoną.
 - [ ] **STATE-05 — Wspólny utwór.** Nadaj status utworowi obecnemu w P1 i P2, przejdź do drugiej playlisty, potem zrestartuj. Oczekiwane: status wspólny dla tożsamości utworu i zachowany na dysku.
 - [ ] **STATE-06 — Anulowane usunięcie wiersza.** W playliście SoundCloud naciśnij X lub Delete, anuluj. Oczekiwane: lista bez zmian.
-- [ ] **STATE-07 — Usunięcie i przywrócenie.** Potwierdź usunięcie kilku wierszy, zrestartuj, potem `Library → Restore removed tracks`. Oczekiwane: usunięcie dotyczy lokalnego zapisu playlisty, a przywrócenie odzyskuje usunięte pozycje. Ctrl+Z nie służy tu do przywracania.
+- [ ] **STATE-07 — Usunięcie i przywrócenie.** Potwierdź usunięcie kilku wierszy ze zwykłej playlisty, zrestartuj, potem wybierz `Restore removed tracks…` w menu tej playlisty w panelu bocznym. Przywrócenie ma odzyskać pozycje w lokalnym zapisie playlisty.
 - [ ] **STATE-08 — Usunięcie całej playlisty.** PPM playlisty → Delete playlist lub Shift+X: najpierw Cancel, potem Delete na playliście testowej. Oczekiwane: po potwierdzeniu znika zapis w panelu; audio na dysku i oryginalna playlista w serwisie nie są kasowane.
 
 ## 7. Eksplorator i lokalne playlisty
@@ -162,9 +162,9 @@ Do TABLE-17 możesz zapisać poniższy tekst jako `~/dj-digger-e2e/summaries/lit
 - [ ] **LOCAL-06 — Typy plików.** Otwórz L1. Oczekiwane: widoczne rozpoznawane rozszerzenia WAV/AIF/AIFF/MP3/FLAC/FLA/M4A/AAC/MP4; pliki nieaudio nie stają się utworami. OGG i samodzielne `.alac` nie należą do obecnej listy rozszerzeń tego eksploratora.
 - [ ] **LOCAL-07 — Stronicowanie.** Otwórz BIG, przejdź Next page i Previous page. Oczekiwane: zakresy po maksymalnie 250 plików, poprawny licznik i wyłączone przyciski na końcach. Wyszukiwanie tabeli obejmuje wczytaną stronę, nie cały folder.
 - [ ] **LOCAL-08 — Odświeżenie folderu.** Dodaj lub przenieś testowy plik w menedżerze plików, wróć i naciśnij R. Oczekiwane: tabela odzwierciedla rzeczywistą zawartość.
-- [ ] **LOCAL-09 — Zapis lokalnej playlisty.** Zaznacz 2–3 pliki → `Library → Save local playlist…` → nowa nazwa. Oczekiwane: playlista w panelu, możliwość odtworzenia i zachowane BPM/Key po ponownym otwarciu.
-- [ ] **LOCAL-10 — Dopisanie do lokalnej playlisty.** Z innego folderu wybierz kolejny plik i zapisz pod tą samą nazwą. Oczekiwane: dopisanie do istniejącej lokalnej playlisty, nie zastąpienie jej zawartości. Powtórne dodanie tego samego pliku może tworzyć kolejne wystąpienie — nie zakładaj deduplikacji.
-- [ ] **LOCAL-11 — Kasowanie lokalnej playlisty.** Usuń testową lokalną playlistę przez menu Library lub PPM w panelu. Oczekiwane: znika playlista, pliki pozostają. GUI nie udostępnia obecnie zwykłego Remove from playlist dla pojedynczych pozycji lokalnej playlisty; Delete files to inna, trwała operacja.
+- [ ] **LOCAL-09 — Zapis lokalnej playlisty.** Zaznacz 2–3 pliki i wybierz z menu wierszy `Send to → Create playlist from selection…`. Wpisz nazwę. Sprawdź wpis w panelu, odtwarzanie oraz BPM/Key po ponownym otwarciu. Utwórz drugą playlistę o tej samej nazwie i sprawdź, że obie zachowują osobną zawartość.
+- [ ] **LOCAL-10 — Dopisanie i playlista mieszana.** Wyślij pliki z innego folderu przez `Send to` do istniejącej playlisty oznaczonej DJ Digger. Posortuj utwory na P1, zaznacz kilka i przeciągnij je na ten sam wpis w panelu. Sprawdź kolejność dopisania zgodną z tabelą źródła, brak duplikatów po ponownej wysyłce oraz skład po restarcie. Eksport z menu mieszanej playlisty ma podać liczbę plików lokalnych i objąć tylko je. Dla playlisty z samymi utworami SoundCloud akcja ma być wyłączona.
+- [ ] **LOCAL-11 — Usuwanie z lokalnej playlisty.** Nadaj testowej pozycji status. Użyj `Remove from playlist…` i sprawdź, że pozycja zniknęła, a wspólny status i plik zostały zachowane. Sprawdź przywrócenie przez `Restore removed tracks…`. Potem usuń całą testową playlistę przez `Delete playlist…` w panelu i sprawdź, że znika tylko wpis, a pliki i statusy pozostają.
 - [ ] **LOCAL-12 — Odpięcie.** W Preferences usuń testowy katalog z Pinned folders i zapisz. Oczekiwane: znika dodatkowe przypięcie, folder i pliki pozostają; domyślne korzenie Music/Downloads mogą nadal być widoczne.
 
 ## 8. Skanowanie i dopasowanie posiadanych plików
@@ -196,11 +196,12 @@ Do TABLE-17 możesz zapisać poniższy tekst jako `~/dj-digger-e2e/summaries/lit
 
 ## 10. Otwieranie linków
 
-- [ ] **LINK-01 — Pojedynczy link.** Na P1 wybierz utwór → O lub Enter. Oczekiwane: jeden wybrany adres w skonfigurowanej przeglądarce oraz właściwy status opened, bez automatycznego finalizowania czegokolwiek.
+- [ ] **LINK-01 — Pojedynczy link.** Na P1 wybierz utwór i naciśnij O. Oczekiwane: jeden wybrany adres w skonfigurowanej przeglądarce oraz właściwy status opened, bez automatycznego finalizowania czegokolwiek.
 - [ ] **LINK-02 — Sklep wybrany filtrem.** Na utworze mającym dwa sklepy wybierz filtr jednego z nich i O. Oczekiwane: otwiera się ten sklep. To zachowanie dotyczy Open links; nie zakładaj tego samego dla C.
 - [ ] **LINK-03 — Grupa i wszystkie widoczne.** Porównaj O przy kilku zaznaczonych i Shift+O po zawężeniu filtrem. Oczekiwane: odpowiednio wybrane lub wszystkie widoczne pozycje, maksymalnie jeden kwalifikujący się link na utwór.
 - [ ] **LINK-04 — Potwierdzenie ponad 20.** Na ponad 20 kwalifikujących się pozycjach użyj Shift+O. Oczekiwane: lista adresów do zatwierdzenia. Wybierz Cancel i sprawdź, że nie otwarto kart. Do sprawdzenia samego progu nie musisz uruchamiać całej grupy.
 - [ ] **LINK-05 — Brak sklepu.** Otwórz utwór no-link. Oczekiwane: jego strona SoundCloud, jeżeli jest dostępnym linkiem zapasowym, bez wymyślonego adresu zakupu.
+- [ ] **LINK-06 — Wyszukiwanie i link do SoundCloud.** W menu pojedynczego pliku użyj `Find in` i sprawdź, czy wynik wyszukiwania uwzględnia wykonawcę i tytuł. Dla utworu SoundCloud wybierz `Open track in SoundCloud` i porównaj adres z oryginałem. Obie akcje mają zachować status utworu.
 
 ## 11. Pobieranie plików i kopiowanie lokalnych
 
@@ -239,7 +240,7 @@ Do TABLE-17 możesz zapisać poniższy tekst jako `~/dj-digger-e2e/summaries/lit
 - [ ] **ANA-01 — Tagi przed analizą.** Otwórz plik REF z BPM/Key w tagach i `Edit BPM / key…` / E. Oczekiwane: wartości z pliku oraz informacja o źródle każdego pola. Samo otwarcie folderu nie rozpoczyna analizy BPM.
 - [ ] **ANA-02 — Analiza jednego.** Wybierz lokalny plik → Analyze BPM / key. Oczekiwane: wynik w tabeli, krótki komunikat o liczbie tonacji/braków/błędów, możliwość odtworzenia pliku.
 - [ ] **ANA-03 — Grupa.** Zaznacz kilka plików z różnych formatów i analizuj. Oczekiwane: niezależne wyniki i brak nadpisywania ręcznych wartości; błędny plik nie kasuje wyników poprawnych.
-- [ ] **ANA-04 — Cały folder.** W BIG ustaw filtr i zaznacz jeden utwór, wybierz Tools → Analyze folder. Oczekiwane: wszystkie bezpośrednie pliki audio w folderze, również poza stroną i filtrem; bez rekursji do podfolderów.
+- [ ] **ANA-04 — Cały folder.** W BIG ustaw filtr i zaznacz jeden utwór, potem użyj `Analyze folder` z menu folderu w panelu bocznym. Analiza ma objąć bezpośrednie pliki audio folderu, również poza stroną i filtrem.
 - [ ] **ANA-05 — Jakość oszacowania.** Porównaj REF ze znanym BPM/tonacją. Zapisz różnicę, także rozpoznanie połowy/podwójnego tempa. To osobna ocena jakości estymacji; aplikacja nie deklaruje zweryfikowanej dokładności ani procentowej pewności.
 - [ ] **ANA-06 — Cisza i brak jednoznacznej tonacji.** Analizuj ciszę i materiał bez wyraźnego rytmu/tonacji. Oczekiwane: może pozostać brak wyniku z przyczyną w raporcie; brak tonacji nie jest automatycznie błędem przetwarzania.
 - [ ] **ANA-07 — Ręczna zmiana.** E → ustaw BPM i tonację z listy → Save. Oczekiwane: tabela natychmiast pokazuje nowe wartości; formularz po ponownym otwarciu oznacza Manual. Tonacje mają etykiety klasyczne i Camelot.
@@ -252,17 +253,17 @@ Do TABLE-17 możesz zapisać poniższy tekst jako `~/dj-digger-e2e/summaries/lit
 
 ## 14. Eksport audio, wznawianie i zastępowanie kopii
 
-- [ ] **EXP-01 — Plan bez wykonania.** Zaznacz lokalne pliki → Tools → Export audio… → testowy cel, Copy, WAV, 24 bit/48 kHz. Oczekiwane: drugi ekran Review export z operacjami i ścieżkami. Anuluj: źródła i docelowe pliki audio pozostają bez zmian.
+- [ ] **EXP-01 — Plan bez wykonania.** Zaznacz lokalne pliki i wybierz eksport z menu wierszy. Wybierz odtwarzacze w `Decks`, testowy folder docelowy i tryb `Copy`. W `Review export` sprawdź profil, operacje i ścieżki. Po anulowaniu pliki źródłowe i docelowe mają pozostać bez zmian.
 - [ ] **EXP-02 — Kopiowanie do nowego folderu.** Powtórz EXP-01 i zatwierdź. Oczekiwane: kompletny odtwarzalny zestaw w nowym unikalnym folderze, także dla pozycji niewymagających konwersji; źródła nadal istnieją.
-- [ ] **EXP-03 — Trzy formaty docelowe.** Osobno wykonaj plan WAV, AIFF i FLAC na kopiach. Oczekiwane: plan wyjaśnia copy/convert; potrzebne konwersje dają zgodny, odtwarzalny wynik. Wybór WAV nie znaczy, że każdy zgodny MP3/AAC zostanie zamieniony na WAV.
-- [ ] **EXP-04 — Limity jakości.** Porównaj 16/24 bit i limity 44,1/48/88,2/96 kHz na odpowiednich źródłach. Oczekiwane: limit jest maksimum, nie poleceniem sztucznego zwiększenia jakości; parametry sprawdź np. przez ffprobe lub właściwości pliku.
-- [ ] **EXP-05 — Zgodny plik stratny.** Eksportuj zgodny MP3/AAC do profilu WAV/AIFF, a zgodny FLAC/ALAC do profilu FLAC. Oczekiwane: tam, gdzie reguły pozwalają, plik jest zachowany zamiast zbędnej ponownej kompresji; potwierdź plan i sumę kopii.
-- [ ] **EXP-06 — Zakres zaznaczenia.** Wybierz kilka plików, eksportuj. Oczekiwane: tylko wybrane cele. Następnie usuń zaznaczenie w folderze i eksportuj: obejmowane są pasujące pliki z całego folderu, również poza stroną.
-- [ ] **EXP-07 — Filtr i rekursja.** Bez zaznaczenia ustaw wyszukiwanie/Hide handled, eksportuj bez rekursji i osobno z Include subfolders. Oczekiwane: właściwy zakres zgodny z planem; dopiero rekursja włącza podfoldery. Przed wykonaniem przeczytaj listę ścieżek.
+- [ ] **EXP-03 — Profil dla odtwarzaczy.** Porównaj plan dla starszego odtwarzacza bez FLAC i plan dla odtwarzacza obsługującego FLAC. Sprawdź dobrany format docelowy i zgodność z wybranymi modelami. Odsłuchaj plik po wymaganej konwersji.
+- [ ] **EXP-04 — Limity jakości.** Porównaj parametry profilu w `Review export` z wynikiem na odpowiednich źródłach. Sprawdź częstotliwość i głębię bitową za pomocą ffprobe lub właściwości pliku. Eksport ma zachować niższą częstotliwość, jeśli plik mieści się w regułach odtwarzacza.
+- [ ] **EXP-05 — Kopia zgodnego pliku.** Do planu dodaj zgodny MP3, AAC lub plik bezstratny obsługiwany przez wybrane odtwarzacze. Sprawdź operację Copy i porównaj sumę kontrolną wejścia z kopią.
+- [ ] **EXP-06 — Zakres zaznaczenia.** Wybierz kilka plików i otwórz eksport z menu wierszy. Oczekiwane są tylko wybrane pliki. Następnie z menu playlisty w panelu otwórz eksport i sprawdź, że plan obejmuje wszystkie aktywne pliki lokalne tej playlisty.
+- [ ] **EXP-07 — Filtr a eksport z menu playlisty.** Otwórz lokalną playlistę i ukryj część plików filtrem. Z menu wierszy sprawdź zakres zaznaczenia, a z menu playlisty sprawdź pełną listę jej aktywnych plików lokalnych. Porównaj ścieżki w obu planach.
 - [ ] **EXP-08 — Nazwy i kolizje.** Powtórz eksport do tego samego bazowego celu; użyj nazw ze spacjami i Unicode. Oczekiwane: nowy bezkolizyjny zestaw, brak nadpisania obcych plików.
 - [ ] **EXP-09 — Nieobsługiwane/uszkodzone wejście.** Dołącz BAD lub plik o parametrach spoza obsługi. Oczekiwane: jawna odmowa/wyjątek w planie lub wyniku; brak przedstawienia uszkodzonego wyjścia jako zweryfikowanego sukcesu.
-- [ ] **EXP-10 — Anuluj i wznów kopię.** Zacznij większy eksport Copy, anuluj po części wyników, wybierz Tools → Resume export. Oczekiwane: potwierdzenie wznowienia i dokończenie ostatniej niezakończonej operacji z dziennika, bez ponownego niszczenia ukończonych wyników.
-- [ ] **EXP-11 — Wznowienie po restarcie.** Powtórz przerwanie Copy, zamknij aplikację, otwórz ten sam profil i Resume export. Oczekiwane: wznowienie nadal dostępne. Przy braku niedokończonego eksportu komunikat `No unfinished folder exports`.
+- [ ] **EXP-10 — Anuluj i wznów kopię.** Zacznij większy eksport Copy, anuluj po części wyników i wybierz `Library → Resume interrupted export…`. Oczekiwane: potwierdzenie wznowienia i dokończenie ostatniej niezakończonej operacji z dziennika, bez ponownego niszczenia ukończonych wyników.
+- [ ] **EXP-11 — Wznowienie po restarcie.** Powtórz przerwanie Copy, zamknij aplikację, otwórz ten sam profil i wybierz `Library → Resume interrupted export…`. Oczekiwane: wznowienie nadal dostępne. Przy braku niedokończonego eksportu komunikat `No unfinished folder exports`.
 - [ ] **EXP-12 — Ostrzeżenie zastępowania.** Wyłącznie DESTROY: wybierz Replace originals. Oczekiwane: plan z ostrzeżeniem i przyciskiem Replace; Cancel nie upoważnia do zastąpienia. Kolejne nowe okno eksportu wraca do Copy.
 - [ ] **EXP-13 — Faktyczne zastąpienie kopii.** Na jednym pliku DESTROY wymagającym konwersji zatwierdź Replace. Oczekiwane: Replace nie wymaga folderu docelowego; zweryfikowany wynik, zgodny lokalny rekord/playlisty i brak trwałej kopii zapasowej po sukcesie. Oryginał tej testowej kopii może zostać trwale usunięty.
 - [ ] **EXP-14 — Ochrona odtwarzanego pliku.** Włącz plik DESTROY, spróbuj jego zastąpienia. Oczekiwane: odmowa dla załadowanego/przygotowanego audio; po Stop i ponownym wyborze operacja może być wykonana.
@@ -279,8 +280,8 @@ Do TABLE-17 możesz zapisać poniższy tekst jako `~/dj-digger-e2e/summaries/lit
 
 ## 16. Eksport linków i import JSON
 
-- [ ] **DATA-01 — JSON wybranych.** Zaznacz część P1 → Tools → Export links / Shift+E → JSON → nowa ścieżka. Oczekiwane: poprawny plik z wybranymi utworami i ich linkami pogrupowanymi kategoriami.
-- [ ] **DATA-02 — Cały widoczny zestaw.** Wyczyść zaznaczenie, ustaw filtr, eksportuj. Oczekiwane: eksport widocznych utworów. Pojedynczy utwór może dać kilka rekordów linków, więc liczba rekordów nie musi równać się liczbie utworów.
+- [ ] **DATA-01 — JSON wybranych.** Zaznacz część P1 i wybierz `Tracks → Export links… → Selected tracks (N)…` lub Shift+E. Wybierz JSON i nową ścieżkę. Sprawdź, że plik zawiera linki zaznaczonych utworów pogrupowane według kategorii.
+- [ ] **DATA-02 — Cały widoczny zestaw.** Ustaw filtr i wybierz `Tracks → Export links… → All visible tracks (N)…`. Eksport ma objąć widoczne utwory niezależnie od zaznaczenia. Jeden utwór może dać kilka rekordów linków.
 - [ ] **DATA-03 — CSV.** Wyeksportuj CSV i otwórz jako UTF-8 w arkuszu/edytorze. Oczekiwane: kolumny `category, artist, title, track_url, shop_link, bpm, key, release_year, label`, poprawne znaki i cytowanie przecinków/cudzysłowów.
 - [ ] **DATA-04 — Nadpisanie pliku.** Eksportuj pod istniejącą testową nazwą; najpierw anuluj potwierdzenie Replace, potem je zatwierdź. Oczekiwane: anulowanie zachowuje stary plik, zatwierdzenie zapisuje nowy.
 - [ ] **DATA-05 — Import JSON.** `Library → Import saved summary…` → JSON z DATA-01. Oczekiwane: tabela zgrupowana według utworów i dostępne linki. W GUI jest to widok wczytanego pliku; nie oczekuj automatycznego zapisania nowej playlisty w panelu ani odtworzenia tego widoku po restarcie.
@@ -345,14 +346,14 @@ Poniższe przebiegi spinają pojedyncze przypadki. Zaliczenie osobnych przycisk�
 - [ ] **E2E-03 — Lokalny set.** Dodaj L1 → przejrzyj pliki → analiza → ręczna poprawka → zapisz lokalną playlistę → odsłuch kolejnych utworów → eksport Copy z Review → sprawdź pliki/parametry → ponownie otwórz wynik w GUI → restart.
 - [ ] **E2E-04 — Bramka z człowiekiem.** Dodaj źródło GATE → D → wymagany profil/logowanie/ręczny krok → ukończ darmowy download → wróć do GUI → sprawdź got, ścieżkę i odsłuch → restart. Drugi przebieg zakończ Cancel i porównaj różnicę.
 - [ ] **E2E-05 — Sklepy bez zamówienia.** Playlista z SHOP → C → sprawdź plan/produkt/cenę → przygotuj koszyk Bandcamp → sprawdź zawartość → osobne pozycje Beatport → jawny handoff Soundiiz → porównaj plik i podgląd → zakończ przed zakupem/transferem → usuń testowe dodatki z koszyka.
-- [ ] **E2E-06 — Odporność na przerwanie.** Duży lokalny folder → eksport Copy → Cancel po części wyników → zamknij → uruchom → Resume export → sprawdź kompletność → odtwórz wynik → przejrzyj diagnostykę.
+- [ ] **E2E-06 — Odporność na przerwanie.** Zaznacz dużą partię lokalnych plików → eksport Copy → Cancel po części wyników → zamknij i uruchom ponownie → `Library → Resume interrupted export…` → sprawdź kompletność → odtwórz wynik → przejrzyj diagnostykę.
 - [ ] **E2E-07 — Biblioteka i wymiana linków.** Dodaj P1/P2 → statusy → eksport wybranego zestawu do JSON/CSV → import JSON → porównanie → usunięcie testowego wiersza z zapisanej playlisty → refresh → restore → restart → kontrola trwałości.
 
-## 21. Rozszerzenie przeglądarki — macierz akceptacji 1.4.0 (W1–W15)
+## 21. Rozszerzenie przeglądarki (W1–W19)
 
-Wiersze z `docs/implementation/browser-extension-plan.md` §8. Na Fedorze (Chrome i Firefox z RPM) wszystkie; na Windows 10/11 (Chrome, Edge, Firefox) i macOS (Chrome, Firefox) co najmniej W1, W2, W4, W8 i W11. Warunki wstępne: sekcja „Rozszerzenie a profil testowy”, dane GATE i SHOP, konta, na których możesz bezpiecznie wykonać follow/save i dodać do koszyka. Przed pierwszym wierszem zamknij zwykłe dj-digger.
+Pierwsze wiersze pochodzą z §8 `docs/implementation/browser-extension-plan.md`. Na Fedorze (Chrome i Firefox z RPM) wykonaj wszystkie, a na Windows 10/11 (Chrome, Edge, Firefox) i macOS (Chrome, Firefox) co najmniej W1, W2, W4, W8, W11 i W16–W19. Warunki wstępne opisano w sekcji „Rozszerzenie a profil testowy”. Przygotuj dane GATE i SHOP oraz konta testowe do obserwowania, zapisywania i dodawania do koszyka. Przed pierwszym wierszem zamknij zwykłe dj-digger.
 
-- [ ] **W1 — Pierwsze uruchomienie bez rozszerzenia.** Uruchom GUI w przeglądarce bez rozszerzenia i użyj `Settings → Connect browser…` (albo C). Oczekiwane: dialog `Connect browser`; przycisk `Open Chrome Web Store` otwiera stronę rozszerzenia w Chrome Web Store, a dialog wraca; po instalacji rozszerzenia (Chrome/Edge/Brave: ze sklepu, Edge pyta o zgodę na rozszerzenia z innych sklepów; zwinięta sekcja `Developer install` nadal opisuje Load unpacked; Firefox: `about:debugging` → Load Temporary Add-on → `manifest.json`) `Check connection` daje `hello` w ≤ 3 s; wiersz `Browser automation` w Settings pokazuje przeglądarkę i wersję rozszerzenia oraz „connected” (albo „missing site access”).
+- [ ] **W1 — Pierwsze uruchomienie bez rozszerzenia.** Uruchom GUI i użyj `Settings → Preferences… → Accounts and browser → Connect browser…`. Oczekiwane: dialog `Connect browser`; przycisk `Open Chrome Web Store` otwiera stronę rozszerzenia w Chrome Web Store, a dialog wraca; po instalacji rozszerzenia (Chrome/Edge/Brave: ze sklepu, Edge pyta o zgodę na rozszerzenia z innych sklepów; zwinięta sekcja `Developer install` nadal opisuje Load unpacked; Firefox: `about:debugging` → Load Temporary Add-on → `manifest.json`) `Check connection` daje `hello` w ≤ 3 s. Wiersz `Browser automation` w sekcji Accounts and browser pokazuje przeglądarkę, wersję rozszerzenia i stan dostępu.
 - [ ] **W2 — Logowanie SoundCloud przy zalogowanej przeglądarce.** Zaloguj się na soundcloud.com w przeglądarce z rozszerzeniem, wyloguj dj-digger (`Sign out…`), potem `Sign in to SoundCloud…`. Oczekiwane: token zapisany bez okna logowania.
 - [ ] **W3 — Logowanie SoundCloud przy wylogowanej przeglądarce.** Wyloguj się z soundcloud.com w przeglądarce i powtórz. Oczekiwane: karta `/signin` w oknie roboczym; po zalogowaniu token zapisany i okno robocze zamknięte.
 - [ ] **W4 — Partia 5 bramek Hypeddit (e-mail, click-through, komentarz).** Użyj własnego e-maila w Settings. Oczekiwane: **żadne okno, karta ani popup przeglądarki w trakcie**; w aplikacji pasek postępu każdego wiersza (pół paska = w przeglądarce, pełny = plik jest); wszystkie pliki pobrane, każdy pod właściwym utworem; pliki w folderze playlisty; brak kopii w folderze Pobrane przeglądarki.
@@ -363,10 +364,14 @@ Wiersze z `docs/implementation/browser-extension-plan.md` §8. Na Fedorze (Chrom
 - [ ] **W9 — Anulowanie partii gate'ów i koszyka (także w trakcie etapu weryfikacji).** Oczekiwane: jak w GATE-08 i SHOP-11; brak nakładających się poleceń na karcie.
 - [ ] **W10 — Instalacja z wheela na czystym systemie bez Chromium.** Oczekiwane: brak pobierania przeglądarki; brak `playwright` w zależnościach pakietu (`pip show dj-sc-digger` / `uv.lock`); w pakiecie jest skrypt `dj-digger-host` i folder `webext/extension`.
 - [ ] **W11 — `selftest.html` w Chrome i Firefoksie.** Otwórz `chrome-extension://klkgfigjpjkhjdiddhdadbkoeclhejni/selftest.html` (ID jest stałe, z klucza w manifeście) albo w Firefoksie adres `moz-extension://<Internal UUID z about:debugging>/selftest.html`. Oczekiwane: każda linia kończy się PASS.
-- [ ] **W12 — Dwie przeglądarki z rozszerzeniem jednocześnie.** Oczekiwane: partia zostaje w przeglądarce, w której się zaczęła (nowa sesja wybiera ostatnio aktywną); Settings pokazują aktywną.
-- [ ] **W13 — Odebranie uprawnień do hostów w Firefoksie (`about:addons`).** Oczekiwane: Settings pokazują „missing site access”; polecenia dają czytelny błąd zamiast zawieszenia; `welcome.html` pozwala przywrócić dostęp (`Grant site access`).
+- [ ] **W12 — Dwie przeglądarki z rozszerzeniem jednocześnie.** Oczekiwane: partia zostaje w przeglądarce, w której się zaczęła (nowa sesja wybiera ostatnio aktywną). Jej nazwę sprawdź w `Preferences… → Accounts and browser`.
+- [ ] **W13 — Odebranie uprawnień do hostów w Firefoksie (`about:addons`).** Oczekiwane: `Browser automation` w Accounts and browser pokazuje „missing site access”; polecenia dają czytelny błąd zamiast zawieszenia; `welcome.html` pozwala przywrócić dostęp (`Grant site access`).
 - [ ] **W15 — Wyniki pobierania.** Partia bramek z nieudanymi wierszami (np. usunięta bramka, rozszerzenie wyłączone). Oczekiwane: „Download results” z powodami; „Retry these” ponawia tylko je; „Open them in the browser” otwiera ich bramki; przy braku rozszerzenia „Connect the browser and retry”.
 - [ ] **W14 — `dj-digger browser unregister` (albo `Disconnect browsers…`).** Przy zamkniętym GUI w terminalu. Oczekiwane: manifesty hosta (i wpisy rejestru na Windows) usunięte; rozszerzenie pokazuje „not connected”. Przy `Disconnect browsers…` w GUI rejestracja wraca przy następnym starcie aplikacji.
+- [ ] **W16 — Start z panelu.** Po pierwszym uruchomieniu zainstalowanego GUI zamknij aplikację. Otwórz panel rozszerzenia i kliknij **Open dj-digger**. Oczekiwane jest jedno okno aplikacji. Zminimalizuj je i użyj **Show dj-digger**. Okno ma się przywrócić i przejąć fokus, jeśli menedżer okien na to pozwala. Zamknij przeglądarkę i sprawdź, że aplikacja nadal działa.
+- [ ] **W17 — Import przy zamkniętej aplikacji.** Otwórz publiczną playlistę na soundcloud.com i użyj **Import to DJ digger** w nagłówku. Aplikacja ma się uruchomić i rozpocząć import tylko raz. Powtórz przez panel rozszerzenia i z kafelka playlisty. Przycisk ma być nieobecny na stronach pojedynczych utworów, w ich wierszach i menu More.
+- [ ] **W18 — Daily Drops i Weekly Wave.** Zaloguj się w przeglądarce z rozszerzeniem na uzgodnione konto testowe SoundCloud. Zaimportuj każdą playlistę poleceń przyciskiem na stronie lub kafelku, a drugi raz tego samego dnia przez panel rozszerzenia. Sprawdź datę w nazwie, kolejność i liczbę utworów oraz jeden zapis na playlistę i dzień. Otwórz migawkę po restarcie i sprawdź, że menu nie oferuje odświeżania. Gdy dana playlista nie jest dostępna na koncie, odnotuj to osobno.
+- [ ] **W19 — Prywatna i publiczna playlista w SoundCloud.** Użyj tego samego uzgodnionego konta testowego w aplikacji i przeglądarce. Zaznacz publiczne utwory testowe i wybierz `Send to → Create playlist from selection…`. Włącz `Also create on SoundCloud`, wybierz `Private` i sprawdź konto, przeglądarkę, nazwę oraz widoczność w potwierdzeniu. Powtórz z inną nazwą i `Public`, jeśli uzgodniono publikację testową. Na stronie SoundCloud sprawdź widoczność i kolejność utworzonych playlist. Do jednej wyślij przez `Send to` utwór obecny i nowy. Oczekiwane są jeden dodany, jeden już obecny i brak duplikatu w serwisie. Po próbie usuń ręcznie utworzone playlisty testowe.
 
 Dodatkowo: `npx web-ext lint` w `dj_digger/webext/extension` bez błędów (lokalnie, przed podpisem XPI) i zielony domyślny pytest w CI na trzech systemach.
 
@@ -374,11 +379,12 @@ Dodatkowo: `npx web-ext lint` w `dj_digger/webext/extension` bez błędów (loka
 
 | Obszar | Co rzeczywiście wynika z kodu |
 | --- | --- |
-| Import CSV | Formularz mówi „JSON or CSV”, ale `links.load_summary()` czyta JSON. CSV jest formatem wyjściowym. |
-| Cofanie usunięcia | Ctrl+Z cofa statusy. Usunięte z playlisty SoundCloud wiersze przywraca Restore removed tracks. |
-| Lokalna playlista | Można zapisać/dopisać pliki i usunąć całą playlistę. Kontekst lokalny oferuje trwałe Delete files; zwykłe usunięcie pojedynczego odniesienia nie jest wystawione jak dla playlist SoundCloud. |
+| Import CSV | Import podsumowania przyjmuje plik JSON. CSV jest formatem wyjściowym. |
+| Cofanie usunięcia | Ctrl+Z cofa statusy. `Restore removed tracks…` z menu playlisty przywraca jej usunięte pozycje. |
+| Lokalna playlista | Może łączyć pliki i utwory SoundCloud. `Remove from playlist…` usuwa pozycję z listy. Trwałe `Delete files…` jest dostępne w widoku folderu. |
+| Playlista w SoundCloud | Utworzenie przez `Also create on SoundCloud` jest jednorazowe. Zmiany lokalnej kopii są niezależne, a dopisanie w serwisie wymaga wyboru docelowej playlisty SoundCloud. |
 | Importowany JSON | Backend buduje tymczasowy widok; ta akcja nie zapisuje automatycznie playlisty. |
-| CDJ/rekordbox | W formularzu GUI są format, bity, częstotliwość, tryb i rekursja. Nie ma selektora modelu CDJ, zapisu bazy rekordbox, beatgridu ani cue points. |
+| CDJ/rekordbox | Wybór odtwarzaczy w `Decks` wyznacza profil audio. Eksport zapisuje pliki audio do folderu. |
 | Eksplorator | Pokazuje obsługiwane rozszerzenia z `media.FORMATS`; lista nie jest identyczna z szerszą listą skanera. Filtry tabeli są ograniczone do załadowanej strony. |
 | Analyze folder | Obejmuje bezpośrednie pliki całego folderu, ignorując filtr, zaznaczenie i stronę. Rekursja jest opcją eksportu, nie tego polecenia analizy. |
 | Sklepy i filtr | Open links honoruje konkretny sklep. `action_cart()` zbiera oba rodzaje linków sklepowych z wybranych wierszy. |
@@ -386,13 +392,13 @@ Dodatkowo: `npx web-ext lint` w `dj_digger/webext/extension` bez błędów (loka
 | Wynik koszyka | GUI składa tekst z `status` i `reason`; nie należy wymagać bogatego, przetłumaczonego ekranu wyników. |
 | Wynik downloadu | GUI obsługuje postęp i błędy pojedynczych plików, ale nie prezentuje wszystkich summary/status/deferred zdarzeń workflow. |
 | Beatport | Koszyk Beatport dla dokładnych ID przy zalogowanej przeglądarce; reszta w „nie dodano” z opcją otwarcia linków, Soundiiz jako opcja. |
-| Wylogowanie | W menu jest wylogowanie SoundCloud, nie ogólne wyczyszczenie wszystkich profili/cookies/kont. |
+| Wylogowanie | Przycisk w Accounts and browser usuwa sesję SoundCloud z aplikacji. Sesja w przeglądarce ma osobne logowanie i wylogowanie. |
 | Skróty | Korzystaj z Help → Keyboard shortcuts w GUI. Np. E oznacza edycję BPM/Key, Shift+E eksport linków, P poprzedni utwór. |
 | Wygląd/metadata | Rok/label/gatunek mogą być puste w lokalnym widoku mimo istnienia tagów; `media_track()` obecnie mapuje przede wszystkim artist/title, duration, BPM i key. |
 | Analiza i sprzęt | Dostępna funkcja analizy nie oznacza zmierzonej dokładności na kolekcji DJ-skiej; zgodność pliku nie zastępuje próby na odtwarzaczu. |
 | Aktualizacje | GUI nie ma automatycznej aktualizacji ani potwierdzonej funkcji pełnego kasowania danych aplikacji. |
 
-Powyższe różnice są ustaleniami z odczytu kodu, nie wynikami żywego testu. Warto osobno zgłosić szczególnie mylącą etykietę CSV i różnicę zakresu filtra przy koszyku.
+Powyższe ustalenia pochodzą z odczytu kodu. Działanie usług zewnętrznych sprawdź w odpowiednich pozycjach checklisty.
 
 ## Notatka do każdego nieudanego testu
 

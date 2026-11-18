@@ -10,6 +10,7 @@ socket (``link.py``) and back, using only ``send_bytes``/``recv_bytes``.
 * It retries the app connection every second and goes back to waiting when the
   app disconnects. The extension's ``hello`` is cached and replayed to every new
   app connection, because the extension says hello only once per port.
+* An explicit desktop launch frame can start the installed GUI while offline.
 * App -> browser frames above 1 MB are refused with an error frame.
 """
 
@@ -18,16 +19,19 @@ from __future__ import annotations
 import json
 import os
 import struct
+import subprocess
 import sys
+import sysconfig
 import threading
 import time
 from multiprocessing import connection as mpc
+from pathlib import Path
 from typing import BinaryIO
 
 from .link import MAX_FROM_BROWSER, MAX_TO_BROWSER, load_authkey, socket_address
 
 RETRY_SECONDS = 1.0
-HELLO_PEEK_LIMIT = 4096
+CONTROL_PEEK_LIMIT = 4096
 
 
 def read_frame(stream: BinaryIO) -> bytes | None:
@@ -48,14 +52,27 @@ def write_frame(stream: BinaryIO, data: bytes) -> None:
     stream.flush()
 
 
-def _is_hello(frame: bytes) -> bool:
-    if len(frame) > HELLO_PEEK_LIMIT or b"hello" not in frame:
-        return False
+def _control_frame(frame: bytes) -> dict:
+    if len(frame) > CONTROL_PEEK_LIMIT or not any(event in frame for event in (b"hello", b"desktop.launch")):
+        return {}
     try:
         decoded = json.loads(frame)
     except ValueError:
-        return False
-    return isinstance(decoded, dict) and decoded.get("event") == "hello"
+        return {}
+    return decoded if isinstance(decoded, dict) else {}
+
+
+def launch_desktop():
+    """Start the matching GUI from this install, independent of the browser's pipes."""
+    name = "dj-digger-gui.exe" if os.name == "nt" else "dj-digger-gui"
+    directory = Path(sys.executable).parent if getattr(sys, "frozen", False) else Path(sysconfig.get_path("scripts"))
+    executable = directory / name
+    if not executable.is_file():
+        raise FileNotFoundError(executable)
+    # Firefox stops the host's process group/job when its port closes.
+    detached = {"creationflags": subprocess.CREATE_BREAKAWAY_FROM_JOB} if os.name == "nt" else {"start_new_session": True}
+    return subprocess.Popen([str(executable)], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL, **detached)
 
 
 def _error_frame(data: bytes) -> bytes:
@@ -77,6 +94,7 @@ class Relay:
         self._app: mpc.Connection | None = None
         self._hello: bytes | None = None
         self._offline_sent = False
+        self._desktop = None
 
     def to_browser(self, data: bytes) -> bool:
         with self._stdout_lock:
@@ -87,7 +105,12 @@ class Relay:
         return True
 
     def from_browser(self, frame: bytes) -> None:
-        if _is_hello(frame):
+        control = _control_frame(frame)
+        if control.get("event") == "desktop.launch":
+            if set(control) == {"event"} and self._hello is not None:
+                self._launch()
+            return
+        if control.get("event") == "hello":
             with self._lock:
                 self._hello = frame
         with self._lock:
@@ -99,6 +122,15 @@ class Relay:
         except (OSError, ValueError):
             pass  # the app loop sees the dead connection on its recv
 
+    def _launch(self) -> None:
+        with self._lock:
+            if self._app is not None or (self._desktop is not None and self._desktop.poll() is None):
+                return
+            try:
+                self._desktop = launch_desktop()
+            except OSError:
+                self.to_browser(b'{"event":"desktop.launch-failed"}')
+
     def app_loop(self) -> None:
         """Connect, pump app -> browser until the app goes away, repeat."""
 
@@ -107,7 +139,7 @@ class Relay:
             if app is None:
                 if not self._offline_sent:
                     self._offline_sent = True
-                    self.to_browser(b'{"event":"app-offline"}')
+                    self.to_browser(b'{"event":"app-offline","canLaunch":true}')
                 time.sleep(RETRY_SECONDS)
                 continue
             self._offline_sent = False

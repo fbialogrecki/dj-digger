@@ -589,6 +589,8 @@ class SoundCloudClient:
             title=title,
             declared_count=declared,
             provider_id=payload.get("id"),
+            owner_id=(payload.get("user_id") or (payload.get("user") or {}).get("id"))
+            if payload.get("kind") == "playlist" else None,
         )
 
     def collect(

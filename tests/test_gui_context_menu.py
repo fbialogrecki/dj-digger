@@ -79,19 +79,29 @@ def entry(win, name):
 def test_menu_entries_follow_the_view_and_name_counts(window):
     from PySide6.QtGui import QGuiApplication
     win, bridge = window
+    win.setWidth(1200)
     bridge.receive('view', dict(title='Playlist', source='sc:1', local=False, generation=1,
                                 rows=[dict(row('a', 'Alpha'), url='https://soundcloud.com/x/a'),
                                       dict(row('b', 'Beta'), url='javascript:alert(1)'), row('c', 'Gamma')]))
     bridge.table.selectAll()
     qml(win, 'contextMenu.open()')
     settle(win)
-    assert shown(win) == ['play', 'open', 'download', 'owned', 'skip', 'reset', 'copy', 'copyLink', 'selectAll', 'invert',
-                          'cart', 'remove']
+    assert shown(win) == ['play', 'open', 'reset', 'copy', 'copyLink', 'cart', 'remove']
     # Translations may already be installed by another test, so labels are checked by what they carry.
     assert '3' in qml(win, entry(win, 'remove') + '.text')
     assert qml(win, entry(win, 'remove') + '.destructive') is True
     assert qml(win, entry(win, 'download') + '.shortcutText') == 'D'
     qml(win, 'contextMenu.close()')
+    win.setWidth(800)
+    qml(win, 'sidebar.SplitView.preferredWidth = 280')
+    settle(win)
+    assert qml(win, 'toolbar.compactActions') and qml(win, 'moreActions.visible')
+    qml(win, 'contextMenu.open()')
+    settle(win)
+    assert {'download', 'owned', 'skip'} <= set(shown(win))
+    assert {'selectAll', 'invert'}.isdisjoint(shown(win))
+    qml(win, 'contextMenu.close()')
+    win.setWidth(1200)
     # Only web addresses are copied.
     bridge.copyLinks()
     assert QGuiApplication.clipboard().text() == 'https://soundcloud.com/x/a'
@@ -101,8 +111,7 @@ def test_menu_entries_follow_the_view_and_name_counts(window):
     bridge.table.selectAll()
     qml(win, 'contextMenu.open()')
     settle(win)
-    assert shown(win) == ['play', 'skip', 'reset', 'copy', 'selectAll', 'invert',
-                          'reveal', 'edit', 'analyze', 'export', 'deleteFiles']
+    assert shown(win) == ['play', 'reset', 'copy', 'reveal', 'edit', 'export', 'deleteFiles']
     assert '2' in qml(win, entry(win, 'deleteFiles') + '.text')
     # Disabled entries say why.
     assert qml(win, entry(win, 'edit') + '.enabled') is False
@@ -150,6 +159,33 @@ def test_menu_opens_from_keyboard_and_empty_area_and_saves_an_edit(window):
     qml(win, 'contextMenu.close()')
     settle(win)
     assert table.hasActiveFocus()
+
+
+def test_send_to_and_find_in_follow_the_current_selection(window):
+    win, bridge = window
+    bridge.receive('view', dict(title='Playlist', source='sc:1', local=False, generation=3,
+                                rows=[dict(row('a', 'Alpha'), url='https://soundcloud.com/x/a', publishable=True),
+                                      dict(row('b', 'Beta'), media='local-file')]))
+    bridge.receive('sidebar', dict(items=[dict(source='local-playlist:1', title='Local', count=0),
+                                          dict(source='remote', title='Mine', count=0, owned=True),
+                                          dict(source='foreign', title='Other', count=0)]))
+    bridge.table.select(0)
+    qml(win, 'contextMenu.open()')
+    settle(win)
+    assert qml(win, 'sendToMenu.count') == 3
+    assert qml(win, 'sendToMenu.itemAt(0).text') == 'Create playlist from selection…'
+    assert qml(win, 'sendToMenu.itemAt(2).enabled')
+    assert qml(win, entry(win, 'openSoundCloud') + '.visible')
+    assert qml(win, 'searchProviderMenu.count') == 5
+    qml(win, 'searchProviderMenu.itemAt(3).triggered()')
+    assert ('track_link', dict(keys=['a'], generation=3, provider='YouTube Music')) in bridge.backend.calls
+    bridge.table.selectAll()
+    assert not qml(win, 'searchProviderMenu.enabled')
+    assert not qml(win, 'sendToMenu.itemAt(2).enabled')
+    assert qml(win, 'sendToMenu.itemAt(2).reason') == 'Only SoundCloud tracks can be sent to a SoundCloud playlist'
+    assert not qml(win, entry(win, 'openSoundCloud') + '.visible')
+    qml(win, 'sendToMenu.itemAt(1).triggered()')
+    assert ('add_to_playlist', dict(source='local-playlist:1', keys=['a', 'b'], generation=3)) in bridge.backend.calls
 
 
 def test_nothing_animates_or_ticks_at_idle(window):

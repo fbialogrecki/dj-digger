@@ -6,6 +6,7 @@ import threading
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
+from dataclasses import asdict
 from datetime import UTC, datetime
 from functools import wraps
 from pathlib import Path
@@ -199,11 +200,25 @@ class Database:
                     current["preserve_order"] = incoming["preserve_order"]
                 current["refreshed_at"] = datetime.now(UTC).isoformat(timespec="seconds")
             if provider_id:
+                if incoming.get('owner_id') is not None or current.get('provider_id') != provider_id:
+                    current['owner_id'] = incoming.get('owner_id')
                 current['provider_id'] = provider_id
             self.save_crate(current)
             if provider_id:
                 conn.execute('INSERT OR REPLACE INTO playlist_aliases VALUES(?,?)', (str(provider_id), source))
             return current
+
+    @owned
+    def remember_snapshot(self, record, generations):
+        source = record['source']
+        with self.connection(write=True):
+            if generations.get(source, 'initial') != self.crate_generation(source):
+                return None
+            existing = self.load_crate(source)
+            if existing is not None:
+                return existing
+            self.save_crate(record)
+            return record
 
     @owned
     def set_removed_tracks(self, source: str, generation: str, keys: list[str], removed: bool):
@@ -306,11 +321,21 @@ class Database:
             rows = conn.execute(
                 """SELECT source, title, updated,
                           json_extract(record_json, '$.partial') AS partial,
+                          json_extract(record_json, '$.owner_id') AS owner_id,
+                          json_extract(record_json, '$.provider_id') AS provider_id,
                           CASE WHEN source LIKE 'local-playlist:%'
-                               THEN (SELECT COUNT(*) FROM local_playlist_items p WHERE p.source = crates.source)
+                               THEN (SELECT COUNT(*) FROM local_playlist_items p
+                                     WHERE p.source = crates.source AND ('local:' || p.media_id) NOT IN
+                                     (SELECT value FROM json_each(crates.record_json, '$.removed_track_keys')))
+                               ELSE 0
+                          END AS media_count,
+                          CASE WHEN source LIKE 'local-playlist:%'
+                               THEN (SELECT COUNT(*) FROM local_playlist_soundcloud_items p
+                                     WHERE p.source = crates.source AND p.track_key NOT IN
+                                     (SELECT value FROM json_each(crates.record_json, '$.removed_track_keys')))
                                ELSE MAX(0, COALESCE(json_array_length(record_json, '$.tracks'), 0)
                                            - COALESCE(json_array_length(record_json, '$.removed_track_keys'), 0))
-                          END AS count
+                          END AS other_count
                    FROM crates ORDER BY updated DESC"""
             ).fetchall()
         return [
@@ -319,7 +344,10 @@ class Database:
                 "title": row["title"],
                 "updated": row["updated"],
                 "partial": bool(row["partial"]),
-                "count": row["count"],
+                "count": row["media_count"] + row["other_count"],
+                "media_count": row["media_count"],
+                "owner_id": row["owner_id"],
+                "provider_id": row["provider_id"],
             }
             for row in rows
         ]
@@ -477,19 +505,76 @@ class Database:
                          (key, signature, json.dumps(samples)))
 
     @owned
-    def save_local_playlist(self, source, title, media_ids):
+    def save_local_playlist(self, source, title, tracks, *, preserve_duplicates=False):
+        """Create a named crate or append to an existing one when title is None."""
+        from .crate_models import CrateRecord
+
+        if not source.startswith('local-playlist:'):
+            raise ValueError('Tracks can only be added to a local playlist')
         with self.connection(write=True) as conn:
-            existing = self.load_crate(source)
-            self.save_crate(existing or {'source': source, 'title': title, 'tracks': [], 'version': 2})
-            start = conn.execute('SELECT COALESCE(MAX(position),-1)+1 FROM local_playlist_items WHERE source=?', (source,)).fetchone()[0]
-            conn.executemany('INSERT INTO local_playlist_items VALUES(?,?,?)',
-                             ((source, start+i, mid) for i, mid in enumerate(media_ids)))
+            record = self.load_crate(source)
+            if record is None:
+                if title is None:
+                    return False
+                record = CrateRecord(source, title).to_json()
+            positions = conn.execute('''SELECT position, 'local:' || media_id AS key FROM local_playlist_items WHERE source=?
+                                        UNION ALL SELECT position, track_key FROM local_playlist_soundcloud_items WHERE source=?''',
+                                     (source, source)).fetchall()
+            seen = {row['key'] for row in positions}
+            position = max((row['position'] for row in positions), default=-1) + 1
+            local, remote = [], []
+            removed = set(record.get('removed_track_keys', ()))
+            added = skipped = 0
+            for track in tracks:
+                # Older repository callers pass media IDs directly.
+                media_id = track if isinstance(track, str) else track.local_id
+                key = f'local:{media_id}' if media_id else getattr(track, 'key', '')
+                if not key:
+                    raise ValueError('Playlist tracks must have a stable identity')
+                restored = key in removed
+                removed.discard(key)
+                if key in seen and not preserve_duplicates:
+                    if restored:
+                        added += 1
+                    else:
+                        skipped += 1
+                    continue
+                added += 1
+                seen.add(key)
+                if media_id:
+                    local.append((source, position, media_id))
+                else:
+                    snapshot = dict(asdict(track), local_path=None)
+                    remote.append((source, position, key, json.dumps(snapshot, ensure_ascii=False)))
+                position += 1
+            record['removed_track_keys'] = [key for key in record.get('removed_track_keys', ()) if key in removed]
+            self.save_crate(record)
+            conn.executemany('INSERT INTO local_playlist_items VALUES(?,?,?)', local)
+            conn.executemany('INSERT INTO local_playlist_soundcloud_items VALUES(?,?,?,?)', remote)
+            return added, skipped
+
+    @owned
+    def load_local_playlist(self, source):
+        with self.connection() as conn:
+            record = self.load_crate(source)
+            if record is None:
+                return None
+            members = conn.execute('''SELECT position, media_id, NULL AS track_json FROM local_playlist_items WHERE source=?
+                                      UNION ALL SELECT position, NULL, track_json FROM local_playlist_soundcloud_items WHERE source=?
+                                      ORDER BY position''', (source, source)).fetchall()
+            media = self.media_many(row['media_id'] for row in members if row['media_id'] is not None)
+            return record, [(media[row['media_id']], None) if row['media_id'] is not None
+                            else (None, json.loads(row['track_json'])) for row in members
+                            if row['media_id'] is None or row['media_id'] in media]
 
     @owned
     def local_playlist_media(self, source):
         with self.connection() as conn:
             return [dict(row) for row in conn.execute('''SELECT m.* FROM local_playlist_items p
-                   JOIN media_files m ON m.id=p.media_id WHERE p.source=? ORDER BY p.position''', (source,))]
+                   JOIN media_files m ON m.id=p.media_id JOIN crates c ON c.source=p.source
+                   WHERE p.source=? AND ('local:' || p.media_id) NOT IN
+                   (SELECT value FROM json_each(c.record_json, '$.removed_track_keys'))
+                   ORDER BY p.position''', (source,))]
 
     @owned
     def record_media_operation(self, operation_id, record):
@@ -521,14 +606,7 @@ class Database:
 
     @owned
     def remember_provider_playlist(self, provider_id, incoming, generation):
-        with self.connection(write=True) as conn:
-            row = conn.execute('SELECT source FROM playlist_aliases WHERE provider_id=?', (str(provider_id),)).fetchone()
-            if row is not None:
-                incoming = dict(incoming, source=row['source'])
-            saved = self.remember_collection(incoming, generation)
-            if saved is not None:
-                conn.execute('INSERT OR REPLACE INTO playlist_aliases VALUES(?,?)', (str(provider_id), saved['source']))
-            return saved
+        return self.remember_collection(dict(incoming, provider_id=provider_id), generation)
 
     @owned
     def media_at_identity(self, signature):

@@ -11,7 +11,7 @@
   },
   "background": {
     "service_worker": "background.js",
-    "scripts": ["dom.js", "background.js"]
+    "scripts": ["dom.js", "playlist-write.js", "background.js"]
   },
   "permissions": [
     "nativeMessaging", "tabs", "scripting", "downloads", "cookies",

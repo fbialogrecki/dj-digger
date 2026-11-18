@@ -1,9 +1,10 @@
 """Local-file reconciliation and field-specific playlist edits, independent of UI."""
 
+from dataclasses import asdict
 from pathlib import Path
 
 from ..crate_models import CrateHeader, CrateRecord
-from ..models import GOT, NEW
+from ..models import GOT, NEW, track_key
 from ..scanner import SCAN_BATCH, LocalScanner, confirmed_missing
 from ..state import FileMatch
 
@@ -17,12 +18,20 @@ class LibraryService:
         return sorted(headers, key=lambda header: header.title.lower())
 
     def load(self, source):
-        raw = self.state.db.load_crate(source.strip())
-        if raw is not None and source.startswith('local-playlist:'):
-            from dataclasses import asdict
-
+        source = source.strip()
+        if source.startswith('local-playlist:'):
+            saved = self.state.db.load_local_playlist(source)
+            if saved is None:
+                return None
             from .local_library import media_track
-            raw['tracks'] = [asdict(media_track(self.state.db, record)) for record in self.state.db.local_playlist_media(source)]
+            raw, members = saved
+            raw['tracks'] = [
+                asdict(media_track(self.state.db, media)) if media is not None
+                else dict(track, local_path=self.state.local_file(track_key(track)))
+                for media, track in members
+            ]
+        else:
+            raw = self.state.db.load_crate(source)
         return CrateRecord.from_json(raw) if raw is not None else None
 
     def reset(self, keys):
@@ -30,10 +39,11 @@ class LibraryService:
             self.state.set(key, NEW)
 
     def delete(self, source):
-        record = self.load(source)
-        if not source.startswith('local-playlist:'):
+        source = source.strip()
+        if not source.startswith(('local-playlist:', 'sc-snapshot:')):
+            record = self.load(source)
             self.reset([track.key for track in record.tracks] if record else [])
-        self.state.db.delete_crate(source.strip())
+        self.state.db.delete_crate(source)
 
     def remember_beatport(self, source, generation, outcome):
         raw = self.state.db.remember_beatport(source, generation, outcome)

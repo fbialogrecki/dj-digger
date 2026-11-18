@@ -137,6 +137,7 @@ def test_qml_menu_bar(app, tmp_path, monkeypatch):
     import shiboken6
     from PySide6.QtCore import QUrl
     from PySide6.QtQml import QQmlApplicationEngine, QQmlEngine, QQmlExpression
+    from PySide6.QtTest import QSignalSpy
 
     from dj_digger.gui.bridge import Bridge
 
@@ -146,6 +147,9 @@ def test_qml_menu_bar(app, tmp_path, monkeypatch):
 
         def submit(self, *args):
             self.calls.append(args)
+
+        def answer(self, *args):
+            self.calls.append(('answer', *args))
 
     import gc
 
@@ -173,6 +177,16 @@ def test_qml_menu_bar(app, tmp_path, monkeypatch):
     def texts(menu):
         return [qml(f'{menu}.itemAt({i}).text') for i in range(int(qml(f'{menu}.count')))]
 
+    def find(item, name):
+        if item.objectName() == name:
+            return item
+        return next((match for child in item.childItems() if (match := find(child, name))), None)
+
+    def settle():
+        painted = QSignalSpy(window.frameSwapped)
+        window.update()
+        assert painted.wait(3000)
+
     try:
         bridge.receive('ready', {})
         assert [qml(f'menuBar.menuAt({i}).title') for i in range(int(qml('menuBar.count')))] == \
@@ -181,30 +195,54 @@ def test_qml_menu_bar(app, tmp_path, monkeypatch):
         assert qml('menuBar.menuAt(2).itemAt(0).action === playAction') is True
         assert [t for t in texts('menuBar.menuAt(2)') if t] == ['Play / pause', 'Stop', 'Previous track', 'Next track',
                                                                'Seek backward 10 s', 'Seek forward 10 s', 'Seek backward 30 s',
-                                                               'Seek forward 30 s', 'Start previews at 30 %', 'Volume down', 'Volume up', 'Mute']
-        # Start previews at 30 % checks and unchecks.
-        qml('previewThirtyAction.trigger()')
-        assert qml('previewStart') == '30' and qml('previewThirtyAction.checked')
-        qml('previewThirtyAction.trigger()')
-        assert qml('previewStart') == '' and not qml('previewThirtyAction.checked')
+                                                               'Seek forward 30 s', 'Volume down', 'Volume up', 'Mute']
         library = texts('menuBar.menuAt(0)')
-        assert library.index('Import profile playlists…') < library.index('Pin folder') < library.index('Resume interrupted export…')
-        assert qml('menuBar.menuAt(0).itemAt(3).tip').startswith('Add every playlist')
-        # Busy: imports, restore and sign-out wait.
+        assert [name for name in library if name] == ['Import playlist from link…', 'Add folder…', 'Import profile playlists…',
+                                                       'Import saved summary…', 'Open recent', 'Refresh', 'Scan local library',
+                                                       'Resume interrupted export…', 'Quit']
+        assert qml('menuBar.menuAt(0).itemAt(2).tip').startswith('Add every playlist')
         bridge.receive('busy', {'value': True, 'text': ''})
-        assert qml('menuBar.menuAt(0).itemAt(3).enabled') is False and qml('menuBar.menuAt(4).itemAt(2).enabled') is False
+        assert qml('menuBar.menuAt(0).itemAt(2).enabled') is False
         bridge.receive('busy', {'value': False, 'text': ''})
-        # One account entry and one browser entry, each saying what it will do.
-        settings = 'menuBar.menuAt(4)'
-        assert texts(settings)[2:] == ['Sign in to SoundCloud…', 'Connect browser…', 'No browser connected']
-        assert qml(f'{settings}.itemAt(4).enabled') is False
+        assert texts('menuBar.menuAt(4)') == ['Preferences…']
+        assert [name for name in texts('menuBar.menuAt(3)') if name] == ['Show sidebar', 'Full screen', 'Columns', 'Compact rows', 'Reset layout']
+        qml('preferencesAction.trigger()')
+        operation, preferences = bridge.backend.calls[-1]
+        assert operation == 'settings' and preferences['previewThirty'] is False
+        appearance = {f['name']: f for f in preferences['appearance']}
+        assert set(appearance) == {'language', 'theme', 'colors', 'keyNotation', 'vinyl', 'animations'}
+        assert appearance['colors']['options'][0] == ['magenta-blue', 'Magenta and blue']
+        from dj_digger.gui.backend import field, section
+        bridge.receive('question', dict(id='prefs', title='Preferences', ok='Save', fields=[
+            section('section_appearance', 'Appearance', collapsed=True), *appearance.values(),
+            section('section_browser', 'Accounts and browser', collapsed=True),
+            field('connections', '', kind='connections'),
+        ]))
+        assert qml('dialog.visible && dialog.collapsed.section_appearance && dialog.collapsed.section_browser')
+        qml('dialog.collapsed = {}')
         bridge.receive('account', dict(signedIn=True, name='digger', browser='Chrome'))
-        # Connect browser… stays while one is connected: a second browser, or Check connection.
-        assert texts(settings)[2:] == ['Signed in as digger — Sign out…', 'Connect browser…',
-                                       'Connected: Chrome — Disconnect…']
-        qml(f'{settings}.itemAt(2).action.trigger(); {settings}.itemAt(3).action.trigger(); '
-            f'{settings}.itemAt(4).action.trigger()')
-        assert [c[0] for c in bridge.backend.calls[-3:]] == ['logout', 'connect_browser', 'disconnect_browsers']
+        settle()
+        account = find(window.contentItem(), 'soundCloudConnection')
+        assert account is not None and account.property('text') == 'Signed in as digger — Sign out…'
+        bridge.receive('busy', {'value': True, 'text': ''})
+        assert not account.isEnabled()
+        bridge.receive('busy', {'value': False, 'text': ''})
+        qml('dialog.connectionAction("logout")')
+        assert bridge.backend.calls[-1][:2] == ('answer', 'prefs')
+        assert bridge.backend.calls[-1][2]['_connectionAction'] == 'logout'
+        bridge.receive('presentation', dict(previewThirty=True, animations=False, colors='green-yellow'))
+        assert qml('previewStart') == '30' and not window.property('animations') and qml('colorPair') == 'green-yellow'
+        bridge.receive('question', dict(id='playlist', title='New Playlist', ok='Create', fields=[
+            field('soundcloud', 'Also create on SoundCloud', False, 'bool'),
+            dict(field('sharing', 'SoundCloud visibility', 'private', 'choice',
+                       [['private', 'Private'], ['public', 'Public']]), requires='soundcloud'),
+        ]))
+        settle()
+        sharing = find(window.contentItem(), 'field-sharing')
+        assert sharing is not None and not sharing.isVisible()
+        qml('dialog.setValue("soundcloud", true)')
+        assert sharing.isVisible()
+        qml('dialog.reject()')
         # Checked follows the state whichever side changes it.
         sidebar = 'menuBar.menuAt(3).itemAt(0)'
         qml('sidebarAction.trigger()')
@@ -213,17 +251,23 @@ def test_qml_menu_bar(app, tmp_path, monkeypatch):
         assert qml(f'{sidebar}.checked') is True
         qml('sidebarAction.trigger(); sidebarAction.trigger()')
         assert window.property('sidebarVisible') is True and qml('sidebarAction.checked') is True
-        qml('animationsAction.trigger()')
-        assert window.property('animations') is False and qml('animationsAction.checked') is False
-        # Colour entries carry a swatch of the pair's two neon colours.
-        colours = 'menuBar.menuAt(3).menuAt(7)'
-        assert qml(f'{colours}.title') == 'Colours' and qml(f'{colours}.itemAt(0).swatch.length') == 2
         # Shortcuts list menu entries with every key, including those only the menus name.
         listed = qml('shortcutList()')
         for line in ('  F1, ?\tKeyboard shortcuts', '  Shift+S, Ctrl+,\tPreferences…', '  Space\tPlay / pause',
                      '  Ctrl+I\tInvert selection', '  F11\tFull screen', '  K\tSkip'):
             assert line in listed
         assert listed.count('\tPlay / pause') == 1
+        bridge.table.replace([row('a', 'Night mix'), row('b', 'Night dub'), row('c', 'Day mix')])
+        bridge.table.filter('Night', {})
+        bridge.table.select(0)
+        tracks = 'menuBar.menuAt(1)'
+        assert {'Select all', 'Invert selection', 'Open saved links for all visible tracks (2)',
+                'Download all visible (2)', 'Add all visible to store carts (2)…'} <= set(texts(tracks))
+        export = f'{tracks}.menuAt({tracks}.count - 1)'
+        assert texts(export) == ['Selected tracks (1)…', 'All visible tracks (2)…']
+        bridge.table.filter('no match', {})
+        assert 'Download all visible (0)' in texts(tracks)
+        assert texts(export) == ['Selected tracks (0)…', 'All visible tracks (0)…']
         # Recently opened playlists and folders, newest first; playlists gone from the sidebar drop out.
         bridge.receive('sidebar', {'items': [{'source': 'sc:1', 'title': 'Peak time'}]})
         bridge.receive('view', dict(title='Peak time', source='sc:1', local=False, generation=1, rows=[]))

@@ -49,6 +49,7 @@ class Bridge(QObject):
     event = Signal(str, object)
     changed = Signal()
     audioChanged = Signal()
+    playLoadingChanged = Signal()
     playingChanged = Signal()
     playlistsChanged = Signal()
     waveformChanged = Signal()
@@ -59,6 +60,7 @@ class Bridge(QObject):
     importChanged = Signal()
     rootsChanged = Signal()
     accountChanged = Signal()
+    presentationChanged = Signal('QVariantMap')
     question = Signal('QVariantMap')
     dismiss = Signal(str)
     notice = Signal(str, str)
@@ -86,6 +88,7 @@ class Bridge(QObject):
         self._refresh_roots()
         self._folder = dict(path='', offset=0, total=0, directories=[])
         self._audio = {}
+        self._loading_track_key = ''
         self._waveform = []
         self._waveform_key = ''
         self._muted = False
@@ -118,6 +121,7 @@ class Bridge(QObject):
     folder = Property('QVariantMap', lambda self: self._folder, notify=changed)
     # Ten position ticks a second must not re-evaluate every view binding, nor carry the waveform.
     audio = Property('QVariantMap', lambda self: self._audio, notify=audioChanged)
+    loadingTrackKey = Property(str, lambda self: self._loading_track_key, notify=playLoadingChanged)
     # The loaded track and whether it plays change rarely; table cells bind to these, not to every tick.
     audioKey = Property(str, lambda self: self._audio.get('key', ''), notify=playingChanged)
     playing = Property(bool, lambda self: bool(self._audio.get('playing')), notify=playingChanged)
@@ -186,6 +190,9 @@ class Bridge(QObject):
             self.playlistsChanged.emit()
         elif kind == 'folder':
             self._folder = values
+        elif kind == 'playLoading':
+            self._set_play_loading(values.get('key', ''))
+            return
         elif kind == 'audio':
             before = (self._audio.get('key', ''), bool(self._audio.get('playing')))
             self._audio = values
@@ -263,6 +270,18 @@ class Bridge(QObject):
                 if item['kind'] == 'note':
                     item['value'] = self.tr(item['value']).format(*item['args']) if 'args' in item else self.tr(item['value'])
             self.question.emit(values)
+        elif kind == 'presentation':
+            self.presentationChanged.emit(values)
+            return
+        elif kind == 'activate':
+            if self._close_timer is None and self.engine is not None and (windows := self.engine.rootObjects()):
+                window = windows[0]
+                state = window.windowStates()
+                if state & Qt.WindowMinimized:
+                    window.setWindowStates(state & ~Qt.WindowMinimized)
+                window.raise_()
+                window.requestActivate()
+            return
         elif kind == 'dismiss':
             self.dismiss.emit(values['id'])
         elif kind == 'ready':
@@ -281,6 +300,11 @@ class Bridge(QObject):
             self._waveform_key, self._waveform = key, samples
             self.waveformChanged.emit()
 
+    def _set_play_loading(self, key):
+        if key != self._loading_track_key:
+            self._loading_track_key = key
+            self.playLoadingChanged.emit()
+
     @Slot(str)
     @Slot(str, bool)
     def action(self, name, everything=False):
@@ -291,6 +315,14 @@ class Bridge(QObject):
             keys = [row['key'] for row in self.table.visible]
         self.backend.submit(name, dict(keys=keys, order=[r['key'] for r in self.table.visible], selected=selected, search=self.table.search,
                                        statuses=sorted(self.table.statuses), stores=sorted(self.table.store_filter), generation=self._view['generation']))
+
+    @Slot('QVariantMap')
+    def preferences(self, values):
+        self.backend.submit('settings', values)
+
+    @Slot(str)
+    def trackLink(self, provider):
+        self.backend.submit('track_link', dict(provider=provider, keys=self.table.keys(), generation=self._view['generation']))
 
     @Slot(str)
     def mark(self, status):
@@ -342,7 +374,7 @@ class Bridge(QObject):
 
     @Slot(str)
     def addToPlaylist(self, source):
-        """The selected tracks, dragged onto a local playlist in the sidebar."""
+        """Send the visible selected tracks in table order to an existing playlist."""
         self.backend.submit('add_to_playlist', dict(source=source, keys=self.table.keys(), generation=self._view['generation']))
 
     @Slot(str, result=bool)
@@ -484,7 +516,7 @@ class Bridge(QObject):
         # Only this fixed presentation shape is persisted; no service preferences.
         allowed = {'width', 'height', 'language', 'theme', 'sidebarWidth', 'sidebarVisible', 'columnWidths', 'hiddenColumns', 'columnOrder',
                    'keyNotation', 'animations', 'colors', 'recent', 'sortColumn', 'sortReverse', 'compactRows', 'sidebarCollapsed',
-                   'previewStart', 'spectral', 'vinyl'}
+                   'previewStart', 'spectral', 'vinyl', 'sidebarSplit'}
         self._settings = {k: v for k, v in values.items() if k in allowed}
 
     @Slot()

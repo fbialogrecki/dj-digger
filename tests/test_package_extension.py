@@ -23,7 +23,7 @@ def test_store_zips_carry_a_per_browser_manifest_and_the_extension_files(tmp_pat
     }
     with zipfile.ZipFile(firefox_zip) as zf:
         firefox = json.loads(zf.read("manifest.json"))
-    assert "key" not in firefox and firefox["background"] == {"scripts": ["dom.js", "background.js"]}
+    assert "key" not in firefox and firefox["background"] == {"scripts": ["dom.js", "playlist-write.js", "background.js"]}
     assert firefox["browser_specific_settings"] == source["browser_specific_settings"]
     first = chrome_zip.read_bytes()
     build(tmp_path)

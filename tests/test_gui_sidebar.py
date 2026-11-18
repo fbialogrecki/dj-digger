@@ -11,7 +11,7 @@ pytest.importorskip('PySide6')
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QGuiApplication
 
-from tests.test_gui import app, backend, wait_event  # noqa: F401  (fixtures)
+from tests.test_gui import app, backend, next_of, wait_event  # noqa: F401  (fixtures)
 
 
 def test_headers_count_active_tracks_and_a_renamed_title_survives_refresh(tmp_path):
@@ -96,6 +96,153 @@ def test_a_local_playlist_exports_exactly_its_files_from_the_sidebar(backend, tm
     assert event[1]['text'] == 'Only local playlists can be exported'
 
 
+def test_soundcloud_and_local_tracks_share_an_ordered_playlist(backend, tmp_path):  # noqa: F811
+    from dj_digger.crate_models import CrateRecord
+    from dj_digger.models import Track
+
+    worker, events = backend
+    state = worker.services.state
+    snapshot = 'sc-snapshot:test'
+    remotes = [Track(title, f'https://soundcloud.com/owner/{title.lower()}', id=i)
+               for i, title in enumerate(('First', 'Second'), start=1)]
+    state.db.save_crate(CrateRecord(snapshot, 'Snapshot', remotes, preserve_order=True).to_json())
+    state.set('2', 'skip')
+    worker.submit('refresh', {'source': snapshot})
+    view = wait_event(events, 'view')
+    assert [r['key'] for r in view['rows']] == ['1', '2']
+    worker.submit('save_playlist', dict(generation=view['generation'], keys=['1', '2'], order=['2', '1']))
+    question = wait_event(events, 'question')
+    assert [(f['name'], f['value']) for f in question['fields']] == [
+        ('title', ''), ('count', 'Selected tracks: {0}'), ('soundcloud', False), ('sharing', 'private')]
+    worker.answer(question['id'], {'title': 'Set'})
+    mine = next(i for i in wait_event(events, 'sidebar')['items'] if i['title'] == 'Set')
+
+    folder = tmp_path / 'music'
+    folder.mkdir()
+    (folder / 'File.wav').write_bytes(b'audio')
+    worker.submit('folder', {'path': str(folder)})
+    folder_view = wait_event(events, 'view')
+    [local] = folder_view['rows']
+    worker.submit('add_to_playlist', dict(source=mine['source'], keys=[local['key']], generation=folder_view['generation']))
+    wait_event(events, 'sidebar')
+    worker.submit('load', {'source': mine['source']})
+    mixed = wait_event(events, 'view')
+    assert mixed['localPlaylist'] and mixed['mixedPlaylist'] and not mixed['local']
+    assert [(r['key'], r['media']) for r in mixed['rows']] == [('2', False), ('1', False), (local['key'], True)]
+    worker.submit('delete_files', dict(keys=[local['key']], generation=mixed['generation']))
+    assert next_of(events, 'error')[1]['text'] == 'Open the folder to delete files'
+    worker.submit('remove', dict(keys=['2', local['key']], generation=mixed['generation']))
+    worker.answer(wait_event(events, 'question')['id'], {})
+    remaining = next(i for i in wait_event(events, 'sidebar')['items'] if i['source'] == mine['source'])
+    assert (remaining['count'], remaining['mediaCount']) == (1, 0)
+    assert [r['key'] for r in wait_event(events, 'view')['rows']] == ['1']
+    worker.submit('delete_playlist', {'source': snapshot})
+    worker.answer(wait_event(events, 'question')['id'], {})
+    assert [i['source'] for i in wait_event(events, 'sidebar')['items']] == [mine['source']]
+    assert state.get('2') == 'skip' and (folder / 'File.wav').read_bytes() == b'audio'
+
+
+def test_remote_playlist_creation_failure_keeps_the_new_local_playlist(backend):  # noqa: F811
+    from dj_digger.crate_models import CrateRecord
+    from dj_digger.models import Track
+
+    worker, events = backend
+    source = 'sc-snapshot:failure'
+    track = Track('Track', 'https://soundcloud.com/owner/track', id=1)
+    worker.services.state.db.save_crate(CrateRecord(source, 'Snapshot', [track]).to_json())
+
+    async def fail(title, sharing, tracks):
+        assert (title, sharing, [t.key for t in tracks]) == ('Local', 'public', ['1'])
+        raise ValueError('Provider refused the request')
+
+    worker.create_soundcloud_playlist = fail
+    worker.submit('load', {'source': source})
+    view = wait_event(events, 'view')
+    worker.submit('save_playlist', dict(generation=view['generation'], keys=['1']))
+    question = wait_event(events, 'question')
+    worker.answer(question['id'], {'title': 'Local', 'soundcloud': True, 'sharing': 'public'})
+    mine = next(i for i in wait_event(events, 'sidebar')['items'] if i['title'] == 'Local')
+    assert mine['source'].startswith('local-playlist:') and mine['count'] == 1
+    assert next_of(events, 'error')[1]['args'] == ['Local', 'Provider refused the request']
+
+
+def test_soundcloud_write_stays_in_chosen_browser_when_accounts_differ(backend, monkeypatch):  # noqa: F811
+    import asyncio
+    from concurrent.futures import Future
+    from unittest.mock import Mock
+
+    from dj_digger.models import Track
+
+    worker, events = backend
+    owner = 'https://soundcloud.com/owner'
+    track = Track('First', owner + '/first', id=1)
+    client = worker.services.client
+    monkeypatch.setattr(client, '_get', lambda path: {'id': 11, 'permalink_url': owner})
+    monkeypatch.setattr(client, 'hydrate_tracks', lambda ids, cancel: [track])
+    browsers = [Mock(compatible=True, last_active=index, hello=dict(browser=name, permissions=True, playlistWrite=True))
+                for index, name in enumerate(('chrome', 'firefox'))]
+    link = Mock()
+    link.connections.return_value = browsers
+    monkeypatch.setattr(worker.services, 'browser_link', link)
+    session = browsers[1].session.return_value
+    session.error = None
+    reply = Future()
+    reply.set_exception(ValueError('Different browser account'))
+    session.submit.return_value = (1, reply)
+    result = asyncio.run_coroutine_threadsafe(worker.write_soundcloud_tracks([track], title='Set'), worker.loop)
+    choose = wait_event(events, 'question')
+    assert choose['title'] == 'Choose the SoundCloud browser'
+    worker.answer(choose['id'], {'browser': '1'})
+    confirm = wait_event(events, 'question')
+    assert {f['name']: f['value'] for f in confirm['fields']} == dict(account=owner, browser='firefox', playlist='Set', sharing='Private')
+    worker.answer(confirm['id'], {})
+    review = wait_event(events, 'question')
+    assert review['fields'][0]['args'] == [0, 0]
+    worker.answer(review['id'], {})
+    with pytest.raises(ValueError, match='Different browser account'):
+        result.result(timeout=5)
+    browsers[0].session.assert_not_called()
+    session.submit.assert_called_once()
+    session.request.assert_called_once_with('playlist.review', {})
+    session.close.assert_called_once()
+
+
+def test_only_current_account_playlists_are_remote_destinations(backend, monkeypatch):  # noqa: F811
+    from dj_digger import auth
+    from dj_digger.crate_models import CrateRecord
+    from dj_digger.models import Track
+
+    worker, events = backend
+    owned = 'https://soundcloud.com/owner/sets/owned'
+    other = 'https://soundcloud.com/other/sets/owned'
+    snapshot = 'sc-snapshot:owned'
+    track = Track('Track', 'https://soundcloud.com/owner/track', id=1)
+    for source, owner in ((owned, 1), (other, 2), (snapshot, 1)):
+        record = CrateRecord(source, source, [track], provider_id=5, owner_id=owner)
+        worker.services.state.db.save_crate(record.to_json())
+    auth.save_token('fixture-account', 'owner', 1)
+    worker.submit('account')
+    items = wait_event(events, 'sidebar')['items']
+    assert {item['source'] for item in items if item['owned']} == {owned}
+
+    async def add(source, tracks):
+        assert source == owned and [t.key for t in tracks] == ['1']
+        worker.send('message', {'text': 'Called remote adapter'})
+
+    worker.add_to_soundcloud_playlist = add
+    worker.submit('load', {'source': snapshot})
+    view = wait_event(events, 'view')
+    selected = dict(generation=view['generation'], keys=['1'])
+    worker.submit('add_to_playlist', dict(selected, source=owned))
+    assert wait_event(events, 'message')['text'] == 'Called remote adapter'
+    worker.submit('add_to_playlist', dict(selected, source=snapshot))
+    assert 'you own' in next_of(events, 'error')[1]['text']
+
+    monkeypatch.setenv('SOUNDCLOUD_OAUTH_TOKEN', 'another-account')
+    worker.submit('account')
+    assert not any(item['owned'] for item in wait_event(events, 'sidebar')['items'])
+
+
 def test_folder_menu_pins_unpins_and_unhides_the_folder_it_names(backend, tmp_path):  # noqa: F811
     worker, events = backend
     folder = tmp_path / 'Sets'
@@ -146,7 +293,7 @@ def test_music_folders_rescan_and_match_names_below(app, tmp_path):  # noqa: F81
 
 def test_qml_sidebar_sections_filter_keyboard_menus_and_track_drop(app, tmp_path, monkeypatch):  # noqa: F811
     import shiboken6
-    from PySide6.QtCore import QPointF, QUrl
+    from PySide6.QtCore import QPoint, QPointF, QUrl
     from PySide6.QtQml import QQmlApplicationEngine, QQmlEngine, QQmlExpression
     from PySide6.QtTest import QSignalSpy, QTest
 
@@ -176,8 +323,10 @@ def test_qml_sidebar_sections_filter_keyboard_menus_and_track_drop(app, tmp_path
         window.setProperty('animations', False)
         bridge.receive('ready', {})
         local, remote = 'local-playlist:1', 'https://soundcloud.com/a/sets/x'
-        bridge.receive('sidebar', {'items': [dict(title='Mine', source=local, count=3), dict(title='Set', source=remote, count=12)],
-                                   'pinned': [str(home / 'Sets')], 'hidden': [str(home / 'Music' / 'Secret')]})
+        sidebar = {'items': [dict(title='Mine', source=local, count=3, mediaCount=3),
+                             dict(title='Set', source=remote, count=12, mediaCount=0)],
+                   'pinned': [str(home / 'Sets')], 'hidden': [str(home / 'Music' / 'Secret')]}
+        bridge.receive('sidebar', sidebar)
 
         def qml(expression):
             return QQmlExpression(QQmlEngine.contextForObject(window), window, expression).evaluate()[0]
@@ -229,18 +378,27 @@ def test_qml_sidebar_sections_filter_keyboard_menus_and_track_drop(app, tmp_path
         qml('playlistMenu.close()')
         # The menus act on the row they were opened on.
         qml(f'root.playlistMenuAt("{remote}")')
-        assert qml('playlistMenu.itemAt(1).visible') and not qml('playlistMenu.itemAt(3).visible')
+        assert qml('playlistMenu.itemAt(1).visible') and not qml('playlistMenu.itemAt(4).visible')
         # Only a local playlist's files can be exported from here.
-        assert qml('playlistMenu.itemAt(4).text') == 'Export audio…' and not qml('playlistMenu.itemAt(4).visible')
+        assert qml('playlistMenu.itemAt(5).text') == 'Export audio…' and not qml('playlistMenu.itemAt(5).visible')
         qml('playlistMenu.itemAt(1).triggered(); playlistMenu.close()')
         assert bridge.backend.calls[-1] == ('refresh', {'source': remote})
+        qml(f'root.playlistMenuAt("{remote}"); playlistMenu.itemAt(2).triggered(); playlistMenu.close()')
+        assert bridge.backend.calls[-1] == ('restore', {'source': remote})
         qml(f'root.playlistMenuAt("{local}")')
-        qml('playlistMenu.itemAt(2).triggered(); playlistMenu.close()')
+        qml('playlistMenu.itemAt(3).triggered(); playlistMenu.close()')
         assert bridge.backend.calls[-1] == ('rename_playlist', {'source': local})
         qml(f'root.playlistMenuAt("{local}")')
-        assert qml('playlistMenu.itemAt(4).visible') and qml('playlistMenu.itemAt(4).enabled')
-        qml('playlistMenu.itemAt(4).triggered(); playlistMenu.close()')
+        assert qml('playlistMenu.itemAt(5).visible') and qml('playlistMenu.itemAt(5).enabled')
+        qml('playlistMenu.itemAt(5).triggered(); playlistMenu.close()')
         assert bridge.backend.calls[-1] == ('export', {'source': local})
+        for count in (1, 0):
+            sidebar['items'][0]['mediaCount'] = count
+            bridge.receive('sidebar', sidebar)
+            qml(f'root.playlistMenuAt("{local}")')
+            assert qml('playlistMenu.itemAt(5).text') == f'Export local files ({count})…'
+            assert qml('playlistMenu.itemAt(5).enabled') == bool(count)
+            qml('playlistMenu.close()')
         sets = (home / 'Sets').as_posix()
         qml(f'root.folderMenuAt("{sets}")')
         assert qml('folderMenu.pinned') and qml('folderMenu.itemAt(8).text') == 'Unpin folder'
@@ -281,6 +439,32 @@ def test_qml_sidebar_sections_filter_keyboard_menus_and_track_drop(app, tmp_path
                       QDropEvent(QPointF(point), Qt.CopyAction, mime, Qt.LeftButton, Qt.NoModifier)):
             QGuiApplication.sendEvent(window, event)
         assert bridge.backend.calls[-1][0] == 'add_folder' and Path(bridge.backend.calls[-1][1]['path']) == home / 'Sets'
+        # Overflow is local to each pane and cannot move the divider or either header.
+        position = qml('playlistsPane.height')
+        pinned = [str(home / f'Folder {i}') for i in range(50)]
+        for path in pinned:
+            Path(path).mkdir()
+        bridge.receive('sidebar', {'items': [dict(title=f'Set {i}', source=f'sc:{i}') for i in range(50)], 'pinned': pinned})
+        settle()
+        assert qml('playlistsPane.height') == position
+        assert qml('playlistList.contentHeight > playlistList.height && foldersScroll.contentHeight > foldersScroll.height')
+        qml('playlistList.contentY += 120')
+        assert qml('playlistList.contentY') > 0 and qml('foldersScroll.contentItem.contentY') == 0
+        qml('foldersScroll.contentItem.contentY += 120')
+        assert qml('foldersScroll.contentItem.contentY') > 0 and qml('playlistList.contentY') == 120
+        splitter = find_item(scene, 'sidebarSectionHandle')
+        point = center(splitter)
+        target = point + QPoint(0, 45)
+        QTest.mousePress(window, Qt.LeftButton, pos=point)
+        QTest.mouseMove(window, target)
+        QTest.mouseRelease(window, Qt.LeftButton, pos=target)
+        settle()
+        assert qml('playlistsPane.height') == position + 45
+        ratio = window.property('sidebarSplit')
+        assert ratio > .5
+        window.setHeight(window.height() + 80)
+        settle()
+        assert qml('playlistsPane.height') == pytest.approx(qml('sidebarSections.available') * ratio, abs=1)
         assert not errors
     finally:
         shiboken6.delete(engine)

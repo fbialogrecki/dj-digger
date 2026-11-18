@@ -5,12 +5,15 @@ need to do exactly the same work, so the work lives here and the caller supplies
 an ``on_progress`` hook.
 """
 
+import json
 import logging
+import re
 import threading
 from collections import Counter
 from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 
 from dj_digger.gates import hubs as gate_hubs
@@ -42,6 +45,43 @@ HUB_CONNECT_TIMEOUT = 5.0
 HOST_FAILURE_LIMIT = 2
 
 LOGGER = logging.getLogger(__name__)
+
+_SYSTEM_SET = re.compile(r'https://soundcloud\.com/discover/sets/(weekly|new-for-you)::[A-Za-z0-9_-]+')
+
+
+def _snapshot_tracks(target, timeout, cancel, progress):
+    """SoundCloud embeds an ordered ID manifest even when it only renders a few rows."""
+    import requests
+
+    # Only the fixed canonical URL validated by collect() can reach this public request.
+    with requests.get(target, stream=True, timeout=timeout, allow_redirects=False) as response:
+        if response.status_code != 200:
+            raise ValueError('SoundCloud could not serve this recommendation playlist')
+        page = bytearray()
+        for chunk in response.iter_content(65536):
+            check_cancelled(cancel)
+            if len(page) + len(chunk) > 2_000_000:
+                raise ValueError('SoundCloud recommendation page is too large')
+            page.extend(chunk)
+    html = page.decode('utf-8')
+    marker = re.search(r'window\.__sc_hydration\s*=\s*', html)
+    if marker:
+        records, _ = json.JSONDecoder().raw_decode(html, marker.end())
+        for item in records if isinstance(records, list) else ():
+            if isinstance(item, dict) and item.get('hydratable') == 'systemPlaylist':
+                payload = item.get('data')
+                if (isinstance(payload, dict) and payload.get('permalink_url') == target
+                        and payload.get('kind') == 'system-playlist' and isinstance(payload.get('tracks'), list)):
+                    ids = [row.get('id') if isinstance(row, dict) else None for row in payload['tracks']]
+                    if (0 < len(ids) <= 500 and all(type(i) is int and i > 0 for i in ids)
+                            and payload.get('track_count', len(ids)) == len(ids) and not payload.get('next_href')):
+                        with soundcloud.SoundCloudClient(timeout=timeout) as client:
+                            tracks = client.hydrate_tracks(list(dict.fromkeys(ids)), cancel=cancel,
+                                                          on_progress=lambda n, m: _notify(progress, STAGE_TRACKS, n, m))
+                        by_id = {track.id: track for track in tracks}
+                        if all(i in by_id for i in ids):
+                            return [by_id[i] for i in ids]
+    raise ValueError('Incomplete recommendation playlist. Try importing it again.')
 
 
 @dataclass
@@ -265,7 +305,22 @@ class CollectionService:
         )
         return CollectionResult(record, exported)
 
-    def collect(self, target, options, generation, export_format, export_path, cancel, progress, on_tracks=None):
+    def collect(self, target, options, generation, export_format, export_path, cancel, progress, on_tracks=None, *, snapshot_date=None):
+        if snapshot_date is not None:
+            match = _SYSTEM_SET.fullmatch(target)
+            if not match or date.fromisoformat(snapshot_date).isoformat() != snapshot_date:
+                raise ValueError('Invalid recommendation playlist or import date')
+            source = f'sc-snapshot:{target.rsplit("/", 1)[1]}:{snapshot_date}'
+            existing = self.db.load_crate(source)
+            if existing:
+                return CollectionResult(CrateRecord.from_json(existing), None)
+            series = 'Weekly Wave' if match[1] == 'weekly' else 'Daily Drops'
+            tracks = _snapshot_tracks(target, options.timeout, cancel, progress)
+            check_cancelled(cancel)
+            record = CrateRecord.from_crate(Crate(source, tracks, f'{series} — {snapshot_date}'))
+            record.preserve_order = True
+            saved = self.db.remember_snapshot(record.to_json(), generation)
+            return CollectionResult(CrateRecord.from_json(saved) if saved else None, None)
         crate = self.read(target, options, cancel=cancel, progress=progress, on_tracks=on_tracks)
         check_cancelled(cancel)
         if not crate.tracks:

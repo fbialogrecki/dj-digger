@@ -18,8 +18,10 @@ The extension exchanges data only with:
 2. **The website you are completing a step on**, in a tab the extension opened
    for the app, exactly as if you used that website yourself: Hypeddit
    (hypeddit.com, hypd.it), ToneDen (toneden.io), Bandcamp (bandcamp.com),
-   Beatport (beatport.com) and SoundCloud (soundcloud.com: the sign-in page, and on
-   the SoundCloud pages you open yourself an "Import to DJ digger" button, below).
+   Beatport (beatport.com) and SoundCloud (soundcloud.com for sign-in and the
+   playlist form described below). SoundCloud playlist headers and tiles on the
+   pages you open also get an "Import to DJ digger" button when their playlist
+   link can be verified.
 
 The extension itself makes no network request of its own. It does not work on
 any other website. When the desktop app is not installed, the status page and the
@@ -54,11 +56,15 @@ like any link you click, and sends nothing with it.
   panel, to see whether it is a SoundCloud playlist or profile. Only if you then
   choose Import (or "Dig in dj-digger" in the right-click menu) is a clean
   `https://soundcloud.com/...` link sent to the app.
-- **Track and playlist links on soundcloud.com pages you open**: the extension adds
-  an "Import to DJ digger" button to SoundCloud's own track and playlist controls.
-  It looks only at the addresses of those links (never at text, your account or
-  anything else on the page), and only when you click the button is that clean
-  `https://soundcloud.com/...` link sent to the app.
+- **The playlist link from a SoundCloud header or tile**: clicking "Import to DJ
+  digger" sends the clean `https://soundcloud.com/...` playlist address and
+  the date of your click to the desktop app. Selecting Import or "Open dj-digger"
+  can start the registered desktop app on your computer.
+- **SoundCloud playlist edits you confirm in the desktop app**: the extension
+  opens a temporary SoundCloud track tab and checks that the signed-in browser
+  account matches the app's account. It operates SoundCloud's Add to playlist
+  form for the chosen track and playlist or uses the name and visibility you
+  selected to create a playlist. The tab closes after the operation.
 - **Player state from the app** (track title, artist, position, a small cover
   picture, colours, the running job and how many gates need you): shown in the
   toolbar panel.

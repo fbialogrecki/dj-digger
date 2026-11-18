@@ -168,10 +168,6 @@
       <translation>Bibliothek</translation>
     </message>
     <message>
-      <source>Add playlist</source>
-      <translation>Playlist hinzufügen</translation>
-    </message>
-    <message>
       <source>Refresh</source>
       <translation>Aktualisieren</translation>
     </message>
@@ -340,8 +336,8 @@
       <translation>Doppelklick</translation>
     </message>
     <message>
-      <source>Add playlist…</source>
-      <translation>Playlist hinzufügen…</translation>
+      <source>Create playlist from selection…</source>
+      <translation>Playlist aus Auswahl erstellen…</translation>
     </message>
     <message>
       <source>Import profile playlists…</source>
@@ -356,20 +352,16 @@
       <translation>Playlist löschen…</translation>
     </message>
     <message>
-      <source>Save local playlist…</source>
-      <translation>Lokale Playlist speichern…</translation>
-    </message>
-    <message>
       <source>Quit</source>
       <translation>Beenden</translation>
     </message>
     <message>
-      <source>Open all visible links</source>
-      <translation>Alle sichtbaren Links öffnen</translation>
+      <source>Open saved links for all visible tracks (%1)</source>
+      <translation>Gespeicherte Links für alle sichtbaren Titel öffnen (%1)</translation>
     </message>
     <message>
-      <source>Download all visible</source>
-      <translation>Alle sichtbaren herunterladen</translation>
+      <source>Download all visible (%1)</source>
+      <translation>Alle sichtbaren herunterladen (%1)</translation>
     </message>
     <message>
       <source>Undo status change</source>
@@ -588,8 +580,8 @@
       <translation>5 s spulen</translation>
     </message>
     <message>
-      <source>Open in browser</source>
-      <translation>Im Browser öffnen</translation>
+      <source>Open saved link</source>
+      <translation>Gespeicherten Link öffnen</translation>
     </message>
     <message>
       <source>Add to store carts…</source>
@@ -604,20 +596,12 @@
       <translation>30 s vor</translation>
     </message>
     <message>
-      <source>Start previews at 30 %</source>
-      <translation>Vorschau bei 30 % starten</translation>
-    </message>
-    <message>
       <source>Open recent</source>
       <translation>Zuletzt geöffnet</translation>
     </message>
     <message>
       <source>No recent items</source>
       <translation>Keine zuletzt geöffneten Elemente</translation>
-    </message>
-    <message>
-      <source>Import</source>
-      <translation>Import</translation>
     </message>
     <message>
       <source>Add every playlist of a SoundCloud profile to the sidebar</source>
@@ -628,28 +612,8 @@
       <translation>Tracks einer früher exportierten JSON-Übersicht anzeigen</translation>
     </message>
     <message>
-      <source>Bring back the tracks removed from this playlist</source>
-      <translation>Aus dieser Playlist entfernte Tracks zurückholen</translation>
-    </message>
-    <message>
-      <source>Folder</source>
-      <translation>Ordner</translation>
-    </message>
-    <message>
-      <source>Keep this folder in the sidebar</source>
-      <translation>Diesen Ordner in der Seitenleiste behalten</translation>
-    </message>
-    <message>
-      <source>Detect BPM and key of every file in this folder</source>
-      <translation>BPM und Tonart jeder Datei in diesem Ordner erkennen</translation>
-    </message>
-    <message>
       <source>Find these tracks among the files in your scan folders</source>
       <translation>Diese Tracks unter den Dateien in deinen Scan-Ordnern finden</translation>
-    </message>
-    <message>
-      <source>Export</source>
-      <translation>Export</translation>
     </message>
     <message>
       <source>Resume interrupted export…</source>
@@ -668,8 +632,8 @@
       <translation>Auswahl umkehren</translation>
     </message>
     <message>
-      <source>Add all visible to store carts…</source>
-      <translation>Alle sichtbaren in Shop-Warenkörbe legen…</translation>
+      <source>Add all visible to store carts (%1)…</source>
+      <translation>Alle sichtbaren in Shop-Warenkörbe legen (%1)…</translation>
     </message>
     <message>
       <source>Full screen</source>
@@ -682,10 +646,6 @@
     <message>
       <source>Reset layout</source>
       <translation>Layout zurücksetzen</translation>
-    </message>
-    <message>
-      <source>Default column widths and order, and sidebar width</source>
-      <translation>Standardbreiten und -reihenfolge der Spalten sowie Breite der Seitenleiste</translation>
     </message>
     <message>
       <source>High contrast</source>
@@ -979,6 +939,42 @@
       <source>Copy</source>
       <translation>Kopieren</translation>
     </message>
+    <message>
+      <source>Import playlist from link…</source>
+      <translation>Playlist über Link importieren…</translation>
+    </message>
+    <message>
+      <source>All visible tracks (%1)…</source>
+      <translation>Alle sichtbaren Titel (%1)…</translation>
+    </message>
+    <message>
+      <source>Find in</source>
+      <translation>Suchen in</translation>
+    </message>
+    <message>
+      <source>Open track in SoundCloud</source>
+      <translation>Titel auf SoundCloud öffnen</translation>
+    </message>
+    <message>
+      <source>Selected tracks (%1)…</source>
+      <translation>Ausgewählte Titel (%1)…</translation>
+    </message>
+    <message>
+      <source>Send to</source>
+      <translation>Senden an</translation>
+    </message>
+    <message>
+      <source>Files and SoundCloud tracks selected</source>
+      <translation>Dateien und SoundCloud-Titel ausgewählt</translation>
+    </message>
+    <message>
+      <source>Export local files (%1)…</source>
+      <translation>Lokale Dateien exportieren (%1)…</translation>
+    </message>
+    <message>
+      <source>No local files in this playlist</source>
+      <translation>Diese Playlist enthält keine lokalen Dateien</translation>
+    </message>
   </context>
   <context>
     <name>Bridge</name>
@@ -1067,8 +1063,8 @@
       <translation>Wähle einen nicht ausgeblendeten Ordner</translation>
     </message>
     <message>
-      <source>Add playlist</source>
-      <translation>Playlist hinzufügen</translation>
+      <source>Import playlist from link</source>
+      <translation>Playlist über Link importieren</translation>
     </message>
     <message>
       <source>Import profile playlists</source>
@@ -1793,6 +1789,262 @@
     <message>
       <source>Paste a profile link like https://soundcloud.com/your-name</source>
       <translation>Füge einen Profillink wie https://soundcloud.com/your-name ein</translation>
+    </message>
+    <message>
+      <source>Accounts and browser</source>
+      <translation>Konten und Browser</translation>
+    </message>
+    <message>
+      <source>Also create on SoundCloud</source>
+      <translation>Auch auf SoundCloud erstellen</translation>
+    </message>
+    <message>
+      <source>Appearance</source>
+      <translation>Darstellung</translation>
+    </message>
+    <message>
+      <source>Check the new playlist and its visibility on SoundCloud</source>
+      <translation>Prüfe die neue Playlist und ihre Sichtbarkeit auf SoundCloud</translation>
+    </message>
+    <message>
+      <source>Check the playlist on SoundCloud before continuing. Confirmed additions: {0}. Already present: {1}.</source>
+      <translation>Prüfe vor dem Fortfahren die Playlist auf SoundCloud. Bestätigt hinzugefügt: {0}. Bereits vorhanden: {1}.</translation>
+    </message>
+    <message>
+      <source>Check the playlist title and the 500-track limit</source>
+      <translation>Prüfe den Namen der Playlist und das Limit von 500 Titeln</translation>
+    </message>
+    <message>
+      <source>Choose a local playlist or a SoundCloud playlist you own</source>
+      <translation>Wähle eine lokale Playlist oder eine eigene SoundCloud-Playlist</translation>
+    </message>
+    <message>
+      <source>Choose a search provider and a track with a title or artist</source>
+      <translation>Wähle einen Suchdienst und einen Titel mit Namen oder Interpreten</translation>
+    </message>
+    <message>
+      <source>Choose a SoundCloud visibility</source>
+      <translation>Wähle die Sichtbarkeit auf SoundCloud</translation>
+    </message>
+    <message>
+      <source>Choose the SoundCloud browser</source>
+      <translation>Wähle den Browser für SoundCloud</translation>
+    </message>
+    <message>
+      <source>Connect the SoundCloud browser extension first</source>
+      <translation>Verbinde zuerst die Browser-Erweiterung für SoundCloud</translation>
+    </message>
+    <message>
+      <source>Could not confirm the SoundCloud form. Check the playlist on SoundCloud.</source>
+      <translation>Das Formular konnte nicht bestätigt werden. Prüfe die Playlist auf SoundCloud.</translation>
+    </message>
+    <message>
+      <source>Could not open the track link</source>
+      <translation>Der Titellink konnte nicht geöffnet werden</translation>
+    </message>
+    <message>
+      <source>Create</source>
+      <translation>Erstellen</translation>
+    </message>
+    <message>
+      <source>Created local playlist {0}</source>
+      <translation>Lokale Playlist {0} erstellt</translation>
+    </message>
+    <message>
+      <source>Created local playlist {0}. SoundCloud playlist creation failed: {1}</source>
+      <translation>Lokale Playlist {0} erstellt. Erstellen auf SoundCloud fehlgeschlagen: {1}</translation>
+    </message>
+    <message>
+      <source>Existing playlist</source>
+      <translation>Bestehende Playlist</translation>
+    </message>
+    <message>
+      <source>Incomplete recommendation playlist. Try importing it again.</source>
+      <translation>Die empfohlene Playlist ist unvollständig. Versuche, sie erneut zu importieren.</translation>
+    </message>
+    <message>
+      <source>Invalid recommendation playlist or import date</source>
+      <translation>Ungültige empfohlene Playlist oder ungültiges Importdatum</translation>
+    </message>
+    <message>
+      <source>Invalid SoundCloud playlist request</source>
+      <translation>Ungültige Anfrage für eine SoundCloud-Playlist</translation>
+    </message>
+    <message>
+      <source>New Playlist</source>
+      <translation>Neue Playlist</translation>
+    </message>
+    <message>
+      <source>Only SoundCloud tracks can be sent to a SoundCloud playlist</source>
+      <translation>Nur SoundCloud-Titel können an eine SoundCloud-Playlist gesendet werden</translation>
+    </message>
+    <message>
+      <source>Open the folder to delete files</source>
+      <translation>Öffne den Ordner, um Dateien zu löschen</translation>
+    </message>
+    <message>
+      <source>Playlist</source>
+      <translation>Playlist</translation>
+    </message>
+    <message>
+      <source>Playlist owner changed; old playlist retained</source>
+      <translation>Der Eigentümer hat gewechselt. Die bisherige Playlist wurde beibehalten.</translation>
+    </message>
+    <message>
+      <source>Preferences</source>
+      <translation>Einstellungen</translation>
+    </message>
+    <message>
+      <source>Private</source>
+      <translation>Privat</translation>
+    </message>
+    <message>
+      <source>Public</source>
+      <translation>Öffentlich</translation>
+    </message>
+    <message>
+      <source>Refresh the playlist to verify its SoundCloud identity</source>
+      <translation>Aktualisiere die Playlist, um sie auf SoundCloud zu bestätigen</translation>
+    </message>
+    <message>
+      <source>Save on SoundCloud</source>
+      <translation>Auf SoundCloud speichern</translation>
+    </message>
+    <message>
+      <source>Saving on SoundCloud</source>
+      <translation>Wird auf SoundCloud gespeichert</translation>
+    </message>
+    <message>
+      <source>Select local files or SoundCloud tracks</source>
+      <translation>Wähle lokale Dateien oder SoundCloud-Titel</translation>
+    </message>
+    <message>
+      <source>Select one track</source>
+      <translation>Wähle einen Titel</translation>
+    </message>
+    <message>
+      <source>Select tracks with a confirmed SoundCloud identity</source>
+      <translation>Wähle auf SoundCloud bestätigte Titel</translation>
+    </message>
+    <message>
+      <source>Sign in to SoundCloud to save a playlist</source>
+      <translation>Melde dich bei SoundCloud an, um eine Playlist zu speichern</translation>
+    </message>
+    <message>
+      <source>SoundCloud account</source>
+      <translation>SoundCloud-Konto</translation>
+    </message>
+    <message>
+      <source>SoundCloud account changed</source>
+      <translation>Das SoundCloud-Konto hat gewechselt</translation>
+    </message>
+    <message>
+      <source>SoundCloud account or browser connection changed</source>
+      <translation>Das SoundCloud-Konto oder die Browser-Verbindung hat sich geändert</translation>
+    </message>
+    <message>
+      <source>SoundCloud could not confirm a selected track</source>
+      <translation>SoundCloud konnte einen ausgewählten Titel nicht bestätigen</translation>
+    </message>
+    <message>
+      <source>SoundCloud could not confirm all playlist members</source>
+      <translation>SoundCloud konnte nicht alle Titel der Playlist bestätigen</translation>
+    </message>
+    <message>
+      <source>SoundCloud could not confirm the playlist and its owner</source>
+      <translation>SoundCloud konnte die Playlist und ihren Eigentümer nicht bestätigen</translation>
+    </message>
+    <message>
+      <source>SoundCloud could not serve this recommendation playlist</source>
+      <translation>SoundCloud konnte diese empfohlene Playlist nicht laden</translation>
+    </message>
+    <message>
+      <source>SoundCloud did not confirm the change</source>
+      <translation>SoundCloud hat die Änderung nicht bestätigt</translation>
+    </message>
+    <message>
+      <source>SoundCloud did not confirm the saved track</source>
+      <translation>SoundCloud hat den gespeicherten Titel nicht bestätigt</translation>
+    </message>
+    <message>
+      <source>SoundCloud playlist is full</source>
+      <translation>Die SoundCloud-Playlist ist voll</translation>
+    </message>
+    <message>
+      <source>SoundCloud playlist operation in progress</source>
+      <translation>Ein Vorgang für die SoundCloud-Playlist läuft</translation>
+    </message>
+    <message>
+      <source>SoundCloud recommendation page is too large</source>
+      <translation>Die SoundCloud-Empfehlungsseite ist zu groß</translation>
+    </message>
+    <message>
+      <source>SoundCloud saved the changes but the local view could not be refreshed</source>
+      <translation>SoundCloud hat die Änderungen gespeichert, die lokale Ansicht konnte jedoch nicht aktualisiert werden</translation>
+    </message>
+    <message>
+      <source>SoundCloud track navigation changed</source>
+      <translation>Die SoundCloud-Titelseite hat sich geändert</translation>
+    </message>
+    <message>
+      <source>SoundCloud visibility</source>
+      <translation>Sichtbarkeit auf SoundCloud</translation>
+    </message>
+    <message>
+      <source>SoundCloud: added {0}, already present {1}.</source>
+      <translation>SoundCloud: {0} hinzugefügt, {1} bereits vorhanden.</translation>
+    </message>
+    <message>
+      <source>Store and artist links open here. SoundCloud sign-in, gates and carts open in the browser with the dj-digger extension.</source>
+      <translation>Shop- und Künstlerlinks werden hier geöffnet. SoundCloud-Anmeldung, Gates und Warenkörbe werden im Browser mit der dj-digger-Erweiterung geöffnet.</translation>
+    </message>
+    <message>
+      <source>The browser could not confirm the destination</source>
+      <translation>Der Browser konnte die Ziel-Playlist nicht bestätigen</translation>
+    </message>
+    <message>
+      <source>The browser is signed in to a different SoundCloud account</source>
+      <translation>Im Browser ist ein anderes SoundCloud-Konto angemeldet</translation>
+    </message>
+    <message>
+      <source>This would exceed SoundCloud’s 500-track limit</source>
+      <translation>Dadurch würde das SoundCloud-Limit von 500 Titeln überschritten</translation>
+    </message>
+    <message>
+      <source>Track page changed</source>
+      <translation>Die Titelseite hat sich geändert</translation>
+    </message>
+    <message>
+      <source>Visibility</source>
+      <translation>Sichtbarkeit</translation>
+    </message>
+    <message>
+      <source>{0} ({1})</source>
+      <translation>{0} ({1})</translation>
+    </message>
+    <message>
+      <source>Selected tracks: {0}</source>
+      <translation>Ausgewählte Titel: {0}</translation>
+    </message>
+    <message>
+      <source>Added {0}, already present {1}.</source>
+      <translation>{0} hinzugefügt, {1} bereits vorhanden.</translation>
+    </message>
+    <message>
+      <source>Open SoundCloud playlists</source>
+      <translation>SoundCloud-Playlists öffnen</translation>
+    </message>
+    <message>
+      <source>The local playlist is saved.</source>
+      <translation>Die lokale Playlist wurde gespeichert.</translation>
+    </message>
+    <message>
+      <source>Playback</source>
+      <translation>Wiedergabe</translation>
+    </message>
+    <message>
+      <source>Start previews at 30 %</source>
+      <translation>Vorschau bei 30 % starten</translation>
     </message>
   </context>
   <context>

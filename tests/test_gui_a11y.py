@@ -65,7 +65,7 @@ def test_focus_ring_toasts_banner_start_state_and_high_contrast(app, tmp_path, m
         settle()
         # Nothing open: the start state names the first steps as buttons.
         assert item('emptyState').isVisible() and item('emptyAddPlaylist').isVisible()
-        assert item('emptyAddPlaylist').property('text') == 'Add playlist…'
+        assert item('emptyAddPlaylist').property('text') == 'Import playlist from link…'
         bridge.receive('view', dict(title='Playlist', source='sc:1', local=False, generation=1,
                                     rows=[row('a', 'Alpha'), row('b', 'Beta')]))
         settle()

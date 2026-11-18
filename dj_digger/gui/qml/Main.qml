@@ -168,6 +168,7 @@ ApplicationWindow {
     // One right margin for the player, search, toolbar and table, so their edges line up.
     readonly property int edge: 8
     property real sidebarWidth: 220
+    property real sidebarSplit: .5
     property bool sidebarVisible: true
     // Where F11 returns to: windowed or maximized.
     property int windowedVisibility: Window.Windowed
@@ -192,8 +193,7 @@ ApplicationWindow {
     readonly property string sidebarQuery: sidebarFilter.text.trim().toLowerCase()
     function sidebarMatch(name) { return !sidebarQuery || String(name).toLowerCase().indexOf(sidebarQuery) >= 0 }
     // Keyboard moves inside the sidebar keep the focused row in view.
-    function revealInSidebar(item) {
-        let flick = sidebarScroll.contentItem
+    function revealInSidebar(item, flick) {
         let y = item.mapToItem(flick.contentItem, 0, 0).y
         if (y < flick.contentY) flick.contentY = y
         else if (y + item.height > flick.contentY + flick.height) flick.contentY = y + item.height - flick.height
@@ -238,6 +238,7 @@ ApplicationWindow {
     function resetLayout() {
         resetColumnWidths(); resetColumnOrder()
         sidebarWidth = 220; sidebar.SplitView.preferredWidth = sidebarWidth
+        sidebarSplit = .5
     }
     function localizeButtons(target) {
         let cancel = target.standardButton(Dialog.Cancel); if (cancel) cancel.text = qsTr("Cancel")
@@ -288,7 +289,12 @@ ApplicationWindow {
     readonly property bool hasSelection: desktop.model.counts.selected > 0
     readonly property bool hasRows: desktop.model.counts.visible > 0
     readonly property bool loaded: !!desktop.audio.title
-    readonly property bool remoteView: !!desktop.view.source && !desktop.view.local
+    readonly property bool snapshotView: String(desktop.view.source || "").startsWith("sc-snapshot:")
+    readonly property bool remoteView: !!desktop.view.source && !desktop.view.local && !desktop.view.localPlaylist && !snapshotView
+    readonly property bool removableView: remoteView || !!desktop.view.localPlaylist
+    readonly property bool selectionLocal: desktop.view.mixedPlaylist ? hasSelection && desktop.model.selectionKinds.files === desktop.model.counts.selected : !!desktop.view.local
+    readonly property bool selectionRemote: desktop.view.mixedPlaylist ? hasSelection && desktop.model.selectionKinds.files === 0 : !desktop.view.local
+    readonly property bool mixedSelection: !!desktop.view.mixedPlaylist && hasSelection && !selectionLocal && !selectionRemote
     readonly property bool folderView: !!desktop.folder.path && desktop.view.title === desktop.folder.path
     readonly property bool dialogOpen: dialog.visible || helpDialog.visible || messageLog.visible
     color: bg
@@ -478,7 +484,7 @@ ApplicationWindow {
             for (let action of actions) if (action && action.shortcut) line(action.shortcut, action.text)
         }
         section(qsTr("Selected tracks"), [openAction, downloadAction, ownedAction, skipAction, resetAction, editAction, cartAction, removeAction])
-        section(qsTr("Other"), [addPlaylistAction, addFolderAction, deletePlaylistAction, searchAction, hideAction])
+        section(qsTr("Other"), [deletePlaylistAction, searchAction, hideAction, exportLinksAction])
         lines.push("\n" + qsTr("Track list"))
         lines.push("  Enter\t" + qsTr("Play the selected track"), "  Delete\t" + qsTr("Remove from playlist"),
                    "  Esc\t" + qsTr("Clear selection, then search, then filters"), "  Ctrl+C\t" + qsTr("Copy artist and title"),
@@ -515,6 +521,7 @@ ApplicationWindow {
         if (Number.isInteger(s.sortColumn)) desktop.model.setSort(s.sortColumn, s.sortReverse === true)
         if (s.compactRows === true) compactRows = true
         sidebarWidth = Math.max(160, Math.min(400, Number(s.sidebarWidth) || 220))
+        if (typeof s.sidebarSplit === "number" && s.sidebarSplit > 0 && s.sidebarSplit < 1) sidebarSplit = s.sidebarSplit
         if (s.sidebarVisible === false) sidebarVisible = false
         if (Array.isArray(s.sidebarCollapsed)) sidebarCollapsed = s.sidebarCollapsed.filter(v => v === "playlists" || v === "folders")
         if (s.animations === false) animations = false
@@ -534,7 +541,7 @@ ApplicationWindow {
         if (!shuttingDown) {
             shuttingDown = true
             for (let i of allColumns) if (i !== titleColumn && columnVisible(i)) columnWidths[i] = table.columnWidth(i)
-            desktop.saveSettings({sidebarWidth: sidebar.width, sidebarVisible: sidebarVisible, sidebarCollapsed: sidebarCollapsed, width: width, height: height, language: languageCode,
+            desktop.saveSettings({sidebarWidth: sidebar.width, sidebarSplit: sidebarSplit, sidebarVisible: sidebarVisible, sidebarCollapsed: sidebarCollapsed, width: width, height: height, language: languageCode,
                                   theme: themeChoice, columnWidths: columnWidths, hiddenColumns: hiddenColumns, columnOrder: columnOrder,
                                   keyNotation: keyNotation, animations: animations, colors: colorPair, recent: recent,
                                   sortColumn: desktop.model.sortColumn, sortReverse: desktop.model.sortReverse, compactRows: compactRows,
@@ -549,15 +556,52 @@ ApplicationWindow {
         // Read-only rows and section headers are not answers; a folded section starts folded.
         let values = {}, collapsed = {}
         for (let f of q.fields) {
-            if (["note", "path", "copy", "section"].indexOf(f.kind) < 0) values[f.name] = f.value
-            if (f.kind === "section" && f.collapsed === true) collapsed[f.name] = true
+            if (["note", "path", "copy", "section", "connections"].indexOf(f.kind) < 0) values[f.name] = f.value
+            if (f.kind === "section" && f.collapsed === true && !f.expanded) collapsed[f.name] = true
         }
         dialog.values = values; dialog.collapsed = collapsed; dialog.fields = q.fields
         dialog.okText = q.ok || ""; dialog.cancelText = q.cancel || ""; dialog.info = !!q.info
         dialog.open()
     }
+    function openPreferences() {
+        let choice = (name, label, value, options) => ({name, label, value, options, kind: "choice"})
+        desktop.preferences({
+            appearance: [
+                choice("language", qsTr("Language"), languageCode, [["de", "Deutsch"], ["en", "English"], ["es", "Español"],
+                    ["fr", "Français"], ["it", "Italiano"], ["pl", "Polski"], ["ru", "Русский"]]),
+                choice("theme", qsTr("Theme"), themeChoice, [["system", qsTr("System")], ["dark", qsTr("Dark")],
+                    ["light", qsTr("Light")], ["contrast", qsTr("High contrast")]]),
+                choice("colors", qsTr("Colours"), colorPair, [
+                    ["magenta-blue", qsTr("Magenta and blue")], ["crimson-ice", qsTr("Crimson and ice blue")],
+                    ["rose-mint", qsTr("Rose and mint")], ["purple-orange", qsTr("Purple and orange")],
+                    ["violet-gold", qsTr("Violet and gold")], ["indigo-lime", qsTr("Indigo and lime")],
+                    ["cyan-magenta", qsTr("Cyan and magenta")], ["blue-orange", qsTr("Blue and orange")],
+                    ["sky-lemon", qsTr("Sky and lemon")], ["teal-coral", qsTr("Teal and coral")],
+                    ["green-yellow", qsTr("Green and yellow")], ["emerald-pink", qsTr("Emerald and pink")],
+                    ["jade-raspberry", qsTr("Jade and raspberry")], ["lime-violet", qsTr("Lime and violet")],
+                    ["acid-ultraviolet", qsTr("Acid and ultraviolet")], ["gold-chrome", qsTr("Gold and chrome")],
+                    ["amber-teal", qsTr("Amber and teal")], ["copper-cyan", qsTr("Copper and cyan")]]),
+                choice("keyNotation", qsTr("Key notation"), keyNotation, [["camelot", qsTr("Camelot (8A)")], ["classic", qsTr("Classic (Am)")]]),
+                {name: "vinyl", label: qsTr("Vinyl artwork"), kind: "bool", value: vinylArtwork},
+                {name: "animations", label: qsTr("Animations"), kind: "bool", value: animations}
+            ],
+            previewThirty: previewStart === "30"
+        })
+    }
     Connections {
         target: desktop
+        function onPresentationChanged(p) {
+            if (p.language && p.language !== root.languageCode) {
+                root.languageCode = p.language
+                desktop.language(p.language)
+            }
+            root.themeChoice = p.theme ?? root.themeChoice
+            root.colorPair = p.colors ?? root.colorPair
+            root.keyNotation = p.keyNotation ?? root.keyNotation
+            root.vinylArtwork = p.vinyl ?? root.vinylArtwork
+            root.animations = p.animations ?? root.animations
+            root.previewStart = p.previewThirty ? "30" : ""
+        }
         function onQuestion(q) { root.pendingQuestions.push(q); root.nextQuestion() }
         function onDismiss(id) {
             root.pendingQuestions = root.pendingQuestions.filter(q => q.id !== id)
@@ -576,19 +620,19 @@ ApplicationWindow {
     // so their shortcuts work everywhere without a second copy in the menu bar.
     // Store links, downloads, owning and carts belong to playlists; local files have none of them.
     // Opening runs as an operation of its own, so it waits for the running one like Download.
-    Action { id: openAction; text: qsTr("Open in browser"); shortcut: "O"; enabled: root.hasSelection && !desktop.busy && !desktop.view.local; onTriggered: desktop.action("open") }
-    Action { id: downloadAction; text: qsTr("Download"); shortcut: "D"; enabled: root.hasSelection && !desktop.busy && !desktop.view.local; onTriggered: desktop.action("download") }
-    Action { id: ownedAction; text: qsTr("Mark owned"); shortcut: "G"; enabled: root.hasSelection && !desktop.view.local; onTriggered: desktop.mark("got") }
+    Action { id: openAction; text: qsTr("Open saved link"); shortcut: "O"; enabled: root.hasSelection && !desktop.busy && root.selectionRemote; onTriggered: desktop.action("open") }
+    Action { id: downloadAction; text: qsTr("Download"); shortcut: "D"; enabled: root.hasSelection && !desktop.busy && root.selectionRemote; onTriggered: desktop.action("download") }
+    Action { id: ownedAction; text: qsTr("Mark owned"); shortcut: "G"; enabled: root.hasSelection && root.selectionRemote; onTriggered: desktop.mark("got") }
     Action { id: skipAction; text: qsTr("Skip"); shortcut: "K"; enabled: root.hasSelection; onTriggered: desktop.mark("skip") }
     Action { id: resetAction; text: qsTr("Reset status"); shortcut: "U"; enabled: root.hasSelection; onTriggered: desktop.mark("new") }
-    Action { id: analyzeAction; text: qsTr("Analyze BPM / key"); enabled: root.hasSelection && !desktop.busy && !!desktop.view.local; onTriggered: desktop.action("analyze") }
-    Action { id: editAction; text: qsTr("Edit BPM / key…"); shortcut: "E"; enabled: desktop.model.counts.selected === 1 && !!desktop.view.local; onTriggered: desktop.action("edit") }
-    Action { id: cartAction; text: qsTr("Add to store carts…"); shortcut: "C"; enabled: root.hasSelection && !desktop.busy && !desktop.view.local; onTriggered: desktop.action("cart") }
-    Action { id: removeAction; text: qsTr("Remove from playlist…"); shortcut: "X"; enabled: root.hasSelection && root.remoteView; onTriggered: desktop.action("remove") }
+    Action { id: analyzeAction; text: qsTr("Analyze BPM / key"); enabled: root.hasSelection && !desktop.busy && root.selectionLocal; onTriggered: desktop.action("analyze") }
+    Action { id: editAction; text: qsTr("Edit BPM / key…"); shortcut: "E"; enabled: desktop.model.counts.selected === 1 && root.selectionLocal; onTriggered: desktop.action("edit") }
+    Action { id: cartAction; text: qsTr("Add to store carts…"); shortcut: "C"; enabled: root.hasSelection && !desktop.busy && root.selectionRemote; onTriggered: desktop.action("cart") }
+    Action { id: removeAction; text: qsTr("Remove from playlist…"); shortcut: "X"; enabled: root.hasSelection && root.removableView; onTriggered: desktop.action("remove") }
     // Space always belongs to playback: it pauses or resumes the loaded track, whatever is selected;
     // only with nothing loaded does it start the selected track. Enter starts the selected track.
     Action { id: playAction; text: qsTr("Play / pause"); shortcut: "Space"; enabled: root.loaded || root.hasSelection; onTriggered: root.playPause() }
-    Action { id: stopAction; text: qsTr("Stop"); shortcut: "S"; enabled: root.loaded; onTriggered: desktop.transport("stop", 0) }
+    Action { id: stopAction; text: qsTr("Stop"); shortcut: "S"; enabled: root.loaded || !!desktop.loadingTrackKey; onTriggered: desktop.transport("stop", 0) }
     Action { id: previousAction; text: qsTr("Previous track"); shortcut: "P"; enabled: root.loaded; onTriggered: desktop.step(-1) }
     Action { id: nextAction; text: qsTr("Next track"); shortcut: "N"; enabled: root.loaded; onTriggered: desktop.step(1) }
     Action { id: seekBackAction; text: qsTr("Seek backward 10 s"); shortcut: "["; enabled: root.loaded; onTriggered: root.nudge(-10) }
@@ -599,8 +643,6 @@ ApplicationWindow {
     // Shift+[ and Shift+] type { and } on most layouts, which is what a shortcut sees.
     Action { id: seekBackLongAction; text: qsTr("Seek backward 30 s"); shortcut: "{"; enabled: root.loaded; onTriggered: root.nudge(-30) }
     Action { id: seekForwardLongAction; text: qsTr("Seek forward 30 s"); shortcut: "}"; enabled: root.loaded; onTriggered: root.nudge(30) }
-    // Either, or neither: a track then starts at its beginning.
-    Action { id: previewThirtyAction; text: qsTr("Start previews at 30 %"); checkable: true; checked: root.previewStart === "30"; onTriggered: root.previewStart = checked ? "30" : "" }
     // 1-9 jump to 10-90 % of the track and 0 to its start; Ctrl+1-4 set hot cues, Alt+1-4 jump to them.
     readonly property bool seekKeys: loaded && !dialogOpen
     Shortcut { sequence: "1"; enabled: root.seekKeys; onActivated: root.jumpTo(.1) }
@@ -621,19 +663,26 @@ ApplicationWindow {
     Shortcut { sequence: "Alt+2"; enabled: root.seekKeys; onActivated: root.jumpCue(1) }
     Shortcut { sequence: "Alt+3"; enabled: root.seekKeys; onActivated: root.jumpCue(2) }
     Shortcut { sequence: "Alt+4"; enabled: root.seekKeys; onActivated: root.jumpCue(3) }
-    Action { id: addPlaylistAction; text: qsTr("Add playlist…"); shortcut: "A"; onTriggered: desktop.action("dig") }
+    Action { id: addPlaylistAction; text: qsTr("Import playlist from link…"); shortcut: "A"; onTriggered: desktop.action("dig") }
     Action { id: addFolderAction; text: qsTr("Add folder…"); shortcut: "Ctrl+O"; onTriggered: folderDialog.open() }
     Action { id: deletePlaylistAction; text: qsTr("Delete playlist…"); shortcut: "Shift+X"; enabled: !!desktop.view.source; onTriggered: desktop.deletePlaylist(desktop.view.source) }
     Action { id: searchAction; text: qsTr("Search"); shortcut: "Ctrl+F"; onTriggered: { search.forceActiveFocus(); search.selectAll() } }
     // H switches the status filter between every track and the unhandled ones.
     Action { id: hideAction; text: qsTr("Hide handled"); shortcut: "H"; onTriggered: root.setStatusFilter(root.statusFilter === "unhandled" ? "" : "unhandled") }
+    Action { id: exportLinksAction; text: qsTr("Export links…"); shortcut: "Shift+E"; enabled: root.hasRows && !desktop.view.local; onTriggered: desktop.action("summary", !root.hasSelection) }
 
     // The menu bar holds what has no button elsewhere, grouped by what it acts on, plus the
     // transport, so every playback key can be found from the menus.
     menuBar: MenuBar {
         AppMenu {
             title: qsTr("Library")
-            Action { text: qsTr("Refresh"); shortcut: "R"; enabled: !desktop.busy && (root.remoteView || root.folderView); onTriggered: desktop.action("refresh") }
+            AppMenuItem { action: addPlaylistAction }
+            AppMenuItem { action: addFolderAction }
+            Action { text: qsTr("Import profile playlists…"); property string tip: qsTr("Add every playlist of a SoundCloud profile to the sidebar")
+                     enabled: !desktop.busy; onTriggered: desktop.action("profile") }
+            Action { text: qsTr("Import saved summary…"); property string tip: qsTr("Show the tracks of a JSON summary exported earlier")
+                     enabled: !desktop.busy; onTriggered: desktop.action("import_summary") }
+            AppSeparator {}
             AppMenu {
                 id: recentMenu
                 title: qsTr("Open recent")
@@ -649,20 +698,9 @@ ApplicationWindow {
                     onObjectRemoved: (index, object) => recentMenu.removeItem(object)
                 }
             }
-            AppMenuSection { title: qsTr("Import") }
-            Action { text: qsTr("Import profile playlists…"); property string tip: qsTr("Add every playlist of a SoundCloud profile to the sidebar")
-                     enabled: !desktop.busy; onTriggered: desktop.action("profile") }
-            Action { text: qsTr("Import saved summary…"); property string tip: qsTr("Show the tracks of a JSON summary exported earlier")
-                     enabled: !desktop.busy; onTriggered: desktop.action("import_summary") }
-            Action { text: qsTr("Restore removed tracks…"); property string tip: qsTr("Bring back the tracks removed from this playlist")
-                     enabled: root.remoteView && !desktop.busy; onTriggered: desktop.action("restore") }
-            AppMenuSection { title: qsTr("Folder") }
-            Action { text: qsTr("Pin folder"); property string tip: qsTr("Keep this folder in the sidebar"); enabled: root.folderView; onTriggered: desktop.action("pin") }
-            Action { text: qsTr("Analyze folder"); property string tip: qsTr("Detect BPM and key of every file in this folder")
-                     enabled: root.folderView && !desktop.busy; onTriggered: desktop.action("analyze_folder") }
+            Action { text: qsTr("Refresh"); shortcut: "R"; enabled: !desktop.busy && (root.remoteView || root.folderView); onTriggered: desktop.action("refresh") }
             Action { text: qsTr("Scan local library"); property string tip: qsTr("Find these tracks among the files in your scan folders")
                      enabled: !desktop.busy; onTriggered: desktop.action("scan") }
-            AppMenuSection { title: qsTr("Export") }
             Action { text: qsTr("Resume interrupted export…"); property string tip: qsTr("Finish an audio export to a folder that was cut short")
                      enabled: !desktop.busy; onTriggered: desktop.action("resume") }
             AppSeparator {}
@@ -670,17 +708,21 @@ ApplicationWindow {
         }
         AppMenu {
             title: qsTr("Tracks")
-            Action { id: selectAllAction; text: qsTr("Select all"); shortcut: "Ctrl+A"; onTriggered: desktop.model.selectAll() }
+            Action { text: qsTr("Select all"); shortcut: "Ctrl+A"; onTriggered: desktop.model.selectAll() }
             Action { text: qsTr("Select none"); shortcut: "Ctrl+Shift+A"; enabled: root.hasSelection; onTriggered: desktop.model.clearSelection() }
             Action { text: qsTr("Invert selection"); shortcut: "Ctrl+I"; enabled: root.hasRows; onTriggered: desktop.model.invertSelection() }
             Action { text: qsTr("Undo status change"); shortcut: "Ctrl+Z"; onTriggered: desktop.action("undo") }
             AppSeparator {}
-            Action { text: qsTr("Open all visible links"); shortcut: "Shift+O"; enabled: root.hasRows && !desktop.busy && !desktop.view.local; onTriggered: desktop.action("open", true) }
-            Action { text: qsTr("Download all visible"); shortcut: "Shift+D"; enabled: root.hasRows && !desktop.busy && !desktop.view.local; onTriggered: desktop.action("download", true) }
-            Action { text: qsTr("Add all visible to store carts…"); shortcut: "Shift+C"; enabled: root.hasRows && !desktop.busy && !desktop.view.local; onTriggered: desktop.action("cart", true) }
+            Action { text: qsTr("Open saved links for all visible tracks (%1)").arg(desktop.model.counts.visible); shortcut: "Shift+O"; enabled: root.hasRows && !desktop.busy && !desktop.view.local && desktop.model.selectionKinds.visibleFiles === 0; onTriggered: desktop.action("open", true) }
+            Action { text: qsTr("Download all visible (%1)").arg(desktop.model.counts.visible); shortcut: "Shift+D"; enabled: root.hasRows && !desktop.busy && !desktop.view.local && desktop.model.selectionKinds.visibleFiles === 0; onTriggered: desktop.action("download", true) }
+            Action { text: qsTr("Add all visible to store carts (%1)…").arg(desktop.model.counts.visible); shortcut: "Shift+C"; enabled: root.hasRows && !desktop.busy && !desktop.view.local && desktop.model.selectionKinds.visibleFiles === 0; onTriggered: desktop.action("cart", true) }
             AppSeparator {}
-            Action { text: qsTr("Save local playlist…"); enabled: root.hasSelection && desktop.view.local; onTriggered: desktop.action("save_playlist") }
-            Action { text: qsTr("Export links…"); shortcut: "Shift+E"; enabled: root.hasRows && !desktop.view.local; onTriggered: desktop.action("summary", !root.hasSelection) }
+            AppMenu {
+                title: qsTr("Export links…")
+                enabled: exportLinksAction.enabled
+                AppMenuItem { text: qsTr("Selected tracks (%1)…").arg(desktop.model.counts.selected); enabled: root.hasSelection && root.selectionRemote; onTriggered: desktop.action("summary") }
+                AppMenuItem { text: qsTr("All visible tracks (%1)…").arg(desktop.model.counts.visible); onTriggered: desktop.action("summary", true) }
+            }
         }
         // The player's own Actions: one shortcut each, wherever it is shown.
         AppMenu {
@@ -695,8 +737,6 @@ ApplicationWindow {
             AppMenuItem { action: seekForwardAction }
             AppMenuItem { action: seekBackLongAction }
             AppMenuItem { action: seekForwardLongAction }
-            AppSeparator {}
-            AppMenuItem { action: previewThirtyAction }
             AppSeparator {}
             AppMenuItem { action: volumeDownAction }
             AppMenuItem { action: volumeUpAction }
@@ -725,89 +765,12 @@ ApplicationWindow {
                     onObjectRemoved: (index, object) => viewColumnMenu.removeItem(object)
                 }
             }
-            Action { text: qsTr("Reset layout"); property string tip: qsTr("Default column widths and order, and sidebar width"); onTriggered: root.resetLayout() }
-            AppSeparator {}
-            AppMenu {
-                title: qsTr("Language")
-                ActionGroup { id: languageGroup }
-                Action { text: "Deutsch"; checkable: true; checked: root.languageCode === "de"; ActionGroup.group: languageGroup; onTriggered: { root.languageCode = "de"; desktop.language("de") } }
-                Action { text: "English"; checkable: true; checked: root.languageCode === "en"; ActionGroup.group: languageGroup; onTriggered: { root.languageCode = "en"; desktop.language("en") } }
-                Action { text: "Español"; checkable: true; checked: root.languageCode === "es"; ActionGroup.group: languageGroup; onTriggered: { root.languageCode = "es"; desktop.language("es") } }
-                Action { text: "Français"; checkable: true; checked: root.languageCode === "fr"; ActionGroup.group: languageGroup; onTriggered: { root.languageCode = "fr"; desktop.language("fr") } }
-                Action { text: "Italiano"; checkable: true; checked: root.languageCode === "it"; ActionGroup.group: languageGroup; onTriggered: { root.languageCode = "it"; desktop.language("it") } }
-                Action { text: "Polski"; checkable: true; checked: root.languageCode === "pl"; ActionGroup.group: languageGroup; onTriggered: { root.languageCode = "pl"; desktop.language("pl") } }
-                Action { text: "Русский"; checkable: true; checked: root.languageCode === "ru"; ActionGroup.group: languageGroup; onTriggered: { root.languageCode = "ru"; desktop.language("ru") } }
-            }
-            AppMenu {
-                title: qsTr("Theme")
-                ActionGroup { id: themeGroup }
-                Action { text: qsTr("System"); checkable: true; checked: root.themeChoice === "system"; ActionGroup.group: themeGroup; onTriggered: root.themeChoice = "system" }
-                Action { text: qsTr("Dark"); checkable: true; checked: root.themeChoice === "dark"; ActionGroup.group: themeGroup; onTriggered: root.themeChoice = "dark" }
-                Action { text: qsTr("Light"); checkable: true; checked: root.themeChoice === "light"; ActionGroup.group: themeGroup; onTriggered: root.themeChoice = "light" }
-                Action { text: qsTr("High contrast"); checkable: true; checked: root.themeChoice === "contrast"; ActionGroup.group: themeGroup; onTriggered: root.themeChoice = "contrast" }
-            }
-            // Grouped by the first colour's family; each entry shows its two neon colours.
-            AppMenu {
-                title: qsTr("Colours")
-                ActionGroup { id: colorGroup }
-                PairAction { pair: "magenta-blue"; text: qsTr("Magenta and blue") }
-                PairAction { pair: "crimson-ice"; text: qsTr("Crimson and ice blue") }
-                PairAction { pair: "rose-mint"; text: qsTr("Rose and mint") }
-                AppSeparator {}
-                PairAction { pair: "purple-orange"; text: qsTr("Purple and orange") }
-                PairAction { pair: "violet-gold"; text: qsTr("Violet and gold") }
-                PairAction { pair: "indigo-lime"; text: qsTr("Indigo and lime") }
-                AppSeparator {}
-                PairAction { pair: "cyan-magenta"; text: qsTr("Cyan and magenta") }
-                PairAction { pair: "blue-orange"; text: qsTr("Blue and orange") }
-                PairAction { pair: "sky-lemon"; text: qsTr("Sky and lemon") }
-                PairAction { pair: "teal-coral"; text: qsTr("Teal and coral") }
-                AppSeparator {}
-                PairAction { pair: "green-yellow"; text: qsTr("Green and yellow") }
-                PairAction { pair: "emerald-pink"; text: qsTr("Emerald and pink") }
-                PairAction { pair: "jade-raspberry"; text: qsTr("Jade and raspberry") }
-                PairAction { pair: "lime-violet"; text: qsTr("Lime and violet") }
-                PairAction { pair: "acid-ultraviolet"; text: qsTr("Acid and ultraviolet") }
-                AppSeparator {}
-                PairAction { pair: "gold-chrome"; text: qsTr("Gold and chrome") }
-                PairAction { pair: "amber-teal"; text: qsTr("Amber and teal") }
-                PairAction { pair: "copper-cyan"; text: qsTr("Copper and cyan") }
-            }
-            AppMenu {
-                title: qsTr("Key notation")
-                ActionGroup { id: notationGroup }
-                Action { text: qsTr("Camelot (8A)"); checkable: true; checked: root.keyNotation === "camelot"; ActionGroup.group: notationGroup; onTriggered: root.keyNotation = "camelot" }
-                Action { text: qsTr("Classic (Am)"); checkable: true; checked: root.keyNotation === "classic"; ActionGroup.group: notationGroup; onTriggered: root.keyNotation = "classic" }
-            }
-            AppSeparator {}
-            Action { text: qsTr("Vinyl artwork"); checkable: true; checked: root.vinylArtwork; onTriggered: root.vinylArtwork = checked }
-            AppSeparator {}
-            Action { id: animationsAction; text: qsTr("Animations"); checkable: true; checked: root.animations; onTriggered: root.animations = checked }
             Action { text: qsTr("Compact rows"); checkable: true; checked: root.compactRows; onTriggered: root.compactRows = checked }
+            Action { text: qsTr("Reset layout"); onTriggered: root.resetLayout() }
         }
         AppMenu {
             title: qsTr("Settings")
-            // The account and the browser come from the backend; a refresh on opening catches a browser that connected since.
-            onOpened: desktop.action("account")
-            Action { id: preferencesAction; text: qsTr("Preferences…"); shortcut: "Shift+S"; property string keys: "Shift+S, Ctrl+,"; onTriggered: desktop.action("settings") }
-            AppSeparator {}
-            Action {
-                objectName: "accountAction"
-                readonly property bool signedIn: !!desktop.account.signedIn
-                text: !signedIn ? qsTr("Sign in to SoundCloud…")
-                    : desktop.account.name ? qsTr("Signed in as %1 — Sign out…").arg(desktop.account.name) : qsTr("Signed in — Sign out…")
-                enabled: !desktop.busy
-                onTriggered: desktop.action(signedIn ? "logout" : "login")
-            }
-            // Always there: a second browser can be connected, and Check connection reached, while one is.
-            Action { text: qsTr("Connect browser…"); onTriggered: desktop.action("connect_browser") }
-            Action {
-                readonly property string browser: desktop.account.browser || ""
-                text: browser ? qsTr("Connected: %1 — Disconnect…").arg(browser) : qsTr("No browser connected")
-                // Disconnecting closes the browser's channel, so not in the middle of a job.
-                enabled: !!browser && !desktop.busy
-                onTriggered: desktop.action("disconnect_browsers")
-            }
+            Action { id: preferencesAction; text: qsTr("Preferences…"); shortcut: "Shift+S"; property string keys: "Shift+S, Ctrl+,"; onTriggered: root.openPreferences() }
         }
         AppMenu {
             title: qsTr("Help")
@@ -838,12 +801,10 @@ ApplicationWindow {
         property bool destructive: false
         // The highlight already marks the keyboard's entry; the window's focus ring stays off menus.
         readonly property bool focusRing: false
-        // An Action may carry extra properties: keys (every shortcut, for display), tip (a tooltip)
-        // and pair (a colour pair, shown as a swatch).
+        // An Action may carry extra keys for display and a tooltip.
         readonly property string shortcutText: keys || (action && action.keys ? action.keys : "") || (action && action.shortcut ? String(action.shortcut) : "")
         property string tip: action && action.tip ? action.tip : ""
-        readonly property var swatch: action && action.pair ? root.colorPairs[action.pair][root.dark ? "dark" : "light"].slice(2) : []
-        readonly property real trailingWidth: shortcutLabel.visible ? shortcutLabel.implicitWidth : swatchChip.visible ? swatchChip.implicitWidth : 0
+        readonly property real trailingWidth: shortcutLabel.visible ? shortcutLabel.implicitWidth : 0
         // Plain Text measures synchronously, so the menu can size itself before it opens.
         implicitWidth: leftPadding + labelText.implicitWidth + (trailingWidth ? 28 + trailingWidth : 0) + rightPadding
         ToolTip.visible: hovered && tip.length > 0; ToolTip.text: tip; ToolTip.delay: root.tipDelay
@@ -877,15 +838,6 @@ ApplicationWindow {
                 visible: text.length > 0; text: menuItem.shortcutText; textFormat: Text.PlainText
                 font.pixelSize: root.fontCaption; color: menuItem.enabled ? root.muted : root.disabledFg
             }
-            Row {
-                id: swatchChip
-                anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
-                visible: menuItem.swatch.length === 2 && !shortcutLabel.visible
-                Repeater {
-                    model: menuItem.swatch
-                    Rectangle { required property color modelData; width: 12; height: 12; color: modelData }
-                }
-            }
         }
         background: Rectangle { x: 3; width: menuItem.width - 6; height: menuItem.height; radius: 3; color: menuItem.highlighted ? root.hoverSurface : "transparent" }
     }
@@ -904,12 +856,6 @@ ApplicationWindow {
             text: menuSection.title; textFormat: Text.PlainText
             font.bold: true; font.pixelSize: root.fontSmall; font.letterSpacing: 1; font.capitalization: Font.AllUppercase; color: root.muted
         }
-    }
-    // One entry of View → Colours.
-    component PairAction: Action {
-        property string pair
-        checkable: true; checked: root.colorPair === pair; ActionGroup.group: colorGroup
-        onTriggered: root.colorPair = pair
     }
     component AppMenu: Menu {
         id: appMenu
@@ -1024,15 +970,14 @@ ApplicationWindow {
     }
     // One layer of waveform bars; the played layer is the same painting clipped to the progress.
     component WaveformBars: Canvas {
-        id: bars
+        smooth: false
         property bool played: false
         // The same bars in the pair's neon colours, for the kick light.
         property bool neon: false
         onPaint: waveform.paintBars(getContext("2d"), width, height, played, neon)
-        // A resize repaints once it settles; a window or sidebar drag would otherwise paint every frame.
-        Timer { id: settle; interval: 50; onTriggered: bars.requestPaint() }
-        onWidthChanged: settle.restart()
-        onHeightChanged: settle.restart()
+        // Keep a resize from stretching the previous raster across the new width.
+        onWidthChanged: requestPaint()
+        onHeightChanged: requestPaint()
         onVisibleChanged: requestPaint()
         Connections { target: waveform; function onRepaint() { requestPaint() } }
         Connections { target: root; function onPairColorsChanged() { requestPaint() } }
@@ -1059,12 +1004,14 @@ ApplicationWindow {
     }
     // Two colours laid out from the track hash: blended along a line at a random angle,
     // each end held for a random stretch, with one of them pooled around a random spot, so
-    // no two tracks share a backdrop. Painted once per track, pair, theme and size.
+    // no two tracks share a backdrop. Only the loading layer turns.
     component Backdrop: Canvas {
         property int code: 0
+        property real phase: 0
         property color first
         property color second
         onCodeChanged: requestPaint()
+        onPhaseChanged: requestPaint()
         onFirstChanged: requestPaint()
         onSecondChanged: requestPaint()
         onWidthChanged: requestPaint()
@@ -1073,7 +1020,7 @@ ApplicationWindow {
             let ctx = getContext("2d"), random = root.seeded(code)
             ctx.reset()
             ctx.beginPath(); ctx.roundedRect(0, 0, width, height, 6, 6); ctx.clip()
-            let angle = random() * Math.PI * 2, dx = Math.cos(angle) * width / 2, dy = Math.sin(angle) * height / 2
+            let angle = phase + random() * Math.PI * 2, dx = Math.cos(angle) * width / 2, dy = Math.sin(angle) * height / 2
             let line = ctx.createLinearGradient(width / 2 - dx, height / 2 - dy, width / 2 + dx, height / 2 + dy)
             line.addColorStop(random() * .35, first)
             line.addColorStop(.65 + random() * .35, second)
@@ -1089,8 +1036,7 @@ ApplicationWindow {
     }
     // A record on a backdrop laid out from the track key; the label carries the track's
     // artwork (or the default cover) when there is one, turning with the record while it plays.
-    // Until the track is ready the sleeve and label are white and the record blank; then the
-    // colours, the picture and the code fade in.
+    // Until the track is ready the backdrop turns behind a record with a white label.
     component Cover: Rectangle {
         id: cover
         property string seed: ""
@@ -1127,7 +1073,15 @@ ApplicationWindow {
             anchors.fill: parent; opacity: root.glow
             code: cover.hash; first: root.peakColor(cover.first); second: root.peakColor(cover.second)
         }
-        Rectangle { objectName: "blankSleeve"; anchors.fill: parent; radius: parent.radius; color: "white"; opacity: cover.idle ? 0 : 1 - cover.reveal }
+        Backdrop {
+            id: loadingBackdrop; objectName: "loadingBackdrop"
+            anchors.fill: parent; opacity: cover.idle ? 0 : 1 - cover.reveal
+            code: cover.hash; first: cover.first; second: cover.second
+            NumberAnimation on phase {
+                from: 0; to: Math.PI * 2; duration: 5000; loops: Animation.Infinite
+                running: loadingBackdrop.opacity > 0 && loadingBackdrop.visible && root.motion && root.visibility !== Window.Minimized
+            }
+        }
         Item {
             id: disc
             width: parent.width * .84; height: width; anchors.centerIn: parent
@@ -1279,6 +1233,7 @@ ApplicationWindow {
             // A thin line between the sidebar and the tracks, lit while dragged or hovered;
             // a double click puts the sidebar back to its default width.
             handle: Item {
+                objectName: "sidebarWidthHandle"
                 implicitWidth: 6; implicitHeight: 6
                 Rectangle {
                     anchors.horizontalCenter: parent.horizontalCenter; width: 1; height: parent.height
@@ -1305,23 +1260,46 @@ ApplicationWindow {
                     Keys.onDownPressed: playlistList.forceActiveFocus()
                     Accessible.name: placeholderText
                 }
-                // Playlists and folders scroll together in one panel; each section folds away from its header.
-                ScrollView {
-                    id: sidebarScroll
+                SplitView {
+                    id: sidebarSections
                     Layout.fillWidth: true; Layout.fillHeight: true
-                    contentWidth: availableWidth
-                    Column {
-                        width: sidebarScroll.availableWidth
-                        SidebarHeader { objectName: "playlistsHeader"; section: "playlists"; text: qsTr("Playlists"); menu: playlistsSectionMenu }
+                    orientation: Qt.Vertical
+                    readonly property int handleSize: 6
+                    readonly property int headerSize: 30
+                    readonly property real available: Math.max(0, height - handleSize)
+                    readonly property bool bothOpen: root.sectionOpen("playlists") && root.sectionOpen("folders")
+                    readonly property real playlistHeight: bothOpen ? Math.round(available * root.sidebarSplit)
+                        : root.sectionOpen("playlists") ? available - headerSize : headerSize
+                    function applyRatio() {
+                        if (!resizing && playlistsPane) playlistsPane.SplitView.preferredHeight = playlistHeight
+                    }
+                    onPlaylistHeightChanged: applyRatio()
+                    onResizingChanged: if (!resizing && bothOpen && available > 0) root.sidebarSplit = playlistsPane.height / available
+                    Component.onCompleted: applyRatio()
+                    handle: Item {
+                        objectName: "sidebarSectionHandle"
+                        implicitHeight: sidebarSections.handleSize
+                        enabled: sidebarSections.bothOpen
+                        Rectangle {
+                            anchors.verticalCenter: parent.verticalCenter; height: 1; width: parent.width
+                            color: parent.enabled && (parent.SplitHandle.pressed || parent.SplitHandle.hovered) ? root.accent : root.alternate
+                        }
+                        TapHandler { onDoubleTapped: root.sidebarSplit = .5 }
+                    }
+                    ColumnLayout {
+                        id: playlistsPane
+                        spacing: 0
+                        SplitView.minimumHeight: sidebarSections.headerSize
+                        SplitView.maximumHeight: root.sectionOpen("playlists") ? Infinity : sidebarSections.headerSize
+                        SidebarHeader { Layout.fillWidth: true; Layout.preferredHeight: sidebarSections.headerSize; objectName: "playlistsHeader"; section: "playlists"; text: qsTr("Playlists"); menu: playlistsSectionMenu }
                         ListView {
                             id: playlistList; objectName: "playlistList"
                             visible: root.sectionOpen("playlists")
-                            width: parent.width; height: visible ? contentHeight : 0
-                            // The panel scrolls, not the list; arrows and Enter still move through it.
-                            interactive: false; keyNavigationEnabled: true; activeFocusOnTab: true
+                            Layout.fillWidth: true; Layout.fillHeight: true
+                            clip: true; keyNavigationEnabled: true; activeFocusOnTab: true
                             currentIndex: -1
                             model: desktop.playlists.filter(p => root.sidebarMatch(p.title))
-                            onCurrentItemChanged: if (activeFocus && currentItem) root.revealInSidebar(currentItem)
+                            ScrollBar.vertical: ScrollBar {}
                             Keys.onReturnPressed: if (currentItem) currentItem.open()
                             Keys.onEnterPressed: if (currentItem) currentItem.open()
                             Keys.onMenuPressed: if (currentItem) root.playlistMenuAt(currentItem.modelData.source)
@@ -1381,28 +1359,35 @@ ApplicationWindow {
                                 DropArea {
                                     id: playlistDrop
                                     anchors.fill: parent; keys: [root.trackDragKey]
-                                    enabled: playlistItem.local && !playlistItem.pending
+                                    enabled: (playlistItem.local || (!!playlistItem.modelData.owned && desktop.model.selectionKinds.publishable)) && !playlistItem.pending
                                     onDropped: drop => { desktop.addToPlaylist(playlistItem.modelData.source); drop.accept(Qt.CopyAction) }
                                 }
                             }
-                            footer: AddButton { buttonName: "addPlaylist"; text: qsTr("Add playlist"); onAdd: desktop.action("dig") }
+                            footer: Column {
+                                width: playlistList.width
+                                AddButton { buttonName: "addPlaylist"; text: addPlaylistAction.text; onAdd: desktop.action("dig") }
+                                Label {
+                                    width: parent.width; padding: 8
+                                    visible: playlistList.count === 0
+                                    wrapMode: Text.WordWrap; horizontalAlignment: Text.AlignHCenter; color: root.muted
+                                    text: desktop.playlists.length > 0 ? qsTr("No playlists match the filter.") : qsTr("No playlists yet. Add a SoundCloud link to start digging.")
+                                }
+                            }
                         }
-                        Label {
-                            width: parent.width; padding: 8
-                            visible: root.sectionOpen("playlists") && playlistList.count === 0
-                            wrapMode: Text.WordWrap; horizontalAlignment: Text.AlignHCenter; color: root.muted
-                            text: desktop.playlists.length > 0 ? qsTr("No playlists match the filter.") : qsTr("No playlists yet. Add a SoundCloud link to start digging.")
-                        }
-                        // Folders dropped here from the file manager are added like Add folder… does.
-                        Item {
-                            width: parent.width; height: folderSection.height
-                            Column {
-                                id: folderSection
-                                width: parent.width
-                                SidebarHeader { objectName: "foldersHeader"; section: "folders"; text: qsTr("Folders"); menu: foldersSectionMenu }
+                    }
+                    Item {
+                        SplitView.fillHeight: true; SplitView.minimumHeight: sidebarSections.headerSize
+                        SplitView.maximumHeight: root.sectionOpen("folders") ? Infinity : sidebarSections.headerSize
+                        ColumnLayout {
+                            anchors.fill: parent; spacing: 0
+                            SidebarHeader { Layout.fillWidth: true; Layout.preferredHeight: sidebarSections.headerSize; objectName: "foldersHeader"; section: "folders"; text: qsTr("Folders"); menu: foldersSectionMenu }
+                            ScrollView {
+                                id: foldersScroll; objectName: "foldersScroll"
+                                visible: root.sectionOpen("folders")
+                                Layout.fillWidth: true; Layout.fillHeight: true
+                                clip: true; contentWidth: availableWidth
                                 Column {
-                                    width: parent.width
-                                    visible: root.sectionOpen("folders")
+                                    width: foldersScroll.availableWidth
                                     Repeater {
                                         model: desktop.directoryRoots
                                         Column {
@@ -1469,7 +1454,7 @@ ApplicationWindow {
                                                 ToolTip.visible: hovered; ToolTip.delay: root.tipDelay; ToolTip.text: folderRoot.modelData.path
                                                 Accessible.name: folderRoot.name
                                                 Accessible.description: folderRoot.modelData.path
-                                                onActiveFocusChanged: if (activeFocus) root.revealInSidebar(rootItem)
+                                                onActiveFocusChanged: if (activeFocus) root.revealInSidebar(rootItem, foldersScroll.contentItem)
                                                 onPressed: held = false
                                                 onClicked: {
                                                     if (held) held = false
@@ -1490,7 +1475,7 @@ ApplicationWindow {
                                                 id: directoryTree
                                                 objectName: "directoryTree-" + (folderRoot.modelData.kind === "custom" ? folderRoot.modelData.path : folderRoot.modelData.kind)
                                                 width: parent.width
-                                                // As tall as its rows: the sidebar panel scrolls, never the tree inside it.
+                                                // As tall as its rows: the Folders pane scrolls, never the tree inside it.
                                                 height: visible ? contentHeight : 0
                                                 visible: folderRoot.expanded && folderRoot.expandable
                                                 interactive: false; activeFocusOnTab: true
@@ -1503,7 +1488,7 @@ ApplicationWindow {
                                                 // The sidebar filter hides folders whose names (and those below, as far as read) miss it.
                                                 rowHeightProvider: row => !root.sidebarQuery || desktop.folderMatches(index(row, 0), root.sidebarQuery) ? 28 : 0
                                                 Connections { target: root; function onSidebarQueryChanged() { directoryTree.forceLayout() } }
-                                                onCurrentRowChanged: if (activeFocus && itemAtCell(Qt.point(0, currentRow))) root.revealInSidebar(itemAtCell(Qt.point(0, currentRow)))
+                                                onCurrentRowChanged: if (activeFocus && currentDelegate()) root.revealInSidebar(currentDelegate(), foldersScroll.contentItem)
                                                 delegate: TreeViewDelegate {
                                                     id: directoryDelegate
                                                     objectName: "directory-" + filePath
@@ -1571,15 +1556,16 @@ ApplicationWindow {
                                     AddButton { buttonName: "addFolder"; text: qsTr("Add folder…"); onAdd: folderDialog.open() }
                                 }
                             }
-                            DropArea {
-                                id: folderDrop; objectName: "folderDrop"
-                                anchors.fill: parent; keys: ["text/uri-list"]
-                                onDropped: drop => {
-                                    for (let url of drop.urls) desktop.addFolder(url.toString())
-                                    drop.acceptProposedAction()
-                                }
-                                Rectangle { anchors.fill: parent; color: "transparent"; border.color: root.accent; border.width: 2; visible: folderDrop.containsDrag }
+                        }
+                        // Folders dropped here from the file manager are added like Add folder… does.
+                        DropArea {
+                            id: folderDrop; objectName: "folderDrop"
+                            anchors.fill: parent; keys: ["text/uri-list"]
+                            onDropped: drop => {
+                                for (let url of drop.urls) desktop.addFolder(url.toString())
+                                drop.acceptProposedAction()
                             }
+                            Rectangle { anchors.fill: parent; color: "transparent"; border.color: root.accent; border.width: 2; visible: folderDrop.containsDrag }
                         }
                     }
                 }
@@ -1608,14 +1594,14 @@ ApplicationWindow {
                         // Transport controls come first; the artwork shrinks to the room the panel can spare,
                         // down to 72 px, and goes only below a 480 px panel.
                         visible: player.width >= 480
-                        idle: !root.loaded
+                        idle: !root.loaded && !desktop.loadingTrackKey
                         readonly property real side: Math.min(player.height - 20, Math.max(72, (player.width - 440) * .8))
                         Layout.preferredWidth: side; Layout.preferredHeight: side; Layout.alignment: Qt.AlignVCenter
-                        seed: desktop.audioKey
-                        spinning: desktop.playing
-                        ready: waveform.ready
+                        seed: desktop.loadingTrackKey || desktop.audioKey
+                        spinning: desktop.playing && !desktop.loadingTrackKey
+                        ready: !desktop.loadingTrackKey && waveform.ready
                         artwork: desktop.artwork
-                        square: desktop.artworkSquare
+                        square: desktop.loadingTrackKey ? "" : desktop.artworkSquare
                         vinyl: root.vinylArtwork
                     }
                 ColumnLayout {
@@ -1657,11 +1643,8 @@ ApplicationWindow {
                         property real position: desktop.audio.position || 0
                         readonly property real duration: desktop.audio.duration || 0
                         readonly property int columns: Math.max(1, Math.floor(width / 3))
-                        // Levels follow the bar count 50 ms after a resize settles, not every 3 px of a drag.
-                        property int levelColumns: columns
-                        Timer { id: levelTimer; interval: 50; onTriggered: waveform.levelColumns = waveform.columns }
                         // Levels per bar, read from the waveform the bridge holds.
-                        readonly property var levels: desktop.waveformColumns(levelColumns, desktop.waveformKey)
+                        readonly property var levels: desktop.waveformColumns(columns, desktop.waveformKey)
                         // The backend sends the waveform for every track, empty when there is none.
                         readonly property bool ready: !!desktop.audioKey && desktop.waveformKey === desktop.audioKey
                         // Until then the bars flicker as noise. A new track scatters the old waveform into the
@@ -1680,7 +1663,7 @@ ApplicationWindow {
                         // The played and neon canvases are hidden while bars move; once they settle they are
                         // painted again, or they would keep the first frame of the blend (noise over the waveform).
                         onMovingChanged: if (!moving) repaint()
-                        onColumnsChanged: { refreshNoise(); levelTimer.restart() }
+                        onColumnsChanged: refreshNoise()
                         Component.onCompleted: refreshNoise()
                         onReadyChanged: {
                             // Leaving the noise, take the bars from the noise as it stands now: the frame loop
@@ -1769,14 +1752,17 @@ ApplicationWindow {
                             ctx.fillStyle = neon ? gradient(ctx, height, root.waveNeonFoot, root.waveNeonTop)
                                                  : gradient(ctx, height, root.waveRestFoot, root.waveRestTop)
                             ctx.globalAlpha = played ? 1 : root.dark ? .38 : .45
-                            let count = ready && levels.length ? levels.length : columns, step = width / count, bar = Math.max(1, step - 1)
+                            let count = ready && levels.length ? levels.length : columns, step = width / count
+                            let pixel = Screen.devicePixelRatio || 1
                             let values = []
                             for (let i = 0; i < count; i++) values.push(level(i))
                             // What is on screen, for the next track change to scatter from.
                             if (!played && !neon && !moving) shown = values
                             for (let i = 0; i < count; i++) {
                                 let barHeight = Math.max(1, values[i] * (height - 2))
-                                ctx.fillRect(i * step, height - barHeight, bar, barHeight)
+                                let x = Math.round(i * step * pixel) / pixel
+                                let end = Math.round((i + 1) * step * pixel) / pixel
+                                ctx.fillRect(x, height - barHeight, Math.max(1 / pixel, end - x - 1), barHeight)
                             }
                         }
                         // The unplayed region stays in shadow and never pulses.
@@ -1913,7 +1899,7 @@ ApplicationWindow {
                             onClicked: root.playPause()
                         }
                         Button { text: qsTr("Next track"); enabled: root.loaded; display: AbstractButton.IconOnly; implicitWidth: 40; icon.source: "icons/next.svg"; icon.color: palette.buttonText; icon.width: root.iconLarge; icon.height: root.iconLarge; Accessible.name: text; ToolTip.visible: hovered; ToolTip.delay: root.tipDelay; ToolTip.text: text + " (N)"; onClicked: desktop.step(1) }
-                        Button { text: qsTr("Stop"); enabled: root.loaded; display: AbstractButton.IconOnly; implicitWidth: 40; icon.source: "icons/stop.svg"; icon.color: palette.buttonText; icon.width: root.iconLarge; icon.height: root.iconLarge; Accessible.name: text; ToolTip.visible: hovered; ToolTip.delay: root.tipDelay; ToolTip.text: text + " (" + stopAction.shortcut + ")"; onClicked: stopAction.trigger() }
+                        Button { text: qsTr("Stop"); enabled: stopAction.enabled; display: AbstractButton.IconOnly; implicitWidth: 40; icon.source: "icons/stop.svg"; icon.color: palette.buttonText; icon.width: root.iconLarge; icon.height: root.iconLarge; Accessible.name: text; ToolTip.visible: hovered; ToolTip.delay: root.tipDelay; ToolTip.text: text + " (" + stopAction.shortcut + ")"; onClicked: stopAction.trigger() }
                         Label { visible: root.loaded; text: root.clock(desktop.audio.position) + " / " + root.clock(desktop.audio.duration); color: root.muted; font.features: root.tabular }
                         Item { visible: root.loaded; Layout.fillWidth: true; Layout.minimumWidth: 0 }
                         Label { visible: !root.loaded; text: root.hasSelection ? qsTr("Press Space to play the selected track") : qsTr("Select a track to play"); color: root.muted; elide: Text.ElideRight; Layout.fillWidth: true; Layout.minimumWidth: 0 }
@@ -1972,6 +1958,9 @@ ApplicationWindow {
                     id: toolbar
                     Layout.fillWidth: true; Layout.minimumWidth: 0; Layout.rightMargin: root.edge
                     spacing: 8
+                    readonly property bool compactActions: width < Math.max(560, statusBox.implicitWidth + moreFilters.implicitWidth + filterCount.implicitWidth + 225)
+                    readonly property bool localActions: root.hasSelection ? root.selectionLocal : !!desktop.view.local || !!desktop.view.mixedPlaylist
+                    readonly property bool remoteActions: root.hasSelection ? root.selectionRemote : !desktop.view.local
                     // Every control of the toolbar is 32 px high with the same faint outline; a filter
                     // that is on takes the selection colour and an accent outline.
                     component Toggle: ToolButton {
@@ -2041,13 +2030,12 @@ ApplicationWindow {
                             }
                             // The same actions as the shortcuts, so a tooltip always names the key that works.
                             // Playlist actions show in playlist views, file actions in local views.
-                            ActionButton { objectName: "openButton"; action: openAction; icon.source: "icons/link.svg"; visible: !desktop.view.local }
-                            ActionButton { action: downloadAction; icon.source: "icons/download.svg"; visible: !desktop.view.local }
-                            ActionButton { action: ownedAction; icon.source: "icons/owned.svg"; visible: !desktop.view.local }
-                            ActionButton { objectName: "skipButton"; action: skipAction; icon.source: "icons/skip.svg" }
-                            ActionButton { action: analyzeAction; icon.source: "icons/analyze.svg"; visible: !!desktop.view.local }
+                            ActionButton { id: downloadButton; objectName: "downloadButton"; action: downloadAction; icon.source: "icons/download.svg"; visible: !toolbar.compactActions && toolbar.remoteActions }
+                            ActionButton { id: ownedButton; objectName: "ownedButton"; action: ownedAction; icon.source: "icons/owned.svg"; visible: !toolbar.compactActions && toolbar.remoteActions }
+                            ActionButton { id: skipButton; objectName: "skipButton"; action: skipAction; icon.source: "icons/skip.svg"; visible: !toolbar.compactActions }
+                            ActionButton { id: analyzeButton; objectName: "analyzeButton"; action: analyzeAction; icon.source: "icons/analyze.svg"; visible: !toolbar.compactActions && toolbar.localActions }
                             ActionButton {
-                                id: moreActions
+                                id: moreActions; objectName: "moreActions"
                                 text: qsTr("More actions"); icon.source: "icons/more.svg"; display: AbstractButton.IconOnly
                                 onClicked: contextMenu.popup(moreActions, 0, moreActions.height)
                             }
@@ -2083,12 +2071,12 @@ ApplicationWindow {
                         }
                         // How many tracks the filters leave, in the accent colour while any filter is on.
                         Label {
-                            objectName: "filterCount"
-                            visible: root.filtersActive && desktop.model.counts.total > 0
+                            id: filterCount; objectName: "filterCount"
+                            visible: desktop.model.counts.total > 0
                             // Its own room, apart from a pill cut off by the scrolling row, so it never reads as part of it.
                             Layout.minimumWidth: implicitWidth; Layout.leftMargin: 10
                             text: desktop.model.counts.visible + " / " + desktop.model.counts.total
-                            color: root.accent; font.features: root.tabular
+                            color: root.filtersActive ? root.accent : root.muted; font.features: root.tabular
                             Accessible.name: text; Accessible.description: qsTr("Tracks the filters leave, of all tracks in this view")
                         }
                         Item { Layout.fillWidth: true; Layout.minimumWidth: 0 }
@@ -2426,7 +2414,7 @@ ApplicationWindow {
                             onPositionChanged: function(mouse) {
                                 if (!(mouse.buttons & Qt.LeftButton) || dragRow < 0) return
                                 if (trackDrag.Drag.active) { trackDrag.follow(mapToItem(null, mouse.x, mouse.y)); return }
-                                if (deferred && desktop.view.local
+                                if (deferred
                                         && Math.hypot(mouse.x - pressedAt.x, mouse.y - pressedAt.y) > Application.styleHints.startDragDistance) {
                                     deferred = false
                                     trackDrag.start(mapToItem(null, mouse.x, mouse.y))
@@ -2538,7 +2526,7 @@ ApplicationWindow {
                             event.accepted = true
                         }
                         else if (event.key === Qt.Key_Menu || (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier))) { popupMenu(); event.accepted = true }
-                        else if (event.key === Qt.Key_Delete) { if (root.hasSelection && root.remoteView) desktop.action("remove"); event.accepted = true }
+                        else if (event.key === Qt.Key_Delete) { if (root.hasSelection && root.removableView) desktop.action("remove"); event.accepted = true }
                         else if (event.key === Qt.Key_Home) { moveCursor(-rows, event); event.accepted = true }
                         else if (event.key === Qt.Key_End) { moveCursor(rows, event); event.accepted = true }
                         else if (event.key === Qt.Key_PageUp) { moveCursor(-pageRows, event); event.accepted = true }
@@ -2774,15 +2762,25 @@ ApplicationWindow {
         property string source
         property bool local: false
         property bool pending: false
+        readonly property var playlistEntry: {
+            const target = playlistMenu.source
+            return desktop.playlists.find(item => item.source === target)
+        }
+        readonly property int trackCount: playlistEntry?.count ?? 0
+        readonly property int localFileCount: playlistEntry?.mediaCount ?? 0
         AppMenuItem { text: qsTr("Open"); enabled: !playlistMenu.pending; onTriggered: desktop.load(playlistMenu.source) }
         // SoundCloud playlists import again from SoundCloud; local ones have nothing to fetch.
-        AppMenuItem { text: qsTr("Refresh"); visible: !playlistMenu.local; enabled: !desktop.busy && !playlistMenu.pending; onTriggered: desktop.playlistAction("refresh", playlistMenu.source) }
+        AppMenuItem { text: qsTr("Refresh"); visible: !playlistMenu.local && !playlistMenu.source.startsWith("sc-snapshot:"); enabled: !desktop.busy && !playlistMenu.pending; onTriggered: desktop.playlistAction("refresh", playlistMenu.source) }
+        AppMenuItem { text: qsTr("Restore removed tracks…"); enabled: !desktop.busy && !playlistMenu.pending && !playlistMenu.source.startsWith("sc-snapshot:"); onTriggered: desktop.playlistAction("restore", playlistMenu.source) }
         AppMenuItem { text: qsTr("Rename…"); enabled: !playlistMenu.pending; onTriggered: desktop.playlistAction("rename_playlist", playlistMenu.source) }
         AppMenuItem { text: qsTr("Duplicate…"); visible: playlistMenu.local; onTriggered: desktop.playlistAction("duplicate_playlist", playlistMenu.source) }
         // Every file of a local playlist, without opening it and selecting them all.
         AppMenuItem {
-            text: qsTr("Export audio…"); visible: playlistMenu.local; enabled: !desktop.busy
-            reason: desktop.busy ? qsTr("wait for the current task") : ""
+            text: playlistMenu.local && playlistMenu.localFileCount < playlistMenu.trackCount
+                  ? qsTr("Export local files (%1)…").arg(playlistMenu.localFileCount) : qsTr("Export audio…")
+            visible: playlistMenu.local; enabled: playlistMenu.localFileCount > 0 && !desktop.busy
+            reason: playlistMenu.localFileCount === 0 ? qsTr("No local files in this playlist")
+                  : desktop.busy ? qsTr("wait for the current task") : ""
             onTriggered: desktop.playlistAction("export", playlistMenu.source)
         }
         AppSeparator {}
@@ -2790,7 +2788,7 @@ ApplicationWindow {
     }
     AppMenu {
         id: playlistsSectionMenu
-        AppMenuItem { text: qsTr("Add playlist…"); onTriggered: desktop.action("dig") }
+        AppMenuItem { action: addPlaylistAction }
         AppMenuItem { text: qsTr("Import profile playlists…"); onTriggered: desktop.action("profile") }
     }
     AppMenu {
@@ -2847,24 +2845,60 @@ ApplicationWindow {
         // One menu for a right click, the Menu key / Shift+F10 and the toolbar's "More actions", built from the
         // toolbar's own actions so labels, keys and enabled states match. Store and SoundCloud entries are hidden in
         // local views and local-file entries in online views; within a view an entry that does not apply is disabled.
-        readonly property bool local: !!desktop.view.local
+        readonly property bool local: root.selectionLocal
         readonly property int selected: desktop.model.counts.selected
         readonly property string busyReason: root.hasSelection && desktop.busy ? qsTr("wait for the current task") : ""
         // An in-place edit that the opening click ended leaves nothing focused; the table takes the keyboard back.
         onClosed: if (!root.activeFocusItem || root.activeFocusItem === root.contentItem) table.forceActiveFocus()
         AppMenuItem { objectName: "play"; text: qsTr("Play"); keys: "Enter"; enabled: root.hasSelection; onTriggered: desktop.action("play") }
-        AppMenuItem { objectName: "open"; action: openAction; visible: !contextMenu.local; reason: contextMenu.busyReason }
+        AppMenuSection { visible: root.mixedSelection; title: qsTr("Files and SoundCloud tracks selected") }
+        AppMenu {
+            id: sendToMenu
+            title: qsTr("Send to")
+            enabled: root.hasSelection && !desktop.busy
+            AppMenuItem { text: qsTr("Create playlist from selection…"); onTriggered: desktop.action("save_playlist") }
+            Instantiator {
+                model: desktop.playlists.filter(p => !p.pending && (p.source.startsWith("local-playlist:") || p.owned))
+                delegate: AppMenuItem {
+                    required property var modelData
+                    text: modelData.title + (modelData.owned ? " · SoundCloud" : " · DJ Digger")
+                    enabled: !modelData.owned || desktop.model.selectionKinds.publishable
+                    reason: enabled ? "" : qsTranslate("Bridge", "Only SoundCloud tracks can be sent to a SoundCloud playlist")
+                    onTriggered: desktop.addToPlaylist(modelData.source)
+                }
+                onObjectAdded: (index, object) => sendToMenu.insertItem(index + 1, object)
+                onObjectRemoved: (index, object) => sendToMenu.removeItem(object)
+            }
+        }
+        AppMenuItem {
+            objectName: "openSoundCloud"; text: qsTr("Open track in SoundCloud")
+            visible: desktop.model.selectionKinds.soundcloud && contextMenu.selected === 1
+            onTriggered: desktop.trackLink("SoundCloud")
+        }
+        AppMenu {
+            id: searchProviderMenu
+            title: qsTr("Find in")
+            enabled: contextMenu.selected === 1
+            Instantiator {
+                model: ["Beatport", "Bandcamp", "YouTube", "YouTube Music", "Spotify"]
+                delegate: AppMenuItem {
+                    required property string modelData
+                    text: modelData
+                    onTriggered: desktop.trackLink(modelData)
+                }
+                onObjectAdded: (index, object) => searchProviderMenu.insertItem(index, object)
+                onObjectRemoved: (index, object) => searchProviderMenu.removeItem(object)
+            }
+        }
+        AppMenuItem { objectName: "open"; action: openAction; visible: root.selectionRemote; reason: contextMenu.busyReason }
         AppSeparator {}
-        AppMenuItem { objectName: "download"; action: downloadAction; visible: !contextMenu.local; reason: contextMenu.busyReason }
-        AppMenuItem { objectName: "owned"; action: ownedAction; visible: !contextMenu.local }
-        AppMenuItem { objectName: "skip"; action: skipAction }
+        AppMenuItem { objectName: "download"; action: downloadAction; visible: !downloadButton.visible && root.selectionRemote; reason: contextMenu.busyReason }
+        AppMenuItem { objectName: "owned"; action: ownedAction; visible: !ownedButton.visible && root.selectionRemote }
+        AppMenuItem { objectName: "skip"; action: skipAction; visible: !skipButton.visible }
         AppMenuItem { objectName: "reset"; action: resetAction }
         AppSeparator {}
         AppMenuItem { objectName: "copy"; text: qsTr("Copy artist and title"); keys: "Ctrl+C"; enabled: root.hasSelection; onTriggered: root.copied(desktop.copy()) }
-        AppMenuItem { objectName: "copyLink"; text: qsTr("Copy link"); visible: !contextMenu.local; enabled: root.hasSelection; onTriggered: root.copied(desktop.copyLinks()) }
-        AppSeparator {}
-        AppMenuItem { objectName: "selectAll"; action: selectAllAction; enabled: root.hasRows }
-        AppMenuItem { objectName: "invert"; text: qsTr("Invert selection"); enabled: root.hasRows; onTriggered: desktop.model.invertSelection() }
+        AppMenuItem { objectName: "copyLink"; text: qsTr("Copy link"); visible: root.selectionRemote; enabled: root.hasSelection; onTriggered: root.copied(desktop.copyLinks()) }
         AppSeparator { visible: contextMenu.local }
         AppMenuItem {
             objectName: "reveal"; text: qsTr("Reveal in file manager"); visible: contextMenu.local
@@ -2872,21 +2906,21 @@ ApplicationWindow {
             onTriggered: desktop.reveal()
         }
         AppMenuItem { objectName: "edit"; action: editAction; visible: contextMenu.local; reason: contextMenu.selected > 1 ? qsTr("select one track") : "" }
-        AppMenuItem { objectName: "analyze"; action: analyzeAction; visible: contextMenu.local; reason: contextMenu.busyReason }
+        AppMenuItem { objectName: "analyze"; action: analyzeAction; visible: !analyzeButton.visible && root.selectionLocal; reason: contextMenu.busyReason }
         AppMenuItem {
             objectName: "export"; visible: contextMenu.local; enabled: root.hasSelection && !desktop.busy; reason: contextMenu.busyReason
             text: contextMenu.selected > 1 ? qsTr("Export %n tracks…", "", contextMenu.selected) : qsTr("Export audio…")
             onTriggered: desktop.action("export")
         }
         AppSeparator { visible: !contextMenu.local }
-        AppMenuItem { objectName: "cart"; action: cartAction; visible: !contextMenu.local; reason: contextMenu.busyReason }
+        AppMenuItem { objectName: "cart"; action: cartAction; visible: root.selectionRemote; reason: contextMenu.busyReason }
         AppSeparator {}
         AppMenuItem {
-            objectName: "remove"; action: removeAction; visible: !contextMenu.local; destructive: true
+            objectName: "remove"; action: removeAction; visible: root.removableView; destructive: true
             text: contextMenu.selected > 1 ? qsTr("Remove %n from playlist…", "", contextMenu.selected) : removeAction.text
         }
         AppMenuItem {
-            objectName: "deleteFiles"; visible: contextMenu.local; destructive: true
+            objectName: "deleteFiles"; visible: contextMenu.local && !desktop.view.localPlaylist; destructive: true
             enabled: root.hasSelection && !desktop.busy; reason: contextMenu.busyReason
             text: contextMenu.selected > 1 ? qsTr("Delete %n files…", "", contextMenu.selected) : qsTr("Delete files…")
             onTriggered: desktop.action("delete_files")
@@ -2944,6 +2978,15 @@ ApplicationWindow {
         property var fields: []
         property var values: ({})
         property var collapsed: ({})
+        function setValue(name, value) {
+            let edited = Object.assign({}, values)
+            edited[name] = value
+            values = edited
+        }
+        function connectionAction(action) {
+            setValue("_connectionAction", action)
+            accept()
+        }
         // A `buttons` field puts one footer button per option in place of OK.
         readonly property var choiceField: fields.find(f => f.kind === "buttons") ?? null
         function fieldSection(index) {
@@ -3011,7 +3054,9 @@ ApplicationWindow {
                         required property var modelData
                         required property int index
                         Layout.fillWidth: true; spacing: 2
-                        visible: modelData.kind !== "buttons" && (modelData.kind === "section" || !dialog.collapsed[dialog.fieldSection(index)])
+                        objectName: "field-" + modelData.name
+                        visible: modelData.kind === "section" || (modelData.kind !== "buttons" && !dialog.collapsed[dialog.fieldSection(index)]
+                            && (!modelData.requires || dialog.values[modelData.requires] === true))
                         // A section header; one that starts folded can be opened and folded again.
                         Label {
                             visible: fieldItem.modelData.kind === "section" && fieldItem.modelData.collapsed !== true && text.length > 0
@@ -3089,11 +3134,28 @@ ApplicationWindow {
                             Button { text: qsTr("Clear manual values"); onClicked: dialog.values = Object.assign({}, dialog.values, {bpm: "", key: ""}) }
                         }
                         ComboBox {
+                            id: fieldChoice
                             visible: fieldItem.modelData.kind === "choice"; Layout.fillWidth: true
                             model: fieldItem.modelData.options.map(o => o[1])
                             currentIndex: Math.max(0, fieldItem.modelData.options.findIndex(o => String(o[0]) === String(dialog.values[fieldItem.modelData.name] ?? fieldItem.modelData.value)))
                             onActivated: dialog.values[fieldItem.modelData.name] = fieldItem.modelData.options[currentIndex][0]
                             Accessible.name: fieldItem.modelData.label
+                            delegate: ItemDelegate {
+                                id: choiceItem
+                                required property int index
+                                required property string modelData
+                                width: ListView.view.width
+                                text: modelData; highlighted: fieldChoice.highlightedIndex === index
+                                contentItem: RowLayout {
+                                    Label { Layout.fillWidth: true; text: choiceItem.text; textFormat: Text.PlainText; elide: Text.ElideRight; color: choiceItem.highlighted ? root.selectionText : root.fg }
+                                    Repeater {
+                                        model: fieldItem.modelData.name === "colors"
+                                            ? root.colorPairs[fieldItem.modelData.options[choiceItem.index][0]][root.dark ? "dark" : "light"].slice(2) : []
+                                        Rectangle { required property color modelData; width: 12; height: 12; radius: 2; color: modelData }
+                                    }
+                                }
+                                background: Rectangle { color: choiceItem.highlighted ? root.selection : root.panel }
+                            }
                         }
                         Frame {
                             visible: fieldItem.modelData.kind === "multiline" || fieldItem.modelData.kind === "log"; Layout.fillWidth: true
@@ -3142,9 +3204,42 @@ ApplicationWindow {
                             }
                         }
                         CheckBox {
+                            objectName: "bool-" + fieldItem.modelData.name
                             visible: fieldItem.modelData.kind === "bool"; text: fieldItem.modelData.label
                             checked: (dialog.values[fieldItem.modelData.name] ?? fieldItem.modelData.value) === true
-                            onToggled: dialog.values[fieldItem.modelData.name] = checked; Accessible.name: fieldItem.modelData.label
+                            onToggled: dialog.setValue(fieldItem.modelData.name, checked)
+                            Accessible.name: fieldItem.modelData.label
+                        }
+                        Loader {
+                            active: fieldItem.modelData.kind === "connections"
+                            visible: active; Layout.fillWidth: true
+                            sourceComponent: ColumnLayout {
+                                component ConnectionButton: Button {
+                                    id: connectionButton
+                                    contentItem: Label {
+                                        text: connectionButton.text; textFormat: Text.PlainText
+                                        horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
+                                        color: connectionButton.enabled ? root.fg : root.disabledFg
+                                    }
+                                }
+                                ConnectionButton {
+                                    objectName: "soundCloudConnection"
+                                    readonly property bool signedIn: !!desktop.account.signedIn
+                                    text: !signedIn ? qsTr("Sign in to SoundCloud…")
+                                        : desktop.account.name ? qsTr("Signed in as %1 — Sign out…").arg(desktop.account.name) : qsTr("Signed in — Sign out…")
+                                    enabled: !desktop.busy
+                                    onClicked: dialog.connectionAction(signedIn ? "logout" : "login")
+                                }
+                                RowLayout {
+                                    ConnectionButton { text: qsTr("Connect browser…"); onClicked: dialog.connectionAction("connect_browser") }
+                                    ConnectionButton {
+                                        readonly property string browser: desktop.account.browser || ""
+                                        text: browser ? qsTr("Connected: %1 — Disconnect…").arg(browser) : qsTr("No browser connected")
+                                        enabled: !!browser && !desktop.busy
+                                        onClicked: dialog.connectionAction("disconnect_browsers")
+                                    }
+                                }
+                            }
                         }
                         // Plain-language help under a field or a section header.
                         Label {

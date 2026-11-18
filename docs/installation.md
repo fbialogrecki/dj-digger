@@ -152,7 +152,7 @@ extension in your own browser; the app downloads no browser of its own. The firs
 time one of those features needs it, the app shows the steps. In short:
 
 1. Open dj-digger: the desktop registers itself with your browsers at every start,
-   and its **Connect browser…** dialog (Settings menu) has **Open Chrome Web Store**,
+   and its **Settings → Preferences → Connect browser…** dialog has **Open Chrome Web Store**,
    **Check connection** and the extension folder with a **Copy path** button. Without
    the desktop, run `dj-digger browser register` in a terminal (it cannot run while
    the desktop is open).
@@ -165,8 +165,12 @@ time one of those features needs it, the app shows the steps. In short:
    for a trial use `about:debugging#/runtime/this-firefox` → **Load Temporary
    Add-on** → `manifest.json` from that folder (removed when Firefox restarts).
 
+After registration, **Open dj-digger** in the extension panel starts the desktop.
+Clicking **Import to DJ digger** on a SoundCloud playlist also starts it and hands
+over the playlist. **Show dj-digger** restores the desktop window while it is running.
+
 To disconnect, run `dj-digger browser unregister` or use **Disconnect browsers…** in
-the desktop's Settings menu; the desktop registers again at its next start.
+**Settings → Preferences**. The desktop registers again at its next start.
 
 ### Old browser profiles
 

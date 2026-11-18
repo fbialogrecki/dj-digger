@@ -122,9 +122,11 @@ def _hydrate_tracks(client, ids, cache, check):
     return tracks, []
 
 
-def _import_playlist(client, db, identifier, cache, generations, check):
+def _import_playlist(client, db, identifier, owner_id, cache, generations, check):
     detail = client._get(f'/playlists/{identifier}')
     check()
+    if _owner_id(detail) not in (None, owner_id):
+        raise SoundCloudError('Playlist owner changed; old playlist retained')
     raw, count = detail.get('tracks'), detail.get('track_count')
     if not isinstance(raw, list) or count is None or len(raw) != count:
         return {'id': identifier, 'status': 'incomplete', 'message': 'Old playlist retained'}
@@ -138,9 +140,9 @@ def _import_playlist(client, db, identifier, cache, generations, check):
     source = detail.get('permalink_url')
     if not is_soundcloud_url(source or ''):
         raise SoundCloudError('Playlist permalink missing')
-    incoming = CrateRecord.from_crate(Crate(source, tracks, detail.get('title') or source)).to_json()
+    incoming = CrateRecord.from_crate(Crate(source, tracks, detail.get('title') or source,
+                                           provider_id=identifier, owner_id=owner_id)).to_json()
     incoming['preserve_order'] = True
-    incoming['provider_id'] = identifier
     check()
     saved = db.remember_provider_playlist(identifier, incoming, generations)
     return {'id': identifier, 'status': 'imported' if saved else 'locally_changed', 'tracks': len(tracks)}
@@ -173,7 +175,7 @@ def _import_profile(client, db, url, *, private=False, cancel=None, current=lamb
             result = {'id': header['id'], 'status': 'skipped', 'message': 'private playlist'}
         else:
             try:
-                result = _import_playlist(client, db, header['id'], cache, generations, check)
+                result = _import_playlist(client, db, header['id'], owner_id, cache, generations, check)
             except SoundCloudError as exc:
                 check()  # a changed session still stops the whole import
                 result = {'id': header['id'], 'status': 'failed', 'message': str(exc)}

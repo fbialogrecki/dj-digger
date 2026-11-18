@@ -27,15 +27,16 @@ Lets the dj-digger desktop app drive download gates and store carts in your own 
 ```
 dj-digger is the browser companion of the free dj-digger desktop app for DJs. It lets the app do the browser steps of crate digging in your own browser, on the sites you are already signed in to, and puts the app's player in your toolbar.
 
-IMPORTANT: this extension does nothing on its own. It needs the dj-digger desktop app (Windows, macOS, Linux), installed and started on the same computer: https://github.com/fbialogrecki/dj-digger
+Install and start the dj-digger desktop app once on the same computer (Windows, macOS, Linux) so it can register with your browser. The extension can then open the app on request: https://github.com/fbialogrecki/dj-digger
 When the app is not installed (or too old), the extension's status page and toolbar panel say so and offer a Download button that opens the app's latest release on GitHub: https://github.com/fbialogrecki/dj-digger/releases/latest
 
 WHAT IT DOES
 • Free-download gates: when the desktop app cannot finish a Hypeddit or ToneDen download gate by itself, it finishes it here, in your browser, and the downloaded file goes to the app.
 • Store carts: the app adds the tracks you picked to your Bandcamp cart, or looks tracks up on Beatport, in your browser. It never checks out or pays: checkout and payment pages are closed, and buying stays your decision.
 • SoundCloud sign-in: the app can sign in to SoundCloud with the session your browser already has, so you do not have to paste anything.
-• Toolbar panel: play, pause, skip and seek the track playing in the desktop app, see the running job and cancel it, and answer the app when download gates need you.
-• Import: on a SoundCloud playlist or profile, open the panel (or right-click and choose "Dig in dj-digger") to import it into the app.
+• Toolbar panel. Open or show dj-digger, control playback, see or cancel the running job, and answer the app when download gates need you.
+• SoundCloud import. Use the panel on a playlist or profile, or the import button in a playlist header or tile. Choosing Import opens the desktop app if it is closed.
+• SoundCloud playlist editing. When you confirm a create or add action in the desktop app, the extension completes SoundCloud's playlist form in a temporary tab.
 
 HOW TO USE
 1. Install and start the dj-digger desktop app. It connects itself to this browser.
@@ -46,7 +47,7 @@ SOCIAL ACTIONS ON DOWNLOAD GATES
 Download gates ask for a follow, a like, a repost, a comment or your e-mail address in exchange for a free download. The desktop app setting "Allow social actions" decides whether the app may do these steps for you, on the accounts you are signed in to in this browser, and with the name, e-mail address and comment texts you entered in the app's Settings. Turn it off in the app to finish such gates yourself.
 
 PRIVACY
-Nothing is sent to the developer or to any server of the developer. There are no analytics and no ads. The extension talks only to the dj-digger app on your own computer. It works only on Hypeddit, ToneDen, Bandcamp, Beatport and SoundCloud, and only in the tabs it opened for the app. Privacy policy: https://github.com/fbialogrecki/dj-digger/blob/main/PRIVACY.md
+Nothing is sent to the developer or to any server of the developer. There are no analytics and no ads. The extension talks to the dj-digger app on your own computer. It performs website actions in its temporary tabs on Hypeddit, ToneDen, Bandcamp, Beatport and SoundCloud. On the SoundCloud pages you open, it adds import buttons to playlist headers and verified playlist tiles. Privacy policy: https://github.com/fbialogrecki/dj-digger/blob/main/PRIVACY.md
 
 PERMISSIONS
 • "Read and change your data on hypeddit.com, toneden.io, bandcamp.com, beatport.com, soundcloud.com": needed to fill in download gates and carts in the tabs the app opens; other sites are never accessed.
@@ -99,9 +100,9 @@ share one field (text at the end of the table).
 
 | Permission | Type | Justification |
 |------------|------|---------------|
-| nativeMessaging | permissions | The extension's only command channel: it connects to the native host `com.github.fbialogrecki.djdigger`, which the dj-digger desktop app installs on the same computer. The app sends it browser steps (open a tab on an allowed site, click, fill, read the page) and the extension sends back results, the player panel's commands and the import of a SoundCloud link. There is no other input: no external messaging, no web-accessible resources. |
+| nativeMessaging | permissions | Connects to the native host `com.github.fbialogrecki.djdigger` on the same computer. The host starts the installed desktop app when the user selects Open or Import. The channel carries browser tasks and results, player commands, and the SoundCloud playlist link and date selected for import. |
 | tabs | permissions | Opens, navigates, mutes, focuses and closes the tabs and windows it creates for the desktop app, follows popups those tabs open (provider sign-in windows) to close them with the session, and reads the address and load state of these own tabs only. A finished cart tab is handed over to the user. Other tabs are never read or changed. Also takes a screenshot of an own store tab for the app's local cart diagnostics when an add-to-cart click cannot be verified. |
-| scripting | permissions | Runs the extension's own bundled page functions (find an element by role or text, click, fill a form field, read text or the page HTML) in its own tabs on the allowed sites, which is how download gates and carts are completed. While a hidden gate session runs, registers the same bundled script for Hypeddit and ToneDen frames inside the extension's offscreen document. No remote or user-supplied code is executed. |
+| scripting | permissions | Runs bundled page functions in temporary tabs to complete download gates, store carts, and the SoundCloud Add to playlist form for changes you confirm in the app. While a hidden gate session runs, registers the bundled script for Hypeddit and ToneDen frames inside the extension's offscreen document. |
 | downloads | permissions | Recognises the file a download gate in an own tab starts, reports its location to the desktop app (which copies it into the user's crate folder), reports unsafe downloads or a "Save as" prompt as blocked instead of accepting them, and removes the browser's copy and history entry once the app has taken the file. Downloads not started by its own tabs are ignored. |
 | cookies | permissions | Exactly two hard-coded operations: reads SoundCloud's `oauth_token` cookie when the user signs the desktop app in to SoundCloud (the app then uses SoundCloud's API with it), and deletes Hypeddit's `filedownloading` cookie between gate downloads, because while it is set Hypeddit refuses the next download. No other cookie is read, written or deleted. |
 | webRequest | permissions | Observes only (no blocking, no modification) the responses and redirects of its own tabs on the allowed sites, to learn the HTTP status of a page it loaded and to match a starting download to the own tab that requested it. Requests of other tabs are ignored. |
@@ -119,7 +120,7 @@ Each host is a site the dj-digger desktop app works with, and the extension acts
 - hypeddit.com, www.hypeddit.com, hypd.it, www.hypd.it, toneden.io, www.toneden.io: free-download gates. The extension opens the gate, completes its steps (e-mail form, follow/like/repost/comment steps when the user allows social actions in the app) and starts the download.
 - bandcamp.com and *.bandcamp.com (artist pages are subdomains): adds the tracks the user picked in the app to the user's own Bandcamp cart. Checkout and payment pages are never opened; buttons named like checkout, pay or buy now are never clicked (except Bandcamp's "Buy Digital Track/Album", which only opens the price and add-to-cart panel).
 - beatport.com and *.beatport.com: looks up tracks and adds them to the user's Beatport cart; checkout, payment and billing pages are never opened.
-- soundcloud.com: the sign-in page, opened when the user signs the app in to SoundCloud and the browser has no session yet, and the reading of SoundCloud's oauth_token cookie. On SoundCloud pages the user opens, a bundled content script adds an "Import to DJ digger" button to SoundCloud's track and playlist controls; it reads only the addresses of those track and playlist links, and only a click on the button sends that link to the desktop app. Nothing on SoundCloud is clicked by the extension.
+- soundcloud.com for sign-in and reading the oauth_token cookie when the user connects their SoundCloud account. A bundled content script adds "Import to DJ digger" to playlist headers and tiles with their own playlist link. When clicked, it hands off the clean playlist address to the desktop app. For playlist changes confirmed in the app, a dedicated script checks the signed-in account and operates SoundCloud's Add to playlist form in a temporary track tab.
 ```
 
 **Are you using remote code?** No. All JavaScript is in the package; there is no
@@ -176,7 +177,7 @@ The repository is public; the URL is live once `PRIVACY.md` is on `main`
 **Test instructions for the reviewer** (dashboard field, optional but recommended):
 
 ```
-The extension is the companion of the dj-digger desktop app and needs it to do anything. Without the app, the options page and the toolbar panel show "The dj-digger desktop app is not installed" with a Download button to https://github.com/fbialogrecki/dj-digger/releases/latest. Install the app from https://github.com/fbialogrecki/dj-digger (the Windows/macOS installers under Releases, or "pipx install 'dj-sc-digger[gui]'" and run dj-digger-gui), start it, then open the extension's options page: "Desktop app link" shows the connection. With the app running, the toolbar panel shows the app's player; on a SoundCloud playlist page the panel offers "Import this playlist into dj-digger". No account is needed for the panel and the import.
+Install the desktop app from https://github.com/fbialogrecki/dj-digger (Windows and macOS installers under Releases, or "pipx install 'dj-sc-digger[gui]'" and run dj-digger-gui). Start it once to register the native host. The extension's options page shows the link under "Desktop app link". Close the desktop and select "Open dj-digger" in the toolbar panel. Close it again, open a public SoundCloud playlist, and choose "Import this playlist into dj-digger" in the panel or "Import to DJ digger" in the playlist header. The desktop opens and imports the playlist. A SoundCloud account is only needed for account-specific imports and confirmed playlist changes.
 ```
 
 ## Version History

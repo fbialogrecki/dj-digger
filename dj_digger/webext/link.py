@@ -42,6 +42,7 @@ import stat
 import threading
 import time
 from concurrent.futures import Future, InvalidStateError
+from datetime import date
 from multiprocessing import connection as mpc
 from pathlib import Path
 from typing import Any, Callable
@@ -63,9 +64,10 @@ SOCKET_PATH_LIMIT = 100  # sun_path is 104 bytes on macOS, 108 on Linux
 PIPE_PREFIX = "\\\\.\\pipe\\"
 SOCKET_NAME = "webext.sock"
 ANOTHER_APP = "another dj-digger is already connected to the browser extension"
-PLAYER_OPS = ("prev", "toggle", "next", "cancel")  # the toolbar panel's asks that take no argument
+PLAYER_OPS = ("prev", "toggle", "next", "cancel")
 MAX_IMPORT_URL = 512  # a SoundCloud set, track or profile link from the panel, menu or page button
 MAX_ARTWORK = 48 * 1024  # the panel's cover, a data: URL; a larger one is left out
+IMPORT_REQUEST_ID = re.compile(r"[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}")
 
 
 def player_command(frame: dict) -> dict | None:
@@ -85,6 +87,26 @@ def player_command(frame: dict) -> dict | None:
     if op == "import" and isinstance(frame.get("url"), str) and len(frame["url"]) <= MAX_IMPORT_URL:
         return {"op": op, "url": frame["url"]}
     return None
+
+
+def desktop_request_id(frame: dict) -> str | None:
+    request = frame.get("request")
+    return request if isinstance(request, str) and IMPORT_REQUEST_ID.fullmatch(request) else None
+
+
+def import_request(frame: dict) -> dict | None:
+    request, url, clicked = desktop_request_id(frame), frame.get("url"), frame.get("date")
+    if request is None:
+        return None
+    if not isinstance(url, str) or not 0 < len(url) <= MAX_IMPORT_URL:
+        return None
+    if not isinstance(clicked, str) or not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", clicked):
+        return None
+    try:
+        date.fromisoformat(clicked)
+    except ValueError:
+        return None
+    return {"request": request, "url": url, "date": clicked}
 
 
 class ExtensionMissing(AutomationError):
@@ -393,6 +415,18 @@ class Connection:
                     self.hello = {**self.hello, "permissions": frame["granted"]}
         elif frame.get("event") == "player.command":
             self._listener._player_command(frame)
+        elif frame.get("event") in ("import.request", "activate.request"):
+            op = frame["event"].removesuffix(".request")
+            request = import_request(frame) if op == "import" else {"request": desktop_request_id(frame)}
+            callback = self._listener.on_desktop_request
+            if self.compatible and request and request["request"] and callback is not None:
+                def reply(code):
+                    self._send_quietly({"event": op + ".result", "request": request["request"], "code": code})
+                try:
+                    callback(dict(request, op=op), reply)
+                except Exception:
+                    LOGGER.exception("webext desktop callback failed")
+                    reply("unavailable")
         elif "event" in frame:
             with self._lock:
                 sessions = list(self._sessions)
@@ -451,6 +485,8 @@ class Listener:
         # (player_command). The CLI sets neither, so the panel's buttons do nothing there.
         self._player: dict | None = None
         self.on_player_command: Callable[[dict], None] | None = None
+        self.on_desktop_request: Callable[[dict, Callable[[str], None]], None] | None = None
+        self._import_instance = secrets.token_hex(16)
 
     def start(self) -> None:
         if self._listener is not None:
@@ -547,6 +583,8 @@ class Listener:
         if len(str(state.get("artwork", ""))) > MAX_ARTWORK:
             state = dict(state, artwork="")
         frame = {"cmd": "player.state", "args": state}
+        if self.on_desktop_request is not None:
+            frame["importInstance"] = self._import_instance
         with self._cond:
             self._player = frame
             conns = [c for c in self._conns if c.compatible]

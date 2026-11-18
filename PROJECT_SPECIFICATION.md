@@ -7,7 +7,7 @@
 | **Owner** | Filip Białogrecki |
 | **Last updated** | 2026-11-18 |
 | **Product version** | 1.6.0 (`pyproject.toml`); browser extension 1.4.4 (`dj_digger/webext/extension/manifest.json`) |
-| **Document lines** | <!-- SPEC TOTAL LINES -->2750<!-- END SPEC TOTAL LINES --> |
+| **Document lines** | <!-- SPEC TOTAL LINES -->2787<!-- END SPEC TOTAL LINES --> |
 | **Verified against** | `pyproject.toml`, `dj_digger/`, `dj_digger/webext/extension/manifest.json`, `scripts/`, `tests/`, `.github/workflows/`, `README.md`, `CHANGELOG.md` |
 
 ## Purpose of this file
@@ -54,66 +54,66 @@ text is never promoted into the map.
 | 2 | Product purpose and execution modes | 162–209 |
 | 2.1 | ↳ Problem and product boundary | 164–177 |
 | 2.2 | ↳ Execution modes | 178–209 |
-| 3 | User-visible capabilities | 210–1230 |
-| 3.1 | ↳ Track collection | 212–237 |
-| 3.2 | ↳ Link classification and exports | 238–256 |
-| 3.3 | ↳ Track statuses | 257–267 |
-| 3.4 | ↳ Audio preview | 268–440 |
-| 3.5 | ↳ Downloads and local-file matching | 441–502 |
-| 3.6 | ↳ Store purchase assistance | 503–626 |
-| 3.7 | ↳ Local library, analysis and audio export | 627–814 |
-| 3.8 | ↳ Qt Quick desktop | 815–1230 |
-| 4 | System context and data flow | 1231–1277 |
-| 4.1 | ↳ Context diagram | 1233–1259 |
-| 4.2 | ↳ Collection-to-library flow | 1260–1277 |
-| 5 | Repository layout and component ownership | 1278–1367 |
-| 5.1 | ↳ Entry, orchestration, and models | 1280–1291 |
-| 5.2 | ↳ Network and external-system adapters | 1292–1324 |
-| 5.3 | ↳ Persistence, local media, and UI | 1325–1367 |
-| 6 | Runtime architecture and environments | 1368–1513 |
-| 6.1 | ↳ Runtime and dependencies | 1370–1398 |
-| 6.2 | ↳ Concurrency and lifecycle | 1399–1476 |
-| 6.3 | ↳ Local paths and environment variables | 1477–1513 |
-| 7 | Data model and persistence | 1514–1639 |
-| 7.1 | ↳ Domain objects and identity | 1516–1530 |
-| 7.2 | ↳ SQLite schema and invariants | 1531–1587 |
-| 7.3 | ↳ Crate persistence and deletion | 1588–1603 |
-| 7.4 | ↳ Configuration and credential stores | 1604–1639 |
-| 8 | Public interfaces and contracts | 1640–1703 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1642–1673 |
-| 8.2 | ↳ JSON and CSV summary input | 1674–1689 |
-| 8.3 | ↳ URL-opening contract | 1690–1703 |
-| 9 | Authentication and authorization | 1704–1781 |
-| 9.1 | ↳ SoundCloud authentication | 1706–1746 |
-| 9.2 | ↳ Gate action consent | 1747–1781 |
-| 10 | External integrations | 1782–2194 |
-| 10.1 | ↳ SoundCloud API and media | 1784–1795 |
-| 10.2 | ↳ Link hubs and download gates | 1796–1942 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1804–1899 |
-| 10.2 · block | ↳ ↳ ToneDen | 1901–1925 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1927–1935 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1937–1942 |
-| 10.3 | ↳ Browsers and clipboard | 1943–2139 |
-| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 2140–2194 |
-| 11 | Security requirements and threat model | 2195–2415 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2197–2215 |
-| 11.2 | ↳ Secret and personal-data handling | 2216–2231 |
-| 11.3 | ↳ File and mutation safety | 2232–2253 |
-| 11.4 | ↳ Browser-extension trust boundary | 2254–2415 |
-| 12 | Privacy, lifecycle, and retention | 2416–2475 |
-| 12.1 | ↳ Data stored locally | 2418–2442 |
-| 12.2 | ↳ Data sent to third parties | 2443–2460 |
-| 12.3 | ↳ User-controlled deletion | 2461–2475 |
-| 13 | Failure behavior and current limitations | 2476–2588 |
-| 13.1 | ↳ Error isolation and reporting | 2478–2499 |
-| 13.2 | ↳ Confirmed limitations | 2500–2588 |
-| 14 | Verification, CI, and release | 2589–2713 |
-| 14.1 | ↳ Offline and live test suites | 2591–2642 |
-| 14.2 | ↳ Continuous integration and publishing | 2643–2696 |
-| 14.3 | ↳ Specification-map verification | 2697–2713 |
-| 15 | References | 2714–2750 |
-| 15.1 | ↳ Primary implementation evidence | 2716–2737 |
-| 15.2 | ↳ User and historical documentation | 2738–2750 |
+| 3 | User-visible capabilities | 210–1236 |
+| 3.1 | ↳ Track collection | 212–244 |
+| 3.2 | ↳ Link classification and exports | 245–263 |
+| 3.3 | ↳ Track statuses | 264–274 |
+| 3.4 | ↳ Audio preview | 275–447 |
+| 3.5 | ↳ Downloads and local-file matching | 448–509 |
+| 3.6 | ↳ Store purchase assistance | 510–633 |
+| 3.7 | ↳ Local library, analysis and audio export | 634–821 |
+| 3.8 | ↳ Qt Quick desktop | 822–1236 |
+| 4 | System context and data flow | 1237–1283 |
+| 4.1 | ↳ Context diagram | 1239–1265 |
+| 4.2 | ↳ Collection-to-library flow | 1266–1283 |
+| 5 | Repository layout and component ownership | 1284–1373 |
+| 5.1 | ↳ Entry, orchestration, and models | 1286–1297 |
+| 5.2 | ↳ Network and external-system adapters | 1298–1330 |
+| 5.3 | ↳ Persistence, local media, and UI | 1331–1373 |
+| 6 | Runtime architecture and environments | 1374–1519 |
+| 6.1 | ↳ Runtime and dependencies | 1376–1404 |
+| 6.2 | ↳ Concurrency and lifecycle | 1405–1482 |
+| 6.3 | ↳ Local paths and environment variables | 1483–1519 |
+| 7 | Data model and persistence | 1520–1650 |
+| 7.1 | ↳ Domain objects and identity | 1522–1536 |
+| 7.2 | ↳ SQLite schema and invariants | 1537–1598 |
+| 7.3 | ↳ Crate persistence and deletion | 1599–1614 |
+| 7.4 | ↳ Configuration and credential stores | 1615–1650 |
+| 8 | Public interfaces and contracts | 1651–1714 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1653–1684 |
+| 8.2 | ↳ JSON and CSV summary input | 1685–1700 |
+| 8.3 | ↳ URL-opening contract | 1701–1714 |
+| 9 | Authentication and authorization | 1715–1792 |
+| 9.1 | ↳ SoundCloud authentication | 1717–1757 |
+| 9.2 | ↳ Gate action consent | 1758–1792 |
+| 10 | External integrations | 1793–2228 |
+| 10.1 | ↳ SoundCloud API and media | 1795–1806 |
+| 10.2 | ↳ Link hubs and download gates | 1807–1953 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1815–1910 |
+| 10.2 · block | ↳ ↳ ToneDen | 1912–1936 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1938–1946 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1948–1953 |
+| 10.3 | ↳ Browsers and clipboard | 1954–2173 |
+| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 2174–2228 |
+| 11 | Security requirements and threat model | 2229–2449 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2231–2249 |
+| 11.2 | ↳ Secret and personal-data handling | 2250–2265 |
+| 11.3 | ↳ File and mutation safety | 2266–2287 |
+| 11.4 | ↳ Browser-extension trust boundary | 2288–2449 |
+| 12 | Privacy, lifecycle, and retention | 2450–2509 |
+| 12.1 | ↳ Data stored locally | 2452–2476 |
+| 12.2 | ↳ Data sent to third parties | 2477–2494 |
+| 12.3 | ↳ User-controlled deletion | 2495–2509 |
+| 13 | Failure behavior and current limitations | 2510–2625 |
+| 13.1 | ↳ Error isolation and reporting | 2512–2533 |
+| 13.2 | ↳ Confirmed limitations | 2534–2625 |
+| 14 | Verification, CI, and release | 2626–2750 |
+| 14.1 | ↳ Offline and live test suites | 2628–2679 |
+| 14.2 | ↳ Continuous integration and publishing | 2680–2733 |
+| 14.3 | ↳ Specification-map verification | 2734–2750 |
+| 15 | References | 2751–2787 |
+| 15.1 | ↳ Primary implementation evidence | 2753–2774 |
+| 15.2 | ↳ User and historical documentation | 2775–2787 |
 <!-- END GENERATED SECTION MAP -->
 
 ---
@@ -234,6 +234,13 @@ order and duplicates, and rejects repeated next-page URLs rather than reporting
 a truncated import as complete. Pagination retains API-host validation and
 cancellation checks. HTTP errors identify the failed request without inferring
 that every 404 means a private collection.
+
+The browser and the desktop's Import playlist from link dialog import Daily Drops and Weekly Wave as dated local snapshots. The desktop reads the
+canonical public recommendation page without redirects (2 MB ceiling), validates its matching
+system-playlist ID manifest, hydrates every track, and restores the manifest order including
+repetitions. An incomplete response leaves the library untouched. The source key incorporates
+the series, personalized permalink and local date at browser click or desktop import. A repeated import opens the same
+day's saved result. These records retain their order without a refresh or provider alias.
 
 ### 3.2 Link classification and exports
 
@@ -626,12 +633,11 @@ two-column grid; track labels and reasons are rendered as literal text.
 
 ### 3.7 Local library, analysis and audio export
 
-The desktop sidebar (§3.8) lists playlists above a lazy folder explorer in one
-scrolling panel. A folder opens as 250-file pages; previous/next page controls
+The desktop sidebar (§3.8) lists playlists above a lazy folder explorer in two independently scrolling panes. A folder opens as 250-file pages; previous/next page controls
 appear under the sidebar only for folders above one page.
 Names load before metadata; no audio analysis or content hashing
 runs just because a directory is opened.
-Local rows do not require a `LinkRecord`. `ctrl+l` creates/appends a local playlist.
+Local rows do not require a `LinkRecord`. Send to creates a playlist from the selected rows or appends them to an existing destination.
 A local track's name is its file name on disk without the extension, never a tag
 title. Its artist is, in order, the one set by hand (`manual_json` `artist`), the
 file's artist tag, or the text before the first ` - ` of the file name unless that
@@ -736,9 +742,10 @@ before this, the set is CDJ-350, 850/850-K, 2000, 2000NXS, 2000NXS2, 3000 and
 3000X. Exports copy every selected audio
 file to a unique new folder, including unchanged files. An unselected folder view
 covers all matching pages; recursion is explicit. Export audio… in the sidebar menu
-of a local playlist (`local-playlist:` sources only) exports every file of that
-playlist, in playlist order, without opening it; the files are read from
-`local_playlist_media` off the UI thread. A file is kept as it is only
+of a local playlist (`local-playlist:` sources only) exports the active local file
+members in playlist order without opening the playlist. If it contains SoundCloud
+members, the label gives the local file count. With zero local files the action is
+disabled. The files are read from `local_playlist_media` off the UI thread. A file is kept as it is only
 when every chosen deck plays it according to the rules below; PCM and, for a FLAC
 target, FLAC/ALAC otherwise convert to the target, while a lossy file some chosen
 deck cannot play is listed as an exception rather than transcoded. Only necessary
@@ -821,7 +828,7 @@ appear only in local views. Transport buttons use SVG icons with accessible labe
 from the bottom edge of its panel, never mirrored, filling the space down to the
 transport row; the desktop uses the same averaged, normalized envelope and
 level curve in `waveform.py`. Desktop bars share one vertical gradient from the
-first to the second resting colour of the colour pair chosen in View → Colours,
+first to the second resting colour of the colour pair chosen in Preferences → Colours,
 bottom to top of the panel; the unplayed layer
 draws it with reduced opacity (0.38 dark theme, 0.45 light theme), and a 2 px
 playhead in the foreground colour is placed at subpixel precision. While a track plays, a 25 ms backend tick sends a
@@ -831,7 +838,7 @@ track time reaching the speaker (`Player.heard()`), `at`, the epoch time it was 
 the backend has served. Table cells and transport state bind to the
 bridge's `audioKey` and `playing`, which change only when the track or play state does, and the waveform bar levels
 and band shares (`waveformColumns`, read from the waveform the bridge holds) follow the bar count (one per 3 px)
-50 ms after a resize settles, as the bar canvases repaint.
+during resizing. The canvases repaint at the current width with horizontal edges snapped to device pixels and nearest filtering.
 The window shows these as they are heard:
 - Clock: it starts from the snapshot's `heard`, advanced by the time since
   `at`, so delivery delay does not make the light late. It runs in real time
@@ -893,7 +900,7 @@ chosen in Settings, else stays the plain tone. The backend cuts the picture's
 centre square to a 256 px circle (`gui/artwork.py`, QImage on the worker, no
 shader) and sends it as a PNG data URL in an `artwork` event (key, image, square) after
 playback has started, with the same picture's centre square uncut at 384 px; its colours are not altered and nothing is drawn over it.
-View → Vinyl artwork (on by default) turned off shows that square picture, still, over the
+Preferences → Vinyl artwork (on by default) turned off shows that square picture, still, over the
 whole cover instead of the record whenever the track has one.
 It turns with the record and fades in (300 ms) when it loads; artwork of any
 other track is ignored and the picture is cleared when another track loads. Its
@@ -907,7 +914,7 @@ panel, down to 72 px, and is hidden only below 480 px. These
 details arrive in a separate `nowPlaying` event when a track loads or its rows
 refresh (for example after analysis or an edit), not in the position snapshots.
 The palette is near-black (light theme: silver-grey) with a bordeaux second accent and silver
-secondary text; the accent and the selection follow the colour pair chosen in View → Colours. The
+secondary text; the accent and the selection follow the colour pair chosen in Preferences → Colours. The
 accent is the pair's first neon colour on the dark theme and its first resting colour darkened 1.45×
 (HSV value) on the light theme, at least 5:1 against panel and window background for every pair. Selected rows,
 playlists and folders, and store pills or filters that are on, use the pair's first resting colour faded
@@ -924,14 +931,14 @@ was drawn with. Icon buttons use 16 px icons (toolbar, sidebar, search, banner) 
 10 px. Hover tooltips appear after 500 ms (the volume readout at once while dragging). In local views BPM and key render as chips; BPM shows
 one decimal place when fractional. Keys are parsed from common spellings (`Am`,
 `A minor`, `Amin`, `8A`, enharmonic sharps/flats) by `analysis.key_names`, shown
-in Camelot or classic notation (View → Key notation, default Camelot), sorted
+in Camelot or classic notation (Preferences → Key notation, default Camelot), sorted
 around the Camelot wheel with unrecognised keys last, and tinted with one of
 twelve wheel hues 30° apart in OKLCH (lightness 0.70, chroma 0.15, 1 at 180°),
 lighter for B keys. A key chip is ringed in the text colour, never a key hue, when it mixes harmonically with the
 playing track (same key, one step around the wheel, or the relative
 major/minor) and a BPM chip when it is within 3 % of the playing tempo; the
 playing row itself is never ringed.
-Motion is on by default and View → Animations turns all of it off: rows fade to
+Motion is on by default and Preferences → Animations turns all of it off: rows fade to
 a hover surface; a status change other than to `played` flashes its rows (success colour for owned,
 muted for skipped, accent otherwise; not for more than 100 rows at once, and also after a sort or
 filter rebuilt the rows); download fills carry a sweeping highlight only while
@@ -951,8 +958,7 @@ painted again. The motion stops while minimized. At idle (no track playing, no
 operation running) no frame loop, endless animation or repeating timer runs: the beat
 pulse runs only while playing, the record's spin is paused, the busy sweep and spinner
 only run while busy, and the backend's 25 ms audio snapshot tick runs only while playing
-(every 0.5 s while a track is loaded and paused, not at all with none). Until the loaded track's waveform
-event arrives the artwork shows a white backdrop and label on a blank record and the bars flicker as
+(every 0.5 s while a track is loaded and paused, not at all with none). From the play request through source preparation and waveform delivery, the record has a moving backdrop in the chosen colour pair and a white label. A stopped or superseded request releases its loading state. During loading the bars flicker as
 noise, each rising and falling with its own random range, speed and phase, unrelated to its neighbours
 (about 30 repaints a second of the unplayed layer only). A track change scatters the bars on screen into
 that noise (450 ms); when the waveform arrives the bars settle from their current heights into the envelope (700 ms) while the key colours and the record code fade in
@@ -982,22 +988,21 @@ tree with everything below it; the Folders section menu lists the hidden folders
 again (Settings → Preferences → Hidden folders still edits the list, one per line). Folders dropped on the Folders section from a
 file manager are added as Add folder… adds them.
 
-The sidebar is one scrolling panel: a filter field, then the Playlists and Folders sections, each under a centred uppercase
-header with a chevron. Clicking a header folds its section away or back (persisted, see below); the header's “⋯” button or a right
-click opens the section menu: Add playlist… and Import profile playlists… for Playlists, Add folder… and Hidden folders for
+The sidebar has a filter field and a vertical splitter between Playlists and Folders. Each pane has a
+fixed header and an independent scrolling body. They start at equal height. Dragging saves their proportion
+in `sidebarSplit`; double-clicking the divider or resetting the layout restores half height. Clicking a header folds its section away or back (persisted, see below); the header's “⋯” button or a right
+click opens the section menu: Import playlist from link… and Import profile playlists… for Playlists, Add folder… and Hidden folders for
 Folders. The filter (any case) keeps playlists whose title holds it, and roots and tree rows whose name holds it or that hold such
-a folder among those the tree has already read; it never reads more of the disk. Expanded trees are as tall as their rows, so only
-the panel scrolls. Right under the last entry of each list sits a full-width, rectangular, borderless row with a centred muted “+”
-(Add playlist, Add folder…, named in its tooltip and accessible name) that lights only on hover.
+a folder among those the tree has already read; it never reads more of the disk. Expanded trees are as tall as their rows, so the folders body scrolls independently. Right under the last entry of each list sits a full-width, rectangular, borderless row with a centred muted “+”
+(Import playlist from link…, Add folder…, named in its tooltip and accessible name) that lights only on hover.
 
 Playlist rows show an SVG icon with an accessible name (a list with a note for local playlists, a cloud for SoundCloud ones), the
 title and the number of active tracks (§7.2); a playlist still importing shows a spinner and no count. Arrows move through the
 list and Enter opens the current playlist, as a click does. The playlist menu acts on that playlist: Open, Refresh (SoundCloud
 playlists: shows the playlist and imports it again), Rename… (a SoundCloud playlist keeps the new title over SoundCloud's on
-refresh, §7.3), Duplicate… (local playlists: a new local playlist with the same files), Export audio… (local playlists:
-the audio export of §3.7 for all of its files; disabled with “wait for the current task” while an operation runs) and Delete playlist…. In local views,
-selected tracks dragged from the table onto a local playlist are added at its end (the drag starts on a selected row; one started on an unselected row selects rows
-instead); SoundCloud playlists accept no drops.
+refresh, §7.3), Restore removed tracks, Duplicate… (local playlists: a new local playlist with the same active ordered members), Export audio… (local playlists:
+the audio export of §3.7 for its active local file members; disabled while an operation runs or when no local file members are present) and Delete playlist…. Tracks dragged from selected rows onto an editable playlist use the same ordered append and membership checks as Send to.
+An owned SoundCloud destination requires a fully identified SoundCloud selection. Snapshots have no refresh or append action.
 
 Root rows and tree rows share one 28 px row style: a 20 px chevron slot (empty, but keeping its place, without visible
 subfolders, so names line up), a folder icon, 16 px indentation per level, a hover surface and the accent selection background.
@@ -1023,8 +1028,16 @@ continuous progress fill spans the full row background while downloading, with
 the percentage in the Status column and text drawn above the fill. The fill
 follows column widths and horizontal scrolling; selection remains visible in
 both themes. The player card, search field, toolbar and table share one 8 px right margin. The toolbar above the table has two rows: the search field across its whole width, then the actions on the selection at the left, the store pills, a visible / total count and, at the right end, the status filter and Filters. Every toolbar control is 32 px high. The search field has rounded corners and the toolbar buttons' faint outline on the window background (accent while focused), shows `/`, its shortcut, as a key at its right end while empty and unfocused, and a clear (×) button while it holds text. Dialog field outlines, checkbox frames and scroll handles use the `border` colour (palette `mid`), at least 3:1 against both surfaces; menu separators stay in the quieter `alternate` colour. In playlist views the store pills follow the search: “All stores”, then one pill per store or gate site present in the view, named and counted as the Stores column names them (`Bandcamp 12`, `Hypeddit 3`), most frequent first; they scroll sideways when the row is too narrow, and another view starts them scrolled back to the first pill. Several pills can be on at once (a track matching any of them shows) and none on shows every store; the filter keeps store names, so changing counts never shift it, and a store that leaves the view leaves the filter. The status filter is as wide as its longest option in the current language and offers All statuses, Unhandled (new, played and opened), New (new and played), Opened, Owned and Skipped; H switches it between All statuses and Unhandled. Filters opens a small popup with a BPM range and “Mixes with the playing track” (Camelot-compatible keys, local views only) and a genre fragment, plus Clear filters; it takes the selection colour and an accent outline while any of these is set, like a pill that is on. While any filter or search is active the count beside the pills shows visible / total in the accent colour, in its own slot after the pill row (never over the pills); when nothing matches, the empty table says so and offers Clear filters. With no view open the table shows a start state:
-a playlist icon, “Start digging”, a line pointing at the sidebar, Add playlist…, Add folder… and Import profile
-playlists… buttons, and the shortcuts beneath. Esc clears the selection, then the search, then every filter. Opening another view (another source or title, not another page or a refresh) clears the search, store, BPM, key and genre filters and keeps the status filter. Whenever a view is loaded the action group shows icon buttons for Open in browser, Download and Mark owned (playlist views only), Skip, Analyze BPM / key (local views only) and More actions, each a 32 px tile with a faint outline, transparent until hovered, with 6 px between tiles; buttons that need a selection are disabled without one. Open in browser and Download wait while an operation runs. Playlist actions (open, download, mark owned, cart, their whole-view variants and Export links in the Tracks menu) are hidden or disabled in local views, local-file actions in playlist views. The buttons use the same `Action` objects as the shortcuts, so their tooltips name the key that works. A right click on a row or below the last row, the Menu key or Shift+F10 at the keyboard row, and More actions open the same row menu (described below). The action buttons show icons only; tooltips name the action and its shortcut. A status bar spans the whole window below the sidebar and the table with visible/total/owned/skipped counts on the left, the busy indicator, a Cancel button during operations and the last message; during a playlist import the message shows the stage with done / total counts beside a progress bar, at most ten updates a second. Add playlist asks to paste a link to a SoundCloud playlist and re-opens with an error until the text is a soundcloud.com link. The import is listed at the top of the playlist sidebar at once, with a spinner and the link as its name until SoundCloud reports the title, and cannot be opened from there; the table opens on it and fills batch by batch in playlist order. These provisional rows are not saved: when the import succeeds they are replaced by the saved playlist, and when it fails, is cancelled or finds nothing the view is withdrawn and the sidebar entry disappears. Refresh keeps the current rows until the new ones are saved. The menu bar holds actions with no button elsewhere plus the transport: Library (refresh; Open recent, the last eight playlists and folders opened, newest first, playlists no longer in the sidebar left out; headed sections Import — import profile playlists, import saved summary, restore removed tracks —, Folder — pin folder, analyze folder, scan local library — and Export — resume interrupted export; quit; the less obvious entries carry a short tooltip), Tracks (select all Ctrl+A, select none Ctrl+Shift+A, invert selection Ctrl+I — the visible rows not selected —, undo status change; open, download and add to store carts for all visible; save local playlist, export links), Playback (the player's own play/pause, stop, previous/next, 10 s and 30 s seeks, the start-previews-at-30 % toggle and volume/mute `Action`s with their keys), View (show sidebar Ctrl+B, full screen F11, which returns to the windowed or maximized state it left; a Columns submenu mirroring the header menu's visibility toggles; Reset layout, which restores default column widths and order and the 220 px sidebar; language, theme, colours, key notation; vinyl artwork; animations, compact rows), Settings (Preferences, Shift+S or Ctrl+,; one SoundCloud entry, “Sign in to SoundCloud…” or “Signed in as <name> — Sign out…”; two browser entries, “Connect browser…” always and “Connected: <browser> — Disconnect…” or a disabled “No browser connected”) and Help (keyboard shortcuts, F1 or ?; messages; diagnostics; open data folder; open log folder, the folder of the current log file; check for updates, which opens the GitHub releases page through the safe `open_url` and makes no request of its own; About dj-digger…, a dialog with the version, the Apache License 2.0 and the data folder as a copyable path). The backend sends the SoundCloud and browser state (`account`: signed in, the saved user name only when the stored token is the one in use, and the most recently active compatible extension's browser — never the token) at start, after sign-in, sign-out, Connect browser and Disconnect, and whenever the Settings menu opens. Sign-in/sign-out, the imports, restore and disconnect are disabled while an operation runs. Checkable View entries bind `checked` to the window state and set the state from the new check when triggered. Each colour entry shows a two-colour swatch of the pair's neon colours, and the pairs are grouped by the first colour's family between separators. Actions the toolbar, the row menu or the sidebar already offer (open, download, mark owned, skip, reset, BPM/key analysis and editing, cart, remove, add playlist, add folder, delete playlist, search, hide handled (switches the status filter)) are window-level `Action`s outside the menus, so their shortcuts still work, and the Help dialog lists them under Selected tracks and Other after the menus, whose entries — submenus included — it lists with every key that works, and ends with a Waveform section for the digit, hot-cue and wheel keys. Entries that open a dialog or a sign-in end in “…”; Delete playlist sits after a separator in the playlist menu. Every menu entry, including the row and playlist context menus, uses one layout: a fixed check column, the label and the shortcut (or colour swatch) in the muted color, and menus size to their widest entry after retranslation. Space is the shortcut of the Play / pause action. Single-key shortcuts (add, refresh, open, download, got/skip/reset, undo, remove, search, hide handled, seek, percentage jumps, next/previous, stop, volume, mute, sidebar) and Shift+S for Preferences are listed in a generated Help dialog; they are suppressed while text fields or modal dialogs have focus. Actions that need a selection are disabled without one;
+a playlist icon, “Start digging”, a line pointing at the sidebar, Import playlist from link…, Add folder… and Import profile
+playlists… buttons, and the shortcuts beneath. Esc clears the selection, then the search, then every filter. Opening another view (another source or title, not another page or a refresh) clears the search, store, BPM, key and genre filters and keeps the status filter. For a loaded view the quick actions are Download, Mark owned and Skip for remote tracks, and Analyze and Skip for files.
+On narrow layouts these commands move into More actions. A right click, Menu, Shift+F10 and More actions open the same selection menu.
+Mixed selections disable commands that require all files or all SoundCloud tracks. A status bar spans the whole window below the sidebar and the table with visible/total/owned/skipped counts on the left, the busy indicator, a Cancel button during operations and the last message; during a playlist import the message shows the stage with done / total counts beside a progress bar, at most ten updates a second. Import playlist from link asks to paste a link to a SoundCloud playlist and re-opens with an error until the text is a soundcloud.com link. The import is listed at the top of the playlist sidebar at once, with a spinner and the link as its name until SoundCloud reports the title, and cannot be opened from there; the table opens on it and fills batch by batch in playlist order. These provisional rows are not saved: when the import succeeds they are replaced by the saved playlist, and when it fails, is cancelled or finds nothing the view is withdrawn and the sidebar entry disappears. Refresh keeps the current rows until the new ones are saved. Library holds source import, opening recent items, refresh, scanning, export recovery and Quit.
+Tracks holds Select all and Invert selection at every window width, alongside Select none and status undo.
+Bulk open, download and cart commands show the number of tracks visible after filtering. The two link export choices show their selected or visible track count.
+Playback holds transport, seeking and volume. View controls sidebar, fullscreen, columns, layout reset and compact rows.
+Settings opens Preferences, also available through Shift+S or Ctrl+,. Appearance, playback, downloads, gates and carts,
+folders, account and browser controls are grouped in the preferences dialog. Help retains shortcuts, messages, diagnostics,
+data/log folders, update checking and About. Account changes use the existing sign-in, sign-out and connection flows. Space is the shortcut of the Play / pause action. Single-key shortcuts (add, refresh, open, download, got/skip/reset, undo, remove, search, hide handled, seek, percentage jumps, next/previous, stop, volume, mute, sidebar) and Shift+S for Preferences are listed in a generated Help dialog; they are suppressed while text fields or modal dialogs have focus. Actions that need a selection are disabled without one;
 whole-view variants (open all visible, download all visible, cart for all
 visible) are separate explicit commands, and opening more than ten links or
 downloading more than ten tracks asks first, naming the count. Errors appear in a separate, dismissible banner with a
@@ -1037,18 +1050,15 @@ goes first), fading in only with animations on, dismissed by a click, never taki
 (artist and title, links, a path) shows “Copied to the clipboard” when something was copied. The status-bar counts, filter count,
 busy indicator and import progress carry accessible names and descriptions.
 
-The row menu is built from the toolbar's own `Action`s, so labels, shortcuts and enabled states
-match, in groups divided by separators: Play (Enter) and Open in browser; Download, Mark owned, Skip and
-Reset status; Copy artist and title (Ctrl+C) and Copy link, which copies the selected tracks'
-SoundCloud links (http/https only, one per line); Select all (Ctrl+A) and Invert selection, which
-selects the visible rows that were not selected; Reveal in file manager (opens the file's folder,
-with the file selected on Windows and macOS; one track), Edit BPM / key, Analyze BPM / key and Export
-audio; Add to store carts; and, in the danger colour, Remove from playlist or Delete files. Store and
-SoundCloud entries (Open in browser, Download, Mark owned, Copy link, Add to store carts, Remove from playlist) are hidden
-in local views and local-file entries (Reveal, Edit, Analyze, Export, Delete files) in online views;
-within a view an entry that does not apply is disabled, and Edit and Reveal with several tracks
-selected, or busy-gated entries during an operation, name the reason after the label. With more
-than one track selected, Export, Remove and Delete name the count (“Delete 5 files…”). A right
+The row menu includes Play, Send to, Open track in SoundCloud (one recognized track permalink), Find in
+(Beatport, Bandcamp, YouTube, YouTube Music or Spotify), Open saved link, copy and reset status.
+Find in opens an encoded artist/title search in the configured browser, including for local files. Neither lookup
+changes track status. File actions include Reveal, BPM/key editing and audio export. Store carts are available
+for remote tracks. Removal from a playlist and deletion of files in a folder are distinct confirmed actions.
+Send to lists Create playlist from selection… first, then editable sidebar destinations tagged DJ Digger or SoundCloud.
+New playlists accept mixed local and SoundCloud tracks and have distinct identities even with equal titles.
+The displayed selection order is captured when Send to is invoked. Existing entries are skipped in a transaction
+and previously removed entries can be restored. Local playlist deletion preserves media and global statuses. A right
 click below the last row keeps the selection. A right click while a name is edited in place saves
 the edit before the menu opens, and the table takes the keyboard back when the menu closes.
 
@@ -1061,7 +1071,7 @@ a dragged volume slider sends at most one level every 50 ms, the latest. The ove
 up; touchpad deltas add up). Shortcuts: [ and ] seek 10 s, { and } (Shift+[ / Shift+] on most layouts) 30 s;
 1-9 jump to 10-90 % and 0 to the start; Ctrl+1-4 set hot cue 1-4 at the playhead and Alt+1-4 jump to it;
 S stops. Hot cues are kept per track key in memory for the session only (the library has
-no place for them). Playback → Start previews at 30 % (persisted as `previewStart`) makes each newly
+no place for them). Preferences → Playback → Start previews at 30 % (persisted as `previewStart`) makes each newly
 loaded track seek there once, unless a seek was served for the track first. The waveform arrives in its own event once per loaded track, after
 playback has started and empty when none could be had, and is painted in cached normal and peak layers; progress moves a clip edge and the
 cursor. The 25 ms position snapshots carry only key, title, state, position and duration and
@@ -1077,12 +1087,12 @@ closes: an invalid answer re-opens the same dialog with the entered values and
 the error message instead of discarding the input. Closing a dialog that belongs to no running job
 (Settings, a confirmation before anything started) with Cancel or Escape says nothing; "Cancelled"
 is shown only when a running job or one of its questions was cancelled.
-Language selection (View → Language, listed by endonym) supports English, German, Spanish,
+Language selection (Preferences → Language, listed by endonym) supports English, German, Spanish,
 French, Italian, Polish and Russian UI catalogs; the first start follows the system locale's
 language when it is one of these and English otherwise. Provider diagnostics
 and some service-generated summaries retain their original text. Themes support
 system, light, dark and high contrast (the dark theme on black surfaces with white text, near-white secondary text and
-brighter outlines; saved as `contrast`); View → Colours picks the pair that paints the waveform
+brighter outlines; saved as `contrast`); Preferences → Colours picks the pair that paints the waveform
 and artwork backdrop (magenta and blue, the default; green and yellow; purple and
 orange; cyan and magenta; crimson and ice blue; gold and chrome; violet and gold;
 teal and coral; emerald and pink; jade and raspberry; rose and mint; lime and
@@ -1091,15 +1101,13 @@ sky and lemon; indigo and lime), each with its own dark and light theme values.
 The light theme's resting colours are as light as 3:1 against the window
 background allows (relative luminance about 0.21-0.25), lighter than the dark
 theme's except where the dark rest is already above that limit (yellow), and
-saturated, so they do not read as muddy on white. The
-current language, theme, colour pair, key notation, sidebar
-and animation state checked in the menus. The application palette covers alternating folder rows,
+saturated, so they do not read as muddy on white. The current presentation values are reflected in Preferences and View. The application palette covers alternating folder rows,
 input placeholders, control indicators, disabled text, popup states and tooltips;
 selected rows pair their foreground with the selected background in both themes.
 Playlist and pinned-folder selection explicitly pair the accent background
 with selection text in both themes. At the 760×520 minimum window size, sidebar width is constrained to leave room for transport controls, volume is flexible, and the selection bar keeps to one icon-only row. The track table retains horizontal
 scrolling for columns that do not fit.
-Window dimensions, column widths, hidden columns, column order, sidebar width, visibility and folded sections (`sidebarCollapsed`), language, theme, colour pair (`colors`), key notation, the animation switch, the table sort (`sortColumn`, `sortReverse`), row density (`compactRows`), preview start (`previewStart`), vinyl artwork (`vinyl`) and the recent playlists and folders (`recent`: kind and target only) persist privately in `config_dir()/gui.json`; unknown keys (including the removed pulse timing) are dropped when saving and values are validated when loading. The playback level is a shared `volume` field in the
+Window dimensions, column widths, hidden columns, column order, sidebar width, split ratio, visibility and folded sections (`sidebarCollapsed`), language, theme, colour pair (`colors`), key notation, the animation switch, the table sort (`sortColumn`, `sortReverse`), row density (`compactRows`), preview start (`previewStart`), vinyl artwork (`vinyl`) and the recent playlists and folders (`recent`: kind and target only) persist privately in `config_dir()/gui.json`; unknown keys (including the removed pulse timing) are dropped when saving and values are validated when loading. The playback level is a shared `volume` field in the
 common configuration: the runtime applies it when the player is created and
 saves it on shutdown, so the desktop starts at the level last set. Existing data, credentials and configuration paths stay
 unchanged on every platform.
@@ -1113,9 +1121,7 @@ confirmation; cart retry/manual completion and Soundiiz metadata transfer are
 explicit choices. There is no store login: the browser's own sessions are used, and
 neither store has a login: the Beatport cart needs the browser signed in to Beatport, else its path is the Soundiiz playlist. Settings shows an
 empty Email field while the reserved placeholder is configured, so saving never
-requires clearing it. Settings is grouped under section headers: Downloads (download
-folder), Gates and carts (name, email, social actions, gate comments, Bandcamp
-name-your-price), Browser (status, Open links in), Player (default cover) and a folded
+requires clearing it. Preferences groups appearance, playback, downloads, gates and carts, browser/account actions and a folded
 "Library folders (advanced)" section with the scan, pinned and hidden folder lists; most
 fields carry a one-line plain-language hint. Its Browser automation row is read-only text with the state
 of the extension: browser name and extension version with "connected", "missing
@@ -1125,7 +1131,7 @@ and is saved unchanged (links still resolve to the system default, §10.3). The 
 carts description says gates are free downloads for a follow, a like or an email, and
 that gates may follow, like, repost or comment, and connect
 Spotify, Deezer or Apple Music, on the accounts logged in to the user's browser
-(§9.2). The Settings menu always offers Connect browser… (a second browser can be connected and Check connection reached while one is), followed by Connected: <browser> — Disconnect… or, with none connected, a disabled No browser connected. A cart
+(§9.2). Preferences offers Connect browser… (a second browser can be connected and Check connection reached while one is), followed by Connected: <browser> — Disconnect… or, with none connected, a disabled No browser connected. A cart
 batch or the SoundCloud login that finds no connected extension opens the Connect
 browser dialog and repeats the call once the extension says hello (Not now is
 reported as cancelled): it registers the host (§10.3), tells Chrome, Edge and Brave
@@ -1541,8 +1547,9 @@ The default database is `digger.db`. `schema.open_database()` recognizes or crea
 `list_crate_headers()` returns source, title, updated, the `partial` flag
 (through `json_extract`) and `count`, the active tracks (a local playlist's items, or
 the stored tracks less the removed keys through `json_array_length`; a removed key
-no longer among the tracks still counts against them), so the sidebar never
-deserializes tracks. `rename_crate()` sets a title the user chose and marks the record
+no longer among the tracks still counts against them). `media_count` gives the
+active local file members of a local playlist. The sidebar never deserializes tracks.
+`rename_crate()` sets a title the user chose and marks the record
 `renamed`, so `remember_collection()` keeps it over the provider's title on refresh;
 `upsert_local_files()` writes scanner rows in one transaction.
 `set_track_status()` stamps `updated` itself.
@@ -1567,7 +1574,11 @@ storage forms. Media identity lookup uses the JSON index for candidates and
 compares exact Python integers before limiting results, preventing numeric
 rounding from conflating distinct IDs.
 
-`PRAGMA user_version=3` is created for new libraries. Schema 3 adds only
+New libraries use `PRAGMA user_version=4`. The additive v4 table
+`local_playlist_soundcloud_items` holds the SoundCloud key and track metadata alongside a position
+in the same ordering as `local_playlist_items`. Existing file memberships, ordering and legacy duplicates
+stay in place. The SQLite transaction adds the table on v2/v3 upgrades. Playlist headers carry optional
+provider and owner IDs. A matching signed-in account identifies editable provider destinations. Schema 3 adds only
 `waveforms(key PRIMARY KEY, signature, samples_json)`, the envelope of each played
 track (`samples_json` holds a peak list, or `{peaks, bands}` in rows kept by 1.4.0-1.5.0) with the local file's signature (`''` for a stream); rows are not pruned. A
 v2 library gains it inside the opening `BEGIN IMMEDIATE` transaction, without a backup. Existing recognized v0/v1
@@ -1956,7 +1967,8 @@ The channel has three parts. The browser starts the Native Messaging host
 `com.github.fbialogrecki.djdigger` (`dj-digger-host`: a console script, and in
 frozen builds a console executable beside the GUI) and exchanges four-byte
 length-prefixed JSON frames over its stdin and stdout. The host relays them
-unchanged to the application's `multiprocessing.connection` socket (§6.3). It
+unchanged to the application's `multiprocessing.connection` socket (§6.3), and
+consumes the local `{event: "desktop.launch"}` command itself. It
 authenticates both ways with the HMAC challenge keyed by `webext.json`, and only
 `send_bytes`/`recv_bytes` with JSON are used, never the pickling `send`/`recv`
 (a test greps the package for them). The host exits when the browser closes its
@@ -1977,7 +1989,9 @@ id (no reply, like `cancel`) to every compatible connection, not to a session, w
 the loaded track, its title or artist, play/pause, a seek, its artwork, the window's
 colour pair or theme, the running job or the gates waiting for a person change (only
 changes, at most one per 0.2 s; while a track plays its position alone at most every
-5 s), and `Listener` replays the last one after each `hello`. `args` are `title`,
+5 s), and `Listener` replays the last one after each `hello`. Desktop state
+includes a top-level `importInstance` once the backend can receive imports.
+It identifies the running desktop through a reconnect. `args` are `title`,
 `artist`, `playing`, `position` and `duration` (seconds) with `at` (the epoch seconds
 the position was read), `seed` (Main.qml's cover hash of the track key, never the
 key), `artwork` (a 192 px JPEG `data:` URL, left out above 48 KB), `jobs` (`busy`, `label`
@@ -1991,60 +2005,69 @@ own clock from `position` + (now − `at`) while playing and shows elapsed / tot
 A busy job shows its label (with "done / total" and a progress bar when `total` > 0)
 and Cancel; `needs` > 0 shows "N gates need you" with Open them / Skip them and is the
 action's badge text (in the pair's neon foot colour; cleared at 0 and when the app is
-gone). When the panel is opened over an https `soundcloud.com` (also `www.`, `m.`) set
-(`/<user>/sets/<name>`) or profile (`/<user>`, or `/<user>/sets`, `tracks`, `albums`,
-`popular-tracks`, `reposts`) and the app is there, it offers "Import this playlist into
-dj-digger" or "Import all playlists of this profile" and then says "Importing in
-dj-digger…"; a track page offers nothing. The context menu entry "Dig in dj-digger"
-(on a link to, or the page of, a `soundcloud.com`, `www.` or `m.` URL; hidden while
-the app is gone) sends the same import for a set, track (`/<user>/<track>`, not
-`likes`, `followers`, `following`, `comments` or `spotlight`) or profile and nothing
-otherwise.
+gone). With the desktop closed, the panel offers "Open dj-digger". With it
+running, "Show dj-digger" restores a minimized window and asks Qt to raise and
+activate it. The window manager determines whether focus changes. It offers an
+import on an HTTPS `soundcloud.com` page (including `www.` and `m.`) for a set
+(`/<user>/sets/<name>`), Daily Drops or Weekly Wave, or a profile (`/<user>` and
+its `sets`, `tracks`, `albums`, `popular-tracks` or `reposts` tab). It says
+"Importing in dj-digger…" once the desktop admits the job. The context menu
+"Dig in dj-digger" accepts supported playlist, profile and single-track links
+or pages while the app runs. A single track imports as a one-track playlist (§3.1).
 
 On `https://soundcloud.com/*` the manifest's one static content script, `soundcloud.js`
 (top frames only), adds "Import to DJ digger" with the app icon (`icons/icon-32.png`,
 inlined as a `data:` URL because the extension has no web-accessible resources) to
-SoundCloud's own controls, found by class name, never by text, so any UI language
-works: in the action row of a track or set page (`.listenEngagement__actions
-.sc-button-group`) after Add to playlist (`.sc-button-addtoset`), else before More
-(`.sc-button-more`), for the page's own URL; before More in the action row of each
-track or playlist of a stream, profile or search list (`.sound__soundActions
-.sc-button-group`) and of each track of a set's or station's track list
-(`.trackItem__actions .sc-button-group`), icon only like its neighbours; and as the last item of each More
-menu (`.dropdownMenu .moreActions`, as on library and discover tiles and list rows),
-for the item of the button that owns the menu (`aria-owns`). The button copies its
-neighbour's `sc-button-*`/`moreActions__button` classes and label class. The link is
-the first track or set link (raw `href`, taken against `https://soundcloud.com/`) in
-the control's item (`.trackItem`, `.soundBadge`, `.playableTile`, `.sound`,
-`.soundList__item`, `.badgeList__item`), or the page's URL inside
-`.listenEngagement`; `djdTarget` keeps only `https://soundcloud.com/<user>/<track>`
-or `/<user>/sets/<name>` (no query, fragment, private-share segment or SoundCloud's own
-pages) and a control without one gets no button. One `MutationObserver` on the body
-rescans at most once per animation frame, and a group that already holds the button is
-skipped, so SoundCloud's single-page navigation and re-renders are followed. A click
-(its default and SoundCloud's own handlers stopped, so a menu stays open) sends
-`runtime.sendMessage({op: "import", url})`; the button shows "Sending to DJ digger…",
-then "Sent to DJ digger" or "dj-digger app not running" (no app state, no native port,
-or the extension reloaded under the page) for three seconds.
+the action bar in a playlist page's header (`.listenEngagement__actions .sc-button-group`)
+and to a playlist tile (`.playableTile`) with one own
+`a.playableTile__artworkLink[href]` whose URL identifies a supported playlist.
+The script finds controls by class name and inserts the button after Add to
+playlist (`.sc-button-addtoset`) or before More (`.sc-button-more`). It uses the
+page's URL and the adjacent control's classes for the header. A tile uses
+its own artwork anchor. Track rows and nested or ambiguous tile scopes are
+excluded. The system playlist routes are
+`/discover/sets/new-for-you::<slug>` and `/discover/sets/weekly::<slug>`. Encoded
+colons normalize to literal colons. Import URLs are bounded to 512 characters
+and handed over without query or fragment. A `MutationObserver` rescans at most
+once per animation frame and replaces obsolete controls. A trusted click must
+still match the same page and header or the same tile and artwork anchor.
+The message carries `{op: "import", url}` with `tilePage` set to the sending
+page's path for a tile click.
+The control reports import admission, startup timeout, a busy desktop, or the
+need to install or update dj-digger.
 
-Everything goes to the app as `{event: "player.command", op, ...}`: `prev`, `toggle`,
-`next`, `cancel`, `seek {fraction}` (0–1), `gates {choice: "open"|"skip"}` and `import
-{url}` (the canonical `https://soundcloud.com/...` link, from the panel, the context
-menu or `soundcloud.js`). `link.py` hands the event to
-`Listener.on_player_command` instead of the sessions, with only the arguments its op
-takes after `player_command` checks them (types, the fraction's range, a URL of at
-most 512 characters); any other op, or no callback (the CLI), is ignored and logged
-without its content. The desktop runs each on its backend loop as the window's own
-step: previous/next track, play/pause and the transport seek (`fraction` × duration)
-only while a track is loaded; `cancel` is the status bar's Cancel; `gates` answers the
-"Gates need you" question (`next` = the choice) only while it is the oldest open
-question, the one on screen, and is ignored otherwise; `import` is checked again by
-`backend.import_target` (the same hosts and path shapes, Add playlist's
-`soundcloud_link` for a set or track, `profile_import.profile_url` for a profile) and
-starts Add playlist (as a new import, no dialog; a track becomes a one-track playlist,
-§3.1) or the profile import of public playlists, each with its normal job, progress and
-summary. With no state (the app is gone) the
-panel says "Open dj-digger to control playback", with an empty title "Nothing playing".
+Playback and gate commands use `{event: "player.command", op, ...}`.
+`link.py` validates `prev`, `toggle`, `next`, `cancel`, `seek {fraction}` (0–1)
+and `gates {choice: "open"|"skip"}`, then dispatches them on the desktop backend
+loop. Transport requires a loaded track. Cancel affects the visible operation,
+and a gate choice answers the visible "Gates need you" question.
+
+The relay advertises `canLaunch` with `app-offline`. The background sends
+`desktop.launch` only in response to the user's Open or Import action. The relay
+starts the GUI executable from the matching installation with detached standard
+streams and process lifetime, then continues its socket retries. The background
+waits up to 20 seconds for desktop state and, for an import, a reply. One action
+may be pending per extension background. Repeating the same Open action or
+canonical import shares its reply. Other requests get a busy result. The popup
+can close while it waits. Show sends an `activate.request` with a request UUID
+and waits for the matching `activate.result` after the desktop dispatches the
+window action. A CLI connection provides neither desktop state nor an
+activation reply.
+A host without launch support prompts the user to update. A running older
+desktop can receive an ordinary import through the legacy
+`{event: "player.command", op: "import", url}` command, which also carries
+ordinary context-menu imports. System playlists require the acknowledged protocol.
+
+The extension sends `{event: "import.request", request, url, date}` after the
+desktop advertises `importInstance`. The request ID is a UUID and the date is
+the local calendar date of the click, in ISO format. The desktop validates the
+canonical link again and sends `{event: "import.result", request, code}` on the
+requesting connection. `accepted` means the desktop obtained the main operation
+slot. A busy or invalid request leaves the view untouched. A pending import may
+retry with the same request ID on a reconnect to the same desktop. A bounded
+cache of admissions prevents duplicate work. A restarted desktop interrupts a
+request that had already reached the previous instance. Import progress and
+errors appear in the desktop window.
 
 One automation batch is a session pinned to the connection it started on, chosen
 as the most recently active compatible one. A dropped connection or a new
@@ -2136,6 +2159,17 @@ one also without `browser_specific_settings` and `background.scripts`, the Firef
 one without `background.service_worker`), otherwise unchanged. The listing,
 permission justifications and data disclosures live in `CHROMEWEBSTORE.md`, the
 extension's privacy policy in `PRIVACY.md`.
+
+The desktop optionally creates a SoundCloud playlist from an already-saved local playlist, or adds tracks to an
+existing owned SoundCloud destination. A dialog confirms the account, selected browser, destination and
+visibility (private by default for creation). Only connections advertising `playlistWrite` are offered, and the
+chosen connection stays pinned for the operation. `playlist.writeTrack`
+opens an isolated-world form interaction in a temporary SoundCloud track tab with a fixed sequence of
+operations. It checks the canonical track and signed-in profile, requires the precise playlist link, avoids
+the selected remove toggle and closes its tab. Generic DOM access on SoundCloud remains disabled. The desktop
+checks track IDs, ownership, capacity (500), membership and the post-write server result. It never automatically
+repeats an uncertain creation. Partial results report confirmed counts and offer to open the user's playlist
+library in the same browser. Editing the local copy is independent of the one-time publication.
 
 ### 10.4 Bandcamp and Beatport carts, Beatport playlists
 
@@ -2260,8 +2294,9 @@ Python caller, enforces its own limits, whatever the application sends:
   compares it with `links.HYPEDDIT_HOSTS`, `links.is_toneden_url`, `store_urls.STORE_HOSTS`
   and the manifest's `host_permissions`. Only `https`, default port, no credentials:
   `hypeddit.com` and `hypd.it` (also `www.`), `toneden.io` (also `www.`), `bandcamp.com` and `beatport.com`
-  with their subdomains, and `soundcloud.com` for `/signin` only (its tab is never
-  read or clicked; the import button below is no automation). A navigation elsewhere is refused.
+  with their subdomains, and the SoundCloud sign-in page. The generic automation commands
+  cannot read or click any SoundCloud page. A separate playlist command (§10.3) drives
+  only the signed-in account’s Add to playlist form in its own tab.
 - **Offscreen frames (Chromium).** The hidden gate pass runs in iframes of
   `offscreen.html` (permission `offscreen`; reason `IFRAME_SCRIPTING`), one per
   virtual tab. A virtual window and tab have negative ids (from -2: -1 is the
@@ -2343,17 +2378,16 @@ Python caller, enforces its own limits, whatever the application sends:
   observed (`permissions.onAdded`/`onRemoved`) and reported to the application as a
   boolean `permissions` event; nothing requests, widens or narrows them on its own.
 - **Player panel and context menu** (permissions `activeTab` and `contextMenus`, the
-  owner's approval of 2026-10-14). `popup.html` (no inline script) can only open the
-  desktop app's latest GitHub release in a new tab (while the host is missing, §10.3)
-  and ask the local desktop for previous/next track, play/pause, a seek, Cancel of its running job,
-  an answer to its "Gates need you" question and the import of a SoundCloud set or
-  profile. Its `runtime.sendMessage` reaches the background's only `runtime.onMessage`,
+  owner's approval of 2026-10-14). `popup.html` can open the desktop app's latest
+  GitHub release while the host is missing. Open and Show request local startup
+  or desktop activation. Other controls request playback, cancellation, gate
+  choices and SoundCloud imports. Its `runtime.sendMessage` reaches the background's only `runtime.onMessage`,
   which acts only when `sender.id` is this extension and `sender.url` is exactly its
   `popup.html` (content scripts, frames, the offscreen document and other pages are
-  ignored, except `soundcloud.js` below) and the ask passes `command()`: an op from the list of §10.3 with only its
-  own arguments (`fraction` a number in 0–1, `choice` `open` or `skip`). The one other
-  ask, `{op: "page", url}`, is answered with the kind of import the URL allows (`set`,
-  `profile` or none) and goes nowhere else. The panel reads the active tab's URL once,
+  ignored, except `soundcloud.js` below). Supported commands carry only their
+  validated arguments (§10.3). The background answers `{op: "page", url}`
+  with the URL's import kind (`set`, `system-set`, `profile` or none).
+  The panel reads the active tab's URL once,
   when the user has opened it (`tabs.query({active, currentWindow})`, the `activeTab`
   grant of that click), and hands it to the background; a context-menu click hands
   over the clicked link's URL (or the page's URL for the page entry) inside the
@@ -2363,11 +2397,10 @@ Python caller, enforces its own limits, whatever the application sends:
   at most 512 characters, the raw path exactly `/<user>/sets/<name>`, `/<user>` or
   `/<user>/<sets|tracks|albums|popular-tracks|reposts>` (a profile), or any other
   `/<user>/<track>` but `likes`, `followers`, `following`, `comments` and `spotlight`
-  (a track; the panel offers sets and profiles only), with names of
-  `[A-Za-z0-9_-]` (so no percent-encoded or `..` tricks; SoundCloud's own pages such as
-  `/discover` or `/you` are not profiles); only the canonical
-  `https://soundcloud.com/...` link without query or fragment is sent to the app, which
-  checks it again (§10.3) and never opens it. The `tabs` permission the extension
+  (a track; the panel offers sets and profiles), with names of `[A-Za-z0-9_-]`.
+  Daily Drops and Weekly Wave add the two dedicated system-set URL shapes in
+  §10.3. The canonical `https://soundcloud.com/...` link without query or
+  fragment goes to the desktop, which validates it again. The `tabs` permission the extension
   already holds would expose other tabs' URLs; the code reads none but its own work
   tabs'. The menu entries are created idempotently on install, update and browser start,
   their match patterns are the three SoundCloud origins (no new host permission: the
@@ -2381,19 +2414,20 @@ Python caller, enforces its own limits, whatever the application sends:
   else falls back to empty), kept in `storage.session` as `djdPlayer` (set to `null` on
   `app-offline` and when the native port drops, which also clears the badge and hides
   the menu) and read by the panel; it is never sent to the network.
-- **SoundCloud import button** (the static content script `soundcloud.js`, owner's
-  request of 2026-10-27). It runs only on `https://soundcloud.com/*`, a host the
-  extension already holds (no new permission), in top frames, in the isolated world.
-  It reads the page's class names and the raw `href` of track and set links only (never
-  text, cookies, the account or other tabs), adds buttons and nothing else, has no
-  page-world code, no `window.postMessage` listener and no network request. Its only
-  output is `runtime.sendMessage({op: "import", url})`. The background hears a content
-  script only when `sender.id` is this extension, `sender.tab` is set, `sender.frameId`
-  is 0 and `sender.url`'s origin is exactly `https://soundcloud.com`, and then only an
-  `import` that passes `command()`/`importTarget()` (anything else is dropped
-  unanswered); it reads `djdPlayer` from `storage.session`, sends the import to the app
-  only while that state and the native port are there, and answers `{ok}`. The app
-  checks the link again (§10.3).
+- **SoundCloud import button.** The static `soundcloud.js` runs in the top frame's
+  isolated world on `https://soundcloud.com/*`. It reads the page URL and class
+  names for headers, or the one artwork link owned by the tile. Only a
+  browser-trusted click in the unchanged page and owner scope sends the import.
+  The background verifies the extension's sender ID, tab, top frame and exact
+  SoundCloud origin. It matches a header's canonical playlist URL to the sender
+  URL and a tile's page path to the sender path. The desktop validates the
+  canonical playlist handoff again before starting a job (§10.3).
+- **Desktop launch.** The extension exposes Open to its own popup. A validated
+  Import can trigger the same local launch. The registered relay accepts the
+  fixed `desktop.launch` frame after `hello`, and uses an install-local GUI path
+  and an argument list containing just that executable. Imports wait in the
+  extension background with a deadline. The playlist URL, click date and
+  request ID pass to the desktop over the authenticated socket.
 - **Two cookie operations**, both hard-coded: read `oauth_token` of
   `soundcloud.com`, delete `filedownloading` at the Hypeddit hosts. There is no
   general cookie access.
@@ -2448,12 +2482,12 @@ hosts receive ordinary HTTP request metadata. A gate may receive the configured
 name, real email, and comment only in the provider flows described in §10.2.
 Store sites receive navigation from the user's own signed-in browser session and
 verified Bandcamp add-to-cart actions; gate providers see the browser's accounts
-(§9.2). The extension sends nothing to any server; the player panel's title,
+(§9.2). Explicit SoundCloud playlist writes use the signed-in site's own form. The player panel's title,
 artist, position, small cover, colours, job label and gate count stay in the browser's session
 storage. A SoundCloud set, track or profile link the user imports from the panel, the context menu
 or the "Import to DJ digger" button on soundcloud.com
-goes only to the local application, which then reads it from SoundCloud's API exactly as Add
-playlist or the profile import does; no other page URL leaves the browser. Soundiiz receives no request
+goes to the local application for collection. Dated recommendations use the public page's ordered IDs.
+Find in sends the selected artist and title to the chosen search provider when the browser opens. Soundiiz receives no request
 until the user chooses the Beatport playlist result; the application then sends
 the playlist title plus accepted track titles and artists to its public import
 endpoint and opens the temporary review URL returned by Soundiiz.
@@ -2550,7 +2584,10 @@ as player events instead of escaping through Python-CFFI.
   the same data directory are refused while one desktop runs. A work window left by
   a crashed application is closed when the relay reports the application gone (its
   next retry, about a second later) or when the extension restarts; a restart faster
-  than that leaves the window for the user to close. Extension flows are verified offline against a protocol fake and, for
+  than that leaves the window for the user to close. Cold startup requires a
+  registered native host and the desktop executable from the same installation.
+  A browser or extension restart clears pending startup and import actions.
+  Extension flows are verified offline against a protocol fake and, for
   `dom.js`, by the manual `selftest.html` page; acceptance in real browsers is a
   manual checklist (`docs/gui-e2e-checklist-pl.md`), not recorded here.
 - A browser download passes through the browser's own download folder before it is
@@ -2624,9 +2661,9 @@ restarted instances, a source check that the pickling `send`/`recv` never appear
 `allowlist.json` with the Python host lists and the manifest, and the page adapters
 against an in-process fake extension speaking the protocol (waits, cancellation,
 event order, truncation, redacted popup URLs). `tests/js/background_harness.js` runs the
-real `background.js` on a fake browser API (work windows, the panel, context menu and
-`soundcloud.js` imports and their sender checks) and `soundcloud.js`'s `djdTarget`
-outside a page. The JavaScript of `dom.js` has no
+real `background.js` on a fake browser API (work windows, the panel, context menu,
+and import sender checks) and exercises `soundcloud.js` on an offline DOM fixture
+with playlist, Daily Drops, Weekly Wave, recycled and ambiguous tiles. The JavaScript of `dom.js` has no
 automatic test: the extension's `selftest.html` runs synthetic cases in a browser.
 Unavailable Hypeddit fixtures are skipped, not passed. The current
 Lights On live fixture is album-only; moved-track recovery remains covered offline.

@@ -46,7 +46,8 @@ def address():
         yield os.path.join(directory, "webext.sock")
 
 
-OFFLINE = struct.pack("=I", 23) + b'{"event":"app-offline"}'
+OFFLINE_BODY = b'{"event":"app-offline","canLaunch":true}'
+OFFLINE = struct.pack("=I", len(OFFLINE_BODY)) + OFFLINE_BODY
 KEY = b"k" * 32
 HELLO = {"event": "hello", "browser": "chrome", "version": "1", "protocol": 1, "instance": "a"}
 
@@ -91,6 +92,42 @@ def test_host_returns_on_stdin_eof_without_touching_stdout():
     stdout = io.BytesIO()
     assert host.run(io.BytesIO(), stdout) == 0
     assert stdout.getvalue() in (b"", OFFLINE)  # the retry thread may speak once
+
+
+def test_host_starts_only_its_installed_desktop_once_per_live_child(tmp_path, monkeypatch):
+    name = "dj-digger-gui.exe" if os.name == "nt" else "dj-digger-gui"
+    launcher = tmp_path / name
+    launcher.touch()
+    monkeypatch.setattr(host.sysconfig, "get_path", lambda key: str(tmp_path))
+    started = []
+
+    class Running:
+        def poll(self):
+            return None
+
+    def create(argv, **kwargs):
+        started.append((argv, kwargs))
+        return Running()
+
+    monkeypatch.setattr(host.subprocess, "Popen", create)
+    relay = host.Relay(io.BytesIO())
+    launch = b'{"event":"desktop.launch"}'
+    relay.from_browser(launch)  # hello must come before any control frame
+    relay.from_browser(b'{"event":"hello"}')
+    relay.from_browser(b'{"event":"desktop.launch","args":["other.exe"]}')
+    assert not started
+    relay.from_browser(launch)
+    relay.from_browser(launch)
+    detached = {"creationflags": subprocess.CREATE_BREAKAWAY_FROM_JOB} if os.name == "nt" else {"start_new_session": True}
+    assert started == [([str(launcher)], dict(stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                              stderr=subprocess.DEVNULL, **detached))]
+    launcher.unlink()
+    output = io.BytesIO()
+    relay = host.Relay(output)
+    relay.from_browser(b'{"event":"hello"}')
+    relay.from_browser(launch)
+    output.seek(0)
+    assert json.loads(host.read_frame(output)) == {"event": "desktop.launch-failed"}
 
 
 def test_host_process_exits_on_stdin_eof(tmp_path):
@@ -311,6 +348,33 @@ def test_player_commands_carry_only_their_own_checked_arguments():
         {"op": "import", "url": "https://soundcloud.com/" + "a" * 500}, {"op": "eval"}, {"op": None}, {},
     ):  # fmt: skip
         assert link.player_command(frame) is None, frame
+
+
+def test_playlist_import_replies_only_to_the_requesting_connection(listener, address):
+    received = []
+    def imported(request, reply):
+        received.append(request)
+        reply("accepted" if request["op"] == "import" else "opened")
+    listener.on_desktop_request = imported
+    first, second = connect(address), connect(address)
+    listener.publish_player({})
+    for client in (first, second):
+        state = recv(client)
+        assert state["cmd"] == "player.state" and state["importInstance"] == listener._import_instance
+    request = {"request": str(uuid.uuid4()), "url": "https://soundcloud.com/a/sets/b", "date": "2026-11-18"}
+    for invalid in ({"request": "bad"}, {"date": "2026-02-30"}, {"date": "20261118"}, {"url": []}):
+        assert link.import_request(request | invalid) is None
+    first.send_bytes(json.dumps(dict(request, event="import.request", unused="drop")).encode())
+    assert recv(first) == {"event": "import.result", "request": request["request"], "code": "accepted"}
+    assert received == [dict(request, op="import")] and not second.poll(0.05)
+    second.send_bytes(json.dumps({"event": "activate.request", "request": request["request"], "url": "drop"}).encode())
+    assert recv(second) == {"event": "activate.result", "request": request["request"], "code": "opened"}
+    assert received[-1] == {"request": request["request"], "op": "activate"}
+    listener.on_desktop_request = None  # a CLI never acknowledges activation
+    second.send_bytes(json.dumps({"event": "activate.request", "request": request["request"]}).encode())
+    assert not second.poll(0.05)
+    first.close()
+    second.close()
 
 
 def test_player_state_goes_to_every_compatible_browser_and_to_later_hellos(listener, address):

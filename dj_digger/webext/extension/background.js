@@ -3,7 +3,7 @@
 // is the trust boundary of plan section 4: allowlisted hosts, own tabs only, no checkout.
 "use strict";
 // ponytail: Chrome loads dom.js with importScripts; Firefox lists it in manifest background.scripts
-if (typeof importScripts === "function") importScripts("dom.js");
+if (typeof importScripts === "function") importScripts("dom.js", "playlist-write.js");
 
 const api = globalThis.browser ?? globalThis.chrome;
 const HOST = "com.github.fbialogrecki.djdigger";
@@ -405,10 +405,13 @@ let port = null;
 let failures = 0;
 let missing = false; // the last disconnect said there is no usable host (NO_HOST)
 const send = (m) => {
+  if (!port) return false;
   try {
-    port?.postMessage(m);
+    port.postMessage(m);
+    return true;
   } catch {
     // the disconnect handler reconnects
+    return false;
   }
 };
 const emit = (e) => send(e);
@@ -424,12 +427,15 @@ async function browserInfo() {
 }
 const siteAccess = () => api.permissions.contains({ origins: manifest.host_permissions });
 async function hello() {
+  const native = port;
   const info = await browserInfo();
   const permissions = await siteAccess();
-  send({
+  if (port !== native) return;
+  helloSent = send({
     event: "hello", browser: info.name, version: manifest.version, browserVersion: info.version,
-    protocol: PROTOCOL, instance: INSTANCE, permissions,
+    protocol: PROTOCOL, instance: INSTANCE, permissions, playlistWrite: true,
   });
+  advanceDesktopAction();
 }
 // Site access granted or taken back in the browser's extension settings: the app learns it live.
 const sitesChanged = () => siteAccess().then((granted) => emit({ event: "permissions", granted }), () => {});
@@ -455,6 +461,9 @@ function connect() {
   p.onDisconnect.addListener(() => {
     const e = api.runtime.lastError ?? p.error;
     port = null;
+    for (const controller of running.values()) controller.abort();
+    helloSent = false;
+    desktopLost();
     setPlayer(null);
     retry(e);
   });
@@ -472,6 +481,7 @@ function retry(e) {
   const error = redactMessage(e?.message);
   missing = NO_HOST.test(error);
   setStatus({ connected: false, error, missing });
+  if (missing) finishDesktopAction("missing");
   setTimeout(connect, Math.min(30000, 1000 * 2 ** failures++));
 }
 
@@ -482,8 +492,8 @@ function retry(e) {
 // the app is gone), where the popup reads it, and never leaves the browser; `needs` is also the action's
 // badge. The popup asks by runtime.sendMessage; only the popup page of this extension is heard (frames, the
 // offscreen document and other content scripts are not; soundcloud.js only for an import), and a checked
-// command (command()) goes to the app as {event: "player.command", op, ...}. The context menu's "Dig in
-// dj-digger" and soundcloud.js's "Import to DJ digger" send the same import.
+// player command goes to the app as {event: "player.command", op, ...}. Playlist page
+// imports can start the desktop and wait for admission.
 const PLAYER_OPS = ["prev", "toggle", "next", "cancel"];
 const MAX_ARTWORK = 48 * 1024;
 const ARTWORK = /^data:image\/(?:jpeg|png);base64,[A-Za-z0-9+/]+={0,2}$/;
@@ -516,14 +526,11 @@ function setPlayer(s) {
 // the import entries only while an app is there to take them
 const showMenus = (on) => MENUS.forEach((id) => quiet(api.contextMenus.update(id, { visible: on })));
 
-// "Dig in dj-digger": a SoundCloud set, track or profile, from the popup (the active tab's URL, read only
-// once the person opened it: activeTab; sets and profiles only), a context-menu click (that link, or that
-// page) or soundcloud.js's "Import to DJ digger" (a track or set). importTarget() is the only gate: https,
-// exactly soundcloud.com, www. or m., no credentials or port, at most 512 characters, the path
-// /<user>/sets/<name>, /<user>/<track>, /<user> or /<user>/<tab>; it returns the canonical
-// https://soundcloud.com/... link, without query or fragment.
+// Validate the URL before offering an import. Track links are available from the
+// context menu. Regular sets and system sets are also available on the playlist page.
 const SC_HOSTS = ["soundcloud.com", "www.soundcloud.com", "m.soundcloud.com"];
 const SC_SET = /^\/([A-Za-z0-9_-]+)\/sets\/([A-Za-z0-9_-]+)\/?$/;
+const SC_SYSTEM_SET = /^\/discover\/sets\/(new-for-you|weekly)(?::|%3[aA])(?::|%3[aA])([A-Za-z0-9_-]+)\/?$/;
 const SC_PROFILE = /^\/([A-Za-z0-9_-]+)(?:\/(?:sets|tracks|albums|popular-tracks|reposts))?\/?$/;
 const SC_TRACK = /^\/([A-Za-z0-9_-]+)\/([A-Za-z0-9_-]+)\/?$/; // after SC_PROFILE, so a profile tab is never one
 const SC_NOT_TRACKS = new Set(["likes", "followers", "following", "comments", "spotlight"]);
@@ -533,8 +540,10 @@ const SC_PAGES = new Set(["discover", "feed", "stream", "you", "search", "upload
 function importTarget(url) {
   const u = typeof url === "string" && url.length <= 512 ? parse(url) : null;
   if (!u || u.protocol !== "https:" || u.username || u.password || u.port || !SC_HOSTS.includes(u.hostname)) return null;
+  const system = SC_SYSTEM_SET.exec(u.pathname);
+  if (system) return { kind: "system-set", url: `https://soundcloud.com/discover/sets/${system[1]}::${system[2]}` };
   const set = SC_SET.exec(u.pathname);
-  if (set) return { kind: "set", url: `https://soundcloud.com/${set[1]}/sets/${set[2]}` };
+  if (set) return SC_PAGES.has(set[1].toLowerCase()) ? null : { kind: "set", url: `https://soundcloud.com/${set[1]}/sets/${set[2]}` };
   const profile = SC_PROFILE.exec(u.pathname);
   const track = profile ? null : SC_TRACK.exec(u.pathname);
   const user = (profile ?? track)?.[1];
@@ -542,33 +551,97 @@ function importTarget(url) {
   if (profile) return { kind: "profile", url: `https://soundcloud.com/${user}` };
   return SC_NOT_TRACKS.has(track[2]) ? null : { kind: "track", url: `https://soundcloud.com/${user}/${track[2]}` };
 }
-// What the popup may ask of the app, checked; null for anything else.
+// What the popup may ask of the player, checked; null for anything else.
 function command(m) {
   if (PLAYER_OPS.includes(m.op)) return { op: m.op };
   if (m.op === "seek" && typeof m.fraction === "number" && m.fraction >= 0 && m.fraction <= 1) return { op: "seek", fraction: m.fraction };
   if (m.op === "gates" && (m.choice === "open" || m.choice === "skip")) return { op: "gates", choice: m.choice };
-  const target = m.op === "import" ? importTarget(m.url) : null;
-  return target && { op: "import", url: target.url };
+  return null;
 }
-// soundcloud.js, in the top frame of a soundcloud.com tab: an import and nothing else, answered with
-// whether the app was there to take it
+
+// One click can wait for the desktop across reconnects. Only the same desktop
+// instance may retry a delivery that may already have been accepted.
+const DESKTOP_TIMEOUT_MS = 20000;
+let helloSent = false;
+let desktop = null;
+let relayOffline = false;
+let canLaunch = false;
+let desktopAction = null;
+function desktopLost() {
+  desktop = null;
+  relayOffline = false;
+  canLaunch = false;
+  if (desktopAction) desktopAction.sent = false;
+}
+function finishDesktopAction(code) {
+  if (!desktopAction) return;
+  const { replies, timer } = desktopAction;
+  desktopAction = null;
+  clearTimeout(timer);
+  const result = { ok: ["accepted", "opened", "sent"].includes(code), code };
+  for (const reply of replies) {
+    try { reply(result); } catch { /* the tab or popup can close while the action waits */ }
+  }
+}
+function advanceDesktopAction() {
+  const action = desktopAction;
+  if (!action || !helloSent) return;
+  if (desktop) {
+    if (!action.target && action.launched) return finishDesktopAction("opened");
+    if (action.instance && action.instance !== desktop.instance) return finishDesktopAction("interrupted");
+    if (!desktop.instance) {
+      if (!action.target || action.target.kind === "system-set") return finishDesktopAction("update");
+      if (send({ event: "player.command", op: "import", url: action.target.url })) finishDesktopAction("sent");
+      return;
+    }
+    const request = action.target ? { event: "import.request", request: action.request, url: action.target.url, date: action.date } :
+      { event: "activate.request", request: action.request };
+    if (!action.sent && send(request)) {
+      action.instance = desktop.instance;
+      action.sent = true;
+    }
+  } else if (relayOffline && !action.instance && !action.launched) {
+    if (!canLaunch) return finishDesktopAction("update");
+    action.launched = send({ event: "desktop.launch" });
+  }
+}
+function beginDesktopAction(target, reply) {
+  if (missing) return void reply({ ok: false, code: "missing" });
+  if (desktopAction) {
+    if (desktopAction.target?.url !== target?.url) return void reply({ ok: false, code: "busy" });
+    desktopAction.replies.push(reply);
+    return true;
+  }
+  const now = new Date();
+  const date = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  const timer = setTimeout(() => finishDesktopAction("timeout"), DESKTOP_TIMEOUT_MS);
+  desktopAction = { target, replies: [reply], date, timer, request: crypto.randomUUID() };
+  connect();
+  advanceDesktopAction();
+  return true;
+}
+
+// The top-frame content script checks each tile's own artwork anchor on the click.
 const fromSoundCloud = (sender) => !!sender.tab && sender.frameId === 0 && parse(sender.url)?.origin === "https://soundcloud.com";
+const isPlaylist = (target) => target?.kind === "set" || target?.kind === "system-set";
 api.runtime.onMessage.addListener((m, sender, reply) => {
   if (sender.id !== api.runtime.id || !m || typeof m !== "object") return;
   if (fromSoundCloud(sender)) {
-    const c = m.op === "import" ? command(m) : null;
-    if (!c) return;
-    api.storage.session.get("djdPlayer").then(({ djdPlayer }) => !!(djdPlayer && port), () => false).then((app) => {
-      if (app) send({ event: "player.command", ...c });
-      reply({ ok: app });
-    });
-    return true; // answered once storage says whether the app is there
+    const target = m.op === "import" ? importTarget(m.url) : null;
+    const matchesPage = m.tilePage === undefined ? target?.url === importTarget(sender.url)?.url :
+      typeof m.tilePage === "string" && m.tilePage.length <= 512 && m.tilePage === parse(sender.url).pathname;
+    if (isPlaylist(target) && matchesPage) return beginDesktopAction(target, reply);
+    return;
   }
   if (sender.url !== api.runtime.getURL("popup.html")) return;
-  if (m.op === "page") { // what the popup may offer: a set or a profile
-    const kind = importTarget(m.url)?.kind;
-    return void reply({ kind: kind === "set" || kind === "profile" ? kind : null });
+  if (m.op === "page" || m.op === "import") {
+    const target = importTarget(m.url);
+    const kind = isPlaylist(target) || target?.kind === "profile" ? target.kind : null;
+    if (m.op === "page") return void reply({ kind });
+    if (kind) return beginDesktopAction(target, reply);
+    return;
   }
+  if (m.op === "launch") return beginDesktopAction(null, reply);
   const c = command(m);
   if (c) send({ event: "player.command", ...c });
 });
@@ -583,8 +656,10 @@ function createMenus() {
   api.storage.session.get("djdPlayer").then(({ djdPlayer }) => showMenus(!!djdPlayer), () => {});
 }
 api.contextMenus.onClicked.addListener((info) => {
-  const c = command({ op: "import", url: info.menuItemId === MENUS[0] ? info.linkUrl : info.pageUrl });
-  if (c && MENUS.includes(info.menuItemId)) send({ event: "player.command", ...c });
+  if (!desktop || !MENUS.includes(info.menuItemId)) return;
+  const target = importTarget(info.menuItemId === MENUS[0] ? info.linkUrl : info.pageUrl);
+  if (target?.kind === "system-set") beginDesktopAction(target, () => {});
+  else if (target) send({ event: "player.command", op: "import", url: target.url });
 });
 api.runtime.onStartup.addListener(createMenus);
 
@@ -603,30 +678,49 @@ function enqueue(tabId, job) {
 function onMessage(m) {
   if (!m || typeof m !== "object") return;
   if (m.event === "app-offline") {
+    for (const controller of running.values()) controller.abort();
     // the relay lost the app: its sessions are over, leave no work window behind
     for (const id of [...windows.keys()]) dropWindow(id);
+    desktopLost();
+    relayOffline = true;
+    canLaunch = m.canLaunch === true;
     setPlayer(null);
+    advanceDesktopAction();
     return;
   }
-  if (m.cmd === "player.state") return setPlayer(playerState(m.args)); // no id, no reply
+  if (m.event === "desktop.launch-failed") return finishDesktopAction("launch-failed");
+  if (m.event === "import.result" || m.event === "activate.result") {
+    const event = desktopAction?.target ? "import.result" : "activate.result";
+    const codes = event === "import.result" ? ["accepted", "busy", "invalid", "unavailable"] : ["opened", "unavailable"];
+    if (desktopAction?.request === m.request && m.event === event && codes.includes(m.code)) finishDesktopAction(m.code);
+    return;
+  }
+  if (m.cmd === "player.state") {
+    const instance = typeof m.importInstance === "string" && /^[a-f0-9]{32}$/.test(m.importInstance) ? m.importInstance : null;
+    desktop = { instance };
+    setPlayer(playerState(m.args));
+    advanceDesktopAction();
+    return;
+  }
   if (m.cmd === "cancel") {
     running.get(m.args?.id)?.abort();
     return send({ id: m.id, ok: true, result: null });
   }
   const args = m.args && typeof m.args === "object" ? m.args : {};
+  const native = port;
   const ac = new AbortController();
   running.set(m.id, ac);
   const job = async () => {
     try {
       await ready;
-      if (ac.signal.aborted) throw new Err("cancelled", "command cancelled");
+      if (ac.signal.aborted || native !== port) throw new Err("cancelled", "command cancelled");
       if (!Object.hasOwn(commands, m.cmd)) throw new Err("unknown_cmd", `unknown command ${m.cmd}`);
       const result = await commands[m.cmd](args, { id: m.id, signal: ac.signal });
-      send({ id: m.id, ok: true, result: result ?? null });
+      if (native === port) send({ id: m.id, ok: true, result: result ?? null });
     } catch (e) {
-      send({ id: m.id, ok: false, error: { code: e.code ?? "internal", message: redactMessage(e.message) } });
+      if (native === port) send({ id: m.id, ok: false, error: { code: e.code ?? "internal", message: redactMessage(e.message) } });
     } finally {
-      running.delete(m.id);
+      if (running.get(m.id) === ac) running.delete(m.id);
     }
   };
   if (typeof args.tabId === "number" && !UNQUEUED.has(m.cmd)) enqueue(args.tabId, job);
@@ -761,7 +855,69 @@ const gone = () => {
 const domCommand = (op) => (a, ctx) => runDom(op, a, ctx);
 // Own tabs never make a sound: SoundCloud popups autoplay (spike R1).
 const mute = (tabId) => api.tabs.update(tabId, { muted: true }).catch(() => {});
+// This command owns its tab. Generic DOM commands retain the /signin-only rule.
+let playlistWriteActive = false;
+async function writePlaylistTrack(a, { signal }) {
+  const track = importTarget(a.track);
+  const owner = importTarget(a.account);
+  const validSet = url => {
+    const set = importTarget(url);
+    return set?.kind === "set" && set.url === url && url.startsWith(a.account + "/sets/");
+  };
+  const newSet = a.destination === "" && typeof a.title === "string" && a.title.trim() &&
+    a.title.length <= 200 && ["private", "public"].includes(a.sharing);
+  if (owner?.kind !== "profile" || owner.url !== a.account || track?.kind !== "track" || track.url !== a.track ||
+      (!newSet && !validSet(a.destination)))
+    throw new Err("refused", "Invalid SoundCloud playlist request");
+  if (playlistWriteActive) throw new Err("busy", "SoundCloud playlist operation in progress");
+  playlistWriteActive = true;
+  let tab;
+  const native = port;
+  const unconfirmed = () => new Err("unconfirmed", "Could not confirm the SoundCloud form. Check the playlist on SoundCloud.");
+  const deadline = Date.now() + 20000;
+  const current = () => !signal.aborted && native && native === port && Date.now() < deadline;
+  try {
+    if (!current()) throw unconfirmed();
+    tab = await api.tabs.create({ url: a.track, active: false });
+    if (!current()) throw unconfirmed();
+    await mute(tab.id);
+    let phase = "open";
+    while (current()) {
+      const page = await api.tabs.get(tab.id);
+      if (!current()) break;
+      if (page.status === "complete" && page.url === a.track) {
+        const [frame] = await api.scripting.executeScript({
+          target: { tabId: tab.id }, func: soundcloudPlaylistStep, args: [a, phase],
+        });
+        if (!current()) break;
+        const state = frame?.result;
+        if (state?.error) throw new Err("refused", state.error);
+        if (state?.destination) {
+          if (!validSet(state.destination) || (!newSet && state.destination !== a.destination)) throw unconfirmed();
+          return { destination: state.destination };
+        }
+        if (state?.next) phase = state.next;
+      } else if (page.url && page.url !== "about:blank" && page.url !== a.track) {
+        throw new Err("refused", "SoundCloud track navigation changed");
+      }
+      await sleep(150);
+    }
+    throw unconfirmed();
+  } catch (error) {
+    // Browser API errors can contain the source or destination URL.
+    throw error instanceof Err ? error : unconfirmed();
+  } finally {
+    if (tab) await api.tabs.remove(tab.id).catch(() => {});
+    playlistWriteActive = false;
+  }
+}
+
 const commands = {
+  "playlist.writeTrack": writePlaylistTrack,
+  "playlist.review": async () => {
+    await api.tabs.create({ url: "https://soundcloud.com/you/sets", active: true });
+    return true;
+  },
   async "window.open"({ visible, offscreen, background }) {
     if (background && !visible) {
       // the person's own window; a browser without one gets a new window (nothing else to use)

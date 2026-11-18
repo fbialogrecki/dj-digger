@@ -41,8 +41,8 @@ def test_identity_and_central_manual_values(tmp_path, db):
     assert a.key == track_key({'local_id': a.local_id})
     assert Track('remote', 'url', id=3).key == '3'
     for source in ('local-playlist:a', 'local-playlist:b'):
-        db.save_local_playlist(source, source, [a.local_id])
-    db.save_local_playlist('local-playlist:a', 'renamed', [b.local_id])
+        db.save_local_playlist(source, source, [a])
+    db.save_local_playlist('local-playlist:a', None, [b])
     assert len(db.local_playlist_media('local-playlist:a')) == 2
     db.set_media_manual(a.local_id, {'bpm': 128})
     db.save_analysis(a.local_id, signature(path), 'test', {'bpm': 64})
@@ -55,13 +55,67 @@ def test_delete_preserves_playlist_identity_and_manual_values(tmp_path, db):
     path.write_bytes(b'fixture')
     library = LocalLibrary(db)
     track = library.register(path)
-    db.save_local_playlist('local-playlist:test', 'Test', [track.local_id])
+    db.save_local_playlist('local-playlist:test', 'Test', [track])
     db.set_media_manual(track.local_id, {'bpm': 128})
     library.delete(track.local_id, path, signature(path))
     assert not path.exists()
     assert not db.media(track.local_id)['available']
     assert '128' in db.media_values(track.local_id)['manual_json']
     assert len(db.local_playlist_media('local-playlist:test')) == 1
+
+
+def test_mixed_playlist_migration_order_deduplication_and_restart(tmp_path):
+    from contextlib import closing
+
+    from dj_digger.schema import MEDIA_DDL, WAVEFORM_DDL
+    from dj_digger.services.library import LibraryService
+    from dj_digger.state import TrackState
+
+    path = tmp_path / 'existing.db'
+    source = 'local-playlist:legacy'
+    media = tmp_path / 'local.wav'
+    media.write_bytes(b'fixture')
+    with closing(sqlite3.connect(path)) as conn, conn:
+        for sql in DDL + MEDIA_DDL + WAVEFORM_DDL:
+            conn.execute(sql)
+        conn.execute('PRAGMA user_version=3')
+        conn.execute('INSERT INTO crates VALUES (?, ?, ?, ?)',
+                     (source, 'Legacy', 'now', '{"source":"local-playlist:legacy","title":"Legacy","tracks":[]}'))
+        conn.execute('INSERT INTO media_files (id,path,signature) VALUES (?, ?, ?)', ('media', str(media), signature(media)))
+        conn.executemany('INSERT INTO local_playlist_items VALUES (?, ?, ?)', [(source, 0, 'media'), (source, 1, 'media')])
+    state = TrackState(path)
+    db = state.db
+    library = LibraryService(state)
+    local = library.load(source).tracks[0]
+    other_media = tmp_path / 'other.wav'
+    other_media.write_bytes(b'fixture')
+    other_local = LocalLibrary(db).register(other_media)
+    remote = Track('Remote', 'https://soundcloud.com/owner/track', id=9, purchase_url='https://bandcamp.com/track/remote')
+    another = Track('Another', 'https://soundcloud.com/owner/another', id=10)
+    state.set(remote.key, 'skip')
+    db.save_local_playlist(source, None, [remote, local, remote, other_local, another])
+    db.close()
+
+    state = TrackState(path)
+    library = LibraryService(state)
+    reopened = library.load(source)
+    assert [t.key for t in reopened.active_tracks] == [local.key, local.key, remote.key, other_local.key, another.key]
+    assert reopened.active_tracks[2].purchase_url == remote.purchase_url
+    assert library.headers()[0].count == 5
+    assert library.headers()[0].media_count == 3
+    generation = state.db.crate_generation(source)
+    library.remove_tracks(source, generation, [local.key], removed=True)
+    assert [t.key for t in library.load(source).active_tracks] == [remote.key, other_local.key, another.key]
+    assert library.headers()[0].count == 3
+    assert library.headers()[0].media_count == 1
+    assert [m['id'] for m in state.db.local_playlist_media(source)] == [other_local.local_id]
+    library.remove_tracks(source, generation, [local.key], removed=False)
+    assert library.headers()[0].count == 5
+    library.delete(source)
+    assert state.get(remote.key) == 'skip'
+    assert library.load(source) is None and media.read_bytes() == b'fixture'
+    assert not state.db.save_local_playlist(source, None, [remote])
+    state.db.close()
 
 
 def test_delete_rejects_changed_and_leased_files(tmp_path, db):

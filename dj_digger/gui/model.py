@@ -328,5 +328,16 @@ class TrackModel(QAbstractTableModel):
     firstSelectedKey = Property(str, lambda self: self._cached(
         'first', lambda: next((r['key'] for r in self.visible if r['key'] in self.selected), '')), notify=changed)
 
+    def selection_kinds(self):
+        from ..services.opening import soundcloud_track_url
+
+        picked = [r for r in self.visible if r['key'] in self.selected]
+        return dict(files=sum(bool(r.get('media')) for r in picked),
+                    publishable=bool(picked) and all(r.get('publishable') for r in picked),
+                    visibleFiles=sum(bool(r.get('media')) for r in self.visible),
+                    soundcloud=bool(picked) and all(soundcloud_track_url(r.get('url')) for r in picked))
+
+    selectionKinds = Property('QVariantMap', lambda self: self._cached('selectionKinds', self.selection_kinds), notify=changed)
+
     def keys(self):
         return [r['key'] for r in self.visible if r['key'] in self.selected]

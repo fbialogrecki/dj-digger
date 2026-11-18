@@ -10,6 +10,7 @@ import time
 from contextlib import asynccontextmanager, suppress
 from copy import deepcopy
 from dataclasses import replace
+from datetime import date
 from pathlib import Path
 from uuid import uuid4
 
@@ -21,6 +22,8 @@ from ..models import GOT, NEW, SKIP, Cancelled, Crate, check_cancelled, is_cance
 from ..paths import playlist_download_directory
 from ..services.collection import DigOptions
 from ..services.local_library import LocalLibrary, media_tracks
+from ..services.opening import soundcloud_track_url
+from ..services.operations import OperationBusy
 from ..services.runtime import ApplicationServices
 from ..soundcloud import is_soundcloud_url
 
@@ -38,6 +41,11 @@ BROWSER_POSITION_EVERY = 5.0
 IMPORT_HOSTS = frozenset({'soundcloud.com', 'www.soundcloud.com', 'm.soundcloud.com'})
 PROFILE_TABS = frozenset({'sets', 'tracks', 'albums', 'popular-tracks', 'reposts'})
 NOT_TRACKS = frozenset({'likes', 'followers', 'following', 'comments', 'spotlight'})  # /<user>/<this> is no track
+SYSTEM_SET = re.compile(r'discover/sets/(new-for-you|weekly)(?::|%3[aA])(?::|%3[aA])([A-Za-z0-9_-]+)')
+SOUNDCLOUD_PAGES = frozenset({
+    'discover', 'feed', 'stream', 'you', 'search', 'upload', 'charts', 'settings', 'messages',
+    'notifications', 'pages', 'signin', 'logout', 'people', 'tags', 'terms-of-use', 'pro', 'mobile', 'jobs', 'imprint',
+})
 
 
 def cover_hash(text):
@@ -82,6 +90,7 @@ class Backend:
         # The playlist being imported, listed in the sidebar before it is saved.
         self.importing = None
         self.saved_playlists = []
+        self.playlist_owner = None
         self.mark_lock = asyncio.Lock()
         self.player_lock = asyncio.Lock()
         self.waveform_lock = asyncio.Lock()
@@ -104,6 +113,8 @@ class Backend:
         # "Gates need you" question as (question id, gates) while it waits for an answer.
         self.browser_job = dict(busy=False, label='')
         self.browser_progress = {}
+        self.browser_ready = not connect_browser
+        self.browser_imports = {}
         self.gates_waiting = None
         self.thread.start()
 
@@ -201,7 +212,6 @@ class Backend:
                         await self.io(self.services.connect_browser)
                         # The panel's commands arrive checked on a connection thread and take the window's path.
                         self.services.browser_link.on_player_command = lambda command: self.submit('remote', command)
-                        self.publish_browser()
                     except Exception as exc:
                         LOGGER.warning('Browser extension channel unavailable: %s', log_safe_text(exc))
                 self.local = LocalLibrary(self.services.state.db)
@@ -214,6 +224,11 @@ class Backend:
                 # The window asks for Welcome (action_welcome) once it is up: first start, or nothing imported yet.
                 self.send('ready', {'volume': config.volume,
                                     'welcome': not config.onboarded and (config.first_run or not self.saved_playlists)})
+                if self.connect_browser_link and getattr(self.services, 'browser_link', None) is not None:
+                    self.services.browser_link.on_desktop_request = lambda request, reply: self.submit(
+                        'remote', dict(request, reply=reply))
+                    self.browser_ready = True
+                    self.publish_browser()
                 await self.action_account({})
                 return
             if not hasattr(self, 'services'):
@@ -239,8 +254,13 @@ class Backend:
             self.send('error', {'text': log_safe_text(exc)})
 
     async def sidebar(self):
-        headers = await self.io(self.services.library.headers)
-        self.saved_playlists = [dict(title=h.title, source=h.source, count=h.count) for h in headers]
+        headers, self.playlist_owner = await self.io(lambda: (self.services.library.headers(), self.soundcloud_account()[2]))
+        self.saved_playlists = [
+            dict(title=h.title, source=h.source, count=h.count, mediaCount=h.media_count,
+                 owned=bool(self.playlist_owner and h.owner_id == self.playlist_owner and h.provider_id
+                            and not h.source.startswith(('local-playlist:', 'sc-snapshot:'))))
+            for h in headers
+        ]
         self.send_sidebar()
 
     def send_sidebar(self):
@@ -255,8 +275,13 @@ class Backend:
         if generation != self.generation:
             return
         self.rows = [Row(i, t, links.categorise(t)) for i, t in enumerate(tracks)]
-        self.send('view', {'generation': generation, 'title': title, 'source': self.record.source if self.record else '',
-                          'local': self.folder is not None or bool(self.record and self.record.source.startswith('local-playlist:')),
+        source = self.record.source if self.record else ''
+        local_playlist = source.startswith('local-playlist:')
+        has_streams = any(not track.local_id for track in tracks)
+        self.send('view', {'generation': generation, 'title': title, 'source': source,
+                          'localPlaylist': local_playlist,
+                          'mixedPlaylist': local_playlist and has_streams and any(track.local_id for track in tracks),
+                          'local': self.folder is not None or (local_playlist and not has_streams),
                           'rows': [self.row_value(r) for r in self.rows]}, copy=False)
 
     def row_value(self, row):
@@ -266,7 +291,8 @@ class Backend:
                     bpm=t.bpm or '', keySignature=t.key_signature, classicKey=classic, camelot=camelot, year=t.release_year or '',
                     label=t.label_name, duration=t.duration, status=self.services.state.get(t.key),
                     format=t.audio_format, comment=t.comment,
-                    stores=', '.join(row.categories), storeNames=', '.join(row.names), url=t.permalink_url, local=bool(t.local_path), path=t.local_path or self.preview_paths.get(t.key, ''),
+                    stores=', '.join(row.categories), storeNames=', '.join(row.names), url=t.permalink_url,
+                    media=bool(t.local_id), publishable=soundcloud_playlist_track(t), local=bool(t.local_path), path=t.local_path or self.preview_paths.get(t.key, ''),
                     search=row.haystack)
 
     async def refresh_rows(self):
@@ -363,14 +389,12 @@ class Backend:
         # ``add`` is a link the browser extension handed over, already checked (action_remote).
         adding = not target or values.get('add')
         if adding:
-            target = target or (await self.form('Add playlist', '', [field('target', 'Paste a link to your SoundCloud playlist')],
-                                                soundcloud_link('target'), ok='Add'))['target'].strip()
-            self.generation += 1
-            self.record, self.folder = None, None
-            self.importing = dict(title=target, source=target, pending=True)
-            self.show_import(Crate(source=target, tracks=[], title=target), self.generation)
-            await self.sidebar()
-        generation = self.generation
+            target = target or (await self.form('Import playlist from link', '', [field('target', 'Paste a link to your SoundCloud playlist')],
+                                                soundcloud_link('target'), ok='Import'))['target'].strip()
+        snapshot = {}
+        if (parsed := import_target(target)) and parsed[0] == 'system-set':
+            target = parsed[1]
+            snapshot['snapshot_date'] = values.get('snapshot_date') or date.today().isoformat()
         last = [0.0]
 
         def progress(stage, done, total):
@@ -382,34 +406,45 @@ class Backend:
 
         shown = [0.0]
 
-        def arrived(crate):
-            # Each batch of 50 rebuilt the whole table; once a second is enough to watch it
-            # fill, and the complete list always shows before the link hubs are opened.
-            now = time.monotonic()
-            complete = bool(crate.declared_count) and len(crate.tracks) >= crate.declared_count
-            if adding and (complete or now - shown[0] >= 1):
-                shown[0] = now
-                self.loop.call_soon_threadsafe(self.show_import, crate, generation)
-
         async def work(handle):
-            result = await self.io(self.services.collection.collect, target, DigOptions(),
-                                   self.services.state.db.snapshot_generations(), 'none', None,
-                                   handle.cancel, progress, arrived)
-            if result.record and generation == self.generation:
-                self.record, self.folder = result.record, None
+            if accepted := values.get('accepted'):
+                await accepted()
+            if adding:
                 self.generation += 1
-                await self.publish(result.record.active_tracks, result.record.title, self.generation)
-        try:
-            await self.job('Collecting tracks', work)
-        finally:
-            if adding and generation == self.generation:
-                # Nothing was saved (failed, cancelled or empty): withdraw the half-filled view.
-                self.generation += 1
-                self.rows = []
-                self.send('view', {'generation': self.generation, 'title': '', 'source': '', 'local': False, 'rows': []})
-            self.importing = None
-            self.send('importProgress', {})
-            await self.sidebar()
+                self.record, self.folder = None, None
+                self.importing = dict(title=target, source=target, pending=True)
+                self.show_import(Crate(source=target, tracks=[], title=target), self.generation)
+            generation = self.generation
+
+            def arrived(crate):
+                # Each batch rebuilds the table, so only show it again when complete or after a second.
+                now = time.monotonic()
+                complete = bool(crate.declared_count) and len(crate.tracks) >= crate.declared_count
+                if adding and (complete or now - shown[0] >= 1):
+                    shown[0] = now
+                    self.loop.call_soon_threadsafe(self.show_import, crate, generation)
+
+            try:
+                if adding:
+                    await self.sidebar()
+                result = await self.io(self.services.collection.collect, target, DigOptions(),
+                                       self.services.state.db.snapshot_generations(), 'none', None,
+                                       handle.cancel, progress, arrived, **snapshot)
+                if result.record and generation == self.generation:
+                    self.record, self.folder = result.record, None
+                    self.generation += 1
+                    await self.publish(result.record.active_tracks, result.record.title, self.generation)
+            finally:
+                if adding and generation == self.generation:
+                    # Nothing was saved (failed, cancelled or empty): withdraw the half-filled view.
+                    self.generation += 1
+                    self.rows = []
+                    self.send('view', {'generation': self.generation, 'title': '', 'source': '', 'local': False, 'rows': []})
+                self.importing = None
+                self.send('importProgress', {})
+                await self.sidebar()
+
+        await self.job('Collecting tracks', work)
 
     def show_import(self, crate, generation):
         """The tracks of an import so far, shown under its provisional sidebar entry; not saved yet."""
@@ -425,10 +460,14 @@ class Backend:
 
     async def action_refresh(self, values):
         # The sidebar refreshes the playlist it was asked about, shown first.
-        if (source := values.get('source')) and not (self.record and self.record.source == source):
+        source = values.get('source') or (self.record.source if self.record else '')
+        if source.startswith(('local-playlist:', 'sc-snapshot:')):
             await self.action_load({'source': source})
-        if self.record and not self.record.source.startswith('local-playlist:'):
-            await self.action_dig({'target': self.record.source})
+            return
+        if values.get('source') and not (self.record and self.record.source == source):
+            await self.action_load({'source': source})
+        if self.record and self.record.source == source:
+            await self.action_dig({'target': source})
         elif self.folder:
             await self.action_folder({'path': str(self.folder), 'offset': self.offset})
 
@@ -474,6 +513,88 @@ class Backend:
             await self.refresh_rows()
         if urls:
             await self.job('Open links', work)
+
+    async def action_track_link(self, values):
+        from ..services.opening import soundcloud_track_url, track_search_url
+
+        rows = self.targets(values)
+        if len(rows) != 1:
+            raise ValueError('Select one track')
+        track = rows[0].track
+        provider = values['provider']
+        url = (soundcloud_track_url(track.permalink_url) if provider == 'SoundCloud'
+               else track_search_url(provider, track.artist, track.title))
+        if not url or not await self.io(self.services.opening.open_one, url, None, self.services.config.browser):
+            raise ValueError('Could not open the track link')
+
+    async def create_soundcloud_playlist(self, title, sharing, tracks):
+        await self.write_soundcloud_tracks(tracks, title=title, sharing=sharing)
+
+    async def add_to_soundcloud_playlist(self, source, tracks):
+        raw = await self.io(self.services.state.db.load_crate, source)
+        if not raw or type(raw.get('provider_id')) is not int:
+            raise ValueError('Refresh the playlist to verify its SoundCloud identity')
+        await self.write_soundcloud_tracks(tracks, title=raw['title'], identifier=raw['provider_id'])
+        if self.record and self.record.source == source:
+            await self.action_load({'source': source})
+
+    async def write_soundcloud_tracks(self, tracks, *, title, sharing='private', identifier=None):
+        from ..services.soundcloud_playlists import account_profile, write_tracks
+
+        async def work(handle):
+            link = self.services.browser_link
+            connections = [c for c in link.connections() if c.compatible and c.hello.get('permissions') is not False] if link else []
+            if not connections:
+                raise ValueError('Connect the SoundCloud browser extension first')
+            connections = [c for c in connections if c.hello.get('playlistWrite') is True]
+            if not connections:
+                raise ValueError('The extension is out of date: reload it in your browser')
+            index = 0
+            if len(connections) > 1:
+                options = [[str(i), '{0} ({1})', c.hello.get('browser', ''), str(i + 1)] for i, c in enumerate(connections)]
+                answer = await self.form('Choose the SoundCloud browser', '', [field('browser', 'Browser', '0', 'choice', options)],
+                                         lambda a: a, handle.cancel)
+                index = int(answer['browser'])
+            session = connections[index].session()
+            try:
+                client = self.services.client
+                owner = await self.io(account_profile, client)
+                await self.ask('Save on SoundCloud', '', [field('account', 'SoundCloud account', owner[1], 'path'),
+                               field('browser', 'Browser', connections[index].hello.get('browser', ''), 'note'),
+                               field('playlist', 'Playlist', title, 'path'),
+                               field('sharing', 'Visibility', 'Existing playlist' if identifier else
+                                     ('Public' if sharing == 'public' else 'Private'), 'note')],
+                               handle.cancel, ok='Save on SoundCloud')
+                counts = [0, 0]
+                def progress(added, skipped, total):
+                    counts[:] = [added, skipped]
+                    self.loop.call_soon_threadsafe(self.send, 'importProgress',
+                                                   dict(stage='Saving on SoundCloud', done=added + skipped, total=total))
+                try:
+                    added, skipped = await self.io(write_tracks, client, session, owner, tracks, self.services.state.db,
+                                                   self.services.state.db.snapshot_generations(), handle.cancel,
+                                                   title=title, sharing=sharing, identifier=identifier, progress=progress)
+                except Cancelled:
+                    self.send('message', {'text': 'Check the playlist on SoundCloud before continuing. Confirmed additions: {0}. Already present: {1}.',
+                                          'args': counts})
+                    raise
+                except Exception:
+                    detail = dict(field('confirmed', '', 'Check the playlist on SoundCloud before continuing. Confirmed additions: {0}. Already present: {1}.', 'note'),
+                                  args=counts)
+                    if session.error:
+                        await self.ask('Save on SoundCloud', '', [detail], handle.cancel, ok='Close')
+                    elif await self.skippable(self.ask('Save on SoundCloud', '', [detail], handle.cancel,
+                                                       ok='Open SoundCloud playlists', dismiss='Close'), handle.cancel):
+                        await self.io(session.request, 'playlist.review', {})
+                    raise
+                finally:
+                    self.send('importProgress', {})
+                await self.sidebar()
+                self.send('message', {'text': 'SoundCloud: added {0}, already present {1}.', 'args': [added, skipped]})
+            finally:
+                session.close()
+
+        await self.job('Saving on SoundCloud', work)
 
     async def action_download(self, values):
         from ..services.downloads import DownloadRequest, DownloadWorkflow
@@ -830,30 +951,58 @@ class Backend:
                 paths = tuple(matching)
         return paths
 
+    def playlist_tracks(self, values):
+        selected = {row.track.key: row.track for row in self.targets(values)}
+        order = values.get('order', values.get('keys', ()))
+        tracks = [selected[key] for key in dict.fromkeys(order) if key in selected]
+        if any(not track.local_id and not soundcloud_track_url(track.permalink_url) for track in tracks):
+            raise ValueError('Select local files or SoundCloud tracks')
+        return tracks
+
     async def action_save_playlist(self, values):
-        tracks = [r.track for r in self.targets(values) if r.track.local_id]
+        tracks = self.playlist_tracks(values)
         if not tracks:
             return
-        answer = await self.form('Save local playlist', '', [field('title', 'Playlist name')], required('title'), ok='Save')
+        fields = [field('title', 'Playlist name'), dict(field('count', '', 'Selected tracks: {0}', 'note'), args=[len(tracks)])]
+        can_publish = all(soundcloud_playlist_track(track) for track in tracks)
+        if can_publish:
+            fields.extend([field('soundcloud', 'Also create on SoundCloud', False, 'bool'),
+                           dict(field('sharing', 'SoundCloud visibility', 'private', 'choice',
+                                      [['private', 'Private'], ['public', 'Public']]), requires='soundcloud')])
+        answer = await self.form('New Playlist', '', fields, required('title'), ok='Create')
         title = answer['title'].strip()
-        headers = await self.io(self.services.library.headers)
-        matches = [h for h in headers if h.source.startswith('local-playlist:') and h.title == title]
-        if len(matches) > 1:
-            raise ValueError('Ambiguous playlist name')
-        source = matches[0].source if matches else 'local-playlist:' + uuid4().hex
-        await self.io(self.services.state.db.save_local_playlist, source, title, [t.local_id for t in tracks])
+        sharing = answer.get('sharing', 'private')
+        publish = can_publish and answer.get('soundcloud') is True
+        if publish and sharing not in ('private', 'public'):
+            raise ValueError('Choose a SoundCloud visibility')
+        await self.io(self.services.state.db.save_local_playlist, 'local-playlist:' + uuid4().hex, title, tracks)
         await self.sidebar()
+        if publish:
+            try:
+                await self.create_soundcloud_playlist(title, sharing, tracks)
+            except (Dismissed, Cancelled):
+                self.send('message', {'text': 'Created local playlist {0}', 'args': [title]})
+            except Exception as exc:
+                self.send('error', {'text': 'Created local playlist {0}. SoundCloud playlist creation failed: {1}',
+                                    'args': [title, log_safe_text(exc)]})
 
     async def action_add_to_playlist(self, values):
-        """Tracks dropped on a local playlist in the sidebar join it at the end."""
+        """Send the visible selection to an existing playlist."""
         source = values['source']
-        if not source.startswith('local-playlist:'):
-            raise ValueError('Tracks can only be added to a local playlist')
-        ids = [r.track.local_id for r in self.targets(values) if r.track.local_id]
-        headers = await self.io(self.services.library.headers)
-        if not ids or not any(h.source == source for h in headers):
+        tracks = self.playlist_tracks(values)
+        if not tracks:
             return
-        await self.io(self.services.state.db.save_local_playlist, source, '', ids)
+        if not source.startswith('local-playlist:'):
+            if not any(item['source'] == source and item.get('owned') for item in self.saved_playlists):
+                raise ValueError('Choose a local playlist or a SoundCloud playlist you own')
+            if not all(soundcloud_playlist_track(track) for track in tracks):
+                raise ValueError('Only SoundCloud tracks can be sent to a SoundCloud playlist')
+            await self.add_to_soundcloud_playlist(source, tracks)
+            return
+        counts = await self.io(self.services.state.db.save_local_playlist, source, None, tracks)
+        if not counts:
+            return
+        self.send('message', {'text': 'Added {0}, already present {1}.', 'args': list(counts)})
         await self.sidebar()
         if self.record and self.record.source == source:
             await self.action_load({'source': source})
@@ -875,23 +1024,24 @@ class Backend:
         source = values['source']
         if not source.startswith('local-playlist:'):
             raise ValueError('Only local playlists can be duplicated')
-        db = self.services.state.db
-        media = await self.io(db.local_playlist_media, source)
-        headers = await self.io(self.services.library.headers)
-        title = next((h.title for h in headers if h.source == source), '')
-        answer = await self.form('Duplicate playlist', '', [field('title', 'Playlist name', title)], required('title'), ok='Duplicate')
-        await self.io(db.save_local_playlist, 'local-playlist:' + uuid4().hex, answer['title'].strip(), [m['id'] for m in media])
+        record = await self.io(self.services.library.load, source)
+        if record is None:
+            return
+        answer = await self.form('Duplicate playlist', '', [field('title', 'Playlist name', record.title)], required('title'), ok='Duplicate')
+        await self.io(self.services.state.db.save_local_playlist, 'local-playlist:' + uuid4().hex, answer['title'].strip(),
+                      record.active_tracks, preserve_duplicates=True)
         await self.sidebar()
 
     async def action_remove(self, values):
         rows = self.targets(values)
         record = self.record
-        if record is None:
+        if record is None or record.source.startswith('sc-snapshot:') or not rows:
             return
         generation = self.services.state.db.crate_generation(record.source)
         await self.ask('Remove from playlist', '\n'.join(r.track.label for r in rows), ok='Remove')
         await self.io(self.services.library.remove_tracks, record.source, generation,
                       [r.track.key for r in rows], removed=True)
+        await self.sidebar()
         if self.record is record:
             await self.action_load({'source': record.source})
 
@@ -921,6 +1071,8 @@ class Backend:
                       hint='Only when you are signed in to SoundCloud as this profile')], profile_answer, ok='Import')
         client = self.services.client
         async def work(handle):
+            if accepted := values.get('accepted'):
+                await accepted()
             def progress(done, total):
                 self.loop.call_soon_threadsafe(self.send, 'importProgress', dict(stage='Importing playlists', done=done, total=total))
             error = ''
@@ -943,8 +1095,13 @@ class Backend:
     async def action_settings(self, values):
         config = self.services.config
         from ..config import is_real_email
+        connection_actions = ('login', 'logout', 'connect_browser', 'disconnect_browsers')
+        presentation_names = {'language', 'theme', 'colors', 'keyNotation', 'vinyl', 'animations', 'previewThirty'}
+        appearance = [item for item in values.get('appearance', []) if item['name'] in presentation_names]
         choices, _ = await self.io(self.services.accounts.browser_choices)
         def validate(answer):
+            if answer.get('_connectionAction') in connection_actions:
+                return answer
             if answer['user_email'] and not is_real_email(answer['user_email']):
                 raise ValueError('Enter a valid email')
             if not answer['download_directory'].strip():
@@ -952,23 +1109,33 @@ class Backend:
             answer['default_artwork'] = answer['default_artwork'].strip()
             if answer['default_artwork'] and not Path(answer['default_artwork']).expanduser().is_file():
                 raise ValueError('The default cover is not a file')
-            answer.pop('browser_status', None)
             for name in ('scan_directories', 'pinned_directories', 'hidden_directories', 'custom_comments'):
                 answer[name] = [line.strip() for line in answer[name].splitlines() if line.strip()]
             return answer
-        status, status_args = self.browser_status()
         browsers = [[value, label] for value, label in choices]
         if config.browser and not any(config.browser == value for value, _ in choices):
             # Kept as saved, not quietly replaced: it may be back on another day or computer.
             browsers.append([config.browser, '{0} (not available on this computer)', config.browser])
-        answer = await self.form('Settings', '', [
-            section('section_downloads', 'Downloads'),
+        accounts_section = section('section_browser', 'Accounts and browser', collapsed=True)
+        browser_status = field('browser_status', 'Browser automation', kind='note')
+        fields = [
+            *([section('section_appearance', 'Appearance', collapsed=True), *appearance] if appearance else []),
+            section('section_player', 'Playback', collapsed=True),
+            field('default_artwork', 'Default cover (tracks without artwork)', config.default_artwork, 'image'),
+            field('previewThirty', 'Start previews at 30 %', values.get('previewThirty') is True, 'bool'),
+            accounts_section,
+            field('connections', '', kind='connections'),
+            browser_status,
+            field('browser', 'Open links in', config.browser, 'choice', browsers,
+                  hint='Store and artist links open here. SoundCloud sign-in, gates and carts open in the browser '
+                       'with the dj-digger extension.'),
+            section('section_downloads', 'Downloads', collapsed=True),
             field('download_directory', 'Download folder', config.download_directory, 'folder',
                   hint='Each playlist gets its own folder inside it.'),
             section('section_gates', 'Gates and carts',
                     'Gates are free downloads you get for a follow, a like or your email; dj-digger fills them in for you. '
                     'Gates may submit your name and email. Social actions may follow, like, repost or comment, '
-                    'and connect Spotify, Deezer or Apple Music, on the accounts logged in to your browser.'),
+                    'and connect Spotify, Deezer or Apple Music, on the accounts logged in to your browser.', collapsed=True),
             field('user_name', 'Name', config.user_name),
             field('user_email', 'Email', config.user_email if config.has_real_email() else '',
                   hint='Some gates ask for one before the download.'),
@@ -979,21 +1146,33 @@ class Backend:
             field('nyp_price', 'Bandcamp name-your-price items go into the cart at', config.nyp_price, 'choice',
                   [['minimum', 'The minimum price'], ['suggested', 'The price the artist suggests']],
                   hint='Nothing is bought: you pay in the store yourself.'),
-            section('section_browser', 'Browser'),
-            dict(field('browser_status', 'Browser automation', status, 'note'), args=status_args),
-            field('browser', 'Open links in', config.browser, 'choice', browsers,
-                  hint='Store and artist links open here. SoundCloud sign-in, gates and carts open in the browser '
-                       'with the dj-digger extension (Settings → Connect browser…).'),
-            section('section_player', 'Player'),
-            field('default_artwork', 'Default cover (tracks without artwork)', config.default_artwork, 'image'),
             section('section_folders', 'Library folders (advanced)', collapsed=True),
             field('scan_directories', 'Scan folders (one per line)', '\n'.join(config.scan_directories), 'multiline',
                   hint='Where dj-digger looks for music you already have.'),
             field('pinned_directories', 'Pinned folders (one per line)', '\n'.join(config.pinned_directories), 'multiline',
                   hint='Listed under Folders in the sidebar.'),
             field('hidden_directories', 'Hidden folders (one per line)', '\n'.join(config.hidden_directories), 'multiline',
-                  hint='Left out of the folder tree.')], validate, ok='Save')
-        await self.io(self.services.accounts.save_preferences, answer)
+                  hint='Left out of the folder tree.')]
+        await self.action_account({})
+        while True:
+            status, status_args = self.browser_status()
+            browser_status.update(value=status, args=status_args)
+            answer = await self.form('Preferences', '', fields, validate, ok='Save')
+            operation = answer.get('_connectionAction')
+            if operation not in connection_actions:
+                break
+            await self.dispatch(operation, {})
+            await self.action_account({})
+            accounts_section['expanded'] = True
+            for item in fields:
+                if item['name'] in answer and item['kind'] not in DISPLAY_KINDS:
+                    item['value'] = answer[item['name']]
+        presentation = {item['name']: answer[item['name']] for item in fields
+                        if item['name'] in presentation_names and item['name'] in answer}
+        service_preferences = {item['name']: answer[item['name']] for item in fields
+                               if item['name'] not in presentation_names and item['name'] in answer and item['kind'] not in DISPLAY_KINDS}
+        await self.io(self.services.accounts.save_preferences, service_preferences)
+        self.send('presentation', presentation)
         self.services.config.first_run = False
         await self.sidebar()
 
@@ -1041,6 +1220,7 @@ class Backend:
             return
         self.login_expired_asked = True
         try:
+            await self.action_account({})
             await self.ask('SoundCloud login expired', 'SoundCloud no longer accepts the saved login, so dj-digger '
                            'continues without your account: no private playlists or artist downloads. Refresh the '
                            'login from your browser now? A closed browser is opened on SoundCloud; sign in there '
@@ -1057,16 +1237,25 @@ class Backend:
         self.services.adopt_login(None)
         await self.action_account({})
 
+    def soundcloud_account(self):
+        """Only the current account matching the stored login has a known owner ID."""
+        from .. import auth
+        token = getattr(self.services.client, 'oauth_token', None)
+        info = auth.get_stored_auth_info() if token else {}
+        if token and info.get('oauth_token') == token:
+            owner = info.get('user_id')
+            return True, str(info.get('username') or ''), owner if type(owner) is int and owner > 0 else None
+        return bool(token), '', None
+
     async def action_account(self, values):
         """Who is signed in and which browser is connected, for the Settings menu; never the token."""
-        from .. import auth
-        token, info = await self.io(lambda: (auth.get_stored_token(), auth.get_stored_auth_info()))
+        signed_in, name, owner = await self.io(self.soundcloud_account)
         link = self.services.browser_link
         connected = [c for c in link.connections() if c.compatible] if link is not None else []
         browser = str(max(connected, key=lambda c: c.last_active).hello.get('browser') or 'browser').capitalize() if connected else ''
-        # An environment token belongs to no saved name.
-        name = str(info.get('username') or '') if token and info.get('oauth_token') == token else ''
-        self.send('account', dict(signedIn=bool(token), name=name, browser=browser), copy=False)
+        self.send('account', dict(signedIn=signed_in, name=name, browser=browser), copy=False)
+        if owner != self.playlist_owner:
+            await self.sidebar()
 
     async def action_about(self, values):
         from .. import __version__
@@ -1096,6 +1285,21 @@ class Backend:
             return
         self.play_generation += 1
         generation = self.play_generation
+        self.send('playLoading', {'key': track.key})
+        try:
+            if not await self.prepare_and_play(track, generation):
+                return
+        finally:
+            if generation == self.play_generation:
+                self.send('playLoading', {})
+        # Heard once, a track is no longer new.
+        if await self.io(self.services.state.mark_played, track.key):
+            self.send_rows(self.generation)
+        if not hasattr(self, 'ticker') or self.ticker.done():
+            self.ticker = self.loop.create_task(self.tick())
+
+    async def prepare_and_play(self, track, generation):
+        player = self.services.player
         self.prefetch_attempt = ''
         if self.prepared is not None and self.prepared.key == track.key:
             prepared, self.prepared = self.prepared, None
@@ -1127,14 +1331,10 @@ class Backend:
                 await self.io(player.play)
                 self.publish_audio()
                 self.publish_now_playing()
-            # Heard once, a track is no longer new.
-            if await self.io(self.services.state.mark_played, track.key):
-                self.send_rows(self.generation)
         finally:
             if prepared.source is not None:
                 await self.io(prepared.close)
-        if not hasattr(self, 'ticker') or self.ticker.done():
-            self.ticker = self.loop.create_task(self.tick())
+        return True
 
     async def load_waveform(self, loaded, source, cancel):
         from ..services.playback import track_waveform
@@ -1206,7 +1406,7 @@ class Backend:
         how many gates wait for a person, queued when any of them changes (webext player.state).
         While a track plays its position alone goes every BROWSER_POSITION_EVERY seconds; the panel
         runs its own clock from ``at``."""
-        if getattr(self.services, 'browser_link', None) is None:
+        if not self.browser_ready or getattr(self.services, 'browser_link', None) is None:
             return
         p = self.services.player
         progress = self.browser_progress
@@ -1259,7 +1459,11 @@ class Backend:
         """The panel's and the context menu's commands (webext player.command, checked by
         ``link.player_command``), each the same step as the window's own."""
         op, player = values.get('op'), self.services.player
-        if op == 'cancel':
+        if op == 'activate':
+            self.send('activate', {})
+            if reply := values.get('reply'):
+                await self.io(reply, 'opened')
+        elif op == 'cancel':
             await self.dispatch('cancel', {})  # the status bar's Cancel
         elif op == 'gates':
             # Only the "Gates need you" question on screen (the oldest open one) is answered.
@@ -1267,12 +1471,38 @@ class Backend:
                 self.answer(self.gates_waiting[0], {'next': values['choice']})
         elif op == 'import':
             target = import_target(values['url'])
-            if target is None:
+            reply = values.get('reply')
+            if target is None or (target[0] == 'system-set' and reply is None):
                 LOGGER.debug('Browser import ignored')  # never the link: it is untrusted
-            elif target[0] == 'profile':
-                await self.action_profile({'url': target[1]})
-            else:
-                await self.action_dig({'target': target[1], 'add': True})
+                if reply:
+                    await self.io(reply, 'invalid')
+                return
+            options = {}
+            if reply:
+                request = values['request']
+                identity = (target[1], values['date'])
+                if request in self.browser_imports:
+                    return await self.io(reply, 'accepted' if self.browser_imports[request] == identity else 'invalid')
+
+                async def accepted():
+                    self.browser_imports[request] = identity
+                    # ponytail: a bounded in-memory retry window for this desktop instance.
+                    if len(self.browser_imports) > 128:
+                        del self.browser_imports[next(iter(self.browser_imports))]
+                    await self.io(reply, 'accepted')
+
+                options['accepted'] = accepted
+            if target[0] == 'system-set':
+                options['snapshot_date'] = values['date']
+            try:
+                if target[0] == 'profile':
+                    await self.action_profile({'url': target[1], **options})
+                else:
+                    await self.action_dig({'target': target[1], 'add': True, **options})
+            except OperationBusy:
+                if reply is None:
+                    raise
+                await self.io(reply, 'busy')
         elif not player.loaded:
             return
         elif op == 'toggle':
@@ -1378,6 +1608,7 @@ class Backend:
         if operation == 'stop':
             self.waveform_cancel.set()
             self.play_generation += 1
+            self.send('playLoading', {})
             await self.player_call(player.unload)
             if self.prepared is not None:
                 old, self.prepared = self.prepared, None
@@ -1436,6 +1667,8 @@ class Backend:
         await self.analyze_paths(paths)
 
     async def action_delete_files(self, values):
+        if self.folder is None:
+            raise ValueError('Open the folder to delete files')
         files = await self.io(self.local.delete_targets, [row.track for row in self.targets(values)])
         if not files:
             return
@@ -1514,11 +1747,19 @@ class Backend:
         await self.action_folder({'path': str(path)})
 
     async def action_restore(self, values):
+        if source := values.get('source'):
+            if source.startswith('sc-snapshot:'):
+                return
+            if not self.record or self.record.source != source:
+                await self.action_load({'source': source})
+                if not self.record or self.record.source != source:
+                    return
         if self.record and self.record.removed_track_keys:
             record = self.record
             generation = self.services.state.db.crate_generation(record.source)
             await self.ask('Restore removed tracks', record.title, ok='Restore')
             await self.io(self.services.library.remove_tracks, record.source, generation, record.removed_track_keys, removed=False)
+            await self.sidebar()
             if self.record is record:
                 await self.action_load({'source': record.source})
 
@@ -1869,7 +2110,12 @@ def field(name, label, value='', kind='text', options=(), hint=''):
     return dict(name=name, label=label, value=value, kind=kind, options=[list(o) for o in options], hint=hint)
 
 
-DISPLAY_KINDS = frozenset({'note', 'path', 'copy', 'section'})
+def soundcloud_playlist_track(track):
+    return (not track.local_id and type(track.id) is int and track.id > 0
+            and bool(soundcloud_track_url(track.permalink_url)))
+
+
+DISPLAY_KINDS = frozenset({'note', 'path', 'copy', 'section', 'connections'})
 
 
 def section(name, label, hint='', collapsed=False):
@@ -1940,12 +2186,7 @@ def profile_summary(report, error=''):
 
 
 def import_target(url):
-    """A link the browser extension handed over (untrusted) as ``('set', link)`` or ``('track', link)``
-    for Add playlist (a track is a one-track playlist) or ``('profile', link)`` for the profile import,
-    normalised; None for anything else. Only https on soundcloud.com (also www. and m.) with no
-    credentials or port, and only these path shapes: ``/<user>/sets/<name>``, ``/<user>/<track>``,
-    ``/<user>`` and ``/<user>/<tab>`` (sets, tracks, albums, popular-tracks, reposts). The query and
-    fragment are dropped. The extension checks the same before sending."""
+    """Classify an untrusted link from the extension and return its canonical URL."""
     from urllib.parse import urlsplit
 
     from ..services.profile_import import PROFILE_NAME, profile_url
@@ -1955,8 +2196,11 @@ def import_target(url):
         return None
     if parts.scheme != 'https' or parts.netloc not in IMPORT_HOSTS or len(url) > 512:
         return None
-    names = parts.path.removeprefix('/').removesuffix('/').split('/')
-    if not all(PROFILE_NAME.fullmatch(name) for name in names):
+    path = parts.path.removeprefix('/').removesuffix('/')
+    if system := SYSTEM_SET.fullmatch(path):
+        return 'system-set', f'https://soundcloud.com/discover/sets/{system[1]}::{system[2]}'
+    names = path.split('/')
+    if names[0].lower() in SOUNDCLOUD_PAGES or not all(PROFILE_NAME.fullmatch(name) for name in names):
         return None
     if len(names) == 3 and names[1] == 'sets':
         link = 'https://soundcloud.com/' + '/'.join(names)

@@ -36,6 +36,7 @@ class CrateRecord:
     provider_id: int | None = None
     # The user renamed it: a refresh keeps this title instead of the provider's.
     renamed: bool = False
+    owner_id: int | None = None
 
     @property
     def active_tracks(self) -> list[Track]:
@@ -61,6 +62,7 @@ class CrateRecord:
             imported_at=_now(),
             partial=partial,
             provider_id=crate.provider_id,
+            owner_id=crate.owner_id,
         )
 
     def to_json(self) -> dict[str, Any]:
@@ -81,6 +83,7 @@ class CrateRecord:
             preserve_order=bool(data.get("preserve_order")),
             provider_id=data.get("provider_id"),
             renamed=bool(data.get("renamed")),
+            owner_id=data.get("owner_id"),
         )
 
 
@@ -93,5 +96,8 @@ class CrateHeader(NamedTuple):
     partial: bool = False
     # Active tracks, counted by SQLite without loading the record.
     count: int = 0
+    owner_id: int | None = None
+    provider_id: int | None = None
+    media_count: int = 0
 
 

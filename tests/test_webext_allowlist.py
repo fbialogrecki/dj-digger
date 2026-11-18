@@ -153,7 +153,7 @@ def test_manifest_permissions_and_entry_points():
     }
     background = MANIFEST["background"]
     assert background["service_worker"] == "background.js"
-    assert background["scripts"] == ["dom.js", "background.js"]
+    assert background["scripts"] == ["dom.js", "playlist-write.js", "background.js"]
     for name in (
         background["service_worker"],
         *background["scripts"],
@@ -229,9 +229,12 @@ def test_no_remote_code_and_one_input_channel(path):
         assert "sender.id !== api.runtime.id" in source
         # soundcloud.js is heard only from a soundcloud.com top frame, and only for an import
         assert 'sender.frameId === 0 && parse(sender.url)?.origin === "https://soundcloud.com"' in source
-        assert 'const c = m.op === "import" ? command(m) : null;' in source
+        assert 'const target = m.op === "import" ? importTarget(m.url) : null;' in source
+        assert 'target?.url === importTarget(sender.url)?.url' in source
+        assert 'm.tilePage === parse(sender.url).pathname' in source
     if path.name == "soundcloud.js":
-        assert source.count("sendMessage(") == 1 and 'sendMessage({ op: "import", url })' in source
+        assert source.count("sendMessage(") == 1 and 'sendMessage({ op: "import", url,' in source
+        assert 'if (!e.isTrusted) return;' in source
     # plan F13: the context menu is the background's, and only the popup reads the active tab (activeTab)
     assert ("contextMenus." in source) == (path.name == "background.js")
     assert source.count("contextMenus.onClicked") <= 1

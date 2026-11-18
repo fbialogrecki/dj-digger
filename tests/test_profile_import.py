@@ -55,6 +55,7 @@ def test_order_duplicates_and_permalink_change(db):
     client.url = 'https://soundcloud.com/owner/sets/new-name'
     import_profile(client, db, 'https://soundcloud.com/owner')
     assert len(db.list_crate_headers()) == 1
+    assert db.list_crate_headers()[0]['owner_id'] == 5
     assert db.load_crate(old_url)['preserve_order']
 
 

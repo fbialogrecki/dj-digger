@@ -178,6 +178,7 @@ class Crate:
     title: str = ""
     declared_count: int | None = None
     provider_id: int | None = None
+    owner_id: int | None = None
 
 
 @dataclass
