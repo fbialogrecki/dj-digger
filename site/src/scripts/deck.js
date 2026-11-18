@@ -79,3 +79,19 @@ for (const button of document.querySelectorAll("[data-copy]")) {
     setTimeout(() => (button.textContent = "Copy"), 1600);
   });
 }
+
+// Day or night: the button flips whatever is showing and remembers it.
+const theme = document.querySelector(".theme");
+if (theme && CSS.supports("color", "light-dark(#000, #fff)")) {
+  const dark = () => (root.dataset.theme ?? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")) === "dark";
+  const label = () => theme.setAttribute("aria-label", `Switch to ${dark() ? "light" : "dark"} theme`);
+  theme.hidden = false;
+  label();
+  theme.addEventListener("click", () => {
+    root.dataset.theme = dark() ? "light" : "dark";
+    try {
+      localStorage.djdTheme = root.dataset.theme;
+    } catch {}
+    label();
+  });
+}

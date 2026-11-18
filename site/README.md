@@ -84,9 +84,12 @@ writing page-specific CSS; put what is truly page-specific in the page's own `<s
 | `.facts` | A row of short facts with a dot each |
 | `kbd`, `.sr` | A key; text for screen readers only |
 
-Colours are the app's dark theme and its magenta-blue waveform pair (`--neon-foot`,
-`--neon-top`); text uses `--fg` and `--muted` only, which keep WCAG AA contrast on
-`--bg` and `--panel`.
+Colours are the app's dark and light themes and its magenta-blue waveform pair. The
+site follows the system's theme; the header button switches it and remembers the
+choice (`localStorage`, restored by `boot.js` before first paint). Every colour token
+is one `light-dark()` value in `global.css`, so a new colour needs both sides there.
+Text uses `--fg`, `--muted` and `--accent` only, which keep WCAG AA contrast on `--bg`
+and `--panel` in both themes; `--neon-foot` and `--neon-top` are decoration, never text.
 
 ## Images and video
 

@@ -26,8 +26,9 @@ const pages = [
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="color-scheme" content="dark" />
-    <meta name="theme-color" content="#0b0b0e" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0b0b0e" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#eceef1" />
     <title>{title}</title>
     <meta name="description" content={description} />
     {!noindex && <link rel="canonical" href={canonical} />}
@@ -83,6 +84,16 @@ const pages = [
           </ul>
         </nav>
       </details>
+      {/* Shown by deck.js: without JavaScript the site follows the system's theme. */}
+      <button class="theme" type="button" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <g class="sun">
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+          </g>
+          <path class="moon" d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" />
+        </svg>
+      </button>
     </header>
 
     <div class="page">

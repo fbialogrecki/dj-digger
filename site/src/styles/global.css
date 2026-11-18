@@ -1,4 +1,4 @@
-/* dj-digger: the site is a record. Colours come from the app's dark theme
+/* dj-digger: the site is a record. Colours come from the app's dark and light themes
    (Main.qml) and its magenta-blue waveform pair; the labels use more of the app's colour pairs. */
 
 @font-face {
@@ -38,6 +38,13 @@
   --neon-top: #1e9bff;
   --label-from: #ff2fa8;
   --label-to: #3a5fd6;
+  /* Accent colours that carry text; the neon pair is decoration only. */
+  --accent: #ff2fa8;
+  --accent-2: #1e9bff;
+  --metal: #c9ccd3;
+  --shell: #ececef;
+  --shadow: #000;
+  --peek: 0.45; /* how strongly the record shows behind the hero on narrow screens */
   --sans: "Archivo", system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --top: 4.25rem;
@@ -50,6 +57,38 @@
   --lift: -5deg;
   --drop: -5deg;
   color-scheme: dark;
+}
+/* Day and night, as in the app: the system's choice unless the header button set
+   data-theme (boot.js restores it before first paint). Without light-dark() the site
+   stays dark. */
+@supports (color: light-dark(#000, #fff)) {
+  :root {
+    color-scheme: light dark;
+    --bg: light-dark(#eceef1, #0b0b0e);
+    --panel: light-dark(#fafafb, #141418);
+    --raise: light-dark(#dfe2e7, #1e1e24);
+    --fg: light-dark(#111217, #ececef);
+    --muted: light-dark(#50535c, #a3a6ad);
+    --line: light-dark(#cfd3da, #2b2b33);
+    --edge: light-dark(#7d818b, #6a6d76);
+    --accent: light-dark(#b0175d, #ff2fa8);
+    --accent-2: light-dark(#2a56d6, #1e9bff);
+    --metal: light-dark(#7d818b, #c9ccd3);
+    --shell: light-dark(#9a9da5, #ececef);
+    --shadow: light-dark(rgb(17 18 23 / 0.3), #000);
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --peek: 0.14;
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --peek: 0.14;
+    }
+  }
 }
 /* Each page is another pressing: its label takes one of the app's colour pairs. */
 [data-label="app"] {
@@ -102,7 +141,7 @@ a {
   text-underline-offset: 0.2em;
 }
 :focus-visible {
-  outline: 2px solid #fff;
+  outline: 2px solid var(--fg);
   outline-offset: 3px;
   border-radius: 4px;
 }
@@ -153,7 +192,7 @@ pre,
 .eyebrow .no {
   font-stretch: 100%;
   letter-spacing: 0.04em;
-  color: var(--neon-foot);
+  color: var(--accent);
   margin-right: 0.75em;
 }
 
@@ -241,7 +280,7 @@ pre,
 }
 .links small {
   font: 500 0.66rem var(--mono);
-  color: var(--neon-foot);
+  color: var(--accent);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -269,7 +308,7 @@ pre,
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 14px;
-  box-shadow: 0 24px 60px -20px #000;
+  box-shadow: 0 24px 60px -20px var(--shadow);
 }
 .menu nav a {
   padding: 0.75rem 0.9rem;
@@ -278,6 +317,41 @@ pre,
 }
 .menu nav a:hover {
   background: var(--raise);
+}
+/* Day or night: the icon shows where a click leads (sun while dark, moon while light). */
+.theme {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: 1px solid var(--edge);
+  border-radius: 50%;
+  background: none;
+  color: var(--fg);
+  cursor: pointer;
+}
+.theme[hidden] {
+  display: none;
+}
+.theme:hover {
+  background: var(--raise);
+  border-color: var(--fg);
+}
+.theme svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+.theme .sun {
+  stroke: light-dark(transparent, currentColor);
+}
+.theme .moon {
+  stroke: light-dark(currentColor, transparent);
 }
 @media (min-width: 46rem) {
   .links {
@@ -332,7 +406,7 @@ h3 {
   line-height: 1.25;
 }
 .grad {
-  background: linear-gradient(100deg, var(--neon-foot), var(--neon-top));
+  background: linear-gradient(100deg, var(--accent), var(--accent-2));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -414,7 +488,7 @@ h3 {
   border-radius: 14px;
   overflow: hidden;
   background: var(--panel);
-  box-shadow: 0 30px 70px -40px #000;
+  box-shadow: 0 30px 70px -40px var(--shadow);
 }
 .shot .frame {
   position: relative;
@@ -829,7 +903,7 @@ a.card:hover {
 }
 .tonearm .tube {
   fill: none;
-  stroke: #c9ccd3;
+  stroke: var(--metal);
   stroke-width: 2.6;
   stroke-linecap: round;
 }
@@ -840,10 +914,10 @@ a.card:hover {
   stroke-width: 0.6;
 }
 .tonearm .bearing-cap {
-  fill: #c9ccd3;
+  fill: var(--metal);
 }
 .tonearm .shell {
-  fill: #ececef;
+  fill: var(--shell);
 }
 .tonearm .stylus {
   fill: var(--neon-foot);
@@ -982,7 +1056,7 @@ a.card:hover {
   font-weight: 700;
 }
 .tracks a[aria-current] .no {
-  color: var(--neon-foot);
+  color: var(--accent);
 }
 
 /* Narrow screens: the record peeks out of the sleeve behind the hero, and a small
@@ -1000,7 +1074,7 @@ a.card:hover {
   top: 1.5rem;
   right: -58vw;
   width: min(104vw, 34rem);
-  opacity: 0.45;
+  opacity: var(--peek);
   -webkit-mask-image: linear-gradient(to left, #000 40%, transparent 80%);
   mask-image: linear-gradient(to left, #000 40%, transparent 80%);
 }

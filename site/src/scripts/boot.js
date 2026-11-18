@@ -1,6 +1,10 @@
 // Runs in the head, before first paint. Kept in its own file so astro.config.mjs can
 // allow exactly this text in the content security policy.
 const root = document.documentElement;
+// The theme chosen with the header button; without one the site follows the system.
+try {
+  if (localStorage.djdTheme) root.dataset.theme = localStorage.djdTheme;
+} catch {}
 
 // The needle drop plays once per session.
 try {
