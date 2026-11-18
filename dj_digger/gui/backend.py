@@ -7,7 +7,7 @@ import re
 import stat
 import threading
 import time
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from copy import deepcopy
 from dataclasses import replace
 from pathlib import Path
@@ -28,6 +28,8 @@ LOGGER = logging.getLogger(__name__)
 RELEASES_URL = 'https://github.com/fbialogrecki/dj-digger/releases'
 # Opening or downloading more tracks than this asks first.
 CONFIRM_ABOVE = 10
+# How long a browser opened for the SoundCloud sign-in gets to start and connect its extension.
+BROWSER_START_TIMEOUT = 20.0
 # The browser extension's panel sends at most one player.state per this many seconds.
 BROWSER_DEBOUNCE = .2
 # While a track plays, its position alone goes to the panel this rarely; the panel runs its own clock.
@@ -63,6 +65,7 @@ class Backend:
         self.closing = False
         self.tasks = set()
         self.questions = {}
+        self.login_expired_asked = False
         self.rows = []
         self.record = None
         self.folder = None
@@ -192,6 +195,7 @@ class Backend:
                 self.services.downloads
                 self.services.accounts
                 self.services.opening
+                self.services.on_token_rejected = lambda: self.submit('login_expired')
                 if self.connect_browser_link:
                     try:
                         await self.io(self.services.connect_browser)
@@ -993,8 +997,24 @@ class Backend:
         self.services.config.first_run = False
         await self.sidebar()
 
+    async def wake_browser(self):
+        """A closed browser cannot answer: open it on SoundCloud and give its extension time to say hello."""
+        from ..auth import SOUNDCLOUD_URL
+        from ..browser import open_url
+        from ..webext.link import ExtensionMissing
+        browser_link = self.services.browser_link
+        if browser_link is None or any(c.compatible for c in browser_link.connections()):
+            return
+        # shortcut: opens the "Open links in" browser; when the extension lives in another one,
+        # the wait runs out and with_extension shows Connect browser as before.
+        self.send('message', {'text': 'Opening your browser for the SoundCloud sign-in…'})
+        if await self.io(open_url, SOUNDCLOUD_URL, self.services.config.browser):
+            with suppress(ExtensionMissing):
+                await self.io(browser_link.connection, BROWSER_START_TIMEOUT)
+
     async def authenticate(self, cancel):
         self.services.accounts.begin_authentication()
+        await self.wake_browser()
         result = await self.with_extension(
             lambda: self.io(self.services.accounts.authenticate, 'browser', '', cancel, lambda text: None), cancel)
         if result.error:
@@ -1014,6 +1034,20 @@ class Backend:
 
     async def action_login(self, values):
         await self.job('Signing in', lambda handle: self.authenticate(handle.cancel))
+
+    async def action_login_expired(self, values):
+        """SoundCloud refused the saved login (the client already carries on without it): offer a fresh one."""
+        if self.login_expired_asked:
+            return
+        self.login_expired_asked = True
+        try:
+            await self.ask('SoundCloud login expired', 'SoundCloud no longer accepts the saved login, so dj-digger '
+                           'continues without your account: no private playlists or artist downloads. Refresh the '
+                           'login from your browser now? A closed browser is opened on SoundCloud; sign in there '
+                           'if it asks.', ok='Refresh login', dismiss='Not now')
+        finally:
+            self.login_expired_asked = False
+        await self.action_login({})
 
     async def action_logout(self, values):
         from ..auth import clear_token

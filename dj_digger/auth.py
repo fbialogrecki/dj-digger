@@ -14,7 +14,7 @@ import tempfile
 import time
 from contextlib import closing
 from pathlib import Path
-from threading import Event
+from threading import Event, Lock
 from typing import Any
 
 import requests
@@ -33,6 +33,14 @@ AUTH_FILE = CONFIG_DIR / "auth.json"
 LOGGER = logging.getLogger(__name__)
 SOUNDCLOUD_URL = "https://soundcloud.com"
 SOUNDCLOUD_SIGN_IN_URL = f"{SOUNDCLOUD_URL}/signin"
+KEYRING_SERVICE = "dj-digger"
+KEYRING_ENTRY = "soundcloud-oauth-token"
+# auth.json's identity when the keyring was last read, and what it gave: the token is read
+# once per change of the file, so a keyring that asked to be unlocked and was refused is not
+# asked again for every API request.
+_keyring_cache: tuple[Any, str | None] | None = None
+_keyring_lock = Lock()
+_migration_tried = False
 
 
 class SoundCloudAuthError(RuntimeError):
@@ -54,8 +62,34 @@ def get_stored_token() -> str | None:
     return None
 
 
-def get_stored_auth_info() -> dict[str, Any]:
-    """Get full stored auth details (token, username, etc.)."""
+def _keyring():
+    """The operating system's credential store, or None where there is none (headless, WSL)."""
+    try:
+        import keyring
+
+        backend = keyring.get_keyring()
+        return backend if backend.priority > 0 else None
+    except Exception as exc:  # a broken D-Bus or backend import is "no keyring", never a crash
+        LOGGER.debug("No system keyring: %s", type(exc).__name__)
+        return None
+
+
+def _keyring_call(method: str, *args: str) -> Any:
+    backend = _keyring()
+    if backend is None:
+        raise RuntimeError("no system keyring")
+    return getattr(backend, method)(KEYRING_SERVICE, KEYRING_ENTRY, *args)
+
+
+def _file_identity() -> Any:
+    try:
+        stat = AUTH_FILE.stat()
+    except OSError:
+        return None
+    return stat.st_ino, stat.st_mtime_ns, stat.st_size
+
+
+def _read_auth_file() -> dict[str, Any]:
     if not AUTH_FILE.exists():
         return {}
     try:
@@ -66,26 +100,73 @@ def get_stored_auth_info() -> dict[str, Any]:
         return {}
 
 
-def save_token(token: str, username: str = "", user_id: int | None = None) -> None:
-    """Save SoundCloud authentication in the private credential store."""
+def _keyring_token() -> str | None:
+    global _keyring_cache
+    with _keyring_lock:
+        identity = _file_identity()
+        if _keyring_cache is None or _keyring_cache[0] != identity:
+            try:
+                token = _keyring_call("get_password")
+            except Exception as exc:
+                # Only the type: a backend's message may quote what it was handed.
+                LOGGER.warning("Could not read the SoundCloud login from the system keyring (%s)", type(exc).__name__)
+                token = None
+            _keyring_cache = (identity, token)
+        return _keyring_cache[1]
 
-    write_private_json(
-        AUTH_FILE,
-        {
-            "oauth_token": token.strip(),
-            "username": username,
-            "user_id": user_id,
-        },
-    )
+
+def get_stored_auth_info() -> dict[str, Any]:
+    """Get full stored auth details (token, username, etc.).
+
+    The token lives in the system keyring when ``auth.json`` says so; a token still in the
+    file (older versions, or a machine without a keyring) is moved there on first read.
+    """
+    data = _read_auth_file()
+    token = data.get("oauth_token")
+    global _migration_tried
+    if isinstance(token, str) and token.strip() and not _migration_tried:
+        # Once per process: a keyring that refuses the write would otherwise be retried per request.
+        _migration_tried = True
+        if _keyring() is not None:
+            save_token(token, str(data.get("username") or ""), data.get("user_id"))
+            data = _read_auth_file()
+    if data.get("keyring"):
+        data["oauth_token"] = _keyring_token()
+    return data
+
+
+def save_token(token: str, username: str = "", user_id: int | None = None) -> None:
+    """Save SoundCloud authentication: the token in the system keyring when there is one,
+    else in the owner-only ``auth.json``; the name and ID always in ``auth.json``."""
+
+    global _keyring_cache
+    token = token.strip()
+    try:
+        _keyring_call("set_password", token)
+        in_keyring = True
+    except Exception as exc:
+        LOGGER.info("System keyring unavailable (%s); keeping the SoundCloud login in auth.json", type(exc).__name__)
+        in_keyring = False
+    record = {"username": username, "user_id": user_id}
+    with _keyring_lock:
+        write_private_json(AUTH_FILE, {"keyring": True, **record} if in_keyring else {"oauth_token": token, **record})
+        _keyring_cache = (_file_identity(), token) if in_keyring else None
 
 
 def clear_token() -> None:
-    """Delete saved authentication info."""
-    if AUTH_FILE.exists():
+    """Delete saved authentication info, from the keyring and from ``auth.json``."""
+    global _keyring_cache
+    with _keyring_lock:
         try:
-            AUTH_FILE.unlink()
-        except OSError as exc:
-            LOGGER.debug("Could not remove auth.json: %s", exc)
+            _keyring_call("delete_password")
+        except Exception as exc:  # nothing stored there, or no keyring at all
+            LOGGER.debug("No keyring entry removed: %s", type(exc).__name__)
+        _keyring_cache = None
+        if AUTH_FILE.exists():
+            try:
+                AUTH_FILE.unlink()
+            except OSError as exc:
+                LOGGER.debug("Could not remove auth.json: %s", exc)
 
 
 def verify_token(token: str, client_id: str, timeout: float = 10.0) -> dict[str, Any] | None:

@@ -575,11 +575,13 @@ def test_missing_extension_shows_the_connect_dialog_and_retries(extension, choic
         assert worker.services.browser_link.waited == [5], 'the retry waits for the extension to say hello'
 
 
-def test_login_without_the_extension_offers_to_connect_it_and_retries(extension):
+def test_login_without_the_extension_offers_to_connect_it_and_retries(extension, monkeypatch):
+    from dj_digger import browser
     from dj_digger.services.accounts import AuthenticationResult
     from dj_digger.webext.link import ExtensionMissing
     worker, events, *_ = extension
-    calls = []
+    calls, opened = [], []
+    monkeypatch.setattr(browser, 'open_url', lambda url, choice: opened.append(url) or True)
 
     def authenticate(method, token, cancel, status):
         calls.append(method)
@@ -590,11 +592,30 @@ def test_login_without_the_extension_offers_to_connect_it_and_retries(extension)
     worker.services.accounts.authenticate = authenticate
     worker.services.adopt_login = lambda token: True
     worker.submit('login', {})
+    assert next_of(events, 'message', 'error')[1]['text'] == 'Opening your browser for the SoundCloud sign-in…'
     question = next_of(events, 'question')[1]
     assert question['title'] == 'Connect browser'
+    assert opened == ['https://soundcloud.com'] and worker.services.browser_link.waited == [20.0], \
+        'a closed browser is opened and given time to connect before Connect browser is shown'
     worker.answer(question['id'], {})
     assert next_of(events, 'message', 'error')[1]['text'].startswith('Connected: ')
     assert next_of(events, 'message', 'error')[1]['text'] == 'Signed in' and calls == ['browser', 'browser']
+
+
+def test_an_expired_login_asks_once_then_signs_in_again_through_the_connected_browser(extension):
+    from dj_digger.services.accounts import AuthenticationResult
+    worker, events, *_ = extension
+    worker.services.browser_link = FakeLink(dict(protocol=1, browser='firefox'))
+    worker.services.accounts.authenticate = lambda *_args: AuthenticationResult(token='fresh', username='dj')
+    worker.services.adopt_login = lambda token: True
+    worker.services.on_token_rejected()
+    worker.services.on_token_rejected()
+    question = next_of(events, 'question')[1]
+    assert (question['title'], question['ok'], question['cancel']) == ('SoundCloud login expired', 'Refresh login', 'Not now')
+    worker.answer(question['id'], {})
+    assert next_of(events, 'message', 'error')[1] == {'text': 'Signed in as {0} in {1}', 'args': ['dj', 'Firefox']}
+    assert worker.services.browser_link.waited == [], 'a connected browser is not reopened'
+    assert not any(kind == 'question' for kind, _ in list(events.queue)), 'the second rejection asked nothing'
 
 
 def test_an_unconnected_extension_surfaces_from_the_account_service():

@@ -27,6 +27,30 @@ class FakeResponse:
             raise ValueError("no json")
         return self._payload
 
+class MemoryKeyring:
+    """A system keyring stand-in: the real one holds the developer's own login."""
+
+    priority = 1
+
+    def __init__(self):
+        self.items = {}
+
+    def get_password(self, service, entry):
+        return self.items.get((service, entry))
+
+    def set_password(self, service, entry, secret):
+        self.items[(service, entry)] = secret
+
+    def delete_password(self, service, entry):
+        del self.items[(service, entry)]
+
+
+@pytest.fixture
+def system_keyring(monkeypatch):
+    """The keyring every test gets (set up by isolate_user_data), for tests that look inside."""
+    return auth._keyring()
+
+
 @pytest.fixture(autouse=True)
 def isolate_user_data(tmp_path, monkeypatch):
     """Never let a test read or write the real crate library or status file.
@@ -66,6 +90,10 @@ def isolate_user_data(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "default_db_path", lambda: tmp_path / "digger.db")
     monkeypatch.setattr(auth, "CONFIG_DIR", tmp_path / "auth")
     monkeypatch.setattr(auth, "AUTH_FILE", tmp_path / "auth" / "auth.json")
+    memory = MemoryKeyring()
+    monkeypatch.setattr(auth, "_keyring", lambda: memory)
+    monkeypatch.setattr(auth, "_keyring_cache", None)
+    monkeypatch.setattr(auth, "_migration_tried", False)
     yield
     close_logging()
     for instance in list(db._DATABASES):

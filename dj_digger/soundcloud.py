@@ -116,6 +116,7 @@ class SoundCloudClient:
         oauth_token: str | None = None,
         config=None,
         public_session: requests.Session | None = None,
+        on_token_rejected=None,
     ) -> None:
         self._session = session or create_requests_session()
         self._public_session = public_session
@@ -123,6 +124,8 @@ class SoundCloudClient:
         self._timeout = timeout
         self._client_id = client_id
         self._oauth_token = oauth_token
+        self._rejected_token: str | None = None
+        self._on_token_rejected = on_token_rejected
 
         self.config = gates.config_or_default(config)
 
@@ -184,9 +187,19 @@ class SoundCloudClient:
 
     @property
     def oauth_token(self):
-        return os.environ.get("SOUNDCLOUD_OAUTH_TOKEN", "").strip() or (
+        token = os.environ.get("SOUNDCLOUD_OAUTH_TOKEN", "").strip() or (
             self._oauth_token if self._oauth_token is not None else auth.get_stored_token()
         )
+        # A token SoundCloud refused is not sent again; a new login replaces the client.
+        return None if token and token == self._rejected_token else token
+
+    def _reject_token(self, token: str) -> None:
+        if token == self._rejected_token:
+            return
+        self._rejected_token = token
+        LOGGER.warning("SoundCloud rejected the saved login; continuing without it. Sign in again to refresh it.")
+        if self._on_token_rejected is not None:
+            self._on_token_rejected()
 
     def _request(self, url: str, params: dict[str, Any] | None = None) -> Any:
         """GET with one automatic retry against a freshly discovered client_id."""
@@ -194,11 +207,13 @@ class SoundCloudClient:
         parsed = urlparse(url)
         if parsed.scheme != "https" or parsed.hostname != "api-v2.soundcloud.com" or parsed.username is not None or parsed.password is not None or parsed.port not in (None, 443):
             raise SoundCloudError("Refusing an untrusted SoundCloud API address")
-        for attempt in (0, 1):
+        refreshed = anonymous = False
+        rejected = None
+        while True:
             merged = dict(params or {})
             merged["client_id"] = self.client_id
             kwargs: dict[str, Any] = {"params": merged, "timeout": self._timeout, "allow_redirects": False}
-            token = self.oauth_token
+            token = None if anonymous else self.oauth_token
             if token:
                 kwargs["headers"] = {"Authorization": f"OAuth {token}"}
             try:
@@ -207,10 +222,18 @@ class SoundCloudClient:
                 raise SoundCloudError(f"Request to {url} failed: {log_safe_text(exc)}") from exc
 
             try:
-                if response.status_code in (401, 403) and attempt == 0:
+                if response.status_code in (401, 403) and not refreshed:
+                    refreshed = True
                     LOGGER.info("client_id rejected (%s), refreshing", response.status_code)
                     self._client_id = self._discover_client_id(force=True)
                     continue
+                if response.status_code == 401 and token:
+                    # A fresh client_id was refused too: try once without the login.
+                    anonymous, rejected = True, token
+                    continue
+                if rejected and response.status_code < 300:
+                    # Accepted without the login, so the login is what SoundCloud refused.
+                    self._reject_token(rejected)
 
                 if 300 <= response.status_code < 400:
                     raise SoundCloudError("SoundCloud API redirected unexpectedly")
@@ -230,8 +253,6 @@ class SoundCloudClient:
                     raise SoundCloudError(f"SoundCloud sent a non-JSON reply for {url}") from exc
             finally:
                 response.close()
-
-        raise SoundCloudError("SoundCloud kept rejecting our client_id")
 
     def _get(self, path: str, **params: Any) -> Any:
         return self._request(f"{API_ROOT}{path}", params)

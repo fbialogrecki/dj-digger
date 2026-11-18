@@ -1655,6 +1655,22 @@
       <translation>Supprime la session SoundCloud enregistrée sur cet ordinateur. Votre navigateur reste connecté à SoundCloud ; déconnectez-vous aussi là-bas si vous le souhaitez.</translation>
     </message>
     <message>
+      <source>SoundCloud login expired</source>
+      <translation>La connexion SoundCloud a expiré</translation>
+    </message>
+    <message>
+      <source>SoundCloud no longer accepts the saved login, so dj-digger continues without your account: no private playlists or artist downloads. Refresh the login from your browser now? A closed browser is opened on SoundCloud; sign in there if it asks.</source>
+      <translation>SoundCloud n’accepte plus la connexion enregistrée, dj-digger continue donc sans votre compte : pas de playlists privées ni de téléchargements d’artiste. Renouveler la connexion depuis votre navigateur maintenant ? Un navigateur fermé est ouvert sur SoundCloud ; connectez-vous-y s’il le demande.</translation>
+    </message>
+    <message>
+      <source>Refresh login</source>
+      <translation>Renouveler la connexion</translation>
+    </message>
+    <message>
+      <source>Opening your browser for the SoundCloud sign-in…</source>
+      <translation>Ouverture du navigateur pour la connexion à SoundCloud…</translation>
+    </message>
+    <message>
       <source>About dj-digger</source>
       <translation>À propos de dj-digger</translation>
     </message>

@@ -1,8 +1,19 @@
 # Changelog
 
-## Unreleased
+## 1.6.0 — 2026-11-18
+
+### Changed
+
+- The SoundCloud login token is kept in the system keyring (GNOME Keyring / KWallet,
+  macOS Keychain, Windows Credential Manager) instead of `auth.json`; a token saved
+  by an earlier release moves there on first use. Without a keyring (headless Linux,
+  WSL) it stays in the owner-only `auth.json`.
 
 ### Fixed
+
+- An expired SoundCloud login no longer stops playback with "HTTP 401": requests
+  carry on without it and the desktop asks once whether to refresh the login,
+  opening the browser on SoundCloud when it is closed.
 
 - "Import to DJ digger" on SoundCloud: the track rows of a playlist page or a
   station (Discover → track stations) now get the icon before ⋯ too. Browser

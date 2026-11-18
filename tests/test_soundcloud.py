@@ -622,6 +622,32 @@ def test_request_refreshes_a_rejected_client_id(monkeypatch):
     assert session.calls[1][1]["client_id"] == "1" * 32
 
 
+def test_an_expired_login_is_dropped_reported_once_and_the_request_still_succeeds(monkeypatch):
+    session = FakeSession([FakeResponse(401), FakeResponse(401), FakeResponse(200, payload=[{"id": 1}]),
+                           FakeResponse(200, payload=[{"id": 2}])])
+    rejected = []
+    client = SoundCloudClient(session=session, client_id=DUMMY_CLIENT_ID, oauth_token="old",
+                              on_token_rejected=lambda: rejected.append(1))
+    monkeypatch.setattr(client, "_discover_client_id", lambda force=False: "1" * 32)
+
+    assert client.fetch_track(1) == {"id": 1}
+    assert client.fetch_track(2) == {"id": 2}
+    sent = [call[2].get("headers") for call in session.calls]
+    assert sent == [{"Authorization": "OAuth old"}] * 2 + [None, None]
+    assert rejected == [1] and client.oauth_token is None
+
+
+def test_a_login_is_kept_when_soundcloud_refuses_the_request_without_it_too(monkeypatch):
+    rejected = []
+    client = SoundCloudClient(session=FakeSession([FakeResponse(401)] * 3), client_id=DUMMY_CLIENT_ID,
+                              oauth_token="good", on_token_rejected=lambda: rejected.append(1))
+    monkeypatch.setattr(client, "_discover_client_id", lambda force=False: "1" * 32)
+
+    with pytest.raises(SoundCloudError, match="401"):
+        client.fetch_track(1)
+    assert rejected == [] and client.oauth_token == "good"
+
+
 def test_request_gives_a_useful_message_on_404():
     client = make_client(FakeSession([FakeResponse(404)]))
     with pytest.raises(SoundCloudError, match="private"):

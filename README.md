@@ -114,8 +114,8 @@ for commands, coverage and remaining platform checks.
 
 ## 📦 Installation
 
-**Version 1.5.0 is available on [PyPI](https://pypi.org/project/dj-sc-digger/1.5.0/)
-and [GitHub Releases](https://github.com/fbialogrecki/dj-digger/releases/tag/v1.5.0).**
+**Version 1.6.0 is available on [PyPI](https://pypi.org/project/dj-sc-digger/1.6.0/)
+and [GitHub Releases](https://github.com/fbialogrecki/dj-digger/releases/tag/v1.6.0).**
 Install the package `dj-sc-digger`; launch the desktop app with `dj-digger-gui` and the CLI with `dj-digger`.
 
 Upgrading from `dj-soundcloud-digger`? Follow the
@@ -366,9 +366,10 @@ The desktop opens the same choice automatically when a download needs SoundCloud
 Cancelling leaves the track untouched. A successful login updates credentials for subsequent API requests and retries
 the waiting track once. Existing transfers keep their resources until they finish.
 
-The verified SoundCloud API credential lives in the owner-only
-`~/.config/dj-digger/auth.json` (the standard XDG environment variables override
-the base directory).
+The verified SoundCloud API credential lives in the system keyring (GNOME Keyring /
+KWallet, macOS Keychain, Windows Credential Manager) under `dj-digger`; only where there
+is none does it stay in the owner-only `~/.config/dj-digger/auth.json` (the standard XDG
+environment variables override the base directory).
 If `SOUNDCLOUD_OAUTH_TOKEN` is set, it deliberately overrides that file; an
 invalid value must be unset or updated before the CLI wizard can replace a login.
 

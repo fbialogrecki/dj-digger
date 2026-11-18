@@ -29,6 +29,8 @@ class ApplicationServices:
         self._player = None
         self._cart = None
         self.browser_link = None
+        # The desktop's "your login expired" prompt; called from worker threads.
+        self.on_token_rejected = None
         self._condition = Condition()
         self._active = 0
         self._closing = False
@@ -97,7 +99,7 @@ class ApplicationServices:
             if self._client is None:
                 from ..soundcloud import SoundCloudClient
 
-                self._client = SoundCloudClient(config=self.config)
+                self._client = SoundCloudClient(config=self.config, on_token_rejected=self._token_rejected)
             return self._client
 
     @property
@@ -156,10 +158,14 @@ class ApplicationServices:
                     else:
                         self._close_retired()
 
+    def _token_rejected(self):
+        if self.on_token_rejected is not None:
+            self.on_token_rejected()
+
     def adopt_login(self, oauth_token):
         from ..soundcloud import SoundCloudClient
 
-        self.retire_client(SoundCloudClient(config=self.config))
+        self.retire_client(SoundCloudClient(config=self.config, on_token_rejected=self._token_rejected))
         return True
 
     async def io(self, function, *args, **kwargs):

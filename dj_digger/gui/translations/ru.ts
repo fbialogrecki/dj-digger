@@ -1659,6 +1659,22 @@
       <translation>Удаляет сохранённый сеанс SoundCloud с этого компьютера. В браузере вход в SoundCloud сохранится; при желании выйдите и там.</translation>
     </message>
     <message>
+      <source>SoundCloud login expired</source>
+      <translation>Вход в SoundCloud истёк</translation>
+    </message>
+    <message>
+      <source>SoundCloud no longer accepts the saved login, so dj-digger continues without your account: no private playlists or artist downloads. Refresh the login from your browser now? A closed browser is opened on SoundCloud; sign in there if it asks.</source>
+      <translation>SoundCloud больше не принимает сохранённый вход, поэтому dj-digger продолжает работу без вашей учётной записи: без приватных плейлистов и загрузок от артистов. Обновить вход из браузера сейчас? Закрытый браузер будет открыт на SoundCloud; войдите там, если он попросит.</translation>
+    </message>
+    <message>
+      <source>Refresh login</source>
+      <translation>Обновить вход</translation>
+    </message>
+    <message>
+      <source>Opening your browser for the SoundCloud sign-in…</source>
+      <translation>Открываю браузер для входа в SoundCloud…</translation>
+    </message>
+    <message>
       <source>About dj-digger</source>
       <translation>О dj-digger</translation>
     </message>

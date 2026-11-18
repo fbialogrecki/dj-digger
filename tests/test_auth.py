@@ -114,6 +114,49 @@ def test_save_and_get_stored_token(tmp_path, monkeypatch):
     assert not auth_file.exists()
 
 
+def test_the_token_goes_to_the_system_keyring_and_never_into_auth_json(system_keyring):
+    auth.save_token("secret-token", username="digger", user_id=7)
+
+    assert "secret-token" not in auth.AUTH_FILE.read_text(encoding="utf-8")
+    assert system_keyring.items == {(auth.KEYRING_SERVICE, auth.KEYRING_ENTRY): "secret-token"}
+    assert auth.get_stored_auth_info() == {"keyring": True, "username": "digger", "user_id": 7,
+                                           "oauth_token": "secret-token"}
+    auth.clear_token()
+    assert system_keyring.items == {} and auth.get_stored_token() is None
+
+
+def test_a_token_left_in_auth_json_moves_into_the_keyring_on_first_read(system_keyring):
+    auth.AUTH_FILE.parent.mkdir(parents=True)
+    auth.AUTH_FILE.write_text(json.dumps({"oauth_token": "old-token", "username": "digger", "user_id": 7}))
+
+    assert auth.get_stored_token() == "old-token"
+    assert "old-token" not in auth.AUTH_FILE.read_text(encoding="utf-8")
+    assert system_keyring.items == {(auth.KEYRING_SERVICE, auth.KEYRING_ENTRY): "old-token"}
+
+
+def test_without_a_keyring_the_token_stays_in_the_owner_only_file(monkeypatch):
+    monkeypatch.setattr(auth, "_keyring", lambda: None)
+    auth.save_token("secret-token", username="digger")
+
+    assert json.loads(auth.AUTH_FILE.read_text(encoding="utf-8"))["oauth_token"] == "secret-token"
+    assert auth.get_stored_token() == "secret-token"
+    if os.name == "posix":
+        assert os.stat(auth.AUTH_FILE).st_mode & 0o777 == 0o600
+
+
+def test_a_refused_keyring_is_asked_once_per_change_of_the_login(system_keyring, monkeypatch):
+    auth.save_token("secret-token")
+    monkeypatch.setattr(auth, "_keyring_cache", None)
+    asked = []
+    def locked(*_args):
+        asked.append(1)
+        raise RuntimeError("the user dismissed the unlock prompt")
+    monkeypatch.setattr(system_keyring, "get_password", locked)
+
+    assert [auth.get_stored_token() for _ in range(3)] == [None] * 3
+    assert asked == [1]
+
+
 def test_verify_token_valid(monkeypatch):
     monkeypatch.setattr(
         auth.requests,

@@ -5,9 +5,9 @@
 | **Status** | Accepted — describes shipped behavior |
 | **Version** | 1.2.0 |
 | **Owner** | Filip Białogrecki |
-| **Last updated** | 2026-11-16 |
-| **Product version** | 1.5.0 (`pyproject.toml`); browser extension 1.4.4 (`dj_digger/webext/extension/manifest.json`) |
-| **Document lines** | <!-- SPEC TOTAL LINES -->2735<!-- END SPEC TOTAL LINES --> |
+| **Last updated** | 2026-11-18 |
+| **Product version** | 1.6.0 (`pyproject.toml`); browser extension 1.4.4 (`dj_digger/webext/extension/manifest.json`) |
+| **Document lines** | <!-- SPEC TOTAL LINES -->2750<!-- END SPEC TOTAL LINES --> |
 | **Verified against** | `pyproject.toml`, `dj_digger/`, `dj_digger/webext/extension/manifest.json`, `scripts/`, `tests/`, `.github/workflows/`, `README.md`, `CHANGELOG.md` |
 
 ## Purpose of this file
@@ -74,46 +74,46 @@ text is never promoted into the map.
 | 6.1 | ↳ Runtime and dependencies | 1370–1398 |
 | 6.2 | ↳ Concurrency and lifecycle | 1399–1476 |
 | 6.3 | ↳ Local paths and environment variables | 1477–1513 |
-| 7 | Data model and persistence | 1514–1632 |
+| 7 | Data model and persistence | 1514–1639 |
 | 7.1 | ↳ Domain objects and identity | 1516–1530 |
 | 7.2 | ↳ SQLite schema and invariants | 1531–1587 |
 | 7.3 | ↳ Crate persistence and deletion | 1588–1603 |
-| 7.4 | ↳ Configuration and credential stores | 1604–1632 |
-| 8 | Public interfaces and contracts | 1633–1696 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1635–1666 |
-| 8.2 | ↳ JSON and CSV summary input | 1667–1682 |
-| 8.3 | ↳ URL-opening contract | 1683–1696 |
-| 9 | Authentication and authorization | 1697–1766 |
-| 9.1 | ↳ SoundCloud authentication | 1699–1731 |
-| 9.2 | ↳ Gate action consent | 1732–1766 |
-| 10 | External integrations | 1767–2179 |
-| 10.1 | ↳ SoundCloud API and media | 1769–1780 |
-| 10.2 | ↳ Link hubs and download gates | 1781–1927 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1789–1884 |
-| 10.2 · block | ↳ ↳ ToneDen | 1886–1910 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1912–1920 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1922–1927 |
-| 10.3 | ↳ Browsers and clipboard | 1928–2124 |
-| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 2125–2179 |
-| 11 | Security requirements and threat model | 2180–2400 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2182–2200 |
-| 11.2 | ↳ Secret and personal-data handling | 2201–2216 |
-| 11.3 | ↳ File and mutation safety | 2217–2238 |
-| 11.4 | ↳ Browser-extension trust boundary | 2239–2400 |
-| 12 | Privacy, lifecycle, and retention | 2401–2460 |
-| 12.1 | ↳ Data stored locally | 2403–2427 |
-| 12.2 | ↳ Data sent to third parties | 2428–2445 |
-| 12.3 | ↳ User-controlled deletion | 2446–2460 |
-| 13 | Failure behavior and current limitations | 2461–2573 |
-| 13.1 | ↳ Error isolation and reporting | 2463–2484 |
-| 13.2 | ↳ Confirmed limitations | 2485–2573 |
-| 14 | Verification, CI, and release | 2574–2698 |
-| 14.1 | ↳ Offline and live test suites | 2576–2627 |
-| 14.2 | ↳ Continuous integration and publishing | 2628–2681 |
-| 14.3 | ↳ Specification-map verification | 2682–2698 |
-| 15 | References | 2699–2735 |
-| 15.1 | ↳ Primary implementation evidence | 2701–2722 |
-| 15.2 | ↳ User and historical documentation | 2723–2735 |
+| 7.4 | ↳ Configuration and credential stores | 1604–1639 |
+| 8 | Public interfaces and contracts | 1640–1703 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1642–1673 |
+| 8.2 | ↳ JSON and CSV summary input | 1674–1689 |
+| 8.3 | ↳ URL-opening contract | 1690–1703 |
+| 9 | Authentication and authorization | 1704–1781 |
+| 9.1 | ↳ SoundCloud authentication | 1706–1746 |
+| 9.2 | ↳ Gate action consent | 1747–1781 |
+| 10 | External integrations | 1782–2194 |
+| 10.1 | ↳ SoundCloud API and media | 1784–1795 |
+| 10.2 | ↳ Link hubs and download gates | 1796–1942 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1804–1899 |
+| 10.2 · block | ↳ ↳ ToneDen | 1901–1925 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1927–1935 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1937–1942 |
+| 10.3 | ↳ Browsers and clipboard | 1943–2139 |
+| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 2140–2194 |
+| 11 | Security requirements and threat model | 2195–2415 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2197–2215 |
+| 11.2 | ↳ Secret and personal-data handling | 2216–2231 |
+| 11.3 | ↳ File and mutation safety | 2232–2253 |
+| 11.4 | ↳ Browser-extension trust boundary | 2254–2415 |
+| 12 | Privacy, lifecycle, and retention | 2416–2475 |
+| 12.1 | ↳ Data stored locally | 2418–2442 |
+| 12.2 | ↳ Data sent to third parties | 2443–2460 |
+| 12.3 | ↳ User-controlled deletion | 2461–2475 |
+| 13 | Failure behavior and current limitations | 2476–2588 |
+| 13.1 | ↳ Error isolation and reporting | 2478–2499 |
+| 13.2 | ↳ Confirmed limitations | 2500–2588 |
+| 14 | Verification, CI, and release | 2589–2713 |
+| 14.1 | ↳ Offline and live test suites | 2591–2642 |
+| 14.2 | ↳ Continuous integration and publishing | 2643–2696 |
+| 14.3 | ↳ Specification-map verification | 2697–2713 |
+| 15 | References | 2714–2750 |
+| 15.1 | ↳ Primary implementation evidence | 2716–2737 |
+| 15.2 | ↳ User and historical documentation | 2738–2750 |
 <!-- END GENERATED SECTION MAP -->
 
 ---
@@ -1617,7 +1617,14 @@ The default email uses the reserved `.invalid` domain. A first missing config is
 created and marks the launch as first-run. `onboarded` is true once the desktop's
 Welcome steps were finished or skipped (§3.8); only `true` is read as true.
 
-`auth.json` stores a verified SoundCloud OAuth token with username and user ID.
+`auth.json` stores the username and user ID of the verified SoundCloud login and
+`"keyring": true`; the OAuth token itself is in the system keyring (Secret Service,
+macOS Keychain or Windows Credential Manager, service `dj-digger`, entry
+`soundcloud-oauth-token`). Where no keyring is usable (headless Linux, WSL, a refused
+write) the token is kept in `auth.json` as `oauth_token`, as earlier releases did; such
+a token is moved into the keyring at the first read once per process when a keyring is
+available. The keyring is read again only after `auth.json` changes, so a refused unlock
+is not asked again on every request.
 `webext.json` stores `authkey`, 32 random bytes in hex that authenticate the
 application and `dj-digger-host` to each other; the application creates it, the
 host only reads it. JSON writes use a 0600 temporary file, atomic replacement, and an
@@ -1700,6 +1707,12 @@ opened. Successful handoff does not prove that the remote page loaded.
 
 Public collection discovers and uses a SoundCloud web `client_id` and does not
 require a user account. The ID is cached and rediscovered once after a 401/403.
+When a request carrying the OAuth token still gets 401 with the fresh ID, it is
+repeated once without the token; if that succeeds the token counts as expired: the
+client stops sending it (until a new login replaces the client), logs a warning and
+reports it once. The desktop then asks “SoundCloud login expired” (Refresh login /
+Not now, one question at a time); Refresh login runs the sign-in below. The stored
+login is left in place.
 Authenticated artist downloads use an OAuth token in the `Authorization: OAuth`
 header.
 
@@ -1713,7 +1726,9 @@ window opens or flashes; when that token verifies, nothing else opens. Otherwise
 polled for up to five minutes, a rejected token being ignored until it changes.
 Closing the sign-in tab (or the work window) before a token appears ends the wait
 at once with "The SoundCloud sign-in tab was closed; no credentials were saved."
-Without a connected extension the desktop opens the Connect browser dialog and the
+When no extension is connected, the desktop sign-in first opens `https://soundcloud.com`
+in the “Open links in” browser and waits up to 20 seconds for the extension to say hello;
+if it still is not connected the desktop opens the Connect browser dialog. The
 CLI says to run `dj-digger browser register`. A browser failure the application
 diagnoses itself (extension missing, browser or extension restarted) is reported
 with that reason; any other browser failure keeps a generic message and logs only
@@ -1726,7 +1741,7 @@ tokens are verified with SoundCloud `/me` before saving.
 until it is unset or changed. API credentials are read for each request and
 validated against the exact HTTPS API host before sending, with automatic
 redirects disabled. Login changes apply to subsequent requests without closing
-sessions under active transfers. Logout deletes `auth.json`; it does not sign the
+sessions under active transfers. Logout deletes the keyring entry and `auth.json`; it does not sign the
 browser out of SoundCloud or delete an environment variable.
 
 ### 9.2 Gate action consent
@@ -2203,8 +2218,8 @@ parameters.
 Secrets and profile data are never stored in the repository by application code.
 Token/profile JSON writes are private-before-write temporary files followed by
 atomic replacement. Passwords are entered only in provider-owned browser pages;
-the SoundCloud browser login copies only the verified `oauth_token` to
-`auth.json`.
+the SoundCloud browser login copies only the verified `oauth_token` to the
+system keyring (§7.4, `auth.json` where there is none).
 
 Browser preferences cannot name arbitrary commands. Subprocess calls use
 argument arrays and `shell=False`; the PowerShell URL boundary is described in
@@ -2445,7 +2460,7 @@ endpoint and opens the temporary review URL returned by Soundiiz.
 
 ### 12.3 User-controlled deletion
 
-`auth logout` deletes saved SoundCloud `auth.json`; crate deletion removes a
+`auth logout` deletes the saved SoundCloud keyring entry and `auth.json`; crate deletion removes a
 crate row. `dj-digger browser unregister` (and Disconnect browsers in the desktop)
 removes the host manifests and registry keys; the extension is removed by the user
 in the browser. A `spotify.json` left by a release before 1.0, and the
