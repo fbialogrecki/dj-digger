@@ -63,8 +63,9 @@ crate-digging headless CLI and Qt Quick desktop (`dj-digger-gui`).
 - `dj_digger/webext/`: the browser extension (`extension/`), its native-host relay, the app-side
   socket `link.py`, and the Playwright-shaped page adapter that gates, login, and cart drive.
 - `tests/`: offline suite plus explicitly marked live contract checks.
-- `.github/workflows/`: CI, desktop installer builds, scheduled live monitoring, the GitHub
-  Pages site, and PyPI and Chrome Web Store publishing.
+- `site/`: the project website (static Astro) and the Linux install script it serves.
+- `.github/workflows/`: CI, desktop installer builds, scheduled live monitoring, the website
+  deploy, and PyPI and Chrome Web Store publishing.
 
 ## Engineering rules
 

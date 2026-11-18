@@ -1,0 +1,53 @@
+---
+// The real player with its kick pulse: a poster image and, over it, a muted loop that
+// starts once the page is idle. Never with reduced motion, and a button pauses it.
+// The default slot is the caption.
+import { Picture } from "astro:assets";
+import poster from "../assets/video/player-loop-poster.png";
+import webm from "../assets/video/player-loop.webm?url";
+import mp4 from "../assets/video/player-loop.mp4?url";
+
+const { eager = false, sizes = "(min-width: 68rem) 50vw, 92vw" } = Astro.props;
+---
+
+<figure class="shot">
+  <div class="frame">
+    <Picture
+      src={poster}
+      formats={["avif", "webp"]}
+      widths={[640, 960, poster.width]}
+      sizes={sizes}
+      alt="The dj-digger player playing Glasshouse Dub by Sable Fern, 120 BPM in 7A, at 1:04 of 3:20: a record with generated artwork, a waveform with the played part lit in magenta, and transport buttons."
+      loading={eager ? "eager" : "lazy"}
+      fetchpriority={eager ? "high" : undefined}
+    />
+    <video data-loop muted loop playsinline preload="none" width={poster.width} height={poster.height} aria-hidden="true" tabindex="-1">
+      <source src={webm} type="video/webm" />
+      <source src={mp4} type="video/mp4" />
+    </video>
+  </div>
+  <figcaption>
+    <span><slot /></span>
+    <button type="button" data-loop-toggle hidden>Pause</button>
+  </figcaption>
+</figure>
+
+<script>
+  for (const loop of document.querySelectorAll("video[data-loop]")) {
+    const toggle = loop.closest("figure")?.querySelector("[data-loop-toggle]");
+    if (!(loop instanceof HTMLVideoElement) || !(toggle instanceof HTMLButtonElement)) continue;
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) continue;
+    // The button appears only once there is something to pause.
+    (window.requestIdleCallback ?? setTimeout)(() =>
+      loop
+        .play()
+        .then(() => (toggle.hidden = false))
+        .catch(() => {}),
+    );
+    toggle.addEventListener("click", () => {
+      if (loop.paused) loop.play().catch(() => {});
+      else loop.pause();
+      toggle.textContent = loop.paused ? "Play" : "Pause";
+    });
+  }
+</script>

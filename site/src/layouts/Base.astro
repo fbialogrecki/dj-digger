@@ -1,0 +1,175 @@
+---
+import "../styles/global.css";
+import Record from "../components/Record.astro";
+import appIcon from "../../../dj_digger/gui/qml/icons/app.png";
+import archivo from "../assets/fonts/archivo-latin.woff2?url";
+import boot from "../scripts/boot.js?raw";
+import { author, chromeStore, repo } from "../../site.config.mjs";
+
+// `tracks` are the page's sections in order: { id, no, title }. They feed the tracklist
+// and the record's bands; each must match a <section id data-track data-title>.
+// `label` picks the record label's colours for this page (global.css: [data-label]).
+const { title, description, label = "home", tracks = [], noindex = false } = Astro.props;
+const here = Astro.url.pathname;
+const canonical = new URL(here, Astro.site);
+const pages = [
+  { href: "/app/", label: "App" },
+  { href: "/extension/", label: "Extension" },
+  { href: "/liner-notes/", label: "Liner notes" },
+  { href: "/download/", label: "Download" },
+  { href: repo, label: "GitHub" },
+];
+---
+
+<!doctype html>
+<html lang="en" data-label={label}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0b0b0e" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    {!noindex && <link rel="canonical" href={canonical} />}
+    <link rel="icon" type="image/png" href={appIcon.src} />
+    <link rel="preload" as="font" type="font/woff2" href={archivo} crossorigin />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="dj-digger" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    {!noindex && <meta property="og:url" content={canonical} />}
+    <meta property="og:image" content={new URL("/og.png", Astro.site)} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="dj-digger: from a SoundCloud playlist to files on your decks. The app icon, a record seen from above." />
+    <meta name="twitter:card" content="summary_large_image" />
+    {noindex && <meta name="robots" content="noindex" />}
+    <script is:inline set:html={boot} />
+  </head>
+  <body>
+    <a class="skip" href="#content">Skip to content</a>
+    <header class="top">
+      <a class="brand" href="/" aria-current={here === "/" ? "page" : undefined}>
+        <img src={appIcon.src} width="28" height="28" alt="" />
+        dj-digger
+      </a>
+      <nav class="links" aria-label="Primary">
+        <ul>
+          {
+            pages.map((page) => (
+              <li>
+                <a href={page.href} aria-current={here === page.href ? "page" : undefined}>
+                  {page.label}
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      </nav>
+      {/* Narrow screens: the same links behind a disclosure that needs no script. */}
+      <details class="menu">
+        <summary>Menu</summary>
+        <nav aria-label="Primary">
+          <ul>
+            {
+              pages.map((page) => (
+                <li>
+                  <a href={page.href} aria-current={here === page.href ? "page" : undefined}>
+                    {page.label}
+                  </a>
+                </li>
+              ))
+            }
+          </ul>
+        </nav>
+      </details>
+    </header>
+
+    <div class="page">
+      {
+        tracks.length > 0 && (
+          <aside class="deck" data-rows={tracks.length}>
+            <div class="platter">
+              <Record />
+            </div>
+            <nav class="tracks" aria-label="Tracklist">
+              <ol>
+                {tracks.map((track) => (
+                  <li>
+                    <a href={`#${track.id}`}>
+                      <span class="no">{track.no}</span>
+                      {track.title}
+                    </a>
+                  </li>
+                ))}
+              </ol>
+            </nav>
+          </aside>
+        )
+      }
+      <div class="sheet">
+        <main id="content" tabindex="-1">
+          <slot />
+        </main>
+
+        <footer class="foot">
+          <div class="foot-grid">
+            <p class="foot-brand">
+              <img src={appIcon.src} width="40" height="40" alt="" loading="lazy" />
+              <span>
+                <strong>dj-digger</strong>
+                Free and open source, Apache 2.0.
+              </span>
+            </p>
+            <ul aria-label="Site">
+              <li><a href="/app/">App</a></li>
+              <li><a href="/extension/">Extension</a></li>
+              <li><a href="/download/">Download</a></li>
+              <li><a href="/liner-notes/">Liner notes</a></li>
+            </ul>
+            <ul aria-label="Project">
+              <li><a href={repo}>GitHub</a></li>
+              <li><a href="https://pypi.org/project/dj-sc-digger/">PyPI</a></li>
+              <li><a href={chromeStore}>Chrome Web Store</a></li>
+            </ul>
+            <ul aria-label="Legal">
+              <li><a href={`${repo}/blob/main/PRIVACY.md`}>Privacy policy</a></li>
+              <li><a href={`${repo}/blob/main/LICENSE`}>License</a></li>
+            </ul>
+          </div>
+          <p class="colophon">
+            Made by <a href={author.url}>{author.name}</a>. This site sets no cookies, runs no analytics and loads nothing
+            from other servers.
+          </p>
+        </footer>
+      </div>
+    </div>
+
+    {
+      tracks.length > 0 && (
+        <details class="mini">
+          <summary>
+            <span class="mini-disc" />
+            <span class="mini-now">Tracklist</span>
+            <span class="mini-bar" />
+          </summary>
+          <nav class="tracks" aria-label="Tracklist">
+            <ol>
+              {tracks.map((track) => (
+                <li>
+                  <a href={`#${track.id}`}>
+                    <span class="no">{track.no}</span>
+                    {track.title}
+                  </a>
+                </li>
+              ))}
+            </ol>
+          </nav>
+        </details>
+      )
+    }
+    <script>
+      import "../scripts/deck.js";
+    </script>
+  </body>
+</html>

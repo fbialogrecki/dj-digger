@@ -27,12 +27,14 @@ dj-digger-gui                                                    # interactive d
 
 ## 🖥️ Install the desktop app
 
-**No Python or terminal commands needed.** Use our step-by-step guides:
+**No Python needed.** Windows and Mac have installers; Linux takes one terminal
+command. Use our step-by-step guides:
 
 | Your computer | Installation guide |
 | --- | --- |
 | Windows 10 (1809 or newer) or 11 — Intel or AMD, 64-bit | [Install on Windows](docs/installation.md#windows) |
 | macOS 15 or newer — Apple Silicon or Intel | [Install on Mac](docs/installation.md#mac) |
+| Linux — Ubuntu, Debian, Fedora, Arch, openSUSE | [Install on Linux](docs/installation.md#linux) |
 
 > **Preview downloads:** dj-digger is a free, open-source hobby project. These
 > desktop previews do not have a verified publisher signature or Apple

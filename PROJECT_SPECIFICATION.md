@@ -7,7 +7,7 @@
 | **Owner** | Filip Białogrecki |
 | **Last updated** | 2026-11-18 |
 | **Product version** | 1.6.0 (`pyproject.toml`); browser extension 1.4.4 (`dj_digger/webext/extension/manifest.json`) |
-| **Document lines** | <!-- SPEC TOTAL LINES -->2787<!-- END SPEC TOTAL LINES --> |
+| **Document lines** | <!-- SPEC TOTAL LINES -->2799<!-- END SPEC TOTAL LINES --> |
 | **Verified against** | `pyproject.toml`, `dj_digger/`, `dj_digger/webext/extension/manifest.json`, `scripts/`, `tests/`, `.github/workflows/`, `README.md`, `CHANGELOG.md` |
 
 ## Purpose of this file
@@ -107,13 +107,13 @@ text is never promoted into the map.
 | 13 | Failure behavior and current limitations | 2510–2625 |
 | 13.1 | ↳ Error isolation and reporting | 2512–2533 |
 | 13.2 | ↳ Confirmed limitations | 2534–2625 |
-| 14 | Verification, CI, and release | 2626–2750 |
+| 14 | Verification, CI, and release | 2626–2761 |
 | 14.1 | ↳ Offline and live test suites | 2628–2679 |
-| 14.2 | ↳ Continuous integration and publishing | 2680–2733 |
-| 14.3 | ↳ Specification-map verification | 2734–2750 |
-| 15 | References | 2751–2787 |
-| 15.1 | ↳ Primary implementation evidence | 2753–2774 |
-| 15.2 | ↳ User and historical documentation | 2775–2787 |
+| 14.2 | ↳ Continuous integration and publishing | 2680–2744 |
+| 14.3 | ↳ Specification-map verification | 2745–2761 |
+| 15 | References | 2762–2799 |
+| 15.1 | ↳ Primary implementation evidence | 2764–2785 |
+| 15.2 | ↳ User and historical documentation | 2786–2799 |
 <!-- END GENERATED SECTION MAP -->
 
 ---
@@ -824,7 +824,7 @@ no external gate/hub resolution.
 The optional desktop uses PySide6 and a QML `ApplicationWindow`. The
 playlist/folder sidebar spans the full window height; the waveform and transport
 sit above the virtualized track table beside it. Status is the first table column, and the BPM/key columns
-appear only in local views. Transport buttons use SVG icons with accessible labels and tooltips. The window icon is the packaged application icon (`gui/qml/icons/app.png`, 256 px: a record carrying an artwork-style barcode seeded from `dj-digger`, with a white label, on a blue-to-bordeaux tile; `scripts/app_icon.py` draws it and writes the same design to the Windows `.ico` and macOS `.icns`), so the title bar and taskbar show it alongside the executable's shortcut icon. The desktop file name (the Wayland app_id) is `dj-digger`, so a Linux desktop entry named `dj-digger.desktop` supplies the dock name and icon of the open window; the repository does not ship that entry. The desktop waveform rises
+appear only in local views. Transport buttons use SVG icons with accessible labels and tooltips. The window icon is the packaged application icon (`gui/qml/icons/app.png`, 256 px: a record carrying an artwork-style barcode seeded from `dj-digger`, with a white label, on a blue-to-bordeaux tile; `scripts/app_icon.py` draws it and writes the same design to the Windows `.ico` and macOS `.icns`), so the title bar and taskbar show it alongside the executable's shortcut icon. The desktop file name (the Wayland app_id) is `dj-digger`, so a Linux desktop entry named `dj-digger.desktop` supplies the dock name and icon of the open window; the package does not ship that entry; the Linux install script (`site/public/install.sh`) writes one for the user. The desktop waveform rises
 from the bottom edge of its panel, never mirrored, filling the space down to the
 transport row; the desktop uses the same averaged, normalized envelope and
 level curve in `waveform.py`. Desktop bars share one vertical gradient from the
@@ -2710,10 +2710,21 @@ publisher OIDC for `dj-sc-digger`. The publish job has `id-token: write`; other 
 default to read-only contents. GitHub prereleases skip both jobs, allowing test
 installers to be shared without a PyPI upload.
 
-`.github/workflows/pages.yml` builds the static landing page in `site/` (Astro and
-three.js, Node; not part of the Python package) and deploys it to GitHub Pages on
-pushes to `main` that touch `site/` or the repository images it imports, and by
-manual dispatch. Only its deploy job has `pages: write` and `id-token: write`.
+`.github/workflows/site.yml` builds the static project website in `site/` (Astro,
+Node; not part of the Python package) and deploys it to Firebase Hosting
+(`firebase.json`) for the same stable releases and by manual dispatch, in the
+`website` environment with read-only contents. Without the
+`FIREBASE_SERVICE_ACCOUNT` secret or the `FIREBASE_PROJECT_ID` and `SITE_URL`
+variables it ends green with a notice. The site's download links are composed from
+the version in `pyproject.toml`, so the workflow first checks that the release of
+that version carries the three desktop installers and stops if one is missing.
+The site also serves `site/public/install.sh`, the Linux install script described
+in `docs/installation.md`: it installs uv into the home directory, shows the
+package-manager command for FFmpeg and the system libraries Qt needs and runs it
+only after consent read from the terminal (or with `--yes`), installs
+`dj-sc-digger[gui,analyze]` with `uv tool install --upgrade`, and writes a
+`dj-digger.desktop` menu entry and icon under the user's data directory. It changes
+nothing else outside the home directory and has a `--dry-run`.
 
 `.github/workflows/chrome-web-store.yml` runs for the same stable releases and by
 manual dispatch in the `chrome-web-store` environment with read-only contents. It
@@ -2775,7 +2786,8 @@ markers, unowned named blocks, or absent numbered headings are explicit errors.
 ### 15.2 User and historical documentation
 
 `README.md` is the user-facing installation and operation guide.
-`docs/installation.md` covers installer-based desktop setup on Windows and macOS.
+`docs/installation.md` covers installer-based desktop setup on Windows and macOS and the
+script-based setup on Linux; `docs/site-deployment.md` is the website's deployment runbook.
 `CHANGELOG.md` records released changes. `PRIVACY.md` is the browser extension's
 privacy policy; `CHROMEWEBSTORE.md` holds the store listing texts and
 `docs/store/PUBLISHING-pl.md` the store publishing runbook (Polish). `docs/architecture.md` explains component ownership;

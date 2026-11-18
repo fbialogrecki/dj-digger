@@ -1,0 +1,95 @@
+---
+// The record from the app icon, seen from straight above. Its radial code is drawn by
+// the same seeded generator as scripts/app_icon.py (and the artwork in Main.qml), so
+// the site, the icon and the app carry the same record.
+import { ARM, ARM_REST, ARM_START, ARM_END, PIVOT } from "../scripts/geometry.js";
+import css from "../styles/global.css?raw";
+
+
+const hash = (text) => {
+  let value = 7;
+  for (const char of text) value = (Math.imul(value, 31) + char.charCodeAt(0)) >>> 0;
+  return Math.abs(value | 0);
+};
+const mulberry32 = (state) => () => {
+  state = (state + 0x6d2b79f5) >>> 0;
+  let t = Math.imul(state ^ (state >>> 15), 1 | state);
+  t = ((t + Math.imul(t ^ (t >>> 7), 61 | t)) >>> 0) ^ t;
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+};
+
+const random = mulberry32(hash("dj-digger"));
+const [inner, outer] = [36.5, 92.2]; // the icon's .19 and .48 of the record's width
+const patterns = [[[0, 1]], [[0, 0.5]], [[0.5, 1]], [[0.3, 0.7]], [[0, 1 / 3], [2 / 3, 1]], []];
+const at = (angle, radius) => `${(Math.cos(angle) * radius).toFixed(2)} ${(Math.sin(angle) * radius).toFixed(2)}`;
+const count = 18 + Math.floor(random() * 10);
+const turn = random() * Math.PI * 2;
+let strokes = "";
+const dots = [];
+for (let i = 0; i < count; i++) {
+  const angle = turn + ((i + 0.15 + random() * 0.7) / count) * Math.PI * 2;
+  const pattern = patterns[Math.floor(random() * patterns.length)];
+  for (const [start, end] of pattern)
+    strokes += `M${at(angle, inner + start * (outer - inner))}L${at(angle, inner + end * (outer - inner))}`;
+  if (!pattern.length || random() < 0.3)
+    for (let n = 1 + Math.floor(random() * 3); n > 0; n--) dots.push(at(angle, inner + random() * (outer - inner)).split(" "));
+}
+
+// The arm's angles live in global.css (a style attribute would need a looser content
+// security policy); fail the build if they drift from the geometry.
+const angles = `--arm-start: ${ARM_START.toFixed(2)}deg;\n  --arm-end: ${ARM_END.toFixed(2)}deg;\n  --arm-rest: ${(ARM_REST - ARM_START).toFixed(2)}deg;`;
+if (!css.includes(angles)) throw new Error(`global.css must define on .record:\n  ${angles}`);
+---
+
+<svg class="record" viewBox="-104 -104 232 208" aria-hidden="true">
+  <defs>
+    <radialGradient id="neon" gradientUnits="userSpaceOnUse" cx="0" cy="0" r={outer}>
+      <stop offset="0.38" stop-color="var(--neon-foot)"></stop>
+      <stop offset="1" stop-color="var(--neon-top)"></stop>
+    </radialGradient>
+    <linearGradient id="label" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="var(--label-from)"></stop>
+      <stop offset="1" stop-color="var(--label-to)"></stop>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.09"></stop>
+      <stop offset="0.5" stop-color="#fff" stop-opacity="0"></stop>
+      <stop offset="1" stop-color="#fff" stop-opacity="0.06"></stop>
+    </linearGradient>
+    <path id="label-arc" d="M-22.5 0a22.5 22.5 0 1 1 45 0a22.5 22.5 0 1 1-45 0"></path>
+  </defs>
+
+  <circle class="vinyl" r="96"></circle>
+  <g class="spin-up">
+    <g class="disc">
+      <g class="code">
+        <path d={strokes}></path>
+        {dots.map(([x, y]) => <circle cx={x} cy={y} r="2.1" />)}
+      </g>
+      <g class="code neon">
+        <path d={strokes}></path>
+        {dots.map(([x, y]) => <circle cx={x} cy={y} r="2.1" />)}
+      </g>
+      <circle class="label" r="32.6"></circle>
+      <text class="label-text"><textPath href="#label-arc" textLength="139" lengthAdjust="spacing">DJ-DIGGER &#183; CRATE DIGGING &#183; 33 RPM &#183; STEREO &#183;</textPath></text>
+      <circle class="spindle" r="2.4"></circle>
+    </g>
+  </g>
+  <circle class="sheen" r="96"></circle>
+</svg>
+
+{/* Its own element, so that between pages the arm can lift off before the disc turns over. */}
+<svg class="tonearm" viewBox="-104 -104 232 208" aria-hidden="true">
+  <g transform={`translate(${PIVOT.join(" ")})`}>
+    <g class="drop">
+      <g class="arm">
+        <path class="tube" d={`M-18 0H${ARM - 16}`}></path>
+        <rect class="weight" x="-30" y="-6.5" width="16" height="13" rx="2.5"></rect>
+        <path class="shell" d={`M${ARM - 18} -4.2h15l5 4.2l-5 4.2h-15z`}></path>
+        <circle class="stylus" cx={ARM} cy="0" r="1.6"></circle>
+      </g>
+    </g>
+    <circle class="bearing" r="9.5"></circle>
+    <circle class="bearing-cap" r="4"></circle>
+  </g>
+</svg>

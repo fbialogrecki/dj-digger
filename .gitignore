@@ -24,3 +24,5 @@ build/
 dist/
 
 !packaging/windows/tools.json
+# Firebase Hosting configuration of the website in site/.
+!firebase.json

@@ -4,3 +4,4 @@ dist/
 # The repository root ignores *.json; keep this project's manifests.
 !package.json
 !package-lock.json
+.dist-*/

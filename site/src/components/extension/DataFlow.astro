@@ -1,0 +1,140 @@
+---
+// Where the extension's data goes: everything inside one box, "your computer"; the only
+// arrows that leave it reach the five sites. Drawn narrow on purpose so it reads at 328px.
+const sites = ["Hypeddit", "ToneDen", "Bandcamp", "Beatport", "SoundCloud"];
+const top = (i) => 146 + i * 38;
+---
+
+<svg class="flow" viewBox="0 0 340 336" role="img" aria-labelledby="df-title df-desc">
+  <title id="df-title">Where the extension's data goes</title>
+  <desc id="df-desc">
+    One box, your computer, holds the dj-digger desktop app and your browser with the dj-digger extension. App and
+    extension are joined by native messaging, their only channel. The only arrows that leave the box run from the tabs
+    the extension opened for the app to five sites: Hypeddit, ToneDen, Bandcamp, Beatport and SoundCloud. A box for the
+    developer stands outside with no arrow: nothing is sent there.
+  </desc>
+  <defs>
+    <marker id="df-foot" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path class="tip-foot" d="M0 1L9 5L0 9z"></path>
+    </marker>
+    <marker id="df-top" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path class="tip-top" d="M0 1L9 5L0 9z"></path>
+    </marker>
+  </defs>
+
+  <rect class="computer" x="1" y="1" width="214" height="334" rx="16"></rect>
+  <text class="cap" x="18" y="26">Your computer</text>
+
+  <rect class="node" x="16" y="40" width="184" height="58" rx="10"></rect>
+  <text class="name" x="32" y="65">dj-digger app</text>
+  <text class="note" x="32" y="85">sends the browser steps</text>
+
+  <line class="link" x1="48" y1="100" x2="48" y2="158" marker-start="url(#df-foot)" marker-end="url(#df-foot)"></line>
+  <text class="name" x="64" y="126">Native messaging</text>
+  <text class="note" x="64" y="144">the only channel</text>
+
+  <rect class="browser" x="16" y="160" width="184" height="160" rx="10"></rect>
+  <text class="name" x="32" y="184">Your browser</text>
+  <rect class="node ext" x="24" y="198" width="168" height="44" rx="8"></rect>
+  <text class="name" x="36" y="225">dj-digger extension</text>
+  <line class="step" x1="108" y1="242" x2="108" y2="256"></line>
+  <rect class="node" x="24" y="256" width="168" height="48" rx="8"></rect>
+  <text class="name" x="36" y="277">Tabs it opened</text>
+  <text class="note" x="36" y="295">for the app</text>
+
+  <rect class="dev" x="236" y="40" width="102" height="58" rx="10"></rect>
+  <text class="name dim" x="287" y="65" text-anchor="middle">Developer</text>
+  <text class="note" x="287" y="85" text-anchor="middle">nothing sent</text>
+
+  <text class="cap" x="236" y="134">Sites</text>
+  {
+    sites.map((site, i) => (
+      <>
+        <path class="out" d={`M192 280C216 280 210 ${top(i) + 15} 233 ${top(i) + 15}`} marker-end="url(#df-top)" />
+        <rect class="site" x="236" y={top(i)} width="102" height="30" rx="15" />
+        <text class="chip" x="287" y={top(i) + 19.5} text-anchor="middle">
+          {site}
+        </text>
+      </>
+    ))
+  }
+</svg>
+
+<style>
+  .flow {
+    width: 100%;
+    max-width: 25rem;
+    font-family: var(--sans);
+  }
+  .computer {
+    fill: var(--panel);
+    stroke: var(--edge);
+    stroke-width: 1.5;
+  }
+  .browser {
+    fill: var(--bg);
+    stroke: var(--line);
+  }
+  .node {
+    fill: var(--raise);
+    stroke: var(--line);
+  }
+  .ext {
+    stroke: var(--neon-foot);
+  }
+  .dev {
+    fill: none;
+    stroke: var(--edge);
+    stroke-dasharray: 4 4;
+  }
+  .site {
+    fill: var(--raise);
+    stroke: var(--neon-top);
+  }
+  .cap {
+    font-size: 10px;
+    font-weight: 600;
+    font-stretch: 125%;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    fill: var(--muted);
+  }
+  .name {
+    font-size: 12.5px;
+    font-weight: 700;
+    fill: var(--fg);
+  }
+  .name.dim,
+  .note {
+    fill: var(--muted);
+  }
+  .note {
+    font-size: 11px;
+  }
+  .chip {
+    font-size: 12.5px;
+    font-weight: 600;
+    fill: var(--fg);
+  }
+  .link,
+  .step,
+  .out {
+    fill: none;
+    stroke-width: 1.5;
+  }
+  .link {
+    stroke: var(--neon-foot);
+  }
+  .step {
+    stroke: var(--edge);
+  }
+  .out {
+    stroke: var(--neon-top);
+  }
+  .tip-foot {
+    fill: var(--neon-foot);
+  }
+  .tip-top {
+    fill: var(--neon-top);
+  }
+</style>

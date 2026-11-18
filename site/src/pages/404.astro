@@ -1,0 +1,30 @@
+---
+import Base from "../layouts/Base.astro";
+
+const tracks = [{ id: "empty", no: "00", title: "Empty groove" }];
+---
+
+<Base title="Page not found | dj-digger" description="This page is not on the record." tracks={tracks} noindex>
+  <section class="hero sub stack" id="empty" data-track="00" data-title="Empty groove" aria-labelledby="empty-title">
+    <p class="eyebrow"><span class="no">404</span>Run-out groove</p>
+    <h1 id="empty-title">This groove is empty</h1>
+    <p class="lede">The page you asked for is not on this record.</p>
+    <div class="cta">
+      <a class="button primary" href="/">Back to the start</a>
+      <a class="quiet" href="/download/">Download dj-digger</a>
+    </div>
+  </section>
+</Base>
+
+<style is:global>
+  /* Nothing to play here: the needle sits in the run-out groove and the record is still. */
+  .tonearm .arm {
+    animation: none !important;
+    rotate: var(--arm-end) !important;
+  }
+  .record .disc,
+  .record .spin-up,
+  .tonearm .drop {
+    animation: none !important;
+  }
+</style>

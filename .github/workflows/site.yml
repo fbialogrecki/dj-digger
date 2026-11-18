@@ -1,0 +1,77 @@
+name: Website
+
+# Builds the project website in site/ and deploys it to Firebase Hosting
+# (firebase.json). It runs when a release is published, because the site's
+# download links are composed from the version in pyproject.toml and must point
+# at files that exist, and by manual dispatch. Setup: docs/site-deployment.md.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: website
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # Prereleases skip, like publish.yml.
+    if: github.event_name == 'workflow_dispatch' || github.event.release.prerelease == false
+    name: Build and deploy the website
+    runs-on: ubuntu-latest
+    # The owner can require approval for this environment; the secret and the
+    # variables live in it. Without them the job ends green with a notice.
+    environment: website
+    steps:
+      - name: Skip when Firebase is not configured
+        id: configured
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          SITE_URL: ${{ vars.SITE_URL }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT" ] || [ -z "$FIREBASE_PROJECT_ID" ] || [ -z "$SITE_URL" ]; then
+            echo "::notice::Website deploy skipped: set the FIREBASE_SERVICE_ACCOUNT secret and the FIREBASE_PROJECT_ID and SITE_URL variables of the website environment (docs/site-deployment.md)."
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      # Pinned to a commit like the other workflows: the job holds hosting credentials.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.configured.outputs.ready == 'true'
+        with:
+          persist-credentials: false
+      - name: Check that the release carries its installers
+        if: steps.configured.outputs.ready == 'true'
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"$/\1/p' pyproject.toml)
+          for name in windows-x64-test.exe macos-arm64-test.dmg macos-x86_64-test.dmg; do
+            url="https://github.com/$GITHUB_REPOSITORY/releases/download/v$version/dj-digger-$version-$name"
+            curl --fail --silent --show-error --head --location --output /dev/null "$url" \
+              || { echo "::error::Missing release file: $url"; exit 1; }
+          done
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: steps.configured.outputs.ready == 'true'
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - name: Build
+        if: steps.configured.outputs.ready == 'true'
+        working-directory: site
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+        run: |
+          npm ci
+          npm run build
+      - name: Deploy to Firebase Hosting
+        if: steps.configured.outputs.ready == 'true'
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+        run: |
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/firebase-key.json"
+          GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/firebase-key.json" \
+            npx --yes firebase-tools@15.36.0 deploy --only hosting --project "$FIREBASE_PROJECT_ID" --non-interactive

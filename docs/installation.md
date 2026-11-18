@@ -1,9 +1,10 @@
-# Install dj-digger on Windows or Mac
+# Install dj-digger on Windows, Mac or Linux
 
 Get the desktop app running without Python, a terminal, or programming knowledge.
-The downloads include the components needed to run the app.
+The Windows and Mac downloads include the components needed to run the app.
+Linux takes one terminal command.
 
-**Choose your computer:** [Windows](#windows) · [Mac](#mac)
+**Choose your computer:** [Windows](#windows) · [Mac](#mac) · [Linux](#linux)
 
 > **Before you start**
 >
@@ -145,6 +146,59 @@ Report the exact message instead of using commands to remove security checks.
 Apple's [guide to opening apps safely](https://support.apple.com/en-gb/102445)
 includes screenshots and explains the different warnings.
 
+## Linux
+
+Linux has no installer file. One terminal command installs dj-digger with
+everything it needs, and running it again later updates the app.
+
+### 1. Run the install script
+
+```bash
+wget -qO- https://raw.githubusercontent.com/fbialogrecki/dj-digger/main/site/public/install.sh | sh
+```
+
+No `wget`? Use `curl -fsSL https://raw.githubusercontent.com/fbialogrecki/dj-digger/main/site/public/install.sh | sh` instead.
+You can [read the script](https://github.com/fbialogrecki/dj-digger/blob/main/site/public/install.sh)
+before you run it. This is what it does:
+
+- Installs [uv](https://docs.astral.sh/uv/) into your home folder. uv brings its
+  own Python, so the Python of your system is not used or changed.
+- Checks for FFmpeg and the system libraries the app's window needs. If any are
+  missing, it shows the exact `apt-get`, `dnf`, `pacman` or `zypper` command and
+  asks before running it with `sudo`. This is the only step that needs your password.
+- Installs dj-digger from [PyPI](https://pypi.org/project/dj-sc-digger/) and adds
+  it to your applications menu.
+- Ends with a list of what it did and what it did not do.
+
+Apart from that one package command, nothing outside your home folder is changed.
+
+To see what the script would do without changing anything, or to skip its question:
+
+```bash
+wget -qO- https://raw.githubusercontent.com/fbialogrecki/dj-digger/main/site/public/install.sh | sh -s -- --dry-run
+wget -qO- https://raw.githubusercontent.com/fbialogrecki/dj-digger/main/site/public/install.sh | sh -s -- --yes
+```
+
+The script is tested on clean installations of Ubuntu 24.04, Debian 12, Fedora 45,
+Arch Linux and openSUSE Tumbleweed (64-bit Intel or AMD). On another distribution
+it still installs dj-digger, but tells you that it could not check the system
+packages. On Arch Linux, update your system first (`sudo pacman -Syu`).
+
+### 2. Start dj-digger
+
+Open **dj-digger** from your applications menu. From a terminal, open a new
+terminal window first and run `dj-digger-gui`.
+
+### Install it yourself instead
+
+If you would rather not run a script, install FFmpeg (with `ffprobe`) from your
+distribution, then use uv or pipx (pipx needs Python 3.12 or newer):
+
+```bash
+uv tool install 'dj-sc-digger[gui,analyze]'
+pipx install 'dj-sc-digger[gui,analyze]'
+```
+
 ## Connect your browser
 
 Download gates, store carts and the SoundCloud login work through the dj-digger
@@ -201,12 +255,16 @@ Visit the official downloads page and read the notes for the new version.
   folder as before.
 - **Mac:** download the new DMG for your processor and drag the app into
   Applications again. Choose **Replace** when asked.
+- **Linux:** run the install script again.
 
 To remove the application:
 
 - **Windows:** open **Settings → Apps → Installed apps**, find **dj-digger**,
   and choose **Uninstall**.
 - **Mac:** close dj-digger, then move it from **Applications** to the **Trash**.
+- **Linux:** run `uv tool uninstall dj-sc-digger`, then delete
+  `~/.local/share/applications/dj-digger.desktop` and
+  `~/.local/share/icons/hicolor/256x256/apps/dj-digger.png`.
 
 Removing the app does not automatically remove its separately stored library,
 settings, or account data, or your downloaded music.
@@ -214,6 +272,6 @@ settings, or account data, or your downloaded music.
 ## Need a hand?
 
 [Report an installation problem](https://github.com/fbialogrecki/dj-digger/issues).
-Include your Windows or macOS version, the downloaded filename, and the exact
+Include your Windows or macOS version or your Linux distribution, the downloaded filename, and the exact
 message you saw. A screenshot can help; hide personal information before sharing
 it. Never include passwords or sign-in codes.

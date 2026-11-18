@@ -1,641 +1,454 @@
 ---
-import { Image } from "astro:assets";
-// Images come straight from the repository so the site never holds stale copies.
-import appIcon from "../../../dj_digger/gui/qml/icons/app.png";
-import extIcon from "../../../dj_digger/webext/extension/icons/icon-128.png";
-import shotPlayer from "../../../docs/store/screenshots/1-player.png";
-import shotImport from "../../../docs/store/screenshots/2-import.png";
-import shotGates from "../../../docs/store/screenshots/3-jobs-gates.png";
-import promo from "../../../docs/store/screenshots/promo-small-440x280.png";
+import { Picture } from "astro:assets";
+import Base from "../layouts/Base.astro";
+import Loop from "../components/Loop.astro";
+import Shot from "../components/Shot.astro";
+import Track from "../components/Track.astro";
+import sidebar from "../assets/screenshots/crops/sidebar.png";
+import playerCrop from "../assets/screenshots/crops/player.png";
+import decisions from "../assets/screenshots/crops/decisions.png";
+import cart from "../assets/screenshots/crops/cart.png";
+import libraryWindow from "../assets/screenshots/desktop-local-library.png";
+import playerWindow from "../assets/screenshots/desktop-player.png";
+import decisionsWindow from "../assets/screenshots/desktop-crates-decisions.png";
+import cartWindow from "../assets/screenshots/desktop-cart.png";
+import panel from "../assets/screenshots/extension-panel.png";
+import { repo, version } from "../../site.config.mjs";
 
-const repo = "https://github.com/fbialogrecki/dj-digger";
-const releases = `${repo}/releases/latest`;
-const chromeStore = "https://chromewebstore.google.com/detail/dj-digger/ndimmdooibgcajgnoncdnckolhlmnnkb";
 const description =
   "A local-first crate-digging app for DJs: turn SoundCloud playlists, likes and profiles into an auditionable library, then find the safest way to download or buy each track.";
-const ogImage = new URL(promo.src, Astro.site).href;
-
-const features = [
-  {
-    title: "Whole playlists, not a scrolled page",
-    body: "Reads SoundCloud playlists, likes, reposts, artist profiles and single tracks through SoundCloud's API, so nothing hides past the last rendered row. A 300-track playlist arrives in about three seconds. Sign in to read your own private playlists.",
-  },
-  {
-    title: "Every link, sorted",
-    body: "Purchase and download links are classified into Bandcamp, Beatport, Traxsource, Juno, Apple, record shops, download gates, smart links and free SoundCloud downloads. Link hubs are opened so the store links behind them land on the track.",
-  },
-  {
-    title: "Download gates, handled",
-    body: "Follow-to-download gates on Hypeddit, ToneDen, GateRush and Droploud are resolved through their own download flows. Social steps run only if you allow them in Settings; CAPTCHAs stay with you.",
-  },
-  {
-    title: "Carts, never checkout",
-    body: "Puts the tracks you pick into your Bandcamp cart, and into your Beatport cart when the exact track is known, or prepares a Beatport playlist instead. Every addition is verified. Login, payment and checkout stay in your hands.",
-  },
-  {
-    title: "Preview that feels the kick",
-    body: "Stream a SoundCloud preview or play the file on disk, with waveform, seeking and prefetch of the next tracks. The waveform and the record's backdrop light up on every kick, learned per track from the audio itself.",
-  },
-  {
-    title: "Crates that remember",
-    body: "Mark tracks got, skipped or untouched; the decision follows the track into every playlist it appears in. Refreshing a playlist puts what it gained at the top, marked NEW.",
-  },
-  {
-    title: "Knows what you already own",
-    body: "Scans your music folders and matches files by artist and title, so tracks you already have are marked got and play from disk instead of the stream.",
-  },
-  {
-    title: "Ready for the decks",
-    body: "Browse local folders, build local playlists, estimate BPM and key, and export copies in formats checked against documented deck audio profiles. It never formats a drive or touches your rekordbox library.",
-  },
-  {
-    title: "A CLI for your scripts",
-    body: "The headless dj-digger command collects a playlist, saves it to the library and exports its links as JSON or CSV, ready for your own pipelines.",
-  },
+const tracks = [
+  { id: "start", no: "01", title: "Playlist to decks" },
+  { id: "loop", no: "02", title: "The digging loop" },
+  { id: "app", no: "03", title: "The desktop app" },
+  { id: "extension", no: "04", title: "The browser extension" },
+  { id: "trust", no: "05", title: "Yours, and honest" },
+  { id: "get", no: "06", title: "Choose your pressing" },
 ];
-
-const shots = [
-  { src: shotPlayer, alt: "The extension's toolbar panel playing a track from the desktop app, with seek bar and transport buttons." },
-  { src: shotImport, alt: "The extension's panel on a SoundCloud playlist page, offering to import it into dj-digger." },
-  { src: shotGates, alt: "The extension's panel showing three download gates that need attention and a running playlist import with a Cancel button." },
+const loop = [
+  {
+    name: "Collect",
+    text: "Paste a playlist, likes, reposts, profile or track link. The whole list arrives through SoundCloud's API, not just the rows a page happened to render.",
+    src: sidebar,
+    full: libraryWindow,
+    alt: "The dj-digger sidebar: three SoundCloud playlists, Late Night Selects with 14 tracks, Sunday Balcony with 4 and Warehouse Warmups with 6, and below them the Downloads and Music folders with Digging 2026 open.",
+  },
+  {
+    name: "Audition",
+    text: "Preview, seek, search, filter and sort without leaving the playlist. The played side of the waveform lights up on every kick.",
+    src: playerCrop,
+    full: playerWindow,
+    alt: "The dj-digger player: Slow Orbit by Nightglass at 1:04 of 3:20, its generated cover art, a waveform lit magenta up to the playhead, transport buttons and a volume slider.",
+  },
+  {
+    name: "Decide",
+    text: "Mark tracks got or skipped. The decision follows the track into every playlist it appears in.",
+    src: decisions,
+    full: decisionsWindow,
+    alt: "The track table with the status filter open: rows marked Got, Played, Opened and New, and a menu offering All statuses, Unhandled, New, Opened, Owned and Skipped.",
+  },
+  {
+    name: "Buy or download",
+    text: "Follow classified store links, resolve download gates, fill your Bandcamp and Beatport carts. Checkout stays yours.",
+    src: cart,
+    full: cartWindow,
+    alt: "The Cart results dialog: added to the carts 4, not added 1. Four tracks are listed in or already in the Bandcamp cart and one went to a playlist, with buttons to send the playlist to Soundiiz, open the links not added, show the carts or close.",
+  },
 ];
 ---
 
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="color-scheme" content="dark" />
-    <meta name="theme-color" content="#0d0c12" />
-    <title>dj-digger: crate digging for DJs</title>
-    <meta name="description" content={description} />
-    <link rel="canonical" href={Astro.url.href} />
-    <link rel="icon" type="image/png" href={appIcon.src} />
-    <meta property="og:type" content="website" />
-    <meta property="og:title" content="dj-digger" />
-    <meta property="og:description" content={description} />
-    <meta property="og:image" content={ogImage} />
-    <meta name="twitter:card" content="summary_large_image" />
-  </head>
-  <body>
-    <a class="skip-link" href="#content">Skip to content</a>
-    <header class="site-header">
-      <a class="brand" href={import.meta.env.BASE_URL}>
-        <img src={appIcon.src} width="28" height="28" alt="" />
-        dj-digger
-      </a>
-      <nav aria-label="Primary">
-        <ul>
-          <li><a href="#features">Features</a></li>
-          <li><a href="#extension">Extension</a></li>
-          <li><a href="#privacy">Privacy</a></li>
-          <li><a href={repo}>GitHub</a></li>
+<Base title="dj-digger: crate digging for DJs" description={description} tracks={tracks}>
+  <section class="hero" id="start" data-track="01" data-title="Playlist to decks" aria-labelledby="start-title">
+    <p class="eyebrow"><span class="no">01</span>Crate digging for DJs</p>
+    <h1 id="start-title">From a SoundCloud playlist to <span class="grad">files on your decks</span></h1>
+    <p class="lede">
+      <strong>dj-digger</strong> is a local-first desktop app. It collects whole playlists, lets you audition them,
+      remembers what you decided, and finds the safest way to buy or download each track.
+    </p>
+    <div class="cta">
+      <a class="button primary" href="/download/">Download</a>
+      <a class="quiet" href="#loop">See how a session runs</a>
+    </div>
+    <ul class="facts">
+      <li>Free and open source</li>
+      <li>Windows, macOS, Linux</li>
+      <li>No account, no backend</li>
+    </ul>
+    <Loop eager>Captured from the real app, demo tracks, generated artwork</Loop>
+  </section>
+
+  {/* Wide screens with scroll-driven animations: a tall section whose stage pins and plays the four steps
+      one at a time. Everywhere else, and without the CSS below, four stacked steps. */}
+  <section id="loop" class="loop" data-track="02" data-title="The digging loop" aria-labelledby="loop-title">
+    <div class="stage stack">
+      <p class="eyebrow"><span class="no">02</span>How a session runs</p>
+      <h2 id="loop-title">One loop, start to finish</h2>
+      <ol class="meter" aria-hidden="true">
+        {loop.map((step) => <li>{step.name}</li>)}
+      </ol>
+      <ol class="steps">
+        {
+          loop.map((step, i) => (
+            <li class="movement">
+              <div class="text">
+                <h3>
+                  <span class="no">{`0${i + 1}`}</span>{" "}{step.name}
+                </h3>
+                <p class="copy">{step.text}</p>
+              </div>
+              <div class="media">
+                <Shot src={step.src} alt={step.alt} full={step.full} />
+              </div>
+            </li>
+          ))
+        }
+      </ol>
+    </div>
+  </section>
+
+  <Track id="app" no="03" title="The desktop app" label="On your computer" heading="The desktop app">
+    <p class="copy">
+      A keyboard-driven desktop app: playlists in the sidebar, a track table with store badges, a player with a
+      waveform.
+    </p>
+    <Shot
+      src={playerWindow}
+      caption="The main window"
+      alt="The dj-digger main window: the sidebar with three SoundCloud playlists and the music folders, the player on Slow Orbit by Nightglass at 1:04 of 3:20, and the Late Night Selects table with status, artist, track, genre, year, label, time and store badges such as Bandcamp, Beatport and Hypeddit."
+    />
+    <ul class="ticks">
+      <li>Knows what you already own: scans your folders and plays from disk</li>
+      <li>Estimates BPM and key, and exports copies checked against documented deck audio profiles</li>
+      <li>A headless CLI for your own scripts</li>
+    </ul>
+    <div class="cta"><a class="button" href="/app/">Explore the app</a></div>
+  </Track>
+
+  <Track id="extension" no="04" title="The browser extension" label="In your browser" heading="The browser extension">
+    <div class="split">
+      <div class="stack">
+        <p class="copy">
+          It works only while the desktop app runs on the same computer: it is the app's hands in your own browser.
+          It finishes download gates, fills your Bandcamp and Beatport carts in background tabs, and puts the app's
+          player in your toolbar.
+        </p>
+        <ul class="ticks">
+          <li>Works in the browser and the accounts you already use</li>
+          <li>Talks only to dj-digger on your computer</li>
+          <li>Chrome, Edge, Brave, Chromium; Firefox separately</li>
         </ul>
-      </nav>
-    </header>
+        <div class="cta"><a class="button" href="/extension/">Explore the extension</a></div>
+      </div>
+      <div class="panel">
+        <Shot
+          src={panel}
+          sizes="(min-width: 46rem) 13rem, 18rem"
+          alt="The dj-digger toolbar panel: the cover art of Slow Orbit by Nightglass, a seek bar at 1:08 of 3:20, and previous, pause and next buttons."
+        />
+      </div>
+    </div>
+  </Track>
 
-    <main id="content" tabindex="-1">
-      <section class="hero wrap" aria-labelledby="hero-title">
-        <div class="hero-copy">
-          <p class="eyebrow">Free and open source · Windows · macOS · Linux</p>
-          <h1 id="hero-title">Dig deeper.<br /><span class="grad">Buy smarter.</span></h1>
-          <p class="lede">{description}</p>
-          <div class="cta">
-            <a class="button primary" href={releases}>Download</a>
-            <a class="button" href={repo}>View on GitHub</a>
-          </div>
-          <p class="note">
-            Installers for Windows 10/11 and macOS 15+ (Apple Silicon and Intel). They are unsigned previews, so
-            your system may warn you first: the{" "}
-            <a href={`${repo}/blob/main/docs/installation.md`}>installation guide</a> explains why.
-          </p>
-          <div class="install">
-            <p>Or install from PyPI (Python 3.12+, FFmpeg on your PATH):</p>
-            <pre><code>uv tool install 'dj-sc-digger[gui,analyze]'
-dj-digger-gui</code></pre>
-            <p class="small">pipx works too: <code>pipx install 'dj-sc-digger[gui,analyze]'</code></p>
-          </div>
-        </div>
-        <div class="hero-visual" data-hero>
-          <img src={appIcon.src} width="256" height="256" alt="" fetchpriority="high" />
-        </div>
-      </section>
-
-      <section id="features" class="wrap" aria-labelledby="features-title">
-        <h2 id="features-title">The whole digging loop in one app</h2>
-        <p class="section-lede">
-          Collect a playlist, audition it, decide, and follow verified store or download links, in a keyboard-driven
-          desktop app.
-        </p>
-        <ul class="features">
-          {
-            features.map((f) => (
-              <li class="card reveal">
-                <h3>{f.title}</h3>
-                <p>{f.body}</p>
-              </li>
-            ))
-          }
-        </ul>
-      </section>
-
-      <section id="extension" class="wrap" aria-labelledby="extension-title">
-        <div class="split">
-          <div>
-            <Image src={extIcon} width={64} height={64} alt="" class="ext-icon" />
-            <h2 id="extension-title">Your browser, with the app in charge</h2>
-            <p>
-              Download gates, store carts and the SoundCloud sign-in run in your own browser through a small companion
-              extension, on the sites you are already signed in to. dj-digger ships and downloads no browser of its own.
-            </p>
-            <ul class="ticks">
-              <li>Finishes Hypeddit and ToneDen gates and hands the file to the app.</li>
-              <li>Fills your Bandcamp and Beatport carts in background tabs, then gives you the cart.</li>
-              <li>Toolbar panel: play, pause, skip and seek the desktop player, follow and cancel jobs.</li>
-              <li>On a SoundCloud playlist or profile, import it, or right-click a link: Dig in dj-digger.</li>
-            </ul>
-            <div class="cta">
-              <a class="button primary" href={chromeStore}>Chrome Web Store</a>
-              <a class="button" href={`${repo}#connect-your-browser`}>Firefox setup</a>
-            </div>
-            <p class="small">
-              Chrome, Edge, Brave and Chromium install from the Chrome Web Store. Firefox uses the signed file from a
-              release when one is provided, or a temporary add-on. The extension needs the desktop app running on the
-              same computer.
-            </p>
-          </div>
-          <ul class="shots" aria-label="Extension screenshots">
-            {
-              shots.map((s) => (
-                <li class="reveal">
-                  <Image src={s.src} alt={s.alt} widths={[640, 1280]} sizes="(min-width: 60rem) 34rem, 92vw" />
-                </li>
-              ))
-            }
-          </ul>
-        </div>
-      </section>
-
-      <section id="privacy" class="wrap privacy reveal" aria-labelledby="privacy-title">
-        <h2 id="privacy-title">Local-first, by design</h2>
-        <p>
-          Your playlists, decisions, credentials and library stay on your computer. There is no account and no backend
-          run by the project. The extension talks only to the app on your machine and to the site of the step it is
-          completing; it sends nothing to the developer and has no analytics, tracking or ads. Logs redact credentials
-          and are never uploaded.
-        </p>
-        <p><a href={`${repo}/blob/main/PRIVACY.md`}>Read the privacy policy</a></p>
-      </section>
-    </main>
-
-    <footer class="site-footer">
-      <div class="wrap">
-        <p>
-          dj-digger by Filip Białogrecki ·{" "}
-          <a href={`${repo}/blob/main/LICENSE`}>Apache License 2.0</a>
-        </p>
-        <ul>
-          <li><a href={repo}>GitHub</a></li>
-          <li><a href={`${repo}/releases`}>Releases</a></li>
-          <li><a href="https://pypi.org/project/dj-sc-digger/">PyPI</a></li>
-          <li><a href={`${repo}/issues`}>Issues</a></li>
+  <Track id="trust" no="05" title="Yours, and honest" label="Local-first" heading="Yours, and honest about its limits">
+    <div class="columns">
+      <div class="stack">
+        <h3>What stays with you</h3>
+        <ul class="ticks">
+          <li>No dj-digger account and no dj-digger server.</li>
+          <li>Playlists, decisions and settings live in a local database on your computer.</li>
+          <li>The SoundCloud login is kept in your system keyring; passwords are never read.</li>
+          <li>This website sets no cookies and loads nothing from other servers.</li>
         </ul>
       </div>
-    </footer>
+      <div class="stack">
+        <h3>What it will not do</h3>
+        <ul class="ticks">
+          <li>Pay or check out: a tab heading for a checkout page is closed.</li>
+          <li>Solve CAPTCHAs or sign in for you.</li>
+          <li>Guess: ambiguous titles, changed prices and album-only tracks stop and are reported.</li>
+          <li>Format drives or write to your rekordbox library.</li>
+        </ul>
+      </div>
+    </div>
+    <p><a class="quiet" href={`${repo}/blob/main/PRIVACY.md`}>Read the privacy policy</a></p>
+  </Track>
 
-    <script>
-      // three.js loads only after the page is idle and only with WebGL2;
-      // otherwise the static icon in the hero simply stays.
-      const box = document.querySelector<HTMLElement>("[data-hero]");
-      const probe = document.createElement("canvas").getContext("webgl2");
-      probe?.getExtension("WEBGL_lose_context")?.loseContext();
-      if (box && probe) {
-        const idle = window.requestIdleCallback ?? ((fn: () => void) => setTimeout(fn, 200));
-        idle(() =>
-          import("../scripts/hero-scene.js")
-            .then((m) => m.start(box))
-            .catch(() => {}),
-        );
-      }
-    </script>
-  </body>
-</html>
+  <Track id="get" no="06" title="Choose your pressing" label="Run-out groove" heading="Choose your pressing">
+    <p class="copy">dj-digger {version} is free and open source, with no sign-up.</p>
+    <div class="press stack">
+      <div class="cta"><a class="button primary" href="/download/">Download</a></div>
+      <ul class="facts" aria-label="Platforms">
+        <li>Windows 10 (1809 or newer) and 11</li>
+        <li>macOS 15 or newer</li>
+        <li>Linux</li>
+      </ul>
+    </div>
+    <p><a class="quiet" href="/liner-notes/">Curious how it is built? Read the liner notes</a></p>
+  </Track>
+</Base>
 
-<style is:global>
-  :root {
-    --bg: #0d0c12;
-    --surface: #17151f;
-    --line: #2a2735;
-    --text: #ecebf2;
-    --muted: #aeabbd;
-    --pink: #ff4fa3;
-    --blue: #6f8fff;
-    --grad: linear-gradient(120deg, #3f5bd8, #c43a6e);
-    --radius: 14px;
-    color-scheme: dark;
-  }
-
-  * {
-    box-sizing: border-box;
-  }
-
-  html {
-    scroll-behavior: smooth;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    html {
-      scroll-behavior: auto;
-    }
-  }
-
-  body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--text);
-    font: 1rem/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    -webkit-font-smoothing: antialiased;
-  }
-
-  img {
-    max-width: 100%;
-    height: auto;
-  }
-
-  a {
-    color: var(--pink);
-    text-underline-offset: 0.2em;
-  }
-
-  :focus-visible {
-    outline: 3px solid var(--blue);
-    outline-offset: 3px;
-    border-radius: 4px;
-  }
-
-  h1,
-  h2,
-  h3 {
-    line-height: 1.15;
-    text-wrap: balance;
-  }
-
-  p {
-    text-wrap: pretty;
-  }
-
-  code,
-  pre {
-    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-    font-size: 0.9em;
-  }
-
-  .wrap {
-    width: min(72rem, 100% - 2rem);
-    margin-inline: auto;
-  }
-
-  section {
-    padding-block: clamp(3rem, 8vw, 6rem);
-  }
-
-  .skip-link {
-    position: absolute;
-    left: 1rem;
-    top: -4rem;
-    padding: 0.5rem 1rem;
-    background: var(--surface);
-    border-radius: 8px;
-    z-index: 10;
-  }
-
-  .skip-link:focus {
-    top: 1rem;
-  }
-
-  main:focus {
-    outline: none;
-  }
-
-  .site-header {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem 1.5rem;
-    align-items: center;
-    justify-content: space-between;
-    width: min(72rem, 100% - 2rem);
-    margin-inline: auto;
-    padding-block: 1rem;
-  }
-
-  .brand {
-    display: inline-flex;
-    gap: 0.6rem;
-    align-items: center;
-    color: var(--text);
-    font-weight: 700;
-    font-size: 1.15rem;
-    text-decoration: none;
-  }
-
-  .brand img {
-    border-radius: 7px;
-  }
-
-  nav ul,
-  .site-footer ul {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem 1.25rem;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  nav a {
-    color: var(--muted);
-    text-decoration: none;
-  }
-
-  nav a:hover {
-    color: var(--text);
-  }
-
-  /* Hero */
-  .hero {
-    display: grid;
-    grid-template-columns: 1.1fr 1fr;
-    gap: 2rem;
-    align-items: center;
-    padding-top: clamp(1.5rem, 5vw, 4rem);
-  }
-
-  .eyebrow {
-    color: var(--muted);
-    font-size: 0.9rem;
-    letter-spacing: 0.04em;
-    margin: 0;
-  }
-
-  h1 {
-    font-size: clamp(2.6rem, 7vw, 4.75rem);
-    letter-spacing: -0.03em;
-    margin: 0.5rem 0 1rem;
-  }
-
-  .grad {
-    background: linear-gradient(120deg, var(--pink), var(--blue));
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-  }
-
-  .lede {
-    font-size: 1.15rem;
-    color: var(--muted);
-    max-width: 38rem;
-  }
-
-  .cta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-    margin-block: 1.5rem 1rem;
-  }
-
-  .button {
-    display: inline-block;
-    padding: 0.75rem 1.4rem;
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    color: var(--text);
-    background: var(--surface);
-    font-weight: 600;
-    text-decoration: none;
-  }
-
-  .button:hover {
-    border-color: var(--muted);
-  }
-
-  .button.primary {
-    border-color: transparent;
-    background: var(--grad);
-    color: #fff;
-  }
-
-  .button.primary:hover {
-    filter: brightness(1.12);
-  }
-
-  .note,
-  .small {
-    color: var(--muted);
-    font-size: 0.9rem;
-  }
-
-  .install {
-    margin-top: 1.5rem;
-    color: var(--muted);
-    font-size: 0.95rem;
-  }
-
-  .install p {
-    margin: 0.5rem 0;
-  }
-
-  pre {
-    margin: 0;
-    padding: 1rem 1.2rem;
-    overflow-x: auto;
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    color: var(--text);
-  }
-
-  .hero-visual {
-    position: relative;
-    aspect-ratio: 1;
-    display: grid;
-    place-items: center;
-  }
-
-  /* The backdrop glow pulses with --kick, set by hero-scene.js on every frame. */
-  .hero-visual::before {
-    content: "";
-    position: absolute;
-    inset: 4%;
-    border-radius: 50%;
-    background: radial-gradient(closest-side, rgb(255 79 163 / 0.7) 35%, rgb(79 123 255 / 0.5) 65%, transparent);
-    filter: blur(40px);
-    opacity: calc(0.5 + var(--kick, 0) * 0.5);
-    scale: calc(1 + var(--kick, 0) * 0.06);
-  }
-
-  .hero-visual img {
-    position: relative;
-    width: 56%;
-    border-radius: 22%;
-    box-shadow: 0 30px 80px rgb(0 0 0 / 0.5);
-  }
-
-  .hero-visual canvas {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    animation: fade-in 0.6s ease-out;
-  }
-
-  .hero-visual.is-live img {
+<style>
+  /* ---------- 02 the digging loop: four stacked steps by default ---------- */
+  .meter {
     display: none;
   }
+  .steps h3 {
+    display: flex;
+    align-items: baseline;
+    gap: 0.8rem;
+  }
+  .steps h3 .no {
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--muted);
+  }
+  .text > * + * {
+    margin-top: 0.5rem;
+  }
+  .media {
+    margin-top: 1.2rem;
+    container-type: inline-size;
+  }
+  /* Each crop keeps its own shape; the frame sits on the image so it hugs narrow and wide crops alike.
+     --ar is the crop's width / height (crops/*.png), so the width can be capped without knowing the height. */
+  .steps > li:nth-child(1) {
+    --ar: 0.6509;
+  }
+  .steps > li:nth-child(2) {
+    --ar: 4.25;
+  }
+  .steps > li:nth-child(3) {
+    --ar: 3.4048;
+  }
+  .steps > li:nth-child(4) {
+    --ar: 2.1152;
+  }
+  .media :global(.shot) {
+    border: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    overflow: visible;
+  }
+  .media :global(.shot a) {
+    width: fit-content;
+    border-radius: 12px;
+  }
+  .media :global(.shot img) {
+    width: min(100cqw, 26rem * var(--ar));
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel);
+    box-shadow: 0 30px 70px -40px #000;
+  }
+  .media :global(.shot figcaption) {
+    justify-content: flex-start;
+    padding-inline: 0;
+    border-top: 0;
+  }
 
-  @keyframes fade-in {
-    from {
+  /* The pinned scene: one step at a time, driven by the section's own view timeline. */
+  @media (min-width: 68rem) and (min-height: 36rem) and (prefers-reduced-motion: no-preference) {
+    @supports (animation-timeline: view()) and (grid-template-rows: subgrid) {
+      .loop {
+        height: 400svh;
+        padding-block: 0;
+      }
+      .stage {
+        position: sticky;
+        top: calc(var(--top) + 1rem);
+        display: grid;
+        grid-template-rows: auto auto auto minmax(0, 1fr);
+        height: calc(100svh - var(--top) - 2rem);
+        padding-top: clamp(1rem, 5vh, 3rem);
+      }
+      .meter {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0.6rem;
+        font: 500 0.72rem var(--mono);
+        color: var(--muted);
+      }
+      .meter li {
+        position: relative;
+        padding-top: 0.7rem;
+        animation: loop-now 1ms linear both;
+      }
+      .meter li::before,
+      .meter li::after {
+        content: "";
+        position: absolute;
+        inset: 0 0 auto;
+        height: 2px;
+        background: var(--line);
+      }
+      .meter li::after {
+        background: linear-gradient(90deg, var(--neon-foot), var(--neon-top));
+        transform-origin: left;
+        scale: 0 1;
+        animation: loop-fill 1ms linear both;
+      }
+      .steps {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        row-gap: 1.2rem;
+      }
+      /* All four share one cell; subgrid gives every step the tallest text, so the images never jump. */
+      .steps > li {
+        position: relative;
+        grid-area: 1 / 1 / 3 / 2;
+        display: grid;
+        grid-template-rows: subgrid;
+        padding-top: 0;
+        border-top: 0;
+        animation: loop-step 1ms linear both;
+      }
+      .steps > li:first-child {
+        animation-name: loop-first;
+      }
+      .steps > li:last-child {
+        animation-name: loop-last;
+      }
+      .steps h3 {
+        font-size: 1.5rem;
+      }
+      .media {
+        margin-top: 0;
+        container-type: size;
+      }
+      .media :global(.shot img) {
+        width: min(100cqw, (100cqh - 2px) * var(--ar));
+      }
+      .media :global(.shot figcaption) {
+        display: none;
+      }
+      /* A keyboard user tabbing to a step that is not showing gets that step, on top. */
+      .steps > li:has(:focus-visible) {
+        z-index: 2 !important;
+        opacity: 1 !important;
+        translate: none !important;
+        background: var(--bg);
+      }
+
+      /* Their own rules, with an id, on purpose: the CSS minifier folds animation-timeline and
+         animation-range into the animation shorthand of the same rule, and browsers then drop them. */
+      #loop {
+        view-timeline-name: --loop;
+        view-timeline-inset: calc(var(--top) + 1rem) 0;
+      }
+      #loop .steps > li,
+      #loop .meter li,
+      #loop .meter li::after {
+        animation-timeline: --loop;
+      }
+      #loop .steps > li:nth-child(1),
+      #loop .meter li:nth-child(1),
+      #loop .meter li:nth-child(1)::after {
+        animation-range: contain 0% contain 25%;
+      }
+      #loop .steps > li:nth-child(2),
+      #loop .meter li:nth-child(2),
+      #loop .meter li:nth-child(2)::after {
+        animation-range: contain 25% contain 50%;
+      }
+      #loop .steps > li:nth-child(3),
+      #loop .meter li:nth-child(3),
+      #loop .meter li:nth-child(3)::after {
+        animation-range: contain 50% contain 75%;
+      }
+      #loop .steps > li:nth-child(4),
+      #loop .meter li:nth-child(4),
+      #loop .meter li:nth-child(4)::after {
+        animation-range: contain 75% contain 100%;
+      }
+    }
+  }
+  /* z-index follows opacity so the step on show is also the one that takes the click. */
+  @keyframes loop-step {
+    0% {
       opacity: 0;
+      translate: 0 1rem;
+      z-index: 0;
+    }
+    20%,
+    80% {
+      opacity: 1;
+      translate: none;
+      z-index: 1;
+    }
+    100% {
+      opacity: 0;
+      translate: 0 -1rem;
+      z-index: 0;
+    }
+  }
+  @keyframes loop-first {
+    0%,
+    80% {
+      opacity: 1;
+      translate: none;
+      z-index: 1;
+    }
+    100% {
+      opacity: 0;
+      translate: 0 -1rem;
+      z-index: 0;
+    }
+  }
+  @keyframes loop-last {
+    0% {
+      opacity: 0;
+      translate: 0 1rem;
+      z-index: 0;
+    }
+    20%,
+    100% {
+      opacity: 1;
+      translate: none;
+      z-index: 1;
+    }
+  }
+  @keyframes loop-fill {
+    to {
+      scale: 1 1;
+    }
+  }
+  @keyframes loop-now {
+    0%,
+    100% {
+      color: var(--muted);
+    }
+    10%,
+    90% {
+      color: var(--fg);
     }
   }
 
-  /* Features */
-  h2 {
-    font-size: clamp(1.8rem, 4vw, 2.6rem);
-    letter-spacing: -0.02em;
-    margin: 0 0 0.75rem;
-  }
-
-  .section-lede {
-    color: var(--muted);
-    font-size: 1.1rem;
-    max-width: 40rem;
-    margin: 0 0 2.5rem;
-  }
-
-  .features {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(min(19rem, 100%), 1fr));
-    gap: 1rem;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .card {
-    padding: 1.5rem;
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-  }
-
-  .card h3 {
-    margin: 0 0 0.5rem;
-    font-size: 1.15rem;
-  }
-
-  .card p {
-    margin: 0;
-    color: var(--muted);
-  }
-
-  /* Extension */
+  /* ---------- 04 the extension: the portrait panel beside the text, under it on narrow screens ---------- */
   .split {
     display: grid;
-    grid-template-columns: 1fr 1.15fr;
-    gap: 3rem;
-    align-items: start;
+    gap: 2rem;
   }
-
-  .ext-icon {
-    border-radius: 14px;
-    margin-bottom: 1rem;
+  .panel {
+    max-width: 18rem;
   }
-
-  .ticks {
-    padding-left: 1.2rem;
-  }
-
-  .ticks li {
-    margin-block: 0.4rem;
-  }
-
-  .ticks li::marker {
-    content: "● ";
-    color: var(--pink);
-  }
-
-  .shots {
-    display: grid;
-    gap: 1rem;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .shots img {
-    display: block;
-    border-radius: var(--radius);
-    border: 1px solid var(--line);
-  }
-
-  /* Privacy */
-  .privacy {
-    max-width: 48rem;
-    text-align: center;
-  }
-
-  .privacy p {
-    color: var(--muted);
-    font-size: 1.05rem;
-  }
-
-  .site-footer {
-    border-top: 1px solid var(--line);
-    padding-block: 2rem;
-    color: var(--muted);
-    font-size: 0.9rem;
-  }
-
-  .site-footer .wrap {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1rem;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .site-footer p {
-    margin: 0;
-  }
-
-  @media (max-width: 52rem) {
-    .hero,
+  @media (min-width: 46rem) {
     .split {
-      grid-template-columns: 1fr;
-    }
-
-    .hero-visual {
-      width: min(100%, 24rem);
-      margin-inline: auto;
+      grid-template-columns: minmax(0, 1fr) 13rem;
+      align-items: start;
+      gap: 2.5rem;
     }
   }
 
-  /* Scroll reveal with scroll-driven animations; content is simply visible where unsupported. */
-  @media (prefers-reduced-motion: no-preference) {
-    @supports (animation-timeline: view()) {
-      .reveal {
-        animation: reveal linear backwards;
-        animation-timeline: view();
-        animation-range: entry 0% entry 60%;
-      }
+  /* ---------- 05 trust: two plain columns ---------- */
+  .columns {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: 2rem 2.5rem;
+  }
 
-      @keyframes reveal {
-        from {
-          opacity: 0;
-          translate: 0 2rem;
-        }
-      }
-    }
+  /* ---------- 06 the run-out groove ---------- */
+  .press .facts {
+    margin-top: 0.9rem;
   }
 </style>

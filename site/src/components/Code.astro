@@ -1,0 +1,10 @@
+---
+// A command or snippet with a Copy button. The button appears only when scripts run.
+const { code, label } = Astro.props;
+---
+
+<div class="code">
+  {label && <p class="code-label">{label}</p>}
+  <pre tabindex="0"><code>{code}</code></pre>
+  <button type="button" data-copy={code} aria-live="polite" hidden>Copy</button>
+</div>
