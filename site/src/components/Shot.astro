@@ -2,10 +2,12 @@
 // A real screenshot (or a tight crop of one) in a frame. Pass `full` to make the crop
 // open the whole-window screenshot it was cut from.
 import { Picture } from "astro:assets";
+import { ui } from "../i18n/index.mjs";
 
 // `eager` is for the one image at the top of a page; it is also fetched with high priority.
 const { src, alt, caption, full, eager = false, sizes = "(min-width: 68rem) 50vw, 92vw", class: className } = Astro.props;
 const picture = { src, alt, sizes, formats: ["avif", "webp"], loading: eager ? "eager" : "lazy", fetchpriority: eager ? "high" : undefined };
+const t = ui(Astro.url.pathname);
 const widths = [640, 960, 1280, src.width].filter((width, i, all) => width <= src.width && all.indexOf(width) === i);
 ---
 
@@ -14,7 +16,7 @@ const widths = [640, 960, 1280, src.width].filter((width, i, all) => width <= sr
     full ? (
       <a href={full.src}>
         <Picture {...picture} widths={widths} />
-        <span class="sr">Open the full window screenshot</span>
+        <span class="sr">{t.openFull}</span>
       </a>
     ) : (
       <Picture {...picture} widths={widths} />
@@ -24,7 +26,7 @@ const widths = [640, 960, 1280, src.width].filter((width, i, all) => width <= sr
     (caption || full) && (
       <figcaption>
         <span>{caption}</span>
-        {full && <span>Opens the full window</span>}
+        {full && <span>{t.opensFull}</span>}
       </figcaption>
     )
   }

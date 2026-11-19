@@ -234,7 +234,7 @@ pre,
   z-index: 20;
   display: flex;
   align-items: center;
-  gap: 1.25rem;
+  gap: clamp(0.5rem, 2.5vw, 1.25rem);
   height: var(--top);
   padding-inline: clamp(1rem, 4vw, 3rem);
   background: color-mix(in srgb, var(--bg) 82%, transparent);
@@ -287,7 +287,8 @@ pre,
 .menu {
   position: relative;
 }
-.menu summary {
+.menu summary,
+.lang summary {
   padding: 0.5rem 1rem;
   border: 1px solid var(--edge);
   border-radius: 999px;
@@ -296,10 +297,12 @@ pre,
   cursor: pointer;
   list-style: none;
 }
-.menu summary::-webkit-details-marker {
+.menu summary::-webkit-details-marker,
+.lang summary::-webkit-details-marker {
   display: none;
 }
-.menu nav {
+.menu nav,
+.lang ul {
   position: absolute;
   right: 0;
   top: calc(100% + 0.6rem);
@@ -310,13 +313,35 @@ pre,
   border-radius: 14px;
   box-shadow: 0 24px 60px -20px var(--shadow);
 }
-.menu nav a {
+.menu nav a,
+.lang a {
   padding: 0.75rem 0.9rem;
   border-radius: 8px;
   color: var(--fg);
 }
-.menu nav a:hover {
+.menu nav a:hover,
+.lang a:hover {
   background: var(--raise);
+}
+/* Language: the same disclosure as the menu, at every width. */
+.lang {
+  position: relative;
+  flex: none;
+}
+.lang summary {
+  padding-inline: 0.8rem;
+  font: 600 0.82rem var(--mono);
+}
+.lang ul {
+  min-width: 10rem;
+}
+.lang a {
+  display: block;
+  font-weight: 600;
+  text-decoration: none;
+}
+.lang a[aria-current] {
+  color: var(--accent);
 }
 /* Day or night: the icon shows where a click leads (sun while dark, moon while light). */
 .theme {
@@ -353,7 +378,8 @@ pre,
 .theme .moon {
   stroke: light-dark(currentColor, transparent);
 }
-@media (min-width: 46rem) {
+/* Wide enough for the longest labels (Russian) beside the language and theme buttons. */
+@media (min-width: 50rem) {
   .links {
     display: block;
   }

@@ -1,0 +1,534 @@
+---
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { Picture } from "astro:assets";
+import Base from "../../layouts/Base.astro";
+import Loop from "../../components/Loop.astro";
+import Track from "../../components/Track.astro";
+import { author, repo } from "../../../site.config.mjs";
+
+const description =
+  "Как устроен dj-digger: архитектура, граница доверия расширения для браузера, защита от недоверенного ввода, подсветка по бочке и её проверка, тесты и релизы, а также этот сайт.";
+const tracks = [
+  { id: "notes", no: "01", title: "Вкладыш" },
+  { id: "architecture", no: "02", title: "Архитектура" },
+  { id: "browser", no: "03", title: "Граница браузера" },
+  { id: "untrusted", no: "04", title: "Недоверие по умолчанию" },
+  { id: "kick", no: "05", title: "Пульс бочки" },
+  { id: "releases", no: "06", title: "Тесты и релизы" },
+  { id: "website", no: "07", title: "Этот сайт" },
+  { id: "credits", no: "08", title: "Авторы и источники" },
+];
+
+// Figures are counted from the repository at build time, never typed.
+// Paths are relative to the working directory (npm runs in site/), as in site.config.mjs.
+const testFunctions = readdirSync("../tests", { recursive: true })
+  .filter((file) => String(file).endsWith(".py"))
+  .reduce((sum, file) => sum + (readFileSync(`../tests/${file}`, "utf8").match(/def test_/g) ?? []).length, 0);
+const workflows = readdirSync("../.github/workflows").filter((file) => /\.ya?ml$/.test(file)).length;
+const ci = readFileSync("../.github/workflows/ci.yml", "utf8");
+const list = (key) => {
+  const found = new RegExp(`^\\s*${key}:\\s*\\[([^\\]]+)\\]`, "m").exec(ci);
+  if (!found) throw new Error(`ci.yml: no ${key} matrix`); // fail the build rather than print a wrong figure
+  return found[1].split(",").map((item) => item.trim().replace(/^["']|["']$/g, ""));
+};
+const osName = { "ubuntu-latest": "Ubuntu", "macos-latest": "macOS", "windows-latest": "Windows" };
+const ciOs = list("os").map((os) => osName[os] ?? os);
+const ciPython = list("python-version");
+const scriptBytes = statSync("src/scripts/deck.js").size + statSync("src/scripts/geometry.js").size;
+const scriptKb = (scriptBytes / 1000).toFixed(1).replace(".", ",");
+const count = new Intl.NumberFormat("ru");
+const join = (items) => (items.length > 1 ? `${items.slice(0, -1).join(", ")} и ${items.at(-1)}` : items[0]);
+
+const spec = `${repo}/blob/main/PROJECT_SPECIFICATION.md`;
+const guide = `${repo}/blob/main/docs/architecture.md`;
+const validation = `${repo}/blob/main/docs/kick-pulse-validation.md`;
+const workflowsUrl = `${repo}/tree/main/.github/workflows`;
+// Anchors are GitHub's slugs of the specification's headings (github-slugger).
+const section = {
+  urls: { href: `${spec}#111-untrusted-urls-and-ssrf-boundary`, label: "§11.1 Недоверенные URL и граница SSRF" },
+  secrets: { href: `${spec}#112-secret-and-personal-data-handling`, label: "§11.2 Обращение с секретами и персональными данными" },
+  files: { href: `${spec}#113-file-and-mutation-safety`, label: "§11.3 Безопасность файлов и изменений" },
+};
+
+const guards = [
+  ["Схемы URL", "Поля треков, описания, файлы сводок, перенаправления и ответы гейтов считаются недоверенными, и в браузер передаются только URL HTTP(S) с хостом.", section.urls],
+  ["Границы доменов", "Проверки принадлежности к магазину и SoundCloud сравнивают точный хост или границу поддомена, но никогда не подстроку, поэтому похожий хост не считается магазином.", section.urls],
+  ["Защита от SSRF", "Перед любым автоматическим запросом отклоняются учётные данные в URL, имена localhost и буквальные неглобальные IP-адреса, а каждое проверенное перенаправление ограничено; DNS-имена заранее не разрешаются — это ограничение указано в спецификации.", section.urls],
+  ["Лимиты скачивания", "Заявленный и фактический размер ограничены 2 ГиБ, HTML-ответы отклоняются, а имена файлов обрезаются до базового имени с заменой недопустимых символов и префиксом для зарезервированных имён Windows.", section.files],
+  ["Атомарная замена", "HTTP- и браузерные скачивания пишутся во временные файлы и публикуются атомарным переименованием под общей блокировкой имени, а неполные файлы удаляются при ошибке или отмене.", section.files],
+  ["Перепроверка корзины", "Запись в корзину магазина требует предварительной проверки точного товара и немедленной перепроверки, а сетевые записи, которые могли бы продублировать изменение на другом сайте, не повторяются автоматически.", section.files],
+  ["Секреты", "Пароли вводятся только на страницах самого сервиса, вход в SoundCloud хранит в системной связке ключей только проверенный oauth_token, файлы токенов записываются с закрытыми правами перед атомарной заменой, а журналы CLI скрывают параметры запросов в URL и поля учётных данных.", section.secrets],
+];
+
+// The architecture diagram: boxes in the SVG's own units (320 wide), drawn in a column that holds at 328px.
+const LINE = 13;
+const box = (x, y, w, h, lines, kind = "") => ({ x, y, w, h, lines, kind });
+const nodes = [
+  box(1, 18, 154, 36, ["CLI"], "ctl"),
+  box(165, 18, 154, 36, ["Десктоп на Qt Quick"], "ctl"),
+  box(1, 82, 318, 46, ["ApplicationServices", "ленивые: без Qt, ничего не открывают до вызова"], "named"),
+  box(1, 154, 110, 62, ["Сервисы сбора,", "скачивания,", "покупок", "и аккаунтов"]),
+  box(119, 154, 96, 62, ["Сервис", "библиотеки"]),
+  box(223, 154, 96, 62, ["Сервис", "проигрывания"]),
+  box(1, 242, 110, 50, ["Адаптеры", "SoundCloud,", "гейтов, магазинов"]),
+  box(119, 242, 96, 50, ["Репозитории"]),
+  box(223, 242, 96, 50, ["Аудиодвижок", "в памяти"]),
+  box(119, 318, 96, 44, ["SQLite", "в своём потоке"], "owner"),
+  box(1, 378, 318, 58, ["OperationCoordinator", "один основной слот, один для сканирования:", "допускает работу и следит за отменой до конца"], "named coord"),
+];
+const wires = [[78, 54, 80], [242, 54, 80], [56, 128, 152], [167, 128, 152], [271, 128, 152], [56, 216, 240], [167, 216, 240], [271, 216, 240], [167, 292, 316]];
+const baseline = (node, i) => node.y + node.h / 2 - ((node.lines.length - 1) * LINE) / 2 + 4 + i * LINE;
+---
+
+<Base title="Вкладыш: как устроен dj-digger" description={description} label="notes" tracks={tracks}>
+  <Track id="notes" no="01" title="Вкладыш" hero sub>
+    <Fragment slot="heading">Вкладыш: <span class="grad">как устроен dj-digger</span></Fragment>
+    <p class="lede">
+      Оборот конверта: как собрано приложение, где оно проводит свои границы и как его проверяют. Каждое утверждение
+      здесь ведёт на документ или файл, из которого оно взято.
+    </p>
+    <p class="copy">
+      Написал, свёл и отпрессовал <a href={author.url}>{author.name}</a>.
+    </p>
+    <ul class="facts">
+      <li>Python 3.12+</li>
+      <li>Qt Quick</li>
+      <li>Расширение на Manifest V3</li>
+      <li>SQLite</li>
+      <li>Нет сервера dj-digger</li>
+    </ul>
+  </Track>
+
+  <Track id="architecture" no="02" title="Архитектура" heading="Контроллеры показывают, сервисы отвечают за действия">
+    <p class="lede">
+      CLI и десктоп на Qt — контроллеры поверх одних и тех же сервисов приложения. Контроллеры отвечают за
+      представление; сервисы — за завершённые действия и жизненный цикл ресурсов; один координатор допускает работу и
+      следит за отменой, пока рабочие потоки не закончат.
+    </p>
+    <figure class="diagram">
+      <svg class="arch" viewBox="0 0 320 438" role="img" aria-labelledby="arch-title arch-desc">
+        <title id="arch-title">Из чего состоит dj-digger</title>
+        <desc id="arch-desc">
+          CLI и десктоп на Qt Quick — контроллеры поверх ApplicationServices, который лениво собирает сервисы приложения
+          и не импортирует Qt. Сервисы сбора, скачивания, покупок и аккаунтов используют адаптеры SoundCloud, гейтов и
+          магазинов. Сервис библиотеки работает через репозитории в потоке, которому принадлежит SQLite. Сервис
+          проигрывания управляет аудиодвижком в памяти. OperationCoordinator с одним основным слотом и одним слотом
+          сканирования допускает работу и следит за отменой, пока рабочие потоки не закончат.
+        </desc>
+        <defs>
+          <marker id="arch-tip" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+            <path class="tip" d="M0 0L8 4L0 8z"></path>
+          </marker>
+        </defs>
+        <text class="group" x="1" y="10">КОНТРОЛЛЕРЫ</text>
+        {wires.map(([x, from, to]) => <path class="wire" d={`M${x} ${from}V${to}`} marker-end="url(#arch-tip)" />)}
+        {
+          nodes.map((node) => (
+            <g class={node.kind}>
+              <rect x={node.x} y={node.y} width={node.w} height={node.h} rx="6" />
+              {node.lines.map((line, i) => (
+                <text x={node.x + node.w / 2} y={baseline(node, i)} class={node.kind.includes("named") && i > 0 ? "sub" : undefined}>
+                  {line}
+                </text>
+              ))}
+            </g>
+          ))
+        }
+      </svg>
+    </figure>
+    <ul class="ticks rules">
+      <li>
+        <strong>Никакой блокирующей работы в потоке интерфейса.</strong> Бэкенд, мост сигналов Qt, модель таблицы и окно
+        QML разделяют между собой оркестрацию, сигналы, строки и отрисовку; ни один из них не выполняет блокирующую
+        сетевую или дисковую работу в потоке интерфейса, а результаты возвращаются в него
+        (<a href={`${guide}#ui-ownership`}>Владение интерфейсом</a>).
+      </li>
+      <li>
+        <strong>SQLite принадлежит одному потоку.</strong> Транзакции явные и короткие, внутри них не бывает ни сети, ни
+        браузера, ни диалогов, статус и происхождение файла фиксируются вместе, а зеркала в памяти меняются только после
+        фиксации (<a href={`${guide}#persistent-effects-and-identity`}>Постоянные эффекты и идентичность</a>).
+      </li>
+      <li>
+        <strong>Сборка не импортирует Qt.</strong> Создание <code>ApplicationServices</code> не импортирует Qt и не
+        открывает ни базу данных, ни устройство, ни соединение с браузером; CLI и десктоп получают от него один и тот же
+        ленивый сервис сбора (<a href={`${guide}#composition-and-execution`}>Сборка и выполнение</a>).
+      </li>
+    </ul>
+    <p class="copy">
+      Руководство также говорит, чего архитектура не обещает: нет привязки DNS, нет аудита безопасности и нет
+      транзакций, охватывающих одновременно файловую систему и SQLite.
+    </p>
+    <p><a class="quiet" href={guide}>Прочитать руководство по архитектуре</a></p>
+  </Track>
+
+  <Track id="browser" no="03" title="Граница браузера" heading="Управлять вашим браузером, не завладевая им">
+    <p class="lede">
+      Гейты и корзины работают в настоящем браузере пользователя, где выполнен вход в аккаунты, поэтому расширение
+      соблюдает собственные ограничения, что бы ему ни присылало настольное приложение.
+    </p>
+    <div class="movement">
+      <h3>Один канал, никакого удалённого кода</h3>
+      <p class="copy">
+        Единственный вход для команд — порт native messaging от приложения на том же компьютере: в манифесте нет
+        ни <code>externally_connectable</code>, ни <code>web_accessible_resources</code>, и ни один скрипт страницы не
+        слушает <code>window.postMessage</code>. <code>eval</code> не используется; на странице запускаются только
+        именованные функции только для чтения, встроенные в расширение. На стороне приложения каталог сокета доступен
+        только пользователю, а стороны аутентифицируются ключом из файла с правами 0600.
+      </p>
+    </div>
+    <div class="movement">
+      <h3>Фиксированный список сайтов</h3>
+      <p class="copy">
+        Фоновым скриптом управляет один файл <code>allowlist.json</code>, и тест сверяет его со списками хостов в Python
+        и разрешениями для хостов в манифесте: HTTPS на стандартном порту, без учётных данных, к Hypeddit, ToneDen,
+        Bandcamp и Beatport, а также страница входа SoundCloud. Переход куда-либо ещё отклоняется.
+      </p>
+    </div>
+    <div class="movement">
+      <h3>Только свои вкладки</h3>
+      <p class="copy">
+        Команды действуют на вкладки и рабочие окна, созданные расширением, и на их всплывающие окна, но никогда — на
+        другие вкладки пользователя. Для чтения или нажатия текущий адрес вкладки тоже должен быть в списке разрешённых;
+        любой другой адрес перед отправкой в отчёт обрезается до <code>https://&lt;host&gt;/</code>, а параметры OAuth
+        удаляются. Во всех своих вкладках звук отключён.
+      </p>
+    </div>
+    <div class="movement">
+      <h3>Жёсткий стоп перед деньгами</h3>
+      <p class="copy">
+        Своя вкладка Bandcamp или Beatport, которая переходит или перенаправляется на путь оформления заказа, оформления
+        корзины, оплаты или платёжных данных, закрывается, и об этом сообщается. Нажатия на элементы с названиями вроде
+        check out, pay, purchase, place order, buy now или complete order отклоняются, а заполнение форм не трогает поля
+        паролей и платёжных карт.
+      </p>
+    </div>
+    <div class="cta">
+      <a class="quiet" href={`${spec}#114-browser-extension-trust-boundary`}>§11.4 Граница доверия расширения для браузера</a>
+      <a class="quiet" href={`${repo}/blob/main/CHROMEWEBSTORE.md`}>Обоснование разрешений</a>
+      <a class="quiet" href="/ru/extension/">Страница расширения</a>
+    </div>
+  </Track>
+
+  <Track id="untrusted" no="04" title="Недоверие по умолчанию" heading="Ни одной ссылке нет доверия">
+    <p class="lede">
+      Ссылки исполнителей, перенаправления, ответы сервисов и имена файлов считаются враждебным вводом. Эти защиты есть
+      в коде; каждая ведёт на тот раздел спецификации, где она описана.
+    </p>
+    <ul class="guards">
+      {
+        guards.map(([name, text, source]) => (
+          <li>
+            <h3>{name}</h3>
+            <p>{text}</p>
+            <a href={source.href}>{source.label}</a>
+          </li>
+        ))
+      }
+    </ul>
+  </Track>
+
+  <Track id="kick" no="05" title="Пульс бочки" heading="Свет, который следует за бочкой, а не за басом">
+    <p class="lede">
+      Подсветка плеера следует за непрерывным уровнем бочки, который вычисляется из звука ещё до того, как он дойдёт до
+      динамика, а не за решениями «бит есть / бита нет», поэтому пропущенное решение никогда не может её остановить.
+    </p>
+    <Loop>Записано в настоящем приложении на синтетическом демо-треке. Программный рендерер, использованный для записи, не рисует свечение GPU, поэтому настоящая подсветка ярче.</Loop>
+    <div class="movement">
+      <h3>За чем следует свет</h3>
+      <p class="copy">
+        <code>beats.py</code> сравнивает каждую низкочастотную полосу декодированного звука с её собственной недавней
+        медианой, поэтому выдержанный бас, восстановление после сайдчейна или пэд становятся точкой отсчёта, и считается
+        только то, что поднимается выше. Этот подъём взвешивается по тому, насколько он похож на бочку. Собственная бочка
+        трека запоминается только по ударам, которые падают по высоте, поэтому повторяющаяся басовая нота никогда ею не
+        станет (<a href={`${spec}#34-audio-preview`}>§3.4 Предпрослушивание аудио</a>).
+      </p>
+    </div>
+    <div class="movement">
+      <h3>Раньше динамика</h3>
+      <p class="copy">
+        Плеер декодирует с опережением аудиоустройства, поэтому каждый уровень существует до того, как прозвучит его
+        звук, а окно сопоставляет его со временем, которое действительно доходит до динамика, измеряя его по тому, что
+        забрало устройство. 1 октября 2026 года при воспроизведении одного трека с 60 с на машине разработчика (PipeWire,
+        периоды по 50 мс) уровни опережали позицию устройства на 184–189 мс, а измеренная очередь устройства составляла
+        46–71 мс; анализ занимал около 0,57 % реального времени.
+      </p>
+    </div>
+    <div class="movement">
+      <h3>Форма света</h3>
+      <p class="copy">
+        Подсветка аналоговая: она сразу подскакивает до уровня бочки и затухает экспоненциально, как лампа, поэтому
+        полная бочка гаснет до следующей, а более тихие низкие удары светят тусклее и короче
+        (<a href={`${spec}#38-qt-quick-desktop`}>§3.8 Десктоп на Qt Quick</a>). Когда-то более светлый пастельный цвет покоя
+        делал так, что бочка читалась как гаснущий свет; в насыщенных цветах, измеренных 1 октября 2026 года, неон в
+        2,1–2,2 раза ярче цвета покоя.
+      </p>
+    </div>
+    <div class="movement">
+      <h3>Проверено в настоящем окне</h3>
+      <p class="copy">
+        Офлайн-измерения говорили, что с двумя треками из жалоб всё в порядке, поэтому 1 октября 2026 года был запущен
+        настоящий стек (окно, мост, бэкенд, плеер и аудиоустройство; без звука, вне экрана, на изолированном состоянии
+        приложения) с записью подсветки, часов и уровней окна на каждом кадре. Это выявило две ошибки за пределами
+        анализа. Уровни между 0 и 1 были числами float из numpy, которые Qt передаёт в QML как непрозрачные объекты, а
+        не числа, поэтому светили только уровни ровно 0 и 1; теперь уровни — обычные float. А после старта устройство
+        сразу забирало первые 50 мс и следующие только позже, поэтому слышимое время прижималось к переданной позиции и
+        шло примерно на 70 мс раньше шагами по 50 мс; теперь очередь никогда не считается меньше того, что передал
+        последний обратный вызов.
+      </p>
+      <div class="table">
+        <table>
+          <caption>Kalipo – Captain, 45–105 с, вживую в настоящем окне, 1 октября 2026 г.</caption>
+          <thead>
+            <tr><th scope="col">Показатель</th><th scope="col">До</th><th scope="col">После</th></tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row">Бочки с яркостью ниже 0,3</th><td>20 из 114</td><td>0</td></tr>
+            <tr><th scope="row">Самая тусклая бочка</th><td>0,00</td><td>0,95</td></tr>
+            <tr><th scope="row">Кадры, где часы застряли на позиции снимка</th><td>54 %</td><td>0 %</td></tr>
+            <tr><th scope="row">Скачки слышимого времени больше 20 мс</th><td>1199</td><td>0</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="copy">
+        На втором треке после исправления у 62 бочек медианная яркость была 0,94, ни одна не опустилась ниже 0,3, окно
+        шло с частотой 63 кадра в секунду, и ни один промежуток между кадрами не превысил 28 мс.
+      </p>
+    </div>
+    <p><a class="quiet" href={validation}>Прочитать заметки о проверке</a></p>
+  </Track>
+
+  <Track id="releases" no="06" title="Тесты и релизы" heading="От коммита до установщика">
+    <p class="lede">
+      Файлов рабочих процессов: {workflows}. Они проводят изменение от коммита до установщиков и магазинов. Каждый шаг
+      ниже — то, что запускает рабочий процесс, как это записано в спецификации.
+    </p>
+    <ol class="steps">
+      <li>
+        <span class="no">01</span>
+        <h3>Офлайн-набор</h3>
+        <p>
+          Тестовых функций в <code>tests/</code>: {count.format(testFunctions)}. По умолчанию живые маркеры исключены,
+          фикстура autouse переносит конфигурацию, авторизацию, базу данных и папки сканирования во временный каталог, а
+          HTTP-транспорт по умолчанию заблокирован, поэтому ни один тест не достигает живых эндпоинтов, данных
+          пользователя или музыкальных папок. CI запускает его при каждом push и pull request на {join(ciOs)} с Python{" "}
+          {join(ciPython)} (заданий: {ciOs.length * ciPython.length}) после проверки карты спецификации и Ruff, а в
+          каждом задании собирает и проверяет изолированную установку wheel.
+        </p>
+      </li>
+      <li>
+        <span class="no">02</span>
+        <h3>Живые проверки контрактов</h3>
+        <p>
+          Еженедельный рабочий процесс запускает отдельно помеченный живой набор против API SoundCloud: поиск client ID,
+          длинные коллекции, гидратацию, доступность медиа и декодирование сокетов. Это мониторинг, а не условие
+          выпуска. Проверки магазинов и гейтов запускаются вручную: публичные страницы магазинов читаются через
+          расширение без входа и без касания корзины, а гейты осматриваются только запросами GET.
+        </p>
+      </li>
+      <li>
+        <span class="no">03</span>
+        <h3>Установщики</h3>
+        <p>
+          Контракты десктопа и изолированный запуск проходят на Linux, Windows и macOS. Затем CI собирает установщик
+          Windows x64 и нативные образы диска macOS arm64 и x86_64, проверяет встроенную среду выполнения и установку
+          каждого и загружает каждый как тестовый артефакт с файлом SHA-256 рядом. Это неподписанные предварительные
+          сборки; тесты на физических устройствах проводятся отдельно.
+        </p>
+      </li>
+      <li>
+        <span class="no">04</span>
+        <h3>Публикация</h3>
+        <p>
+          Опубликованный стабильный релиз запускает собственную тестовую матрицу, затем загружается на PyPI через trusted
+          publishing (OIDC); только этому заданию разрешено запрашивать токен идентичности, а сторонние actions
+          закреплены за коммитами. Тот же релиз упаковывает расширение и отправляет его в Chrome Web Store через API,
+          аутентифицируясь как сервисный аккаунт. Предварительные релизы пропускают и то и другое.
+        </p>
+      </li>
+    </ol>
+    <div class="cta">
+      <a class="quiet" href={`${spec}#14-verification-ci-and-release`}>§14 Проверка, CI и релизы</a>
+      <a class="quiet" href={workflowsUrl}>Рабочие процессы</a>
+    </div>
+  </Track>
+
+  <Track id="website" no="07" title="Этот сайт" heading="Этот сайт">
+    <p class="lede">Выходные данные. Цифры подсчитываются при сборке сайта.</p>
+    <dl class="spec">
+      <dt>Стек</dt>
+      <dd>Статические страницы Astro и чистый CSS. Ни UI-фреймворка, ни зависимостей во время выполнения: Astro работает только при сборке.</dd>
+      <dt>Пластинка</dt>
+      <dd>
+        Встроенный SVG из того же генератора с зерном, что и значок приложения (<code>scripts/app_icon.py</code>).
+        Анимации CSS, управляемые прокруткой, вращают её и двигают тонарм; там, где их нет, запасным вариантом служит
+        небольшой скрипт.
+      </dd>
+      <dt>Вес скриптов</dt>
+      <dd>
+        {scriptKb} кБ на скрипт пластинки (<code>deck.js</code> и <code>geometry.js</code>): исходный код, до
+        минификации и сжатия.
+      </dd>
+      <dt>Сторонние запросы</dt>
+      <dd>Никаких. Ни аналитики, ни cookie, шрифты размещены на самом сайте.</dd>
+      <dt>Снимки экрана</dt>
+      <dd>
+        Настоящий интерфейс на демо-данных; вместе с циклом плеера выше их заново создаёт
+        <code>scripts/site_screenshots.py</code>.
+      </dd>
+      <dt>Доступность</dt>
+      <dd>Полное управление с клавиатуры, текстовый треклист рядом с пластинкой, движение отключается при настройке «уменьшить движение», всё работает без JavaScript.</dd>
+      <dt>Исходники</dt>
+      <dd><a href={`${repo}/tree/main/site`}>Папка сайта в репозитории</a></dd>
+    </dl>
+  </Track>
+
+  <Track id="credits" no="08" title="Авторы и источники" heading="Авторы и источники">
+    <ul class="sources">
+      <li><a href={repo}>Исходный код</a> на GitHub. Issues и pull requests приветствуются.</li>
+      <li><a href={spec}>Спецификация</a>: всё выпущенное поведение и все границы безопасности и конфиденциальности.</li>
+      <li><a href={`${repo}/blob/main/CHANGELOG.md`}>Журнал изменений</a>: что изменилось в каждом релизе.</li>
+      <li><a href={guide}>Руководство по архитектуре</a>: куда относится то или иное изменение в реализации.</li>
+      <li><a href={`${repo}/blob/main/LICENSE`}>Лицензия</a>: Apache 2.0.</li>
+    </ul>
+    <p class="signature">
+      Сделал <a href={author.url}>{author.name}</a>: дизайн, разработка и всё остальное.
+    </p>
+  </Track>
+</Base>
+
+<style>
+  .diagram {
+    max-width: 28rem;
+  }
+  .arch {
+    width: 100%;
+    font-family: var(--sans);
+  }
+  .arch rect {
+    fill: var(--panel);
+    stroke: var(--edge);
+    stroke-width: 1;
+  }
+  .arch .ctl rect {
+    stroke: var(--neon-foot);
+  }
+  .arch .owner rect {
+    stroke: var(--neon-top);
+  }
+  .arch .coord rect {
+    stroke-dasharray: 4 3;
+  }
+  .arch text {
+    fill: var(--fg);
+    font-size: 11px;
+    text-anchor: middle;
+  }
+  .arch .named text:first-of-type {
+    font-family: var(--mono);
+    font-weight: 700;
+  }
+  .arch .sub {
+    fill: var(--muted);
+    font-size: 10.5px;
+  }
+  .arch .group {
+    fill: var(--muted);
+    font: 600 8.5px var(--mono);
+    letter-spacing: 0.12em;
+    text-anchor: start;
+  }
+  .arch .wire {
+    fill: none;
+    stroke: var(--edge);
+    stroke-width: 1.2;
+  }
+  .arch .tip {
+    fill: var(--edge);
+  }
+  .rules strong,
+  .guards h3,
+  .steps h3 {
+    color: var(--fg);
+  }
+  .rules li + li {
+    margin-top: 1rem;
+  }
+  .rules,
+  .guards,
+  .steps,
+  .sources {
+    max-width: 44rem;
+  }
+  .guards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: 1.6rem 2rem;
+  }
+  .guards li {
+    display: grid;
+    align-content: start;
+    gap: 0.4rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+  }
+  .guards h3 {
+    font-size: 1rem;
+  }
+  .guards a {
+    font-size: 0.86rem;
+    color: var(--fg);
+  }
+  .steps {
+    display: grid;
+    gap: 2rem;
+  }
+  .steps li {
+    display: grid;
+    grid-template-columns: 2.5rem minmax(0, 1fr);
+    gap: 0.2rem 1rem;
+  }
+  .steps .no {
+    grid-row: span 2;
+    color: var(--accent);
+    font-size: 0.8rem;
+    padding-top: 0.3rem;
+  }
+  .steps p {
+    color: var(--muted);
+  }
+  .table caption {
+    padding: 0.8rem 1rem 0.2rem;
+    text-align: left;
+    font: 500 0.78rem var(--mono);
+    color: var(--muted);
+  }
+  .table tbody th {
+    white-space: normal;
+  }
+  .table td {
+    white-space: nowrap;
+  }
+  .sources li {
+    padding: 0.7rem 0;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+  }
+  .sources a,
+  .signature a {
+    font-weight: 600;
+    color: var(--fg);
+  }
+  .signature {
+    color: var(--muted);
+  }
+  @media (max-width: 30rem) {
+    .spec {
+      grid-template-columns: 1fr;
+    }
+    .spec dd {
+      padding-top: 0;
+      border-top: 0;
+    }
+  }
+</style>

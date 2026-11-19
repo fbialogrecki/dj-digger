@@ -1,0 +1,326 @@
+---
+import { Picture } from "astro:assets";
+import Base from "../../layouts/Base.astro";
+import Loop from "../../components/Loop.astro";
+import Track from "../../components/Track.astro";
+import Shot from "../../components/Shot.astro";
+import Code from "../../components/Code.astro";
+import mainWindow from "../../assets/screenshots/ru/desktop-player.png";
+import decisionsWindow from "../../assets/screenshots/ru/desktop-crates-decisions.png";
+import storesWindow from "../../assets/screenshots/ru/desktop-store-links.png";
+import gatesWindow from "../../assets/screenshots/ru/desktop-jobs-gates.png";
+import cartWindow from "../../assets/screenshots/ru/desktop-cart.png";
+import libraryWindow from "../../assets/screenshots/ru/desktop-local-library.png";
+import exportWindow from "../../assets/screenshots/ru/desktop-export.png";
+import sidebar from "../../assets/screenshots/ru/crops/sidebar.png";
+import decisions from "../../assets/screenshots/ru/crops/decisions.png";
+import stores from "../../assets/screenshots/ru/crops/stores.png";
+import gates from "../../assets/screenshots/ru/crops/gates.png";
+import cart from "../../assets/screenshots/ru/crops/cart.png";
+import library from "../../assets/screenshots/ru/crops/library.png";
+import exportDialog from "../../assets/screenshots/ru/crops/export.png";
+
+const description =
+  "Настольное приложение dj-digger: собирайте плейлисты SoundCloud целиком, прослушивайте их, запоминайте каждое решение, переходите по ссылкам Bandcamp и Beatport, проходите гейты скачивания, наполняйте корзины и экспортируйте файлы для своих дек.";
+const tracks = [
+  { id: "overview", no: "01", title: "Весь цикл" },
+  { id: "collect", no: "02", title: "Собрать" },
+  { id: "audition", no: "03", title: "Прослушать" },
+  { id: "decide", no: "04", title: "Решить" },
+  { id: "acquire", no: "05", title: "Получить" },
+  { id: "prepare", no: "06", title: "Подготовить" },
+  { id: "cli", no: "07", title: "Бонус-трек: командная строка" },
+  { id: "requirements", no: "08", title: "Системные требования" },
+  { id: "end", no: "09", title: "Установить" },
+];
+const session = tracks.slice(1, 6);
+const commands = [
+  ["Экспорт ссылок плейлиста в CSV", "dj-digger https://soundcloud.com/user/sets/playlist -f csv -o playlist.csv"],
+  ["Первые 20 лайков в JSON", "dj-digger https://soundcloud.com/user/likes -n 20 -f json -o likes.json"],
+  ["Открыть все ссылки Bandcamp из сохранённой сводки", "dj-digger open likes.json --category bandcamp"],
+];
+---
+
+<Base title="Настольное приложение · dj-digger" description={description} label="app" tracks={tracks}>
+  <Track hero sub id="overview" no="01" title="Весь цикл" label="Настольное приложение">
+    <Fragment slot="heading">Весь цикл диггинга <span class="grad">в одном окне</span></Fragment>
+    <p class="lede">
+      Пять треков в том порядке, в каком идёт сессия. Каждая картинка на этой странице — настоящее приложение на
+      демо-данных.
+    </p>
+    <ol class="order" aria-label="Порядок треков">
+      {
+        session.map((track) => (
+          <li>
+            <a href={`#${track.id}`}>
+              <span class="no">{track.no}</span>
+              {track.title}
+            </a>
+          </li>
+        ))
+      }
+    </ol>
+    <div class="cta">
+      <a class="button primary" href="/ru/download/">Скачать</a>
+      <a class="quiet" href="#requirements">На чём работает</a>
+    </div>
+    <Shot
+      src={mainWindow}
+      eager
+      caption="Главное окно"
+      alt="Главное окно dj-digger. На боковой панели три плейлиста SoundCloud, выбран Late Night Selects, а под ними обозреватель «Папки». Плеер вверху показывает Slow Orbit от Nightglass на 1:04 из 3:20 со сгенерированной обложкой-пластинкой и пурпурной формой волны. Ниже поле поиска, кнопки магазинов (Bandcamp 4, Beatport 3, Hypeddit 3, Traxsource 1, Juno Download 1), фильтр статуса и таблица из 14 треков, у каждого статус, исполнитель, название, жанр, год, лейбл, длительность и значок магазина."
+    />
+  </Track>
+
+  <Track id="collect" no="02" title="Собрать" heading="Плейлисты целиком, а не прокрученная страница">
+    <div class="beside">
+      <div class="beside-grid">
+        <div class="stack">
+          <p class="lede">
+            Вставьте ссылку SoundCloud, и приложение прочитает всю коллекцию через API SoundCloud, так что ничего не
+            спрячется за последней строкой, которую успела показать страница.
+          </p>
+          <ul class="ticks">
+            <li>Плейлисты и сеты, лайки, репосты, профили исполнителей и отдельные треки</li>
+            <li>Импорт сразу появляется на боковой панели и наполняется партиями; ничего не сохраняется, пока не придёт всё целиком</li>
+            <li>Войдите в SoundCloud, чтобы читать свои приватные плейлисты</li>
+            <li>При обновлении плейлиста новые треки встают наверх с пометкой <code>NEW</code></li>
+          </ul>
+        </div>
+        <Shot
+          src={sidebar}
+          full={libraryWindow}
+          sizes="220px"
+          caption="Боковая панель"
+          alt="Боковая панель: поле фильтра плейлистов и папок; три плейлиста SoundCloud — Late Night Selects с 14 треками, Sunday Balcony с 4 и Warehouse Warmups с 6 — и кнопка «плюс», чтобы добавить новый; ниже обозреватель «Папки» с «Загрузками» и «Музыкой», где выбрана папка Digging 2026 с шестью файлами."
+        />
+      </div>
+    </div>
+  </Track>
+
+  <Track id="audition" no="03" title="Прослушать" heading="Превью, которое чувствует бочку">
+    <p class="lede">
+      Слушайте превью из SoundCloud или играйте файл с диска, если он у вас есть. Перематывайте по форме волны;
+      следующий трек готовится в последние 20 секунд текущего.
+    </p>
+    <Loop>Записано в настоящем приложении, демо-треки</Loop>
+    <ul class="ticks">
+      <li>На каждой бочке сыгранная часть формы волны и фон обложки вспыхивают — пропорционально бочке, а не басовой линии</li>
+      <li>Превью декодируются в памяти и никогда не сохраняются на диск</li>
+      <li>Поиск, фильтры и сортировка, не уходя из плейлиста; сочетания из одной клавиши, а <kbd>?</kbd> показывает их все</li>
+      <li>«Вид → Анимация» выключает подсветку</li>
+    </ul>
+  </Track>
+
+  <Track id="decide" no="04" title="Решить" heading="Ящики, которые помнят">
+    <p class="lede">
+      Отмечайте треки как имеющиеся или пропущенные; приложение помнит и то, что вы прослушали и открыли. Решение
+      следует за треком в каждый плейлист, где он встречается.
+    </p>
+    <Shot
+      src={decisions}
+      full={decisionsWindow}
+      caption="Столбец и фильтр статуса"
+      alt="Таблица треков с открытым фильтром статуса: «Все статусы», «Необработанные», «Новый», «Открытые», «Имеющиеся» и «Пропущенные». В столбце «Статус» значатся «Есть», «Есть», «Прослушан», «Есть», «Открыт» и «Новый» рядом с Nightglass, Coral Engine, Sable Fern, Tidewell, Ostra Lumen и Pale Circuit; над таблицей кнопки магазинов, например Bandcamp 4 и Beatport 3."
+    />
+    <ul class="ticks">
+      <li>Сканирует ваши музыкальные папки: при уверенном совпадении исполнителя и названия трек получает статус «Есть» и играет с диска</li>
+      <li><kbd>H</kbd> показывает только треки, которые ещё предстоит обработать, и снова все</li>
+      <li>Фильтры по статусу, магазину, жанру и не только</li>
+    </ul>
+  </Track>
+
+  <Track id="acquire" no="05" title="Получить" heading="Самый безопасный путь к каждому треку">
+    <p class="lede">Три пути к файлу. У каждого сказано, что остаётся за вами.</p>
+
+    <div class="movement stack">
+      <h3>Все ссылки по полочкам</h3>
+      <p class="copy">
+        Ссылки на покупку и скачивание распознаются по строгому совпадению домена: Bandcamp, Beatport, Traxsource, Juno
+        Download, Apple, музыкальные магазины, гейты скачивания, смартлинки и бесплатные скачивания SoundCloud. Если
+        ссылка оказывается списком магазинов, она открывается, и стоящие за ней ссылки Bandcamp и Beatport попадают к
+        треку.
+      </p>
+      <p class="manual"><strong>Остаётся за вами</strong> Какую ссылку открыть: <kbd>O</kbd> или <kbd>Enter</kbd> открывает ссылки выбранных треков в вашем браузере.</p>
+      <Shot
+        src={stores}
+        full={storesWindow}
+        caption="Кнопки магазинов фильтруют таблицу"
+        alt="Таблица треков, отфильтрованная кнопками магазинов Bandcamp 4 и Beatport 3: показано 7 из 14 треков, у каждого значок Bandcamp или Beatport в столбце «Магазины»."
+      />
+    </div>
+
+    <div class="movement stack">
+      <h3>Гейты скачивания — пройдены</h3>
+      <p class="copy">
+        Гейты Hypeddit, ToneDen, GateRush и Droploud, где за скачивание нужно подписаться, проходятся через их
+        собственные механизмы скачивания. Если гейту нужен браузер, расширение незаметно проходит его шаги, и файл
+        приходит в приложение. Социальные шаги подчиняются параметру <em>«Разрешить социальные действия»</em> в
+        настройках, по умолчанию он включён; выключите его, и такие гейты останутся ручными.
+      </p>
+      <p class="manual"><strong>Остаётся за вами</strong> CAPTCHA, вход на сайты сервисов и первые подтверждения. Приложение сначала спрашивает, а окно браузера открывается, только если вы сами этого захотите.</p>
+      <Shot
+        src={gates}
+        full={gatesWindow}
+        caption="Настоящий диалог; строки взяты из тестового запуска"
+        alt="Диалог «Гейтам нужна ваша помощь»: «Эти гейты требуют того, что можете сделать только вы, например войти в аккаунт или пройти CAPTCHA», под ним список из трёх треков, у каждого пометка, что гейт требует пройти CAPTCHA, и кнопки «Открыть в браузере», «Пропустить эти» и «Остановить скачивание»."
+      />
+    </div>
+
+    <div class="movement stack">
+      <h3>Корзины, но не оплата</h3>
+      <p class="copy">
+        Отметьте треки, и приложение наполнит вашу корзину Bandcamp, а если точный трек известен, то и корзину
+        Beatport — в фоновых вкладках вашего собственного браузера. Каждая страница товара перепроверяется прямо перед
+        нажатием; неоднозначное название, изменившаяся цена или трек, который продаётся только с альбомом, останавливают
+        работу, а не заставляют гадать. Треки Beatport, которые не удаётся положить в корзину, можно вместо этого
+        отправить на импорт в Soundiiz.
+      </p>
+      <p class="manual"><strong>Остаётся за вами</strong> Оформление заказа. Одна вкладка корзины на каждый магазин переходит к вам; приложение никогда не читает ваш пароль, не выбирает способ оплаты и не платит.</p>
+      <Shot
+        src={cart}
+        full={cartWindow}
+        caption="Настоящий диалог; результаты взяты из тестового запуска"
+        alt="Диалог «Результаты корзины»: «Добавлено в корзины: 4. Не добавлено: 1», список из пяти треков с результатами вроде «в корзине Bandcamp», «уже в корзине Bandcamp» и «в плейлист» и кнопки «Отправить плейлист в Soundiiz», «Открыть недобавленные ссылки», «Показать корзины» и «Закрыть»."
+      />
+    </div>
+  </Track>
+
+  <Track id="prepare" no="06" title="Подготовить" heading="Готово для дек">
+    <p class="lede">Папки на диске открываются в той же таблице и покидают её копиями, которые читают ваши деки.</p>
+
+    <div class="movement stack">
+      <h3>Ваша локальная библиотека</h3>
+      <p class="copy">
+        Просматривайте папки рядом с плейлистами и собирайте из них локальные плейлисты. BPM и тональность
+        определяются на вашем компьютере и правятся вручную; анализ никогда не записывает аудиотеги и данные rekordbox.
+        WAV, AIFF, FLAC, MP3, AAC и M4A.
+      </p>
+      <Shot
+        src={library}
+        full={libraryWindow}
+        caption="BPM и тональность в локальной папке"
+        alt="Локальная папка в таблице треков: шесть файлов со статусом «Новый», значения BPM от 120 до 130 и тональности 9A, 8A, 10A, 5A, 7A и 8B."
+      />
+    </div>
+
+    <div class="movement stack">
+      <h3>Экспорт для дек</h3>
+      <p class="copy">
+        Отметьте деки, на которых должны играть файлы, и приложение выберет лучший формат, который читают все они: FLAC,
+        если его читает каждая выбранная дека, иначе WAV — с наибольшей общей для них разрядностью и частотой
+        дискретизации. Файлы, которые деки уже воспроизводят, копируются как есть; конвертируются только остальные, в
+        новую папку.
+      </p>
+      <p class="manual"><strong>Где граница</strong> Правила взяты из руководства каждой деки: это совместимость аудиофайлов, а не проверка на железе и не экспорт rekordbox. Приложение никогда не повышает частоту дискретизации и никогда не форматирует накопители.</p>
+      <Shot
+        src={exportDialog}
+        full={exportWindow}
+        caption="«Экспортировать аудио»: десять групп дек"
+        alt="Диалог «Экспортировать аудио»: «Выберите деки, на которых должны играть эти файлы; лучший формат, который поддерживают все, будет выбран автоматически». Десять групп дек флажками, от CDJ-350 до OMNIS-DUO и XDJ-AN, пять из них отмечены; пустая папка назначения с кнопкой «Обзор…», режим «Копировать», флажок «Включить подпапки» снят, кнопки «Экспортировать» и «Отмена»."
+      />
+    </div>
+  </Track>
+
+  <Track id="cli" no="07" title="Бонус-трек: командная строка" heading="CLI для ваших скриптов">
+    <p class="copy">
+      Консольная команда <code>dj-digger</code> собирает плейлист, сохраняет его в библиотеку и экспортирует его ссылки
+      в JSON или CSV. Библиотека у неё общая с настольным приложением, поэтому они работают по очереди: закройте одно,
+      прежде чем запускать другое.
+    </p>
+    <div class="commands">
+      {commands.map(([label, code]) => <Code label={label} code={code} />)}
+    </div>
+  </Track>
+
+  <Track id="requirements" no="08" title="Системные требования" heading="Системные требования">
+    <dl class="spec">
+      <dt>Windows</dt>
+      <dd>Windows 10 (1809 или новее) или 11, 64-битный Intel или AMD</dd>
+      <dt>macOS</dt>
+      <dd>macOS 15 или новее, Apple Silicon или Intel</dd>
+      <dt>Linux</dt>
+      <dd>
+        Проверено на Ubuntu 24.04, Debian 12, Fedora, Arch Linux и openSUSE Tumbleweed с{" "}
+        <a href="/ru/download/">установочным скриптом</a>, который настраивает всё остальное
+      </dd>
+      <dt>Из PyPI</dt>
+      <dd>Python 3.12 или новее, FFmpeg и ffprobe в <code>PATH</code></dd>
+      <dt>Функции браузера</dt>
+      <dd>Chrome, Edge, Brave, Chromium или Firefox с расширением dj-digger; браузеры, установленные как Flatpak или Snap, не подходят</dd>
+    </dl>
+  </Track>
+
+  <Track id="end" no="09" title="Установить" heading="Ставьте на вертушку">
+    <p class="copy">Затем подключите браузер: гейты скачивания и корзины магазинов работают через расширение.</p>
+    <div class="cta">
+      <a class="button primary" href="/ru/download/">Скачать</a>
+      <a class="quiet" href="/ru/extension/">О расширении</a>
+    </div>
+  </Track>
+</Base>
+
+<style>
+  /* Hero: the five session tracks as a running order. */
+  .order {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2rem 1.4rem;
+    font-size: 0.92rem;
+  }
+  .order a {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.55rem;
+    padding-block: 0.35rem;
+    color: var(--fg);
+    font-weight: 600;
+    text-decoration-color: var(--edge);
+  }
+  .order .no {
+    font-size: 0.74rem;
+    color: var(--muted);
+  }
+
+  /* A1: the tall sidebar crop stands beside its text once the column has room. */
+  .beside {
+    container-type: inline-size;
+  }
+  .beside-grid {
+    display: grid;
+    gap: 2rem;
+  }
+  /* The figure is rendered by <Shot>, outside this page's scope. */
+  .beside :global(.shot) {
+    max-width: 13.75rem;
+  }
+  @container (min-width: 36rem) {
+    .beside-grid {
+      grid-template-columns: minmax(0, 1fr) 13.75rem;
+      align-items: start;
+    }
+  }
+
+  /* What each way to a track leaves to you: a margin note, not an alert. */
+  .manual {
+    max-width: 38rem;
+    padding-left: 0.9rem;
+    border-left: 2px solid var(--edge);
+    color: var(--muted);
+  }
+  .manual strong {
+    display: block;
+    margin-bottom: 0.15rem;
+    font-stretch: 125%;
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--fg);
+  }
+
+  .commands {
+    display: grid;
+    gap: 0.9rem;
+  }
+
+</style>

@@ -73,25 +73,41 @@ if (record) {
 // Copy buttons of <Code>: hidden in the markup, shown here because they need a script.
 for (const button of document.querySelectorAll("[data-copy]")) {
   button.hidden = false;
+  const label = button.textContent;
   button.addEventListener("click", async () => {
     await navigator.clipboard.writeText(button.dataset.copy);
-    button.textContent = "Copied";
-    setTimeout(() => (button.textContent = "Copy"), 1600);
+    button.textContent = button.dataset.copied ?? "";
+    setTimeout(() => (button.textContent = label), 1600);
   });
 }
 
-// Day or night: the button flips whatever is showing and remembers it.
+// Day or night follows the system. The button flips whatever is showing; flipping back
+// to the system's own theme drops the override, so the site follows the system again.
 const theme = document.querySelector(".theme");
 if (theme && CSS.supports("color", "light-dark(#000, #fff)")) {
-  const dark = () => (root.dataset.theme ?? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")) === "dark";
-  const label = () => theme.setAttribute("aria-label", `Switch to ${dark() ? "light" : "dark"} theme`);
+  const system = matchMedia("(prefers-color-scheme: dark)");
+  const dark = () => (root.dataset.theme ?? (system.matches ? "dark" : "light")) === "dark";
+  const label = () => theme.setAttribute("aria-label", (dark() ? theme.dataset.toLight : theme.dataset.toDark) ?? "");
   theme.hidden = false;
   label();
+  system.addEventListener("change", label);
   theme.addEventListener("click", () => {
-    root.dataset.theme = dark() ? "light" : "dark";
+    const next = dark() ? "light" : "dark";
+    const follow = next === (system.matches ? "dark" : "light");
+    if (follow) delete root.dataset.theme;
+    else root.dataset.theme = next;
     try {
-      localStorage.djdTheme = root.dataset.theme;
+      if (follow) localStorage.removeItem("djdTheme");
+      else localStorage.djdTheme = next;
     } catch {}
     label();
   });
 }
+
+// A language picked in the header is remembered: boot.js sends English pages to it.
+for (const link of document.querySelectorAll("[data-lang]"))
+  link.addEventListener("click", () => {
+    try {
+      localStorage.djdLang = link.dataset.lang;
+    } catch {}
+  });

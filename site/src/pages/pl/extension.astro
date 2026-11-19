@@ -1,0 +1,333 @@
+---
+import Base from "../../layouts/Base.astro";
+import Track from "../../components/Track.astro";
+import Shot from "../../components/Shot.astro";
+import DataFlow from "../../components/extension/DataFlow.astro";
+import panel from "../../assets/screenshots/extension-panel.png";
+import connect from "../../assets/screenshots/pl/crops/connect.png";
+import connectFull from "../../assets/screenshots/pl/desktop-browser-connect.png";
+import { chromeStore, repo } from "../../../site.config.mjs";
+
+const description =
+  "Rozszerzenie przeglądarki dj-digger pozwala aplikacji desktopowej przechodzić bramki pobierania, wypełniać koszyki w sklepach i logować się do SoundCloud w Twojej własnej przeglądarce. Co robi, w jakich przeglądarkach działa, wszystkie uprawnienia i dokąd trafiają dane.";
+const tracks = [
+  { id: "overview", no: "01", title: "Ręce aplikacji" },
+  { id: "does", no: "02", title: "Co robi" },
+  { id: "needs-app", no: "03", title: "Wymaga aplikacji desktopowej" },
+  { id: "browsers", no: "04", title: "Obsługiwane przeglądarki" },
+  { id: "permissions", no: "05", title: "Uprawnienia i po co" },
+  { id: "data", no: "06", title: "Dokąd trafiają Twoje dane" },
+  { id: "end", no: "07", title: "Zacznij od aplikacji" },
+];
+
+// The five jobs, as the store listing's "What it does" names them.
+const jobs = [
+  ["Przechodzi bramki pobierania", "Gdy aplikacja nie może sama przejść bramki w Hypeddit lub ToneDen, rozszerzenie kończy ją w Twojej przeglądarce, a plik trafia do aplikacji."],
+  ["Wypełnia koszyki w sklepach", "Dodaje wybrane utwory do Twojego koszyka w Bandcamp i wyszukuje utwory w Beatport. Nigdy nie finalizuje zakupu ani nie płaci: strony kasy i płatności są zamykane."],
+  ["Loguje do SoundCloud", "Aplikacja może użyć sesji SoundCloud, którą Twoja przeglądarka już ma, więc niczego nie wklejasz."],
+  ["Umieszcza odtwarzacz na pasku narzędzi", "Odtwarzaj, pauzuj, przeskakuj i przewijaj utwór grany w aplikacji, śledź bieżące zadanie i anuluj je, a gdy bramki czekają na Ciebie, odpowiadaj aplikacji."],
+  ["Importuje z SoundCloud", "Na stronie playlisty lub profilu otwórz panel, żeby ją zaimportować, albo kliknij prawym przyciskiem i wybierz Dig in dj-digger."],
+];
+
+// Released manifest, in its order. `shows` quotes the install prompts the store listing names.
+const permissions = [
+  ["nativeMessaging", "Komunikacja ze współpracującymi aplikacjami natywnymi", "Jedyny kanał poleceń: połączenie z natywnym hostem, który aplikacja dj-digger instaluje na tym komputerze. Aplikacja wysyła kroki dla przeglądarki i odbiera wyniki, polecenia odtwarzacza i importy z SoundCloud; innego wejścia nie ma."],
+  ["tabs", "Odczytywanie historii przeglądania", "Otwiera, nawiguje, wycisza i zamyka karty i okna, które tworzy dla aplikacji, oraz otwierane przez nie wyskakujące okna logowania, odczytując adres i stan wczytywania tylko tych kart. Gdy kliknięcia „dodaj do koszyka” nie da się zweryfikować, robi zrzut ekranu własnej karty sklepu na potrzeby lokalnej diagnostyki aplikacji."],
+  ["scripting", "", "Uruchamia własne, dołączone do rozszerzenia funkcje strony (znajdź, kliknij, wypełnij, odczytaj) we własnych kartach na dozwolonych stronach; tak przechodzi bramki i wypełnia koszyki. Nie wykonuje żadnego zdalnego ani dostarczonego przez użytkownika kodu."],
+  ["downloads", "Zarządzanie pobranymi plikami", "Rozpoznaje plik, którego pobieranie rozpoczęła bramka we własnej karcie, przekazuje aplikacji, gdzie on jest, i usuwa kopię z przeglądarki oraz wpis w historii, gdy aplikacja go przejmie. Niebezpieczne pobrania i okna „Zapisz jako” są zgłaszane jako zablokowane, nigdy akceptowane; inne pobrania są ignorowane."],
+  ["cookies", "", "Dokładnie dwie zaszyte w kodzie operacje: odczytuje oauth_token SoundCloud, gdy logujesz aplikację do SoundCloud, i usuwa ciasteczko filedownloading Hypeddit między pobraniami z bramek, bo Hypeddit odmawia kolejnego pobrania, dopóki jest ustawione. Żadne inne ciasteczko nie jest odczytywane, zapisywane ani usuwane."],
+  ["webRequest", "", "Obserwuje, nigdy nie blokuje ani nie zmienia, odpowiedzi i przekierowania własnych kart na dozwolonych stronach, żeby poznać status HTTP strony i dopasować pobieranie do karty, która je rozpoczęła."],
+  ["webNavigation", "", "Wie, kiedy strona we własnej karcie się wczytała lub nie, więc każdy krok na nią czeka. Zamyka własną kartę Bandcamp lub Beatport w chwili, gdy kieruje się ona na stronę kasy lub płatności."],
+  ["storage", "", "Tylko pamięć sesji, czyszczona po zamknięciu przeglądarki: własne karty i okna, stan połączenia i stan odtwarzacza. Nic nie jest synchronizowane ani przechowywane na stałe."],
+  ["alarms", "", "30-sekundowy alarm, który ponownie łączy się z aplikacją po jej zamknięciu albo po zatrzymaniu procesu w tle."],
+  ["offscreen", "", "Uruchamia bramki Hypeddit i ToneDen w ukrytych, wyciszonych ramkach dokumentu poza ekranem, więc podczas ukrytej serii bramek nie wyskakuje żadne okno przeglądarki."],
+  ["activeTab", "", "Gdy otwierasz panel na pasku narzędzi, jednorazowo odczytuje adres tej karty, żeby sprawdzić, czy to playlista lub profil SoundCloud do zaimportowania. Nic więcej na stronie nie jest odczytywane."],
+  ["contextMenus", "", "Dodaje Dig in dj-digger do menu prawego przycisku na stronach i linkach SoundCloud, żeby zaimportować tę playlistę, utwór lub profil do aplikacji. Widoczne tylko wtedy, gdy aplikacja działa."],
+];
+const hosts = [
+  [
+    ["https://hypeddit.com/*", "https://www.hypeddit.com/*", "https://hypd.it/*", "https://www.hypd.it/*", "https://toneden.io/*", "https://www.toneden.io/*"],
+    "Bramki darmowych pobrań w Hypeddit i ToneDen: otwiera bramkę, wykonuje jej kroki (formularz e-mail; obserwowanie, polubienie, repost i komentarz tylko wtedy, gdy zezwolisz w aplikacji na działania społecznościowe) i rozpoczyna pobieranie.",
+  ],
+  [
+    ["https://bandcamp.com/*", "https://*.bandcamp.com/*"],
+    "Dodaje utwory wybrane w aplikacji do Twojego własnego koszyka w Bandcamp; strony artystów to subdomeny. Strony kasy i płatności nigdy nie są otwierane.",
+  ],
+  [
+    ["https://beatport.com/*", "https://*.beatport.com/*"],
+    "Wyszukuje utwory i dodaje je do Twojego koszyka w Beatport. Strony kasy, płatności i rozliczeń nigdy nie są otwierane.",
+  ],
+  [
+    ["https://soundcloud.com/*"],
+    "Strona logowania, gdy logujesz aplikację, a przeglądarka nie ma jeszcze sesji, oraz odczyt ciasteczka oauth_token. Na otwieranych przez Ciebie stronach SoundCloud przycisk Import to DJ digger odczytuje tylko linki do utworów i playlist; nic w SoundCloud nie jest klikane.",
+  ],
+];
+const hostPrompt = "Odczytywanie i zmienianie Twoich danych w witrynach hypeddit.com, toneden.io, bandcamp.com, beatport.com, soundcloud.com";
+---
+
+<Base title="Rozszerzenie przeglądarki · dj-digger" description={description} label="extension" tracks={tracks}>
+  <Track hero sub id="overview" no="01" title="Ręce aplikacji" label="Rozszerzenie przeglądarki">
+    <Fragment slot="heading">Ręce aplikacji w <span class="grad">Twojej własnej przeglądarce</span></Fragment>
+    <p class="lede">
+      <strong>Rozszerzenie dj-digger</strong> pozwala aplikacji desktopowej przechodzić bramki pobierania i wypełniać
+      koszyki w sklepach w przeglądarce, której już używasz, a odtwarzacz aplikacji umieszcza na pasku narzędzi. Samo
+      z siebie nic nie robi: na tym samym komputerze musi działać aplikacja dj-digger.
+    </p>
+    <div class="cta">
+      <a class="button primary" href={chromeStore}>Dodaj z Chrome Web Store</a>
+      <a class="quiet" href="/pl/download/">Najpierw pobierz aplikację desktopową</a>
+    </div>
+    <div class="panel">
+      <Shot
+        src={panel}
+        alt="Panel dj-digger na pasku narzędzi odtwarza Slow Orbit w wykonaniu Nightglass: wygenerowana okładka płyty, pasek przewijania na 1:08 z 3:20 oraz przyciski poprzedni, pauza i następny."
+        caption="Panel na pasku narzędzi, utwór demo"
+        sizes="(min-width: 44rem) 17rem, 20rem"
+        eager
+      />
+    </div>
+  </Track>
+
+  <Track id="does" no="02" title="Co robi" label="Pięć zadań" heading="Co robi">
+    <ul class="jobs">
+      {
+        jobs.map(([name, text]) => (
+          <li>
+            <h3>{name}</h3>
+            <p>{text}</p>
+          </li>
+        ))
+      }
+    </ul>
+  </Track>
+
+  <Track id="needs-app" no="03" title="Wymaga aplikacji desktopowej" label="Zanim zainstalujesz" heading="Wymaga dj-digger uruchomionego na tym komputerze">
+    <ol class="steps">
+      <li>
+        <span class="no">01</span>
+        <h3>Zainstaluj i uruchom aplikację</h3>
+        <p>Aplikacja desktopowa rejestruje się w Twoich przeglądarkach przy każdym uruchomieniu. <a href="/pl/download/">Pobierz dj-digger</a>.</p>
+      </li>
+      <li>
+        <span class="no">02</span>
+        <h3>Zainstaluj rozszerzenie</h3>
+        <p>Z Chrome Web Store albo według <a href="#browsers">kroków dla Firefoksa poniżej</a>.</p>
+      </li>
+      <li>
+        <span class="no">03</span>
+        <h3>Przyznaj dostęp do stron</h3>
+        <p>Strona powitalna rozszerzenia pokazuje <strong>Desktop app link</strong> (połączenie z aplikacją) i <strong>Site access</strong> (dostęp do stron) i prosi o brakujące uprawnienia do stron.</p>
+      </li>
+    </ol>
+    <p class="copy">
+      Najpierw zainstalowałeś rozszerzenie? Jego strona stanu i panel na pasku narzędzi informują, że brakuje aplikacji,
+      i prowadzą do jej pobrania. W aplikacji <strong>Połącz przeglądarkę…</strong> w menu Ustawienia pokazuje kroki
+      i sprawdza połączenie.
+    </p>
+    <Shot
+      src={connect}
+      full={connectFull}
+      alt="Okno Połącz przeglądarkę w aplikacji. Stan: Niepołączono: zainstaluj rozszerzenie dj-digger w przeglądarce. Dla Chrome, Edge i Brave: zainstaluj z Chrome Web Store, a potem kliknij Sprawdź połączenie. Dla Firefoksa: trzy kroki wczytania tymczasowego dodatku, z folderem rozszerzenia i przyciskiem Kopiuj ścieżkę. Przyciski: Otwórz Chrome Web Store, Sprawdź połączenie, Nie teraz."
+      caption="Połącz przeglądarkę, w aplikacji desktopowej"
+    />
+  </Track>
+
+  <Track id="browsers" no="04" title="Obsługiwane przeglądarki" label="Gdzie działa" heading="Obsługiwane przeglądarki">
+    <ul class="cards">
+      <li class="card">
+        <h3>Chrome, Edge, Brave, Chromium</h3>
+        <p>Zainstaluj z Chrome Web Store. Edge najpierw zapyta o zezwolenie na rozszerzenia z innych sklepów: zezwól.</p>
+        <p><a class="quiet" href={chromeStore}>dj-digger w Chrome Web Store</a></p>
+      </li>
+      <li class="card">
+        <h3>Firefox</h3>
+        <p>
+          Zainstaluj podpisany plik rozszerzenia, jeśli wydanie go zawiera. W przeciwnym razie wczytaj je jako tymczasowy
+          dodatek z folderu rozszerzenia aplikacji; Firefox usuwa go przy ponownym uruchomieniu.
+        </p>
+        <p><a class="quiet" href={`${repo}/blob/main/docs/installation.md#connect-your-browser`}>Kroki dla Firefoksa w przewodniku instalacji (po angielsku)</a></p>
+      </li>
+      <li class="card">
+        <h3>Nieobsługiwane</h3>
+        <p>Przeglądarki zainstalowane jako Flatpak lub Snap nie mogą uruchomić połączenia z aplikacją, więc rozszerzenie do niej nie dotrze.</p>
+      </li>
+    </ul>
+  </Track>
+
+  <Track id="permissions" no="05" title="Uprawnienia i po co" heading="Uprawnienia i do czego służy każde z nich">
+    <p class="copy">
+      Działa tylko w Hypeddit, ToneDen, Bandcamp, Beatport i SoundCloud i tylko w kartach, które otworzyło dla
+      aplikacji. Jedynym dodatkiem jest przycisk importu na stronach SoundCloud, które otwierasz sam.
+    </p>
+    <div class="table" role="region" aria-labelledby="perm-caption" tabindex="0">
+      <table class="perms">
+        <caption id="perm-caption">
+          Wszystkie uprawnienia z wydanego manifestu. Środkowa kolumna cytuje komunikaty instalacji wymienione w opisie
+          w sklepie; myślnik oznacza, że dla tego uprawnienia nie wymienia żadnego.
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Uprawnienie</th>
+            <th scope="col">Co pokazuje przeglądarka</th>
+            <th scope="col">Po co jest potrzebne</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="group"><th scope="rowgroup" colspan="3">Uprawnienia</th></tr>
+          {
+            permissions.map(([name, shows, why]) => (
+              <tr>
+                <th scope="row"><code>{name}</code></th>
+                <td class="shows">{shows ? `„${shows}”` : <><span aria-hidden="true">–</span><span class="sr">Brak</span></>}</td>
+                <td>{why}</td>
+              </tr>
+            ))
+          }
+        </tbody>
+        <tbody>
+          <tr class="group"><th scope="rowgroup" colspan="3">Uprawnienia do hostów</th></tr>
+          {
+            hosts.map(([patterns, why], i) => (
+              <tr>
+                <th scope="row">
+                  {patterns.map((pattern) => (
+                    <code>{pattern}</code>
+                  ))}
+                </th>
+                {i === 0 && <td class="shows" rowspan={hosts.length}>{`„${hostPrompt}”`}</td>}
+                <td>{why}</td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+  </Track>
+
+  <Track id="data" no="06" title="Dokąd trafiają Twoje dane" heading="Nic nie opuszcza tego komputera w naszą stronę">
+    <div class="split">
+      <DataFlow />
+      <div class="stack">
+        <p class="copy">
+          Rozszerzenie rozmawia tylko z aplikacją dj-digger na Twoim własnym komputerze. Nic nie jest wysyłane do twórcy;
+          nie ma statystyk ani reklam.
+        </p>
+        <ul class="ticks">
+          <li>Żadnego zdalnego kodu i żadnych wiadomości przyjmowanych od innych rozszerzeń czy stron</li>
+          <li>Tylko dane sesji, czyszczone po zamknięciu przeglądarki</li>
+          <li>Karty zmierzające na stronę kasy lub płatności są zamykane</li>
+        </ul>
+        <p><a class="button" href={`${repo}/blob/main/PRIVACY.md`}>Przeczytaj politykę prywatności</a></p>
+      </div>
+    </div>
+  </Track>
+
+  <Track id="end" no="07" title="Zacznij od aplikacji" heading="Nie masz jeszcze aplikacji? Zacznij od niej.">
+    <p class="copy">Rozszerzenie czeka na aplikację desktopową. Zainstaluj ją i uruchom raz; sama połączy się z Twoimi przeglądarkami.</p>
+    <div class="cta">
+      <a class="button primary" href="/pl/download/">Pobierz aplikację</a>
+      <a class="quiet" href="/pl/app/">Wróć do aplikacji desktopowej</a>
+    </div>
+  </Track>
+</Base>
+
+<style>
+  /* Hero: the portrait panel at phone width beside the text, under it on narrow columns. */
+  .panel {
+    max-width: 18rem;
+  }
+  @media (min-width: 44rem) {
+    :global(#overview) {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) clamp(13rem, 34%, 17rem);
+      grid-template-rows: auto auto auto 1fr;
+      column-gap: clamp(1.5rem, 4vw, 3rem);
+    }
+    :global(#overview) > :global(*) {
+      grid-column: 1;
+      align-self: start;
+    }
+    :global(#overview) > .panel {
+      grid-column: 2;
+      grid-row: 1 / span 4;
+      margin: 0;
+      max-width: none;
+    }
+  }
+
+  .jobs {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+    gap: 1.6rem 2.2rem;
+  }
+  .jobs li {
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+  }
+  .jobs p,
+  .steps p {
+    margin-top: 0.35rem;
+    color: var(--muted);
+  }
+  .steps {
+    display: grid;
+    gap: 1.6rem;
+  }
+  .steps li {
+    display: grid;
+    grid-template-columns: 2.5rem 1fr;
+    column-gap: 1rem;
+    max-width: 38rem;
+  }
+  .steps .no {
+    grid-row: span 2;
+    padding-top: 0.3rem;
+    font-size: 0.8rem;
+    color: var(--accent);
+  }
+  .steps strong,
+  .copy strong {
+    color: var(--fg);
+    font-weight: 600;
+  }
+
+  .perms {
+    min-width: 42rem;
+  }
+  .perms caption {
+    padding: 0.8rem 1rem;
+    text-align: left;
+    font-size: 0.84rem;
+    color: var(--muted);
+  }
+  .perms th code {
+    display: block;
+    width: max-content;
+  }
+  .perms th code + code {
+    margin-top: 0.3rem;
+  }
+  .perms .shows {
+    min-width: 10rem;
+    color: var(--fg);
+  }
+  .perms td:last-child {
+    min-width: 17rem;
+  }
+  .perms .group th {
+    padding-top: 1.1rem;
+    font-size: 0.78rem;
+    font-stretch: 112%;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: var(--panel);
+  }
+
+  .split {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));
+    gap: 2.5rem;
+    align-items: center;
+  }
+</style>

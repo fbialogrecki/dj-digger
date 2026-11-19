@@ -6,6 +6,16 @@ try {
   if (localStorage.djdTheme) root.dataset.theme = localStorage.djdTheme;
 } catch {}
 
+// English pages go to the language picked in the header or, until one is picked, the
+// first of the browser's languages that the site speaks (the hreflang links in the head).
+try {
+  if (root.lang === "en") {
+    const offered = new Map([...document.querySelectorAll("link[hreflang]")].map((link) => [link.hreflang, link.href]));
+    const wanted = localStorage.djdLang || navigator.languages.map((tag) => tag.slice(0, 2).toLowerCase()).find((code) => offered.has(code));
+    if (wanted && wanted !== "en" && offered.has(wanted)) location.replace(new URL(offered.get(wanted)).pathname + location.hash);
+  }
+} catch {}
+
 // The needle drop plays once per session.
 try {
   sessionStorage.djd ? root.classList.add("played") : (sessionStorage.djd = 1);
