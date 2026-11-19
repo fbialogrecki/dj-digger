@@ -225,6 +225,29 @@ def test_a_link_beside_its_file_is_one_row(tmp_path, db):
     assert [Path(t.local_path).name for t in tracks] == ['b.wav']
 
 
+def test_reopening_a_folder_loads_cached_values_and_rechecks_changed_files(tmp_path, db, monkeypatch):
+    library = LocalLibrary(db)
+    stable, changed = tmp_path / 'a.wav', tmp_path / 'b.wav'
+    stable.touch()
+    changed.touch()
+    (first, second), _, _, _ = library.page(tmp_path)
+    db.set_media_manual(first.local_id, {'artist': 'Hand edited'})
+    db.save_analysis(first.local_id, signature(stable), 'test', {'bpm': 128})
+    db.save_analysis(second.local_id, signature(changed), 'test', {'bpm': 140})
+    changed.write_bytes(b'updated')
+
+    registered = []
+    register = library.register
+    def record(path):
+        registered.append(path)
+        return register(path)
+    monkeypatch.setattr(library, 'register', record)
+    (cached, refreshed), _, _, failures = library.page(tmp_path)
+    assert not failures and registered == [changed]
+    assert (cached.local_id, cached.artist, cached.bpm) == (first.local_id, 'Hand edited', 128)
+    assert refreshed.local_id == second.local_id and refreshed.bpm is None
+
+
 def test_a_selected_link_is_refused_before_anything_is_deleted(tmp_path, db):
     from dj_digger.media import MediaError
     folder = tmp_path / 'links'

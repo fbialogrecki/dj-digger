@@ -26,10 +26,13 @@ def media_analysis_values(db, record: dict) -> dict:
 def _media_values(db, record: dict):
     """The resolved BPM and key with their sources, and the artist: set by hand, else tagged."""
     metadata = json.loads(record['metadata_json'])
-    values = db.media_values(record['id'])
-    manual = json.loads(values.get('manual_json', '{}'))
-    analysis = (json.loads(values.get('result_json', '{}'))
-                if values.get('signature') == record['signature'] else {})
+    if 'analysis_signature' in record:
+        values, analysis_signature = record, record['analysis_signature']
+    else:
+        values = db.media_values(record['id'])
+        analysis_signature = values.get('signature')
+    manual = json.loads(values.get('manual_json') or '{}')
+    analysis = json.loads(values.get('result_json') or '{}') if analysis_signature == record['signature'] else {}
     tags = metadata.get('tags', {})
     try:
         bpm = float(tags.get('bpm') or tags.get('tbpm') or 0) or None
@@ -216,12 +219,19 @@ class LocalLibrary:
         names.sort(key=str.casefold)
         directories.sort(key=str.casefold)
         tracks, failures, rows = [], [], {}
-        for name in names[offset:offset + PAGE_SIZE]:
+        page = [folder / name for name in names[offset:offset + PAGE_SIZE]]
+        cached = self.db.media_many(map(str, page), by_path=True)
+        for path in page:
             check_cancelled(cancel)
             try:
-                track = self.register(folder / name)
-            except OSError as exc:
-                failures.append(f'{name}: {exc}')
+                record = cached.get(str(path))
+                if (record and record['available'] and not path.is_symlink()
+                        and signature(path) == record['signature']):
+                    track = media_track(self.db, record)
+                else:
+                    track = self.register(path)
+            except (OSError, MediaError) as exc:
+                failures.append(f'{path.name}: {exc}')
                 continue
             # A link to a file on this page shares its identity, so it would share its selection.
             if track.local_id in rows:

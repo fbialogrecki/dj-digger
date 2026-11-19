@@ -1,10 +1,9 @@
 """Local-file reconciliation and field-specific playlist edits, independent of UI."""
 
-from dataclasses import asdict
 from pathlib import Path
 
-from ..crate_models import CrateHeader, CrateRecord
-from ..models import GOT, NEW, track_key
+from ..crate_models import CrateHeader, CrateRecord, track_from_json
+from ..models import GOT, NEW
 from ..scanner import SCAN_BATCH, LocalScanner, confirmed_missing
 from ..state import FileMatch
 
@@ -25,13 +24,16 @@ class LibraryService:
                 return None
             from .local_library import media_track
             raw, members = saved
-            raw['tracks'] = [
-                asdict(media_track(self.state.db, media)) if media is not None
-                else dict(track, local_path=self.state.local_file(track_key(track)))
-                for media, track in members
-            ]
-        else:
-            raw = self.state.db.load_crate(source)
+            tracks = []
+            for media, snapshot in members:
+                if media is not None:
+                    track = media_track(self.state.db, media)
+                else:
+                    track = track_from_json(snapshot)
+                    track.local_path = self.state.local_file(track.key)
+                tracks.append(track)
+            return CrateRecord.from_json(raw, tracks=tracks)
+        raw = self.state.db.load_crate(source)
         return CrateRecord.from_json(raw) if raw is not None else None
 
     def reset(self, keys):

@@ -8,6 +8,7 @@ import asyncio
 import json
 import re
 from pathlib import Path
+from time import monotonic
 from types import SimpleNamespace
 
 import pytest
@@ -146,12 +147,23 @@ class FakePage:
 
 @pytest.fixture(autouse=True)
 def quick_and_private(monkeypatch):
+    elapsed = 0.0
+
+    async def sleep(seconds):
+        nonlocal elapsed
+        elapsed += seconds
+        await asyncio.sleep(0)
+
     async def no_diagnostics(*_args):
         return None
 
+    # Advance the fake page's polling clock, including the loop deadlines used by wait_for.
+    clock = SimpleNamespace(monotonic=lambda: monotonic() + elapsed)
+    monkeypatch.setattr(asyncio.BaseEventLoop, "time", lambda self: clock.monotonic())
+    for adapter in (beatport, bandcamp_adapter):
+        monkeypatch.setattr(adapter, "time", clock)
+        monkeypatch.setattr(adapter, "asyncio", SimpleNamespace(sleep=sleep, wait_for=asyncio.wait_for))
     monkeypatch.setattr(bandcamp_adapter, "save_cart_diagnostics", no_diagnostics)
-    monkeypatch.setattr(beatport, "VERIFY_STAGES", (("count", 0.3), ("sidecart", 1.0), ("reload", 2.0)))
-    monkeypatch.setattr(beatport, "COUNT_SETTLE_SECONDS", 0.3)
 
 
 def resolve(shop, url, title="Signal"):

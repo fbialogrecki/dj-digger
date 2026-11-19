@@ -67,6 +67,8 @@ class Database:
         self._owner = None
         self._closed = False
         self._generations: dict[str, str] = {}
+        self._last_stem_miss_version = None
+        self._searchable_stems = None
         self._generation_lock = threading.Lock()
         try:
             self._executor.submit(self._open).result()
@@ -414,14 +416,30 @@ class Database:
         if also_containing:
             condition += " AND instr(normalized_stem, ?) > 0"
             values.append(also_containing)
+        nested = self._conn.in_transaction
         with self.connection() as conn:
+            if not nested:
+                # Repeated misses can search the names contiguously. SQLite still decides
+                # uniqueness for every possible hit. Only reuse a committed snapshot.
+                version = (conn.total_changes, conn.execute("PRAGMA data_version").fetchone()[0])
+                if version == self._last_stem_miss_version:
+                    if self._searchable_stems is None:
+                        self._searchable_stems = b"\n".join(
+                            row[0].encode() for row in conn.execute("SELECT DISTINCT normalized_stem FROM local_files")
+                        )
+                    if containing.encode() not in self._searchable_stems:
+                        return None
+                else:
+                    self._searchable_stems = None
             row = conn.execute(
                 f"""SELECT MIN(path) AS path,
                            COUNT(DISTINCT normalized_stem) AS variants
                     FROM local_files WHERE {condition}""",
                 values,
             ).fetchone()
-            return row["path"] if row and row["variants"] == 1 else None
+            if not nested and row["variants"] == 0:
+                self._last_stem_miss_version = version
+            return row["path"] if row["variants"] == 1 else None
 
     @owned
     def register_media(self, path: str, signature: str, *, parent_id=None) -> dict:
@@ -447,15 +465,18 @@ class Database:
             return dict(row) if row is not None else None
 
     @owned
-    def media_many(self, media_ids) -> dict[str, dict]:
-        ids = list(dict.fromkeys(media_ids))
+    def media_many(self, keys, *, by_path=False) -> dict[str, dict]:
+        column = 'path' if by_path else 'id'
+        keys = list(dict.fromkeys(keys))
         with self.connection() as conn:
             rows = []
             # SQLite caps bound parameters; 500 per query stays well under every build's limit.
-            for start in range(0, len(ids), 500):
-                chunk = ids[start:start + 500]
-                rows += conn.execute(f"SELECT * FROM media_files WHERE id IN ({','.join('?' * len(chunk))})", chunk).fetchall()
-            return {row['id']: dict(row) for row in rows}
+            for start in range(0, len(keys), 500):
+                chunk = keys[start:start + 500]
+                rows += conn.execute(f"""SELECT m.*, a.manual_json, a.result_json, a.signature AS analysis_signature
+                    FROM media_files m LEFT JOIN media_analysis a ON a.media_id=m.id
+                    WHERE m.{column} IN ({','.join('?' * len(chunk))})""", chunk).fetchall()
+            return {row[column]: dict(row) for row in rows}
 
     @owned
     def update_media_metadata(self, media_id, signature, metadata) -> bool:

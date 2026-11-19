@@ -1,8 +1,10 @@
 """Matching a crate against files on disk, and putting a path on the clipboard."""
 
 import os
+import sqlite3
 import subprocess
 import threading
+from contextlib import closing
 from pathlib import Path
 
 from dj_digger import clipboard, scanner
@@ -58,6 +60,27 @@ def test_a_track_with_no_file_matches_nothing(tmp_path: Path) -> None:
     local = scanner_over(tmp_path, "Artist - Song.mp3")
 
     assert local.match_track(Track(title="Absent", artist="Nobody", permalink_url="http://sc/4")) is None
+
+
+def test_decorated_matches_follow_changes_from_either_connection(tmp_path: Path) -> None:
+    local = scanner_over(tmp_path)
+    track = Track("Éclipse", "", artist="Someone")
+    for _ in range(2):
+        assert local.match_track(track) is None
+
+    first = tmp_path / "Someone - Éclipse (Live).mp3"
+    first.touch()
+    local.db.upsert_local_files([(str(first), 0, normalize_string(first.stem))])
+    assert local.match_track(track) == (str(first), True)
+    other = Track("Another", "", artist="Someone")
+    for _ in range(2):
+        assert local.match_track(other) is None
+
+    second = tmp_path / "Someone - Another (Live).mp3"
+    second.touch()
+    with closing(sqlite3.connect(local.db.path)) as conn, conn:
+        conn.execute("INSERT INTO local_files VALUES (?, ?, ?)", (str(second), 0, normalize_string(second.stem)))
+    assert local.match_track(other) == (str(second), True)
 
 
 def test_exact_matches_use_the_scan_index(tmp_path: Path, monkeypatch) -> None:

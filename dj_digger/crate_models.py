@@ -7,16 +7,16 @@ from typing import Any, NamedTuple, Self
 from .models import Crate, Track
 
 VERSION = 1
+_TRACK_FIELDS = frozenset(f.name for f in fields(Track))
 
 
 def _now() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
 
 
-def _track_from_json(data: dict[str, Any]) -> Track:
+def track_from_json(data: dict[str, Any]) -> Track:
     # Filtered by field name so a crate written by another version still loads.
-    known = {f.name for f in fields(Track)}
-    values = {key: value for key, value in data.items() if key in known}
+    values = {key: value for key, value in data.items() if key in _TRACK_FIELDS}
     values["extra_links"] = [tuple(pair) for pair in values.get("extra_links") or []]
     return Track(**values)
 
@@ -70,11 +70,11 @@ class CrateRecord:
         return {"version": VERSION, **asdict(self)}
 
     @classmethod
-    def from_json(cls, data: dict[str, Any]) -> Self:
+    def from_json(cls, data: dict[str, Any], *, tracks: list[Track] | None = None) -> Self:
         return cls(
             source=data.get("source") or "",
             title=data.get("title") or data.get("source") or "crate",
-            tracks=[_track_from_json(item) for item in data.get("tracks") or []],
+            tracks=tracks if tracks is not None else [track_from_json(item) for item in data.get("tracks") or []],
             removed_track_keys=list(data.get("removed_track_keys") or []),
             new_track_keys=list(data.get("new_track_keys") or []),
             imported_at=data.get("imported_at") or "",
