@@ -21,11 +21,11 @@ dj-digger is a free, open-source, local-first crate-digging desktop app for DJs,
 
 ## Open questions
 
-- Final domain: the site builds against a placeholder `SITE_URL` until it is set, and the Linux one-liner follows it.
 - Author credit: the site is signed 'Filip Białogrecki' with a link to the GitHub profile (github.com/fbialogrecki). Add LinkedIn, a personal site or a contact address?
 
 ## Decisions
 
+- The site lives at https://djdigger.app (Firebase Hosting; DNS on Cloudflare), and the Linux one-liner uses it.
 - One visual idea carries the site: the vinyl from the app icon, seen exactly from above, drawn from the same seeded generator as the icon (scripts/app_icon.py), as inline SVG. Plain like the icon, large, without a tracklist and without the tonearm (variant b): on wide screens a little under half of it is tucked past the window's right edge. It rides beside the text, turns as the page scrolls, and can be grabbed and turned to scroll. It stops where the page's text ends, above the full-width footer. On narrow screens it peeks from behind the hero.
 - The needle drop plays in place on a first visit, about 1.6 seconds, never with prefers-reduced-motion and never as an overlay. Going to another page turns the record over with a cross-document view transition.
 - No section numbers and no overline labels. Each page's record label has its own colours.

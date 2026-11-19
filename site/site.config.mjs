@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 
 // The one place the public address lives: canonical URLs, Open Graph, the sitemap
-// and the install one-liner all read it. Set SITE_URL when building for deployment.
-export const siteUrl = process.env.SITE_URL ?? "https://dj-digger.example";
+// and the install one-liner all read it. SITE_URL overrides it (a preview, another host).
+export const siteUrl = process.env.SITE_URL ?? "https://djdigger.app";
 
 export const repo = "https://github.com/fbialogrecki/dj-digger";
 export const chromeStore = "https://chromewebstore.google.com/detail/dj-digger/ndimmdooibgcajgnoncdnckolhlmnnkb";
