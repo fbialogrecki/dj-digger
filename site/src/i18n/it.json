@@ -1,0 +1,60 @@
+{
+  "skip": "Vai al contenuto",
+  "primary": "Principale",
+  "nav": {
+    "app": "App",
+    "extension": "Estensione",
+    "about": "Informazioni",
+    "download": "Scarica",
+    "github": "GitHub"
+  },
+  "menu": "Menu",
+  "language": "Lingua",
+  "toLight": "Passa al tema chiaro",
+  "toDark": "Passa al tema scuro",
+  "ogAlt": "dj-digger: da una playlist SoundCloud ai file sui tuoi deck. L'icona dell'app, un disco visto dall'alto.",
+  "footer": {
+    "free": "Gratuito e open source, Apache 2.0.",
+    "site": "Sito",
+    "project": "Progetto",
+    "privacy": "Informativa sulla privacy",
+    "license": "Licenza",
+    "madeBy": "Fatto da",
+    "credits": "Crediti"
+  },
+  "copy": "Copia",
+  "copied": "Copiato",
+  "play": "Riproduci",
+  "pause": "Pausa",
+  "stop": "Stop",
+  "previous": "Brano precedente",
+  "next": "Brano successivo",
+  "close": "Chiudi",
+  "openFull": "Apri lo screenshot della finestra intera",
+  "player": {
+    "pauseAnim": "Metti in pausa l'animazione del lettore",
+    "playAnim": "Riproduci l'animazione del lettore",
+    "note": "Una ricostruzione del lettore di dj-digger con un brano vero. La copertina e la forma d'onda vengono da SoundCloud.",
+    "music": "Musica:"
+  },
+  "lightbox": {
+    "label": "Screenshot ingrandito",
+    "zoom": "Mostra questo screenshot più grande"
+  },
+  "flow": {
+    "title": "Dove vanno i dati dell'estensione",
+    "desc": "Un riquadro, il tuo computer, contiene l'app desktop dj-digger e il tuo browser con l'estensione dj-digger. App ed estensione sono unite dal native messaging, il loro unico canale. Le uniche frecce che escono dal riquadro vanno dalle schede che l'estensione ha aperto per l'app a cinque siti: Hypeddit, ToneDen, Bandcamp, Beatport e SoundCloud. Fuori c'è un riquadro per lo sviluppatore, senza frecce: lì non viene inviato nulla.",
+    "computer": "Il tuo computer",
+    "app": "app dj-digger",
+    "appNote": "invia i passi al browser",
+    "native": "Native messaging",
+    "nativeNote": "l'unico canale",
+    "browser": "Il tuo browser",
+    "extension": "estensione dj-digger",
+    "tabs": "Schede aperte",
+    "tabsNote": "per l'app",
+    "developer": "Sviluppatore",
+    "developerNote": "nulla inviato",
+    "sites": "Siti"
+  }
+}

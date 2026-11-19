@@ -1,5 +1,6 @@
 ---
 // A command or snippet with a Copy button. The button appears only when scripts run.
+import Icon from "./Icon.astro";
 import { ui } from "../i18n/index.mjs";
 
 const { code, label } = Astro.props;
@@ -9,5 +10,7 @@ const t = ui(Astro.url.pathname);
 <div class="code">
   {label && <p class="code-label">{label}</p>}
   <pre tabindex="0"><code>{code}</code></pre>
-  <button type="button" data-copy={code} data-copied={t.copied} aria-live="polite" hidden>{t.copy}</button>
+  <button class="button compact" type="button" data-copy={code} data-copied={t.copied} hidden>
+    <Icon name="copy" class="idle" /><Icon name="check" class="done" /><span aria-live="polite">{t.copy}</span>
+  </button>
 </div>

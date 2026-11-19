@@ -5,394 +5,128 @@ dj-digger is a free, open-source, local-first crate-digging desktop app for DJs,
 ## Brief for the AI building this site
 
 - The structure, page list and section order below are agreed. Do not add, remove or reorder without asking.
-- Wireframes (blueprint.html) describe structure only. Visual style is not decided here.
-- Copy is a draft: improve it, keep its meaning.
-- [Bracketed] values are placeholders. Do not replace them with invented facts; ask for the real ones.
-- Resolve the open questions before launch.
+- This document describes structure only; the visual decisions it records are the owner's and stay.
+- Copy is a draft: improve it, keep its meaning, and keep it short.
+- Only what shipped in the release the site describes (1.6.0): `PROJECT_SPECIFICATION.md`, `README.md` and `docs/` at that tag are the source of truth.
 
 **Site type:** Business (open-source product site) + engineering showcase
 
 ## Structure: Multi-page
 
-- Two audiences need two paths: a DJ wants to see the app and download it; an engineer or recruiter wants to see how it is built. 'Liner notes' is the second path and has real content behind it (docs/architecture.md, docs/kick-pulse-validation.md, specification sections 11 and 14).
+- Two audiences need two paths: a DJ wants to see the app and download it; an engineer or recruiter wants to see how it is built. About is the second path and has real content behind it (docs/architecture.md, docs/kick-pulse-validation.md, specification sections 11 and 14).
 - The app and the extension answer different questions (what can it do / what does it touch in my browser), and the extension page is what a Chrome Web Store visitor needs on its own.
-- Download has three platforms with different files, warnings, checksums and a Linux install script, which would bury the landing page.
-- The record concept carries across pages: the landing page is the sleeve, /liner-notes/ is the text printed inside it, /download/ is the pressing plant, and every page is another side of the same record.
-
-**What would change this:** A single page would do if the extension were a footnote and the site did not need to speak to engineers. Add a /changelog/ or /docs/ page once user guides exist outside the repository; today they live on GitHub and the site links there.
+- Download has three systems with different files, warnings and a Linux install command, which would bury the landing page.
 
 **Primary call to action:** Download
 
 ## Open questions
 
-- Final domain and Firebase project ID are not decided yet. Until then the site builds against a placeholder URL and README/docs point the Linux one-liner at the script's raw GitHub URL.
-- Author credit: the plan signs the site 'Filip Białogrecki' with a link to the GitHub profile (github.com/fbialogrecki). Add LinkedIn, a personal site or a contact address?
-- Firefox: no signed .xpi is attached to the 1.6.0 release, so the extension page says 'signed file when a release provides one, otherwise a temporary add-on'.
-- The player loop must come from the real UI. If the kick pulse cannot be captured faithfully from an offscreen window, the page falls back to the still screenshot rather than a simulated effect.
-- The screenshots are taken from the working tree, which today contains unreleased changes of the app and the extension. Regenerate them from the release tag before launch.
+- Final domain: the site builds against a placeholder `SITE_URL` until it is set, and the Linux one-liner follows it.
+- Author credit: the site is signed 'Filip Białogrecki' with a link to the GitHub profile (github.com/fbialogrecki). Add LinkedIn, a personal site or a contact address?
 
-## Assumptions
+## Decisions
 
-- One visual idea carries the site: the vinyl from the app icon, always seen exactly from above, drawn from the same seeded generator as the icon (scripts/app_icon.py), as inline SVG. No 3D library.
-- The record is plain, like the icon: a black disc with its radial code and a coloured label, no drawn grooves or bands and nothing to click on it. It turns as the page scrolls and the tonearm travels from the edge to the label, so it shows how far down the page you are. It can be grabbed and turned by hand, and the page scrolls with it. It does not pulse while scrolling. A text tracklist beside it links to the page's sections and marks the one being read; on narrow screens the record peeks from behind the hero and a 'now playing' bar carries the tracklist.
-- The needle drop plays in place, on the hero's record, with the headline already on screen: the tonearm lowers, the record spins up and its radial strokes light like a waveform on a 124 BPM kick, for about 1.6 seconds, once per session, never with prefers-reduced-motion. There is no splash overlay, so it cannot delay the content, and without JavaScript the record is simply still.
-- Scrolling is playback, quietly: the record turns and the arm moves; there is no light show outside the needle drop.
-- Every page numbers its sections 01, 02, ... . There is no 'Side A' or 'Side B' naming. Each page's record label has its own colours. Going to another page turns the record over with a cross-document View Transition: first the tonearm lifts off the record, then the disc flips to its other side, then the arm comes back down; other browsers just navigate.
-- Motion uses the platform first (CSS scroll-driven animations, View Transitions) with a small script as fallback, loaded after the page is idle.
-- Real UI everywhere: screenshots, tight crops of them, and one short muted loop of the real player with its kick pulse, all regenerated by scripts/site_screenshots.py from demo data. Full-window shots open from the crops.
-- Content is English and describes only what shipped in 1.6.0 (PROJECT_SPECIFICATION.md and README.md are the source of truth). No testimonials, user counts or invented numbers; figures on Liner notes are read from the repository at build time or quoted from its documents.
-- No analytics, tracking, cookies or third-party requests; fonts are self-hosted. No form, so no cookie banner and no on-site legal page: the privacy policy stays at PRIVACY.md on GitHub and the footer links to it.
-- Download links carry no hard-coded version: the build reads the version from pyproject.toml and composes the GitHub release asset URLs; the deploy workflow runs after a release is published and refuses to deploy if an installer file is missing.
-- The site URL lives in one config value used by canonical URLs, Open Graph, the sitemap and the install one-liner.
-- Draft copy in the wireframes is a starting point; final copy is written during the build.
+- One visual idea carries the site: the vinyl from the app icon, seen exactly from above, drawn from the same seeded generator as the icon (scripts/app_icon.py), as inline SVG. Plain like the icon, large, without a tracklist and without the tonearm (variant b): on wide screens a little under half of it is tucked past the window's right edge. It rides beside the text, turns as the page scrolls, and can be grabbed and turned to scroll. It stops where the page's text ends, above the full-width footer. On narrow screens it peeks from behind the hero.
+- The needle drop plays in place on a first visit, about 1.6 seconds, never with prefers-reduced-motion and never as an overlay. Going to another page turns the record over with a cross-document view transition.
+- No section numbers and no overline labels. Each page's record label has its own colours.
+- Buttons are drawn as the player's keys: mono uppercase label after an icon; one magenta primary per screen, the rest dark keys with a blue edge. No underlined text links: a link is a button, or plain in running text.
+- Icons are Phosphor Icons, inlined at build time.
+- Real UI only: screenshots and tight crops regenerated by scripts/site_screenshots.py from demo data on the release tag. A shot opens larger in a lightbox (the whole-window shot it was cut from, for a crop).
+- The player is an HTML recreation of the app's player, not a screen recording: "Mathilde Fernandez - Temple Sourire (Strenx & Lezguy Edit)" by Strenx & Lezguy, used with permission, with its SoundCloud artwork and waveform. No audio, and no BPM, key or kick light, since SoundCloud gives no tempo or key for it. Credited on About, beside "Drift Away" by JMHBM (CC BY 4.0), the demo track of the screenshots.
+- Browsers are Chrome, Edge and Brave. No Firefox, no command-line tool, no PyPI, pip, pipx or uv install instructions.
+- Download links carry no hard-coded version: the build reads it from pyproject.toml and composes the GitHub release asset URLs.
+- No analytics, cookies or third-party requests; fonts are self-hosted. The privacy policy stays at PRIVACY.md on GitHub.
+- Accessibility: WCAG AA contrast in the dark and the light theme (the site follows the system; the header button switches it), full keyboard use, reduced motion respected, complete without JavaScript.
+- Seven languages, as in the app; English at the root, the others under /de/, /es/, /fr/, /it/, /pl/, /ru/ with the same sections.
 
 ## Sitemap
 
-- Home (the sleeve) (`/`)
-  - Desktop app (`/app`)
-  - Browser extension (`/extension`)
-  - Download (choose your pressing) (`/download`)
-  - Liner notes (how it is built) (`/liner-notes`)
-  - 404 (empty groove) (`/404`)
+- Home (`/`)
+  - Desktop app (`/app/`)
+  - Browser extension (`/extension/`)
+  - Download (`/download/`)
+  - About (`/about/`; the former `/liner-notes/` redirects here with a 301, in every language)
+  - 404
 
-## Home (the sleeve) (`/`)
-
-**Goal:** Show a DJ in one screen what dj-digger is, with the real app visible, play the digging loop as one scroll scene, and send them to Download. Give an engineer the door to Liner notes.
+## Every page
 
 1. **Navbar** (`navbar`)
-   - Purpose: One line at every width: brand on the left, the destinations on the right as plain text links. No button here: the only Download button on a screen is the page's own, so the action is never shown twice. On narrow screens the links fold into a Menu disclosure that works without JavaScript; the tracklist lives in the 'now playing' bar at the bottom.
-   - Items:
-     - App → `app`
-     - Extension → `extension`
-     - Liner notes → `liner-notes`
-     - Download → `download`
-     - GitHub → `https://github.com/fbialogrecki/dj-digger`
-2. **01 Hero** (`hero-split`)
-   - Purpose: What is this and is it for me, with the product on screen. A concrete headline instead of a slogan, the record on the right playing its needle drop in place, and the real player (the looping clip, cropped to waveform and transport) under the copy so the first screen already shows the app. One primary action and one quiet link. The same record then stays beside the text for the rest of the page.
+   - Purpose: One line at every width: brand on the left; App, Extension, About, Download, GitHub, the language switcher and the theme button on the right, each with its icon. On narrow screens the links fold into a Menu disclosure that works without JavaScript.
+2. **Footer** (`footer`)
+   - Purpose: Full width, under the text and the record. The brand with 'Free and open source, Apache 2.0.', the site's pages, then 'Made by Filip Białogrecki, 2026' and Privacy policy, License, GitHub, Credits (About `#credits`).
+
+## Home (`/`)
+
+**Goal:** Show a DJ in one screen what dj-digger is, with the player on screen, play the digging loop as one pinned scene, and send them to Download.
+
+1. **Hero** (`start`)
    - Heading: From a SoundCloud playlist to files on your decks
-   - Text: dj-digger is a local-first crate-digging app. It collects whole playlists, lets you audition them, remembers what you decided, and finds the safest way to buy or download each track.
-   - CTA: Download → `download`
-   - Items:
-     - Free and open source
-     - Windows · macOS · Linux
-     - No account, no backend
-3. **02 The digging loop** (`steps`)
-   - Purpose: The main scene of the page. The section pins while the visitor scrolls through four steps; each step swaps the real screenshot beside the text (sidebar, player, status filter, cart results) while the record keeps turning. Without scroll-driven support or with reduced motion it is four stacked steps, each with its screenshot.
-   - Heading: One loop, start to finish
-   - Items:
-     - Collect: Paste a playlist, likes, reposts, profile or track link. The whole list arrives through SoundCloud's API, not just the rows a page rendered.
-     - Audition: Preview, seek, search, filter and sort without leaving the playlist. The waveform and the record glow on every kick.
-     - Decide: Mark tracks got or skipped. The decision follows the track into every playlist it appears in.
-     - Buy or download: Follow classified store links, resolve download gates, fill your Bandcamp or Beatport cart. Checkout stays yours.
-4. **03 The desktop app** (`content-split`)
-   - Purpose: Teaser for /app/ with one wide crop of the real main window. Three bullets that the loop above did not already say; depth lives on the subpage.
-   - Heading: The desktop app
-   - Text: A keyboard-driven desktop app: playlists in the sidebar, a track table with store badges, a player with a waveform.
-   - CTA: Explore the app → `app`
-   - Items:
-     - Knows what you already own: scans your folders and plays from disk
-     - Estimates BPM and key, exports copies checked against documented deck audio profiles
-     - A headless CLI for your own scripts
-5. **04 The browser extension** (`content-split`)
-   - Purpose: Teaser for /extension/ with the real toolbar-panel screenshot. Says in the first sentence that it only works with the app running, so nobody installs it alone.
-   - Heading: The browser extension
-   - Text: The app's hands in your own browser. It finishes download gates, fills carts in background tabs and puts the app's player in your toolbar. It needs the desktop app running on the same computer.
-   - CTA: Explore the extension → `extension`
-   - Items:
-     - Works in the browser and the accounts you already use
-     - Talks only to dj-digger on your computer
-     - Chrome, Edge, Brave, Chromium; Firefox separately
-6. **05 Yours, and honest about its limits** (`features-alternating`)
-   - Purpose: Trust, in two plain columns of text rather than cards: what stays on your machine, and what the app will not do. Naming the limits is the point; it is what a cautious visitor is looking for. Links to the privacy policy on GitHub.
-   - Heading: Yours, and honest about its limits
-   - Items:
-     - What stays with you: No dj-digger account and no dj-digger server. Playlists, decisions and settings live in a local database; the SoundCloud login sits in your system keyring; passwords are never read. This website sets no cookies and loads nothing from other servers. → `https://github.com/fbialogrecki/dj-digger/blob/main/PRIVACY.md`
-     - What it will not do: It never pays or checks out: tabs heading for a checkout page are closed. It does not solve CAPTCHAs or sign in for you. It does not guess: ambiguous titles, changed prices and album-only tracks stop and are reported. It does not format drives or write to your rekordbox library.
-7. **06 Download** (`cta`)
-   - Purpose: The end of the record: the tonearm reaches the label here. One button with the platforms named under it, and a quiet second link for the engineer who scrolled this far.
-   - Heading: Choose your pressing
-   - Text: Windows 10 and 11, macOS 15 or newer, and Linux. Free, no sign-up. Curious how it is built? Read the liner notes.
-   - CTA: Download → `download`
-8. **Footer** (`footer`)
-   - Purpose: Record-label small print. Site pages, project links, the legal links that live on GitHub, the author's signature, and a one-line colophon whose figures are measured at build time (no trackers, no third-party requests, the script weight).
-   - Items:
-     - App → `app`
-     - Extension → `extension`
-     - Download → `download`
-     - Liner notes → `liner-notes`
-     - GitHub → `https://github.com/fbialogrecki/dj-digger`
-     - PyPI → `https://pypi.org/project/dj-sc-digger/`
-     - Chrome Web Store → `https://chromewebstore.google.com/detail/dj-digger/ndimmdooibgcajgnoncdnckolhlmnnkb`
-     - Privacy policy → `https://github.com/fbialogrecki/dj-digger/blob/main/PRIVACY.md`
-     - License (Apache 2.0) → `https://github.com/fbialogrecki/dj-digger/blob/main/LICENSE`
-     - Made by Filip Białogrecki → `https://github.com/fbialogrecki`
+   - Text: one sentence on what it does. CTA: Download (primary). Facts: Free and open source · Windows, macOS, Linux · No account, no backend. Under them the player recreation.
+2. **The digging loop** (`loop`)
+   - Purpose: Pins on wide screens with scroll-driven animations and plays three steps one at a time, each with its shot; elsewhere three stacked steps.
+   - Steps: Collect (the sidebar crop) · Decide (the status filter crop) · Buy or download (the extension panel during a cart job; checkout stays yours).
+3. **The desktop app** (`app`)
+   - Purpose: One shot of the main window, three short facts, a button to /app/.
+4. **The browser extension** (`extension`)
+   - Purpose: One sentence (in your own Chrome, Edge or Brave it clears download gates, fills carts and puts the player in the toolbar), a button to /extension/.
+5. **Yours, and honest about its limits** (`trust`)
+   - Purpose: Three short facts: your data stays on your computer, it never pays or checks out, it never guesses.
+6. **Download** (`get`)
+   - Purpose: The end of the record: the version, the systems, the primary Download button.
 
-## Desktop app (`/app`)
+## Desktop app (`/app/`)
 
-**Goal:** Show in detail, with real screenshots, what the desktop app does, in the order a digging session runs, so an interested DJ decides to install it. Search intent: 'SoundCloud playlist to Bandcamp / Beatport links', 'crate digging app for DJs'.
+**Goal:** Show with real crops what the desktop app does, in the order a digging session runs, so a DJ decides to install it.
 
-**Inherits:** navbar from Home (the sleeve), footer from Home (the sleeve)
+1. **Hero** (`overview`): the whole main window once, large; Download.
+2. **Collect** (`collect`): whole playlists, likes, reposts, profiles and tracks through SoundCloud's API; sidebar crop.
+3. **Audition** (`audition`): stream a preview or play the file on disk; the kick light; the player.
+4. **Decide** (`decide`): statuses that follow the track into every playlist; matching against files on disk; status filter crop.
+5. **Acquire** (`acquire`): classified store links, download gates, carts never checkout; three crops.
+6. **Prepare** (`prepare`): the local library with BPM and key; export for documented deck audio profiles; two crops.
+7. **System requirements** (`requirements`): Windows 10 (1809+) or 11 x64; macOS 15+, Apple Silicon or Intel; Linux through the install command; Chrome, Edge or Brave with the extension.
+8. **Get it** (`end`): Download.
 
-1. **01 Hero** (`hero-split`)
-   - Purpose: Shows the whole main window once, large. From here down every track carries a tight crop of the real UI in the flow of its text, and each crop opens the full-window screenshot it was cut from. The record's deck stays beside the text as on every page, so there is no second pinned stage.
-   - Heading: The whole digging loop in one window
-   - Text: Five tracks, in the order a session runs: collect, audition, decide, acquire, prepare.
-   - CTA: Download → `download`
-2. **02 Collect** (`content-split`)
-   - Purpose: Crop: sidebar with playlists and the import growing. What goes in, and that it is complete.
-   - Heading: Whole playlists, not a scrolled page
-   - Text: Paste a SoundCloud link and the app reads the whole collection through SoundCloud's API, so nothing hides past the last rendered row.
-   - Items:
-     - Playlists and sets, likes, reposts, artist profiles, single tracks
-     - Sign in to read your own private playlists
-     - Refreshing a playlist puts what it gained on top, marked NEW
-3. **03 Audition** (`content-split`)
-   - Purpose: The loop of the real player with its kick pulse; the still screenshot is its poster and its fallback. Explains stream vs. file on disk, prefetch, and the off switch.
-   - Heading: Preview that feels the kick
-   - Text: Stream a SoundCloud preview or play the file on disk. Seek on the waveform; the next tracks are prepared before the current one ends.
-   - Items:
-     - The waveform and the record's backdrop light up on the kick drum, not the bass line
-     - Previews are decoded in memory and never saved to disk
-     - Search, filter and sort without leaving the playlist; keyboard shortcuts for everything
-     - Animation can be switched off in Settings
-4. **04 Decide** (`content-split`)
-   - Purpose: Crop: status column with the status filter open. Statuses, memory across playlists, and matching against files already on disk.
-   - Heading: Crates that remember
-   - Text: Mark tracks got or skipped; the app also remembers what you played and opened. A decision follows the track into every playlist it appears in.
-   - Items:
-     - Scans your music folders: tracks you already own are marked got and play from disk
-     - Hide handled tracks with one key
-     - Filter by status, store, genre and more
-5. **05 Acquire** (`features-alternating`)
-   - Purpose: The longest track, three movements, each with its own crop: store pills and badges; the 'Gates need you' dialog; the 'Cart results' dialog. Honest about what stays manual in each.
-   - Heading: The safest way to each track
-   - Items:
-     - Every link, sorted: Purchase and download links are classified with strict domain matching into Bandcamp, Beatport, Traxsource, Juno Download, Apple, record shops, download gates, smart links and free SoundCloud downloads. A link that turns out to be a list of shops is opened, and the store links behind it land on the track.
-     - Download gates, handled: Follow-to-download gates on Hypeddit, ToneDen, GateRush and Droploud are resolved through their own download flows. Social steps run only if you allow them in Settings; CAPTCHAs and provider sign-ins stay with you, and the app asks first.
-     - Carts, never checkout: Tick tracks and the app fills your Bandcamp cart, and your Beatport cart when the exact track is known, in background tabs of your own browser. Every product page is rechecked right before its click; anything ambiguous stops instead of guessing. Then the cart tab is yours.
-6. **06 Prepare** (`features-alternating`)
-   - Purpose: Two movements with crops: the local folder view with BPM and key chips; the 'Export audio' dialog with deck checkboxes. Precise about the boundary: audio-file compatibility, not hardware testing.
-   - Heading: Ready for the decks
-   - Items:
-     - Your local library: Browse folders and build local playlists. BPM and key are estimated locally and can be corrected by hand; analysis never writes audio tags or rekordbox data. WAV, AIFF, FLAC, MP3, AAC and M4A.
-     - Export for the decks: Export copies to a new folder, converting only the files that need it. The dialog shows which documented deck audio profiles the planned set fits. Default: WAV, up to 24-bit / 48 kHz. It never upsamples for show, never formats a drive.
-7. **07 Bonus track: command line** (`content-split`)
-   - Purpose: For scripters: the headless CLI in three real commands, as a code block with a copy button. No screenshot.
-   - Heading: A CLI for your scripts
-   - Text: The headless dj-digger command collects a playlist, saves it to the library and exports its links as JSON or CSV.
-   - Items:
-     - dj-digger https://soundcloud.com/user/sets/playlist -f csv -o playlist.csv
-     - dj-digger https://soundcloud.com/user/likes -n 20 -f json -o likes.json
-     - dj-digger open likes.json --category bandcamp
-8. **08 System requirements** (`detail`)
-   - Purpose: Removes the last practical doubt before download. A plain definition list; values come from the specification and the installation guide.
-   - Heading: System requirements
-   - Items:
-     - Windows: Windows 10 (1809 or newer) or 11, 64-bit Intel or AMD
-     - macOS: macOS 15 or newer, Apple Silicon or Intel
-     - Linux: Tested on Ubuntu 24.04, Debian 12, Fedora, Arch and openSUSE Tumbleweed; the install script sets up the rest
-     - From PyPI: Python 3.12+, FFmpeg and ffprobe on PATH
-     - Browser features: Chrome, Edge, Brave, Chromium or Firefox with the dj-digger extension
-9. **09 Get it** (`cta`)
-   - Purpose: Ends the page with the next step: download first, and the extension second.
-   - Heading: Put it on
-   - Text: Then flip the record: the extension connects the app to your browser.
-   - CTA: Download → `download`
+## Browser extension (`/extension/`)
 
-## Browser extension (`/extension`)
+**Goal:** Explain only the extension: what it does, that it needs the running desktop app, which browsers, which permissions and why, and where data goes.
 
-**Goal:** Explain only the extension: what it does, that it needs the running desktop app, which browsers, which permissions and why, and where data goes, so a visitor from the Chrome Web Store or a cautious user trusts it and installs it.
+1. **Hero** (`overview`): the toolbar panel; the Chrome Web Store as the primary action; the app requirement in the first sentence.
+2. **What it does** (`does`): download gates, store carts, SoundCloud sign-in, toolbar player, import from SoundCloud.
+3. **It needs the desktop app** (`needs-app`): install and start the app, install the extension, grant site access; the Connect browser crop.
+4. **Supported browsers** (`browsers`): Chrome, Edge and Brave from the Chrome Web Store; browsers installed as Flatpak or Snap cannot start the link to the app.
+5. **Permissions and why** (`permissions`): every permission with its reason, and the exact sites.
+6. **Where your data goes** (`data`): the diagram of one computer with the app and the browser; nothing goes to the developer; the privacy policy.
+7. **Start with the app** (`end`): Download.
 
-**Inherits:** navbar from Home (the sleeve), footer from Home (the sleeve)
+## Download (`/download/`)
 
-1. **01 Hero** (`hero-split`)
-   - Purpose: Opens with the real toolbar-panel screenshot. Primary action here is the Chrome Web Store; the app requirement is in the first paragraph.
-   - Heading: The app's hands in your own browser
-   - Text: The dj-digger extension lets the desktop app finish download gates and fill store carts in the browser you already use, and puts the app's player in your toolbar. It does nothing on its own.
-   - CTA: Add from Chrome Web Store → `https://chromewebstore.google.com/detail/dj-digger/ndimmdooibgcajgnoncdnckolhlmnnkb`
-2. **02 What it does** (`features-grid`)
-   - Purpose: The five jobs, each one sentence, matching the store listing.
-   - Heading: What it does
-   - Items:
-     - Finishes download gates: Hypeddit and ToneDen gates the app cannot finish alone are completed here, out of sight, and the file goes to the app.
-     - Fills store carts: Adds the tracks you picked to your Bandcamp and Beatport carts in background tabs. It never checks out.
-     - SoundCloud sign-in: The app can use the SoundCloud session your browser already has, so you paste nothing.
-     - Toolbar player: Play, pause, skip and seek the track playing in the app, follow the running job and cancel it.
-     - Import from SoundCloud: On a playlist or profile, import it from the panel, or right-click a link: Dig in dj-digger.
-3. **03 It needs the desktop app** (`steps`)
-   - Purpose: The most common failure, addressed head-on. Crop: the app's 'Connect browser' dialog. Three steps in the order that works.
-   - Heading: It needs dj-digger running on this computer
-   - Items:
-     - Install and start the app: The desktop app registers itself with your browsers at every start. → `download`
-     - Install the extension: From the Chrome Web Store, or the Firefox steps below.
-     - Grant site access: The extension's welcome page shows 'Desktop app link' and 'Site access' and asks for what is missing.
-4. **04 Supported browsers** (`cards`)
-   - Purpose: Which browsers and how each installs. Firefox is separate and honest about being a signed file or a temporary add-on. Notes that Flatpak and Snap browsers cannot start the app link.
-   - Heading: Supported browsers
-   - Items:
-     - Chrome, Edge, Brave, Chromium: Install from the Chrome Web Store. Edge asks to allow extensions from other stores first. → `https://chromewebstore.google.com/detail/dj-digger/ndimmdooibgcajgnoncdnckolhlmnnkb`
-     - Firefox: The signed extension file when a release provides one; otherwise load it as a temporary add-on from the app's extension folder. → `https://github.com/fbialogrecki/dj-digger/blob/main/docs/installation.md#connect-your-browser`
-     - Not supported: Browsers installed as Flatpak or Snap cannot start the link to the app.
-5. **05 Permissions and why** (`table`)
-   - Purpose: Every permission the browser shows at install time, with its reason, in a table. Lists the exact sites it can act on. Source: manifest.json and the store listing's justifications.
-   - Heading: Permissions, and what each one is for
-   - Text: It acts only on Hypeddit, ToneDen, Bandcamp, Beatport and SoundCloud, and only in the tabs it opened for the app.
-   - Items:
-     - Permission
-     - What the browser calls it
-     - Why it is needed
-6. **06 Where your data goes** (`content-split`)
-   - Purpose: A diagram instead of a bullet list: one box labelled 'your computer' containing the browser with the extension, the native-messaging link, and the desktop app; arrows out of the box go only to the five sites you already use. Beside it, the three sentences that matter and the link to the privacy policy.
-   - Heading: Nothing leaves this computer for us
-   - Text: The extension talks only to the dj-digger app on your own computer. Nothing is sent to the developer; there are no analytics and no ads.
-   - CTA: Read the privacy policy → `https://github.com/fbialogrecki/dj-digger/blob/main/PRIVACY.md`
-   - Items:
-     - No remote code; no messages from other extensions or websites
-     - Only session data, cleared when the browser closes
-     - Tabs heading for a checkout or payment page are closed
-7. **07 Start with the app** (`cta`)
-   - Purpose: Ends the page: get the app first if you do not have it.
-   - Heading: No app yet? Start there.
-   - Text: The extension waits for the desktop app.
-   - CTA: Download the app → `download`
+**Goal:** Get the right file onto the visitor's computer with no surprises.
 
-## Download (choose your pressing) (`/download`)
+1. **Download dj-digger** (`download`)
+   - Purpose: The version, then one box with tabs Windows, macOS and Linux. The visitor's system is detected in the browser only (nothing is sent); its tab moves first and is selected. Tabs follow the WAI-ARIA pattern (arrow keys, Home and End). Without JavaScript the three systems stand one under another.
+   - Windows: Windows 10 (1809+) or 11, 64-bit; one .exe; what SmartScreen says and how to run it anyway; the installation guide.
+   - macOS: macOS 15+; two disk images, Apple Silicon and Intel; what Gatekeeper says and Open Anyway; the installation guide.
+   - Linux: the one command (`wget -qO- https://[site]/install.sh | sh`) with Copy, one sentence, and Read the script.
+2. **Verify your download** (`verify`)
+   - Purpose: One line and one command each for Windows and macOS against the `.sha256` beside the file; All releases and checksums.
+3. **After installing** (`next`)
+   - Purpose: One sentence and Get the extension.
 
-**Goal:** Get the right file onto the visitor's computer with no surprises: pick the platform (theirs is detected and highlighted), explain the unsigned-preview warning before it appears, give Linux a one-line install plus a manual path, and let anyone verify what they downloaded.
+## About (`/about/`)
 
-**Inherits:** navbar from Home (the sleeve), footer from Home (the sleeve)
+**Goal:** Show an engineer or a recruiter how dj-digger is built. Everything stated is backed by a document or a file in the repository and links to it.
 
-1. **Choose your pressing** (`cards`)
-   - Purpose: Title, the current version (read from pyproject.toml at build time) and three record sleeves side by side (stacked on narrow screens). The visitor's system is detected in the browser and its sleeve is highlighted and moved first; without JavaScript all three look equal. Each sleeve holds its real download links: Windows one .exe, macOS two DMGs, Linux jumps to the command below.
-   - Heading: Choose your pressing
-   - Text: dj-digger [version from pyproject.toml] is free and open source.
-   - Items:
-     - Windows: Windows 10 (1809+) and 11, x64. Installer: dj-digger-[version]-windows-x64-test.exe → `https://github.com/fbialogrecki/dj-digger/releases/latest`
-     - macOS: macOS 15 or newer. Two disk images: Apple Silicon (arm64) and Intel (x86_64). → `https://github.com/fbialogrecki/dj-digger/releases/latest`
-     - Linux: One command installs the app and what it needs. Ubuntu, Debian, Fedora, Arch, openSUSE. → `download#Linux install`
-2. **Unsigned preview notice** (`text`)
-   - Purpose: Says before the download what the system will say after it: these are unsigned test builds, Windows SmartScreen and macOS Gatekeeper will warn, here is the guide. Styled as a notice, not as an error.
-   - Heading: These are unsigned preview builds
-   - CTA: Read the installation guide → `https://github.com/fbialogrecki/dj-digger/blob/main/docs/installation.md`
-   - Items:
-     - dj-digger is a free hobby project. The Windows installer and the macOS disk images have no verified publisher signature and no Apple notarization, so your system may warn that the app is unrecognized.
-     - The installation guide explains why this happens and how to approve this one app. Keep your system's protections on.
-3. **Linux install** (`content-split`)
-   - Purpose: The one-liner with wget, the curl variant next to it, a copy button, and a visible 'read the script before running it' link. Says what the script does and that it asks before anything needing sudo.
-   - Heading: Linux: one command
-   - Text: wget -qO- https://[site domain]/install.sh | sh   ·   curl -fsSL https://[site domain]/install.sh | sh
-   - CTA: Read the script first → `https://github.com/fbialogrecki/dj-digger/blob/main/site/public/install.sh`
-   - Items:
-     - Installs uv into your home directory, then dj-digger with its desktop and analysis extras
-     - Checks for FFmpeg and the system libraries Qt needs; shows the exact package command and asks before running it with sudo
-     - Adds a menu entry, and updates dj-digger when you run it again
-     - Flags: --dry-run shows what it would do, --yes skips the question
-4. **Manual install** (`text`)
-   - Purpose: For people who do not pipe scripts into a shell, and for any system with Python: the uv and pipx commands as code blocks, plus how to start the app.
-   - Heading: Or install it yourself
-   - Items:
-     - uv tool install 'dj-sc-digger[gui,analyze]'
-     - pipx install 'dj-sc-digger[gui,analyze]'
-     - Needs Python 3.12 or newer, and FFmpeg with ffprobe on your PATH. Start the app with dj-digger-gui.
-5. **Verify your download** (`text`)
-   - Purpose: Credibility for the careful: every release publishes SHA256SUMS. One command per system to check the file, and the link to the release page with the checksums.
-   - Heading: Verify your download
-   - CTA: All releases and checksums → `https://github.com/fbialogrecki/dj-digger/releases`
-   - Items:
-     - Every release carries a SHA256SUMS file and a .sha256 beside each installer.
-     - Windows: Get-FileHash <file> -Algorithm SHA256   ·   macOS: shasum -a 256 <file>   ·   Linux: sha256sum <file>
-     - Download only from github.com/fbialogrecki/dj-digger or this site.
-6. **After installing** (`cta`)
-   - Purpose: The next step after the file is on disk: connect the browser, the extension.
-   - Heading: Installed? Connect your browser.
-   - Text: Download gates and store carts run through the dj-digger extension.
-   - CTA: Get the extension → `extension`
+1. **Hero** (`notes`): how dj-digger is built, by whom, with what; no button.
+2. **Architecture** (`architecture`): controllers over application services, the SQLite owner thread; docs/architecture.md.
+3. **The browser boundary** (`browser`): one channel, a fixed list of sites, own tabs only, a hard stop before money; specification 11.4.
+4. **Untrusted by default** (`untrusted`): URL boundaries, SSRF guard, download limits, cart revalidation, secrets; specification 11.1 to 11.3.
+5. **Kick pulse** (`kick`): what the light follows and how it was validated; figures quoted from docs/kick-pulse-validation.md.
+6. **Tests and releases** (`releases`): offline suite, live contract checks, installers, publishing.
+7. **This website** (`website`): the colophon, figures measured at build time.
+8. **Credits and sources** (`credits`): source code, specification, changelog, the author, fonts, icons, the player's track and the screenshots' demo track.
 
-## Liner notes (how it is built) (`/liner-notes`)
+## 404
 
-**Goal:** Show an engineer or a recruiter how dj-digger is built and how carefully: architecture, trust boundaries, the kick detector and its validation, tests and releases, and this website itself. Everything stated here is backed by a document or a file in the repository and links to it.
-
-**Inherits:** navbar from Home (the sleeve), footer from Home (the sleeve)
-
-1. **Liner notes hero** (`hero-centered`)
-   - Purpose: Sets the register: this page is for people who read the back of the sleeve. Names the author. No button; the page is the content.
-   - Heading: Liner notes: how dj-digger is built
-   - Text: Written, engineered and pressed by Filip Białogrecki. Python 3.12, Qt Quick, a Manifest V3 extension, SQLite, and no server anywhere.
-   - Items:
-     - Architecture
-     - Trust boundaries
-     - Kick pulse
-     - Tests and releases
-     - This website
-2. **Architecture** (`content-split`)
-   - Purpose: One diagram drawn in SVG (controllers, lazily composed application services, adapters, the SQLite owner thread, the in-memory audio engine) and the three rules that keep it honest. Source: docs/architecture.md.
-   - Heading: Controllers present, services own the effects
-   - Text: The CLI and the Qt desktop are thin controllers over the same application services. Services own completed effects and resource lifecycles; one coordinator admits work and tracks cancellation until workers finish.
-   - CTA: Read the architecture guide → `https://github.com/fbialogrecki/dj-digger/blob/main/docs/architecture.md`
-   - Items:
-     - No blocking network or disk work on the UI thread
-     - One thread owns SQLite; everything else asks it
-     - The CLI never imports Qt
-3. **The browser boundary** (`features-alternating`)
-   - Purpose: How a desktop app drives the user's own browser without becoming a liability: native messaging as the only channel, a fixed allowlist of sites, own tabs only, a checkout guard, no remote code. Source: specification section 11.4.
-   - Heading: Driving your browser without owning it
-   - Items:
-     - One channel: The extension accepts commands only over native messaging from the app on the same computer. No external messaging, no web-accessible resources, no remote code.
-     - A fixed list of sites: Host permissions name Hypeddit, ToneDen, Bandcamp, Beatport and SoundCloud. The extension acts only in tabs it opened itself.
-     - A hard stop before money: A tab that heads for a checkout or payment page is closed the moment it navigates, so the extension cannot take part in a purchase.
-4. **Untrusted by default** (`features-grid`)
-   - Purpose: Artist links, redirects, provider responses and filenames are all hostile input. Lists the guards that exist in code, each linking to its section of the specification. Source: specification sections 11.1 to 11.3.
-   - Heading: Every link is untrusted
-   - Items:
-     - URL boundaries: Scheme validation and domain-boundary matching, so a look-alike host is not a store.
-     - SSRF guard: Redirects and link hubs cannot walk the app into private addresses.
-     - Download limits: Size limits and atomic file replacement; a foreign file is never overwritten.
-     - Cart revalidation: Each product page is rechecked right before its click; an uncertain click is never repeated.
-     - Secrets: Credentials live in the system keyring and are redacted from logs and diagnostics.
-5. **Kick pulse** (`content-split`)
-   - Purpose: The signature feature, explained as engineering: what the light follows (the kick's level, not the bass line), how it is computed ahead of the speaker, and how it was validated, including the bugs that only showed in the real Qt stack. Figures are quoted from docs/kick-pulse-validation.md, not invented. Shown beside the real player loop.
-   - Heading: A light that follows the kick, not the bass
-   - Text: [Two or three sentences and the measured figures from docs/kick-pulse-validation.md.]
-   - CTA: Read the validation notes → `https://github.com/fbialogrecki/dj-digger/blob/main/docs/kick-pulse-validation.md`
-   - Items:
-     - Level is analog, proportional to the kick, with an exponential decay
-     - Computed from audio decoded ahead of playback, then aligned to the device clock
-     - Verified in the real window, frame by frame, not only offline
-6. **Tests and releases** (`steps`)
-   - Purpose: How a change reaches a user. Figures (number of offline tests, platforms in the CI matrix) are counted from the repository at build time. Source: specification section 14 and .github/workflows.
-   - Heading: From commit to installer
-   - Items:
-     - Offline suite: [N] tests that never touch a live endpoint, real user data or music folders.
-     - Live contract checks: Separately marked tests watch the SoundCloud, store and gate contracts on a schedule.
-     - Installers: CI builds the Windows installer and both macOS disk images and smoke-tests them.
-     - Publishing: PyPI through trusted publishing, the Chrome Web Store through its API, checksums on every release.
-7. **This website** (`detail`)
-   - Purpose: The colophon: the site as a small engineering exhibit. Figures are measured at build time and printed, not claimed.
-   - Heading: This website
-   - Items:
-     - Stack: Static Astro pages, plain CSS, no UI framework
-     - The record: Inline SVG from the same seeded generator as the app icon; scroll-driven CSS with a small fallback script
-     - Script weight: [measured at build time] kB
-     - Third-party requests: None. No analytics, no cookies, self-hosted fonts
-     - Screenshots: Real UI with demo data, regenerated by one script
-     - Accessibility: WCAG AA contrast, full keyboard use, respects reduced motion, works without JavaScript
-8. **Credits and sources** (`cards`)
-   - Purpose: Where to read more and who made it: the three documents that matter, as plain links, and the author's signature.
-   - Heading: Credits and sources
-   - Items:
-     - Source code: Apache 2.0, on GitHub. Issues and pull requests welcome. → `https://github.com/fbialogrecki/dj-digger`
-     - Specification: Every shipped behaviour, security and privacy boundary, written down. → `https://github.com/fbialogrecki/dj-digger/blob/main/PROJECT_SPECIFICATION.md`
-     - Changelog: What changed in each release. → `https://github.com/fbialogrecki/dj-digger/blob/main/CHANGELOG.md`
-     - Filip Białogrecki: Design, engineering and everything else. → `https://github.com/fbialogrecki`
-
-## 404 (empty groove) (`/404`)
-
-**Goal:** Catch a wrong address without a dead end: say the page is not here and offer the way back.
-
-**Inherits:** navbar from Home (the sleeve), footer from Home (the sleeve)
-
-1. **Empty groove** (`empty-state`)
-   - Purpose: A still record with the needle in the run-out groove. One sentence and the way home; the navbar and footer carry the rest.
-   - Heading: This groove is empty
-   - Text: The page you asked for is not on this record.
-   - CTA: Back to the start → `home`
+1. **This groove is empty** (`empty`)
+   - Purpose: A still record with the needle in the run-out groove, one sentence, and a primary button back home.

@@ -1,16 +1,16 @@
 ---
 import "../styles/global.css";
+import Icon from "../components/Icon.astro";
 import Record from "../components/Record.astro";
 import appIcon from "../../../dj_digger/gui/qml/icons/app.png";
 import archivo from "../assets/fonts/archivo-latin.woff2?url";
 import boot from "../scripts/boot.js?raw";
-import { author, chromeStore, repo } from "../../site.config.mjs";
+import { author, repo } from "../../site.config.mjs";
 import { baseOf, langOf, languages, pathIn, ui } from "../i18n/index.mjs";
 
-// `tracks` are the page's sections in order: { id, no, title }. They feed the tracklist
-// and the record's bands; each must match a <section id data-track data-title>.
 // `label` picks the record label's colours for this page (global.css: [data-label]).
-const { title, description, label = "home", tracks = [], noindex = false } = Astro.props;
+// `tracks` is accepted and ignored: there is no tracklist any more.
+const { title, description, label = "home", noindex = false } = Astro.props;
 const here = Astro.url.pathname;
 const lang = langOf(here);
 const t = ui(here);
@@ -20,11 +20,17 @@ const alternates = languages.map((language) => ({ ...language, href: pathIn(lang
 const current = languages.find((language) => language.code === lang);
 const canonical = new URL(here, Astro.site);
 const pages = [
-  { href: local("/app/"), label: t.nav.app },
-  { href: local("/extension/"), label: t.nav.extension },
-  { href: local("/liner-notes/"), label: t.nav.notes },
-  { href: local("/download/"), label: t.nav.download },
-  { href: repo, label: t.nav.github },
+  { href: local("/app/"), label: t.nav.app, icon: "desktop" },
+  { href: local("/extension/"), label: t.nav.extension, icon: "puzzle-piece" },
+  { href: local("/about/"), label: t.nav.about, icon: "info" },
+  { href: local("/download/"), label: t.nav.download, icon: "download-simple" },
+  { href: repo, label: t.nav.github, icon: "github-logo" },
+];
+const project = [
+  { href: `${repo}/blob/main/PRIVACY.md`, label: t.footer.privacy, icon: "shield-check" },
+  { href: `${repo}/blob/main/LICENSE`, label: t.footer.license, icon: "scales" },
+  { href: repo, label: t.nav.github, icon: "github-logo" },
+  { href: `${local("/about/")}#credits`, label: t.footer.credits, icon: "heart" },
 ];
 ---
 
@@ -71,6 +77,7 @@ const pages = [
             pages.map((page) => (
               <li>
                 <a href={page.href} aria-current={here === page.href ? "page" : undefined}>
+                  <Icon name={page.icon} />
                   {page.label}
                 </a>
               </li>
@@ -80,13 +87,14 @@ const pages = [
       </nav>
       {/* Narrow screens: the same links behind a disclosure that needs no script. */}
       <details class="menu" name="top">
-        <summary>{t.menu}</summary>
+        <summary class="button compact"><Icon name="list" /><span class="menu-word">{t.menu}</span></summary>
         <nav aria-label={t.primary}>
           <ul>
             {
               pages.map((page) => (
                 <li>
                   <a href={page.href} aria-current={here === page.href ? "page" : undefined}>
+                    <Icon name={page.icon} />
                     {page.label}
                   </a>
                 </li>
@@ -97,7 +105,8 @@ const pages = [
       </details>
       {/* Works without a script; deck.js remembers the choice (boot.js then follows it). */}
       <details class="lang" name="top">
-        <summary>
+        <summary class="button compact">
+          <Icon name="translate" />
           <span class="sr">{t.language}: {current.name}</span>
           <span aria-hidden="true">{lang.toUpperCase()}</span>
         </summary>
@@ -114,101 +123,77 @@ const pages = [
         </ul>
       </details>
       {/* Shown by deck.js: without JavaScript the site follows the system's theme. */}
-      <button class="theme" type="button" data-to-light={t.toLight} data-to-dark={t.toDark} hidden>
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <g class="sun">
-            <circle cx="12" cy="12" r="4" />
-            <path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-          </g>
-          <path class="moon" d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" />
-        </svg>
+      <button class="button compact icon-only theme" type="button" data-to-light={t.toLight} data-to-dark={t.toDark} hidden>
+        <Icon name="sun" class="sun" />
+        <Icon name="moon" class="moon" />
       </button>
     </header>
 
     <div class="page">
-      {
-        tracks.length > 0 && (
-          <aside class="deck" data-rows={tracks.length}>
-            <div class="platter">
-              <Record />
-            </div>
-            <nav class="tracks" aria-label={t.tracklist}>
-              <ol>
-                {tracks.map((track) => (
-                  <li>
-                    <a href={`#${track.id}`}>
-                      <span class="no">{track.no}</span>
-                      {track.title}
-                    </a>
-                  </li>
-                ))}
-              </ol>
-            </nav>
-          </aside>
-        )
-      }
+      {/* The record rides beside the text; it ends where the page's text ends, above the footer. */}
+      <div class="deck">
+        <div class="platter">
+          <Record />
+        </div>
+      </div>
       <div class="sheet">
         <main id="content" tabindex="-1">
           <slot />
         </main>
-
-        <footer class="foot">
-          <div class="foot-grid">
-            <p class="foot-brand">
-              <img src={appIcon.src} width="40" height="40" alt="" loading="lazy" />
-              <span>
-                <strong>dj-digger</strong>
-                {t.footer.free}
-              </span>
-            </p>
-            <ul aria-label={t.footer.site}>
-              <li><a href={local("/app/")}>{t.nav.app}</a></li>
-              <li><a href={local("/extension/")}>{t.nav.extension}</a></li>
-              <li><a href={local("/download/")}>{t.nav.download}</a></li>
-              <li><a href={local("/liner-notes/")}>{t.nav.notes}</a></li>
-            </ul>
-            <ul aria-label={t.footer.project}>
-              <li><a href={repo}>GitHub</a></li>
-              <li><a href="https://pypi.org/project/dj-sc-digger/">PyPI</a></li>
-              <li><a href={chromeStore}>Chrome Web Store</a></li>
-            </ul>
-            <ul aria-label={t.footer.legal}>
-              <li><a href={`${repo}/blob/main/PRIVACY.md`}>{t.footer.privacy}</a></li>
-              <li><a href={`${repo}/blob/main/LICENSE`}>{t.footer.license}</a></li>
-            </ul>
-          </div>
-          <p class="colophon">
-            {t.footer.madeBy} <a href={author.url}>{author.name}</a>. {t.footer.colophon}
-          </p>
-        </footer>
       </div>
     </div>
 
-    {
-      tracks.length > 0 && (
-        <details class="mini">
-          <summary>
-            <span class="mini-disc" />
-            <span class="mini-now">{t.tracklist}</span>
-            <span class="mini-bar" />
-          </summary>
-          <nav class="tracks" aria-label={t.tracklist}>
-            <ol>
-              {tracks.map((track) => (
+    <footer class="foot">
+      <div class="foot-inner">
+        <a class="foot-brand" href={local("/")}>
+          <img src={appIcon.src} width="40" height="40" alt="" loading="lazy" />
+          <span>
+            <strong>dj-digger</strong>
+            {t.footer.free}
+          </span>
+        </a>
+        <nav aria-label={t.footer.site}>
+          <ul>
+            {
+              pages.slice(0, 4).map((page) => (
                 <li>
-                  <a href={`#${track.id}`}>
-                    <span class="no">{track.no}</span>
-                    {track.title}
+                  <a href={page.href}>
+                    <Icon name={page.icon} />
+                    {page.label}
                   </a>
                 </li>
-              ))}
-            </ol>
-          </nav>
-        </details>
-      )
-    }
+              ))
+            }
+          </ul>
+        </nav>
+        <div class="foot-small">
+          <p>
+            {t.footer.madeBy} <a href={author.url}>{author.name}</a>, 2026
+          </p>
+          <ul aria-label={t.footer.project}>
+            {
+              project.map((link) => (
+                <li>
+                  <a href={link.href}>
+                    <Icon name={link.icon} />
+                    {link.label}
+                  </a>
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+      </div>
+    </footer>
+
+    {/* One zoomed view for every <Shot>, opened by lightbox.js; without a script a shot is a plain link. */}
+    <dialog class="lightbox" aria-label={t.lightbox.label}>
+      <button class="button compact icon-only" type="button" data-close aria-label={t.close}><Icon name="x" /></button>
+      <img alt="" decoding="async" />
+    </dialog>
     <script>
       import "../scripts/deck.js";
+      import "../scripts/lightbox.js";
     </script>
   </body>
 </html>

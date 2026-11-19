@@ -2,98 +2,50 @@
 import Base from "../../layouts/Base.astro";
 import Track from "../../components/Track.astro";
 import Shot from "../../components/Shot.astro";
+import Icon from "../../components/Icon.astro";
 import DataFlow from "../../components/extension/DataFlow.astro";
 import panel from "../../assets/screenshots/extension-panel.png";
-import connect from "../../assets/screenshots/ru/crops/connect.png";
-import connectFull from "../../assets/screenshots/ru/desktop-browser-connect.png";
-import { chromeStore, repo } from "../../../site.config.mjs";
+import { chromeStore } from "../../../site.config.mjs";
 
 const description =
-  "Расширение dj-digger для браузера позволяет настольному приложению проходить гейты скачивания, наполнять корзины магазинов и входить в SoundCloud в вашем собственном браузере. Что оно делает, в каких браузерах работает, все разрешения и куда уходят данные.";
-const tracks = [
-  { id: "overview", no: "01", title: "Руки приложения" },
-  { id: "does", no: "02", title: "Что оно делает" },
-  { id: "needs-app", no: "03", title: "Нужно приложение" },
-  { id: "browsers", no: "04", title: "Поддерживаемые браузеры" },
-  { id: "permissions", no: "05", title: "Разрешения и зачем они" },
-  { id: "data", no: "06", title: "Куда уходят данные" },
-  { id: "end", no: "07", title: "Начните с приложения" },
-];
+  "Расширение dj-digger для браузера проходит гейты скачивания, наполняет корзины магазинов и подключает настольное приложение к SoundCloud в вашем собственном браузере. Что оно делает, в каких браузерах работает и куда уходят ваши данные.";
 
-// The five jobs, as the store listing's "What it does" names them.
+// The five jobs of extension 1.4.4 (dj-digger 1.6.0).
 const jobs = [
-  ["Проходит гейты скачивания", "Когда приложение не может само пройти гейт Hypeddit или ToneDen, расширение проходит его в вашем браузере, и файл уходит в приложение."],
-  ["Наполняет корзины магазинов", "Добавляет выбранные треки в вашу корзину Bandcamp и ищет треки на Beatport. Оно никогда не оформляет заказ и не платит: страницы оформления и оплаты закрываются."],
-  ["Входит в SoundCloud", "Приложение может использовать сессию SoundCloud, которая уже есть в вашем браузере, так что вставлять ничего не нужно."],
-  ["Выносит плеер на панель инструментов", "Запуск, пауза, переключение и перемотка трека, который играет в приложении, ход текущей задачи с возможностью её отменить и ответы приложению, когда гейтам нужна ваша помощь."],
-  ["Импортирует из SoundCloud", "На странице плейлиста или профиля откройте панель, чтобы импортировать его, или щёлкните правой кнопкой и выберите Dig in dj-digger."],
+  ["lock-key-open", "Гейты скачивания", "Проходит гейты Hypeddit и ToneDen, которые приложение не может пройти само. Файл уходит в приложение."],
+  ["shopping-cart", "Корзины магазинов", "Добавляет выбранное в ваши корзины Bandcamp и Beatport. Никогда не оформляет заказ и не платит."],
+  ["sign-in", "Вход в SoundCloud", "Подключает приложение к SoundCloud через сеанс, который уже есть в вашем браузере."],
+  ["play-circle", "Плеер на панели инструментов", "Воспроизведение, пауза, пропуск и перемотка трека приложения, ход текущей задачи и ответ, когда гейтам нужна ваша помощь."],
+  ["soundcloud-logo", "Импорт из SoundCloud", "Отправьте плейлист, трек или профиль в приложение из панели, контекстного меню или кнопкой Import to DJ digger."],
 ];
-
-// Released manifest, in its order. `shows` quotes the install prompts the store listing names.
-const permissions = [
-  ["nativeMessaging", "Communicate with cooperating native applications", "Единственный канал команд: связь с нативным хостом, который приложение dj-digger устанавливает на этот компьютер. Приложение отправляет шаги для браузера и получает результаты, команды плеера и импорты из SoundCloud; другого входа нет."],
-  ["tabs", "Read your browsing history", "Открывает, переводит на другие адреса, отключает звук и закрывает вкладки и окна, которые создаёт для приложения, и всплывающие окна входа, которые они открывают, читая адрес и состояние загрузки только этих вкладок. Если нажатие «добавить в корзину» не удаётся подтвердить, делает снимок своей вкладки магазина для локальной диагностики приложения."],
-  ["scripting", "", "Запускает собственные встроенные функции расширения для страниц (найти, нажать, заполнить, прочитать) в своих вкладках на разрешённых сайтах — так проходятся гейты и наполняются корзины. Удалённый или переданный пользователем код не выполняется."],
-  ["downloads", "Manage your downloads", "Распознаёт файл, скачивание которого запускает гейт в его вкладке, сообщает приложению, где он лежит, и удаляет копию браузера и запись в истории, как только приложение его забрало. Небезопасные скачивания и запросы «Сохранить как» отмечаются как заблокированные и никогда не принимаются; прочие скачивания игнорируются."],
-  ["cookies", "", "Ровно две зашитые в код операции: читает oauth_token SoundCloud, когда вы входите в SoundCloud через приложение, и удаляет cookie filedownloading Hypeddit между скачиваниями гейтов, потому что, пока он установлен, Hypeddit отказывает в следующем скачивании. Никакие другие cookie не читаются, не записываются и не удаляются."],
-  ["webRequest", "", "Наблюдает — никогда не блокируя и не изменяя — за ответами и перенаправлениями своих вкладок на разрешённых сайтах, чтобы узнать HTTP-статус страницы и сопоставить скачивание с вкладкой, которая его начала."],
-  ["webNavigation", "", "Знает, когда страница в его вкладке загрузилась или не загрузилась, чтобы каждый шаг её дожидался. Закрывает свою вкладку Bandcamp или Beatport в тот момент, когда она направляется на страницу оформления заказа или оплаты."],
-  ["storage", "", "Только хранилище сессии, которое очищается при закрытии браузера: свои вкладки и окна, состояние связи и состояние плеера. Ничего не синхронизируется и не хранится постоянно."],
-  ["alarms", "", "Будильник раз в 30 секунд, который заново подключается к приложению после того, как приложение было закрыто или фоновый процесс остановлен."],
-  ["offscreen", "", "Запускает гейты Hypeddit и ToneDen в скрытых фреймах без звука в закадровом документе, чтобы во время скрытой пачки гейтов не всплывало окно браузера."],
-  ["activeTab", "", "Когда вы открываете панель на панели инструментов, один раз читает адрес этой вкладки, чтобы понять, есть ли там плейлист или профиль SoundCloud для импорта. Больше ничего на странице не читается."],
-  ["contextMenus", "", "Добавляет пункт Dig in dj-digger в контекстное меню на страницах и ссылках SoundCloud, чтобы импортировать этот плейлист, трек или профиль в приложение. Показывается, только пока приложение запущено."],
-];
-const hosts = [
-  [
-    ["https://hypeddit.com/*", "https://www.hypeddit.com/*", "https://hypd.it/*", "https://www.hypd.it/*", "https://toneden.io/*", "https://www.toneden.io/*"],
-    "Гейты бесплатного скачивания на Hypeddit и ToneDen: открывает гейт, выполняет его шаги (форму e-mail; шаги с подпиской, лайком, репостом и комментарием — только если вы разрешили социальные действия в приложении) и запускает скачивание.",
-  ],
-  [
-    ["https://bandcamp.com/*", "https://*.bandcamp.com/*"],
-    "Добавляет выбранные в приложении треки в вашу собственную корзину Bandcamp; страницы исполнителей находятся на поддоменах. Страницы оформления заказа и оплаты никогда не открываются.",
-  ],
-  [
-    ["https://beatport.com/*", "https://*.beatport.com/*"],
-    "Ищет треки и добавляет их в вашу корзину Beatport. Страницы оформления заказа, оплаты и платёжных данных никогда не открываются.",
-  ],
-  [
-    ["https://soundcloud.com/*"],
-    "Страница входа — когда вы подключаете приложение к SoundCloud, а у браузера ещё нет сессии, — и чтение cookie oauth_token. На страницах SoundCloud, которые вы открываете, кнопка Import to DJ digger читает только ссылки на треки и плейлисты; на SoundCloud ничего не нажимается.",
-  ],
-];
-const hostPrompt = "Read and change your data on hypeddit.com, toneden.io, bandcamp.com, beatport.com, soundcloud.com";
 ---
 
-<Base title="Расширение для браузера · dj-digger" description={description} label="extension" tracks={tracks}>
-  <Track hero sub id="overview" no="01" title="Руки приложения" label="Расширение для браузера">
-    <Fragment slot="heading">Руки приложения в <span class="grad">вашем собственном браузере</span></Fragment>
+<Base title="Расширение для браузера · dj-digger" description={description} label="extension">
+  <Track hero sub id="overview" title="Расширение для браузера">
+    <Fragment slot="heading">Расширение <span class="grad">для браузера</span></Fragment>
     <p class="lede">
-      <strong>Расширение dj-digger</strong> позволяет настольному приложению проходить гейты скачивания и наполнять
-      корзины магазинов в браузере, которым вы уже пользуетесь, и выносит плеер приложения на панель инструментов. Само
-      по себе оно ничего не делает: на том же компьютере должно быть запущено приложение dj-digger.
+      Руки настольного приложения в браузере, которым вы уже пользуетесь. Оно работает, пока dj-digger запущен на том же
+      компьютере.
     </p>
     <div class="cta">
-      <a class="button primary" href={chromeStore}>Установить из Chrome Web Store</a>
-      <a class="quiet" href="/ru/download/">Сначала установите приложение</a>
+      <a class="button primary" href={chromeStore}><Icon name="google-chrome-logo" />Установить из Chrome Web Store</a>
     </div>
     <div class="panel">
       <Shot
         src={panel}
-        alt="Панель dj-digger на панели инструментов играет Slow Orbit от Nightglass: сгенерированная обложка-пластинка, полоса перемотки на 1:08 из 3:20 и кнопки «назад», «пауза» и «вперёд»."
-        caption="Панель на панели инструментов, демо-трек"
+        alt="Панель dj-digger на панели инструментов воспроизводит Drift Away от JMHBM: пластинка на обложке, полоса перемотки на 1:25 из 3:01 и кнопки предыдущего трека, паузы и следующего трека."
         sizes="(min-width: 44rem) 17rem, 20rem"
         eager
       />
     </div>
   </Track>
 
-  <Track id="does" no="02" title="Что оно делает" label="Пять задач" heading="Что оно делает">
-    <ul class="jobs">
+  <Track id="does" title="Что оно делает">
+    <ul class="cards">
       {
-        jobs.map(([name, text]) => (
-          <li>
-            <h3>{name}</h3>
+        jobs.map(([icon, name, text]) => (
+          <li class="card">
+            <h3><Icon name={icon} />{name}</h3>
             <p>{text}</p>
           </li>
         ))
@@ -101,134 +53,25 @@ const hostPrompt = "Read and change your data on hypeddit.com, toneden.io, bandc
     </ul>
   </Track>
 
-  <Track id="needs-app" no="03" title="Нужно приложение" label="Перед установкой" heading="На этом компьютере должен работать dj-digger">
-    <ol class="steps">
-      <li>
-        <span class="no">01</span>
-        <h3>Установите и запустите приложение</h3>
-        <p>Настольное приложение регистрирует себя в ваших браузерах при каждом запуске. <a href="/ru/download/">Скачать dj-digger</a>.</p>
-      </li>
-      <li>
-        <span class="no">02</span>
-        <h3>Установите расширение</h3>
-        <p>Из Chrome Web Store или по <a href="#browsers">шагам для Firefox ниже</a>.</p>
-      </li>
-      <li>
-        <span class="no">03</span>
-        <h3>Дайте доступ к сайтам</h3>
-        <p>Приветственная страница расширения показывает разделы <strong>Desktop app link</strong> (связь с приложением) и <strong>Site access</strong> (доступ к сайтам) и запрашивает недостающие разрешения для сайтов.</p>
-      </li>
-    </ol>
-    <p class="copy">
-      Сначала установили расширение? Его страница состояния и панель на панели инструментов сообщат, что приложения нет,
-      и дадут ссылку на скачивание. В приложении пункт <strong>«Подключить браузер…»</strong> в меню «Настройки»
-      показывает шаги и проверяет подключение.
-    </p>
-    <Shot
-      src={connect}
-      full={connectFull}
-      alt="Диалог приложения «Подключить браузер». Состояние: «Нет подключения: установите расширение dj-digger в браузере». Для Chrome, Edge и Brave: установите из Chrome Web Store, затем нажмите «Проверить подключение». Для Firefox: три шага, чтобы загрузить временное дополнение, с папкой расширения и кнопкой «Копировать путь». Кнопки: «Открыть Chrome Web Store», «Проверить подключение», «Не сейчас»."
-      caption="«Подключить браузер» в настольном приложении"
-    />
+  <Track id="browsers" title="Поддерживаемые браузеры">
+    <p class="lede">Chrome, Edge и Brave. Edge спросит, разрешить ли расширения из других магазинов.</p>
+    <p class="copy">Браузеры, установленные как Flatpak или Snap, не могут установить связь с приложением.</p>
   </Track>
 
-  <Track id="browsers" no="04" title="Поддерживаемые браузеры" label="Где работает" heading="Поддерживаемые браузеры">
-    <ul class="cards">
-      <li class="card">
-        <h3>Chrome, Edge, Brave, Chromium</h3>
-        <p>Установите из Chrome Web Store. Edge сначала спросит, разрешить ли расширения из других магазинов: разрешите.</p>
-        <p><a class="quiet" href={chromeStore}>dj-digger в Chrome Web Store</a></p>
-      </li>
-      <li class="card">
-        <h3>Firefox</h3>
-        <p>
-          Установите подписанный файл расширения, если он есть в релизе. Иначе загрузите расширение как временное
-          дополнение из папки расширения приложения; Firefox удалит его при перезапуске.
-        </p>
-        <p><a class="quiet" href={`${repo}/blob/main/docs/installation.md#connect-your-browser`}>Шаги для Firefox в руководстве по установке</a></p>
-      </li>
-      <li class="card">
-        <h3>Не поддерживаются</h3>
-        <p>Браузеры, установленные как Flatpak или Snap, не могут установить связь с приложением, поэтому расширение до него не дотянется.</p>
-      </li>
-    </ul>
-  </Track>
-
-  <Track id="permissions" no="05" title="Разрешения и зачем они" heading="Разрешения и для чего каждое из них">
-    <p class="copy">
-      Оно работает только на Hypeddit, ToneDen, Bandcamp, Beatport и SoundCloud и действует только во вкладках, которые
-      открыло для приложения. Единственное дополнение — кнопка импорта на страницах SoundCloud, которые вы открываете
-      сами.
-    </p>
-    <div class="table" role="region" aria-labelledby="perm-caption" tabindex="0">
-      <table class="perms">
-        <caption id="perm-caption">
-          Все разрешения из выпущенного манифеста. В средней колонке процитированы запросы при установке так, как их
-          называет описание расширения в магазине (на английском); прочерк значит, что для этого разрешения там ничего
-          не указано.
-        </caption>
-        <thead>
-          <tr>
-            <th scope="col">Разрешение</th>
-            <th scope="col">Что показывает браузер</th>
-            <th scope="col">Зачем оно нужно</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr class="group"><th scope="rowgroup" colspan="3">Разрешения</th></tr>
-          {
-            permissions.map(([name, shows, why]) => (
-              <tr>
-                <th scope="row"><code>{name}</code></th>
-                <td class="shows">{shows ? `«${shows}»` : <><span aria-hidden="true">–</span><span class="sr">Не указано</span></>}</td>
-                <td>{why}</td>
-              </tr>
-            ))
-          }
-        </tbody>
-        <tbody>
-          <tr class="group"><th scope="rowgroup" colspan="3">Разрешения для сайтов</th></tr>
-          {
-            hosts.map(([patterns, why], i) => (
-              <tr>
-                <th scope="row">
-                  {patterns.map((pattern) => (
-                    <code>{pattern}</code>
-                  ))}
-                </th>
-                {i === 0 && <td class="shows" rowspan={hosts.length}>{`«${hostPrompt}»`}</td>}
-                <td>{why}</td>
-              </tr>
-            ))
-          }
-        </tbody>
-      </table>
-    </div>
-  </Track>
-
-  <Track id="data" no="06" title="Куда уходят данные" heading="С этого компьютера к нам не уходит ничего">
+  <Track id="data" title="Куда уходят ваши данные">
     <div class="split">
       <DataFlow />
-      <div class="stack">
-        <p class="copy">
-          Расширение общается только с приложением dj-digger на вашем собственном компьютере. Разработчику ничего не
-          отправляется; нет ни аналитики, ни рекламы.
-        </p>
-        <ul class="ticks">
-          <li>Никакого удалённого кода и никаких сообщений от других расширений или сайтов</li>
-          <li>Только данные сессии, которые очищаются при закрытии браузера</li>
-          <li>Вкладки, которые направляются на страницу оформления заказа или оплаты, закрываются</li>
-        </ul>
-        <p><a class="button" href={`${repo}/blob/main/PRIVACY.md`}>Прочитать политику конфиденциальности</a></p>
-      </div>
+      <p class="copy">
+        Расширение общается только с приложением dj-digger на вашем компьютере. Разработчику ничего не отправляется: ни
+        аналитики, ни рекламы. Оно хранит только данные сеанса, которые стираются при закрытии браузера.
+      </p>
     </div>
   </Track>
 
-  <Track id="end" no="07" title="Начните с приложения" heading="Приложения ещё нет? Начните с него.">
-    <p class="copy">Расширение ждёт настольное приложение. Установите его и запустите один раз — оно само подключится к вашим браузерам.</p>
+  <Track id="end" title="Начните с приложения">
+    <p class="copy">Расширение ждёт настольное приложение. Установите его и запустите один раз.</p>
     <div class="cta">
-      <a class="button primary" href="/ru/download/">Скачать приложение</a>
-      <a class="quiet" href="/ru/app/">Назад к настольному приложению</a>
+      <a class="button primary" href="/ru/download/"><Icon name="download-simple" />Скачать настольное приложение</a>
     </div>
   </Track>
 </Base>
@@ -257,73 +100,14 @@ const hostPrompt = "Read and change your data on hypeddit.com, toneden.io, bandc
     }
   }
 
-  .jobs {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
-    gap: 1.6rem 2.2rem;
+  .card h3 {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
   }
-  .jobs li {
-    padding-top: 1rem;
-    border-top: 1px solid var(--line);
-  }
-  .jobs p,
-  .steps p {
-    margin-top: 0.35rem;
-    color: var(--muted);
-  }
-  .steps {
-    display: grid;
-    gap: 1.6rem;
-  }
-  .steps li {
-    display: grid;
-    grid-template-columns: 2.5rem 1fr;
-    column-gap: 1rem;
-    max-width: 38rem;
-  }
-  .steps .no {
-    grid-row: span 2;
-    padding-top: 0.3rem;
-    font-size: 0.8rem;
+  .card h3 :global(.icon) {
+    flex: none;
     color: var(--accent);
-  }
-  .steps strong,
-  .copy strong {
-    color: var(--fg);
-    font-weight: 600;
-  }
-
-  .perms {
-    min-width: 42rem;
-  }
-  .perms caption {
-    padding: 0.8rem 1rem;
-    text-align: left;
-    font-size: 0.84rem;
-    color: var(--muted);
-  }
-  .perms th code {
-    display: block;
-    width: max-content;
-  }
-  .perms th code + code {
-    margin-top: 0.3rem;
-  }
-  .perms .shows {
-    min-width: 10rem;
-    color: var(--fg);
-  }
-  .perms td:last-child {
-    min-width: 17rem;
-  }
-  .perms .group th {
-    padding-top: 1.1rem;
-    font-size: 0.78rem;
-    font-stretch: 112%;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--muted);
-    background: var(--panel);
   }
 
   .split {

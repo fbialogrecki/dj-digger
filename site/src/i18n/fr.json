@@ -1,0 +1,60 @@
+{
+  "skip": "Aller au contenu",
+  "primary": "Principale",
+  "nav": {
+    "app": "Application",
+    "extension": "Extension",
+    "about": "À propos",
+    "download": "Télécharger",
+    "github": "GitHub"
+  },
+  "menu": "Menu",
+  "language": "Langue",
+  "toLight": "Passer au thème clair",
+  "toDark": "Passer au thème sombre",
+  "ogAlt": "dj-digger : d'une playlist SoundCloud aux fichiers sur vos platines. L'icône de l'application, un disque vu de dessus.",
+  "footer": {
+    "free": "Libre et gratuit, sous licence Apache 2.0.",
+    "site": "Site",
+    "project": "Projet",
+    "privacy": "Politique de confidentialité",
+    "license": "Licence",
+    "madeBy": "Créé par",
+    "credits": "Crédits"
+  },
+  "copy": "Copier",
+  "copied": "Copié",
+  "play": "Lire",
+  "pause": "Pause",
+  "stop": "Arrêter",
+  "previous": "Morceau précédent",
+  "next": "Morceau suivant",
+  "close": "Fermer",
+  "openFull": "Ouvrir la capture de la fenêtre entière",
+  "player": {
+    "pauseAnim": "Mettre en pause l'animation du lecteur",
+    "playAnim": "Lire l'animation du lecteur",
+    "note": "Une reconstitution du lecteur de dj-digger avec un vrai morceau. Sa pochette et sa forme d'onde viennent de SoundCloud.",
+    "music": "Musique :"
+  },
+  "lightbox": {
+    "label": "Capture agrandie",
+    "zoom": "Agrandir cette capture"
+  },
+  "flow": {
+    "title": "Où vont les données de l'extension",
+    "desc": "Un cadre, votre ordinateur, contient l'application de bureau dj-digger et votre navigateur avec l'extension dj-digger. L'application et l'extension sont reliées par la messagerie native, leur seul canal. Les seules flèches qui sortent du cadre partent des onglets que l'extension a ouverts pour l'application vers cinq sites : Hypeddit, ToneDen, Bandcamp, Beatport et SoundCloud. Un cadre pour le développeur se trouve à l'extérieur, sans flèche : rien ne lui est envoyé.",
+    "computer": "Votre ordinateur",
+    "app": "Appli dj-digger",
+    "appNote": "pilote le navigateur",
+    "native": "Messagerie native",
+    "nativeNote": "le seul canal",
+    "browser": "Votre navigateur",
+    "extension": "Extension dj-digger",
+    "tabs": "Onglets ouverts",
+    "tabsNote": "pour l'appli",
+    "developer": "Développeur",
+    "developerNote": "rien d'envoyé",
+    "sites": "Sites"
+  }
+}

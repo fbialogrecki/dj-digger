@@ -1,0 +1,136 @@
+---
+import Base from "../../layouts/Base.astro";
+import Loop from "../../components/Loop.astro";
+import Track from "../../components/Track.astro";
+import Icon from "../../components/Icon.astro";
+import DataFlow from "../../components/extension/DataFlow.astro";
+import HowItWorks from "../../components/about/HowItWorks.astro";
+import BrowserFlow from "../../components/about/BrowserFlow.astro";
+import { author, repo, version } from "../../../site.config.mjs";
+
+const description =
+  "Jak działa dj-digger, jak aplikacja i jej rozszerzenie przeglądarki obsługują pobieranie i koszyki, dokąd trafiają Twoje dane oraz podziękowania.";
+// Sources at the released tag, so they describe what has shipped.
+const release = `${repo}/blob/v${version}`;
+---
+
+<Base title="O projekcie · dj-digger" description={description} label="about">
+  <Track id="about" title="O projekcie" hero sub>
+    <Fragment slot="heading">O <span class="grad">dj-digger</span></Fragment>
+    <p class="lede">
+      Bezpłatna, otwartoźródłowa aplikacja desktopowa do digowania, z rozszerzeniem przeglądarki. Autor: {author.name}.
+    </p>
+  </Track>
+
+  <Track id="how" title="Jak to działa">
+    <p class="copy">Wszystko działa na Twoim komputerze. Nie ma serwera dj-digger ani konta.</p>
+    <HowItWorks
+      title="Jak działa dj-digger"
+      desc="Playlista z SoundCloud trafia do aplikacji dj-digger na Twoim komputerze. Aplikacja zbiera całą listę przez API SoundCloud, pamięta Twoje decyzje w lokalnej bazie danych i dopasowuje Twoje foldery z muzyką. Prowadzi do linków posortowanych według sklepów, takich jak Bandcamp, Beatport i Traxsource, do bramek pobierania w Hypeddit i ToneDen oraz do kopii wyeksportowanych pod Twoje decki."
+      playlist="Playlista SoundCloud"
+      computer="Twój komputer"
+      app="Aplikacja dj-digger"
+      steps={[
+        ["Zbiera całą listę", "przez API SoundCloud"],
+        ["Pamięta Twoje decyzje", "w lokalnej bazie danych"],
+        ["Dopasowuje foldery z muzyką", "więc widzisz, co już masz"],
+      ]}
+      outs={[
+        ["Linki do sklepów", "Bandcamp, Beatport, Traxsource i inne"],
+        ["Bramki pobierania", "Hypeddit, ToneDen"],
+        ["Twoje decki", "kopie wyeksportowane pod odtwarzacze"],
+      ]}
+    />
+  </Track>
+
+  <Track id="browser" title="Pobieranie i koszyki">
+    <p class="copy">Przy bramce albo koszyku aplikacja wysyła każdy krok do rozszerzenia, które działa tylko w kartach, które samo otworzyło.</p>
+    <BrowserFlow
+      title="Aplikacja i rozszerzenie przy bramkach i koszykach"
+      desc="Aplikację dj-digger i rozszerzenie dj-digger łączy native messaging, ich jedyny kanał. Rozszerzenie działa tylko w kartach, które otworzyło: w SoundCloud loguje aplikację, w Hypeddit i ToneDen kończy bramkę, a plik trafia do aplikacji, w Bandcamp i Beatport dodaje Twój wybór do koszyka. Karta zmierzająca do kasy lub strony płatności zostaje zamknięta; kartę koszyka sprawdzasz i opłacasz Ty."
+      app="Aplikacja dj-digger"
+      appNote="wysyła każdy krok"
+      native="Native messaging"
+      nativeNote="jedyny kanał"
+      extension="Rozszerzenie dj-digger"
+      extensionNote="tylko w kartach, które otworzyło"
+      signin={["SoundCloud", "loguje aplikację"]}
+      gates={["Hypeddit, ToneDen", "kończy bramkę, plik do aplikacji"]}
+      cart={["Bandcamp, Beatport", "dodaje Twój wybór do koszyka"]}
+      closed="Kasa lub płatność: karta zamknięta"
+      yours="Karta koszyka: sprawdzasz i płacisz"
+    />
+  </Track>
+
+  <Track id="data" title="Dokąd trafiają Twoje dane">
+    <div class="split">
+      <DataFlow />
+      <p class="copy">
+        Twoja biblioteka, decyzje i ustawienia zostają na Twoim komputerze. Rozszerzenie rozmawia tylko z aplikacją i nic
+        nie trafia do twórcy.
+      </p>
+    </div>
+  </Track>
+
+  <Track id="kick" title="Światło stopy">
+    <p class="copy">
+      Światło odtwarzacza idzie za stopą. Jego poziom jest wyliczany z dźwięku przed odtworzeniem, a światło sprawdzono
+      klatka po klatce w prawdziwym oknie.
+    </p>
+    <Loop />
+    <div class="cta">
+      <a class="button" href={`${release}/docs/kick-pulse-validation.md`}><Icon name="book-open" />Notatki z walidacji</a>
+    </div>
+  </Track>
+
+  <Track id="credits" title="Podziękowania i źródła">
+    <p class="copy">dj-digger jest otwartoźródłowy, na licencji Apache License 2.0.</p>
+    <div class="cta">
+      <a class="button" href={repo}><Icon name="github-logo" />Kod źródłowy</a>
+      <a class="button" href={`${release}/PROJECT_SPECIFICATION.md`}><Icon name="book-open" />Specyfikacja</a>
+      <a class="button" href={`${release}/CHANGELOG.md`}><Icon name="clock-counter-clockwise" />Lista zmian</a>
+    </div>
+    <dl class="spec sources">
+      <dt>Czcionki</dt>
+      <dd>Archivo i JetBrains Mono, SIL Open Font License.</dd>
+      <dt>Ikony</dt>
+      <dd><a href="https://phosphoricons.com">Phosphor Icons</a>, licencja MIT.</dd>
+      <dt>Zrzuty ekranu</dt>
+      <dd>
+        Utwór demo na zrzutach ekranu aplikacji i rozszerzenia to „Drift Away” w wykonaniu JMHBM (Johnathon M. Horner,
+        Beat Mekanik), <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>, z serwisu{" "}
+        <a href="https://freemusicarchive.org/music/beat-mekanik/single/drift-away/">Free Music Archive</a>.
+      </dd>
+    </dl>
+  </Track>
+</Base>
+
+<style>
+  .split {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));
+    gap: 2.5rem;
+    align-items: center;
+  }
+  .sources dd {
+    color: var(--muted);
+  }
+  .sources a {
+    font-weight: 600;
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .sources a:hover,
+  .sources a:focus-visible {
+    text-decoration: underline;
+  }
+  @media (max-width: 30rem) {
+    .spec {
+      grid-template-columns: 1fr;
+    }
+    .spec dd {
+      padding-top: 0;
+      border-top: 0;
+    }
+  }
+</style>

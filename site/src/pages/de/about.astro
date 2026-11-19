@@ -1,0 +1,136 @@
+---
+import Base from "../../layouts/Base.astro";
+import Loop from "../../components/Loop.astro";
+import Track from "../../components/Track.astro";
+import Icon from "../../components/Icon.astro";
+import DataFlow from "../../components/extension/DataFlow.astro";
+import HowItWorks from "../../components/about/HowItWorks.astro";
+import BrowserFlow from "../../components/about/BrowserFlow.astro";
+import { author, repo, version } from "../../../site.config.mjs";
+
+const description =
+  "Wie dj-digger funktioniert, wie die App und ihre Browser-Erweiterung Downloads und Warenkörbe erledigen, wohin deine Daten gehen, und die Credits.";
+// Sources at the released tag, so they describe what has shipped.
+const release = `${repo}/blob/v${version}`;
+---
+
+<Base title="Über · dj-digger" description={description} label="about">
+  <Track id="about" title="Über" hero sub>
+    <Fragment slot="heading">Über <span class="grad">dj-digger</span></Fragment>
+    <p class="lede">
+      Eine kostenlose Open-Source-Desktop-App fürs Crate Digging, mit Browser-Erweiterung. Gemacht von {author.name}.
+    </p>
+  </Track>
+
+  <Track id="how" title="So funktioniert es">
+    <p class="copy">Alles läuft auf deinem Computer. Es gibt keinen dj-digger-Server und kein Konto.</p>
+    <HowItWorks
+      title="So funktioniert dj-digger"
+      desc="Eine SoundCloud-Playlist geht in die dj-digger-App auf deinem Computer. Die App sammelt die ganze Liste über die SoundCloud-API, merkt sich deine Entscheidungen in einer lokalen Datenbank und gleicht deine Musikordner ab. Sie führt zu Shop-Links, nach Shop sortiert, etwa Bandcamp, Beatport und Traxsource, zu Download-Gates bei Hypeddit und ToneDen und zu Kopien, exportiert für deine Decks."
+      playlist="SoundCloud-Playlist"
+      computer="Dein Computer"
+      app="dj-digger-App"
+      steps={[
+        ["Sammelt die ganze Liste", "über die SoundCloud-API"],
+        ["Behält deine Entscheidungen", "in einer lokalen Datenbank"],
+        ["Gleicht deine Musikordner ab", "damit du siehst, was du schon hast"],
+      ]}
+      outs={[
+        ["Shop-Links", "Bandcamp, Beatport, Traxsource und mehr"],
+        ["Download-Gates", "Hypeddit, ToneDen"],
+        ["Deine Decks", "exportierte Kopien für deine Player"],
+      ]}
+    />
+  </Track>
+
+  <Track id="browser" title="Downloads und Warenkörbe">
+    <p class="copy">Bei einem Gate oder Warenkorb schickt die App jeden Schritt an die Erweiterung, die nur in den Tabs arbeitet, die sie geöffnet hat.</p>
+    <BrowserFlow
+      title="App und Erweiterung bei Gates und Warenkörben"
+      desc="Die dj-digger-App und die dj-digger-Erweiterung sind über Native Messaging verbunden, ihren einzigen Kanal. Die Erweiterung arbeitet nur in Tabs, die sie geöffnet hat: Bei SoundCloud meldet sie die App an, bei Hypeddit und ToneDen schließt sie das Gate ab und die Datei geht an die App, bei Bandcamp und Beatport legt sie deine Auswahl in deinen Warenkorb. Ein Tab auf dem Weg zu einer Checkout- oder Zahlungsseite wird geschlossen; den Warenkorb-Tab prüfst und bezahlst du selbst."
+      app="dj-digger-App"
+      appNote="sendet jeden Schritt"
+      native="Native Messaging"
+      nativeNote="der einzige Kanal"
+      extension="dj-digger-Erweiterung"
+      extensionNote="nur in Tabs, die sie geöffnet hat"
+      signin={["SoundCloud", "meldet die App an"]}
+      gates={["Hypeddit, ToneDen", "schließt das Gate ab, Datei an die App"]}
+      cart={["Bandcamp, Beatport", "legt deine Auswahl in den Warenkorb"]}
+      closed="Checkout, Zahlung: Tab geschlossen"
+      yours="Warenkorb-Tab: du prüfst und zahlst"
+    />
+  </Track>
+
+  <Track id="data" title="Wohin deine Daten gehen">
+    <div class="split">
+      <DataFlow />
+      <p class="copy">
+        Deine Bibliothek, Entscheidungen und Einstellungen bleiben auf deinem Computer. Die Erweiterung spricht nur mit
+        der App, und an den Entwickler wird nichts gesendet.
+      </p>
+    </div>
+  </Track>
+
+  <Track id="kick" title="Das Kick-Licht">
+    <p class="copy">
+      Das Licht des Players folgt der Kickdrum. Sein Pegel wird vor der Wiedergabe aus dem Audio berechnet, und das Licht
+      wurde im echten Fenster Bild für Bild geprüft.
+    </p>
+    <Loop />
+    <div class="cta">
+      <a class="button" href={`${release}/docs/kick-pulse-validation.md`}><Icon name="book-open" />Validierungsnotizen</a>
+    </div>
+  </Track>
+
+  <Track id="credits" title="Credits und Quellen">
+    <p class="copy">dj-digger ist Open Source unter der Apache License 2.0.</p>
+    <div class="cta">
+      <a class="button" href={repo}><Icon name="github-logo" />Quellcode</a>
+      <a class="button" href={`${release}/PROJECT_SPECIFICATION.md`}><Icon name="book-open" />Spezifikation</a>
+      <a class="button" href={`${release}/CHANGELOG.md`}><Icon name="clock-counter-clockwise" />Änderungsprotokoll</a>
+    </div>
+    <dl class="spec sources">
+      <dt>Schriften</dt>
+      <dd>Archivo und JetBrains Mono, SIL Open Font License.</dd>
+      <dt>Icons</dt>
+      <dd><a href="https://phosphoricons.com">Phosphor Icons</a>, MIT-Lizenz.</dd>
+      <dt>Screenshots</dt>
+      <dd>
+        Der Demo-Track in den Screenshots von App und Erweiterung ist „Drift Away“ von JMHBM (Johnathon M. Horner, Beat
+        Mekanik), <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>, über{" "}
+        <a href="https://freemusicarchive.org/music/beat-mekanik/single/drift-away/">Free Music Archive</a>.
+      </dd>
+    </dl>
+  </Track>
+</Base>
+
+<style>
+  .split {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));
+    gap: 2.5rem;
+    align-items: center;
+  }
+  .sources dd {
+    color: var(--muted);
+  }
+  .sources a {
+    font-weight: 600;
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .sources a:hover,
+  .sources a:focus-visible {
+    text-decoration: underline;
+  }
+  @media (max-width: 30rem) {
+    .spec {
+      grid-template-columns: 1fr;
+    }
+    .spec dd {
+      padding-top: 0;
+      border-top: 0;
+    }
+  }
+</style>

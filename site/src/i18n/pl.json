@@ -1,0 +1,60 @@
+{
+  "skip": "Przejdź do treści",
+  "primary": "Główna nawigacja",
+  "nav": {
+    "app": "Aplikacja",
+    "extension": "Rozszerzenie",
+    "about": "O projekcie",
+    "download": "Pobierz",
+    "github": "GitHub"
+  },
+  "menu": "Menu",
+  "language": "Język",
+  "toLight": "Przełącz na jasny motyw",
+  "toDark": "Przełącz na ciemny motyw",
+  "ogAlt": "dj-digger: od playlisty w SoundCloud do plików na Twoich deckach. Ikona aplikacji, płyta widziana z góry.",
+  "footer": {
+    "free": "Bezpłatny i otwartoźródłowy, Apache 2.0.",
+    "site": "Strona",
+    "project": "Projekt",
+    "privacy": "Polityka prywatności",
+    "license": "Licencja",
+    "madeBy": "Autor:",
+    "credits": "Podziękowania"
+  },
+  "copy": "Kopiuj",
+  "copied": "Skopiowano",
+  "play": "Odtwórz",
+  "pause": "Pauza",
+  "stop": "Zatrzymaj",
+  "previous": "Poprzedni utwór",
+  "next": "Następny utwór",
+  "close": "Zamknij",
+  "openFull": "Otwórz zrzut całego okna",
+  "player": {
+    "pauseAnim": "Wstrzymaj animację odtwarzacza",
+    "playAnim": "Odtwórz animację odtwarzacza",
+    "note": "Odwzorowanie odtwarzacza dj-digger z prawdziwym utworem. Okładka i przebieg dźwięku pochodzą z SoundCloud.",
+    "music": "Muzyka:"
+  },
+  "lightbox": {
+    "label": "Powiększony zrzut ekranu",
+    "zoom": "Pokaż ten zrzut ekranu większy"
+  },
+  "flow": {
+    "title": "Dokąd trafiają dane rozszerzenia",
+    "desc": "Jedna ramka, Twój komputer, mieści aplikację desktopową dj-digger i Twoją przeglądarkę z rozszerzeniem dj-digger. Aplikację i rozszerzenie łączy native messaging, ich jedyny kanał. Jedyne strzałki wychodzące poza ramkę prowadzą z kart, które rozszerzenie otworzyło dla aplikacji, do pięciu serwisów: Hypeddit, ToneDen, Bandcamp, Beatport i SoundCloud. Ramka twórcy stoi na zewnątrz bez żadnej strzałki: nic tam nie trafia.",
+    "computer": "Twój komputer",
+    "app": "Aplikacja dj-digger",
+    "appNote": "wysyła kroki przeglądarce",
+    "native": "Native messaging",
+    "nativeNote": "jedyny kanał",
+    "browser": "Przeglądarka",
+    "extension": "Rozszerzenie dj-digger",
+    "tabs": "Otwarte karty",
+    "tabsNote": "dla aplikacji",
+    "developer": "Twórca",
+    "developerNote": "nic nie trafia",
+    "sites": "Serwisy"
+  }
+}

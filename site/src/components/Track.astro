@@ -1,13 +1,12 @@
 ---
-// One track of the page: a section the record shows as a band and the tracklist as a row.
-// `no` and `title` must match the entry in the page's `tracks` array.
-// `hero` makes it the page's opening (an h1); `sub` is the quieter hero of every page but the landing page.
-const { id, no, title, label = title, heading = title, hero = false, sub = false } = Astro.props;
+// One section of the page, with its heading. `hero` makes it the page's opening (an h1);
+// `sub` is the quieter hero of every page but the landing page.
+// `no` and `label` are accepted and ignored: sections carry no numbers or overlines any more.
+const { id, title, heading = title, hero = false, sub = false } = Astro.props;
 const Heading = hero ? "h1" : "h2";
 ---
 
-<section id={id} data-track={no} data-title={title} aria-labelledby={`${id}-title`} class:list={["stack", { hero, sub }]}>
-  <p class="eyebrow"><span class="no">{no}</span>{label}</p>
+<section id={id} aria-labelledby={`${id}-title`} class:list={["stack", { hero, sub }]}>
   <Heading id={`${id}-title`}><slot name="heading">{heading}</slot></Heading>
   <slot />
 </section>

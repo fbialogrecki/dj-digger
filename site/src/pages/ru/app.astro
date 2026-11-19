@@ -1,10 +1,9 @@
 ---
-import { Picture } from "astro:assets";
 import Base from "../../layouts/Base.astro";
+import Icon from "../../components/Icon.astro";
 import Loop from "../../components/Loop.astro";
 import Track from "../../components/Track.astro";
 import Shot from "../../components/Shot.astro";
-import Code from "../../components/Code.astro";
 import mainWindow from "../../assets/screenshots/ru/desktop-player.png";
 import decisionsWindow from "../../assets/screenshots/ru/desktop-crates-decisions.png";
 import storesWindow from "../../assets/screenshots/ru/desktop-store-links.png";
@@ -22,67 +21,30 @@ import exportDialog from "../../assets/screenshots/ru/crops/export.png";
 
 const description =
   "Настольное приложение dj-digger: собирайте плейлисты SoundCloud целиком, прослушивайте их, запоминайте каждое решение, переходите по ссылкам Bandcamp и Beatport, проходите гейты скачивания, наполняйте корзины и экспортируйте файлы для своих дек.";
-const tracks = [
-  { id: "overview", no: "01", title: "Весь цикл" },
-  { id: "collect", no: "02", title: "Собрать" },
-  { id: "audition", no: "03", title: "Прослушать" },
-  { id: "decide", no: "04", title: "Решить" },
-  { id: "acquire", no: "05", title: "Получить" },
-  { id: "prepare", no: "06", title: "Подготовить" },
-  { id: "cli", no: "07", title: "Бонус-трек: командная строка" },
-  { id: "requirements", no: "08", title: "Системные требования" },
-  { id: "end", no: "09", title: "Установить" },
-];
-const session = tracks.slice(1, 6);
-const commands = [
-  ["Экспорт ссылок плейлиста в CSV", "dj-digger https://soundcloud.com/user/sets/playlist -f csv -o playlist.csv"],
-  ["Первые 20 лайков в JSON", "dj-digger https://soundcloud.com/user/likes -n 20 -f json -o likes.json"],
-  ["Открыть все ссылки Bandcamp из сохранённой сводки", "dj-digger open likes.json --category bandcamp"],
-];
 ---
 
-<Base title="Настольное приложение · dj-digger" description={description} label="app" tracks={tracks}>
-  <Track hero sub id="overview" no="01" title="Весь цикл" label="Настольное приложение">
+<Base title="Настольное приложение · dj-digger" description={description} label="app">
+  <Track hero sub id="overview" title="Весь цикл">
     <Fragment slot="heading">Весь цикл диггинга <span class="grad">в одном окне</span></Fragment>
-    <p class="lede">
-      Пять треков в том порядке, в каком идёт сессия. Каждая картинка на этой странице — настоящее приложение на
-      демо-данных.
-    </p>
-    <ol class="order" aria-label="Порядок треков">
-      {
-        session.map((track) => (
-          <li>
-            <a href={`#${track.id}`}>
-              <span class="no">{track.no}</span>
-              {track.title}
-            </a>
-          </li>
-        ))
-      }
-    </ol>
+    <p class="lede">Каждая картинка на этой странице — настоящее приложение на демо-данных.</p>
     <div class="cta">
-      <a class="button primary" href="/ru/download/">Скачать</a>
-      <a class="quiet" href="#requirements">На чём работает</a>
+      <a class="button primary" href="/ru/download/"><Icon name="download-simple" />Скачать</a>
     </div>
     <Shot
       src={mainWindow}
       eager
-      caption="Главное окно"
-      alt="Главное окно dj-digger. На боковой панели три плейлиста SoundCloud, выбран Late Night Selects, а под ними обозреватель «Папки». Плеер вверху показывает Slow Orbit от Nightglass на 1:04 из 3:20 со сгенерированной обложкой-пластинкой и пурпурной формой волны. Ниже поле поиска, кнопки магазинов (Bandcamp 4, Beatport 3, Hypeddit 3, Traxsource 1, Juno Download 1), фильтр статуса и таблица из 14 треков, у каждого статус, исполнитель, название, жанр, год, лейбл, длительность и значок магазина."
+      alt="Главное окно dj-digger. На боковой панели три плейлиста SoundCloud, выбран Late Night Selects, а под ними папки «Загрузки» и «Музыка». Плеер вверху показывает Drift Away от JMHBM на 1:21 из 3:01 со сгенерированной обложкой-пластинкой и пурпурной формой волны. Ниже поле поиска, кнопки магазинов (Bandcamp 4, Beatport 3, Hypeddit 3, Traxsource 1, Juno Download 1), фильтр статуса и таблица из 14 треков, у каждого статус, исполнитель, название, жанр, год, лейбл, длительность и значок магазина."
     />
   </Track>
 
-  <Track id="collect" no="02" title="Собрать" heading="Плейлисты целиком, а не прокрученная страница">
+  <Track id="collect" title="Собрать" heading="Плейлисты целиком, а не прокрученная страница">
     <div class="beside">
       <div class="beside-grid">
         <div class="stack">
-          <p class="lede">
-            Вставьте ссылку SoundCloud, и приложение прочитает всю коллекцию через API SoundCloud, так что ничего не
-            спрячется за последней строкой, которую успела показать страница.
-          </p>
+          <p class="lede">Приложение читает всю коллекцию через API SoundCloud.</p>
           <ul class="ticks">
             <li>Плейлисты и сеты, лайки, репосты, профили исполнителей и отдельные треки</li>
-            <li>Импорт сразу появляется на боковой панели и наполняется партиями; ничего не сохраняется, пока не придёт всё целиком</li>
+            <li>Импорт наполняет таблицу партиями и сохраняется, когда придёт всё целиком</li>
             <li>Войдите в SoundCloud, чтобы читать свои приватные плейлисты</li>
             <li>При обновлении плейлиста новые треки встают наверх с пометкой <code>NEW</code></li>
           </ul>
@@ -91,36 +53,29 @@ const commands = [
           src={sidebar}
           full={libraryWindow}
           sizes="220px"
-          caption="Боковая панель"
-          alt="Боковая панель: поле фильтра плейлистов и папок; три плейлиста SoundCloud — Late Night Selects с 14 треками, Sunday Balcony с 4 и Warehouse Warmups с 6 — и кнопка «плюс», чтобы добавить новый; ниже обозреватель «Папки» с «Загрузками» и «Музыкой», где выбрана папка Digging 2026 с шестью файлами."
+          alt="Боковая панель: поле фильтра плейлистов и папок; три плейлиста SoundCloud — Late Night Selects с 14 треками, Sunday Balcony с 4 и Warehouse Warmups с 6 — и кнопка «плюс», чтобы добавить новый; ниже обозреватель «Папки» с «Загрузками» и «Музыкой», где выбрана папка Digging 2026 с семью файлами."
         />
       </div>
     </div>
   </Track>
 
-  <Track id="audition" no="03" title="Прослушать" heading="Превью, которое чувствует бочку">
-    <p class="lede">
-      Слушайте превью из SoundCloud или играйте файл с диска, если он у вас есть. Перематывайте по форме волны;
-      следующий трек готовится в последние 20 секунд текущего.
-    </p>
-    <Loop>Записано в настоящем приложении, демо-треки</Loop>
+  <Track id="audition" title="Прослушать" heading="Превью, которое чувствует бочку">
+    <p class="lede">Слушайте превью из SoundCloud или играйте файл с диска, если он у вас есть.</p>
+    <Loop />
     <ul class="ticks">
-      <li>На каждой бочке сыгранная часть формы волны и фон обложки вспыхивают — пропорционально бочке, а не басовой линии</li>
+      <li>Перематывайте по форме волны; следующий трек готовится заранее</li>
+      <li>На каждой бочке сыгранная часть формы волны вспыхивает — вслед за бочкой, а не басовой линией</li>
       <li>Превью декодируются в памяти и никогда не сохраняются на диск</li>
-      <li>Поиск, фильтры и сортировка, не уходя из плейлиста; сочетания из одной клавиши, а <kbd>?</kbd> показывает их все</li>
+      <li>Поиск, фильтры и сортировка, не уходя из плейлиста; <kbd>?</kbd> показывает все сочетания клавиш</li>
       <li>«Вид → Анимация» выключает подсветку</li>
     </ul>
   </Track>
 
-  <Track id="decide" no="04" title="Решить" heading="Ящики, которые помнят">
-    <p class="lede">
-      Отмечайте треки как имеющиеся или пропущенные; приложение помнит и то, что вы прослушали и открыли. Решение
-      следует за треком в каждый плейлист, где он встречается.
-    </p>
+  <Track id="decide" title="Решить" heading="Ящики, которые помнят">
+    <p class="lede">«Есть», «Пропущен», «Прослушан» и «Открыт»: каждый трек хранит свой статус.</p>
     <Shot
       src={decisions}
       full={decisionsWindow}
-      caption="Столбец и фильтр статуса"
       alt="Таблица треков с открытым фильтром статуса: «Все статусы», «Необработанные», «Новый», «Открытые», «Имеющиеся» и «Пропущенные». В столбце «Статус» значатся «Есть», «Есть», «Прослушан», «Есть», «Открыт» и «Новый» рядом с Nightglass, Coral Engine, Sable Fern, Tidewell, Ostra Lumen и Pale Circuit; над таблицей кнопки магазинов, например Bandcamp 4 и Beatport 3."
     />
     <ul class="ticks">
@@ -130,7 +85,7 @@ const commands = [
     </ul>
   </Track>
 
-  <Track id="acquire" no="05" title="Получить" heading="Самый безопасный путь к каждому треку">
+  <Track id="acquire" title="Получить" heading="Самый безопасный путь к каждому треку">
     <p class="lede">Три пути к файлу. У каждого сказано, что остаётся за вами.</p>
 
     <div class="movement stack">
@@ -145,7 +100,6 @@ const commands = [
       <Shot
         src={stores}
         full={storesWindow}
-        caption="Кнопки магазинов фильтруют таблицу"
         alt="Таблица треков, отфильтрованная кнопками магазинов Bandcamp 4 и Beatport 3: показано 7 из 14 треков, у каждого значок Bandcamp или Beatport в столбце «Магазины»."
       />
     </div>
@@ -162,7 +116,6 @@ const commands = [
       <Shot
         src={gates}
         full={gatesWindow}
-        caption="Настоящий диалог; строки взяты из тестового запуска"
         alt="Диалог «Гейтам нужна ваша помощь»: «Эти гейты требуют того, что можете сделать только вы, например войти в аккаунт или пройти CAPTCHA», под ним список из трёх треков, у каждого пометка, что гейт требует пройти CAPTCHA, и кнопки «Открыть в браузере», «Пропустить эти» и «Остановить скачивание»."
       />
     </div>
@@ -173,20 +126,18 @@ const commands = [
         Отметьте треки, и приложение наполнит вашу корзину Bandcamp, а если точный трек известен, то и корзину
         Beatport — в фоновых вкладках вашего собственного браузера. Каждая страница товара перепроверяется прямо перед
         нажатием; неоднозначное название, изменившаяся цена или трек, который продаётся только с альбомом, останавливают
-        работу, а не заставляют гадать. Треки Beatport, которые не удаётся положить в корзину, можно вместо этого
-        отправить на импорт в Soundiiz.
+        работу вместо догадок.
       </p>
       <p class="manual"><strong>Остаётся за вами</strong> Оформление заказа. Одна вкладка корзины на каждый магазин переходит к вам; приложение никогда не читает ваш пароль, не выбирает способ оплаты и не платит.</p>
       <Shot
         src={cart}
         full={cartWindow}
-        caption="Настоящий диалог; результаты взяты из тестового запуска"
-        alt="Диалог «Результаты корзины»: «Добавлено в корзины: 4. Не добавлено: 1», список из пяти треков с результатами вроде «в корзине Bandcamp», «уже в корзине Bandcamp» и «в плейлист» и кнопки «Отправить плейлист в Soundiiz», «Открыть недобавленные ссылки», «Показать корзины» и «Закрыть»."
+        alt="Диалог «Результаты корзины»: «Добавлено в корзины: 4. Не добавлено: 1», список из пяти треков с результатами вроде «в корзине Bandcamp», «уже в корзине Bandcamp» и «в плейлист» и кнопки «Открыть недобавленные ссылки», «Показать корзины» и «Закрыть»."
       />
     </div>
   </Track>
 
-  <Track id="prepare" no="06" title="Подготовить" heading="Готово для дек">
+  <Track id="prepare" title="Подготовить" heading="Готово для дек">
     <p class="lede">Папки на диске открываются в той же таблице и покидают её копиями, которые читают ваши деки.</p>
 
     <div class="movement stack">
@@ -199,8 +150,7 @@ const commands = [
       <Shot
         src={library}
         full={libraryWindow}
-        caption="BPM и тональность в локальной папке"
-        alt="Локальная папка в таблице треков: шесть файлов со статусом «Новый», значения BPM от 120 до 130 и тональности 9A, 8A, 10A, 5A, 7A и 8B."
+        alt="Локальная папка в таблице треков: семь файлов, Drift Away от JMHBM со статусом «Прослушан», остальные «Новый», значения BPM от 120 до 130 и тональности 9A, 8A, 10A, 5A, 7A и 8B."
       />
     </div>
 
@@ -216,73 +166,26 @@ const commands = [
       <Shot
         src={exportDialog}
         full={exportWindow}
-        caption="«Экспортировать аудио»: десять групп дек"
         alt="Диалог «Экспортировать аудио»: «Выберите деки, на которых должны играть эти файлы; лучший формат, который поддерживают все, будет выбран автоматически». Десять групп дек флажками, от CDJ-350 до OMNIS-DUO и XDJ-AN, пять из них отмечены; пустая папка назначения с кнопкой «Обзор…», режим «Копировать», флажок «Включить подпапки» снят, кнопки «Экспортировать» и «Отмена»."
       />
     </div>
   </Track>
 
-  <Track id="cli" no="07" title="Бонус-трек: командная строка" heading="CLI для ваших скриптов">
-    <p class="copy">
-      Консольная команда <code>dj-digger</code> собирает плейлист, сохраняет его в библиотеку и экспортирует его ссылки
-      в JSON или CSV. Библиотека у неё общая с настольным приложением, поэтому они работают по очереди: закройте одно,
-      прежде чем запускать другое.
-    </p>
-    <div class="commands">
-      {commands.map(([label, code]) => <Code label={label} code={code} />)}
-    </div>
+  <Track id="requirements" title="Системные требования">
+    <p class="copy">Windows 10+, macOS 15+ и Linux.</p>
   </Track>
 
-  <Track id="requirements" no="08" title="Системные требования" heading="Системные требования">
-    <dl class="spec">
-      <dt>Windows</dt>
-      <dd>Windows 10 (1809 или новее) или 11, 64-битный Intel или AMD</dd>
-      <dt>macOS</dt>
-      <dd>macOS 15 или новее, Apple Silicon или Intel</dd>
-      <dt>Linux</dt>
-      <dd>
-        Проверено на Ubuntu 24.04, Debian 12, Fedora, Arch Linux и openSUSE Tumbleweed с{" "}
-        <a href="/ru/download/">установочным скриптом</a>, который настраивает всё остальное
-      </dd>
-      <dt>Из PyPI</dt>
-      <dd>Python 3.12 или новее, FFmpeg и ffprobe в <code>PATH</code></dd>
-      <dt>Функции браузера</dt>
-      <dd>Chrome, Edge, Brave, Chromium или Firefox с расширением dj-digger; браузеры, установленные как Flatpak или Snap, не подходят</dd>
-    </dl>
-  </Track>
-
-  <Track id="end" no="09" title="Установить" heading="Ставьте на вертушку">
+  <Track id="end" title="Установить" heading="Поставьте пластинку">
     <p class="copy">Затем подключите браузер: гейты скачивания и корзины магазинов работают через расширение.</p>
     <div class="cta">
-      <a class="button primary" href="/ru/download/">Скачать</a>
-      <a class="quiet" href="/ru/extension/">О расширении</a>
+      <a class="button primary" href="/ru/download/"><Icon name="download-simple" />Скачать</a>
+      <a class="button" href="/ru/extension/"><Icon name="puzzle-piece" />Подробнее о расширении</a>
     </div>
   </Track>
 </Base>
 
 <style>
-  /* Hero: the five session tracks as a running order. */
-  .order {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.2rem 1.4rem;
-    font-size: 0.92rem;
-  }
-  .order a {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 0.55rem;
-    padding-block: 0.35rem;
-    color: var(--fg);
-    font-weight: 600;
-    text-decoration-color: var(--edge);
-  }
-  .order .no {
-    font-size: 0.74rem;
-    color: var(--muted);
-  }
-
-  /* A1: the tall sidebar crop stands beside its text once the column has room. */
+  /* Collect: the tall sidebar crop stands beside its text once the column has room. */
   .beside {
     container-type: inline-size;
   }
@@ -311,16 +214,6 @@ const commands = [
   .manual strong {
     display: block;
     margin-bottom: 0.15rem;
-    font-stretch: 125%;
-    font-size: 0.72rem;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
     color: var(--fg);
   }
-
-  .commands {
-    display: grid;
-    gap: 0.9rem;
-  }
-
 </style>

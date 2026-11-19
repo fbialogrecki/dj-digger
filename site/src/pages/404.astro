@@ -1,19 +1,16 @@
 ---
 import Base from "../layouts/Base.astro";
-
-const tracks = [{ id: "empty", no: "00", title: "Empty groove" }];
+import Track from "../components/Track.astro";
+import Icon from "../components/Icon.astro";
 ---
 
-<Base title="Page not found | dj-digger" description="This page is not on the record." tracks={tracks} noindex>
-  <section class="hero sub stack" id="empty" data-track="00" data-title="Empty groove" aria-labelledby="empty-title">
-    <p class="eyebrow"><span class="no">404</span>Run-out groove</p>
-    <h1 id="empty-title">This groove is empty</h1>
+<Base title="Page not found | dj-digger" description="This page is not on the record." noindex>
+  <Track id="empty" title="This groove is empty" hero sub>
     <p class="lede">The page you asked for is not on this record.</p>
     <div class="cta">
-      <a class="button primary" href="/">Back to the start</a>
-      <a class="quiet" href="/download/">Download dj-digger</a>
+      <a class="button primary" href="/"><Icon name="house" />Back to the start</a>
     </div>
-  </section>
+  </Track>
 </Base>
 
 <style is:global>

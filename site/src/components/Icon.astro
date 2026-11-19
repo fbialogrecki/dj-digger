@@ -1,0 +1,14 @@
+---
+// A Phosphor icon (@phosphor-icons/core, MIT), inlined at build time: <Icon name="download-simple" />.
+// `weight` is one of thin, light, regular, bold, fill, duotone. Sized by CSS (.icon, 1em by default);
+// decoration only, so the text or aria-label beside it names the action. An unknown name fails the build.
+import { readFileSync } from "node:fs";
+
+const { name, weight = "regular", class: className } = Astro.props;
+const file = weight === "regular" ? `${name}.svg` : `${name}-${weight}.svg`;
+// Read from the working directory (npm runs in site/), as site.config.mjs reads pyproject.toml.
+const svg = readFileSync(`node_modules/@phosphor-icons/core/assets/${weight}/${file}`, "utf8");
+const body = svg.slice(svg.indexOf(">") + 1, svg.lastIndexOf("</svg>"));
+---
+
+<svg class:list={["icon", className]} viewBox="0 0 256 256" fill="currentColor" aria-hidden="true" focusable="false" set:html={body} />

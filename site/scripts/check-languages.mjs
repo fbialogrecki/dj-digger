@@ -1,15 +1,15 @@
-// After a build: every page exists in every language with the same tracks, pictures and
+// After a build: every page exists in every language with the same sections, pictures and
 // code blocks as the English one, says its language, and links within that language.
 import { readFileSync } from "node:fs";
 
 const languages = ["en", "de", "es", "fr", "it", "pl", "ru"];
-const bases = ["/", "/app/", "/extension/", "/download/", "/liner-notes/"];
+const bases = ["/", "/app/", "/extension/", "/download/", "/about/"];
 // Served once for every language: build output, the script and the preview card.
 const shared = /^\/(_astro\/|install\.sh$|og\.png$|sitemap\.xml$|robots\.txt$)/;
 const problems = [];
 
 const shape = (html) => ({
-  tracks: [...html.matchAll(/<section id="([^"]+)" data-track="([^"]+)"/g)].map((m) => `${m[1]}:${m[2]}`).join(" "),
+  sections: [...html.matchAll(/<section\b[^>]*?\sid="([^"]+)"/g)].map((m) => m[1]).join(" "),
   pictures: (html.match(/<picture/g) ?? []).length,
   code: [...html.matchAll(/data-copy="([^"]*)"/g)].map((m) => m[1]).join("\n"),
 });
@@ -40,7 +40,7 @@ for (const base of bases) {
 
 // A page's own styles and scripts are copied into every language: they must stay the same.
 const blocks = (source) => source.match(/<(style|script)\b[\s\S]*?<\/\1>/g) ?? [];
-for (const page of ["index", "app", "extension", "download", "liner-notes"]) {
+for (const page of ["index", "app", "extension", "download", "about"]) {
   const english = blocks(readFileSync(`src/pages/${page}.astro`, "utf8")).join("\n");
   for (const lang of languages.slice(1)) {
     let source;

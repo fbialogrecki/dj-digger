@@ -4,6 +4,10 @@
     "ignore": ["firebase.json", "**/.*", "**/.prerender/**"],
     "cleanUrls": true,
     "trailingSlash": true,
+    "redirects": [
+      { "regex": "^/liner-notes/?$", "destination": "/about/", "type": 301 },
+      { "regex": "^/(?P<lang>de|es|fr|it|pl|ru)/liner-notes/?$", "destination": "/:lang/about/", "type": 301 }
+    ],
     "headers": [
       {
         "source": "**",

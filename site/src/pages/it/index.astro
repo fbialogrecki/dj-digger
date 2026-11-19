@@ -1,44 +1,26 @@
 ---
-import { Picture } from "astro:assets";
 import Base from "../../layouts/Base.astro";
+import Icon from "../../components/Icon.astro";
 import Loop from "../../components/Loop.astro";
 import Shot from "../../components/Shot.astro";
 import Track from "../../components/Track.astro";
-import sidebar from "../../assets/screenshots/it/crops/sidebar.png";
-import playerCrop from "../../assets/screenshots/it/crops/player.png";
+import collect from "../../assets/screenshots/it/crops/collect.png";
 import decisions from "../../assets/screenshots/it/crops/decisions.png";
-import cart from "../../assets/screenshots/it/crops/cart.png";
+import panelJob from "../../assets/screenshots/extension-panel-job.png";
 import libraryWindow from "../../assets/screenshots/it/desktop-local-library.png";
 import playerWindow from "../../assets/screenshots/it/desktop-player.png";
 import decisionsWindow from "../../assets/screenshots/it/desktop-crates-decisions.png";
-import cartWindow from "../../assets/screenshots/it/desktop-cart.png";
-import panel from "../../assets/screenshots/extension-panel.png";
-import { repo, version } from "../../../site.config.mjs";
+import { version } from "../../../site.config.mjs";
 
 const description =
   "Un'app di crate digging per DJ che lavora in locale: trasforma playlist, like e profili SoundCloud in una libreria da ascoltare, poi trova il modo più sicuro per scaricare o comprare ogni brano.";
-const tracks = [
-  { id: "start", no: "01", title: "Dalla playlist ai deck" },
-  { id: "loop", no: "02", title: "Il ciclo del digging" },
-  { id: "app", no: "03", title: "L'app desktop" },
-  { id: "extension", no: "04", title: "L'estensione del browser" },
-  { id: "trust", no: "05", title: "Tua, e onesta" },
-  { id: "get", no: "06", title: "Scegli la tua stampa" },
-];
 const loop = [
   {
     name: "Raccogli",
-    text: "Incolla il link di una playlist, dei like, dei repost, di un profilo o di un brano. L'elenco completo arriva tramite l'API di SoundCloud, non solo le righe che una pagina ha mostrato.",
-    src: sidebar,
-    full: libraryWindow,
-    alt: "La barra laterale di dj-digger: tre playlist SoundCloud, Late Night Selects con 14 brani, Sunday Balcony con 4 e Warehouse Warmups con 6, e sotto le cartelle Download e Musica, con Digging 2026 aperta.",
-  },
-  {
-    name: "Ascolta",
-    text: "Anteprima, salti nel brano, ricerca, filtri e ordinamento senza lasciare la playlist. La parte già suonata della forma d'onda si accende a ogni cassa.",
-    src: playerCrop,
+    text: "Incolla il link di una playlist, dei like o di un profilo. Arriva l'elenco completo, non solo le righe che una pagina ha mostrato.",
+    src: collect,
     full: playerWindow,
-    alt: "Il player di dj-digger: Slow Orbit di Nightglass a 1:04 di 3:20, la sua copertina generata, una forma d'onda accesa di magenta fino alla testina, i pulsanti di trasporto e un cursore del volume.",
+    alt: "La finestra di dj-digger: la playlist Late Night Selects aperta nella barra laterale, il player su Drift Away di JMHBM a 1:21 di 3:01 con la sua forma d'onda, i filtri degli store come Bandcamp 4 e Beatport 3, e le prime righe della tabella dei brani.",
   },
   {
     name: "Decidi",
@@ -49,51 +31,45 @@ const loop = [
   },
   {
     name: "Compra o scarica",
-    text: "Segui i link agli store già classificati, risolvi i gate di download, riempi i carrelli Bandcamp e Beatport. Il checkout resta a te.",
-    src: cart,
-    full: cartWindow,
-    alt: "La finestra «Risultati del carrello»: aggiunti ai carrelli 4, non aggiunti 1. Quattro brani risultano nel carrello Bandcamp o già presenti e uno è finito in una playlist, con i pulsanti per inviare la playlist a Soundiiz, aprire i link non aggiunti, mostrare i carrelli o chiudere.",
+    text: "Da qui fa il resto l'estensione del browser, nel tuo browser: risolve i gate di download e riempie i carrelli degli store. Il checkout resta a te.",
+    src: panelJob,
+    alt: "Il pannello dell'estensione dj-digger: Drift Away di JMHBM a 1:27 di 3:01, i pulsanti di trasporto e sotto «Aggiunta ai carrelli degli store» con un pulsante «Annulla».",
   },
 ];
 ---
 
-<Base title="dj-digger: crate digging per DJ" description={description} tracks={tracks}>
-  <section class="hero" id="start" data-track="01" data-title="Dalla playlist ai deck" aria-labelledby="start-title">
-    <p class="eyebrow"><span class="no">01</span>Crate digging per DJ</p>
+<Base title="dj-digger: crate digging per DJ" description={description}>
+  <section class="hero" id="start" aria-labelledby="start-title">
     <h1 id="start-title">Da una playlist SoundCloud ai <span class="grad">file sui tuoi deck</span></h1>
     <p class="lede">
-      <strong>dj-digger</strong> è un'app desktop che lavora in locale. Raccoglie playlist intere, te le fa ascoltare,
-      ricorda cosa hai deciso e trova il modo più sicuro per comprare o scaricare ogni brano.
+      <strong>dj-digger</strong> raccoglie playlist intere, ricorda cosa hai deciso e trova il modo di comprare o
+      scaricare ogni brano.
     </p>
     <div class="cta">
-      <a class="button primary" href="/it/download/">Scarica</a>
-      <a class="quiet" href="#loop">Guarda come va una sessione</a>
+      <a class="button primary" href="/it/download/"><Icon name="download-simple" />Scarica</a>
     </div>
     <ul class="facts">
       <li>Gratuito e open source</li>
       <li>Windows, macOS, Linux</li>
       <li>Nessun account, nessun backend</li>
     </ul>
-    <Loop eager>Ripreso dall'app vera, brani demo, copertine generate</Loop>
+    <Loop eager />
   </section>
 
-  {/* Wide screens with scroll-driven animations: a tall section whose stage pins and plays the four steps
-      one at a time. Everywhere else, and without the CSS below, four stacked steps. */}
-  <section id="loop" class="loop" data-track="02" data-title="Il ciclo del digging" aria-labelledby="loop-title">
+  {/* Wide screens with scroll-driven animations: a tall section whose stage pins and plays the three steps
+      one at a time. Everywhere else, and without the CSS below, three stacked steps. */}
+  <section id="loop" class="loop" aria-labelledby="loop-title">
     <div class="stage stack">
-      <p class="eyebrow"><span class="no">02</span>Come va una sessione</p>
       <h2 id="loop-title">Un solo ciclo, dall'inizio alla fine</h2>
       <ol class="meter" aria-hidden="true">
         {loop.map((step) => <li>{step.name}</li>)}
       </ol>
       <ol class="steps">
         {
-          loop.map((step, i) => (
+          loop.map((step) => (
             <li class="movement">
               <div class="text">
-                <h3>
-                  <span class="no">{`0${i + 1}`}</span>{" "}{step.name}
-                </h3>
+                <h3>{step.name}</h3>
                 <p class="copy">{step.text}</p>
               </div>
               <div class="media">
@@ -106,101 +82,45 @@ const loop = [
     </div>
   </section>
 
-  <Track id="app" no="03" title="L'app desktop" label="Sul tuo computer" heading="L'app desktop">
-    <p class="copy">
-      Un'app desktop da usare con la tastiera: le playlist nella barra laterale, una tabella dei brani con i badge degli
-      store, un player con la forma d'onda.
-    </p>
+  <Track id="app" title="L'app desktop">
     <Shot
-      src={playerWindow}
-      caption="La finestra principale"
-      alt="La finestra principale di dj-digger: la barra laterale con tre playlist SoundCloud e le cartelle musicali, il player su Slow Orbit di Nightglass a 1:04 di 3:20 e la tabella di Late Night Selects con stato, artista, nome del brano, genere, anno, etichetta, durata e badge degli store come Bandcamp, Beatport e Hypeddit."
+      src={libraryWindow}
+      alt="La finestra principale di dj-digger su una cartella locale, Digging 2026: il player su Drift Away di JMHBM a 1:27 di 3:01 e sette brani con BPM da 120 a 130 e tonalità come 9A, 8A e 5A."
     />
     <ul class="ticks">
-      <li>Sa cosa possiedi già: scansiona le tue cartelle e riproduce dal disco</li>
-      <li>Stima BPM e tonalità, ed esporta copie verificate sui profili audio documentati dei deck</li>
-      <li>Una CLI headless per i tuoi script</li>
+      <li>Sa cosa possiedi già</li>
+      <li>Stima BPM e tonalità</li>
+      <li>Esporta per i tuoi deck</li>
     </ul>
-    <div class="cta"><a class="button" href="/it/app/">Scopri l'app</a></div>
+    <div class="cta"><a class="button" href="/it/app/"><Icon name="desktop" />Scopri l'app</a></div>
   </Track>
 
-  <Track id="extension" no="04" title="L'estensione del browser" label="Nel tuo browser" heading="L'estensione del browser">
-    <div class="split">
-      <div class="stack">
-        <p class="copy">
-          Funziona solo mentre l'app desktop è in esecuzione sullo stesso computer: fa da mani all'app nel tuo browser.
-          Completa i gate di download, riempie i carrelli Bandcamp e Beatport in schede in background e mette il player
-          dell'app nella barra degli strumenti.
-        </p>
-        <ul class="ticks">
-          <li>Funziona nel browser e con gli account che usi già</li>
-          <li>Parla solo con dj-digger sul tuo computer</li>
-          <li>Chrome, Edge, Brave, Chromium; Firefox a parte</li>
-        </ul>
-        <div class="cta"><a class="button" href="/it/extension/">Scopri l'estensione</a></div>
-      </div>
-      <div class="panel">
-        <Shot
-          src={panel}
-          sizes="(min-width: 46rem) 13rem, 18rem"
-          alt="Il pannello di dj-digger nella barra degli strumenti: la copertina di Slow Orbit di Nightglass, una barra di avanzamento a 1:08 di 3:20 e i pulsanti precedente, pausa e successivo."
-        />
-      </div>
-    </div>
+  <Track id="extension" title="L'estensione del browser">
+    <p class="copy">
+      Nel tuo Chrome, Edge o Brave risolve i gate di download, riempie i carrelli degli store e mette il player nella
+      barra degli strumenti.
+    </p>
+    <div class="cta"><a class="button" href="/it/extension/"><Icon name="puzzle-piece" />Scopri l'estensione</a></div>
   </Track>
 
-  <Track id="trust" no="05" title="Tua, e onesta" label="In locale" heading="Tua, e onesta sui suoi limiti">
-    <div class="columns">
-      <div class="stack">
-        <h3>Cosa resta a te</h3>
-        <ul class="ticks">
-          <li>Nessun account dj-digger e nessun server dj-digger.</li>
-          <li>Playlist, decisioni e impostazioni stanno in un database locale sul tuo computer.</li>
-          <li>L'accesso a SoundCloud è conservato nel portachiavi di sistema; le password non vengono mai lette.</li>
-          <li>Questo sito non imposta cookie e non carica nulla da altri server.</li>
-        </ul>
-      </div>
-      <div class="stack">
-        <h3>Cosa non farà</h3>
-        <ul class="ticks">
-          <li>Pagare o fare il checkout: una scheda diretta a una pagina di checkout viene chiusa.</li>
-          <li>Risolvere CAPTCHA o accedere al posto tuo.</li>
-          <li>Tirare a indovinare: titoli ambigui, prezzi cambiati e brani venduti solo con l'album si fermano e vengono segnalati.</li>
-          <li>Formattare unità o scrivere nella tua libreria rekordbox.</li>
-        </ul>
-      </div>
-    </div>
-    <p><a class="quiet" href={`${repo}/blob/main/PRIVACY.md`}>Leggi l'informativa sulla privacy</a></p>
+  <Track id="trust" title="Tua, e onesta" heading="Tua, e onesta sui propri limiti">
+    <ul class="ticks">
+      <li>Le tue playlist e le tue decisioni restano sul tuo computer.</li>
+      <li>Non paga e non fa mai il checkout al posto tuo.</li>
+      <li>Non tira mai a indovinare: una corrispondenza incerta si ferma e viene segnalata.</li>
+    </ul>
   </Track>
 
-  <Track id="get" no="06" title="Scegli la tua stampa" label="Solco finale" heading="Scegli la tua stampa">
-    <p class="copy">dj-digger {version} è gratuito e open source, senza registrazione.</p>
-    <div class="press stack">
-      <div class="cta"><a class="button primary" href="/it/download/">Scarica</a></div>
-      <ul class="facts" aria-label="Piattaforme">
-        <li>Windows 10 (1809 o successivo) e 11</li>
-        <li>macOS 15 o successivo</li>
-        <li>Linux</li>
-      </ul>
-    </div>
-    <p><a class="quiet" href="/it/liner-notes/">Vuoi sapere come è fatto? Leggi il libretto</a></p>
+  <Track id="get" title="Scarica" heading="Mettilo sul piatto">
+    <p class="copy">dj-digger {version}, gratuito per Windows, macOS e Linux.</p>
+    <div class="cta"><a class="button primary" href="/it/download/"><Icon name="download-simple" />Scarica</a></div>
   </Track>
 </Base>
 
 <style>
-  /* ---------- 02 the digging loop: four stacked steps by default ---------- */
+  /* ---------- the loop: three stacked steps by default ---------- */
   .meter {
     display: none;
-  }
-  .steps h3 {
-    display: flex;
-    align-items: baseline;
-    gap: 0.8rem;
-  }
-  .steps h3 .no {
-    font-size: 0.78rem;
-    font-weight: 500;
-    color: var(--muted);
   }
   .text > * + * {
     margin-top: 0.5rem;
@@ -209,19 +129,16 @@ const loop = [
     margin-top: 1.2rem;
     container-type: inline-size;
   }
-  /* Each crop keeps its own shape; the frame sits on the image so it hugs narrow and wide crops alike.
-     --ar is the crop's width / height (crops/*.png), so the width can be capped without knowing the height. */
+  /* Each shot keeps its own shape; the frame sits on the image so it hugs narrow and wide shots alike.
+     --ar is the image's width / height, so the width can be capped without knowing the height. */
   .steps > li:nth-child(1) {
-    --ar: 0.6509;
+    --ar: 2.3623;
   }
   .steps > li:nth-child(2) {
-    --ar: 4.25;
-  }
-  .steps > li:nth-child(3) {
     --ar: 3.4048;
   }
-  .steps > li:nth-child(4) {
-    --ar: 2.1152;
+  .steps > li:nth-child(3) {
+    --ar: 0.6413;
   }
   .media :global(.shot) {
     border: 0;
@@ -236,35 +153,32 @@ const loop = [
   }
   .media :global(.shot img) {
     width: min(100cqw, 26rem * var(--ar));
+    height: auto;
+    object-fit: contain;
     border: 1px solid var(--line);
     border-radius: 12px;
     background: var(--panel);
     box-shadow: 0 30px 70px -40px var(--shadow);
-  }
-  .media :global(.shot figcaption) {
-    justify-content: flex-start;
-    padding-inline: 0;
-    border-top: 0;
   }
 
   /* The pinned scene: one step at a time, driven by the section's own view timeline. */
   @media (min-width: 68rem) and (min-height: 36rem) and (prefers-reduced-motion: no-preference) {
     @supports (animation-timeline: view()) and (grid-template-rows: subgrid) {
       .loop {
-        height: 400svh;
+        height: 320svh;
         padding-block: 0;
       }
       .stage {
         position: sticky;
         top: calc(var(--top) + 1rem);
         display: grid;
-        grid-template-rows: auto auto auto minmax(0, 1fr);
+        grid-template-rows: auto auto minmax(0, 1fr);
         height: calc(100svh - var(--top) - 2rem);
         padding-top: clamp(1rem, 5vh, 3rem);
       }
       .meter {
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(3, 1fr);
         gap: 0.6rem;
         font: 500 0.72rem var(--mono);
         color: var(--muted);
@@ -293,7 +207,7 @@ const loop = [
         grid-template-rows: auto minmax(0, 1fr);
         row-gap: 1.2rem;
       }
-      /* All four share one cell; subgrid gives every step the tallest text, so the images never jump. */
+      /* All three share one cell; subgrid gives every step the tallest text, so the images never jump. */
       .steps > li {
         position: relative;
         grid-area: 1 / 1 / 3 / 2;
@@ -316,11 +230,10 @@ const loop = [
         margin-top: 0;
         container-type: size;
       }
+      /* The whole image fits the stage: as wide as the column allows, never taller than the cell. */
       .media :global(.shot img) {
         width: min(100cqw, (100cqh - 2px) * var(--ar));
-      }
-      .media :global(.shot figcaption) {
-        display: none;
+        max-height: calc(100cqh - 2px);
       }
       /* A keyboard user tabbing to a step that is not showing gets that step, on top. */
       .steps > li:has(:focus-visible) {
@@ -344,34 +257,30 @@ const loop = [
       #loop .steps > li:nth-child(1),
       #loop .meter li:nth-child(1),
       #loop .meter li:nth-child(1)::after {
-        animation-range: contain 0% contain 25%;
+        animation-range: contain 0% contain 33.333%;
       }
       #loop .steps > li:nth-child(2),
       #loop .meter li:nth-child(2),
       #loop .meter li:nth-child(2)::after {
-        animation-range: contain 25% contain 50%;
+        animation-range: contain 33.333% contain 66.667%;
       }
       #loop .steps > li:nth-child(3),
       #loop .meter li:nth-child(3),
       #loop .meter li:nth-child(3)::after {
-        animation-range: contain 50% contain 75%;
-      }
-      #loop .steps > li:nth-child(4),
-      #loop .meter li:nth-child(4),
-      #loop .meter li:nth-child(4)::after {
-        animation-range: contain 75% contain 100%;
+        animation-range: contain 66.667% contain 100%;
       }
     }
   }
-  /* z-index follows opacity so the step on show is also the one that takes the click. */
+  /* Full opacity over 90% of a step's range; the hand-over is a short cross-fade.
+     z-index follows opacity so the step on show is also the one that takes the click. */
   @keyframes loop-step {
     0% {
       opacity: 0;
       translate: 0 1rem;
       z-index: 0;
     }
-    20%,
-    80% {
+    5%,
+    95% {
       opacity: 1;
       translate: none;
       z-index: 1;
@@ -384,7 +293,7 @@ const loop = [
   }
   @keyframes loop-first {
     0%,
-    80% {
+    95% {
       opacity: 1;
       translate: none;
       z-index: 1;
@@ -401,7 +310,7 @@ const loop = [
       translate: 0 1rem;
       z-index: 0;
     }
-    20%,
+    5%,
     100% {
       opacity: 1;
       translate: none;
@@ -418,37 +327,9 @@ const loop = [
     100% {
       color: var(--muted);
     }
-    10%,
-    90% {
+    5%,
+    95% {
       color: var(--fg);
     }
-  }
-
-  /* ---------- 04 the extension: the portrait panel beside the text, under it on narrow screens ---------- */
-  .split {
-    display: grid;
-    gap: 2rem;
-  }
-  .panel {
-    max-width: 18rem;
-  }
-  @media (min-width: 46rem) {
-    .split {
-      grid-template-columns: minmax(0, 1fr) 13rem;
-      align-items: start;
-      gap: 2.5rem;
-    }
-  }
-
-  /* ---------- 05 trust: two plain columns ---------- */
-  .columns {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
-    gap: 2rem 2.5rem;
-  }
-
-  /* ---------- 06 the run-out groove ---------- */
-  .press .facts {
-    margin-top: 0.9rem;
   }
 </style>

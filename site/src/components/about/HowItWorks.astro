@@ -1,0 +1,113 @@
+---
+// How dj-digger works: a SoundCloud playlist goes into the app on your computer, and three
+// things come out. Every label is a prop, so a translated page passes its own words.
+// Drawn narrow, as DataFlow is, so it reads at 328px.
+const { title, desc, playlist, computer, app, steps, outs } = Astro.props;
+// steps: three [name, note] pairs inside the app; outs: three [name, note] pairs it leads to.
+const stepY = (i) => 146 + i * 38;
+const outY = (i) => 292 + i * 56;
+---
+
+<svg class="how" viewBox="0 0 340 460" role="img" aria-labelledby="hw-title hw-desc">
+  <title id="hw-title">{title}</title>
+  <desc id="hw-desc">{desc}</desc>
+  <defs>
+    <marker id="hw-top" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path class="tip-top" d="M0 1L9 5L0 9z"></path>
+    </marker>
+    <marker id="hw-foot" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path class="tip-foot" d="M0 1L9 5L0 9z"></path>
+    </marker>
+  </defs>
+
+  <rect class="source" x="1" y="1" width="338" height="36" rx="18"></rect>
+  <text class="name" x="20" y="24">{playlist}</text>
+  <line class="in" x1="40" y1="38" x2="40" y2="62" marker-end="url(#hw-top)"></line>
+
+  <rect class="computer" x="1" y="66" width="338" height="206" rx="16"></rect>
+  <text class="cap" x="18" y="90">{computer}</text>
+  <rect class="node" x="16" y="102" width="308" height="156" rx="10"></rect>
+  <text class="name" x="32" y="126">{app}</text>
+  {
+    steps.map(([name, note], i) => (
+      <>
+        <circle class="dot" cx="38" cy={stepY(i) - 4} r="3" />
+        <text class="item" x="50" y={stepY(i)}>{name}</text>
+        <text class="note" x="50" y={stepY(i) + 16}>{note}</text>
+      </>
+    ))
+  }
+
+  {
+    outs.map(([name, note], i) => (
+      <>
+        <path class="out" d={`M40 272V${outY(i) + 23}H61`} marker-end="url(#hw-foot)" />
+        <rect class="node" x="64" y={outY(i)} width="275" height="46" rx="10" />
+        <text class="name" x="80" y={outY(i) + 19}>{name}</text>
+        <text class="note" x="80" y={outY(i) + 36}>{note}</text>
+      </>
+    ))
+  }
+</svg>
+
+<style>
+  .how {
+    width: 100%;
+    max-width: 25rem;
+    font-family: var(--sans);
+  }
+  .computer {
+    fill: var(--panel);
+    stroke: var(--edge);
+    stroke-width: 1.5;
+  }
+  .node {
+    fill: var(--raise);
+    stroke: var(--line);
+  }
+  .source {
+    fill: var(--raise);
+    stroke: var(--neon-top);
+  }
+  .dot {
+    fill: var(--neon-foot);
+  }
+  .cap {
+    font-size: 10px;
+    font-weight: 600;
+    font-stretch: 125%;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    fill: var(--muted);
+  }
+  .name,
+  .item {
+    font-size: 12.5px;
+    font-weight: 700;
+    fill: var(--fg);
+  }
+  .item {
+    font-weight: 600;
+  }
+  .note {
+    font-size: 11px;
+    fill: var(--muted);
+  }
+  .in,
+  .out {
+    fill: none;
+    stroke-width: 1.5;
+  }
+  .in {
+    stroke: var(--neon-top);
+  }
+  .out {
+    stroke: var(--neon-foot);
+  }
+  .tip-top {
+    fill: var(--neon-top);
+  }
+  .tip-foot {
+    fill: var(--neon-foot);
+  }
+</style>

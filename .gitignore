@@ -26,4 +26,8 @@ dist/
 !packaging/windows/tools.json
 # Firebase Hosting configuration of the website in site/.
 !firebase.json
+# The website's interface strings, one file per language.
+!site/src/i18n/*.json
+# The website player's data (title, artwork, waveform), taken from the track's SoundCloud page.
+!site/src/assets/player/*.json
 .firebase/

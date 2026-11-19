@@ -2,367 +2,206 @@
 import Base from "../../layouts/Base.astro";
 import Track from "../../components/Track.astro";
 import Code from "../../components/Code.astro";
+import Icon from "../../components/Icon.astro";
 import { asset, repo, version } from "../../../site.config.mjs";
-
-const tracks = [
-  { id: "pressing", no: "01", title: "Elige tu prensado" },
-  { id: "unsigned", no: "02", title: "Aviso: versiones sin firmar" },
-  { id: "linux", no: "03", title: "Instalación en Linux" },
-  { id: "manual", no: "04", title: "Instalación manual" },
-  { id: "verify", no: "05", title: "Verifica tu descarga" },
-  { id: "next", no: "06", title: "Después de instalar" },
-];
 
 const fileName = (url) => url.split("/").pop();
 const windows = asset("windows-x64-test.exe");
 const arm = asset("macos-arm64-test.dmg");
 const intel = asset("macos-x86_64-test.dmg");
-const release = `${repo}/releases/tag/v${version}`;
-const sums = `${repo}/releases/download/v${version}/SHA256SUMS`;
 const guide = `${repo}/blob/main/docs/installation.md`;
 const script = new URL("install.sh", Astro.site).href;
-const checks = [
-  ["instalador para Windows", windows],
-  ["imagen de disco de macOS para Apple Silicon", arm],
-  ["imagen de disco de macOS para Intel", intel],
-];
 
 const description = `Descarga dj-digger ${version} para Windows 10 y 11 o macOS 15 y posteriores, o instálalo en Linux con un solo comando. Cada archivo tiene una suma de comprobación SHA-256.`;
 ---
 
-<Base title={`Descargar dj-digger ${version}`} description={description} label="download" tracks={tracks}>
-  <Track id="pressing" no="01" title="Elige tu prensado" label="Descargar" heading="Elige tu prensado" hero sub>
-    <p class="lede"><strong>dj-digger {version}</strong> es gratis y de código abierto. Elige la funda para tu equipo.</p>
+<Base title={`Descargar dj-digger ${version}`} description={description} label="download">
+  <Track id="download" title="Descargar dj-digger" hero sub>
+    <p class="lede"><strong>Versión {version}</strong>, gratis y de código abierto.</p>
 
-    <div class="pressings">
-    <ul class="sleeves" aria-label="Descargas por sistema" data-sleeves>
-      <li class="sleeve" data-for="windows">
-        <span class="disc" aria-hidden="true"></span>
-        <div class="jacket">
-          <p class="mine">Tu sistema</p>
-          <h2>Windows</h2>
-          <p>Windows 10 (versión 1809 o posterior) y Windows 11, 64 bits, Intel o AMD. Un solo instalador.</p>
-          <div class="get">
-            <a class="button" href={windows} data-main>Descargar el instalador para Windows (.exe)</a>
-            <code class="file">{fileName(windows)}</code>
-          </div>
-        </div>
-      </li>
-      <li class="sleeve" data-for="macos">
-        <span class="disc" aria-hidden="true"></span>
-        <div class="jacket">
-          <p class="mine">Tu sistema</p>
-          <h2>macOS</h2>
-          <p>macOS 15 o posterior. Dos imágenes de disco, una por procesador.</p>
-          <p class="hint">
-            En el menú Apple, Acerca de este Mac muestra <strong>Chip: Apple M1</strong> (o posterior) en Apple Silicon y <strong>Procesador: Intel</strong>{" "}
-            en los Mac con Intel.
-          </p>
-          <div class="get">
-            <a class="button" href={arm}>Descargar para Apple Silicon (.dmg)</a>
-            <code class="file">{fileName(arm)}</code>
-            <a class="button" href={intel}>Descargar para Intel (.dmg)</a>
-            <code class="file">{fileName(intel)}</code>
-          </div>
-        </div>
-      </li>
-      <li class="sleeve" data-for="linux">
-        <span class="disc" aria-hidden="true"></span>
-        <div class="jacket">
-          <p class="mine">Tu sistema</p>
-          <h2>Linux</h2>
-          <p>
-            Sin archivo de instalación: un solo comando en la terminal instala dj-digger y lo que necesita. Probado en
-            Ubuntu, Debian, Fedora, Arch y openSUSE.
-          </p>
-          <div class="get">
-            <a class="button" href="#linux" data-main>Obtener el comando de instalación para Linux</a>
-            <code class="file">install.sh</code>
-          </div>
-        </div>
-      </li>
-    </ul>
-    </div>
+    {/* Without a script the three systems stand one under another; the script below makes them tabs. */}
+    <div class="systems" data-systems>
+      <div class="tabs" role="tablist" aria-label="Sistema" hidden>
+        <button class="button compact" type="button" role="tab" id="tab-windows" aria-controls="windows" aria-selected="false" tabindex="-1">
+          <Icon name="windows-logo" />Windows
+        </button>
+        <button class="button compact" type="button" role="tab" id="tab-macos" aria-controls="macos" aria-selected="false" tabindex="-1">
+          <Icon name="apple-logo" />macOS
+        </button>
+        <button class="button compact" type="button" role="tab" id="tab-linux" aria-controls="linux" aria-selected="false" tabindex="-1">
+          <Icon name="linux-logo" />Linux
+        </button>
+      </div>
 
-    <p><a class="quiet" href={release}>Versión {version} en GitHub: notas y todos los archivos</a></p>
-  </Track>
+      <div class="panel stack" id="windows">
+        <h2><Icon name="windows-logo" />Windows</h2>
+        <p class="copy">Windows 10 (versión 1809 o posterior) o Windows 11, de 64 bits.</p>
+        <div class="cta">
+          <a class="button primary" href={windows}><Icon name="download-simple" />Descargar para Windows</a>
+        </div>
+        <p class="note">
+          <Icon name="info" />
+          <span>
+            Una versión preliminar sin firmar: si SmartScreen dice <strong>Windows protegió su PC</strong>, elige
+            <strong>Más información</strong> y luego <strong>Ejecutar de todas formas</strong>.
+          </span>
+        </p>
+        <div class="cta">
+          <a class="button" href={`${guide}#windows`}><Icon name="book-open" />Guía de instalación</a>
+        </div>
+      </div>
 
-  <Track id="unsigned" no="02" title="Aviso: versiones sin firmar" label="Antes de descargar" heading="Estas son versiones preliminares sin firmar">
-    <div class="notice stack">
-      <p>
-        dj-digger es un proyecto personal y gratuito. El instalador de Windows y las imágenes de disco de macOS son
-        <strong>versiones preliminares</strong>: pueden tener errores, no llevan firma de un editor verificado y Apple no
-        ha notarizado la app para Mac. Por eso Windows SmartScreen o Gatekeeper de macOS pueden avisar de que la app no
-        se reconoce o no se puede verificar, y pueden impedir que se abra.
-      </p>
-      <p>
-        La guía de instalación explica por qué y cómo aprobar solo esta app sin desactivar las protecciones del sistema.
-        Que sea de código abierto significa que el código se puede inspeccionar, no que cualquier descarga sea segura:
-        continúa solo si confías en el proyecto y en el origen de tu archivo.
-      </p>
-      <p><a class="quiet" href={guide}>Lee la guía de instalación</a></p>
+      <div class="panel stack" id="macos">
+        <h2><Icon name="apple-logo" />macOS</h2>
+        <p class="copy">macOS 15 o posterior. <strong>Acerca de este Mac</strong> muestra un chip de Apple o un procesador Intel.</p>
+        <div class="cta">
+          <a class="button" href={arm}><Icon name="download-simple" />Apple Silicon</a>
+          <a class="button" href={intel}><Icon name="download-simple" />Intel</a>
+        </div>
+        <p class="note">
+          <Icon name="info" />
+          <span>
+            Una versión preliminar sin firmar: si macOS no puede verificar la app, abre <strong>Ajustes del Sistema,
+            Privacidad y seguridad</strong> y haz clic en <strong>Abrir igualmente</strong>.
+          </span>
+        </p>
+        <div class="cta">
+          <a class="button" href={`${guide}#mac`}><Icon name="book-open" />Guía de instalación</a>
+        </div>
+      </div>
+
+      <div class="panel stack" id="linux">
+        <h2><Icon name="linux-logo" />Linux</h2>
+        <Code code={`wget -qO- ${script} | sh`} />
+        <p class="copy">
+          Pégalo en una terminal: instala dj-digger con lo que necesita, pregunta antes de cualquier cosa que requiera
+          <code>sudo</code> y lo actualiza cuando lo vuelves a ejecutar.
+        </p>
+        <div class="cta">
+          <a class="button" href="/install.sh"><Icon name="terminal-window" />Leer el script</a>
+        </div>
+      </div>
     </div>
   </Track>
 
-  <Track id="linux" no="03" title="Instalación en Linux" heading="Linux: un solo comando">
-    <p class="copy">
-      Linux no tiene archivo de instalación. Un solo comando instala dj-digger con lo que necesita, y volver a ejecutarlo
-      más adelante lo actualiza.
-    </p>
-    <Code label="Con wget" code={`wget -qO- ${script} | sh`} />
-    <Code label="O con curl" code={`curl -fsSL ${script} | sh`} />
+  <Track id="verify" title="Verifica tu descarga">
+    <p class="copy">Compara el resultado con el archivo <code>.sha256</code> que acompaña a tu descarga en la página de la versión.</p>
+    <Code label="Windows, PowerShell" code={`Get-FileHash .\\${fileName(windows)} -Algorithm SHA256`} />
+    <Code label="macOS, Terminal" code={`shasum -a 256 dj-digger-${version}-macos-*.dmg`} />
     <div class="cta">
-      <a class="button" href="/install.sh">Lee el script antes de ejecutarlo</a>
-      <a class="quiet" href={`${repo}/blob/main/site/public/install.sh`}>El mismo archivo en GitHub</a>
+      <a class="button" href={`${repo}/releases`}><Icon name="github-logo" />Todas las versiones y sumas</a>
     </div>
-
-    <h3>Qué hace</h3>
-    <ul class="ticks">
-      <li>Instala <a href="https://docs.astral.sh/uv/">uv</a> en tu directorio personal, con el propio instalador de uv desde astral.sh.</li>
-      <li>
-        Comprueba que estén FFmpeg y las bibliotecas del sistema que necesita Qt. Si falta alguna, muestra el comando
-        exacto de{" "}
-        <code>apt-get</code>, <code>dnf</code>, <code>pacman</code> o <code>zypper</code> y pregunta antes de
-        ejecutarlo con <code>sudo</code>.
-      </li>
-      <li>
-        Instala <code>dj-sc-digger[gui,analyze]</code> desde PyPI con <code>uv tool install --upgrade</code>, así que
-        volver a ejecutarlo actualiza dj-digger.
-      </li>
-      <li>Añade una entrada al menú y, si hace falta, pone la carpeta de la app en el PATH de tu perfil del shell.</li>
-      <li>Termina con una lista de lo que hizo y de lo que no hizo.</li>
-    </ul>
-    <p class="copy">Aparte de ese comando de paquetes, no se cambia nada fuera de tu directorio personal.</p>
-
-    <h3>Mira antes, o sáltate la pregunta</h3>
-    <Code label="--dry-run: muestra lo que haría, sin cambiar nada" code={`wget -qO- ${script} | sh -s -- --dry-run`} />
-    <Code label="--yes: ejecuta el comando de paquetes sin preguntar" code={`wget -qO- ${script} | sh -s -- --yes`} />
-    <p class="copy">
-      Probado en instalaciones limpias de Ubuntu 24.04, Debian 12, Fedora 45, Arch Linux y openSUSE Tumbleweed (64 bits,
-      Intel o AMD). En otra distribución instala igualmente dj-digger, y avisa de que no pudo comprobar los paquetes del
-      sistema. En Arch Linux, actualiza antes el sistema (<code>sudo pacman -Syu</code>).
-    </p>
   </Track>
 
-  <Track id="manual" no="04" title="Instalación manual" heading="O instálalo tú">
-    <p class="copy">
-      Para cualquier sistema con terminal, si prefieres no pasar un script a un shell. Instala antes FFmpeg con{" "}
-      <code>ffprobe</code> en tu PATH. pipx necesita Python 3.12 o posterior; uv trae su propio Python cuando el tuyo es
-      más antiguo.
-    </p>
-    <Code label="Con uv" code="uv tool install 'dj-sc-digger[gui,analyze]'" />
-    <Code label="O con pipx" code="pipx install 'dj-sc-digger[gui,analyze]'" />
-    <p class="copy">Después abre la app con <code>dj-digger-gui</code>.</p>
-    <p><a class="quiet" href="https://pypi.org/project/dj-sc-digger/">dj-sc-digger en PyPI</a></p>
-  </Track>
-
-  <Track id="verify" no="05" title="Verifica tu descarga" heading="Verifica tu descarga">
-    <p class="copy">
-      Cada versión incluye un archivo <a href={sums}><code>SHA256SUMS</code></a> y un archivo <code>.sha256</code> junto
-      a cada instalador. Ejecuta el comando en la carpeta que contiene el archivo; el resultado debe coincidir exactamente
-      con su suma de comprobación.
-    </p>
-    <Code label="Windows, en PowerShell" code={`Get-FileHash .\\${fileName(windows)} -Algorithm SHA256`} />
-    <Code label="macOS, en Terminal (imagen para Apple Silicon)" code={`shasum -a 256 ${fileName(arm)}`} />
-    <Code label="macOS, en Terminal (imagen para Intel)" code={`shasum -a 256 ${fileName(intel)}`} />
-    <Code label="Linux, para un archivo descargado allí" code={`sha256sum ${fileName(windows)}`} />
-    <ul class="ticks sums" aria-label={`Sumas de comprobación de la versión ${version}`}>
-      <li><a href={sums}>SHA256SUMS</a>, todos los archivos de la versión {version}</li>
-      {
-        checks.map(([what, url]) => (
-          <li>
-            <a href={`${url}.sha256`}>{`${fileName(url)}.sha256`}</a>, {what}
-          </li>
-        ))
-      }
-    </ul>
-    <p class="copy">Descarga solo desde github.com/fbialogrecki/dj-digger o desde este sitio.</p>
-    <p><a class="quiet" href={`${repo}/releases`}>Todas las versiones y sus sumas de comprobación</a></p>
-  </Track>
-
-  <Track id="next" no="06" title="Después de instalar" label="Siguiente" heading="¿Ya está instalado? Conecta tu navegador.">
-    <p class="copy">
-      Los gates de descarga, los carritos de las tiendas y el inicio de sesión en SoundCloud funcionan a través de la
-      extensión dj-digger en tu propio navegador.
-    </p>
-    <p><a class="button primary" href="/es/extension/">Consigue la extensión</a></p>
+  <Track id="next" title="Después de instalar" heading="Después, conecta tu navegador">
+    <p class="copy">Los gates de descarga y los carritos funcionan a través de la extensión dj-digger en Chrome, Edge y Brave.</p>
+    <div class="cta">
+      <a class="button" href="/es/extension/"><Icon name="puzzle-piece" />Consigue la extensión</a>
+    </div>
   </Track>
 </Base>
 
 <script>
-  // Puts this computer's sleeve first and makes its link the primary button.
-  // Phones, tablets and unknown systems keep all three equal.
-  const box = document.querySelector("[data-sleeves]");
-  const ua = navigator.userAgent;
-  const name = (navigator as any).userAgentData?.platform || navigator.platform || ua;
-  const mobile = /android|iphone|ipad|ipod|cros|chrome os/i.test(`${name} ${ua}`);
-  const ipad = /mac/i.test(name) && navigator.maxTouchPoints > 1; // iPadOS reports itself as a Mac
-  const os = mobile || ipad ? "" : /win/i.test(name) ? "windows" : /mac/i.test(name) ? "macos" : /linux/i.test(name) ? "linux" : "";
-  const sleeve = os && box?.querySelector(`[data-for="${os}"]`);
-  if (box && sleeve) {
-    box.setAttribute("data-os", os);
-    box.prepend(sleeve); // in the DOM, not only with CSS order, so focus and reading order follow
-    sleeve.querySelector("[data-main]")?.classList.add("primary");
+  // Turns the stacked systems into tabs (WAI-ARIA tabs pattern), this computer's system first
+  // and selected. Detected here only, nothing is sent. Phones, tablets and unknown systems keep the given order.
+  const list = document.querySelector("[data-systems] [role=tablist]");
+  if (list) {
+    const ua = navigator.userAgent;
+    const name = (navigator as any).userAgentData?.platform || navigator.platform || ua;
+    const mobile = /android|iphone|ipad|ipod|cros|chrome os/i.test(`${name} ${ua}`);
+    const ipad = /mac/i.test(name) && navigator.maxTouchPoints > 1; // iPadOS reports itself as a Mac
+    const os = mobile || ipad ? "" : /win/i.test(name) ? "windows" : /mac/i.test(name) ? "macos" : /linux/i.test(name) ? "linux" : "";
+    const mine = list.querySelector(`[aria-controls="${os}"]`);
+    if (mine) list.prepend(mine); // in the DOM, so focus and reading order follow
+    const tabs = [...list.querySelectorAll<HTMLElement>("[role=tab]")];
+    const panel = (tab: HTMLElement) => document.getElementById(tab.getAttribute("aria-controls")!)!;
+    const select = (tab: HTMLElement) => {
+      for (const other of tabs) {
+        other.setAttribute("aria-selected", String(other === tab));
+        other.tabIndex = other === tab ? 0 : -1;
+        panel(other).hidden = other !== tab;
+      }
+    };
+    for (const tab of tabs) {
+      const box = panel(tab);
+      box.setAttribute("role", "tabpanel");
+      box.setAttribute("aria-labelledby", tab.id);
+      box.querySelector("h2")?.classList.add("sr"); // the tab names it now
+      tab.addEventListener("click", () => select(tab));
+    }
+    list.addEventListener("keydown", (event) => {
+      const at = tabs.indexOf(document.activeElement as HTMLElement);
+      const to = { ArrowRight: at + 1, ArrowLeft: at - 1, Home: 0, End: tabs.length - 1 }[event.key];
+      if (at < 0 || to === undefined) return;
+      event.preventDefault();
+      const tab = tabs[(to + tabs.length) % tabs.length];
+      select(tab);
+      tab.focus();
+    });
+    select(tabs[0]);
+    list.hidden = false;
   }
 </script>
 
 <style>
-  /* Three record sleeves: a square-ish jacket with the record peeking out of its top edge. */
-  .pressings {
-    container-type: inline-size;
-  }
-  /* One column when narrow; then the first sleeve across the top and two under it;
-     three in a row once there is room. A lone third sleeve on its own row never happens. */
-  .sleeves {
+  /* One box: the tabs across its top, the selected system under them. */
+  .systems {
     display: grid;
-    gap: 1rem;
+    grid-template-columns: minmax(0, 1fr); /* lets the command scroll inside instead of widening the box */
+    gap: 1.25rem;
+    max-width: 44rem;
+    padding: clamp(1rem, 3vw, 1.75rem);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--panel);
   }
-  @container (min-width: 27rem) {
-    .sleeves {
-      grid-template-columns: 1fr 1fr;
-    }
-    .sleeves > :first-child {
-      grid-column: 1 / -1;
-    }
-    .sleeves > :not(:first-child) .jacket {
-      aspect-ratio: 1;
-    }
+  .tabs {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
   }
-  @container (min-width: 52rem) {
-    .sleeves {
-      grid-template-columns: repeat(3, 1fr);
-    }
-    .sleeves > :first-child {
-      grid-column: auto;
-    }
-    .sleeves > :first-child .jacket {
-      aspect-ratio: 1;
-    }
+  .tabs[hidden] {
+    display: none;
   }
-  .sleeve {
-    position: relative;
-    display: flex;
-    flex-direction: column;
+  .tabs .button {
     min-width: 0;
-    padding-top: 2.6rem;
+    padding-inline: 0.4rem;
   }
-  .disc {
-    position: absolute;
-    top: 0;
-    right: 1.2rem;
-    width: 5.2rem;
-    aspect-ratio: 1;
-    border: 1px solid var(--line);
-    border-radius: 50%;
-    background: repeating-radial-gradient(circle, var(--bg) 0 2px, var(--panel) 2px 3px);
+  /* Selected: raised, with its edge lit, so it never rests on colour alone. */
+  .tabs [aria-selected="true"] {
+    --bar: var(--accent-2);
+    border-color: var(--edge);
+    background: var(--raise);
   }
-  .disc::after {
-    content: "";
-    position: absolute;
-    inset: 31%;
-    border-radius: 50%;
-    background:
-      radial-gradient(circle, var(--bg) 0 16%, transparent 18%),
-      linear-gradient(135deg, var(--label-from), var(--label-to));
+  /* Without the tabs: a rule between the stacked systems. */
+  .tabs[hidden] ~ .panel + .panel {
+    padding-top: 2rem;
+    border-top: 1px solid var(--line);
   }
-  [data-for="macos"] .disc {
-    rotate: 120deg;
-  }
-  [data-for="linux"] .disc {
-    rotate: 240deg;
-  }
-  .jacket {
-    position: relative;
-    flex: 1;
+  .panel h2 {
     display: flex;
-    flex-direction: column;
-    gap: 0.7rem;
-    padding: 1.4rem;
-    border: 1px solid var(--line);
-    border-radius: 5px;
-    /* Ring wear: the outline a record leaves on its sleeve. */
-    background:
-      radial-gradient(circle closest-side, transparent 86%, color-mix(in srgb, var(--line) 50%, transparent) 87% 88%, transparent 89%) padding-box,
-      var(--panel);
+    align-items: center;
+    gap: 0.5em;
+    font-size: 1.8rem;
+  }
+  .panel .button {
+    white-space: normal;
+    text-align: center;
+  }
+  .note {
+    display: flex;
+    gap: 0.6rem;
+    max-width: 38rem;
+    font-size: 0.92rem;
     color: var(--muted);
   }
-  .jacket h2 {
-    font-size: 2.2rem;
-    color: var(--fg);
+  .note .icon {
+    margin-top: 0.15em;
+    color: var(--accent-2);
   }
-  .hint {
-    font-size: 0.9rem;
-  }
-  .hint strong {
+  .note strong,
+  .panel .copy strong {
     color: var(--fg);
     font-weight: 600;
-  }
-  .get {
-    display: grid;
-    gap: 0.45rem;
-    margin-top: auto;
-    padding-top: 0.5rem;
-  }
-  .get .button {
-    padding-inline: 1rem;
-    line-height: 1.25;
-    text-align: center;
-    text-wrap: balance;
-  }
-  .get .button + .file + .button {
-    margin-top: 0.5rem;
-  }
-  .file {
-    padding: 0;
-    background: none;
-    font-size: 0.74rem;
-    line-height: 1.4;
-    color: var(--muted);
-    text-align: center;
-    overflow-wrap: anywhere;
-  }
-  .mine {
-    display: none;
-    font-stretch: 125%;
-    font-weight: 700;
-    font-size: 0.72rem;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--fg);
-  }
-  .mine::before {
-    content: "";
-    display: inline-block;
-    width: 0.45rem;
-    height: 0.45rem;
-    margin-right: 0.55rem;
-    border-radius: 50%;
-    background: var(--neon-foot);
-    vertical-align: 0.1em;
-  }
-
-  /* The detected system: its sleeve comes first (moved by the script), pulled further out,
-     with a label and a stronger edge, so the highlight never rests on colour alone. */
-  .sleeves[data-os] > :first-child .mine {
-    display: block;
-  }
-  .sleeves[data-os] > :first-child .disc {
-    translate: 0 -0.9rem;
-  }
-  .sleeves[data-os] > :first-child .jacket {
-    padding: calc(1.4rem - 1px);
-    border: 2px solid transparent;
-    background:
-      radial-gradient(circle closest-side, transparent 86%, color-mix(in srgb, var(--line) 50%, transparent) 87% 88%, transparent 89%) padding-box,
-      linear-gradient(var(--panel), var(--panel)) padding-box,
-      linear-gradient(100deg, var(--neon-foot), var(--neon-top)) border-box;
-  }
-
-  #linux h3,
-  #verify .sums {
-    padding-top: 0.6rem;
-  }
-  .sums a {
-    overflow-wrap: anywhere;
   }
 </style>

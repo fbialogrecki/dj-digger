@@ -1,10 +1,9 @@
 ---
-import { Picture } from "astro:assets";
 import Base from "../../layouts/Base.astro";
+import Icon from "../../components/Icon.astro";
 import Loop from "../../components/Loop.astro";
 import Track from "../../components/Track.astro";
 import Shot from "../../components/Shot.astro";
-import Code from "../../components/Code.astro";
 import mainWindow from "../../assets/screenshots/es/desktop-player.png";
 import decisionsWindow from "../../assets/screenshots/es/desktop-crates-decisions.png";
 import storesWindow from "../../assets/screenshots/es/desktop-store-links.png";
@@ -21,131 +20,86 @@ import library from "../../assets/screenshots/es/crops/library.png";
 import exportDialog from "../../assets/screenshots/es/crops/export.png";
 
 const description =
-  "La app de escritorio de dj-digger: reúne playlists completas de SoundCloud, escúchalas, recuerda cada decisión, sigue los enlaces de Bandcamp y Beatport, resuelve gates de descarga, llena carritos y exporta archivos para tus decks.";
-const tracks = [
-  { id: "overview", no: "01", title: "Todo el ciclo" },
-  { id: "collect", no: "02", title: "Recopilar" },
-  { id: "audition", no: "03", title: "Escuchar" },
-  { id: "decide", no: "04", title: "Decidir" },
-  { id: "acquire", no: "05", title: "Conseguir" },
-  { id: "prepare", no: "06", title: "Preparar" },
-  { id: "cli", no: "07", title: "Tema extra: línea de comandos" },
-  { id: "requirements", no: "08", title: "Requisitos del sistema" },
-  { id: "end", no: "09", title: "Consíguela" },
-];
-const session = tracks.slice(1, 6);
-const commands = [
-  ["Exportar a CSV los enlaces de una playlist", "dj-digger https://soundcloud.com/user/sets/playlist -f csv -o playlist.csv"],
-  ["Los primeros 20 likes, en JSON", "dj-digger https://soundcloud.com/user/likes -n 20 -f json -o likes.json"],
-  ["Abrir todos los enlaces de Bandcamp de un resumen guardado", "dj-digger open likes.json --category bandcamp"],
-];
+  "La app de escritorio dj-digger: recopila playlists completas de SoundCloud, escúchalas, recuerda cada decisión, sigue los enlaces de Bandcamp y Beatport, resuelve gates de descarga, llena carritos y exporta archivos para tus decks.";
 ---
 
-<Base title="La app de escritorio · dj-digger" description={description} label="app" tracks={tracks}>
-  <Track hero sub id="overview" no="01" title="Todo el ciclo" label="La app de escritorio">
-    <Fragment slot="heading">Todo el ciclo del digging <span class="grad">en una ventana</span></Fragment>
-    <p class="lede">
-      Cinco temas, en el orden en que transcurre una sesión. Todas las imágenes de esta página son la app real,
-      funcionando con datos de demostración.
-    </p>
-    <ol class="order" aria-label="Orden de los temas">
-      {
-        session.map((track) => (
-          <li>
-            <a href={`#${track.id}`}>
-              <span class="no">{track.no}</span>
-              {track.title}
-            </a>
-          </li>
-        ))
-      }
-    </ol>
+<Base title="La app de escritorio · dj-digger" description={description} label="app">
+  <Track hero sub id="overview" title="Todo el ciclo">
+    <Fragment slot="heading">Todo el ciclo del digging <span class="grad">en una sola ventana</span></Fragment>
+    <p class="lede">Cada imagen de esta página es la app real, con datos de demostración.</p>
     <div class="cta">
-      <a class="button primary" href="/es/download/">Descargar</a>
-      <a class="quiet" href="#requirements">En qué funciona</a>
+      <a class="button primary" href="/es/download/"><Icon name="download-simple" />Descargar</a>
     </div>
     <Shot
       src={mainWindow}
       eager
-      caption="La ventana principal"
-      alt="La ventana principal de dj-digger. Una barra lateral muestra tres playlists de SoundCloud, con Late Night Selects seleccionada, sobre un explorador de Carpetas. El reproductor, arriba, muestra Slow Orbit de Nightglass en 1:04 de 3:20, con una portada de disco generada y una forma de onda magenta. Debajo, un campo de búsqueda, píldoras de tiendas (Bandcamp 4, Beatport 3, Hypeddit 3, Traxsource 1, Juno Download 1), un filtro de estado y una tabla de 14 pistas, cada una con estado, artista, título, género, año, sello, duración y un distintivo de tienda."
+      alt="La ventana principal de dj-digger. Una barra lateral muestra tres playlists de SoundCloud, con Late Night Selects seleccionada, sobre las carpetas Descargas y Música. El reproductor, arriba, muestra Drift Away de JMHBM en 1:21 de 3:01, con una portada de disco generada y una forma de onda magenta. Debajo, un campo de búsqueda, píldoras de tiendas (Bandcamp 4, Beatport 3, Hypeddit 3, Traxsource 1, Juno Download 1), un filtro de estado y una tabla de 14 pistas, cada una con estado, artista, título, género, año, sello, duración y un distintivo de tienda."
     />
   </Track>
 
-  <Track id="collect" no="02" title="Recopilar" heading="Playlists completas, no una página desplazada">
+  <Track id="collect" title="Recopilar" heading="Playlists completas, no una página desplazada">
     <div class="beside">
       <div class="beside-grid">
         <div class="stack">
-          <p class="lede">
-            Pega un enlace de SoundCloud y la app lee la colección entera a través de la API de SoundCloud, así que nada
-            se esconde más allá de la última fila que una página llegó a mostrar.
-          </p>
+          <p class="lede">La app lee la colección completa a través de la API de SoundCloud.</p>
           <ul class="ticks">
             <li>Playlists y sets, likes, reposts, perfiles de artista y pistas sueltas</li>
-            <li>La importación aparece al instante en la barra lateral y se llena lote a lote; no se guarda nada hasta que ha llegado todo</li>
+            <li>La importación llena la tabla por tandas y se guarda cuando ha llegado todo</li>
             <li>Inicia sesión en SoundCloud para leer tus propias playlists privadas</li>
-            <li>Al actualizar una playlist, lo que ha ganado aparece arriba, marcado como <code>Nueva</code></li>
+            <li>Al actualizar una playlist, lo nuevo aparece arriba, marcado como <code>NEW</code></li>
           </ul>
         </div>
         <Shot
           src={sidebar}
           full={libraryWindow}
           sizes="220px"
-          caption="La barra lateral"
-          alt="La barra lateral: un campo para filtrar playlists y carpetas; tres playlists de SoundCloud, Late Night Selects con 14 pistas, Sunday Balcony con 4 y Warehouse Warmups con 6, y un botón más para añadir otra; debajo, el explorador de Carpetas con Descargas y Música, donde está seleccionada la carpeta Digging 2026, con seis archivos."
+          alt="La barra lateral: un campo para filtrar playlists y carpetas; tres playlists de SoundCloud, Late Night Selects con 14 pistas, Sunday Balcony con 4 y Warehouse Warmups con 6, y un botón más para añadir otra; debajo, el explorador de Carpetas con Descargas y Música, donde está seleccionada la carpeta Digging 2026, con siete archivos."
         />
       </div>
     </div>
   </Track>
 
-  <Track id="audition" no="03" title="Escuchar" heading="Una escucha que siente el bombo">
-    <p class="lede">
-      Escucha una vista previa de SoundCloud, o reproduce el archivo del disco cuando lo tengas. Salta a cualquier punto
-      de la forma de onda; la siguiente pista se prepara en los últimos 20 segundos de la actual.
-    </p>
-    <Loop>Grabado en la app real, con pistas de demostración</Loop>
+  <Track id="audition" title="Escuchar" heading="Una escucha que siente el bombo">
+    <p class="lede">Escucha desde SoundCloud, o reproduce el archivo del disco cuando lo tienes.</p>
+    <Loop />
     <ul class="ticks">
-      <li>Con cada bombo se iluminan la parte reproducida de la forma de onda y el fondo de la portada, en proporción al bombo, no a la línea de bajo</li>
-      <li>Las vistas previas se decodifican en memoria y nunca se guardan en el disco</li>
-      <li>Busca, filtra y ordena sin salir de la playlist; atajos de una sola tecla, y <kbd>?</kbd> los muestra todos</li>
+      <li>Salta a cualquier punto de la forma de onda; la siguiente pista se prepara de antemano</li>
+      <li>Con cada bombo se ilumina la parte reproducida de la forma de onda, siguiendo el bombo, no la línea de bajo</li>
+      <li>Las escuchas se decodifican en memoria y nunca se guardan en el disco</li>
+      <li>Busca, filtra y ordena sin salir de la playlist; <kbd>?</kbd> muestra todos los atajos</li>
       <li>Ver → Animaciones apaga la luz</li>
     </ul>
   </Track>
 
-  <Track id="decide" no="04" title="Decidir" heading="Cajas que recuerdan">
-    <p class="lede">
-      Marca pistas como conseguidas u omítelas; la app también recuerda lo que reprodujiste y abriste. Una decisión
-      acompaña a la pista en todas las playlists en las que aparece.
-    </p>
+  <Track id="decide" title="Decidir" heading="Cajas que recuerdan">
+    <p class="lede">La tengo, omitida, reproducida y abierta: cada pista conserva su estado.</p>
     <Shot
       src={decisions}
       full={decisionsWindow}
-      caption="Columna y filtro de estado"
       alt="La tabla de pistas con su filtro de estado abierto, que ofrece Todos los estados, Sin gestionar, Nueva, Abiertas, Conseguidas y Omitidas. La columna Estado indica La tengo, La tengo, Reproducida, La tengo, Abierta y Nueva junto a Nightglass, Coral Engine, Sable Fern, Tidewell, Ostra Lumen y Pale Circuit; sobre la tabla, píldoras de tiendas como Bandcamp 4 y Beatport 3."
     />
     <ul class="ticks">
-      <li>Escanea tus carpetas de música: una coincidencia segura de artista y título se marca como conseguida y se reproduce desde el disco</li>
-      <li><kbd>H</kbd> muestra solo las pistas que quedan por gestionar, y de nuevo todas</li>
+      <li>Escanea tus carpetas de música: una coincidencia segura de artista y título se marca como conseguida y suena desde el disco</li>
+      <li><kbd>H</kbd> muestra solo las pistas sin gestionar, y de nuevo todas</li>
       <li>Filtra por estado, tienda, género y más</li>
     </ul>
   </Track>
 
-  <Track id="acquire" no="05" title="Conseguir" heading="La forma más segura de llegar a cada pista">
+  <Track id="acquire" title="Conseguir" heading="La forma más segura de llegar a cada pista">
     <p class="lede">Tres caminos hasta el archivo. Cada uno dice qué queda en tus manos.</p>
 
     <div class="movement stack">
       <h3>Cada enlace, clasificado</h3>
       <p class="copy">
         Los enlaces de compra y descarga se clasifican por coincidencia estricta de dominio: Bandcamp, Beatport,
-        Traxsource, Juno Download, Apple, tiendas de discos, gates de descarga, enlaces inteligentes y descargas gratuitas
-        de SoundCloud. Un enlace que resulta ser una lista de tiendas se abre, y los enlaces de Bandcamp y Beatport que
+        Traxsource, Juno Download, Apple, tiendas de discos, gates de descarga, smart links y descargas gratuitas de
+        SoundCloud. Si un enlace resulta ser una lista de tiendas, se abre, y los enlaces de Bandcamp y Beatport que
         contiene pasan a la pista.
       </p>
       <p class="manual"><strong>Queda en tus manos</strong> Qué enlace abrir: <kbd>O</kbd> o <kbd>Enter</kbd> abre en tu navegador los enlaces de las pistas seleccionadas.</p>
       <Shot
         src={stores}
         full={storesWindow}
-        caption="Las píldoras de tiendas filtran la tabla"
         alt="La tabla de pistas filtrada por las píldoras de tiendas Bandcamp 4 y Beatport 3, con 7 de 14 pistas, cada una con un distintivo de Bandcamp o Beatport en la columna Tiendas."
       />
     </div>
@@ -153,17 +107,16 @@ const commands = [
     <div class="movement stack">
       <h3>Gates de descarga, resueltos</h3>
       <p class="copy">
-        Los gates de «sigue para descargar» de Hypeddit, ToneDen, GateRush y Droploud se resuelven mediante sus propios
-        flujos de descarga. Cuando un gate necesita el navegador, la extensión recorre sus pasos sin que se vean y el
-        archivo llega a la app. Los pasos sociales siguen la opción <em>Permitir acciones sociales</em> de Ajustes,
-        activada por defecto; si la desactivas, esos gates quedan para que los hagas a mano.
+        Los gates de «sigue para descargar» de Hypeddit, ToneDen, GateRush y Droploud se resuelven con sus propios
+        flujos de descarga. Cuando un gate necesita el navegador, la extensión recorre sus pasos sin que lo veas y el
+        archivo llega a la app. Los pasos sociales dependen de <em>Permitir acciones sociales</em> en Ajustes, activado
+        por defecto; si lo desactivas, esos gates quedan en tus manos.
       </p>
-      <p class="manual"><strong>Queda en tus manos</strong> Los CAPTCHAs, los inicios de sesión en los proveedores y las primeras aprobaciones. La app pregunta primero, y solo se abre una ventana del navegador si tú lo eliges.</p>
+      <p class="manual"><strong>Queda en tus manos</strong> Los CAPTCHA, los inicios de sesión en los proveedores y las primeras aprobaciones. La app pregunta antes, y una ventana del navegador solo se abre si tú lo eliges.</p>
       <Shot
         src={gates}
         full={gatesWindow}
-        caption="El diálogo real; sus filas proceden de una ejecución de prueba"
-        alt="El diálogo Los gates te necesitan: «Estos gates piden algo que solo tú puedes hacer, como iniciar sesión o resolver un CAPTCHA», sobre una lista de tres pistas, cada una marcada porque el gate pide resolver un CAPTCHA, y los botones Abrir en el navegador, Omitir estos y Detener descarga."
+        alt="El diálogo Los gates te necesitan: «Estos gates piden algo que solo tú puedes hacer, como iniciar sesión o resolver un CAPTCHA», sobre una lista de tres pistas, cada una marcada con «the gate wants a CAPTCHA solved», y los botones Abrir en el navegador, Omitir estos y Detener descarga."
       />
     </div>
 
@@ -172,35 +125,32 @@ const commands = [
       <p class="copy">
         Marca pistas y la app llena tu carrito de Bandcamp, y el de Beatport cuando se conoce la pista exacta, en
         pestañas en segundo plano de tu propio navegador. Cada página de producto se vuelve a comprobar justo antes de
-        su clic; un título ambiguo, un precio cambiado o una pista que solo se vende con el álbum detiene el proceso en
-        lugar de adivinar. Las pistas de Beatport que no pueden ir al carrito pueden ir en su lugar a una importación de
-        Soundiiz.
+        su clic; un título ambiguo, un precio cambiado o una pista que solo se vende con el álbum detienen el proceso en
+        lugar de adivinar.
       </p>
-      <p class="manual"><strong>Queda en tus manos</strong> El pago. Una pestaña de carrito por tienda pasa a ser tuya; la app nunca lee tu contraseña, ni elige un método de pago, ni paga.</p>
+      <p class="manual"><strong>Queda en tus manos</strong> El pago. Una pestaña de carrito por tienda pasa a ser tuya; la app nunca lee tu contraseña, elige un método de pago ni paga.</p>
       <Shot
         src={cart}
         full={cartWindow}
-        caption="El diálogo real; sus resultados proceden de una ejecución de prueba"
-        alt="El diálogo Resultados del carrito: «Añadidos a los carritos: 4. No añadidos: 1», una lista de cinco pistas con resultados como añadida al carrito de Bandcamp, ya en el carrito de Bandcamp o enviada a la playlist, y los botones Enviar lista a Soundiiz, Abrir enlaces no añadidos, Mostrar carritos y Cerrar."
+        alt="El diálogo Resultados del carrito: «Añadidos a los carritos: 4. No añadidos: 1», una lista de cinco pistas con resultados como «in Bandcamp cart», «already in Bandcamp cart» y «to playlist», y los botones Abrir enlaces no añadidos, Mostrar carritos y Cerrar."
       />
     </div>
   </Track>
 
-  <Track id="prepare" no="06" title="Preparar" heading="Lista para los decks">
+  <Track id="prepare" title="Preparar" heading="Lista para los decks">
     <p class="lede">Las carpetas del disco se abren en la misma tabla y salen de ella como copias que tus decks pueden leer.</p>
 
     <div class="movement stack">
       <h3>Tu biblioteca local</h3>
       <p class="copy">
         Explora carpetas junto a tus playlists y crea playlists locales a partir de ellas. El BPM y la tonalidad se
-        estiman en tu equipo y se pueden corregir a mano; el análisis nunca escribe etiquetas de audio ni datos de
+        estiman en tu equipo y puedes corregirlos a mano; el análisis nunca escribe etiquetas de audio ni datos de
         rekordbox. WAV, AIFF, FLAC, MP3, AAC y M4A.
       </p>
       <Shot
         src={library}
         full={libraryWindow}
-        caption="BPM y tonalidad en una carpeta local"
-        alt="Una carpeta local en la tabla de pistas: seis archivos, todos en estado Nueva, con chips de BPM de 120 a 130 y chips de tonalidad 9A, 8A, 10A, 5A, 7A y 8B."
+        alt="Una carpeta local en la tabla de pistas: siete archivos, Drift Away de JMHBM marcada como Reproducida y el resto como Nueva, con chips de BPM de 120 a 130 y chips de tonalidad 9A, 8A, 10A, 5A, 7A y 8B."
       />
     </div>
 
@@ -208,81 +158,34 @@ const commands = [
       <h3>Exportar para los decks</h3>
       <p class="copy">
         Marca los decks en los que deben sonar los archivos y la app elige el mejor formato que leen todos: FLAC cuando
-        todos los decks elegidos lo leen y, si no, WAV, con la mayor profundidad de bits y frecuencia de muestreo que
-        compartan. Los archivos que los decks ya reproducen se copian tal cual; solo se convierte el resto, en una
+        todos los decks elegidos lo leen, si no WAV, con la mayor profundidad de bits y frecuencia de muestreo que
+        compartan. Los archivos que los decks ya reproducen se copian tal cual; solo el resto se convierte, en una
         carpeta nueva.
       </p>
-      <p class="manual"><strong>Dónde se detiene</strong> Las reglas salen del manual de cada deck: se trata de compatibilidad de archivos de audio, no de pruebas con hardware ni de una exportación de rekordbox. Nunca sobremuestrea ni formatea una unidad.</p>
+      <p class="manual"><strong>Dónde se detiene</strong> Las reglas salen del manual de cada deck: es compatibilidad de archivos de audio, no pruebas en hardware ni una exportación de rekordbox. Nunca sube la frecuencia de muestreo y nunca formatea una unidad.</p>
       <Shot
         src={exportDialog}
         full={exportWindow}
-        caption="Exportar audio: diez grupos de decks"
         alt="El diálogo Exportar audio: «Elige los decks en los que deben sonar estos archivos; se elegirá el mejor formato que reproduzcan todos». Diez grupos de decks como casillas, de CDJ-350 a OMNIS-DUO y XDJ-AN, cinco de ellas marcadas; una carpeta de destino vacía con Examinar…, Modo en Copiar, Incluir subcarpetas sin marcar y los botones Exportar y Cancelar."
       />
     </div>
   </Track>
 
-  <Track id="cli" no="07" title="Tema extra: línea de comandos" heading="Una CLI para tus scripts">
-    <p class="copy">
-      El comando <code>dj-digger</code>, sin interfaz gráfica, reúne una playlist, la guarda en la biblioteca y exporta
-      sus enlaces en JSON o CSV. Comparte la biblioteca con la app de escritorio, así que se turnan: cierra una antes de
-      abrir la otra.
-    </p>
-    <div class="commands">
-      {commands.map(([label, code]) => <Code label={label} code={code} />)}
-    </div>
+  <Track id="requirements" title="Requisitos del sistema">
+    <p class="copy">Windows 10+, macOS 15+ y Linux.</p>
   </Track>
 
-  <Track id="requirements" no="08" title="Requisitos del sistema" heading="Requisitos del sistema">
-    <dl class="spec">
-      <dt>Windows</dt>
-      <dd>Windows 10 (1809 o posterior) u 11, 64 bits, Intel o AMD</dd>
-      <dt>macOS</dt>
-      <dd>macOS 15 o posterior, Apple Silicon o Intel</dd>
-      <dt>Linux</dt>
-      <dd>
-        Probado en Ubuntu 24.04, Debian 12, Fedora, Arch Linux y openSUSE Tumbleweed con el{" "}
-        <a href="/es/download/">script de instalación</a>, que se encarga del resto
-      </dd>
-      <dt>Desde PyPI</dt>
-      <dd>Python 3.12 o posterior, con FFmpeg y ffprobe en tu <code>PATH</code></dd>
-      <dt>Funciones del navegador</dt>
-      <dd>Chrome, Edge, Brave, Chromium o Firefox con la extensión dj-digger; no navegadores instalados como Flatpak o Snap</dd>
-    </dl>
-  </Track>
-
-  <Track id="end" no="09" title="Consíguela" heading="Ponla a sonar">
-    <p class="copy">Después conecta tu navegador: los gates de descarga y los carritos de las tiendas funcionan a través de la extensión.</p>
+  <Track id="end" title="Consíguela" heading="Ponla a sonar">
+    <p class="copy">Después conecta tu navegador: los gates de descarga y los carritos funcionan a través de la extensión.</p>
     <div class="cta">
-      <a class="button primary" href="/es/download/">Descargar</a>
-      <a class="quiet" href="/es/extension/">Sobre la extensión</a>
+      <a class="button primary" href="/es/download/"><Icon name="download-simple" />Descargar</a>
+      <a class="button" href="/es/extension/"><Icon name="puzzle-piece" />Descubre la extensión</a>
     </div>
   </Track>
 </Base>
 
 <style>
-  /* Hero: the five session tracks as a running order. */
-  .order {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.2rem 1.4rem;
-    font-size: 0.92rem;
-  }
-  .order a {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 0.55rem;
-    padding-block: 0.35rem;
-    color: var(--fg);
-    font-weight: 600;
-    text-decoration-color: var(--edge);
-  }
-  .order .no {
-    font-size: 0.74rem;
-    color: var(--muted);
-  }
-
-  /* A1: the tall sidebar crop stands beside its text once the column has room. */
+  /* Collect: the tall sidebar crop stands beside its text once the column has room. */
   .beside {
     container-type: inline-size;
   }
@@ -311,16 +214,6 @@ const commands = [
   .manual strong {
     display: block;
     margin-bottom: 0.15rem;
-    font-stretch: 125%;
-    font-size: 0.72rem;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
     color: var(--fg);
   }
-
-  .commands {
-    display: grid;
-    gap: 0.9rem;
-  }
-
 </style>

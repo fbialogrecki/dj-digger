@@ -2,7 +2,7 @@ import { languages, pathIn } from "../i18n/index.mjs";
 
 // Five pages in seven languages do not need a sitemap integration. Each entry names its
 // versions in the other languages, as the pages' own hreflang links do.
-const bases = ["/", "/app/", "/extension/", "/download/", "/liner-notes/"];
+const bases = ["/", "/app/", "/extension/", "/download/", "/about/"];
 
 export const GET = ({ site }) => {
   const url = (lang, base) => new URL(pathIn(lang, base), site);

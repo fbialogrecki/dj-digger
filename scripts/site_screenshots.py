@@ -2,26 +2,26 @@
 
 Everything runs offline against an isolated demo profile: a fixed folder under /tmp stands in
 for HOME and every XDG/AppData directory, so the user's library, settings, keyring and music
-are never read. Tracks and artists are invented, cover art is painted here with QPainter and
-the audio is synthesised (kick, hats, bass and pads, encoded to FLAC with the system ffmpeg).
+are never read. The track that plays is a real one, "Drift Away" by JMHBM (CC BY 4.0), given
+with --track or DJD_SITE_TRACK and never downloaded here; the other tracks and artists are
+invented and their audio synthesised (kick, hats, bass and pads, encoded to FLAC with the system
+ffmpeg). No track has artwork, so the record shows its plain label.
 The desktop is the real QML window with the real backend and player (on miniaudio's silent
 null device); only the browser cart and the gate pass are replaced by the fakes the tests use,
 since those need a live browser. The panel is the real popup.html with a stubbed chrome.*,
 fed the state the backend publishes for it, shot with headless Chromium.
 
-    uv run --extra gui --extra analyze python scripts/site_screenshots.py [de|es|fr|it|pl|ru]
+    uv run --extra gui --extra analyze python scripts/site_screenshots.py --track drift-away.mp3 [de|es|fr|it|pl|ru]
 
 With a language, the app runs in it and only the window shots and crops are written, under
-screenshots/<language>/; the panel (the extension has no translations) and the loop are shared.
-Without one (English), writes, dark theme throughout:
-- site/src/assets/screenshots/*.png: eight whole windows at 2x (1280x800 logical) and the panel;
+screenshots/<language>/; the panels (the extension has no translations) are shared. Without one (English), writes, dark theme throughout:
+- site/src/assets/screenshots/*.png: eight whole windows at 2x (1280x800 logical), and the panel
+  playing (extension-panel.png) and during the cart job (extension-panel-job.png);
 - site/src/assets/screenshots/crops/*.png: parts of those same frames at 2x, cut along the scene
-  rectangles of the QML items they show (player, stores, decisions, cart, gates, library,
-  sidebar, export, connect);
-- site/src/assets/video/player-loop.webm (VP9), player-loop.mp4 (H.264, when this ffmpeg has an
-  encoder for it) and player-loop-poster.png: the player panel while a 120 BPM track plays,
-  four bars at 30 fps, scaled to 1280 px wide, muted; see loop() for how its frames are made.
+  rectangles of the QML items they show, whole and with a margin (player, collect, stores,
+  decisions, cart, gates, library, sidebar, export, connect).
 """
+import argparse
 import json
 import math
 import os
@@ -31,21 +31,28 @@ import subprocess
 import sys
 import time
 import wave
+import webbrowser
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-LANGUAGE = sys.argv[1] if len(sys.argv) > 1 else 'en'
-if LANGUAGE not in ('en', 'de', 'es', 'fr', 'it', 'pl', 'ru'):
-    raise SystemExit(f'Unknown language {LANGUAGE!r}')
+parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
+parser.add_argument('language', nargs='?', default='en', choices=('en', 'de', 'es', 'fr', 'it', 'pl', 'ru'))
+parser.add_argument('--track', type=Path, default=os.environ.get('DJD_SITE_TRACK'),
+                    help='the MP3 of "Drift Away" by JMHBM (or DJD_SITE_TRACK)')
+ARGS = parser.parse_args()
+if not ARGS.track or not Path(ARGS.track).is_file():
+    raise SystemExit('Give the track with --track PATH or DJD_SITE_TRACK: "Drift Away" by JMHBM, CC BY 4.0, '
+                     'https://freemusicarchive.org/music/beat-mekanik/single/drift-away/ (nothing is downloaded here)')
+SOURCE_TRACK = Path(ARGS.track).resolve()
+LANGUAGE = ARGS.language
 OUT = REPO / 'site' / 'src' / 'assets' / 'screenshots'
 OUT = OUT if LANGUAGE == 'en' else OUT / LANGUAGE
-CROPS, VIDEO = OUT / 'crops', REPO / 'site' / 'src' / 'assets' / 'video'
+CROPS = OUT / 'crops'
 # A fixed, neutral path: folders shown in the dialogs read /tmp/dj-digger-demo/..., never a real home.
 DEMO = Path('/tmp/dj-digger-demo')
 HOME = DEMO / 'home'
 WIDTH, HEIGHT = 1280, 800
-# The loop: 30 fps from 1:04 of the 120 BPM track, 240 frames = 8 s = four bars.
-LOOP_START, LOOP_FPS, LOOP_FRAMES = 64, 30, 240
+TITLE, ARTIST = 'Drift Away', 'JMHBM'
 
 if (DEMO / '.demo').is_file():
     shutil.rmtree(DEMO)
@@ -64,13 +71,14 @@ os.environ.update(HOME=str(HOME), USERPROFILE=str(HOME), LOCALAPPDATA=str(HOME /
 # The window takes at most the screen: one 2x screen exactly the window's size.
 (DEMO / 'screen.json').write_text(json.dumps({'screens': [dict(name='demo', x=0, y=0, width=WIDTH * 2, height=HEIGHT * 2, logicalDpi=96)]}))
 (DEMO / 'run').mkdir(mode=0o700)
-for name in ('SOUNDCLOUD_OAUTH_TOKEN', 'DBUS_SESSION_BUS_ADDRESS'):
+# No session bus and no display: nothing here can reach the desktop's keyring or open the person's browser.
+for name in ('SOUNDCLOUD_OAUTH_TOKEN', 'DBUS_SESSION_BUS_ADDRESS', 'DISPLAY', 'WAYLAND_DISPLAY', 'BROWSER'):
     os.environ.pop(name, None)
 
 import numpy as np  # noqa: E402
 import requests  # noqa: E402
-from PySide6.QtCore import QObject, QPointF, QUrl  # noqa: E402
-from PySide6.QtGui import QColor, QGuiApplication, QImage, QPainter, QRadialGradient  # noqa: E402
+from PySide6.QtCore import QUrl  # noqa: E402
+from PySide6.QtGui import QGuiApplication, QImage  # noqa: E402
 from PySide6.QtQml import QQmlApplicationEngine, QQmlEngine, QQmlExpression  # noqa: E402
 from PySide6.QtQuickControls2 import QQuickStyle  # noqa: E402
 from PySide6.QtTest import QTest  # noqa: E402
@@ -81,6 +89,7 @@ def offline(*args, **kwargs):
 
 
 requests.Session.request = offline
+webbrowser.get = offline  # dj_digger.browser opens links through webbrowser.get(...)
 import miniaudio  # noqa: E402
 
 _device = miniaudio.PlaybackDevice
@@ -99,49 +108,32 @@ from dj_digger.services.downloads import FileBatchResult  # noqa: E402
 from dj_digger.state import TrackState  # noqa: E402
 
 QQuickStyle.setStyle('Basic')
-app = QGuiApplication(sys.argv)
+app = QGuiApplication(sys.argv[:1])
 app.setApplicationName('dj-digger')
 app.setOrganizationName('dj-digger')
 
-# title, artist, label, genre, BPM, Camelot key, root note (Hz), cover colours; the first six exist as local files.
+# title, artist, label, genre, BPM, Camelot key, root note (Hz); the first six exist as synthesised local files.
 TRACKS = [
-    ('Slow Orbit', 'Nightglass', 'Halfmoon Tapes', 'Deep House', 122, '8A', 55.0, ('#ffd166', '#ef476f', '#26547c')),
-    ('Basalt Steps', 'Coral Engine', 'Porch Light', 'Tech House', 126, '9A', 49.0, ('#06d6a0', '#118ab2', '#073b4c')),
-    ('Glasshouse Dub', 'Sable Fern', 'Low Arc', 'Dub Techno', 120, '7A', 58.3, ('#c77dff', '#5a189a', '#10002b')),
-    ('Night Ferry', 'Tidewell', 'Halfmoon Tapes', 'Deep House', 123, '8B', 65.4, ('#f4a261', '#e76f51', '#264653')),
-    ('Copper Rain', 'Ostra Lumen', 'Brass Hour', 'Minimal', 125, '10A', 61.7, ('#e9c46a', '#2a9d8f', '#1d3557')),
-    ('Sodium Lights', 'Pale Circuit', 'Kiln Audio', 'Techno', 130, '5A', 51.9, ('#ff9f1c', '#cb4b16', '#1b1b3a')),
-    ('Fold the Map', 'Brine Atlas', '', 'Breaks', 0, '', 0, ()),
-    ('Low Tide Motel', 'Moth Signal', '', 'Electro', 0, '', 0, ()),
-    ('Paper Engines', 'Kiln & Loom', '', 'House', 0, '', 0, ()),
-    ('Second Hearth', 'Vesna Radi', '', 'Deep House', 0, '', 0, ()),
-    ('Velvet Gradient', 'Hollow Paw', '', 'Downtempo', 0, '', 0, ()),
-    ('Harbor Code', 'Ilsa Morrow', '', 'Techno', 0, '', 0, ()),
-    ('Fern Signal', 'Okapi Choir', '', 'Afro House', 0, '', 0, ()),
-    ('Quiet Voltage', 'Lune Varga', '', 'Minimal', 0, '', 0, ()),
+    ('Slow Orbit', 'Nightglass', 'Halfmoon Tapes', 'Deep House', 122, '8A', 55.0),
+    ('Basalt Steps', 'Coral Engine', 'Porch Light', 'Tech House', 126, '9A', 49.0),
+    ('Glasshouse Dub', 'Sable Fern', 'Low Arc', 'Dub Techno', 120, '7A', 58.3),
+    ('Night Ferry', 'Tidewell', 'Halfmoon Tapes', 'Deep House', 123, '8B', 65.4),
+    ('Copper Rain', 'Ostra Lumen', 'Brass Hour', 'Minimal', 125, '10A', 61.7),
+    ('Sodium Lights', 'Pale Circuit', 'Kiln Audio', 'Techno', 130, '5A', 51.9),
+    ('Fold the Map', 'Brine Atlas', '', 'Breaks', 0, '', 0),
+    ('Low Tide Motel', 'Moth Signal', '', 'Electro', 0, '', 0),
+    ('Paper Engines', 'Kiln & Loom', '', 'House', 0, '', 0),
+    ('Second Hearth', 'Vesna Radi', '', 'Deep House', 0, '', 0),
+    ('Velvet Gradient', 'Hollow Paw', '', 'Downtempo', 0, '', 0),
+    ('Harbor Code', 'Ilsa Morrow', '', 'Techno', 0, '', 0),
+    ('Fern Signal', 'Okapi Choir', '', 'Afro House', 0, '', 0),
+    ('Quiet Voltage', 'Lune Varga', '', 'Minimal', 0, '', 0),
 ]
 MUSIC = HOME / 'Music' / 'Digging 2026'
 
 
-def cover(colors, seed):
-    image = QImage(500, 500, QImage.Format_RGB32)
-    p = QPainter(image)
-    g = QRadialGradient(QPointF(80 + seed * 53 % 340, 90 + seed * 97 % 320), 460)
-    for at, color in zip((0, .45, 1), colors):
-        g.setColorAt(at, QColor(color))
-    p.fillRect(image.rect(), g)
-    p.setPen(QColor(255, 255, 255, 170))
-    for i in range(0, 500, 18 + seed % 4 * 6):
-        if seed % 2:
-            p.drawLine(0, i, 500, 500 - i)
-        else:
-            p.drawEllipse(QPointF(250, 250), i / 2, i / 2)
-    p.end()
-    return image
-
-
 def synth(path, bpm, root, seconds=200, rate=44100):
-    """Kick and hats with a bass line and a pad breakdown: enough shape for a waveform and kick light."""
+    """Kick and hats with a bass line and a pad breakdown: enough shape for a waveform."""
     out = np.zeros(int(seconds * rate), np.float32)
     beat, rng = 60 / bpm, np.random.default_rng(int(bpm * root))
     x = np.arange(int(.35 * rate)) / rate
@@ -169,19 +161,21 @@ def synth(path, bpm, root, seconds=200, rate=44100):
 
 
 def library():
+    """The six synthesised FLACs, then the real track with its own two tags, the audio stream copied as is."""
     MUSIC.mkdir(parents=True)
     files = []
-    for n, (title, artist, label, genre, bpm, key, root, colors) in enumerate(TRACKS[:6]):
-        raw, art = DEMO / f'{n}.wav', DEMO / f'{n}.png'
+    for n, (title, artist, label, genre, bpm, key, root) in enumerate(TRACKS[:6]):
+        raw = DEMO / f'{n}.wav'
         synth(raw, bpm, root)
-        cover(colors, n).save(str(art))
         target = MUSIC / f'{artist} - {title}.flac'
         tags = dict(title=title, artist=artist, genre=genre, date='2026', label=label, bpm=bpm, initialkey=key)
-        subprocess.run(['ffmpeg', '-v', 'error', '-i', raw, '-i', art, '-map', '0:a', '-map', '1:v', '-c:a', 'flac',
-                        '-c:v', 'png', '-disposition:v', 'attached_pic',
+        subprocess.run(['ffmpeg', '-v', 'error', '-i', raw, '-c:a', 'flac',
                         *[a for k, v in tags.items() for a in ('-metadata', f'{k.upper()}={v}')], target], check=True)
         files.append(target)
-    return files
+    target = MUSIC / f'{TITLE}.mp3'  # the window titles a local file by its name
+    subprocess.run(['ffmpeg', '-v', 'error', '-i', SOURCE_TRACK, '-map', '0:a', '-c', 'copy', '-map_metadata', '-1',
+                    '-metadata', f'title={TITLE}', '-metadata', f'artist={ARTIST}', target], check=True)
+    return files + [target]
 
 
 def seed(files):
@@ -221,6 +215,7 @@ def seed(files):
 GEOMETRY = '''
 function rect(i, h) { let r = i.mapToItem(null, 0, 0, i.width, h ?? i.height); return [r.x, r.y, r.x + r.width, r.y + r.height] }
 function down(i) { return rect(i, table.mapToItem(i, 0, Math.min(table.height, table.contentHeight)).y) }
+function rows(n) { return rect(sidebar, table.mapToItem(sidebar, 0, n * table.rowHeight).y) }
 function column(name) { return header.contentItem.children.find(c => c.visible && c.display === name) }
 function folders() { try { return foldersScroll } catch (e) { return sidebarScroll } }  // 1.6.0: one scroll for playlists and folders
 '''
@@ -329,28 +324,38 @@ def desktop(files):
         qml('dialog.reject()')
         wait(lambda: not bridge.property('busy') and not qml('dialog.visible'), 'the job to end', 60)
 
+    def panel(what):
+        """The state the backend publishes for the extension's panel right now, through a stand-in link."""
+        Panel.state = None
+        backend.loop.call_soon_threadsafe(lambda: (setattr(backend.services, 'browser_link', Panel()), backend.publish_browser()))
+        wait(lambda: Panel.state and Panel.state['title'] == TITLE and what(Panel.state), 'the panel state')
+        backend.loop.call_soon_threadsafe(setattr, backend.services, 'browser_link', None)
+        return Panel.state
+
+    def item(parent, name):
+        return parent if parent.objectName() == name else next(
+            (found for child in parent.childItems() if (found := item(child, name))), None)
+
+    # The real track plays from its folder, past the intro and into the groove, through every shot.
+    bridge.openFolder(str(MUSIC), 0)
+    # Until a file is probed its artist comes from its name; the player takes the one it has at play.
+    wait(lambda: any(r['title'] == TITLE and r.get('artist') == ARTIST for r in model.visible), 'the folder')
+    select(TITLE)
+    bridge.action('play')
+    wait(lambda: bridge.property('waveform') and bridge.property('audio').get('title', '').endswith(TITLE), 'playback')
+    bridge.transport('seek', 81)
+    wait(lambda: bridge.property('audio').get('position', 0) >= 81, 'the seek')
+
     bridge.load(source)
     wait(lambda: model.rowCount() == len(tracks), 'the playlist')
-    select('Slow Orbit')
-    bridge.action('play')
-    wait(lambda: bridge.property('waveform') and bridge.property('artwork') and bridge.property('nowPlaying'), 'playback')
-    bridge.transport('seek', 64)  # past the intro, into the groove
-    wait(lambda: bridge.property('audio').get('position', 0) >= 64, 'the seek')
     select('Copper Rain')
-    shoot('desktop-player', player=(4, 'rect(player)'))
-
-    # The panel's state while the same track plays, from the backend itself.
-    backend.loop.call_soon_threadsafe(lambda: (setattr(backend.services, 'browser_link', Panel()),
-                                               setattr(backend, 'browser_ready', True), backend.publish_browser()))
-    wait(lambda: Panel.state and Panel.state['artwork'], 'the panel state')
-    backend.loop.call_soon_threadsafe(lambda: (setattr(backend, 'browser_ready', False),
-                                               setattr(backend.services, 'browser_link', None)))
-    panel = Panel.state
+    shoot('desktop-player', player=(4, 'rect(player)'), collect=(6, 'rect(player)', 'rows(5)', 'rect(table, 5 * table.rowHeight)'))
+    playing = panel(lambda state: state['playing'])
 
     qml('root.toggleStore("bandcamp"); root.toggleStore("beatport")')
     wait(lambda: model.rowCount() < len(tracks), 'the store filter')
     model.clearSelection()
-    shoot('desktop-store-links', stores=(8, 'rect(storePills)', 'down(column("Artist"))', 'down(column("Stores"))'))
+    shoot('desktop-store-links', stores=(8, 'rect(storePills)', 'rect(moreFilters)', 'down(column("Status"))', 'down(column("Stores"))'))
     qml('root.resetFilters(true)')
 
     select('Sodium Lights')
@@ -362,6 +367,8 @@ def desktop(files):
     backend.services._cart = Cart()
     select('Slow Orbit', 'Copper Rain', 'Paper Engines', 'Sodium Lights', 'Quiet Voltage')
     ask('Cart results', bridge.action, 'cart')
+    # The cart job is still running while its results wait for the person: the panel shows its card.
+    job = panel(lambda state: state['jobs']['busy'])
     shoot('desktop-cart', cart=(24, 'rect(dialog.background)'))
     dismiss()
 
@@ -377,16 +384,13 @@ def desktop(files):
     shoot('desktop-jobs-gates', gates=(24, 'rect(dialog.background)'))
     dismiss()
 
-    def item(parent, name):
-        return parent if parent.objectName() == name else next(
-            (found for child in parent.childItems() if (found := item(child, name))), None)
-
     item(window.contentItem(), 'root-music').parentItem().setProperty('expanded', True)  # its chevron
     bridge.openFolder(str(MUSIC), 0)
-    wait(lambda: model.rowCount() == len(files) and all(r['bpm'] for r in model.visible), 'the folder')
+    # The synthesised files carry BPM and key tags; the real track has only its title and artist.
+    wait(lambda: model.rowCount() == len(files) and sum(bool(r['bpm']) for r in model.visible) == len(files) - 1, 'the folder')
     select('Pale Circuit - Sodium Lights')
-    shoot('desktop-local-library', library=(4, 'down(column("Status"))', 'down(column("Key"))'),
-          sidebar=(0, 'rect(sidebar, folders().mapToItem(sidebar, 0, folders().contentHeight + 8).y)'))
+    shoot('desktop-local-library', library=(4, 'down(header)'),
+          sidebar=(6, 'rect(sidebar, folders().mapToItem(sidebar, 0, folders().contentHeight + 8).y)'))
 
     select(*(r['title'] for r in model.visible))
     ask('Export audio', bridge.action, 'export')
@@ -397,122 +401,18 @@ def desktop(files):
     shoot('desktop-browser-connect', connect=(8, 'rect(dialog.background)'))
     dismiss()
 
-    if LANGUAGE != 'en':
-        return close(window, backend, engine)
-
-    # The kick light: motion on, as the app ships, and a 120 BPM track, so eight seconds are four whole bars.
-    qml('root.animations = true')
-    select('Sable Fern - Glasshouse Dub')
-    bridge.action('play')
-    wait(lambda: bridge.property('audio').get('title', '').endswith('Glasshouse Dub') and bridge.property('waveform')
-         and bridge.property('artwork'), 'Glasshouse Dub')
-    bridge.transport('seek', LOOP_START)
-    wait(lambda: bridge.property('audio').get('position', 0) >= LOOP_START, 'the seek')
-    bridge.transport('toggle')  # the backend's own player rests; the frames are driven below
-    wait(lambda: not bridge.property('playing'), 'the pause')
-    model.clearSelection()
-    QTest.qWait(1500)  # the record's reveal and the waveform's blend, on the real clock
-    loop(window, bridge, qml, item, files[2], box(4, 'rect(player)'))
-    close(window, backend, engine)
-    return panel
-
-
-def close(window, backend, engine):
     window.close()
-    wait(lambda: not backend.thread.is_alive(), 'shutdown', 15)
+    # Until the window hears 'closed' the bridge's shutdown deadline runs, and it ends the process.
+    wait(lambda: not backend.thread.is_alive() and bridge._close_timer.finished.is_set(), 'shutdown', 15)
     import shiboken6
     shiboken6.delete(engine)  # before the bridge goes, as the app does, so no binding reads a dead `desktop`
+    return playing, job
 
 
-class Paced:
-    """An output device that plays one 50 ms period when asked to, so playback keeps pace with the frames."""
-    generator = None
-
-    def start(self, generator):
-        self.generator = generator
-
-    def stop(self):
-        pass
-
-    def close(self):
-        pass
-
-
-def loop(window, bridge, qml, item, path, crop):
-    """The player at 30 frames a second over four bars of a 120 BPM track, so the last frame leads into the first.
-
-    Nothing runs on the wall clock. A second real Player plays the same file through a device that takes one
-    50 ms period at a time, until it has handed out what Player.heard() keeps queued past the frame's time; its
-    position and kick levels reach the window through bridge.receive(), as the backend sends them. The window's
-    frame callback, root.pulseTick(), gets the frame's time instead of Date.now(), and the record turns as its
-    own animation turns it (360 degrees in 4 s, so two whole turns per loop). The event loop does not run
-    meanwhile, so the backend's resting player and the window's frame timer cannot step in.
-    """
-    from dj_digger.local_audio import prepare_local
-    from dj_digger.player import DEVICE_PERIOD_MS, OUTPUT_LATENCY, QUEUED_GUESS, SAMPLE_RATE, Player
-
-    audio = dict(bridge.property('audio'))
-    prepared = prepare_local(Track(title=path.stem, permalink_url='', local_path=str(path)))
-    player, device = Player(), Paced()
-    player.load(prepared.track, prepared.stream, None, prepared.source)
-    player._device = device  # the paced device in place of the sound card (load drops any device)
-    player.play()
-    ticker = next(o for o in window.findChildren(QObject) if o.metaObject().className() == 'QQuickFrameAnimation')
-    ticker.setProperty('running', False)  # root.pulseTick() is called below, once per frame
-    disc = item(window.contentItem(), 'trackCode').parentItem()
-    turn = disc.property('rotation')
-    frames, lead = DEMO / 'frames', LOOP_FPS  # one second before the loop settles the clock and the light
-    frames.mkdir()
-    left, top, right, bottom = crop
-    lit = []
-    for n in range(-lead, LOOP_FRAMES):
-        heard, now = LOOP_START + n / LOOP_FPS, round((n + lead) * 1000 / LOOP_FPS)
-        while player.position < heard + QUEUED_GUESS + OUTPUT_LATENCY:
-            if not len(device.generator.send(SAMPLE_RATE * DEVICE_PERIOD_MS // 1000)):
-                time.sleep(.01)  # the decoder is still filling
-        start, step, levels = player.kicks()
-        assert levels and all(type(v) is float for v in levels), 'kick levels must cross to QML as plain floats'
-        bridge.receive('kicks', dict(key=audio['key'], start=start, step=step, levels=levels))
-        bridge.receive('audio', dict(audio, playing=True, position=player.position, heard=heard, at=time.time()))
-        qml(f'root.syncClock({heard}, {now}, {player.position}, {now}); root.pulseTick({now})')
-        disc.setProperty('rotation', (turn + 360 * now / 4000) % 360)
-        if n >= 0:
-            image = window.grabWindow()
-            assert qml('root.lastTick') == now and bridge.property('playing'), 'something ran on the wall clock'
-            image.copy(left * 2, top * 2, (right - left) * 2, (bottom - top) * 2).save(str(frames / f'{n:03d}.png'))
-            lit.append(qml('root.glow'))
-    player.close()
-    ticker.setProperty('running', True)
-    # The kicks fall on every beat (every 15th frame from the first); report the light by place in the beat.
-    beat = LOOP_FPS // 2
-    phases = [sum(lit[k::beat]) / len(lit[k::beat]) for k in range(beat)]
-    print('glow by frame after a kick:', ' '.join(f'{v:.2f}' for v in phases))
-    # Lit on the kick (and the frame before it: the window samples 40 ms ahead for the display's delay), dark between.
-    assert min(phases[-1], phases[0]) > .5 and max(phases[4:-1]) < .05, phases
-    encode(frames, (right - left) * 2)
-    return lit
-
-
-def encode(frames, width):
-    """VP9 WebM, an H.264 MP4 when this ffmpeg has an encoder for it, and the first frame as the poster."""
-    scale = ['-vf', 'scale=1280:-2:flags=lanczos'] if width > 1280 else []
-    source = ['ffmpeg', '-v', 'error', '-y', '-framerate', str(LOOP_FPS), '-i', str(frames / '%03d.png'), *scale, '-an', '-pix_fmt', 'yuv420p']
-    subprocess.run([*source, '-c:v', 'libvpx-vp9', '-crf', '40', '-b:v', '0', '-row-mt', '1', VIDEO / 'player-loop.webm'], check=True)
-    encoders = subprocess.run(['ffmpeg', '-hide_banner', '-encoders'], check=True, capture_output=True, text=True).stdout
-    h264 = next((name for name in ('libx264', 'libopenh264') if f' {name} ' in encoders), None)
-    (VIDEO / 'player-loop.mp4').unlink(missing_ok=True)
-    if h264:
-        quality = ['-crf', '26', '-preset', 'slow'] if h264 == 'libx264' else ['-b:v', '700k']
-        subprocess.run([*source, '-c:v', h264, *quality, '-movflags', '+faststart', VIDEO / 'player-loop.mp4'], check=True)
-    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', frames / '000.png', *scale, VIDEO / 'player-loop-poster.png'], check=True)
-    for name in ('player-loop.webm', 'player-loop.mp4', 'player-loop-poster.png'):
-        if (VIDEO / name).exists():
-            print(VIDEO / name)
-
-
-def extension(state):
+def extension(state, name):
     """The real popup at 2x on its own dark background, sized to its content."""
     ext, work = REPO / 'dj_digger/webext/extension', DEMO / 'popup'
+    shutil.rmtree(work, ignore_errors=True)
     shutil.copytree(ext, work)
     stub = ('const djdState = ' + json.dumps(state) + '; djdState.at = Date.now() / 1000;'
             'globalThis.chrome = {runtime: {sendMessage: async () => undefined},'
@@ -525,13 +425,14 @@ def extension(state):
     page = work / 'shot.html'
     chromium = shutil.which('chromium-browser') or shutil.which('chromium') or shutil.which('google-chrome')
     flags = [chromium, '--headless', '--disable-gpu', '--hide-scrollbars', '--force-device-scale-factor=2',
+             '--disable-background-networking', '--no-first-run',
              '--allow-file-access-from-files', f'--user-data-dir={DEMO / "chromium"}', '--virtual-time-budget=3000']
     page.write_text(html.replace('<script src="popup.js">', '<script src="stub.js"></script><script src="popup.js">')
                     .replace('</body>', '<script src="measure.js"></script></body>'))
     dom = subprocess.run([*flags, '--window-size=320,1000', '--dump-dom', page.as_uri()],
                          check=True, capture_output=True, text=True, timeout=60).stdout
     height = int(re.search(r'data-height="(\d+)"', dom).group(1))
-    target = OUT / 'extension-panel.png'
+    target = OUT / name
     subprocess.run([*flags, f'--window-size=320,{height}', f'--screenshot={target}', page.as_uri()],
                    check=True, capture_output=True, timeout=60)
     image = QImage(str(target))
@@ -541,11 +442,11 @@ def extension(state):
 
 def main():
     CROPS.mkdir(parents=True, exist_ok=True)
-    VIDEO.mkdir(parents=True, exist_ok=True)
     files = library()
-    panel = desktop(files)
+    playing, job = desktop(files)
     if LANGUAGE == 'en':
-        extension(panel)
+        extension(playing, 'extension-panel.png')
+        extension(job, 'extension-panel-job.png')
     shutil.rmtree(DEMO)
 
 

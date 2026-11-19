@@ -1,8 +1,6 @@
-// The deck's behaviour: which track is being read, turning the record by hand, and
-// the fallback where CSS scroll-driven animations are missing. The motion itself is CSS.
+// The deck's behaviour: turning the record by hand, and the fallback where CSS
+// scroll-driven animations are missing. The motion itself is CSS.
 const root = document.documentElement;
-const tracks = [...document.querySelectorAll("[data-track]")];
-const now = document.querySelector(".mini-now");
 const record = document.querySelector(".record");
 const needsProgress = !CSS.supports("animation-timeline: scroll()");
 const TURNS = 3; // the disc turns three times over the page (global.css: 1080deg)
@@ -11,14 +9,6 @@ const reach = () => Math.max(root.scrollHeight - innerHeight, 1);
 
 function mark() {
   if (needsProgress) root.style.setProperty("--p", Math.min(scrollY / reach(), 1).toFixed(4));
-  // The track being read is the last one whose top has passed 40% of the viewport.
-  const line = innerHeight * 0.4;
-  const current = tracks.findLast((track) => track.getBoundingClientRect().top <= line) ?? tracks[0];
-  if (!current || current.id === root.dataset.track) return;
-  root.dataset.track = current.id;
-  for (const link of document.querySelectorAll(".tracks a"))
-    link.toggleAttribute("aria-current", link.getAttribute("href") === `#${current.id}`);
-  if (now) now.textContent = `${current.dataset.track} ${current.dataset.title}`;
 }
 
 let queued = false;
@@ -42,15 +32,17 @@ for (const type of ["pointerdown", "keydown", "wheel", "touchstart"])
 mark();
 
 // Grab the record and turn it: the page scrolls by the same share of its length.
+// The spindle is fixed where it was grabbed: near the bottom the deck scrolls away with
+// the page, and measuring from where it moved to would turn the record by itself.
 if (record) {
   let last = null;
-  const angle = (event) => {
-    const box = record.getBoundingClientRect();
-    // The spindle sits 104 units into the 232-unit-wide drawing.
-    return Math.atan2(event.clientY - (box.top + box.height / 2), event.clientX - (box.left + (box.width * 104) / 232));
-  };
+  let spindle = [0, 0];
+  const angle = (event) => Math.atan2(event.clientY - spindle[1], event.clientX - spindle[0]);
   record.addEventListener("pointerdown", (event) => {
     if (event.button) return;
+    const box = record.getBoundingClientRect();
+    // The spindle sits 104 units into the 232-unit-wide drawing.
+    spindle = [box.left + (box.width * 104) / 232, box.top + box.height / 2];
     record.setPointerCapture(event.pointerId);
     record.classList.add("grabbing");
     last = angle(event);
@@ -73,11 +65,16 @@ if (record) {
 // Copy buttons of <Code>: hidden in the markup, shown here because they need a script.
 for (const button of document.querySelectorAll("[data-copy]")) {
   button.hidden = false;
-  const label = button.textContent;
+  const text = button.querySelector("span");
+  const label = text.textContent;
   button.addEventListener("click", async () => {
     await navigator.clipboard.writeText(button.dataset.copy);
-    button.textContent = button.dataset.copied ?? "";
-    setTimeout(() => (button.textContent = label), 1600);
+    text.textContent = button.dataset.copied ?? "";
+    button.classList.add("copied");
+    setTimeout(() => {
+      text.textContent = label;
+      button.classList.remove("copied");
+    }, 1600);
   });
 }
 

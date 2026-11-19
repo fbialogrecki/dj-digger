@@ -1,0 +1,60 @@
+{
+  "skip": "Zum Inhalt springen",
+  "primary": "Hauptmenü",
+  "nav": {
+    "app": "App",
+    "extension": "Erweiterung",
+    "about": "Über",
+    "download": "Download",
+    "github": "GitHub"
+  },
+  "menu": "Menü",
+  "language": "Sprache",
+  "toLight": "Zum hellen Design wechseln",
+  "toDark": "Zum dunklen Design wechseln",
+  "ogAlt": "dj-digger: von der SoundCloud-Playlist zu Dateien auf deinen Decks. Das App-Icon, eine Schallplatte von oben gesehen.",
+  "footer": {
+    "free": "Kostenlos und Open Source, Apache 2.0.",
+    "site": "Website",
+    "project": "Projekt",
+    "privacy": "Datenschutzerklärung",
+    "license": "Lizenz",
+    "madeBy": "Gemacht von",
+    "credits": "Nachweise"
+  },
+  "copy": "Kopieren",
+  "copied": "Kopiert",
+  "play": "Abspielen",
+  "pause": "Pause",
+  "stop": "Stopp",
+  "previous": "Vorheriger Track",
+  "next": "Nächster Track",
+  "close": "Schließen",
+  "openFull": "Screenshot des ganzen Fensters öffnen",
+  "player": {
+    "pauseAnim": "Animation des Players anhalten",
+    "playAnim": "Animation des Players abspielen",
+    "note": "Ein Nachbau des dj-digger-Players mit einem echten Track. Cover und Wellenform stammen von SoundCloud.",
+    "music": "Musik:"
+  },
+  "lightbox": {
+    "label": "Vergrößerter Screenshot",
+    "zoom": "Diesen Screenshot größer anzeigen"
+  },
+  "flow": {
+    "title": "Wohin die Daten der Erweiterung gehen",
+    "desc": "Ein Kasten, dein Computer, enthält die dj-digger-Desktop-App und deinen Browser mit der dj-digger-Erweiterung. App und Erweiterung sind über Native Messaging verbunden, ihren einzigen Kanal. Die einzigen Pfeile, die den Kasten verlassen, führen von den Tabs, die die Erweiterung für die App geöffnet hat, zu fünf Websites: Hypeddit, ToneDen, Bandcamp, Beatport und SoundCloud. Ein Kasten für den Entwickler steht ohne Pfeil außerhalb: Dorthin wird nichts gesendet.",
+    "computer": "Dein Computer",
+    "app": "dj-digger-App",
+    "appNote": "sendet die Browserschritte",
+    "native": "Native Messaging",
+    "nativeNote": "der einzige Kanal",
+    "browser": "Dein Browser",
+    "extension": "dj-digger-Erweiterung",
+    "tabs": "Geöffnete Tabs",
+    "tabsNote": "für die App",
+    "developer": "Entwickler",
+    "developerNote": "nichts gesendet",
+    "sites": "Websites"
+  }
+}

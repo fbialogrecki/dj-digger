@@ -32,6 +32,7 @@
   --muted: #a3a6ad;
   --line: #2b2b33;
   --edge: #6a6d76;
+  /* The waveform's rest colours and its neon pair (Main.qml colorPairs). */
   --rest-foot: #b8286a;
   --rest-top: #3a5fd6;
   --neon-foot: #ff2fa8;
@@ -41,10 +42,12 @@
   /* Accent colours that carry text; the neon pair is decoration only. */
   --accent: #ff2fa8;
   --accent-2: #1e9bff;
+  --on-accent: #0b0b0e; /* text on an --accent fill: 5.8:1 dark, 6.7:1 light */
   --metal: #c9ccd3;
   --shell: #ececef;
   --shadow: #000;
   --peek: 0.45; /* how strongly the record shows behind the hero on narrow screens */
+  --rest-alpha: 0.38; /* the unplayed waveform, as in the app */
   --sans: "Archivo", system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --top: 4.25rem;
@@ -73,6 +76,9 @@
     --edge: light-dark(#7d818b, #6a6d76);
     --accent: light-dark(#b0175d, #ff2fa8);
     --accent-2: light-dark(#2a56d6, #1e9bff);
+    --on-accent: light-dark(#fff, #0b0b0e);
+    --rest-foot: light-dark(#ff2187, #b8286a);
+    --rest-top: light-dark(#4d77ff, #3a5fd6);
     --metal: light-dark(#7d818b, #c9ccd3);
     --shell: light-dark(#9a9da5, #ececef);
     --shadow: light-dark(rgb(17 18 23 / 0.3), #000);
@@ -80,6 +86,7 @@
   :root[data-theme="light"] {
     color-scheme: light;
     --peek: 0.14;
+    --rest-alpha: 0.45;
   }
   :root[data-theme="dark"] {
     color-scheme: dark;
@@ -87,6 +94,7 @@
   @media (prefers-color-scheme: light) {
     :root:not([data-theme="dark"]) {
       --peek: 0.14;
+      --rest-alpha: 0.45;
     }
   }
 }
@@ -103,7 +111,7 @@
   --label-from: #00ffdd;
   --label-to: #3a5fd6;
 }
-[data-label="notes"] {
+[data-label="about"] {
   --label-from: #ffbb00;
   --label-to: #ff2fa8;
 }
@@ -128,6 +136,7 @@ html {
 body {
   margin: 0;
   min-height: 100dvh;
+  overflow-x: clip; /* the record runs past the window's right edge */
 }
 img,
 svg,
@@ -180,51 +189,84 @@ pre,
   top: 0.75rem;
 }
 
-/* Small caps of a record label: wide, spaced, quiet. */
-.eyebrow {
-  font-stretch: 125%;
-  font-weight: 600;
-  font-size: 0.72rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--muted);
+/* ---------- keys: every button is a key of the player's hardware ---------- */
+/* Phosphor icons (Icon.astro): as tall as the text beside them. */
+.icon {
+  flex: none;
+  width: 1.15em;
+  height: 1.15em;
 }
-.eyebrow .no {
-  font-stretch: 100%;
-  letter-spacing: 0.04em;
-  color: var(--accent);
-  margin-right: 0.75em;
-}
-
+/* A dark key with a thin blue LED along its bottom edge that lights on hover and focus;
+   .primary is the one magenta key of a screen, its darker edge the key's side. Pressed,
+   a key goes down a pixel and its edge narrows. */
 .button {
+  --bar: color-mix(in srgb, var(--accent-2) 25%, var(--line));
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 0.65em;
   min-height: 3rem;
-  padding: 0.7rem 1.6rem;
-  border: 1px solid var(--edge);
-  border-radius: 999px;
-  font-weight: 700;
-  font-stretch: 112%;
-  letter-spacing: 0.01em;
+  padding: 0.7rem 1.2rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--fg);
+  box-shadow: inset 0 -3px 0 var(--bar);
+  font: 600 0.8rem/1.1 var(--mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   text-decoration: none;
+  max-width: 100%; /* a long label in another language wraps instead of leaving the screen */
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
   transition:
-    background-color 0.15s,
-    border-color 0.15s,
-    transform 0.15s;
+    box-shadow 0.15s,
+    translate 0.08s;
 }
-.button:hover {
-  background: var(--raise);
-  border-color: var(--fg);
+.button:hover,
+.button:focus-visible {
+  --bar: var(--accent-2);
+  box-shadow:
+    inset 0 -3px 0 var(--bar),
+    0 6px 16px -10px var(--neon-top);
+}
+.button:active {
+  translate: 0 1px;
+  box-shadow: inset 0 -1px 0 var(--bar);
 }
 .button.primary {
-  border: 0;
-  color: #0b0b0e;
-  background: linear-gradient(100deg, var(--neon-foot), var(--neon-top));
+  --bar: color-mix(in srgb, var(--accent) 55%, #000);
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--on-accent);
 }
-.button.primary:hover {
-  transform: translateY(-1px);
-  filter: brightness(1.08);
+.button.primary:hover,
+.button.primary:focus-visible {
+  box-shadow:
+    inset 0 -3px 0 var(--bar),
+    0 6px 18px -8px var(--neon-foot);
+}
+.button.primary:active {
+  box-shadow: inset 0 -1px 0 var(--bar);
+}
+/* Smaller keys: Copy, the header's controls, the player's transport, the lightbox's close. */
+.button.compact {
+  gap: 0.5em;
+  min-height: 2.5rem;
+  padding: 0.45rem 0.8rem 0.55rem;
+  font-size: 0.72rem;
+}
+.button.icon-only {
+  min-width: 2.5rem;
+  padding-inline: 0;
+}
+.button.icon-only .icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+.button[hidden] {
+  display: none;
 }
 
 /* ---------- header: one line at every width ---------- */
@@ -245,6 +287,7 @@ pre,
   display: flex;
   align-items: center;
   gap: 0.6rem;
+  white-space: nowrap;
   font-weight: 800;
   font-stretch: 112%;
   text-decoration: none;
@@ -265,7 +308,7 @@ pre,
 }
 .top nav a {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 0.45em;
   padding: 0.6rem 0.5rem;
   color: var(--muted);
@@ -278,23 +321,11 @@ pre,
 .top nav a[aria-current] {
   color: var(--fg);
 }
-.links small {
-  font: 500 0.66rem var(--mono);
-  color: var(--accent);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
 .menu {
   position: relative;
 }
 .menu summary,
 .lang summary {
-  padding: 0.5rem 1rem;
-  border: 1px solid var(--edge);
-  border-radius: 999px;
-  font-weight: 600;
-  font-size: 0.92rem;
-  cursor: pointer;
   list-style: none;
 }
 .menu summary::-webkit-details-marker,
@@ -310,13 +341,13 @@ pre,
   padding: 0.5rem;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: 6px;
   box-shadow: 0 24px 60px -20px var(--shadow);
 }
 .menu nav a,
 .lang a {
   padding: 0.75rem 0.9rem;
-  border-radius: 8px;
+  border-radius: 4px;
   color: var(--fg);
 }
 .menu nav a:hover,
@@ -327,10 +358,6 @@ pre,
 .lang {
   position: relative;
   flex: none;
-}
-.lang summary {
-  padding-inline: 0.8rem;
-  font: 600 0.82rem var(--mono);
 }
 .lang ul {
   min-width: 10rem;
@@ -346,40 +373,28 @@ pre,
 /* Day or night: the icon shows where a click leads (sun while dark, moon while light). */
 .theme {
   flex: none;
-  display: grid;
-  place-items: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  padding: 0;
-  border: 1px solid var(--edge);
-  border-radius: 50%;
-  background: none;
-  color: var(--fg);
-  cursor: pointer;
+  display: inline-grid;
 }
-.theme[hidden] {
-  display: none;
-}
-.theme:hover {
-  background: var(--raise);
-  border-color: var(--fg);
-}
-.theme svg {
-  width: 1.15rem;
-  height: 1.15rem;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  fill: none;
+.theme .icon {
+  grid-area: 1 / 1;
 }
 .theme .sun {
-  stroke: light-dark(transparent, currentColor);
+  fill: light-dark(transparent, currentColor);
 }
 .theme .moon {
-  stroke: light-dark(currentColor, transparent);
+  fill: light-dark(currentColor, transparent);
+}
+/* The links' icons only where the longest labels (Russian) still fit beside them. */
+.links .icon {
+  display: none;
+}
+@media (min-width: 76rem) {
+  .links .icon {
+    display: block;
+  }
 }
 /* Wide enough for the longest labels (Russian) beside the language and theme buttons. */
-@media (min-width: 50rem) {
+@media (min-width: 53rem) {
   .links {
     display: block;
   }
@@ -394,7 +409,6 @@ pre,
   max-width: 85rem;
   margin-inline: auto;
   padding-inline: clamp(1rem, 4vw, 3rem);
-  overflow-x: clip;
 }
 .sheet {
   position: relative;
@@ -460,10 +474,6 @@ h3 {
   align-items: center;
   gap: 0.9rem 1.4rem;
 }
-.quiet {
-  font-weight: 600;
-  color: var(--fg);
-}
 .ticks li {
   position: relative;
   padding-left: 1.6rem;
@@ -519,15 +529,11 @@ h3 {
 .shot .frame {
   position: relative;
 }
+/* Always the whole screenshot, at its own shape. */
 .shot img {
   width: 100%;
-}
-.shot video {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  height: auto;
+  object-fit: contain;
 }
 .shot figcaption {
   display: flex;
@@ -538,21 +544,6 @@ h3 {
   border-top: 1px solid var(--line);
   font: 500 0.72rem var(--mono);
   color: var(--muted);
-}
-
-.shot figcaption button {
-  flex: none;
-  min-height: 1.75rem;
-  padding: 0.1rem 0.75rem;
-  border: 1px solid var(--edge);
-  border-radius: 999px;
-  background: var(--raise);
-  color: var(--fg);
-  font: 600 0.72rem var(--sans);
-  cursor: pointer;
-}
-.shot figcaption button:hover {
-  border-color: var(--fg);
 }
 
 /* ---------- page kit: the shared pieces every page is built from ---------- */
@@ -570,6 +561,7 @@ h3 {
 }
 .shot a {
   display: block;
+  cursor: zoom-in;
 }
 .shot a:hover img {
   filter: brightness(1.12);
@@ -589,7 +581,7 @@ h3 {
 }
 .code pre {
   margin: 0;
-  padding: 0.9rem 5.5rem 0.9rem 1rem;
+  padding: 0.9rem 9rem 0.9rem 1rem;
   overflow-x: auto;
   font-size: 0.86rem;
   line-height: 1.55;
@@ -599,17 +591,13 @@ h3 {
   position: absolute;
   right: 0.5rem;
   bottom: 0.5rem;
-  min-height: 2rem;
-  padding: 0.2rem 0.8rem;
-  border: 1px solid var(--edge);
-  border-radius: 999px;
-  background: var(--raise);
-  color: var(--fg);
-  font: 600 0.78rem var(--sans);
-  cursor: pointer;
 }
-.code button:hover {
-  border-color: var(--fg);
+.code .done,
+.code .copied .idle {
+  display: none;
+}
+.code .copied .done {
+  display: block;
 }
 :not(pre) > code {
   padding: 0.1em 0.35em;
@@ -843,7 +831,7 @@ a.card:hover {
   }
 }
 
-/* ---------- the deck: record, tonearm, tracklist ---------- */
+/* ---------- the deck: record and tonearm ---------- */
 .platter {
   position: relative;
 }
@@ -960,21 +948,15 @@ a.card:hover {
   .tonearm .arm {
     animation: arm 1ms linear both;
   }
-  .mini-bar::after {
-    animation: fill 1ms linear both;
-  }
   @media (prefers-reduced-motion: no-preference) {
-    .record .disc,
-    .mini-disc {
+    .record .disc {
       animation: turn 1ms linear both;
     }
   }
   /* Its own rule on purpose: the CSS minifier folds animation-timeline into the
      animation shorthand of the same rule, and browsers then drop the timeline. */
   :root .tonearm .arm,
-  :root .record .disc,
-  :root .mini-disc,
-  :root .mini-bar::after {
+  :root .record .disc {
     animation-timeline: scroll(root);
   }
 }
@@ -989,14 +971,6 @@ a.card:hover {
 @keyframes turn {
   to {
     rotate: 1080deg;
-  }
-}
-@keyframes fill {
-  from {
-    scale: 0 1;
-  }
-  to {
-    scale: 1 1;
   }
 }
 @keyframes kick {
@@ -1054,46 +1028,11 @@ a.card:hover {
   }
 }
 
-.tracks .eyebrow {
-  margin-bottom: 0.6rem;
-}
-.tracks a {
-  display: flex;
-  align-items: baseline;
-  gap: 0.9rem;
-  padding: 0.32rem 0.6rem;
-  margin-inline: -0.6rem;
-  border-radius: 6px;
-  color: var(--muted);
-  font-size: 0.92rem;
-  font-weight: 500;
-  text-decoration: none;
-}
-.tracks a:hover {
-  color: var(--fg);
-  background: var(--panel);
-}
-.tracks .no {
-  font-size: 0.76rem;
-  color: var(--muted);
-}
-.tracks a[aria-current] {
-  color: var(--fg);
-  font-weight: 700;
-}
-.tracks a[aria-current] .no {
-  color: var(--accent);
-}
-
-/* Narrow screens: the record peeks out of the sleeve behind the hero, and a small
-   "now playing" bar carries the tracklist. */
+/* Narrow screens: the record peeks out of the sleeve behind the hero. */
 .deck {
   position: absolute;
   inset: 0 0 auto;
   pointer-events: none;
-}
-.deck .tracks {
-  display: none;
 }
 .platter {
   position: absolute;
@@ -1105,81 +1044,15 @@ a.card:hover {
   mask-image: linear-gradient(to left, #000 40%, transparent 80%);
 }
 
-.mini {
-  position: fixed;
-  inset: auto 0 0;
-  z-index: 20;
-  background: color-mix(in srgb, var(--panel) 92%, transparent);
-  backdrop-filter: blur(14px);
-  border-top: 1px solid var(--line);
-}
-.mini summary {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  min-height: 3.25rem;
-  padding: 0.4rem 1rem;
-  font: 600 0.82rem var(--sans);
-  cursor: pointer;
-  list-style: none;
-}
-.mini summary::-webkit-details-marker {
-  display: none;
-}
-.mini-disc {
-  flex: none;
-  width: 1.9rem;
-  height: 1.9rem;
-  border-radius: 50%;
-  background:
-    radial-gradient(circle, var(--bg) 0 9%, transparent 10%),
-    radial-gradient(circle, var(--neon-foot) 0 32%, transparent 33%),
-    conic-gradient(#08080a 0 8%, #3a3a44 12%, #08080a 20% 55%, #3a3a44 62%, #08080a 70%);
-  border: 1px solid var(--edge);
-  rotate: calc(var(--p, 0) * 1080deg);
-}
-.mini-now {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.mini-bar {
-  position: absolute;
-  inset: 0 0 auto;
-  height: 2px;
-}
-.mini-bar::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(90deg, var(--neon-foot), var(--neon-top));
-  transform-origin: left;
-  scale: var(--p, 0) 1;
-}
-.mini .tracks {
-  padding: 0.25rem 1rem 1rem;
-  max-height: 60svh;
-  overflow: auto;
-}
-.mini .tracks a {
-  padding-block: 0.6rem;
-}
-body:has(.mini) .foot {
-  padding-bottom: 5rem;
-}
-
-/* ---------- footer ---------- */
+/* ---------- footer: the whole width, under the page and its deck ---------- */
 .foot {
-  padding: 3rem 0 2.5rem;
+  padding: 3rem clamp(1rem, 4vw, 3rem) 2.5rem;
   border-top: 1px solid var(--line);
   font-size: 0.92rem;
   color: var(--muted);
 }
-.foot-grid {
+.foot-inner {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
   gap: 2rem;
   max-width: 79rem;
   margin-inline: auto;
@@ -1188,6 +1061,8 @@ body:has(.mini) .foot {
   display: flex;
   gap: 0.9rem;
   align-items: center;
+  width: fit-content;
+  text-decoration: none;
 }
 .foot-brand img {
   border-radius: 10px;
@@ -1197,35 +1072,255 @@ body:has(.mini) .foot {
   color: var(--fg);
   font-stretch: 112%;
 }
-.foot li + li {
-  margin-top: 0.35rem;
+.foot ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.5rem;
 }
-.foot a {
-  display: inline-block;
-  padding-block: 0.2rem;
+.foot li a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  padding-block: 0.35rem;
+  text-decoration: none;
 }
 .foot a:hover {
   color: var(--fg);
 }
-.colophon {
-  max-width: 79rem;
-  margin: 2.5rem auto 0;
+.foot-small {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem 2rem;
   padding-top: 1.5rem;
   border-top: 1px solid var(--line);
   font-size: 0.84rem;
 }
+.foot-small p a {
+  color: var(--fg);
+  text-decoration: none;
+}
+.foot-small p a:hover {
+  text-decoration: underline;
+}
+@media (min-width: 50rem) {
+  .foot-inner {
+    grid-template-columns: auto 1fr;
+    align-items: center;
+  }
+  .foot nav ul {
+    justify-content: flex-end;
+  }
+  .foot-small {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ---------- lightbox: one <dialog> for every shot (Base.astro, lightbox.js) ---------- */
+.lightbox {
+  padding: 0;
+  max-width: none;
+  max-height: none;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--fg);
+  overflow: hidden;
+  box-shadow: 0 30px 80px -30px #000;
+}
+.lightbox::backdrop {
+  background: rgb(0 0 0 / 0.78);
+}
+/* As large as the window allows, never larger than the image; --ratio and --w come from lightbox.js. */
+.lightbox img {
+  width: min(100vw - 2rem - 2px, (100dvh - 2rem - 2px) * var(--ratio, 1.6), var(--w, 2560) * 1px);
+  max-width: none;
+  height: auto;
+  cursor: zoom-out;
+}
+.lightbox [data-close] {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+}
+
+/* ---------- the player, recreated (Loop.astro, player.js) ---------- */
+.player {
+  container-type: inline-size;
+}
+.player-panel {
+  position: relative;
+  display: grid;
+  grid-template-columns: clamp(4.5rem, 27%, 10.5rem) minmax(0, 1fr);
+  gap: 0.75rem;
+  padding: 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  box-shadow: 0 30px 70px -40px var(--shadow);
+}
+/* The whole panel pauses and plays the animation; the transport keys sit above it. */
+.player-toggle {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+}
+.player-toggle[hidden] {
+  display: none;
+}
+.player-cover {
+  align-self: center;
+  width: 100%;
+}
+.player-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+.player-title {
+  font-weight: 700;
+  font-size: 1.05rem;
+  line-height: 1.3;
+  overflow-wrap: anywhere; /* the whole title, as SoundCloud shows it */
+}
+.player-wave {
+  flex: 1;
+  width: 100%;
+  height: auto;
+  min-height: 3.25rem;
+  max-height: 6rem;
+}
+.player-transport {
+  position: relative; /* above .player-toggle */
+  display: flex;
+  align-items: center;
+  gap: 5px; /* RowLayout's default spacing */
+}
+/* As the app's Basic-style buttons: 40 x 40, flat, a 20 px icon in the text colour. */
+.player-key {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+}
+.player-key:active {
+  background: color-mix(in srgb, var(--fg) 14%, transparent);
+}
+.player-key:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.player-key svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+.player-time {
+  margin-right: auto;
+  white-space: nowrap;
+  font-size: 0.86rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.player figcaption {
+  margin-top: 0.7rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.pl-a {
+  stop-color: var(--rest-foot);
+}
+.pl-b {
+  stop-color: var(--rest-top);
+}
+/* The label: one of the pair's colours, darkened as the app does (Qt.darker 1.25). */
+.pl-label-a {
+  fill: #932055;
+}
+.pl-label-b {
+  fill: #2e4cab;
+}
+@supports (color: light-dark(#000, #fff)) {
+  .pl-label-a {
+    fill: light-dark(#cc1a6c, #932055);
+  }
+  .pl-label-b {
+    fill: light-dark(#3e5fcc, #2e4cab);
+  }
+}
+.pl-code {
+  fill: #fff;
+  fill-opacity: 0.6;
+  stroke: #fff;
+  stroke-opacity: 0.6;
+  stroke-linecap: round;
+}
+.pl-code circle {
+  stroke: none;
+}
+.pl-unplayed {
+  opacity: var(--rest-alpha);
+}
+.pl-cursor {
+  fill: var(--fg);
+}
+.player-disc {
+  transform-box: view-box;
+  transform-origin: 50px 50px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .player-disc {
+    animation: cover-turn 4s linear infinite paused;
+  }
+  .player.running .player-disc {
+    animation-play-state: running;
+  }
+}
+.player:not(.playing) .pause,
+.player.playing .play {
+  display: none;
+}
+@keyframes cover-turn {
+  to {
+    rotate: 360deg;
+  }
+}
+@container (max-width: 26rem) {
+  .player-panel {
+    grid-template-columns: 4.5rem minmax(0, 1fr);
+  }
+}
 
 /* ---------- wide screens: the deck rides beside the text ---------- */
+/* The record is large and tucked past the window's right edge, a little under half of it
+   out of sight. --disc is its diameter; the drawing (232 x 208) puts the disc's right edge
+   32 units in from the drawing's right edge, out of a 192-unit diameter. */
 @media (min-width: 68rem) {
   .page {
+    --disc: min(100svh - var(--top) - 3rem, 60vw, 58rem);
+    --hidden: 0.42; /* share of the disc past the window's edge */
+    --gutter: calc(max(0px, (100vw - 85rem) / 2) + clamp(1rem, 4vw, 3rem));
     display: grid;
-    grid-template-columns: minmax(0, 1fr) clamp(21rem, 36vw, 31rem);
+    grid-template-columns: minmax(0, 1fr) max(0px, var(--disc) * (1 - var(--hidden)) - var(--gutter));
     gap: clamp(2.5rem, 5vw, 5.5rem);
-    overflow-x: visible;
   }
   .sheet {
     grid-area: 1 / 1;
   }
+  /* Sticky within the page grid, so it stops where the text ends, above the footer. */
   .deck {
     grid-area: 1 / 2;
     position: sticky;
@@ -1234,45 +1329,41 @@ body:has(.mini) .foot {
     display: flex;
     flex-direction: column;
     justify-content: center;
-    gap: clamp(1rem, 3vh, 2rem);
     height: calc(100svh - var(--top));
+    margin-right: calc(-1 * var(--gutter)); /* out to the window's edge */
     pointer-events: auto;
-  }
-  .deck .tracks {
-    display: block;
-    padding-left: 6%;
-  }
-  .deck {
-    --rows: 6;
-  }
-  .deck[data-rows="7"] {
-    --rows: 7;
-  }
-  .deck[data-rows="8"] {
-    --rows: 8;
-  }
-  .deck[data-rows="9"] {
-    --rows: 9;
   }
   .platter {
     position: relative;
     inset: auto;
-    /* As large as the rail allows, but leaving room under it for the tracklist's rows. */
-    width: min(100%, max(11rem, (100svh - var(--top) - var(--rows) * 2.1rem - 7rem) * 1.115));
-    margin-inline: auto;
+    align-self: flex-end;
+    width: calc(var(--disc) * 232 / 192);
+    margin-right: calc(-1 * var(--disc) * (var(--hidden) + 32 / 192));
     opacity: 1;
     -webkit-mask-image: none;
     mask-image: none;
   }
-  .mini {
-    display: none;
-  }
-  body:has(.mini) .foot {
-    padding-bottom: 2.5rem;
-  }
 }
-@media (max-width: 67.99rem) {
-  .tonearm {
-    display: none;
+/* The arm's bearing sits past the window's edge with the record, so the arm stays off. */
+.tonearm {
+  display: none;
+}
+
+/* The narrowest phones: the Menu key keeps its icon (its word is still read out), so the
+   brand stays whole on one line; the player's keys close up. */
+@media (max-width: 24rem) {
+  .menu-word {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .player-transport {
+    gap: 0;
+  }
+  .player-key {
+    width: 36px;
   }
 }

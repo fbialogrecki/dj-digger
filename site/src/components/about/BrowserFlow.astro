@@ -1,0 +1,119 @@
+---
+// The app and the extension at a gate or a cart: native messaging is the one channel, the
+// extension works only in tabs it opened, and the cart ends as the user's own tab.
+// Every label is a prop, so a translated page passes its own words. Reads at 328px.
+const { title, desc, app, appNote, native, nativeNote, extension, extensionNote, signin, gates, cart, closed, yours } = Astro.props;
+// signin, gates and cart are [name, note] pairs: the sites of a tab and what happens there.
+const rows = [
+  [signin, 178],
+  [gates, 234],
+  [cart, 290],
+];
+---
+
+<svg class="bflow" viewBox="0 0 340 404" role="img" aria-labelledby="bf-title bf-desc">
+  <title id="bf-title">{title}</title>
+  <desc id="bf-desc">{desc}</desc>
+  <defs>
+    <marker id="bf-foot" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path class="tip-foot" d="M0 1L9 5L0 9z"></path>
+    </marker>
+    <marker id="bf-edge" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path class="tip-edge" d="M0 1L9 5L0 9z"></path>
+    </marker>
+  </defs>
+
+  <rect class="node" x="1" y="1" width="338" height="50" rx="10"></rect>
+  <text class="name" x="20" y="23">{app}</text>
+  <text class="note" x="20" y="41">{appNote}</text>
+
+  <line class="link" x1="40" y1="53" x2="40" y2="104" marker-start="url(#bf-foot)" marker-end="url(#bf-foot)"></line>
+  <text class="name" x="56" y="75">{native}</text>
+  <text class="note" x="56" y="92">{nativeNote}</text>
+
+  <rect class="node ext" x="1" y="106" width="338" height="50" rx="10"></rect>
+  <text class="name" x="20" y="128">{extension}</text>
+  <text class="note" x="20" y="146">{extensionNote}</text>
+
+  {
+    rows.map(([[name, note], y]) => (
+      <>
+        <path class="step" d={`M40 156V${y + 23}H61`} marker-end="url(#bf-edge)" />
+        <rect class="node" x="64" y={y} width="275" height={y === 290 ? 112 : 46} rx="10" />
+        <text class="name" x="80" y={y + 19}>{name}</text>
+        <text class="note" x="80" y={y + 36}>{note}</text>
+      </>
+    ))
+  }
+
+  <rect class="stop" x="76" y="338" width="251" height="24" rx="12"></rect>
+  <path class="mark-stop" d="M88 346l8 8M96 346l-8 8"></path>
+  <text class="chip" x="106" y="354">{closed}</text>
+  <rect class="yours" x="76" y="368" width="251" height="24" rx="12"></rect>
+  <path class="mark-yours" d="M87 380l3.5 3.5L97 377"></path>
+  <text class="chip" x="106" y="384">{yours}</text>
+</svg>
+
+<style>
+  .bflow {
+    width: 100%;
+    max-width: 25rem;
+    font-family: var(--sans);
+  }
+  .node {
+    fill: var(--raise);
+    stroke: var(--line);
+  }
+  .ext {
+    stroke: var(--neon-foot);
+  }
+  .stop {
+    fill: var(--panel);
+    stroke: var(--edge);
+    stroke-dasharray: 4 3;
+  }
+  .yours {
+    fill: var(--panel);
+    stroke: var(--neon-top);
+  }
+  .name {
+    font-size: 12.5px;
+    font-weight: 700;
+    fill: var(--fg);
+  }
+  .note {
+    font-size: 11px;
+    fill: var(--muted);
+  }
+  .chip {
+    font-size: 11px;
+    font-weight: 600;
+    fill: var(--fg);
+  }
+  .link,
+  .step,
+  .mark-stop,
+  .mark-yours {
+    fill: none;
+    stroke-width: 1.5;
+  }
+  .link,
+  .mark-stop {
+    stroke: var(--neon-foot);
+  }
+  .step {
+    stroke: var(--edge);
+  }
+  .mark-yours {
+    stroke: var(--neon-top);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .tip-foot {
+    fill: var(--neon-foot);
+  }
+  .tip-edge {
+    fill: var(--edge);
+  }
+</style>

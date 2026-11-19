@@ -1,0 +1,136 @@
+---
+import Base from "../../layouts/Base.astro";
+import Loop from "../../components/Loop.astro";
+import Track from "../../components/Track.astro";
+import Icon from "../../components/Icon.astro";
+import DataFlow from "../../components/extension/DataFlow.astro";
+import HowItWorks from "../../components/about/HowItWorks.astro";
+import BrowserFlow from "../../components/about/BrowserFlow.astro";
+import { author, repo, version } from "../../../site.config.mjs";
+
+const description =
+  "Comment fonctionne dj-digger, comment l'application et son extension de navigateur gèrent les téléchargements et les paniers, où vont vos données, et les crédits.";
+// Sources at the released tag, so they describe what has shipped.
+const release = `${repo}/blob/v${version}`;
+---
+
+<Base title="À propos · dj-digger" description={description} label="about">
+  <Track id="about" title="À propos" hero sub>
+    <Fragment slot="heading">À propos de <span class="grad">dj-digger</span></Fragment>
+    <p class="lede">
+      Une application de bureau libre et gratuite pour le crate digging, avec une extension de navigateur. Créée par {author.name}.
+    </p>
+  </Track>
+
+  <Track id="how" title="Comment ça marche">
+    <p class="copy">Tout tourne sur votre ordinateur. Il n'y a ni serveur dj-digger ni compte.</p>
+    <HowItWorks
+      title="Comment fonctionne dj-digger"
+      desc="Une playlist SoundCloud entre dans l'application dj-digger sur votre ordinateur. L'application récupère toute la liste par l'API de SoundCloud, retient vos décisions dans une base de données locale et analyse vos dossiers de musique. Elle mène à des liens classés par boutique, comme Bandcamp, Beatport et Traxsource, à des gates de téléchargement sur Hypeddit et ToneDen, et à des copies exportées pour vos platines."
+      playlist="Playlist SoundCloud"
+      computer="Votre ordinateur"
+      app="Appli dj-digger"
+      steps={[
+        ["Récupère toute la liste", "par l'API de SoundCloud"],
+        ["Retient vos décisions", "dans une base locale"],
+        ["Analyse vos dossiers de musique", "pour voir ce que vous possédez déjà"],
+      ]}
+      outs={[
+        ["Liens de boutiques", "Bandcamp, Beatport, Traxsource et plus"],
+        ["Gates de téléchargement", "Hypeddit, ToneDen"],
+        ["Vos platines", "copies exportées pour vos lecteurs"],
+      ]}
+    />
+  </Track>
+
+  <Track id="browser" title="Téléchargements et paniers">
+    <p class="copy">Devant un gate ou un panier, l'application envoie chaque étape à l'extension, qui n'agit que dans les onglets qu'elle a ouverts.</p>
+    <BrowserFlow
+      title="L'application et l'extension devant les gates et les paniers"
+      desc="L'application dj-digger et l'extension dj-digger sont reliées par la messagerie native, leur seul canal. L'extension n'agit que dans les onglets qu'elle a ouverts : sur SoundCloud, elle connecte l'application ; sur Hypeddit et ToneDen, elle termine le gate et le fichier part vers l'application ; sur Bandcamp et Beatport, elle ajoute vos choix à votre panier. Un onglet qui se dirige vers une page de commande ou de paiement est fermé ; l'onglet du panier vous revient, pour vérifier et payer."
+      app="Appli dj-digger"
+      appNote="envoie chaque étape"
+      native="Messagerie native"
+      nativeNote="le seul canal"
+      extension="Extension dj-digger"
+      extensionNote="n'agit que dans ses onglets"
+      signin={["SoundCloud", "connecte l'appli"]}
+      gates={["Hypeddit, ToneDen", "termine le gate, fichier vers l'appli"]}
+      cart={["Bandcamp, Beatport", "ajoute vos choix à votre panier"]}
+      closed="Commande, paiement : onglet fermé"
+      yours="Panier : vous vérifiez et payez"
+    />
+  </Track>
+
+  <Track id="data" title="Où vont vos données">
+    <div class="split">
+      <DataFlow />
+      <p class="copy">
+        Votre bibliothèque, vos décisions et vos préférences restent sur votre ordinateur. L'extension ne parle qu'à
+        l'application, et rien n'est envoyé au développeur.
+      </p>
+    </div>
+  </Track>
+
+  <Track id="kick" title="La lumière du kick">
+    <p class="copy">
+      La lumière du lecteur suit la grosse caisse. Son niveau est calculé à partir de l'audio, avant la lecture, et la
+      lumière a été vérifiée image par image dans la vraie fenêtre.
+    </p>
+    <Loop />
+    <div class="cta">
+      <a class="button" href={`${release}/docs/kick-pulse-validation.md`}><Icon name="book-open" />Notes de validation</a>
+    </div>
+  </Track>
+
+  <Track id="credits" title="Crédits et sources">
+    <p class="copy">dj-digger est un logiciel libre, sous licence Apache 2.0.</p>
+    <div class="cta">
+      <a class="button" href={repo}><Icon name="github-logo" />Code source</a>
+      <a class="button" href={`${release}/PROJECT_SPECIFICATION.md`}><Icon name="book-open" />Spécification</a>
+      <a class="button" href={`${release}/CHANGELOG.md`}><Icon name="clock-counter-clockwise" />Journal des modifications</a>
+    </div>
+    <dl class="spec sources">
+      <dt>Polices</dt>
+      <dd>Archivo et JetBrains Mono, SIL Open Font License.</dd>
+      <dt>Icônes</dt>
+      <dd><a href="https://phosphoricons.com">Phosphor Icons</a>, licence MIT.</dd>
+      <dt>Captures d'écran</dt>
+      <dd>
+        Le morceau de démo des captures de l'application et de l'extension est « Drift Away » de JMHBM (Johnathon M.
+        Horner, Beat Mekanik), <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>, via{" "}
+        <a href="https://freemusicarchive.org/music/beat-mekanik/single/drift-away/">Free Music Archive</a>.
+      </dd>
+    </dl>
+  </Track>
+</Base>
+
+<style>
+  .split {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));
+    gap: 2.5rem;
+    align-items: center;
+  }
+  .sources dd {
+    color: var(--muted);
+  }
+  .sources a {
+    font-weight: 600;
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .sources a:hover,
+  .sources a:focus-visible {
+    text-decoration: underline;
+  }
+  @media (max-width: 30rem) {
+    .spec {
+      grid-template-columns: 1fr;
+    }
+    .spec dd {
+      padding-top: 0;
+      border-top: 0;
+    }
+  }
+</style>
