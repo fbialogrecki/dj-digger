@@ -218,10 +218,9 @@ ApplicationWindow {
     readonly property bool pauseTarget: desktop.playing
     // Format (10) and Comment (11) came later: appended, so saved widths, order and hidden columns keep their meaning.
     readonly property var allColumns: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-    readonly property var defaultColumnWidths: [110, 150, 280, 85, 64, 64, 58, 95, 70, 140, 110, 180, 52]
     // Statuses, numbers and times are never cut short, whatever width was saved or dragged.
     readonly property var minimumColumnWidths: [104, 0, 0, 0, 56, 56, 58, 0, 70, 0, 0, 0, 40]
-    property var columnWidths: defaultColumnWidths.slice()
+    property var measuredWidths: []
     property var hiddenColumns: [10, 11]
     // Logical column per visual position; TableView keeps delegates and widths logical.
     property var columnOrder: allColumns.slice()
@@ -255,30 +254,34 @@ ApplicationWindow {
     function columnVisible(column) { return columnAvailable(column) && hiddenColumns.indexOf(column) < 0 }
     // Width of the widest visible value (or the header) in a column, in cell pixels.
     function contentWidth(column) {
-        let sample = desktop.model.longestText(column)
-        let needed = 0
-        if (column === 9) {
-            needed = 12
-            for (let part of sample.split(", ").filter(s => s && s !== "no-link")) { badgeMetrics.text = part; needed += badgeMetrics.width + 14 }
-        } else {
-            fitMetrics.text = sample
-            // The title keeps an 18 px play-state slot and room for the found-locally folder.
-            needed = fitMetrics.width + 14 + (column === titleColumn ? 44 : column === 4 || column === 5 ? 14 : 0)
+        let width = Math.max(40, fitMetrics.advanceWidth(desktop.model.headerName(column) + " ▲") + 10)
+        for (let text of desktop.model.columnTexts(column)) {
+            let needed
+            if (column === 9) {
+                let badges = text ? text.split(", ") : []
+                needed = 12 + Math.max(0, badges.length - 1) * 4
+                for (let badge of badges) needed += badgeMetrics.advanceWidth(badge) + 10
+            } else if (column === 4 || column === 5) {
+                needed = chipMetrics.advanceWidth(text) + 26
+            } else {
+                needed = cellMetrics.advanceWidth(text) + (column === titleColumn ? 52 : 14)
+            }
+            width = Math.max(width, needed)
         }
-        fitMetrics.text = desktop.model.headerName(column) + " ▲"
-        return Math.ceil(Math.max(40, Math.min(600, Math.max(needed, fitMetrics.width + 10))))
+        return Math.ceil(width)
+    }
+    function measureColumns() {
+        measuredWidths = allColumns.map(c => contentWidth(c))
+        table.forceLayout()
     }
     function fitColumn(column) {
         if (!columnVisible(column)) return
-        let width = contentWidth(column)
-        columnWidths[column] = width
-        table.setColumnWidth(column, width)
+        table.setColumnWidth(columnOrder.indexOf(column), measuredWidths[column])
         table.forceLayout()
     }
     function fitAllColumns() { for (let i of allColumns) fitColumn(i) }
     function resetColumnWidths() {
         table.clearColumnWidths()
-        columnWidths = defaultColumnWidths.slice()
         table.forceLayout()
     }
     function toggleColumn(column) {
@@ -513,17 +516,21 @@ ApplicationWindow {
         themeChoice = ["system", "light", "dark", "contrast"].indexOf(s.theme) >= 0 ? s.theme : "system"
         // Lists arrive as Qt sequences, which Array.isArray rejects; copied, they restore at last.
         let list = v => v && typeof v === "object" && typeof v.length === "number" ? Array.from(v) : null
-        let widths = list(s.columnWidths), hidden = list(s.hiddenColumns), saved = list(s.columnOrder)
+        let hidden = list(s.hiddenColumns), saved = list(s.columnOrder)
         // Settings saved with ten columns get Format and Comment appended, hidden.
         let legacy = !!saved && saved.length === 10
-        if (widths && ([10, 12].includes(widths.length) || widths.length === allColumns.length))
-            columnWidths = widths.concat(defaultColumnWidths.slice(widths.length)).map(v => Math.max(40, Math.min(600, Number(v) || 100)))
         if (hidden)
             hiddenColumns = hidden.map(Number).filter(v => Number.isInteger(v) && v >= 0 && v < allColumns.length && v !== titleColumn)
                 .concat(legacy ? [10, 11] : [])
         let order = saved ? saved.map(Number).concat(allColumns.slice(saved.length)) : []
         if (order.length === allColumns.length && allColumns.every(i => order.indexOf(i) >= 0))
             applyColumnOrder(order)
+        // Older columnWidths mixed calculated sizes, visual slots and -1 for unloaded cells.
+        // Only explicit divider widths are restored, keyed by the logical column.
+        for (let i of allColumns) {
+            let width = s.columnWidthOverrides?.[i]
+            if (Number.isFinite(width) && width > 0) table.setColumnWidth(columnOrder.indexOf(i), width)
+        }
         if (Number.isInteger(s.sortColumn)) desktop.model.setSort(s.sortColumn, s.sortReverse === true)
         if (s.compactRows === true) compactRows = true
         sidebarWidth = Math.max(160, Math.min(400, Number(s.sidebarWidth) || 220))
@@ -547,9 +554,13 @@ ApplicationWindow {
         if (!shuttingDown) {
             columnDrag.cancel()
             shuttingDown = true
-            for (let i of allColumns) if (i !== titleColumn && columnVisible(i)) columnWidths[i] = table.columnWidth(i)
+            let overrides = {}
+            for (let i of allColumns) {
+                let width = table.explicitColumnWidth(columnOrder.indexOf(i))
+                if (width > 0) overrides[i] = width
+            }
             desktop.saveSettings({sidebarWidth: sidebar.width, sidebarSplit: sidebarSplit, sidebarVisible: sidebarVisible, sidebarCollapsed: sidebarCollapsed, width: width, height: height, language: languageCode,
-                                  theme: themeChoice, columnWidths: columnWidths, hiddenColumns: hiddenColumns, columnOrder: columnOrder,
+                                  theme: themeChoice, columnWidthOverrides: overrides, hiddenColumns: hiddenColumns, columnOrder: columnOrder,
                                   keyNotation: keyNotation, animations: animations, colors: colorPair, recent: recent,
                                   sortColumn: desktop.model.sortColumn, sortReverse: desktop.model.sortReverse, compactRows: compactRows,
                                   previewStart: previewStart, vinyl: vinylArtwork})
@@ -2268,21 +2279,20 @@ ApplicationWindow {
                     property int rowHeight: root.rowHeight
                     onRowHeightChanged: forceLayout()
                     clip: true; model: desktop.model; reuseItems: true
-                    // Title takes the remaining width so status and stores stay on screen.
-                    // BPM and key only mean something for local files; SoundCloud rows never carry them.
-                    // A width the user dragged or fitted wins; without one the saved width applies.
-                    function chosenWidth(column) {
-                        let explicit = explicitColumnWidth(column)
-                        // Chips, statuses and numbers need room even when an older, narrower width was saved.
-                        return Math.max(root.minimumColumnWidths[column], explicit >= 0 ? explicit : root.columnWidths[column])
+                    function chosenWidth(slot) {
+                        let column = root.columnOrder[slot]
+                        let explicit = explicitColumnWidth(slot)
+                        return Math.max(root.minimumColumnWidths[column], explicit >= 0 ? explicit : (root.measuredWidths[column] || 40))
                     }
-                    columnWidthProvider: function(column) {
+                    columnWidthProvider: function(slot) {
+                        let column = root.columnOrder[slot]
                         if (!root.columnVisible(column)) return 0
-                        if (column !== root.titleColumn || explicitColumnWidth(column) >= 0) return chosenWidth(column)
-                        let used = 0
-                        for (let i of root.allColumns) if (i !== root.titleColumn && root.columnVisible(i)) used += chosenWidth(i)
-                        // Up to the right edge, like the search field above; the scroll bar floats over the stores.
-                        return Math.max(150, width - used)
+                        let needed = chosenWidth(slot)
+                        if (column !== root.titleColumn || explicitColumnWidth(slot) >= 0) return needed
+                        let other = 0
+                        for (let i = 0; i < root.columnOrder.length; i++)
+                            if (i !== slot && root.columnVisible(root.columnOrder[i])) other += chosenWidth(i)
+                        return Math.max(needed, width - other)
                     }
                     property bool localView: !!desktop.view.local
                     onLocalViewChanged: forceLayout()
@@ -2296,6 +2306,7 @@ ApplicationWindow {
                     resizableColumns: true
                     Connections {
                         target: desktop.model
+                        function onColumnContentsChanged() { Qt.callLater(root.measureColumns) }
                         function onModelReset() {
                             // Qt 6.11: moving a column also freezes a row mapping sized to the rows of that
                             // moment, and the next larger view aborted the app in getRowHeight. Rows are
@@ -2907,8 +2918,10 @@ ApplicationWindow {
             }
         }
     }
-    TextMetrics { id: fitMetrics }
-    TextMetrics { id: badgeMetrics; font.pixelSize: root.fontCaption }
+    FontMetrics { id: fitMetrics; font: root.font; onFontChanged: Qt.callLater(root.measureColumns) }
+    FontMetrics { id: cellMetrics; font.features: root.tabular }
+    FontMetrics { id: badgeMetrics; font.pixelSize: root.fontCaption }
+    FontMetrics { id: chipMetrics; font.pixelSize: root.fontCaption; font.bold: true; font.features: root.tabular }
     AppMenu {
         id: columnMenu
         property int column: 0

@@ -36,6 +36,7 @@ def camelot_order(row):
 class TrackModel(QAbstractTableModel):
     changed = Signal()
     storesChanged = Signal()
+    columnContentsChanged = Signal()
     # Track key -> new status, for rows whose status just changed.
     statusFlashed = Signal('QVariantMap')
 
@@ -138,20 +139,27 @@ class TrackModel(QAbstractTableModel):
     def headerName(self, column):
         return self.headerData(column, Qt.Horizontal) if 0 <= column < len(COLUMNS) else ''
 
-    @Slot(int, result=str)
-    def longestText(self, column):
-        """Visible cell text with the most characters; the view measures it for fit-to-contents."""
+    @Slot(int, result='QStringList')
+    def columnTexts(self, column):
+        """Distinct displayed values for measuring all filtered rows once per content change."""
         if not 0 <= column < len(COLUMNS):
-            return ''
-        # Straight from the rows: an index() and a data() call per cell froze big libraries.
+            return []
         name = COLUMNS[column]
-        return max((self.text(r, name) for r in self.visible), key=len, default='')
+        if name == 'stores':
+            return list({', '.join(self.store_label(label) for label, category in
+                                   zip(store_names(row), row['stores'].split(', ')) if category != 'no-link')
+                         for row in self.visible})
+        values = {self.text(row, name) for row in self.visible}
+        if name == 'status':
+            values.update(('100%', self.tr('✗ Failed')))
+        return list(values)
 
     def replace(self, rows):
         self.rows = rows
         self.progress.clear()
         self.selected.intersection_update(r['key'] for r in rows)
         self.refilter(stores=True)
+        self.columnContentsChanged.emit()
 
     def update_progress(self, updates):
         self.progress.update(updates)
@@ -177,6 +185,8 @@ class TrackModel(QAbstractTableModel):
                 if row['key'] in changed:
                     self.dataChanged.emit(self.index(i, 0), self.index(i, len(COLUMNS)-1))
             self._changed(stores=True)
+        if changed:
+            self.columnContentsChanged.emit()
         if 0 < len(flashed) <= FLASH_LIMIT:
             self.statusFlashed.emit(flashed)
 
@@ -241,6 +251,7 @@ class TrackModel(QAbstractTableModel):
         self.key_codes = set(options.get('keys') or ())
         self.genre = str(options.get('genre') or '').casefold().strip()
         self.refilter()
+        self.columnContentsChanged.emit()
 
     @Slot(str)
     def setKeyNotation(self, notation):
@@ -250,6 +261,7 @@ class TrackModel(QAbstractTableModel):
         column = COLUMNS.index('keySignature')
         if self.visible:
             self.dataChanged.emit(self.index(0, column), self.index(len(self.visible) - 1, column), [Qt.DisplayRole])
+            self.columnContentsChanged.emit()
 
     @Slot(int)
     def sortBy(self, column):

@@ -131,7 +131,7 @@ def test_played_status_and_local_format_and_comment(app):
     model = TrackModel()
     model.replace([dict(row('a', 'A'), status='played', format='MP3 320 kbps', comment='Peak time')])
     assert model.data(model.index(0, 0)) == 'Played'
-    assert model.longestText(COLUMNS.index('format')) == 'MP3 320 kbps'
+    assert model.columnTexts(COLUMNS.index('format')) == ['MP3 320 kbps']
     assert model.headerName(COLUMNS.index('comment')) == 'Comment'
 
     class Db:
@@ -290,3 +290,68 @@ def test_qml_table_keyboard_drag_density_and_now_playing(app, tmp_path, monkeypa
         assert not warnings, warnings
     finally:
         shiboken6.delete(engine)
+
+
+def test_autosize_follows_the_field_across_moves_and_restarts(app, tmp_path, monkeypatch):
+    import shiboken6
+    from PySide6.QtCore import QUrl, Slot
+    from PySide6.QtQml import QQmlApplicationEngine, QQmlEngine, QQmlExpression
+    from PySide6.QtTest import QTest
+
+    from dj_digger.gui.bridge import Bridge
+
+    monkeypatch.setenv('XDG_CONFIG_HOME', str(tmp_path))
+    settings = tmp_path / 'dj-digger' / 'gui.json'
+    settings.parent.mkdir()
+    order = [12, *range(12)]
+    settings.write_text(json.dumps(dict(columnOrder=order, columnWidths=[-1] * 13)))
+    rows = [named('a', 'First', 'iiiiiiiiiiiiiiii'), named('b', 'Second', 'WWWWWWWWWW')]
+    rows += [named(str(i), 'Other') for i in range(50)]
+    rows.append(named('last', 'W' * 95))  # Widest title is outside the viewport and exceeds 600 px.
+
+    class TestBridge(Bridge):
+        @Slot()
+        def close(self):
+            settings.write_text(json.dumps(self._settings))
+
+    class PassiveBackend:
+        def __init__(self, emit):
+            pass
+
+        def submit(self, *args):
+            pass
+
+    for restart in (False, True):
+        engine = QQmlApplicationEngine()
+        bridge = TestBridge(engine, backend_factory=PassiveBackend, home_path=tmp_path)
+        engine.rootContext().setContextProperty('desktop', bridge)
+        engine.rootContext().setContextProperty('systemLanguage', 'en')
+        engine.load(QUrl.fromLocalFile(str(Path('dj_digger/gui/qml/Main.qml').resolve())))
+        try:
+            window = engine.rootObjects()[0]
+            def qml(expression):
+                result = QQmlExpression(QQmlEngine.contextForObject(window), window, expression)
+                value, _ = result.evaluate()
+                assert not result.hasError(), result.error().toString()
+                return value
+
+            bridge.receive('view', dict(source='playlist', title='Set', local=False, rows=rows, generation=1))
+            QTest.qWait(80)
+            assert qml('columnOrder[0]') == 12
+            assert qml('table.columnWidth(0)') < qml('table.columnWidth(1)')  # # and Status
+            assert qml('table.columnWidth(3)') >= qml('cellMetrics.advanceWidth("W".repeat(95)) + 52') > 600
+            artist = int(qml('columnOrder.indexOf(1)'))
+            if restart:
+                assert qml(f'table.columnWidth({artist})') == 211
+                qml('resetColumnWidths()')
+            assert qml(f'table.columnWidth({artist})') >= qml('cellMetrics.advanceWidth("WWWWWWWWWW") + 14')
+            assert qml(f'table.columnWidth({artist})') == qml('contentWidth(1)')
+            if not restart:
+                qml(f'table.setColumnWidth({artist}, 211); table.moveColumn({artist}, 1)')
+                QTest.qWait(50)
+            window.close()
+            saved = json.loads(settings.read_text())
+            assert saved['columnWidthOverrides'] == ({} if restart else {'1': 211})
+            assert saved['columnOrder'][:4] == [12, 1, 0, 2]
+        finally:
+            shiboken6.delete(engine)

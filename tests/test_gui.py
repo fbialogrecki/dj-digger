@@ -65,23 +65,23 @@ def test_table_literal_text_and_numeric_sort(app):
     assert model.visible[0]['key'] == '2'
 
 
-def test_table_longest_visible_text_and_header_names(app):
+def test_table_visible_width_samples_and_header_names(app):
     model = TrackModel()
     model.replace([row('1', 'Short', 99), row('2', 'A much longer title', 120.5), row('3', 'Mid', 100)])
-    assert model.longestText(2) == 'A much longer title'
-    assert model.longestText(4) == '120.5'
-    assert model.longestText(0) == 'New'
+    assert set(model.columnTexts(2)) == {'Short', 'A much longer title', 'Mid'}
+    assert '120.5' in model.columnTexts(4)
+    assert 'New' in model.columnTexts(0)
     # A played track keeps its listening history visible; long mixes count hours.
     played = [row('1', 'Short', 99), dict(row('2', 'Mix', 120), status='played', duration=8408000)]
     model.replace(played)
     assert model.data(model.index(1, 0)) == 'Played' and model.data(model.index(1, 8)) == '2:20:08'
     assert model.data(model.index(0, 8)) == '1:00'
     model.filter('short', {})
-    assert model.longestText(2) == 'Short'
-    assert model.longestText(42) == '' and model.longestText(-1) == ''
+    assert model.columnTexts(2) == ['Short']
+    assert model.columnTexts(42) == model.columnTexts(-1) == []
     assert model.headerName(9) == 'Stores' and model.headerName(11) == 'Comment' and model.headerName(12) == '#' and model.headerName(13) == ''
     assert model.headerName(2) == 'Track name'
-    assert TrackModel().longestText(2) == ''
+    assert TrackModel().columnTexts(2) == []
 
 
 def wait_event(events, kind):
@@ -1872,7 +1872,7 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
         assert qml('table.columnWidth(9)') <= 0 and stores.property('checked') is False
         assert window.property('hiddenColumns').toVariant() == [10, 11, 9]
         qml('toggleColumn(9); resetColumnWidths()')
-        assert qml('table.columnWidth(9)') == 140 and qml('table.columnWidth(1)') == 150
+        assert qml('table.columnWidth(9)') == qml('contentWidth(9)') and qml('table.columnWidth(1)') == qml('contentWidth(1)')
         # A narrower width saved by an older version never cuts statuses or times short.
         qml('table.setColumnWidth(0, 60); table.setColumnWidth(8, 40); table.forceLayout()')
         assert qml('table.columnWidth(0)') == 104 and qml('table.columnWidth(8)') == 70

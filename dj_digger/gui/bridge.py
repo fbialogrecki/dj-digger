@@ -526,9 +526,11 @@ class Bridge(QObject):
             if self._translator.load(str(path)):
                 app.installTranslator(self._translator)
         self.engine.retranslate()
-        self.table.headerDataChanged.emit(Qt.Horizontal, 0, 9)
+        last = self.table.columnCount() - 1
+        self.table.headerDataChanged.emit(Qt.Horizontal, 0, last)
         if self.table.visible:
-            self.table.dataChanged.emit(self.table.index(0, 0), self.table.index(len(self.table.visible) - 1, 9))
+            self.table.dataChanged.emit(self.table.index(0, 0), self.table.index(len(self.table.visible) - 1, last))
+        self.table.columnContentsChanged.emit()
         self.table._changed(stores=True)  # the store pills name their stores in the language too
         self.changed.emit()
 
@@ -543,7 +545,7 @@ class Bridge(QObject):
     @Slot('QVariantMap')
     def saveSettings(self, values):
         # Only this fixed presentation shape is persisted; no service preferences.
-        allowed = {'width', 'height', 'language', 'theme', 'sidebarWidth', 'sidebarVisible', 'columnWidths', 'hiddenColumns', 'columnOrder',
+        allowed = {'width', 'height', 'language', 'theme', 'sidebarWidth', 'sidebarVisible', 'columnWidthOverrides', 'hiddenColumns', 'columnOrder',
                    'keyNotation', 'animations', 'colors', 'recent', 'sortColumn', 'sortReverse', 'compactRows', 'sidebarCollapsed',
                    'previewStart', 'spectral', 'vinyl', 'sidebarSplit'}
         self._settings = {k: v for k, v in values.items() if k in allowed}
