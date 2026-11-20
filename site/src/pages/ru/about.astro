@@ -9,16 +9,16 @@ import BrowserFlow from "../../components/about/BrowserFlow.astro";
 import { author, repo, version } from "../../../site.config.mjs";
 
 const description =
-  "Как устроен dj-digger, как приложение и его расширение для браузера справляются со скачиванием и корзинами, куда уходят твои данные, и благодарности.";
+  `dj-digger — бесплатное приложение с открытым кодом для диггинга, с расширением для браузера. Автор: ${author.name}. Как он устроен, куда уходят твои данные, благодарности.`;
 // Sources at the released tag, so they describe what has shipped.
 const release = `${repo}/blob/v${version}`;
 ---
 
-<Base title="О проекте · dj-digger" description={description} label="about">
+<Base title="О dj-digger: как он устроен и куда уходят твои данные" description={description} label="about">
   <Track id="about" title="О проекте" hero sub>
     <Fragment slot="heading">О проекте <span class="grad">dj-digger</span></Fragment>
     <p class="lede">
-      Бесплатное настольное приложение с открытым кодом для диггинга, с расширением для браузера. Сделал {author.name}.
+      dj-digger — бесплатное десктопное приложение с открытым кодом для диггинга, с расширением для браузера. Сделал {author.name}.
     </p>
   </Track>
 

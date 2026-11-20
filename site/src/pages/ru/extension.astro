@@ -8,7 +8,7 @@ import panel from "../../assets/screenshots/extension-panel.png";
 import { chromeStore } from "../../../site.config.mjs";
 
 const description =
-  "Расширение dj-digger для браузера проходит страницы скачивания, наполняет корзины магазинов и подключает настольное приложение к SoundCloud в твоём собственном браузере. Что оно делает, в каких браузерах работает и куда уходят твои данные.";
+  "Расширение для Chrome, Edge и Brave: проходит страницы скачивания Hypeddit и ToneDen и наполняет твои корзины Bandcamp и Beatport. Оплата остаётся за тобой.";
 
 // The five jobs of extension 1.4.4 (dj-digger 1.6.0).
 const jobs = [
@@ -20,11 +20,11 @@ const jobs = [
 ];
 ---
 
-<Base title="Расширение для браузера · dj-digger" description={description} label="extension">
+<Base title="Расширение для страниц скачивания и корзин · dj-digger" description={description} label="extension">
   <Track hero sub id="overview" title="Расширение для браузера">
     <Fragment slot="heading">Расширение <span class="grad">для браузера</span></Fragment>
     <p class="lede">
-      Руки настольного приложения в браузере, которым ты уже пользуешься. Оно работает, пока dj-digger запущен на том же
+      Руки десктопного приложения в браузере, которым ты уже пользуешься. Оно работает, пока dj-digger запущен на том же
       компьютере.
     </p>
     <div class="cta">
@@ -69,9 +69,9 @@ const jobs = [
   </Track>
 
   <Track id="end" title="Начни с приложения">
-    <p class="copy">Расширение ждёт настольное приложение. Установи его и запусти один раз.</p>
+    <p class="copy">Расширение ждёт десктопное приложение. Установи его и запусти один раз.</p>
     <div class="cta">
-      <a class="button primary" href="/ru/download/"><Icon name="download-simple" />Скачать настольное приложение</a>
+      <a class="button primary" href="/ru/download/"><Icon name="download-simple" />Скачать десктопное приложение</a>
     </div>
   </Track>
 </Base>
