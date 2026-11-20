@@ -25,10 +25,17 @@ Node 22.23.4 or newer (Astro's minimum).
 | `/download/` | `src/pages/download.astro` | One box with a tab per system (the visitor's first), checksums, then the extension |
 | `/about/` | `src/pages/about.astro` | How it is built, and the credits (`#credits`). `/liner-notes/` redirects here (301, `firebase.json`) |
 | `/privacy/`, `/terms/` | `src/pages/[...policy].astro` | Website privacy, consent choices, terms of use and third-party licences in all seven languages |
+| `/faq/` | `src/pages/faq.astro` | Questions and answers (English, German, Polish) |
+| `/guides/…/` | `src/pages/guides/*.astro` | SoundCloud to rekordbox and where to buy a SoundCloud track (English, German, Polish); Hypeddit download gates in 2026 (English) |
+| `/llms.txt` | `src/pages/llms.txt.js` | A plain-text map of the site for language models |
 | 404 | `src/pages/404.astro` | One sentence and the way home |
 
-Every page but the 404 also exists in the app's other languages, under the language's
-code: `src/pages/de/app.astro` is `/de/app/`, and so on for `es`, `fr`, `it`, `pl`, `ru`.
+Every page but the 404, the questions and the guides also exists in the app's other languages, under the
+language's code: `src/pages/de/app.astro` is `/de/app/`, and so on for `es`, `fr`, `it`, `pl`, `ru`.
+`src/i18n/pages.mjs` lists every page and the languages it exists in; the hreflang links, the
+language switcher, the footer, the sitemap and `scripts/check-languages.mjs` all read it, so a new
+page or translation is added there. Pages carry schema.org JSON-LD from `Base.astro`; a guide passes
+`article={{ published }}` to be described as an article.
 
 `blueprint/blueprint.md` is the agreed structure: pages, sections, their order and
 purpose. Only describe features that ship; `PROJECT_SPECIFICATION.md`, `README.md` and

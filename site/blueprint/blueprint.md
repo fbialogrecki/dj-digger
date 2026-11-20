@@ -46,6 +46,8 @@ dj-digger is a free, open-source, local-first crate-digging desktop app for DJs,
   - Browser extension (`/extension/`)
   - Download (`/download/`)
   - About (`/about/`; the former `/liner-notes/` redirects here with a 301, in every language)
+  - Questions and answers (`/faq/`; English, German, Polish)
+  - Guides (`/guides/soundcloud-to-rekordbox/`, `/guides/where-to-buy-soundcloud-tracks/` in English, German, Polish; `/guides/hypeddit-download-gates/` in English)
   - 404
 
 ## Every page
@@ -53,7 +55,7 @@ dj-digger is a free, open-source, local-first crate-digging desktop app for DJs,
 1. **Navbar** (`navbar`)
    - Purpose: One line at every width: brand on the left; App, Extension, About, Download, GitHub, the language switcher and the theme button on the right, each with its icon. On narrow screens the links fold into a Menu disclosure that works without JavaScript.
 2. **Footer** (`footer`)
-   - Purpose: Full width, under the text and the record. The brand with 'Free and open source, Apache 2.0.', the site's pages, then 'Made by Filip Białogrecki, 2026' and Privacy policy, License, GitHub, Credits (About `#credits`).
+   - Purpose: Full width, under the text and the record. The brand with 'Free and open source, Apache 2.0.', the site's pages and the questions and guides (in English where the reader's language has none), then 'Made by Filip Białogrecki, 2026' and Privacy policy, License, GitHub, Credits (About `#credits`).
 
 ## Home (`/`)
 
@@ -130,3 +132,11 @@ dj-digger is a free, open-source, local-first crate-digging desktop app for DJs,
 
 1. **This groove is empty** (`empty`)
    - Purpose: A still record with the needle in the run-out groove, one sentence, and a primary button back home.
+
+## Questions and answers (`/faq/`)
+
+**Goal:** Answer, in plain words a search or answer engine can quote, what people ask before installing: what it is, cost, systems, whether it rips SoundCloud, gates, carts, rekordbox, data. Groups (`basics`, `files`, `decks`, `privacy`) of an h3 question and a short answer each; a closing download (`get`).
+
+## Guides (`/guides/…/`)
+
+**Goal:** Meet a searcher with a task (getting a SoundCloud playlist into rekordbox, finding where to buy a track, Hypeddit gates after June 2026) with a plain how-to, then show where dj-digger does it. Product claims come only from the app pages and the specification; third-party claims link their source. Each ends with a download (`get`).
