@@ -72,16 +72,10 @@ const project = [
         <img src={appIcon.src} width="28" height="28" alt="" />
         dj-digger
       </a>
-      <button class="button compact menu-toggle" type="button" popovertarget="site-menu">
-        <Icon name="list" /><span class="menu-word">{t.menu}</span>
+      <button class="button compact icon-only menu-toggle" type="button" popovertarget="site-menu" aria-label={t.menu}>
+        <Icon name="list" />
       </button>
       <div id="site-menu" popover>
-        <div class="menu-heading">
-          <strong>{t.menu}</strong>
-          <button class="button compact icon-only" type="button" popovertarget="site-menu" popovertargetaction="hide" aria-label={t.close}>
-            <Icon name="x" />
-          </button>
-        </div>
         <nav class="links" aria-label={t.primary}>
           <ul>
             {
@@ -122,6 +116,7 @@ const project = [
           <Icon name="moon" class="moon" />
           <span class="theme-label"></span>
         </button>
+        <button class="button compact menu-close" type="button" popovertarget="site-menu" popovertargetaction="hide">{t.close}</button>
       </div>
     </header>
 

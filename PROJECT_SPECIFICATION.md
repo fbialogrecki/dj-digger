@@ -2763,7 +2763,7 @@ installer. The deploy checks the release tag and main SHA again. Missing product
 fail the job. The website environment uses a short-lived GitHub OIDC identity restricted to
 this repository's Website workflow, with Firebase Hosting Admin access to its project.
 
-On narrow screens the header menu opens a full-width panel from the right with the primary links, language selector and theme switch. On wide screens those controls appear directly in the header.
+On narrow screens the icon-only header menu opens a right-side panel sized to its links, language selector and theme switch. The page remains visible beside it. A tap outside, a rightward swipe in the panel or Escape closes it. On wide screens those controls appear directly in the header.
 
 On narrow screens the decorative record stays beside the content while it scrolls, clipped at the viewport edge. It turns with scroll progress when motion is enabled and leaves the viewport with the content above the footer.
 

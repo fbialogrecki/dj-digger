@@ -96,8 +96,25 @@ menu.addEventListener("beforetoggle", (event) => {
   if (!open) menu.querySelector(".lang").open = false;
 });
 menu.addEventListener("toggle", () => {
-  if (menu.matches(":popover-open")) menu.querySelector("[popovertargetaction=hide]").focus();
+  if (menu.matches(":popover-open")) menu.querySelector(".links a").focus({ preventScroll: true });
 });
+
+let swipeStart;
+menu.addEventListener("touchstart", (event) => {
+  swipeStart = menu.matches(":popover-open") && event.touches.length === 1 ? event.touches[0] : null;
+}, { passive: true });
+menu.addEventListener("touchcancel", () => { swipeStart = null; });
+menu.addEventListener("touchend", (event) => {
+  if (!swipeStart) return;
+  const end = event.changedTouches[0];
+  const dx = end.clientX - swipeStart.clientX;
+  const dy = end.clientY - swipeStart.clientY;
+  swipeStart = null;
+  if (!event.touches.length && dx >= 48 && dx > 1.5 * Math.abs(dy) && menu.matches(":popover-open")) {
+    event.preventDefault(); // A swipe starting on a link must not follow it.
+    menu.hidePopover();
+  }
+}, { passive: false });
 
 // Day or night follows the system. The button flips whatever is showing; flipping back
 // to the system's own theme drops the override, so the site follows the system again.

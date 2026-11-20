@@ -389,29 +389,30 @@ pre,
   fill: light-dark(currentColor, transparent);
 }
 @media (width < 53rem) {
-  html:has(#site-menu:popover-open) { overflow: hidden; }
+  html:has(#site-menu:popover-open) {
+    overflow: hidden;
+    pointer-events: none;
+  }
   #site-menu {
     position: fixed;
-    inset: 0;
-    width: 100%;
+    inset: 0 0 0 auto;
+    width: max-content;
     height: 100dvh;
-    max-width: none;
+    max-width: calc(100% - 44px);
     max-height: none;
     margin: 0;
     border: 0;
     padding: max(1rem, env(safe-area-inset-top)) max(1.25rem, env(safe-area-inset-right))
       max(1.5rem, env(safe-area-inset-bottom)) max(1.25rem, env(safe-area-inset-left));
     background: var(--bg);
+    border-left: 1px solid var(--line);
+    pointer-events: auto;
+    touch-action: pan-y pinch-zoom;
     overflow-y: auto;
     overscroll-behavior: contain;
   }
-  .menu-heading {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    font-size: 1.3rem;
-  }
-  .links { margin: 1.5rem 0; }
+  #site-menu::backdrop { background: rgb(0 0 0 / 25%); }
+  .links { margin-bottom: 1.5rem; }
   .links ul { display: block; }
   .links li { border-bottom: 1px solid var(--line); }
   .top .links a {
@@ -436,7 +437,7 @@ pre,
   }
   .theme { margin-top: .6rem; }
   .theme-label { grid-column: 2; }
-  .menu-heading .button, .menu-toggle.button { min-height: 44px; min-width: 44px; }
+  .menu-toggle.button { min-height: 44px; min-width: 44px; }
 }
 @media (width < 53rem) and (prefers-reduced-motion: no-preference) {
   #site-menu:popover-open { animation: menu-slide-in .22s ease-out; }
@@ -456,7 +457,7 @@ pre,
     background: transparent;
     overflow: visible;
   }
-  .menu-toggle, .menu-heading, .lang-name, .theme-label { display: none; }
+  .menu-toggle, .menu-close, .lang-name, .theme-label { display: none; }
   .links .icon { display: none; }
 }
 @media (min-width: 76rem) {
@@ -674,8 +675,11 @@ kbd {
   font: 500 0.82em var(--mono);
   color: var(--fg);
 }
-/* For screen readers only. */
-.sr {
+/* Keep the drawer dismissal available to assistive technology and keyboard users. */
+.sr,
+.menu-close:not(:focus-visible) {
+  padding: 0;
+  min-height: 0;
   position: absolute;
   width: 1px;
   height: 1px;
@@ -1431,17 +1435,7 @@ a.card:hover {
   display: none;
 }
 
-/* The narrowest phones: the Menu key keeps its icon (its word is still read out), so the
-   brand stays whole on one line; the player's keys close up. */
 @media (max-width: 24rem) {
-  .menu-word {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
   .player-transport {
     flex-wrap: wrap;
     gap: 0;

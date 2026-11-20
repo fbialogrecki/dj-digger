@@ -147,9 +147,12 @@ def check(browser, origin):
     toggle = tab.locator(".menu-toggle")
     expect(menu).to_be_hidden()
     toggle.tap()
-    close = menu.locator('[popovertargetaction="hide"]')
-    expect(close).to_be_focused()
-    assert menu.bounding_box()["width"] == 375
+    first_link = menu.locator(".links a").first
+    expect(first_link).to_be_focused()
+    first_link.tap(trial=True)  # Wait for the slide-in animation before measuring.
+    box = menu.bounding_box()
+    assert box["x"] >= 44 and abs(box["x"] + box["width"] - 375) < 1
+    assert not toggle.inner_text().strip() and toggle.get_attribute("aria-label")
     expect(menu.locator(".theme")).to_be_visible()
     menu.locator(".theme").tap()
     assert tab.locator("html").get_attribute("data-theme") == "light"
@@ -168,8 +171,32 @@ def check(browser, origin):
     tab.set_viewport_size({"width": 375, "height": 740})
     expect(menu).to_be_hidden()
     toggle.tap()
-    close.tap()
+    first_link.tap(trial=True)
+    tab.touchscreen.tap(20, 30)  # Above the underlying home link.
     expect(menu).to_be_hidden()
+    expect(tab).to_have_url(origin + "/pl/download/")
+    toggle.tap()
+    first_link.tap(trial=True)
+    touch = private.new_cdp_session(tab)
+
+    def swipe(x, y, dx, dy):
+        for step in range(6):
+            touch.send("Input.dispatchTouchEvent", {
+                "type": "touchStart" if step == 0 else "touchMove",
+                "touchPoints": [{"x": x + dx * step / 5, "y": y + dy * step / 5}],
+            })
+        touch.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
+
+    tab.set_viewport_size({"width": 375, "height": 460})
+    menu.locator(".lang summary").tap()
+    swipe(300, 300, 10, -160)
+    expect(menu).to_be_visible()
+    wait_js(tab, "document.querySelector('#site-menu').scrollTop > 0")
+    first_link.scroll_into_view_if_needed()
+    box = first_link.bounding_box()
+    swipe(box["x"] + 12, box["y"] + box["height"] / 2, 90, 4)
+    expect(menu).to_be_hidden()
+    expect(tab).to_have_url(origin + "/pl/download/")
     private.close()
     nojs = browser.new_context(java_script_enabled=False)
     tab = nojs.new_page()
@@ -178,6 +205,10 @@ def check(browser, origin):
     expect(tab.locator("#consent")).to_be_hidden()
     tab.set_viewport_size({"width": 375, "height": 740})
     tab.locator(".menu-toggle").click()
+    tab.mouse.click(24, 30)
+    expect(tab.locator("#site-menu")).to_be_hidden()
+    tab.locator(".menu-toggle").click()
+    expect(tab).to_have_url(origin + "/es/download/")
     tab.locator("#site-menu .lang summary").click()
     tab.locator('#site-menu [data-lang="de"]').click()
     expect(tab).to_have_url(origin + "/de/download/")
