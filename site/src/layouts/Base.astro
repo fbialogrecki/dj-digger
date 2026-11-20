@@ -7,17 +7,25 @@ import archivo from "../assets/fonts/archivo-latin.woff2?url";
 import boot from "../scripts/boot.js?raw";
 import { author, chromeStore, measurementId, releaseDate, repo, version } from "../../site.config.mjs";
 import { baseOf, langOf, languages, pathIn, ui } from "../i18n/index.mjs";
+import { languagesOf, partial } from "../i18n/pages.mjs";
 
 // `label` picks the record label's colours for this page (global.css: [data-label]).
 // `tracks` is accepted and ignored: there is no tracklist any more.
 // `crumb` names the page in its breadcrumb when it is not one of the pages named below.
-const { title, description, label = "home", noindex = false, crumb } = Astro.props;
+// `article` ({ published, modified? } as YYYY-MM-DD) marks a guide as an article with dates.
+const { title, description, label = "home", noindex = false, crumb, article } = Astro.props;
 const here = Astro.url.pathname;
 const lang = langOf(here);
 const t = ui(here);
 const local = (base) => pathIn(lang, base);
-// The same page in every language; a page that is not indexed (404) offers each language's start.
-const alternates = languages.map((language) => ({ ...language, href: pathIn(language.code, noindex ? "/" : baseOf(here)) }));
+// The same page in every language it exists in; the switcher offers a language's start page where it
+// does not, and so does a page that is not indexed (404).
+const offered = noindex ? [] : languagesOf(baseOf(here));
+const alternates = languages.map((language) => ({
+  ...language,
+  href: pathIn(language.code, offered.includes(language.code) ? baseOf(here) : "/"),
+  exists: offered.includes(language.code),
+}));
 const current = languages.find((language) => language.code === lang);
 const canonical = new URL(here, Astro.site);
 const pages = [
@@ -34,12 +42,19 @@ const project = [
   { href: repo, label: t.nav.github, icon: "github-logo" },
   { href: `${local("/about/")}#credits`, label: t.footer.credits, icon: "heart" },
 ];
+// The questions and guides, in this language where they exist, else in English (marked as such).
+const guides = Object.entries(partial).map(([path, names]) => ({
+  href: lang in names ? local(path) : path,
+  label: names[lang] ?? names.en,
+  hreflang: lang in names ? undefined : "en",
+  icon: path === "/faq/" ? "question" : "book-open",
+}));
 
 // Structured data (schema.org JSON-LD): who makes the site, what the software is, where the page sits.
 const base = baseOf(here);
 const site = (path) => new URL(path, Astro.site).href;
 const id = (name) => `${site("/")}#${name}`;
-const pageName = crumb ?? { "/app/": t.nav.app, "/extension/": t.nav.extension, "/about/": t.nav.about, "/download/": t.nav.download, "/privacy/": t.legal.privacy, "/terms/": t.legal.terms }[base];
+const pageName = crumb ?? partial[base]?.[lang] ?? { "/app/": t.nav.app, "/extension/": t.nav.extension, "/about/": t.nav.about, "/download/": t.nav.download, "/privacy/": t.legal.privacy, "/terms/": t.legal.terms }[base];
 const free = { "@type": "Offer", price: "0", priceCurrency: "USD" };
 const license = "https://www.apache.org/licenses/LICENSE-2.0";
 const graph = [
@@ -80,6 +95,18 @@ const graph = [
     offers: free,
     author: { "@id": id("author") },
   },
+  article && {
+    "@type": "Article",
+    headline: title,
+    description,
+    inLanguage: lang,
+    datePublished: article.published,
+    dateModified: article.modified ?? article.published,
+    mainEntityOfPage: canonical.href,
+    author: { "@id": id("author") },
+    publisher: { "@id": id("author") },
+    about: { "@id": id("app") },
+  },
   base !== "/" && pageName && {
     "@type": "BreadcrumbList",
     itemListElement: [
@@ -104,7 +131,7 @@ const structured = JSON.stringify({ "@context": "https://schema.org", "@graph": 
     <meta name="description" content={description} />
     {!noindex && <link rel="canonical" href={canonical} />}
     {/* boot.js reads these to send a first visit to the visitor's language. */}
-    {!noindex && alternates.map((language) => <link rel="alternate" hreflang={language.code} href={new URL(language.href, Astro.site)} />)}
+    {alternates.filter((language) => language.exists).map((language) => <link rel="alternate" hreflang={language.code} href={new URL(language.href, Astro.site)} />)}
     {!noindex && <link rel="alternate" hreflang="x-default" href={new URL(baseOf(here), Astro.site)} />}
     <link rel="icon" type="image/png" href={appIcon.src} />
     <link rel="preload" as="font" type="font/woff2" href={archivo} crossorigin />
@@ -212,9 +239,9 @@ const structured = JSON.stringify({ "@context": "https://schema.org", "@graph": 
         <nav aria-label={t.footer.site}>
           <ul>
             {
-              pages.slice(0, 4).map((page) => (
+              [...pages.slice(0, 4), ...guides].map((page) => (
                 <li>
-                  <a href={page.href}>
+                  <a href={page.href} hreflang={page.hreflang} lang={page.hreflang}>
                     <Icon name={page.icon} />
                     {page.label}
                   </a>
