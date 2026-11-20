@@ -52,6 +52,7 @@ def check(browser, origin):
     page.goto(origin + "/pl/download/")
     panel = page.locator("#consent")
     expect(panel).to_be_visible()
+    measurement_id = panel.get_attribute("data-ga")
     assert not external and not context.cookies()
     assert page.evaluate("Object.keys(sessionStorage).length === 0 && Object.keys(localStorage).length === 0")
     page.locator('[data-choice="deny"]').focus()
@@ -69,8 +70,11 @@ def check(browser, origin):
     page.locator('[data-choice="allow"]').click()
     for tab in (page, other):
         wait_js(tab, "document.cookie.includes('_ga=test')")
-        assert tab.evaluate("dataLayer.filter(x => x[0] === 'config' && x[2].send_page_view !== false).length") == 1
+        assert tab.evaluate("dataLayer.filter(x => x[0] === 'config' && x[2]?.send_page_view !== false).length") == 1
         assert tab.evaluate("dataLayer.every(x => x[1] !== 'page_view')")
+        assert tab.evaluate("""dataLayer.some((x, i) => x[0] === 'set' && x[1].cookie_update === false
+            && x[1].cookie_expires === 180*86400 && x[1].cookie_domain === 'none'
+            && i < dataLayer.findIndex(y => y[0] === 'js'))""")
     assert external == ["www.googletagmanager.com"] * 2
     page.locator("#tab-linux").click()
     page.locator("#linux [data-copy]").click()
@@ -84,7 +88,8 @@ def check(browser, origin):
         wait_js(tab, "!window.dataLayer && !document.cookie.includes('_ga=')")
         expect(tab.locator("#consent")).to_be_hidden()
     # An expired choice prompts again; a quota error must not preserve an earlier opt-in.
-    page.evaluate("localStorage.setItem('djdAnalyticsConsent', JSON.stringify({choice:'allow',revision:1,until:1}))")
+    page.evaluate("""const key = 'djdAnalyticsConsent';
+        localStorage.setItem(key, JSON.stringify({...JSON.parse(localStorage.getItem(key)), choice:'allow', until:1}))""")
     page.reload()
     expect(panel).to_be_visible()
     page.locator('[data-choice="allow"]').click()
@@ -96,6 +101,22 @@ def check(browser, origin):
         wait_js(tab, "!window.dataLayer && !document.cookie.includes('_ga=')")
     assert not errors, errors
     context.close()
+
+    # A public DNS hostname can hold separate host-only and domain-scoped GA cookies.
+    legacy = browser.new_context()
+    def local_site(route):
+        url = urlsplit(route.request.url)
+        assert url.hostname == "site.example.test"
+        route.fulfill(response=route.fetch(url=origin + url.path))
+    legacy.route("**/*", local_site)
+    for domain in ("site.example.test", ".site.example.test"):
+        legacy.add_cookies([{"name": name, "value": "legacy", "domain": domain, "path": "/"}
+                            for name in ("_ga", "_ga_" + measurement_id[2:])])
+    tab = legacy.new_page()
+    tab.goto("https://site.example.test/pl/privacy/")
+    expect(tab.locator("#consent")).to_be_visible()
+    assert not legacy.cookies()
+    legacy.close()
 
     # A disabled storage backend and a no-JS browser must still be able to download.
     private = browser.new_context(locale="de-DE", color_scheme="dark", viewport={"width": 375, "height": 740})

@@ -2768,7 +2768,7 @@ Spanish, French, Italian and Russian. It stores explicitly chosen theme/language
 and a versioned six-month analytics choice locally. In-page animation state is transient.
 The static site, downloads and install command work without JavaScript or analytics consent.
 Only an affirmative choice loads GA4. Refusal and withdrawal disable collection; withdrawal
-also clears the site's analytics cookies. The site measures sanitized page views, the referring
+also clears host-only and domain-scoped analytics cookies. The tag sets cookies for at most 180 days from first use. The site measures sanitized page views, the referring
 origin, installer clicks and successful copies of the Linux command. Hosting uses a strict-origin
 referrer policy. A single tag configuration records each consented page load. The website's GA4 tag
 does not run in the desktop app, extension, update checker or install script.

@@ -4,7 +4,7 @@ if (panel && !document.documentElement.dataset.redirecting) setup(panel);
 
 function setup(panel) {
   const key = "djdAnalyticsConsent";
-  const revision = 1;
+  const revision = 2;
   const id = panel.dataset.ga;
   const settings = document.querySelector("[data-settings]");
   const disable = `ga-disable-${id}`;
@@ -29,14 +29,15 @@ function setup(panel) {
     gtag("consent", "default", {
       analytics_storage: "granted", ad_storage: "denied", ad_user_data: "denied", ad_personalization: "denied",
     });
-    gtag("js", new Date());
     const referrer = document.referrer ? new URL(document.referrer).origin : "";
-    gtag("config", id, {
+    // Apply privacy settings to the Google tag itself, before it initializes its GA4 destination.
+    gtag("set", {
       allow_google_signals: false, allow_ad_personalization_signals: false,
       cookie_domain: "none", cookie_expires: 180 * 86400, cookie_update: false,
       page_location: location.origin + panel.dataset.page, page_referrer: referrer,
     });
-    // The config command records this page once when the tag loads.
+    gtag("js", new Date());
+    gtag("config", id); // Records one page view.
     const tag = document.createElement("script");
     tag.async = true;
     tag.src = `https://www.googletagmanager.com/gtag/js?id=${id}`;
@@ -45,7 +46,11 @@ function setup(panel) {
 
   function clearCookies() {
     for (const name of ["_ga", "_ga_" + id.slice(2)]) {
-      document.cookie = `${name}=; Max-Age=0; Path=/; SameSite=Lax`;
+      if (document.cookie.split(";").some(cookie => cookie.trimStart().startsWith(name + "="))) {
+        const expired = `${name}=; Max-Age=0; Path=/; SameSite=Lax`;
+        document.cookie = expired;
+        document.cookie = expired + "; Domain=" + location.hostname;
+      }
     }
   }
 
@@ -72,6 +77,7 @@ function setup(panel) {
       location.reload(); // Unload the third-party script and its listeners.
     } else {
       window[disable] = true;
+      clearCookies();
     }
   }
 
