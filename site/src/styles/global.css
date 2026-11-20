@@ -899,20 +899,6 @@ a.card:hover {
 .platter {
   position: relative;
 }
-.platter::before {
-  content: "";
-  position: absolute;
-  inset: -12%;
-  background: radial-gradient(
-    circle at 44.8% 50%,
-    color-mix(in srgb, var(--neon-foot) 70%, transparent) 0,
-    color-mix(in srgb, var(--neon-top) 45%, transparent) 34%,
-    transparent 60%
-  );
-  filter: blur(26px);
-  opacity: 0.22;
-  transition: opacity 0.6s;
-}
 .record {
   position: relative;
   width: 100%;
@@ -1056,17 +1042,6 @@ a.card:hover {
     opacity: 0;
   }
 }
-@keyframes glow {
-  0% {
-    opacity: 0.95;
-  }
-  30% {
-    opacity: 0.5;
-  }
-  100% {
-    opacity: 0.22;
-  }
-}
 @keyframes drop {
   from {
     rotate: var(--arm-rest);
@@ -1088,9 +1063,6 @@ a.card:hover {
   }
   html:not(.played) .record .neon {
     animation: kick var(--beat) 0.55s 3;
-  }
-  html:not(.played) .platter::before {
-    animation: glow var(--beat) 0.55s 3;
   }
 }
 

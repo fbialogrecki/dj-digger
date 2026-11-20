@@ -2765,7 +2765,7 @@ this repository's Website workflow, with Firebase Hosting Admin access to its pr
 
 On narrow screens the icon-only header menu opens a right-side panel sized to its links, language selector and theme switch. The page remains visible beside it. A tap outside, a rightward swipe in the panel or Escape closes it. On wide screens those controls appear directly in the header.
 
-On narrow screens the decorative record stays beside the content while it scrolls, clipped at the viewport edge. It turns with scroll progress when motion is enabled and leaves the viewport with the content above the footer.
+The decorative record sits directly on the page background. On narrow screens it stays beside the content while it scrolls, clipped at the viewport edge. It turns with scroll progress when motion is enabled and leaves the viewport with the content above the footer.
 
 The site serves localized privacy and cookie information and terms in English, Polish, German,
 Spanish, French, Italian and Russian. It stores explicitly chosen theme/language preferences
