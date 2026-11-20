@@ -162,8 +162,10 @@ key for the track, so there are no chips and no kick light. The About page credi
 `uv run --extra gui --with fonttools --with brotli python scripts/site_og.py` redraws
 `public/og.png`, the preview card, from the app icon's own drawing routine.
 
-Fonts are Archivo and JetBrains Mono (SIL Open Font License, texts beside them in
-`src/assets/fonts/`), subset to Latin and served from this site. Icons are
+Fonts are Archivo and JetBrains Mono, with Cyrillic from Roboto Flex (Archivo has none; it has the
+same width and weight axes), all SIL Open Font License (texts beside them in `src/assets/fonts/`).
+They are subset to Latin, Latin Extended-A and Cyrillic, split by `unicode-range` so a page
+downloads only the files its letters need, and served from this site. Icons are
 [Phosphor Icons](https://github.com/phosphor-icons/core) (`@phosphor-icons/core` 2.1.1,
 MIT License, © 2023 Phosphor Icons), inlined into the pages at build time.
 
