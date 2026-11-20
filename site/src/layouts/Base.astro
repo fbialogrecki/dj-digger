@@ -69,7 +69,7 @@ const graph = [
     applicationCategory: "MultimediaApplication",
     operatingSystem: "Windows 10, Windows 11, macOS 15, Linux",
     softwareVersion: version,
-    ...(releaseDate && { dateModified: releaseDate }),
+    dateModified: releaseDate,
     downloadUrl: site(local("/download/")),
     releaseNotes: `${repo}/blob/v${version}/CHANGELOG.md`,
     image: site(appIcon.src),

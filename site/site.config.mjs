@@ -12,8 +12,9 @@ export const author = { name: "Filip Białogrecki", url: "https://github.com/fbi
 // Read from the working directory (npm runs in site/): the bundled copy of this module lives elsewhere.
 export const version = process.env.DOWNLOAD_VERSION ?? /^version = "(.+)"$/m.exec(readFileSync("../pyproject.toml", "utf8"))[1];
 if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error("Invalid stable download version");
-// The release's date from its changelog heading ("## 1.6.0 — 2026-11-18"); absent if the heading is.
+// The release's date from its changelog heading ("## 1.6.0 — 2026-11-18"); every release has one.
 export const releaseDate = new RegExp(`^## ${version.replaceAll(".", "\\.")} — (\\d{4}-\\d{2}-\\d{2})$`, "m").exec(readFileSync("../CHANGELOG.md", "utf8"))?.[1];
+if (!releaseDate) throw new Error(`CHANGELOG.md has no dated heading for ${version}`);
 export const measurementId = process.env.GA4_MEASUREMENT_ID ?? "";
 if (measurementId && !/^G-[A-Z0-9]+$/.test(measurementId)) throw new Error("Invalid GA4 measurement ID");
 export const asset = (name) => `${repo}/releases/download/v${version}/dj-digger-${version}-${name}`;
