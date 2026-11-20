@@ -7,7 +7,7 @@
 | **Owner** | Filip Białogrecki |
 | **Last updated** | 2026-11-18 |
 | **Product version** | 1.6.0 (`pyproject.toml`); browser extension 1.4.5 (`dj_digger/webext/extension/manifest.json`) |
-| **Document lines** | <!-- SPEC TOTAL LINES -->2854<!-- END SPEC TOTAL LINES --> |
+| **Document lines** | <!-- SPEC TOTAL LINES -->2856<!-- END SPEC TOTAL LINES --> |
 | **Verified against** | `pyproject.toml`, `dj_digger/`, `dj_digger/webext/extension/manifest.json`, `scripts/`, `tests/`, `.github/workflows/`, `README.md`, `CHANGELOG.md` |
 
 ## Purpose of this file
@@ -107,13 +107,13 @@ text is never promoted into the map.
 | 13 | Failure behavior and current limitations | 2555–2670 |
 | 13.1 | ↳ Error isolation and reporting | 2557–2578 |
 | 13.2 | ↳ Confirmed limitations | 2579–2670 |
-| 14 | Verification, CI, and release | 2671–2816 |
+| 14 | Verification, CI, and release | 2671–2818 |
 | 14.1 | ↳ Offline and live test suites | 2673–2724 |
-| 14.2 | ↳ Continuous integration and publishing | 2725–2799 |
-| 14.3 | ↳ Specification-map verification | 2800–2816 |
-| 15 | References | 2817–2854 |
-| 15.1 | ↳ Primary implementation evidence | 2819–2840 |
-| 15.2 | ↳ User and historical documentation | 2841–2854 |
+| 14.2 | ↳ Continuous integration and publishing | 2725–2801 |
+| 14.3 | ↳ Specification-map verification | 2802–2818 |
+| 15 | References | 2819–2856 |
+| 15.1 | ↳ Primary implementation evidence | 2821–2842 |
+| 15.2 | ↳ User and historical documentation | 2843–2856 |
 <!-- END GENERATED SECTION MAP -->
 
 ---
@@ -2762,6 +2762,8 @@ wheel, and uses that version for all seven localized download pages and the host
 installer. The deploy checks the release tag and main SHA again. Missing production settings
 fail the job. The website environment uses a short-lived GitHub OIDC identity restricted to
 this repository's Website workflow, with Firebase Hosting Admin access to its project.
+
+On narrow screens the decorative record stays beside the content while it scrolls, clipped at the viewport edge. It turns with scroll progress when motion is enabled and leaves the viewport with the content above the footer.
 
 The site serves localized privacy and cookie information and terms in English, Polish, German,
 Spanish, French, Italian and Russian. It stores explicitly chosen theme/language preferences

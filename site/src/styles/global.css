@@ -153,7 +153,6 @@ html {
 body {
   margin: 0;
   min-height: 100dvh;
-  overflow-x: clip; /* the record runs past the window's right edge */
 }
 img,
 svg,
@@ -955,8 +954,10 @@ a.card:hover {
 }
 
 /* Scroll is playback: the disc turns and the arm travels from the edge to the label. */
-.record .disc {
-  rotate: calc(var(--p, 0) * 1080deg);
+@media (prefers-reduced-motion: no-preference) {
+  .record .disc {
+    rotate: calc(var(--p, 0) * 1080deg);
+  }
 }
 .tonearm .arm {
   rotate: calc(var(--arm-start) + var(--p, 0) * (var(--arm-end) - var(--arm-start)));
@@ -1045,16 +1046,39 @@ a.card:hover {
   }
 }
 
-/* Narrow screens: the record peeks out of the sleeve behind the hero. */
+/* Clip the off-screen part inside the deck, keeping the viewport at its natural width. */
 .deck {
-  position: absolute;
-  inset: 0 0 auto;
+  position: sticky;
+  top: var(--top);
+  align-self: start;
+  overflow: clip;
   pointer-events: none;
 }
+@media (width < 68rem) {
+  .page {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    padding-inline: 0;
+  }
+  .deck, .sheet {
+    grid-area: 1 / 1;
+  }
+  .deck {
+    padding-top: 1.5rem;
+  }
+  .sheet {
+    padding-inline: clamp(1rem, 4vw, 3rem);
+    overflow-wrap: anywhere;
+  }
+  .record .vinyl, .record .disc {
+    pointer-events: none;
+  }
+  .platter {
+    margin-left: auto;
+    translate: 56% 0;
+  }
+}
 .platter {
-  position: absolute;
-  top: 1.5rem;
-  right: -58vw;
   width: min(104vw, 34rem);
   opacity: var(--peek);
   -webkit-mask-image: linear-gradient(to left, #000 40%, transparent 80%);
@@ -1340,9 +1364,6 @@ a.card:hover {
   /* Sticky within the page grid, so it stops where the text ends, above the footer. */
   .deck {
     grid-area: 1 / 2;
-    position: sticky;
-    inset: auto;
-    top: var(--top);
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -1378,6 +1399,7 @@ a.card:hover {
     white-space: nowrap;
   }
   .player-transport {
+    flex-wrap: wrap;
     gap: 0;
   }
   .player-key {

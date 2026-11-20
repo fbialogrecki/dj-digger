@@ -119,7 +119,8 @@ def check(browser, origin):
     legacy.close()
 
     # A disabled storage backend and a no-JS browser must still be able to download.
-    private = browser.new_context(locale="de-DE", color_scheme="dark", viewport={"width": 375, "height": 740})
+    private = browser.new_context(locale="de-DE", color_scheme="dark", is_mobile=True, has_touch=True,
+                                  viewport={"width": 375, "height": 740})
     private.route("**/*", intercept)
     private.add_init_script("Object.defineProperty(window,'localStorage',{get(){throw Error('blocked')}})")
     tab = private.new_page()
@@ -130,6 +131,18 @@ def check(browser, origin):
         assert box and 0 <= box["x"] and box["x"] + box["width"] <= 375
     tab.locator('[data-choice="allow"]').click()
     assert tab.evaluate("!window.dataLayer")
+    # The cropped record must stay in view while a phone scrolls, without widening the page.
+    assert tab.evaluate("document.documentElement.scrollWidth === 375 && innerWidth === 375")
+    disc = tab.locator(".record .disc")
+    tab.evaluate("scrollTo({top: 480, left: 1000, behavior: 'instant'})")
+    wait_js(tab, "scrollY === 480 && scrollX === 0")
+    record = tab.locator(".record")
+    top = record.bounding_box()["y"]
+    assert 0 <= top < 740
+    angle = disc.evaluate("el => getComputedStyle(el).rotate")
+    tab.evaluate("scrollTo({top: 800, behavior: 'instant'})")
+    wait_js(tab, f"scrollY === 800 && getComputedStyle(document.querySelector('.disc')).rotate !== '{angle}'")
+    assert abs(record.bounding_box()["y"] - top) < 1
     private.close()
     nojs = browser.new_context(java_script_enabled=False)
     tab = nojs.new_page()
