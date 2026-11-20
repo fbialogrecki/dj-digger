@@ -1,0 +1,72 @@
+---
+import Base from "../../../layouts/Base.astro";
+import Icon from "../../../components/Icon.astro";
+import Track from "../../../components/Track.astro";
+
+const description =
+  "rekordbox streamuje SoundCloud, ale nie wyeksportuje go na USB dla CDJ-ów. Jak zamienić playlistę z SoundCloud we własne pliki gotowe dla rekordbox, z dj-digger.";
+const faq = "https://rekordbox.com/pl/support/faq/streaming-7/";
+---
+
+<Base title="Jak przenieść playlistę z SoundCloud do rekordbox jako pliki" description={description} label="app" article={{ published: "2026-11-20" }}>
+  <Track id="guide" title="Z SoundCloud do rekordbox" hero sub>
+    <Fragment slot="heading">Z playlisty SoundCloud <span class="grad">do rekordbox</span></Fragment>
+    <p class="lede">
+      rekordbox potrafi streamować SoundCloud, ale streamowanych utworów nie wgrasz na pendrive dla CDJ-ów. Do tego
+      potrzebujesz plików. Ten poradnik zamienia playlistę z SoundCloud w pliki, które należą do Ciebie: kupione albo
+      pobrane za darmo tam, gdzie artysta to umożliwia.
+    </p>
+  </Track>
+
+  <Track id="streaming" title="Czego nie da streaming">
+    <p class="copy">
+      SoundCloud w rekordbox wymaga subskrypcji SoundCloud Go+ albo DJ. Według
+      <a href={faq}>FAQ rekordbox o streamingu</a>:
+    </p>
+    <ul class="ticks">
+      <li>SoundCloud nie jest dostępny w trybie Export, który przygotowuje pendrive'y dla CDJ-ów.</li>
+      <li>Streamowanych utworów nie da się wyeksportować na pendrive ani kartę SD.</li>
+      <li>Utwory z Go+ nie grają offline; zapisane offline utwory z planu DJ grają przez 30 dni.</li>
+    </ul>
+  </Track>
+
+  <Track id="steps" title="Pięć kroków" heading="Z playlisty do plików w pięciu krokach">
+    <ol class="ticks">
+      <li>
+        <strong>Zaimportuj playlistę.</strong> Wklej do dj-digger link do playlisty z SoundCloud, polubień, repostów
+        albo profilu. Cała lista przychodzi przez API SoundCloud, a nie tylko wiersze, do których przewinęła się strona.
+      </li>
+      <li>
+        <strong>Odsłuchaj i zdecyduj.</strong> Posłuchaj każdego utworu i oznacz go jako posiadany albo pominięty.
+        dj-digger przeszukuje Twoje foldery z muzyką i oznacza to, co już masz.
+      </li>
+      <li>
+        <strong>Zdobądź pliki.</strong> Pobierz za darmo tam, gdzie artysta włączył pobieranie albo ustawił bramkę
+        pobierania, albo kup utwór: dj-digger sortuje linki każdego utworu według sklepu i potrafi wypełnić Twoje
+        koszyki na Bandcamp i Beatport. Płatność zostaje po Twojej stronie.
+      </li>
+      <li>
+        <strong>Wyeksportuj pod swoje decki.</strong> Zaznacz decki, na których grasz. dj-digger kopiuje pliki, które
+        już odtworzą, a resztę konwertuje, do FLAC, gdy czyta go każdy wybrany deck, w przeciwnym razie do WAV, do
+        nowego folderu.
+      </li>
+      <li><strong>Dodaj folder do rekordbox</strong> i przygotuj pendrive jak zwykle.</li>
+    </ol>
+  </Track>
+
+  <Track id="limits" title="Czego dj-digger nie robi">
+    <ul class="ticks">
+      <li>Nigdy nie zapisuje danych rekordbox ani tagów audio; rekordbox sam analizuje pliki.</li>
+      <li>Nigdy nie zapisuje streamów z SoundCloud: podglądy są dekodowane tylko w pamięci.</li>
+      <li>Zgodność z deckami pochodzi z ich instrukcji, a nie z testów na sprzęcie.</li>
+    </ul>
+  </Track>
+
+  <Track id="get" title="Pobierz" heading="Pobierz dj-digger">
+    <p class="copy">Darmowy i otwartoźródłowy, na Windows, macOS i Linuksa.</p>
+    <div class="cta">
+      <a class="button primary" href="/pl/download/"><Icon name="download-simple" />Pobierz</a>
+      <a class="button" href="/pl/app/"><Icon name="desktop" />Poznaj aplikację</a>
+    </div>
+  </Track>
+</Base>

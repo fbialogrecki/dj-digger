@@ -1,0 +1,71 @@
+---
+import Base from "../../layouts/Base.astro";
+import Icon from "../../components/Icon.astro";
+import Track from "../../components/Track.astro";
+
+const description =
+  "rekordbox streams SoundCloud but cannot export it to USB for CDJs. How to turn a SoundCloud playlist into files you own, ready for rekordbox, with dj-digger.";
+const faq = "https://rekordbox.com/en/support/faq/streaming-7/";
+---
+
+<Base title="How to get a SoundCloud playlist into rekordbox as files" description={description} label="app" article={{ published: "2026-11-20" }}>
+  <Track id="guide" title="SoundCloud to rekordbox" hero sub>
+    <Fragment slot="heading">From a SoundCloud playlist <span class="grad">to rekordbox</span></Fragment>
+    <p class="lede">
+      rekordbox can stream SoundCloud, but streamed tracks cannot go onto a USB stick for the CDJs. For that you need
+      the files. This guide turns a SoundCloud playlist into files you own, by buying them or taking the free download
+      the artist offers.
+    </p>
+  </Track>
+
+  <Track id="streaming" title="What streaming cannot do">
+    <p class="copy">
+      SoundCloud in rekordbox needs a SoundCloud Go+ or DJ subscription. According to the
+      <a href={faq}>rekordbox streaming FAQ</a>:
+    </p>
+    <ul class="ticks">
+      <li>SoundCloud is not available in Export mode, the mode that prepares USB sticks for CDJs.</li>
+      <li>Streamed tracks cannot be exported to a USB drive or SD card.</li>
+      <li>Go+ tracks cannot be played offline; DJ-plan tracks stored offline play for 30 days.</li>
+    </ul>
+  </Track>
+
+  <Track id="steps" title="Five steps" heading="From playlist to files, in five steps">
+    <ol class="ticks">
+      <li>
+        <strong>Import the playlist.</strong> Paste a SoundCloud playlist, likes, reposts or profile link into dj-digger.
+        The whole list arrives through SoundCloud's API, not just the rows a page has scrolled to.
+      </li>
+      <li>
+        <strong>Audition and decide.</strong> Preview each track and mark it got or skipped. dj-digger scans your music
+        folders and marks what you already own.
+      </li>
+      <li>
+        <strong>Get the files.</strong> Take the free download where the artist enabled one or set up a download gate,
+        or buy the track: dj-digger sorts each track's links by store and can fill your Bandcamp and Beatport carts.
+        You check out.
+      </li>
+      <li>
+        <strong>Export for your decks.</strong> Tick the decks you play on. dj-digger copies the files they already
+        play and converts the rest, to FLAC when every chosen deck reads it, otherwise WAV, into a new folder.
+      </li>
+      <li><strong>Add the folder to rekordbox</strong> and prepare your USB stick as you always do.</li>
+    </ol>
+  </Track>
+
+  <Track id="limits" title="What dj-digger does not do">
+    <ul class="ticks">
+      <li>It never writes rekordbox data or audio tags; rekordbox analyses the files itself.</li>
+      <li>It never saves SoundCloud streams: previews are decoded in memory only.</li>
+      <li>Deck compatibility comes from each deck's manual, not from hardware testing.</li>
+    </ul>
+  </Track>
+
+  <Track id="get" title="Download" heading="Download dj-digger">
+    <p class="copy">Free and open source, for Windows, macOS and Linux.</p>
+    <div class="cta">
+      <a class="button primary" href="/download/"><Icon name="download-simple" />Download</a>
+      <a class="button" href="/app/"><Icon name="desktop" />Explore the app</a>
+    </div>
+  </Track>
+</Base>
