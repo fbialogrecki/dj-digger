@@ -168,11 +168,12 @@ def test_send_to_and_find_in_follow_the_current_selection(window):
                                       dict(row('b', 'Beta'), media='local-file')]))
     bridge.receive('sidebar', dict(items=[dict(source='local-playlist:1', title='Local', count=0),
                                           dict(source='remote', title='Mine', count=0, owned=True),
-                                          dict(source='foreign', title='Other', count=0)]))
+                                          dict(source='foreign', title='Other', count=0),
+                                          dict(source='sc-snapshot:daily', title='Daily', count=2)]))
     bridge.table.select(0)
     qml(win, 'contextMenu.open()')
     settle(win)
-    assert qml(win, 'sendToMenu.count') == 3
+    assert qml(win, 'sendToMenu.count') == 5
     assert qml(win, 'sendToMenu.itemAt(0).text') == 'Create playlist from selection…'
     assert qml(win, 'sendToMenu.itemAt(2).enabled')
     assert qml(win, entry(win, 'openSoundCloud') + '.visible')
@@ -181,8 +182,11 @@ def test_send_to_and_find_in_follow_the_current_selection(window):
     assert ('track_link', dict(keys=['a'], generation=3, provider='YouTube Music')) in bridge.backend.calls
     bridge.table.selectAll()
     assert not qml(win, 'searchProviderMenu.enabled')
-    assert not qml(win, 'sendToMenu.itemAt(2).enabled')
-    assert qml(win, 'sendToMenu.itemAt(2).reason') == 'Only SoundCloud tracks can be sent to a SoundCloud playlist'
+    assert qml(win, 'sendToMenu.itemAt(2).enabled && sendToMenu.itemAt(3).enabled')
+    assert not qml(win, 'sendToMenu.itemAt(4).enabled')
+    assert qml(win, 'sendToMenu.itemAt(4).reason') == 'Recommendation snapshots are read-only'
+    qml(win, 'sendToMenu.itemAt(3).triggered()')
+    assert ('add_to_playlist', dict(source='foreign', keys=['a', 'b'], generation=3)) in bridge.backend.calls
     assert not qml(win, entry(win, 'openSoundCloud') + '.visible')
     qml(win, 'sendToMenu.itemAt(1).triggered()')
     assert ('add_to_playlist', dict(source='local-playlist:1', keys=['a', 'b'], generation=3)) in bridge.backend.calls

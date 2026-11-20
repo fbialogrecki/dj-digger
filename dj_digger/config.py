@@ -45,12 +45,14 @@ PERSISTED_FIELDS = (
     "artwork_crop",
     "nyp_price",
     "onboarded",
+    "playlist_sync",
     "check_updates",
     "last_update_check",
 )
 # What a Bandcamp "name your price" item goes into the cart at: its minimum, or the price the
 # artist suggests (owner's decision 2026-10-07: minimum unless changed in Settings).
 NYP_PRICES = ("minimum", "suggested")
+PLAYLIST_SYNC_MODES = {"ask": "Ask every time", "auto": "Sync automatically", "off": "Keep additions in DJ Digger only"}
 
 def is_real_email(value: str) -> bool:
     email = value.strip()
@@ -103,9 +105,10 @@ class AppConfig:
         # launch. The desktop uses it to ask for the settings before anything needs
         # them - gates submit the name and email without asking again.
         self.first_run: bool = False
-        # The desktop's Welcome steps were finished or skipped; they are not shown again.
+        self.playlist_sync = ""  # No choice yet: prompt before the first SoundCloud addition.
         self.check_updates = True
         self.last_update_check = 0
+        # The desktop's Welcome steps were finished or skipped; they are not shown again.
         self.onboarded: bool = False
         self.load()
 
@@ -146,6 +149,9 @@ class AppConfig:
                     self.artwork_crop = crop
                 if raw.get("nyp_price") in NYP_PRICES:
                     self.nyp_price = raw["nyp_price"]
+                mode = raw.get("playlist_sync")
+                if isinstance(mode, str) and mode in PLAYLIST_SYNC_MODES:
+                    self.playlist_sync = mode
                 self.check_updates = raw.get("check_updates") is not False
                 if type(raw.get("last_update_check")) is int:
                     self.last_update_check = raw["last_update_check"]

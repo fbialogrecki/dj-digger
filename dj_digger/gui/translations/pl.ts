@@ -987,6 +987,42 @@
   <context>
     <name>Bridge</name>
     <message>
+      <source>SoundCloud playlist sync</source>
+      <translation>Synchronizacja playlist SoundCloud</translation>
+    </message>
+    <message>
+      <source>Sync automatically</source>
+      <translation>Synchronizuj automatycznie</translation>
+    </message>
+    <message>
+      <source>Ask every time</source>
+      <translation>Pytaj za każdym razem</translation>
+    </message>
+    <message>
+      <source>Keep additions in DJ Digger only</source>
+      <translation>Dodawaj utwory tylko w DJ Digger</translation>
+    </message>
+    <message>
+      <source>Choose on first addition</source>
+      <translation>Wybierz przy pierwszym dodaniu utworu</translation>
+    </message>
+    <message>
+      <source>Tracks are saved in DJ Digger first. Choose whether to also add SoundCloud tracks to playlists you own on SoundCloud.</source>
+      <translation>Utwory są najpierw zapisywane w DJ Digger. Wybierz, czy dodawać utwory z SoundCloud również do Twoich playlist w tym serwisie.</translation>
+    </message>
+    <message>
+      <source>Saved in DJ Digger. SoundCloud sync failed: {0}</source>
+      <translation>Zapisano w DJ Digger. Synchronizacja z SoundCloud nie powiodła się: {0}</translation>
+    </message>
+    <message>
+      <source>Saved in DJ Digger. SoundCloud sync requires a playlist owned by the signed-in account.</source>
+      <translation>Zapisano w DJ Digger. Aby zsynchronizować playlistę z SoundCloud, musisz zalogować się na konto jej właściciela.</translation>
+    </message>
+    <message>
+      <source>Recommendation snapshots are read-only</source>
+      <translation>Zapisane zestawy rekomendacji są tylko do odczytu</translation>
+    </message>
+    <message>
       <source>Drag to position the cover</source>
       <translation>Przeciągnij, aby ustawić kadr okładki</translation>
     </message>
@@ -1547,8 +1583,8 @@
       <translation>Niejednoznaczna nazwa playlisty</translation>
     </message>
     <message>
-      <source>Tracks can only be added to a local playlist</source>
-      <translation>Utwory można dodawać tylko do lokalnej playlisty</translation>
+      <source>This playlist is no longer in your library</source>
+      <translation>Tej playlisty nie ma już w Twojej bibliotece</translation>
     </message>
     <message>
       <source>Rename</source>

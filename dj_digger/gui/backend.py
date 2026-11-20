@@ -18,6 +18,7 @@ from uuid import uuid4
 from .. import links
 from ..analysis import key_names
 from ..cart_models import CartCancelled
+from ..config import PLAYLIST_SYNC_MODES
 from ..diagnostics import log_safe_text
 from ..models import GOT, NEW, SKIP, Cancelled, Crate, check_cancelled, is_cancelled
 from ..paths import playlist_download_directory
@@ -95,6 +96,7 @@ class Backend:
         self.importing = None
         self.saved_playlists = []
         self.playlist_owner = None
+        self.playlist_sync_lock = asyncio.Lock()
         self.mark_lock = asyncio.Lock()
         self.player_lock = asyncio.Lock()
         self.waveform_lock = asyncio.Lock()
@@ -269,7 +271,10 @@ class Backend:
         self.saved_playlists = [
             dict(title=h.title, source=h.source, count=h.count, mediaCount=h.media_count,
                  owned=bool(self.playlist_owner and h.owner_id == self.playlist_owner and h.provider_id
-                            and not h.source.startswith(('local-playlist:', 'sc-snapshot:'))))
+                            and import_target(h.source) == ('set', h.source)),
+                 verifyOwner=bool(self.playlist_owner and h.owner_id in (None, self.playlist_owner)
+                                  and (not h.owner_id or not h.provider_id)
+                                  and import_target(h.source) == ('set', h.source)))
             for h in headers
         ]
         self.send_sidebar()
@@ -296,7 +301,8 @@ class Backend:
         has_streams = any(not track.local_id for track in tracks)
         self.send('view', {'generation': generation, 'title': title, 'source': source,
                           'localPlaylist': local_playlist,
-                          'mixedPlaylist': local_playlist and has_streams and any(track.local_id for track in tracks),
+                          'mixedPlaylist': self.record is not None and (has_streams or not local_playlist)
+                                           and any(track.local_id for track in tracks),
                           'local': self.folder is not None or (local_playlist and not has_streams),
                           'rows': [self.row_value(r) for r in self.rows]}, copy=False)
 
@@ -546,16 +552,20 @@ class Backend:
     async def create_soundcloud_playlist(self, title, sharing, tracks):
         await self.write_soundcloud_tracks(tracks, title=title, sharing=sharing)
 
-    async def add_to_soundcloud_playlist(self, source, tracks):
+    async def add_to_soundcloud_playlist(self, source, tracks, *, confirm=True):
         raw = await self.io(self.services.state.db.load_crate, source)
-        if not raw or type(raw.get('provider_id')) is not int:
+        if not raw:
             raise ValueError('Refresh the playlist to verify its SoundCloud identity')
-        await self.write_soundcloud_tracks(tracks, title=raw['title'], identifier=raw['provider_id'])
+        identifier = raw.get('provider_id')
+        if (import_target(source) != ('set', source)
+                or identifier is not None and (type(identifier) is not int or identifier <= 0)):
+            raise ValueError('Refresh the playlist to verify its SoundCloud identity')
+        await self.write_soundcloud_tracks(tracks, title=raw['title'], identifier=identifier, source=source, confirm=confirm)
         if self.record and self.record.source == source:
             await self.action_load({'source': source})
 
-    async def write_soundcloud_tracks(self, tracks, *, title, sharing='private', identifier=None):
-        from ..services.soundcloud_playlists import account_profile, write_tracks
+    async def write_soundcloud_tracks(self, tracks, *, title, sharing='private', identifier=None, source=None, confirm=True):
+        from ..services.soundcloud_playlists import account_profile, playlist_detail, write_tracks
 
         async def work(handle):
             link = self.services.browser_link
@@ -565,22 +575,33 @@ class Backend:
             connections = [c for c in connections if c.hello.get('playlistWrite') is True]
             if not connections:
                 raise ValueError('The extension is out of date: reload it in your browser')
-            index = 0
-            if len(connections) > 1:
+            connection = connections[0]
+            if len(connections) > 1 and (confirm or not source):
                 options = [[str(i), '{0} ({1})', c.hello.get('browser', ''), str(i + 1)] for i, c in enumerate(connections)]
                 answer = await self.form('Choose the SoundCloud browser', '', [field('browser', 'Browser', '0', 'choice', options)],
                                          lambda a: a, handle.cancel)
-                index = int(answer['browser'])
-            session = connections[index].session()
+                connection = connections[int(answer['browser'])]
+            elif len(connections) > 1:
+                connection = max(connections, key=lambda c: c.last_active)
+            session = connection.session()
             try:
                 client = self.services.client
                 owner = await self.io(account_profile, client)
-                await self.ask('Save on SoundCloud', '', [field('account', 'SoundCloud account', owner[1], 'path'),
-                               field('browser', 'Browser', connections[index].hello.get('browser', ''), 'note'),
-                               field('playlist', 'Playlist', title, 'path'),
-                               field('sharing', 'Visibility', 'Existing playlist' if identifier else
-                                     ('Public' if sharing == 'public' else 'Private'), 'note')],
-                               handle.cancel, ok='Save on SoundCloud')
+                destination_id, destination_title = identifier, title
+                if source:
+                    if owner[0] != self.playlist_owner:
+                        raise ValueError('SoundCloud account or browser connection changed')
+                    data, _ = await self.io(playlist_detail, client, owner, identifier, source)
+                    if data['permalink_url'] != source:
+                        raise ValueError('SoundCloud could not confirm the playlist and its owner')
+                    destination_id, destination_title = data['id'], data['title']
+                if confirm or not source:
+                    await self.ask('Save on SoundCloud', '', [field('account', 'SoundCloud account', owner[1], 'path'),
+                                   field('browser', 'Browser', connection.hello.get('browser', ''), 'note'),
+                                   field('playlist', 'Playlist', destination_title, 'path'),
+                                   field('sharing', 'Visibility', 'Existing playlist' if destination_id else
+                                         ('Public' if sharing == 'public' else 'Private'), 'note')],
+                                   handle.cancel, ok='Save on SoundCloud')
                 counts = [0, 0]
                 def progress(added, skipped, total):
                     counts[:] = [added, skipped]
@@ -589,7 +610,7 @@ class Backend:
                 try:
                     added, skipped = await self.io(write_tracks, client, session, owner, tracks, self.services.state.db,
                                                    self.services.state.db.snapshot_generations(), handle.cancel,
-                                                   title=title, sharing=sharing, identifier=identifier, progress=progress)
+                                                   title=destination_title, sharing=sharing, identifier=destination_id, progress=progress)
                 except Cancelled:
                     self.send('message', {'text': 'Check the playlist on SoundCloud before continuing. Confirmed additions: {0}. Already present: {1}.',
                                           'args': counts})
@@ -1011,20 +1032,43 @@ class Backend:
         tracks = self.playlist_tracks(values)
         if not tracks:
             return
-        if not source.startswith('local-playlist:'):
-            if not any(item['source'] == source and item.get('owned') for item in self.saved_playlists):
-                raise ValueError('Choose a local playlist or a SoundCloud playlist you own')
-            if not all(soundcloud_playlist_track(track) for track in tracks):
-                raise ValueError('Only SoundCloud tracks can be sent to a SoundCloud playlist')
-            await self.add_to_soundcloud_playlist(source, tracks)
-            return
+        if source.startswith('sc-snapshot:'):
+            raise ValueError('Recommendation snapshots are read-only')
         counts = await self.io(self.services.state.db.save_local_playlist, source, None, tracks)
         if not counts:
-            return
+            raise ValueError('This playlist is no longer in your library')
         self.send('message', {'text': 'Added {0}, already present {1}.', 'args': list(counts)})
         await self.sidebar()
         if self.record and self.record.source == source:
             await self.action_load({'source': source})
+
+        remote_tracks = [track for track in tracks if soundcloud_playlist_track(track)]
+        route = import_target(source)
+        if not remote_tracks or not route or route[0] != 'set':
+            return
+        async with self.playlist_sync_lock:
+            config = self.services.config
+            mode = config.playlist_sync
+            if not mode:
+                answer = await self.ask('SoundCloud playlist sync',
+                                        'Tracks are saved in DJ Digger first. Choose whether to also add SoundCloud tracks to playlists you own on SoundCloud.',
+                                        [playlist_sync_field('ask')], ok='Save')
+                mode = answer.get('playlist_sync')
+                if mode not in PLAYLIST_SYNC_MODES:
+                    return
+                await self.io(self.services.accounts.save_preferences, {'playlist_sync': mode})
+            if mode == 'off':
+                return
+            target = next((item for item in self.saved_playlists if item['source'] == source), {})
+            if not (target.get('owned') or target.get('verifyOwner')):
+                self.send('message', {'text': 'Saved in DJ Digger. SoundCloud sync requires a playlist owned by the signed-in account.'})
+                return
+            try:
+                await self.add_to_soundcloud_playlist(source, remote_tracks, confirm=mode == 'ask')
+            except Cancelled:
+                return  # The local addition is already committed.
+            except Exception as exc:
+                self.send('error', {'text': 'Saved in DJ Digger. SoundCloud sync failed: {0}', 'args': [log_safe_text(exc)]})
 
     async def action_rename_playlist(self, values):
         source = values['source']
@@ -1129,6 +1173,8 @@ class Backend:
         def validate(answer):
             if answer.get('_connectionAction') in connection_actions:
                 return answer
+            if 'playlist_sync' in answer and answer['playlist_sync'] not in ('', *PLAYLIST_SYNC_MODES):
+                raise ValueError('SoundCloud playlist sync')
             if answer['user_email'] and not is_real_email(answer['user_email']):
                 raise ValueError('Enter a valid email')
             if not answer['download_directory'].strip():
@@ -1155,6 +1201,7 @@ class Backend:
             field('artwork_crop', 'Drag to position the cover', config.artwork_crop, 'crop'),
             field('previewThirty', 'Start previews at 30 %', values.get('previewThirty') is True, 'bool'),
             accounts_section,
+            playlist_sync_field(config.playlist_sync),
             field('connections', '', kind='connections'),
             browser_status,
             field('browser', 'Open links in', config.browser, 'choice', browsers,
@@ -2244,6 +2291,13 @@ def field(name, label, value='', kind='text', options=(), hint=''):
     header (``collapsed=True`` folds the rows up to the next one), ``buttons`` one footer button
     per option that answers with its value (the dialog then has no OK button)."""
     return dict(name=name, label=label, value=value, kind=kind, options=[list(o) for o in options], hint=hint)
+
+
+def playlist_sync_field(mode):
+    options = list(PLAYLIST_SYNC_MODES.items())
+    if not mode:
+        options.insert(0, ('', 'Choose on first addition'))
+    return field('playlist_sync', 'SoundCloud playlist sync', mode, 'choice', options)
 
 
 def soundcloud_playlist_track(track):

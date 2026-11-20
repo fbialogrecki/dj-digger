@@ -7,7 +7,7 @@
 | **Owner** | Filip Białogrecki |
 | **Last updated** | 2026-11-18 |
 | **Product version** | 1.6.0 (`pyproject.toml`); browser extension 1.4.5 (`dj_digger/webext/extension/manifest.json`) |
-| **Document lines** | <!-- SPEC TOTAL LINES -->2873<!-- END SPEC TOTAL LINES --> |
+| **Document lines** | <!-- SPEC TOTAL LINES -->2876<!-- END SPEC TOTAL LINES --> |
 | **Verified against** | `pyproject.toml`, `dj_digger/`, `dj_digger/webext/extension/manifest.json`, `scripts/`, `tests/`, `.github/workflows/`, `README.md`, `CHANGELOG.md` |
 
 ## Purpose of this file
@@ -54,7 +54,7 @@ text is never promoted into the map.
 | 2 | Product purpose and execution modes | 162–209 |
 | 2.1 | ↳ Problem and product boundary | 164–177 |
 | 2.2 | ↳ Execution modes | 178–209 |
-| 3 | User-visible capabilities | 210–1270 |
+| 3 | User-visible capabilities | 210–1269 |
 | 3.1 | ↳ Track collection | 212–244 |
 | 3.2 | ↳ Link classification and exports | 245–263 |
 | 3.3 | ↳ Track statuses | 264–274 |
@@ -62,58 +62,58 @@ text is never promoted into the map.
 | 3.5 | ↳ Downloads and local-file matching | 448–509 |
 | 3.6 | ↳ Store purchase assistance | 510–633 |
 | 3.7 | ↳ Local library, analysis and audio export | 634–830 |
-| 3.8 | ↳ Qt Quick desktop | 831–1270 |
-| 4 | System context and data flow | 1271–1317 |
-| 4.1 | ↳ Context diagram | 1273–1299 |
-| 4.2 | ↳ Collection-to-library flow | 1300–1317 |
-| 5 | Repository layout and component ownership | 1318–1407 |
-| 5.1 | ↳ Entry, orchestration, and models | 1320–1331 |
-| 5.2 | ↳ Network and external-system adapters | 1332–1364 |
-| 5.3 | ↳ Persistence, local media, and UI | 1365–1407 |
-| 6 | Runtime architecture and environments | 1408–1553 |
-| 6.1 | ↳ Runtime and dependencies | 1410–1438 |
-| 6.2 | ↳ Concurrency and lifecycle | 1439–1516 |
-| 6.3 | ↳ Local paths and environment variables | 1517–1553 |
-| 7 | Data model and persistence | 1554–1684 |
-| 7.1 | ↳ Domain objects and identity | 1556–1570 |
-| 7.2 | ↳ SQLite schema and invariants | 1571–1632 |
-| 7.3 | ↳ Crate persistence and deletion | 1633–1648 |
-| 7.4 | ↳ Configuration and credential stores | 1649–1684 |
-| 8 | Public interfaces and contracts | 1685–1748 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1687–1718 |
-| 8.2 | ↳ JSON and CSV summary input | 1719–1734 |
-| 8.3 | ↳ URL-opening contract | 1735–1748 |
-| 9 | Authentication and authorization | 1749–1826 |
-| 9.1 | ↳ SoundCloud authentication | 1751–1791 |
-| 9.2 | ↳ Gate action consent | 1792–1826 |
-| 10 | External integrations | 1827–2274 |
-| 10.1 | ↳ SoundCloud API and media | 1829–1840 |
-| 10.2 | ↳ Link hubs and download gates | 1841–1987 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1849–1944 |
-| 10.2 · block | ↳ ↳ ToneDen | 1946–1970 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1972–1980 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1982–1987 |
-| 10.3 | ↳ Browsers and clipboard | 1988–2219 |
-| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 2220–2274 |
-| 11 | Security requirements and threat model | 2275–2494 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2277–2295 |
-| 11.2 | ↳ Secret and personal-data handling | 2296–2311 |
-| 11.3 | ↳ File and mutation safety | 2312–2333 |
-| 11.4 | ↳ Browser-extension trust boundary | 2334–2494 |
-| 12 | Privacy, lifecycle, and retention | 2495–2554 |
-| 12.1 | ↳ Data stored locally | 2497–2521 |
-| 12.2 | ↳ Data sent to third parties | 2522–2539 |
-| 12.3 | ↳ User-controlled deletion | 2540–2554 |
-| 13 | Failure behavior and current limitations | 2555–2670 |
-| 13.1 | ↳ Error isolation and reporting | 2557–2578 |
-| 13.2 | ↳ Confirmed limitations | 2579–2670 |
-| 14 | Verification, CI, and release | 2671–2835 |
-| 14.1 | ↳ Offline and live test suites | 2673–2724 |
-| 14.2 | ↳ Continuous integration and publishing | 2725–2818 |
-| 14.3 | ↳ Specification-map verification | 2819–2835 |
-| 15 | References | 2836–2873 |
-| 15.1 | ↳ Primary implementation evidence | 2838–2859 |
-| 15.2 | ↳ User and historical documentation | 2860–2873 |
+| 3.8 | ↳ Qt Quick desktop | 831–1269 |
+| 4 | System context and data flow | 1270–1316 |
+| 4.1 | ↳ Context diagram | 1272–1298 |
+| 4.2 | ↳ Collection-to-library flow | 1299–1316 |
+| 5 | Repository layout and component ownership | 1317–1406 |
+| 5.1 | ↳ Entry, orchestration, and models | 1319–1330 |
+| 5.2 | ↳ Network and external-system adapters | 1331–1363 |
+| 5.3 | ↳ Persistence, local media, and UI | 1364–1406 |
+| 6 | Runtime architecture and environments | 1407–1552 |
+| 6.1 | ↳ Runtime and dependencies | 1409–1437 |
+| 6.2 | ↳ Concurrency and lifecycle | 1438–1515 |
+| 6.3 | ↳ Local paths and environment variables | 1516–1552 |
+| 7 | Data model and persistence | 1553–1683 |
+| 7.1 | ↳ Domain objects and identity | 1555–1569 |
+| 7.2 | ↳ SQLite schema and invariants | 1570–1631 |
+| 7.3 | ↳ Crate persistence and deletion | 1632–1647 |
+| 7.4 | ↳ Configuration and credential stores | 1648–1683 |
+| 8 | Public interfaces and contracts | 1684–1747 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1686–1717 |
+| 8.2 | ↳ JSON and CSV summary input | 1718–1733 |
+| 8.3 | ↳ URL-opening contract | 1734–1747 |
+| 9 | Authentication and authorization | 1748–1825 |
+| 9.1 | ↳ SoundCloud authentication | 1750–1790 |
+| 9.2 | ↳ Gate action consent | 1791–1825 |
+| 10 | External integrations | 1826–2277 |
+| 10.1 | ↳ SoundCloud API and media | 1828–1839 |
+| 10.2 | ↳ Link hubs and download gates | 1840–1986 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1848–1943 |
+| 10.2 · block | ↳ ↳ ToneDen | 1945–1969 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1971–1979 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1981–1986 |
+| 10.3 | ↳ Browsers and clipboard | 1987–2222 |
+| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 2223–2277 |
+| 11 | Security requirements and threat model | 2278–2497 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2280–2298 |
+| 11.2 | ↳ Secret and personal-data handling | 2299–2314 |
+| 11.3 | ↳ File and mutation safety | 2315–2336 |
+| 11.4 | ↳ Browser-extension trust boundary | 2337–2497 |
+| 12 | Privacy, lifecycle, and retention | 2498–2557 |
+| 12.1 | ↳ Data stored locally | 2500–2524 |
+| 12.2 | ↳ Data sent to third parties | 2525–2542 |
+| 12.3 | ↳ User-controlled deletion | 2543–2557 |
+| 13 | Failure behavior and current limitations | 2558–2673 |
+| 13.1 | ↳ Error isolation and reporting | 2560–2581 |
+| 13.2 | ↳ Confirmed limitations | 2582–2673 |
+| 14 | Verification, CI, and release | 2674–2838 |
+| 14.1 | ↳ Offline and live test suites | 2676–2727 |
+| 14.2 | ↳ Continuous integration and publishing | 2728–2821 |
+| 14.3 | ↳ Specification-map verification | 2822–2838 |
+| 15 | References | 2839–2876 |
+| 15.1 | ↳ Primary implementation evidence | 2841–2862 |
+| 15.2 | ↳ User and historical documentation | 2863–2876 |
 <!-- END GENERATED SECTION MAP -->
 
 ---
@@ -1010,8 +1010,7 @@ title and the number of active tracks (§7.2); a playlist still importing shows 
 list and Enter opens the current playlist, as a click does. The playlist menu acts on that playlist: Open, Refresh (SoundCloud
 playlists: shows the playlist and imports it again), Rename… (a SoundCloud playlist keeps the new title over SoundCloud's on
 refresh, §7.3), Restore removed tracks, Duplicate… (local playlists: a new local playlist with the same active ordered members), Export audio… (local playlists:
-the audio export of §3.7 for its active local file members; disabled while an operation runs or when no local file members are present) and Delete playlist…. Tracks dragged from selected rows onto an editable playlist use the same ordered append and membership checks as Send to.
-An owned SoundCloud destination requires a fully identified SoundCloud selection. Snapshots have no refresh or append action.
+the audio export of §3.7 for its active local file members; disabled while an operation runs or when no local file members are present) and Delete playlist…. Drag a single row sideways, or drag any row in a selection, onto a sidebar playlist to add the tracks in displayed order. A vertical drag from an unselected row selects a range. Drag and Send to use the same local save and optional SoundCloud sync. Dated recommendation snapshots are read-only.
 
 Root rows and tree rows share one 28 px row style: a 20 px chevron slot (empty, but keeping its place, without visible
 subfolders, so names line up), a folder icon, 16 px indentation per level, a hover surface and the accent selection background.
@@ -1025,7 +1024,7 @@ folders with only files or hidden subfolders remain selectable leaves.
 Selecting a folder opens its tracks in the paged table, and the page range appears only for folders above one page. Root and tree rows highlight only the folder whose tracks are loaded (paths compared after normalization), so opening a playlist clears the folder highlight. It provides
 search, multi-select store filtering with per-store counts derived from the loaded view,
 status, BPM, key and genre filtering, stable-key selection, numeric sorting with a header
-arrow (a click sorts ascending, a second descending, a third returns to source order; ties fall back to artist, then title, ascending; the sort persists across restarts), resizable columns, keyboard navigation and native clipboard copying. The title column is headed Track name and absorbs the remaining width up to the pane's right edge (the scroll bar floats over it) so status and store columns stay on screen at the default window size, unless the user has dragged or fitted it. Default widths are status 110, artist 150, genre 85, BPM and key 64, year 58, label 95, time 70 and stores 140; status, BPM, key, year and time never go below 104, 56, 56, 58 and 70 px, whatever width was saved or dragged. Dragging a header divider resizes that column and the width provider honours the explicit width. Double-clicking a divider fits the column to its widest visible value or header; the divider strip does not sort. Right-clicking a header opens a column menu with Fit column to contents, Fit all columns, Reset column widths, Reset column order and a checkable entry per column; the title column cannot be hidden and BPM/key stay unavailable outside local views. Two more columns, Format (the file's extension plus its bitrate once probed, e.g. `MP3 320 kbps`) and Comment (the file's comment tag on one line), exist for local views only and are hidden by default, also for settings saved before they existed; date added, last played, rating and energy are not shown because no per-track value for them is stored. Dragging a header moves the column; delegates, widths and sorting keep their logical column, and the visual order is restored at startup. Rows are never reordered: every model reset drops the row mapping that Qt 6.11 freezes when a column moves, which otherwise aborted the app when a larger view loaded, while the column order stays. Status cells read `New`, a muted `Played`, `○ Opened`, `✓ Got` and `✗ Skipped`,
+arrow (a click sorts ascending, a second descending, a third returns to source order; ties fall back to artist, then title, ascending; the sort persists across restarts), resizable columns, keyboard navigation and native clipboard copying. The title column is headed Track name and absorbs the remaining width up to the pane's right edge (the scroll bar floats over it) so status and store columns stay on screen at the default window size, unless the user has dragged or fitted it. Default widths are status 110, artist 150, genre 85, BPM and key 64, year 58, label 95, time 70 and stores 140; status, BPM, key, year and time never go below 104, 56, 56, 58 and 70 px, whatever width was saved or dragged. Dragging a header divider resizes that column and the width provider honours the explicit width. Double-clicking a divider fits the column to its widest visible value or header; the divider strip does not sort. Right-clicking a header opens a column menu with Fit column to contents, Fit all columns, Reset column widths, Reset column order and a checkable entry per column; the title column cannot be hidden and BPM/key stay unavailable outside local views. Two more columns, Format (the file's extension plus its bitrate once probed, e.g. `MP3 320 kbps`) and Comment (the file's comment tag on one line), exist for local views only and are hidden by default, also for settings saved before they existed; date added, last played, rating and energy are not shown because no per-track value for them is stored. Dragging a header previews its position by moving and shading the entire column. Release commits the order and Escape restores the previous position. Delegates, widths and sorting keep their logical column, and the visual order is restored at startup. Rows are never reordered: every model reset drops the row mapping that Qt 6.11 freezes when a column moves, which otherwise aborted the app when a larger view loaded, while the column order stays. Status cells read `New`, a muted `Played`, `○ Opened`, `✓ Got` and `✗ Skipped`,
 coloured in the text colour for new, muted for played and skipped, success for owned and warning for opened.
 Durations read m:ss, or h:mm:ss from an hour, in the table and the transport. Store cells render one badge style
 for every store, with download gates in the warning colour; a gate badge names its site (Hypeddit, ToneDen, GateRush, …, or Gate for a site without a name) and every other category reads by its display name (SoundCloud, Bandcamp, Beatport, Traxsource, Juno Download, Apple Music, Shop, Smart link, Streaming, Others, No link; one table in `gui/model.py`, the generic words translated, store and site names not), and the store pills and their counts name them the same way; `no-link` leaves the cell empty. Outside local views a
@@ -1089,7 +1088,7 @@ The row menu includes Play, Send to, Open track in SoundCloud (one recognized tr
 Find in opens an encoded artist/title search in the configured browser, including for local files. Neither lookup
 changes track status. File actions include Reveal, BPM/key editing and audio export. Store carts are available
 for remote tracks. Removal from a playlist and deletion of files in a folder are distinct confirmed actions.
-Send to lists Create playlist from selection… first, then editable sidebar destinations tagged DJ Digger or SoundCloud.
+Send to lists Create playlist from selection… first, then saved sidebar playlists, including imports with no recorded owner. Dated snapshots are disabled. Local additions to an imported playlist follow its provider tracks, survive refresh, and appear only once if also returned by SoundCloud.
 New playlists accept mixed local and SoundCloud tracks and have distinct identities even with equal titles.
 The displayed selection order is captured when Send to is invoked. Existing entries are skipped in a transaction
 and previously removed entries can be restored. Local playlist deletion preserves media and global statuses. A right
@@ -1612,7 +1611,7 @@ New libraries use `PRAGMA user_version=4`. The additive v4 table
 `local_playlist_soundcloud_items` holds the SoundCloud key and track metadata alongside a position
 in the same ordering as `local_playlist_items`. Existing file memberships, ordering and legacy duplicates
 stay in place. The SQLite transaction adds the table on v2/v3 upgrades. Playlist headers carry optional
-provider and owner IDs. A matching signed-in account identifies editable provider destinations. Schema 3 adds only
+provider and owner IDs. Imported playlists also use these membership tables for local additions. A canonical set from an older import can have its owner verified when adding tracks. Schema 3 adds only
 `waveforms(key PRIMARY KEY, signature, samples_json)`, the envelope of each played
 track (`samples_json` holds a peak list, or `{peaks, bands}` in rows kept by 1.4.0-1.5.0) with the local file's signature (`''` for a stream); rows are not pruned. A
 v2 library gains it inside the opening `BEGIN IMMEDIATE` transaction, without a backup. Existing recognized v0/v1
@@ -1655,7 +1654,7 @@ the desktop's folder tree leaves out) and
 `export_decks`, the decks of the last audio export in deck order (unknown names
 dropped, every deck when none remain), and `default_artwork`, the path of a
 picture for the record label of tracks without artwork (empty for none; Settings
-requires an existing file, read up to 16 MiB). The optional `artwork_crop` is a fraction from 0 to 1 along the longer side, default 0.5. The Settings preview supports dragging and arrow keys. The same crop applies to all default cover renditions. Config also stores `nyp_price`, `minimum` (default) or `suggested`: the
+requires an existing file, read up to 16 MiB). The optional `artwork_crop` is a fraction from 0 to 1 along the longer side, default 0.5. The private playlist_sync preference records auto, ask or off; an empty value prompts on first use. The Settings preview supports dragging and arrow keys. The same crop applies to all default cover renditions. Config also stores `nyp_price`, `minimum` (default) or `suggested`: the
 price a Bandcamp name-your-price item goes into the cart at (§3.6; any other value
 reads as `minimum`).
 The default email uses the reserved `.invalid` domain. A first missing config is
@@ -2207,9 +2206,13 @@ permission justifications and data disclosures live in `CHROMEWEBSTORE.md`, the
 extension's privacy policy in `PRIVACY.md`.
 
 The desktop optionally creates a SoundCloud playlist from an already-saved local playlist, or adds tracks to an
-existing owned SoundCloud destination. A dialog confirms the account, selected browser, destination and
-visibility (private by default for creation). Only connections advertising `playlistWrite` are offered, and the
-chosen connection stays pinned for the operation. `playlist.writeTrack`
+existing owned SoundCloud destination. Adding to an existing playlist always saves the selection in DJ Digger first.
+The first addition of identifiable SoundCloud tracks to a saved set asks whether to sync automatically,
+ask each time, or keep additions local. Preferences → Accounts and browser can change this choice.
+Only identifiable SoundCloud tracks can sync, and the application verifies playlist identity and ownership
+before writing. Files stay local. Cancelling or failing remote sync preserves the local addition.
+Ask mode and playlist creation confirm the account, browser, destination and visibility (private by default for creation). Only connections advertising `playlistWrite` are offered, and the
+chosen connection stays pinned for the operation. Automatic sync uses the most recently active eligible connection. `playlist.writeTrack`
 opens an isolated-world form interaction in a temporary SoundCloud track tab with a fixed sequence of
 operations. It checks the canonical track and signed-in profile, requires the precise playlist link, avoids
 the selected remove toggle and closes its tab. Generic DOM access on SoundCloud remains disabled. The desktop

@@ -987,6 +987,42 @@
   <context>
     <name>Bridge</name>
     <message>
+      <source>SoundCloud playlist sync</source>
+      <translation>Синхронизация плейлистов SoundCloud</translation>
+    </message>
+    <message>
+      <source>Sync automatically</source>
+      <translation>Синхронизировать автоматически</translation>
+    </message>
+    <message>
+      <source>Ask every time</source>
+      <translation>Спрашивать каждый раз</translation>
+    </message>
+    <message>
+      <source>Keep additions in DJ Digger only</source>
+      <translation>Добавлять треки только в DJ Digger</translation>
+    </message>
+    <message>
+      <source>Choose on first addition</source>
+      <translation>Выбрать при первом добавлении</translation>
+    </message>
+    <message>
+      <source>Tracks are saved in DJ Digger first. Choose whether to also add SoundCloud tracks to playlists you own on SoundCloud.</source>
+      <translation>Треки сначала сохраняются в DJ Digger. Выберите, добавлять ли треки из SoundCloud также в ваши собственные плейлисты на SoundCloud.</translation>
+    </message>
+    <message>
+      <source>Saved in DJ Digger. SoundCloud sync failed: {0}</source>
+      <translation>Сохранено в DJ Digger. Не удалось синхронизировать с SoundCloud: {0}</translation>
+    </message>
+    <message>
+      <source>Saved in DJ Digger. SoundCloud sync requires a playlist owned by the signed-in account.</source>
+      <translation>Сохранено в DJ Digger. Для синхронизации с SoundCloud плейлист должен принадлежать аккаунту, в который вы вошли.</translation>
+    </message>
+    <message>
+      <source>Recommendation snapshots are read-only</source>
+      <translation>Сохранённые подборки рекомендаций доступны только для чтения</translation>
+    </message>
+    <message>
       <source>Drag to position the cover</source>
       <translation>Перетащите, чтобы расположить обложку</translation>
     </message>
@@ -1547,8 +1583,8 @@
       <translation>Неоднозначное название плейлиста</translation>
     </message>
     <message>
-      <source>Tracks can only be added to a local playlist</source>
-      <translation>Треки можно добавлять только в локальный плейлист</translation>
+      <source>This playlist is no longer in your library</source>
+      <translation>Этого плейлиста больше нет в вашей библиотеке</translation>
     </message>
     <message>
       <source>Rename</source>

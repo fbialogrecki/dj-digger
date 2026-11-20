@@ -205,6 +205,46 @@ def test_qml_table_keyboard_drag_density_and_now_playing(app, tmp_path, monkeypa
                                     rows=[row(str(i), f'Track {i}') for i in range(60)]))
         settle()
         table = window.findChild(QQuickItem, 'trackTable')
+        start = qml('header.mapToItem(null, 45, 16)').toPoint()
+        middle = qml('header.mapToItem(null, table.columnWidth(0) + 40, 16)').toPoint()
+        end = qml('header.mapToItem(null, table.columnWidth(0) + table.columnWidth(1) + 40, 16)').toPoint()
+        for cancel in (True, False):
+            QTest.mousePress(window, Qt.LeftButton, pos=start)
+            QTest.mouseMove(window, middle)
+            settle()
+            QTest.mouseMove(window, end)
+            settle()
+            assert qml('columnDrag.dragging') and qml('columnDrag.source') == 0
+            assert window.property('columnOrder').toVariant()[:3] == [1, 2, 0]
+            assert qml('table.itemAtIndex(desktop.model.index(0, 0)).x') > qml('table.itemAtIndex(desktop.model.index(0, 2)).x')
+            for logical_column in (0, 1, 2):
+                cell = qml(f'table.itemAtIndex(desktop.model.index(0, {logical_column}))')
+                assert cell.findChild(QQuickItem, 'columnDragShade').isVisible() == (logical_column == 0)
+            if cancel:
+                QTest.keyClick(window, Qt.Key_Escape)
+            QTest.mouseRelease(window, Qt.LeftButton, pos=end)
+            settle()
+            assert not qml('columnDrag.dragging')
+            assert window.property('columnOrder').toVariant()[:3] == ([0, 1, 2] if cancel else [1, 2, 0])
+            assert bridge.table.sort_column == -1
+        qml('resetColumnOrder(); applyColumnOrder([2, 1, 0].concat(allColumns.slice(3)))')
+        settle()
+        assert window.property('columnOrder').toVariant()[:3] == [2, 1, 0]
+        qml('resetColumnOrder()')
+        settle()
+        QTest.mouseClick(window, Qt.LeftButton, pos=middle)
+        assert bridge.table.sort_column == 1
+        edge = qml('header.mapToItem(null, table.columnWidth(0) - 1, 16)').toPoint()
+        wider = qml('header.mapToItem(null, table.columnWidth(0) + 35, 16)').toPoint()
+        QTest.mouseMove(window, edge)
+        settle()
+        QTest.mousePress(window, Qt.LeftButton, pos=edge)
+        QTest.mouseMove(window, (edge + wider) / 2)
+        QTest.mouseMove(window, wider)
+        QTest.mouseRelease(window, Qt.LeftButton, pos=wider)
+        settle()
+        assert qml('table.columnWidth(0)') > 110 and bridge.table.sort_column == 1
+        qml('resetColumnWidths(); desktop.model.setSort(-1, false)')
         table.forceActiveFocus()
         # Down with no keyboard row starts at the first row.
         assert qml('table.keyboardRow') == -1

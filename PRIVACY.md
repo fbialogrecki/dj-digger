@@ -62,7 +62,7 @@ like any link you click, and sends nothing with it.
   digger" sends the clean `https://soundcloud.com/...` playlist address and
   the date of your click to the desktop app. Selecting Import or "Open dj-digger"
   can start the registered desktop app on your computer.
-- **SoundCloud playlist edits you confirm in the desktop app**: the extension
+- **SoundCloud playlist edits**: adding tracks to an imported playlist saves them locally first. You can enable automatic syncing of SoundCloud tracks to playlists you own, ask before each addition, or keep additions local. Change the setting under Preferences → Accounts and browser. Local audio files stay on your computer. For a remote edit, the extension
   opens a temporary SoundCloud track tab and checks that the signed-in browser
   account matches the app's account. It operates SoundCloud's Add to playlist
   form for the chosen track and playlist or uses the name and visibility you

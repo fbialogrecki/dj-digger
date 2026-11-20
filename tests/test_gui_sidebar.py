@@ -63,7 +63,7 @@ def test_local_playlists_take_dropped_tracks_rename_and_duplicate(backend, tmp_p
     kind, value = events.get(timeout=10)
     while kind != 'error':
         kind, value = events.get(timeout=10)
-    assert 'local playlist' in value['text']
+    assert value['text'] == 'This playlist is no longer in your library'
 
 
 def test_a_local_playlist_exports_exactly_its_files_from_the_sidebar(backend, tmp_path):  # noqa: F811
@@ -207,6 +207,49 @@ def test_soundcloud_write_stays_in_chosen_browser_when_accounts_differ(backend, 
     session.close.assert_called_once()
 
 
+@pytest.mark.parametrize('mode', ['auto', 'ask', 'off', None])
+def test_imported_playlist_local_first_sync_choice(backend, mode, monkeypatch, tmp_path):  # noqa: F811
+    import asyncio
+    from unittest.mock import AsyncMock
+
+    from dj_digger.config import AppConfig
+    from dj_digger.crate_models import CrateRecord
+    from dj_digger.models import Track
+
+    worker, events = backend
+    source = 'https://soundcloud.com/test/sets/set'
+    track = Track('New', 'https://soundcloud.com/test/new', id=12)
+    db = worker.services.state.db
+    db.save_crate(CrateRecord(source, 'Set', [], provider_id=7).to_json())  # legacy, owner unknown
+    db.save_crate(CrateRecord('sc-snapshot:from', 'From', [track]).to_json())
+    monkeypatch.setattr(worker, 'soundcloud_account', lambda: (True, 'test', 1))
+    remote = AsyncMock(side_effect=ValueError('offline'))
+    monkeypatch.setattr(worker, 'add_to_soundcloud_playlist', remote)
+    worker.submit('load', {'source': 'sc-snapshot:from'})
+    view = wait_event(events, 'view')
+    def add():
+        return asyncio.run_coroutine_threadsafe(worker.dispatch('add_to_playlist', dict(
+            source=source, keys=['12'], generation=view['generation'])), worker.loop)
+
+    result = add()
+    question = wait_event(events, 'question')
+    assert question['title'] == 'SoundCloud playlist sync'
+    assert [t.key for t in worker.services.library.load(source).active_tracks] == ['12']
+    remote.assert_not_awaited()
+    worker.answer(question['id'], {'playlist_sync': mode} if mode else None)
+    result.result(5)
+    assert AppConfig(tmp_path / 'config.json').playlist_sync == (mode or '')
+    if mode:
+        add().result(5)  # Idempotent locally; a repeated send can retry a failed remote addition.
+    if mode in ('auto', 'ask'):
+        assert remote.await_count == 2
+        assert remote.await_args.kwargs == {'confirm': mode == 'ask'}
+        assert next_of(events, 'error')[1]['text'] == 'Saved in DJ Digger. SoundCloud sync failed: {0}'
+    else:
+        remote.assert_not_awaited()
+    assert [t.key for t in worker.services.library.load(source).active_tracks] == ['12']
+
+
 def test_only_current_account_playlists_are_remote_destinations(backend, monkeypatch):  # noqa: F811
     from dj_digger import auth
     from dj_digger.crate_models import CrateRecord
@@ -225,7 +268,10 @@ def test_only_current_account_playlists_are_remote_destinations(backend, monkeyp
     items = wait_event(events, 'sidebar')['items']
     assert {item['source'] for item in items if item['owned']} == {owned}
 
-    async def add(source, tracks):
+    worker.services.config.playlist_sync = 'auto'
+
+    async def add(source, tracks, *, confirm):
+        assert not confirm
         assert source == owned and [t.key for t in tracks] == ['1']
         worker.send('message', {'text': 'Called remote adapter'})
 
@@ -234,13 +280,74 @@ def test_only_current_account_playlists_are_remote_destinations(backend, monkeyp
     view = wait_event(events, 'view')
     selected = dict(generation=view['generation'], keys=['1'])
     worker.submit('add_to_playlist', dict(selected, source=owned))
+    assert wait_event(events, 'message')['text'] == 'Added {0}, already present {1}.'
     assert wait_event(events, 'message')['text'] == 'Called remote adapter'
     worker.submit('add_to_playlist', dict(selected, source=snapshot))
-    assert 'you own' in next_of(events, 'error')[1]['text']
+    assert next_of(events, 'error')[1]['text'] == 'Recommendation snapshots are read-only'
 
     monkeypatch.setenv('SOUNDCLOUD_OAUTH_TOKEN', 'another-account')
     worker.submit('account')
     assert not any(item['owned'] for item in wait_event(events, 'sidebar')['items'])
+
+
+@pytest.mark.parametrize(('stored_id', 'actual_owner', 'slug', 'confirm'), [
+    (5, 1, 'mine', True), (None, 1, 'mine', False), (5, 2, 'mine', True),
+    (5, 1, 'unrelated', True), (5, 1, 'unrelated', False),
+])
+def test_legacy_remote_destination_verified_before_confirmation(backend, monkeypatch, stored_id, actual_owner, slug, confirm):  # noqa: F811
+    import asyncio
+    from unittest.mock import Mock
+
+    from dj_digger import auth
+    from dj_digger.crate_models import CrateRecord
+    from dj_digger.models import Track
+
+    worker, events = backend
+    profile = 'https://soundcloud.com/owner'
+    source = profile + '/sets/mine'
+    track = Track('Track', profile + '/track', id=3)
+    db = worker.services.state.db
+    db.save_crate(CrateRecord(source, 'Saved title', [track], provider_id=stored_id).to_json())
+    db.save_crate(CrateRecord(profile, 'Non-set', [track], provider_id=5, owner_id=1).to_json())
+    auth.save_token('fixture-account', 'owner', 1)
+    client = worker.services.client
+    detail = dict(kind='playlist', id=5, user_id=actual_owner, permalink_url=profile + '/sets/' + slug,
+                  title='Current title', tracks=[{'id': 3}], track_count=1)
+    get = Mock(side_effect=lambda path: {'id': 1, 'permalink_url': profile} if path == '/me' else detail)
+    resolve = Mock(return_value=detail)
+    monkeypatch.setattr(client, '_get', get)
+    monkeypatch.setattr(client, 'resolve', resolve)
+    monkeypatch.setattr(client, 'hydrate_tracks', lambda ids, cancel: [track])
+    browser = Mock(compatible=True, last_active=2, hello=dict(browser='chrome', permissions=True, playlistWrite=True))
+    older = Mock(compatible=True, last_active=1, hello=browser.hello)
+    session = browser.session.return_value
+    session.error = None
+    link = Mock()
+    link.connections.return_value = [browser] if confirm else [older, browser]
+    monkeypatch.setattr(worker.services, 'browser_link', link)
+    worker.submit('account')
+    items = {p['source']: p for p in wait_event(events, 'sidebar')['items']}
+    assert items[source]['verifyOwner'] and not items[source]['owned']
+    assert not items[profile]['verifyOwner'] and not items[profile]['owned']
+    get.assert_not_called()
+    resolve.assert_not_called()
+
+    result = asyncio.run_coroutine_threadsafe(worker.add_to_soundcloud_playlist(source, [track], confirm=confirm), worker.loop)
+    if actual_owner != 1 or slug != 'mine':
+        with pytest.raises(ValueError, match='confirm the playlist and its owner'):
+            result.result(timeout=5)
+    else:
+        if confirm:
+            question = wait_event(events, 'question')
+            assert {f['name']: f['value'] for f in question['fields']}['playlist'] == 'Current title'
+            worker.answer(question['id'], {})
+        result.result(timeout=5)
+        assert db.load_crate(source)['owner_id'] == 1
+        if stored_id is None:
+            resolve.assert_called_once_with(source)
+    older.session.assert_not_called()
+    session.submit.assert_not_called()  # A confirmed duplicate or rejected ownership never writes.
+    session.close.assert_called_once()
 
 
 def test_folder_menu_pins_unpins_and_unhides_the_folder_it_names(backend, tmp_path):  # noqa: F811
@@ -426,15 +533,23 @@ def test_qml_sidebar_sections_filter_keyboard_menus_and_track_drop(app, tmp_path
         table = find_item(scene, 'trackTable')
         start = table.mapToScene(QPointF(300, 50)).toPoint()
         target = center(find_item(scene, 'playlist-' + local))
-        # A drag starts from a selected row; from an unselected one it selects rows instead.
-        QTest.mouseClick(window, Qt.LeftButton, pos=start)
-        QTest.qWait(700)  # Not a double click, which would play.
-        QTest.mousePress(window, Qt.LeftButton, pos=start)
-        for step in range(1, 11):
-            QTest.mouseMove(window, start + (target - start) * step / 10)
-            QTest.qWait(10)
-        QTest.mouseRelease(window, Qt.LeftButton, pos=target)
+        def drag_to_playlist():
+            QTest.mousePress(window, Qt.LeftButton, pos=start)
+            for step in range(1, 11):
+                QTest.mouseMove(window, start + (target - start) * step / 10)
+                QTest.qWait(10)
+            assert find_item(scene, 'trackDrag').isVisible()
+            QTest.mouseRelease(window, Qt.LeftButton, pos=target)
+            assert not find_item(scene, 'trackDrag').isVisible()
+
+        # The very first press can copy one track. Dragging an already selected
+        # row preserves all selected tracks, including their visible order.
+        drag_to_playlist()
         assert bridge.backend.calls[-1] == ('add_to_playlist', dict(source=local, keys=['local:1'], generation=5))
+        first = table.mapToScene(QPointF(300, 17)).toPoint()
+        QTest.mouseClick(window, Qt.LeftButton, Qt.ControlModifier, first)
+        drag_to_playlist()
+        assert bridge.backend.calls[-1] == ('add_to_playlist', dict(source=local, keys=['local:0', 'local:1'], generation=5))
         # A folder dropped on the Folders section from a file manager is added.
         from PySide6.QtCore import QMimeData
         from PySide6.QtGui import QDragEnterEvent, QDragMoveEvent, QDropEvent

@@ -144,3 +144,14 @@ def test_nyp_price_is_minimum_unless_a_known_choice_was_saved(tmp_path):
     assert AppConfig(path).nyp_price == "suggested"
     path.write_text('{"nyp_price": "everything"}')
     assert AppConfig(path).nyp_price == "minimum"
+
+def test_playlist_sync_requires_a_recognized_explicit_choice(tmp_path):
+    path = tmp_path / 'config.json'
+    cfg = AppConfig(path)
+    assert cfg.playlist_sync == ''
+    for mode in ('off', 'auto', 'ask'):
+        cfg.playlist_sync = mode
+        cfg.save()
+        assert AppConfig(path).playlist_sync == mode
+    path.write_text('{"playlist_sync": ["auto"]}')
+    assert AppConfig(path).playlist_sync == ''

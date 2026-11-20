@@ -270,8 +270,8 @@ shortcuts) for the full generated shortcut list. Running `dj-digger` without a
 link prints a pointer to it and exits.
 
 Select tracks and right-click **Send to → Create playlist from selection…** to name a local playlist.
-The same submenu lists existing local playlists and SoundCloud playlists you own.
-It keeps the selection in table order and skips tracks already present. A local
+The same submenu lists your saved playlists, including earlier SoundCloud imports. You can also drag a track or a selection onto a playlist in the sidebar.
+Tracks are added locally in table order and duplicates are skipped. For a SoundCloud set, the first addition of SoundCloud tracks offers automatic sync, confirmation each time, or local-only additions. Change this under **Preferences → Accounts and browser**. Sync uses your signed-in account and requires ownership of the destination. A local
 playlist can contain both files and SoundCloud tracks. When all selected tracks
 have confirmed SoundCloud identities, you can also create the playlist on your
 SoundCloud account and choose private or public visibility.

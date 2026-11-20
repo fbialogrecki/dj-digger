@@ -357,3 +357,51 @@ def test_batch_delete_refuses_a_playlist_recreated_during_confirmation(tmp_path)
     db.save_crate({'source': 'first', 'title': 'Recreated', 'tracks': []})
     assert not db.delete_crates(['first', 'second'], generations)
     assert {p['title'] for p in db.list_crate_headers()} == {'Recreated', 'second'}
+
+
+def test_imported_playlist_retains_ordered_local_additions_across_refresh(tmp_path):
+    from dj_digger.crate_models import CrateRecord
+    from dj_digger.models import Crate, Track
+    from dj_digger.services.collection import CollectionService
+    from dj_digger.services.library import LibraryService
+    from dj_digger.services.local_library import LocalLibrary
+    from dj_digger.state import TrackState
+
+    path = tmp_path / 'library.db'
+    state = TrackState(path)
+    db = state.db
+    source = 'https://soundcloud.com/owner/sets/legacy'
+    songs = [Track(str(n), f'https://soundcloud.com/owner/{n}', id=n) for n in range(1, 4)]
+    db.save_crate(CrateRecord.from_crate(Crate(source, [songs[0], songs[0]], 'Legacy')).to_json())
+    file = tmp_path / 'Local.wav'
+    file.write_bytes(b'fixture')
+    local = LocalLibrary(db).register(file)
+    assert db.save_local_playlist(source, None, [songs[0], local, songs[1], songs[1]]) == (2, 2)
+    db.set_removed_tracks(source, db.crate_generation(source), ['1', local.key], True)
+    assert db.list_crate_headers()[0]['count'] == 1
+    assert db.save_local_playlist(source, None, [local, songs[0]]) == (2, 0)
+    renamed = file.rename(tmp_path / 'Renamed.wav')
+    assert LocalLibrary(db).register(renamed).key == local.key
+    state.set_local_file('2', renamed)
+    db.close()
+
+    state = TrackState(path)
+    db = state.db
+    library = LibraryService(state)
+    tracks = library.load(source).active_tracks
+    assert [t.key for t in tracks] == ['1', '1', local.key, '2']
+    assert [t.local_path for t in tracks[-2:]] == [str(renamed)] * 2
+    # A confirmed write or profile reimport supplies the server's exact order and duplicates.
+    incoming = CrateRecord.from_crate(Crate(source, [songs[1], songs[1], songs[0]], 'Current')).to_json()
+    db.remember_provider_playlist(123, dict(incoming, preserve_order=True), db.snapshot_generations())
+    merged = library.load(source).active_tracks
+    assert [t.key for t in merged] == ['2', '2', '1', local.key]
+    assert [t.local_path for t in merged[:2]] == [str(renamed)] * 2
+    [header] = library.headers()
+    assert (header.count, header.media_count) == (4, 1)
+    record = CollectionService(lambda: db).remember(Crate(source, [songs[2]], 'Again'))
+    assert [t.key for t in record.active_tracks] == ['3', local.key, '2']
+    assert library.headers()[0].count == 3
+    with pytest.raises(ValueError):
+        db.save_local_playlist('sc-snapshot:weekly:2026-11-20', None, [songs[0]])
+    db.close()

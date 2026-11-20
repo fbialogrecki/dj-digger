@@ -1,10 +1,9 @@
 """Local-file reconciliation and field-specific playlist edits, independent of UI."""
 
-from dataclasses import asdict
 from pathlib import Path
 
 from ..crate_models import CrateHeader, CrateRecord
-from ..models import GOT, NEW, track_key
+from ..models import GOT, NEW
 from ..scanner import SCAN_BATCH, LocalScanner, confirmed_missing
 from ..state import FileMatch
 
@@ -18,20 +17,7 @@ class LibraryService:
         return sorted(headers, key=lambda header: header.title.lower())
 
     def load(self, source):
-        source = source.strip()
-        if source.startswith('local-playlist:'):
-            saved = self.state.db.load_local_playlist(source)
-            if saved is None:
-                return None
-            from .local_library import media_track
-            raw, members = saved
-            raw['tracks'] = [
-                asdict(media_track(self.state.db, media)) if media is not None
-                else dict(track, local_path=self.state.local_file(track_key(track)))
-                for media, track in members
-            ]
-        else:
-            raw = self.state.db.load_crate(source)
+        raw = self.state.db.load_local_playlist(source.strip())
         return CrateRecord.from_json(raw) if raw is not None else None
 
     def reset(self, keys):
@@ -41,8 +27,9 @@ class LibraryService:
     def delete(self, source):
         source = source.strip()
         if not source.startswith(('local-playlist:', 'sc-snapshot:')):
-            record = self.load(source)
-            self.reset([track.key for track in record.tracks] if record else [])
+            raw = self.state.db.load_crate(source)
+            if raw:
+                self.reset([track.key for track in CrateRecord.from_json(raw).tracks])
         self.state.db.delete_crate(source)
 
     def remember_beatport(self, source, generation, outcome):

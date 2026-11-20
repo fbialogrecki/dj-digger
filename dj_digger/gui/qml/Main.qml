@@ -229,7 +229,10 @@ ApplicationWindow {
     property bool compactRows: false
     readonly property int rowHeight: compactRows ? 26 : 34
     function applyColumnOrder(order) {
-        for (let visual = 0; visual < order.length; visual++) table.moveColumn(order[visual], visual)
+        for (let visual = 0; visual < order.length; visual++) {
+            let current = columnOrder.indexOf(order[visual])
+            if (current !== visual) table.moveColumn(current, visual)
+        }
     }
     function resetColumnOrder() {
         table.clearColumnReordering()
@@ -285,6 +288,9 @@ ApplicationWindow {
         if (at >= 0) hidden.splice(at, 1); else hidden.push(column)
         hiddenColumns = hidden
         table.forceLayout()
+    }
+    function canSendToPlaylist(p) {
+        return !desktop.busy && !p.pending && !p.source.startsWith("sc-snapshot:")
     }
     readonly property bool hasSelection: desktop.model.counts.selected > 0
     readonly property bool hasRows: desktop.model.counts.visible > 0
@@ -539,6 +545,7 @@ ApplicationWindow {
     onClosing: function(event) {
         event.accepted = false
         if (!shuttingDown) {
+            columnDrag.cancel()
             shuttingDown = true
             for (let i of allColumns) if (i !== titleColumn && columnVisible(i)) columnWidths[i] = table.columnWidth(i)
             desktop.saveSettings({sidebarWidth: sidebar.width, sidebarSplit: sidebarSplit, sidebarVisible: sidebarVisible, sidebarCollapsed: sidebarCollapsed, width: width, height: height, language: languageCode,
@@ -788,7 +795,7 @@ ApplicationWindow {
     Shortcut { sequence: "F1"; onActivated: helpAction.trigger() }
     Shortcut { sequence: "Ctrl+,"; onActivated: preferencesAction.trigger() }
     Shortcut { sequence: "/"; enabled: !root.dialogOpen; onActivated: { search.forceActiveFocus(); search.selectAll() } }
-    Shortcut { sequence: "Escape"; enabled: !root.dialogOpen; onActivated: root.clearFilters() }
+    Shortcut { sequence: "Escape"; enabled: !root.dialogOpen; onActivated: columnDrag.dragging ? columnDrag.cancel() : root.clearFilters() }
 
     // Every menu shares one row layout: a fixed check column, the label, the
     // shortcut in the muted color and a submenu arrow. Basic never shows
@@ -1369,11 +1376,11 @@ ApplicationWindow {
                                 }
                                 onPressAndHold: { held = true; root.playlistMenuAt(modelData.source) }
                                 TapHandler { acceptedButtons: Qt.RightButton; onTapped: root.playlistMenuAt(playlistItem.modelData.source) }
-                                // Tracks dragged from the table join a local playlist; SoundCloud playlists follow SoundCloud.
+                                // The same local-first action serves the context menu and a drop.
                                 DropArea {
                                     id: playlistDrop
                                     anchors.fill: parent; keys: [root.trackDragKey]
-                                    enabled: (playlistItem.local || (!!playlistItem.modelData.owned && desktop.model.selectionKinds.publishable)) && !playlistItem.pending
+                                    enabled: root.canSendToPlaylist(playlistItem.modelData)
                                     onDropped: drop => { desktop.addToPlaylist(playlistItem.modelData.source); drop.accept(Qt.CopyAction) }
                                 }
                             }
@@ -2177,11 +2184,58 @@ ApplicationWindow {
                 Timer { id: filterTimer; interval: 120; onTriggered: root.applyFilters() }
                 HorizontalHeaderView {
                     id: header; syncView: table; Layout.fillWidth: true; Layout.rightMargin: root.edge; clip: true
-                    resizableColumns: true; movableColumns: true
+                    resizableColumns: true
+                    MouseArea {
+                        id: columnDrag
+                        parent: header
+                        anchors.fill: parent
+                        z: 5
+                        preventStealing: true
+                        property real startX
+                        property int source: -1
+                        property int originalSlot: -1
+                        property bool dragging: false
+                        property var slots: []
+                        function cancel() {
+                            if (dragging) table.moveColumn(root.columnOrder.indexOf(source), originalSlot)
+                            source = -1
+                            dragging = false
+                        }
+                        onPressed: mouse => {
+                            startX = mouse.x
+                            // Keep hit targets fixed while differently sized columns trade places.
+                            slots = []
+                            for (let item of header.contentItem.children) {
+                                if (!item.visible || item.index === undefined) continue
+                                let left = item.x - header.contentX, right = left + item.width
+                                slots.push({ left: left, right: right, slot: root.columnOrder.indexOf(item.index) })
+                                if (mouse.x >= left + 5 && mouse.x < right - 10) {
+                                    source = item.index
+                                    originalSlot = root.columnOrder.indexOf(source)
+                                }
+                            }
+                            mouse.accepted = source >= 0
+                        }
+                        onPositionChanged: mouse => {
+                            if (source < 0) return
+                            if (!dragging && Math.abs(mouse.x - startX) < Application.styleHints.startDragDistance) return
+                            dragging = true
+                            let x = Math.max(0, Math.min(width - 1, mouse.x))
+                            let target = slots.find(s => x >= s.left && x < s.right)
+                            let current = root.columnOrder.indexOf(source)
+                            if (target && target.slot !== current) table.moveColumn(current, target.slot)
+                        }
+                        onReleased: mouse => {
+                            if (source >= 0 && !dragging && contains(Qt.point(mouse.x, mouse.y))) desktop.model.sortBy(source)
+                            source = -1
+                            dragging = false
+                        }
+                        onCanceled: cancel()
+                    }
                     delegate: Rectangle {
                         required property string display
                         required property int index
-                        implicitHeight: 32; color: root.panel
+                        implicitHeight: 32; color: columnDrag.dragging && columnDrag.source === index ? root.selection : root.panel
                         Label {
                             anchors.fill: parent; anchors.margins: 5; textFormat: Text.PlainText; color: root.muted; elide: Text.ElideRight
                             horizontalAlignment: [4, 6, 8].indexOf(index) >= 0 ? Text.AlignRight : Text.AlignLeft
@@ -2189,17 +2243,11 @@ ApplicationWindow {
                         }
                         Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: root.alternate }
                         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: root.alternate }
-                        // Sorting only listens on the body of the cell, so a double-click on the divider
-                        // never reaches it even after the fitted column changes size under the pointer.
-                        Item {
-                            anchors.left: parent.left; anchors.right: parent.right; anchors.rightMargin: 10; height: parent.height
-                            TapHandler { acceptedButtons: Qt.LeftButton; onSingleTapped: desktop.model.sortBy(index) }
-                        }
                         TapHandler { acceptedButtons: Qt.RightButton; onTapped: { columnMenu.column = index; columnMenu.popup() } }
                         Item {
                             anchors.right: parent.right; width: 10; height: parent.height
                             HoverHandler { cursorShape: Qt.SplitHCursor }
-                            TapHandler { acceptedButtons: Qt.LeftButton; gesturePolicy: TapHandler.WithinBounds; onDoubleTapped: root.fitColumn(index) }
+                            TapHandler { acceptedButtons: Qt.LeftButton; onDoubleTapped: root.fitColumn(index) }
                         }
                     }
                 }
@@ -2285,6 +2333,11 @@ ApplicationWindow {
                             anchors.fill: parent; color: root.hoverSurface
                             opacity: !cell.chosen && cell.row === table.hoverRow ? 1 : 0
                             Behavior on opacity { enabled: root.motion && !cell.recycled; NumberAnimation { duration: 120 } }
+                        }
+                        Rectangle {
+                            objectName: "columnDragShade"
+                            z: 5; anchors.fill: parent; color: root.accent; opacity: .23
+                            visible: columnDrag.dragging && columnDrag.source === cell.column
                         }
                         // The loaded track's row: an accent tint and a bar at its left edge, both quieter while paused.
                         Rectangle {
@@ -2410,9 +2463,9 @@ ApplicationWindow {
                             // Dragging across rows selects them, so the view never takes the press over to flick.
                             preventStealing: true
                             property int dragRow: -1
-                            // A plain press on a selected row waits for the release: it may be a slow second
-                            // click that renames, or, in local views, the start of a drag of the selection onto
-                            // a local playlist in the sidebar. A drag from an unselected row selects rows instead.
+                            // Choose once per gesture: selected tracks travel together. From an unselected
+                            // row, drag sideways to a playlist or vertically to select a range.
+                            property bool decidingDrag: false
                             property bool deferred: false
                             property point pressedAt
                             onPressed: function(mouse) {
@@ -2423,16 +2476,22 @@ ApplicationWindow {
                                 pressedAt = Qt.point(mouse.x, mouse.y)
                                 let toggle = (mouse.modifiers & Qt.ControlModifier) !== 0, extend = (mouse.modifiers & Qt.ShiftModifier) !== 0
                                 deferred = mouse.button === Qt.LeftButton && chosen && !toggle && !extend
+                                decidingDrag = mouse.button === Qt.LeftButton && !toggle && !extend
                                 if (mouse.button === Qt.RightButton ? !chosen : !deferred) desktop.model.select(row, toggle, extend)
                             }
                             onPositionChanged: function(mouse) {
                                 if (!(mouse.buttons & Qt.LeftButton) || dragRow < 0) return
                                 if (trackDrag.Drag.active) { trackDrag.follow(mapToItem(null, mouse.x, mouse.y)); return }
-                                if (deferred
-                                        && Math.hypot(mouse.x - pressedAt.x, mouse.y - pressedAt.y) > Application.styleHints.startDragDistance) {
-                                    deferred = false
-                                    trackDrag.start(mapToItem(null, mouse.x, mouse.y))
-                                    return
+                                if (decidingDrag) {
+                                    let dx = mouse.x - pressedAt.x, dy = mouse.y - pressedAt.y
+                                    if (Math.hypot(dx, dy) < Application.styleHints.startDragDistance) return
+                                    decidingDrag = false
+                                    if (deferred || Math.abs(dx) > Math.abs(dy)) {
+                                        deferred = false
+                                        slowClick.stop()
+                                        trackDrag.start(mapToItem(null, mouse.x, mouse.y))
+                                        return
+                                    }
                                 }
                                 // The row under the pointer; past the top or bottom edge the view scrolls a row per move.
                                 let y = mapToItem(table.contentItem, mouse.x, mouse.y).y
@@ -2442,7 +2501,6 @@ ApplicationWindow {
                                 if (y < top) target = Math.max(0, target - 1)
                                 else if (y > bottom) target = Math.min(table.rows - 1, target + 1)
                                 if (target === dragRow) return
-                                if (deferred) { deferred = false; desktop.model.select(dragRow, false, false) }
                                 dragRow = target
                                 desktop.model.select(target, (mouse.modifiers & Qt.ControlModifier) !== 0, true)
                                 table.positionViewAtRow(target, TableView.Contain)
@@ -2893,12 +2951,12 @@ ApplicationWindow {
             enabled: root.hasSelection && !desktop.busy
             AppMenuItem { text: qsTr("Create playlist from selection…"); onTriggered: desktop.action("save_playlist") }
             Instantiator {
-                model: desktop.playlists.filter(p => !p.pending && (p.source.startsWith("local-playlist:") || p.owned))
+                model: desktop.playlists.filter(p => !p.pending)
                 delegate: AppMenuItem {
                     required property var modelData
-                    text: modelData.title + (modelData.owned ? " · SoundCloud" : " · DJ Digger")
-                    enabled: !modelData.owned || desktop.model.selectionKinds.publishable
-                    reason: enabled ? "" : qsTranslate("Bridge", "Only SoundCloud tracks can be sent to a SoundCloud playlist")
+                    text: modelData.title + (modelData.owned || modelData.verifyOwner ? " · SoundCloud" : " · DJ Digger")
+                    enabled: root.canSendToPlaylist(modelData)
+                    reason: modelData.source.startsWith("sc-snapshot:") ? qsTranslate("Bridge", "Recommendation snapshots are read-only") : ""
                     onTriggered: desktop.addToPlaylist(modelData.source)
                 }
                 onObjectAdded: (index, object) => sendToMenu.insertItem(index + 1, object)
@@ -2955,7 +3013,7 @@ ApplicationWindow {
             text: contextMenu.selected > 1 ? qsTr("Remove %n from playlist…", "", contextMenu.selected) : removeAction.text
         }
         AppMenuItem {
-            objectName: "deleteFiles"; visible: contextMenu.local && !desktop.view.localPlaylist; destructive: true
+            objectName: "deleteFiles"; visible: contextMenu.local && desktop.view.local && !desktop.view.localPlaylist; destructive: true
             enabled: root.hasSelection && !desktop.busy; reason: contextMenu.busyReason
             text: contextMenu.selected > 1 ? qsTr("Delete %n files…", "", contextMenu.selected) : qsTr("Delete files…")
             onTriggered: desktop.action("delete_files")

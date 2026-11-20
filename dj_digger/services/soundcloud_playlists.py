@@ -15,10 +15,11 @@ def account_profile(client):
     return me['id'], me['permalink_url']
 
 
-def _detail(client, owner, identifier=None, url=None):
+def playlist_detail(client, owner, identifier=None, url=None):
     data = client._get(f'/playlists/{identifier}') if identifier else client.resolve(url)
     account_id, profile = owner
-    if (data.get('kind') != 'playlist' or type(data.get('id')) is not int
+    if (not isinstance(data, dict) or data.get('kind') != 'playlist'
+            or type(data.get('id')) is not int or data['id'] <= 0
             or (identifier and data['id'] != identifier) or data.get('user_id') != account_id
             or not re.fullmatch(re.escape(profile) + r'/sets/[\w-]+', str(data.get('permalink_url')), re.ASCII)):
         raise ValueError('SoundCloud could not confirm the playlist and its owner')
@@ -73,14 +74,14 @@ def write_tracks(client, session, owner, tracks, db, generations, cancel, *, ide
     if identities != unique:
         raise ValueError('SoundCloud could not confirm a selected track')
     check()
-    data, members = _detail(client, owner, identifier) if identifier else ({}, [])
+    data, members = playlist_detail(client, owner, identifier) if identifier else ({}, [])
     if len(members) + len(unique.keys() - members) > 500:
         raise ValueError('This would exceed SoundCloud’s 500-track limit')
     added = skipped = 0
     for track_id, url in unique.items():
         check()
         if identifier:
-            data, members = _detail(client, owner, identifier)
+            data, members = playlist_detail(client, owner, identifier)
         if track_id in members:
             skipped += 1
         else:
@@ -93,7 +94,7 @@ def write_tracks(client, session, owner, tracks, db, generations, cancel, *, ide
             dest = result.get('destination') if isinstance(result, dict) else None
             if not isinstance(dest, str) or not re.fullmatch(re.escape(profile) + r'/sets/[\w-]+', dest, re.ASCII):
                 raise ValueError('The browser could not confirm the destination')
-            data, members = _detail(client, owner, identifier, dest)
+            data, members = playlist_detail(client, owner, identifier, dest)
             if data['permalink_url'] != dest or track_id not in members:
                 raise ValueError('SoundCloud did not confirm the saved track')
             if not identifier and (data.get('sharing') != sharing or data.get('title') != title):
