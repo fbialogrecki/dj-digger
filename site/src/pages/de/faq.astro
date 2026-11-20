@@ -1,0 +1,106 @@
+---
+import Base from "../../layouts/Base.astro";
+import Icon from "../../components/Icon.astro";
+import Track from "../../components/Track.astro";
+
+const description =
+  "Antworten zu dj-digger: was es ist, was es kostet, auf welchen Computern und Browsern es läuft, was es mit SoundCloud, Download-Gates, Warenkörben, rekordbox und deinen Daten macht.";
+---
+
+<Base title="dj-digger: Fragen und Antworten" description={description} label="about">
+  <Track id="faq" title="Fragen und Antworten" hero sub>
+    <Fragment slot="heading">Fragen <span class="grad">und Antworten</span></Fragment>
+    <p class="lede">Was dj-digger tut, was es dir überlässt und was es nicht tut.</p>
+  </Track>
+
+  <Track id="basics" title="Die App">
+    <div class="stack">
+      <h3>Was ist dj-digger?</h3>
+      <p class="copy">
+        dj-digger ist eine kostenlose Open-Source-App fürs Crate Digging für DJs unter Windows, macOS und Linux, mit
+        Browser-Erweiterung. Füg eine SoundCloud-Playlist, Likes, Reposts oder ein Profil ein, und sie importiert jeden
+        Track in eine Bibliothek zum Vorhören. Du markierst jeden Track als vorhanden oder übersprungen, und sie findet,
+        wo du ihn kaufen kannst (Bandcamp, Beatport, Traxsource, Juno Download, Apple, Plattenläden) oder wie du ihn
+        kostenlos herunterlädst.
+      </p>
+    </div>
+    <div class="stack">
+      <h3>Ist es kostenlos?</h3>
+      <p class="copy">
+        Ja. dj-digger ist Open Source unter der Apache License 2.0, ohne Konto, ohne Abo und ohne Werbung. Die Tracks,
+        die du kaufst, bezahlst du selbst in den Shops.
+      </p>
+    </div>
+    <div class="stack">
+      <h3>Auf welchen Computern und Browsern läuft es?</h3>
+      <p class="copy">
+        Windows 10 (Version 1809 oder neuer) und 11, macOS 15 oder neuer auf Apple Silicon und Intel, und Linux. Die
+        Erweiterung läuft in Chrome, Edge und Brave; als Flatpak oder Snap installierte Browser können sich nicht mit
+        der App verbinden.
+      </p>
+    </div>
+    <div class="stack">
+      <h3>Weiß es, welche Tracks ich schon habe?</h3>
+      <p class="copy">
+        Es durchsucht die Musikordner, die du auswählst. Ein sicherer Treffer bei Artist und Titel markiert den Track
+        als vorhanden und spielt ihn von der Festplatte ab, und diese Markierung gilt in jeder Playlist, in der er
+        vorkommt.
+      </p>
+    </div>
+  </Track>
+
+  <Track id="files" title="Downloads und Kaufen">
+    <div class="stack">
+      <h3>Rippt es Musik von SoundCloud?</h3>
+      <p class="copy">
+        Nein. Es liest Playlists über die API von SoundCloud, und Vorschauen werden im Arbeitsspeicher dekodiert, nie
+        gespeichert. Dateien kommen nur über Wege, die der Artist anbietet: einen von ihm freigegebenen
+        SoundCloud-Download, sein Download-Gate oder einen Shop, in dem du den Track kaufst.
+      </p>
+    </div>
+    <div class="stack">
+      <h3>Was macht es mit Download-Gates wie Hypeddit?</h3>
+      <p class="copy">
+        Gates bei Hypeddit, ToneDen, GateRush und Droploud werden über ihre eigenen Download-Abläufe abgeschlossen.
+        Braucht ein Gate den Browser, geht die Erweiterung seine Schritte durch, und die Datei landet in der App.
+        Social-Schritte folgen <em>Soziale Aktionen erlauben</em> in den Einstellungen; CAPTCHAs, Anmeldungen und erste
+        Freigaben bleiben bei dir.
+      </p>
+      <p class="copy"><a href="/guides/hypeddit-download-gates/" hreflang="en" lang="en">Hypeddit download gates in 2026</a> (Englisch)</p>
+    </div>
+    <div class="stack">
+      <h3>Kauft es Tracks für mich?</h3>
+      <p class="copy">
+        Es füllt deinen Bandcamp-Warenkorb und, wenn der genaue Track bekannt ist, deinen Beatport-Warenkorb, in deinem
+        eigenen Browser. Jede Produktseite wird direkt vor dem Hinzufügen noch einmal geprüft. Es liest nie dein
+        Passwort, wählt keine Zahlungsart und schließt keinen Kauf ab.
+      </p>
+    </div>
+  </Track>
+
+  <Track id="decks" title="DJ-Software und Decks">
+    <div class="stack">
+      <h3>Funktioniert es mit rekordbox, Serato oder Traktor?</h3>
+      <p class="copy">
+        Es arbeitet daneben. dj-digger schreibt nie in rekordbox-Daten oder Audio-Tags. Es exportiert Kopien deiner
+        Dateien in einem Format, das die angehakten Decks abspielen, FLAC oder WAV, in einen neuen Ordner, den deine
+        DJ-Software wie jeden anderen importieren kann.
+      </p>
+      <p class="copy"><a href="/de/guides/soundcloud-to-rekordbox/">Von einer SoundCloud-Playlist zu rekordbox</a></p>
+    </div>
+  </Track>
+
+  <Track id="privacy" title="Deine Daten">
+    <div class="stack">
+      <h3>Wohin gehen meine Daten?</h3>
+      <p class="copy">
+        Deine Bibliothek, Entscheidungen und Einstellungen bleiben auf deinem Computer: Es gibt keinen dj-digger-Server.
+        Die Erweiterung spricht nur mit der App auf demselben Computer, und nichts wird an den Entwickler gesendet.
+      </p>
+    </div>
+  </Track>
+
+  <Track id="get" title="Herunterladen" heading="dj-digger herunterladen">
+    <div class="cta"><a class="button primary" href="/de/download/"><Icon name="download-simple" />Herunterladen</a></div>
+  </Track>
+</Base>
