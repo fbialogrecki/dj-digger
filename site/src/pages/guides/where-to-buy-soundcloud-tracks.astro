@@ -1,0 +1,65 @@
+---
+import Base from "../../layouts/Base.astro";
+import Icon from "../../components/Icon.astro";
+import Track from "../../components/Track.astro";
+
+const description =
+  "Found a track on SoundCloud and want to buy it? Where the buy link hides, which stores DJs use, what to do when there is no link, and how to do it for a whole playlist.";
+---
+
+<Base title="Where to buy a track you found on SoundCloud" description={description} label="app" article={{ published: "2026-11-20" }}>
+  <Track id="guide" title="Where to buy a SoundCloud track" hero sub>
+    <Fragment slot="heading">Where to buy a track <span class="grad">you found on SoundCloud</span></Fragment>
+    <p class="lede">
+      Most tracks on SoundCloud say where to buy them or get them free, but the link hides in different places. Here is
+      where to look, and how dj-digger looks for you across a whole playlist.
+    </p>
+  </Track>
+
+  <Track id="look" title="Where to look" heading="Where the link hides">
+    <ol class="ticks">
+      <li><strong>The buy link</strong> the artist set on the track, shown beside the player.</li>
+      <li><strong>The track's other links</strong> and the links in its description.</li>
+      <li>
+        <strong>A link page</strong> (a smart link or link-in-bio page) that lists several shops; open it and pick the
+        store.
+      </li>
+      <li>
+        <strong>A free download:</strong> a download the artist enabled on SoundCloud, or a download gate on Hypeddit,
+        ToneDen, GateRush or Droploud that asks for a follow or an email first.
+      </li>
+    </ol>
+  </Track>
+
+  <Track id="stores" title="The stores" heading="The stores DJs buy from">
+    <p class="copy">
+      dj-digger recognises links to Bandcamp, Beatport, Traxsource, Juno Download and Apple, and to record shops. When
+      a track has several, buy where you prefer.
+    </p>
+  </Track>
+
+  <Track id="nolink" title="No link" heading="When there is no link">
+    <ul class="ticks">
+      <li>Search the stores by artist and title: the release may carry a different title or mix name.</li>
+      <li>Check the artist's profile and their other tracks for a store or a link page.</li>
+      <li>Ask the artist where the track is available.</li>
+    </ul>
+  </Track>
+
+  <Track id="playlist" title="A whole playlist" heading="For a whole playlist">
+    <p class="copy">
+      dj-digger reads every track of a SoundCloud playlist, likes or profile and sorts its links by store with strict
+      domain matching. A link page that lists shops is opened, and the Bandcamp and Beatport links behind it land on
+      the track. Filter by store, open the links of the selected tracks in your browser, or let it fill your Bandcamp
+      and Beatport carts. You check out.
+    </p>
+  </Track>
+
+  <Track id="get" title="Download" heading="Download dj-digger">
+    <p class="copy">Free and open source, for Windows, macOS and Linux.</p>
+    <div class="cta">
+      <a class="button primary" href="/download/"><Icon name="download-simple" />Download</a>
+      <a class="button" href="/app/"><Icon name="desktop" />Explore the app</a>
+    </div>
+  </Track>
+</Base>

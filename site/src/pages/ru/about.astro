@@ -18,7 +18,7 @@ const release = `${repo}/blob/v${version}`;
   <Track id="about" title="О проекте" hero sub>
     <Fragment slot="heading">О проекте <span class="grad">dj-digger</span></Fragment>
     <p class="lede">
-      dj-digger — бесплатное десктопное приложение с открытым кодом для диггинга, с расширением для браузера. Сделал {author.name}.
+      dj-digger — бесплатное десктопное приложение с открытым кодом для диггинга, с расширением для браузера. Сделал <a href={author.url}>{author.name}</a>.
     </p>
   </Track>
 
@@ -89,6 +89,7 @@ const release = `${repo}/blob/v${version}`;
       <a class="button" href={repo}><Icon name="github-logo" />Исходный код</a>
       <a class="button" href={`${release}/PROJECT_SPECIFICATION.md`}><Icon name="book-open" />Спецификация</a>
       <a class="button" href={`${release}/CHANGELOG.md`}><Icon name="clock-counter-clockwise" />Журнал изменений</a>
+      <a class="button" href={`${repo}/issues`}><Icon name="bug" />Сообщить о проблеме</a>
     </div>
     <dl class="spec sources">
       <dt>Шрифты</dt>

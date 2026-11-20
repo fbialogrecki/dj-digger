@@ -22,6 +22,13 @@ The Python package is \`dj-sc-digger\`; the unrelated PyPI package named "dj-dig
 - [Download](${url("/download/")}): installers, the Linux install command, checksums
 - [About](${url("/about/")}): how it works, where data goes, credits
 - [Privacy](${url("/privacy/")}): what the website measures, with consent
+- [Questions and answers](${url("/faq/")}): cost, systems, SoundCloud, download gates, carts, rekordbox, data
+
+## Guides
+
+- [SoundCloud to rekordbox](${url("/guides/soundcloud-to-rekordbox/")}): why streamed SoundCloud tracks cannot go to USB, and how to get files instead
+- [Where to buy a SoundCloud track](${url("/guides/where-to-buy-soundcloud-tracks/")}): where the buy link hides, and doing it for a whole playlist
+- [Hypeddit download gates in 2026](${url("/guides/hypeddit-download-gates/")}): what changed in June 2026, and how dj-digger handles gates
 
 ## Source and distribution
 

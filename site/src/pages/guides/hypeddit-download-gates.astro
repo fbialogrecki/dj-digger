@@ -1,0 +1,54 @@
+---
+import Base from "../../layouts/Base.astro";
+import Icon from "../../components/Icon.astro";
+import Track from "../../components/Track.astro";
+
+const description =
+  "In June 2026 Hypeddit's SoundCloud steps stopped being enforced. What was reported to have changed, what a gate still asks, and how dj-digger handles Hypeddit and ToneDen gates.";
+const report = "https://www.bckstg.co/playback/hypeddit-soundcloud-download-gate-api-paused";
+const coverage = "https://weraveyou.com/2026/06/soundcloud-hypeddit-api-cut-free-download-campaigns-producers-2026/";
+---
+
+<Base title="Hypeddit download gates in 2026: what changed" description={description} label="extension" article={{ published: "2026-11-20" }}>
+  <Track id="guide" title="Hypeddit download gates in 2026" hero sub>
+    <Fragment slot="heading">Hypeddit download gates <span class="grad">in 2026</span></Fragment>
+    <p class="lede">
+      A download gate gives you an artist's track for free in return for a follow, a like or an email address. In June
+      2026 the SoundCloud part of Hypeddit's gates stopped being enforced. Here is what was reported, and how dj-digger
+      handles gates.
+    </p>
+  </Track>
+
+  <Track id="changed" title="What changed">
+    <ul class="ticks">
+      <li>SoundCloud paused its API connection with Hypeddit in June 2026: on 11 June, <a href={report}>according to BCKSTG</a>; <a href={coverage}>We Rave You</a> reported it too.</li>
+      <li>The gate page still loads and the file still downloads; the SoundCloud follow is now optional.</li>
+      <li>Hypeddit said it hopes to restore the connection and is working with SoundCloud, with no date given.</li>
+    </ul>
+    <p class="copy">
+      This page records what was reported in June 2026. A gate can ask for something else today, such as an email
+      address or a step on another service: the gate page shows its current steps.
+    </p>
+  </Track>
+
+  <Track id="dj-digger" title="How dj-digger handles gates">
+    <p class="copy">
+      dj-digger completes gates on Hypeddit, ToneDen, GateRush and Droploud through their own download flows, for a
+      whole playlist at once. When a gate needs the browser, the dj-digger extension walks its steps in a tab of your
+      own browser and the file arrives in the app.
+    </p>
+    <ul class="ticks">
+      <li>Social steps, such as a follow, follow <em>Allow social actions</em> in Settings, on by default. Switch it off and those gates stay manual.</li>
+      <li>CAPTCHAs, provider sign-ins and first approvals stay with you; the app asks first.</li>
+      <li>A gate page that no longer exists fails at once, and every failure is listed with a plain reason.</li>
+    </ul>
+  </Track>
+
+  <Track id="get" title="Download" heading="Download dj-digger">
+    <p class="copy">Free and open source, for Windows, macOS and Linux, with the extension for Chrome, Edge and Brave.</p>
+    <div class="cta">
+      <a class="button primary" href="/download/"><Icon name="download-simple" />Download</a>
+      <a class="button" href="/extension/"><Icon name="puzzle-piece" />Explore the extension</a>
+    </div>
+  </Track>
+</Base>

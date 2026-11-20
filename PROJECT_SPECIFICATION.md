@@ -7,7 +7,7 @@
 | **Owner** | Filip Białogrecki |
 | **Last updated** | 2026-11-18 |
 | **Product version** | 1.6.0 (`pyproject.toml`); browser extension 1.4.5 (`dj_digger/webext/extension/manifest.json`) |
-| **Document lines** | <!-- SPEC TOTAL LINES -->2866<!-- END SPEC TOTAL LINES --> |
+| **Document lines** | <!-- SPEC TOTAL LINES -->2873<!-- END SPEC TOTAL LINES --> |
 | **Verified against** | `pyproject.toml`, `dj_digger/`, `dj_digger/webext/extension/manifest.json`, `scripts/`, `tests/`, `.github/workflows/`, `README.md`, `CHANGELOG.md` |
 
 ## Purpose of this file
@@ -107,13 +107,13 @@ text is never promoted into the map.
 | 13 | Failure behavior and current limitations | 2555–2670 |
 | 13.1 | ↳ Error isolation and reporting | 2557–2578 |
 | 13.2 | ↳ Confirmed limitations | 2579–2670 |
-| 14 | Verification, CI, and release | 2671–2828 |
+| 14 | Verification, CI, and release | 2671–2835 |
 | 14.1 | ↳ Offline and live test suites | 2673–2724 |
-| 14.2 | ↳ Continuous integration and publishing | 2725–2811 |
-| 14.3 | ↳ Specification-map verification | 2812–2828 |
-| 15 | References | 2829–2866 |
-| 15.1 | ↳ Primary implementation evidence | 2831–2852 |
-| 15.2 | ↳ User and historical documentation | 2853–2866 |
+| 14.2 | ↳ Continuous integration and publishing | 2725–2818 |
+| 14.3 | ↳ Specification-map verification | 2819–2835 |
+| 15 | References | 2836–2873 |
+| 15.1 | ↳ Primary implementation evidence | 2838–2859 |
+| 15.2 | ↳ User and historical documentation | 2860–2873 |
 <!-- END GENERATED SECTION MAP -->
 
 ---
@@ -2781,7 +2781,14 @@ Every indexed page carries schema.org JSON-LD (`site/src/layouts/Base.astro`): t
 (`WebSite`) and its author (`Person`); on the home, app and download pages the desktop app as a
 free `SoftwareApplication` with the download version and its changelog date; on the extension page
 the extension, linked to the Chrome Web Store, without a version; and on every other page a
-two-level `BreadcrumbList`. `/llms.txt` is a plain-text summary of the product with links to the
+two-level `BreadcrumbList`; guides add an `Article` with their dates. Besides the seven pages in
+all seven languages, the site has questions and answers (`/faq/`) and guides on getting a SoundCloud
+playlist into rekordbox as files and on where to buy a SoundCloud track, in English, German and
+Polish, and a guide to Hypeddit download gates in 2026 in English. `site/src/i18n/pages.mjs` lists
+each page's languages: hreflang links and the sitemap name only existing versions, the language
+switcher offers a language's home page where a page is missing, and the footer links a guide in
+English where the reader's language has none. The download page states the offered version's release
+date from its dated `CHANGELOG.md` heading, which the build requires. `/llms.txt` is a plain-text summary of the product with links to the
 English pages and the project's source and distribution pages. Both are generated from
 `site/site.config.mjs`, so the version follows the download version.
 

@@ -1,9 +1,7 @@
 // After a build: every page exists in every language with the same sections, pictures and
 // code blocks as the English one, says its language, and links within that language.
-import { readFileSync } from "node:fs";
-
-const languages = ["en", "de", "es", "fr", "it", "pl", "ru"];
-const bases = ["/", "/app/", "/extension/", "/download/", "/about/", "/privacy/", "/terms/"];
+import { existsSync, readFileSync } from "node:fs";
+import { bases, codes as languages, languagesOf } from "../src/i18n/pages.mjs";
 // Served once for every language: build output, the script and the preview card.
 const shared = /^\/(_astro\/|install\.sh$|licenses\.txt$|og\.png$|sitemap\.xml$|robots\.txt$)/;
 const problems = [];
@@ -18,6 +16,10 @@ for (const base of bases) {
   const english = shape(readFileSync(`dist${base}index.html`, "utf8"));
   for (const lang of languages) {
     const path = lang === "en" ? base : `/${lang}${base}`;
+    if (!languagesOf(base).includes(lang)) {
+      if (existsSync(`dist${path}index.html`)) problems.push(`${path}: built, but not listed in src/i18n/pages.mjs`);
+      continue;
+    }
     let html;
     try {
       html = readFileSync(`dist${path}index.html`, "utf8");
@@ -67,4 +69,5 @@ if (problems.length) {
   console.error(`Languages check failed:\n${problems.join("\n")}`);
   process.exit(1);
 }
-console.log(`Languages check: ${bases.length} pages in ${languages.length} languages match.`);
+const built = bases.reduce((sum, base) => sum + languagesOf(base).length, 0);
+console.log(`Languages check: ${bases.length} pages, ${built} in all, match their English versions.`);

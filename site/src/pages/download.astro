@@ -3,7 +3,7 @@ import Base from "../layouts/Base.astro";
 import Track from "../components/Track.astro";
 import Code from "../components/Code.astro";
 import Icon from "../components/Icon.astro";
-import { asset, repo, version } from "../../site.config.mjs";
+import { asset, releaseDate, repo, version } from "../../site.config.mjs";
 
 const fileName = (url) => url.split("/").pop();
 const windows = asset("windows-x64-test.exe");
@@ -13,11 +13,13 @@ const guide = `${repo}/blob/main/docs/installation.md`;
 const script = new URL("install.sh", Astro.site).href;
 
 const description = `Download dj-digger ${version} for Windows 10 and 11 or macOS 15 and newer, or install it on Linux with one command. Every file has a SHA-256 checksum.`;
+// The release date in this page's language, from the changelog.
+const released = new Date(releaseDate).toLocaleDateString("en", { dateStyle: "long", timeZone: "UTC" });
 ---
 
 <Base title={`Download dj-digger ${version} for Windows, macOS and Linux`} description={description} label="download">
   <Track id="download" title="Download dj-digger" hero sub>
-    <p class="lede"><strong>Version {version}</strong>, free and open source.</p>
+    <p class="lede"><strong>Version {version}</strong>, released <time datetime={releaseDate}>{released}</time>, free and open source.</p>
 
     {/* Without a script the three systems stand one under another; the script below makes them tabs. */}
     <div class="systems" data-systems>

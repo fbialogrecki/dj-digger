@@ -18,7 +18,7 @@ const release = `${repo}/blob/v${version}`;
   <Track id="about" title="Informazioni" hero sub>
     <Fragment slot="heading">Informazioni su <span class="grad">dj-digger</span></Fragment>
     <p class="lede">
-      dj-digger è un'app desktop gratuita e open source per il crate digging, con un'estensione del browser. Creata da {author.name}.
+      dj-digger è un'app desktop gratuita e open source per il crate digging, con un'estensione del browser. Creata da <a href={author.url}>{author.name}</a>.
     </p>
   </Track>
 
@@ -89,6 +89,7 @@ const release = `${repo}/blob/v${version}`;
       <a class="button" href={repo}><Icon name="github-logo" />Codice sorgente</a>
       <a class="button" href={`${release}/PROJECT_SPECIFICATION.md`}><Icon name="book-open" />Specifica</a>
       <a class="button" href={`${release}/CHANGELOG.md`}><Icon name="clock-counter-clockwise" />Registro delle modifiche</a>
+      <a class="button" href={`${repo}/issues`}><Icon name="bug" />Segnala un problema</a>
     </div>
     <dl class="spec sources">
       <dt>Caratteri</dt>
