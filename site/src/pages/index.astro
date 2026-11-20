@@ -13,7 +13,7 @@ import decisionsWindow from "../assets/screenshots/desktop-crates-decisions.png"
 import { version } from "../../site.config.mjs";
 
 const description =
-  "A local-first crate-digging app for DJs: turn SoundCloud playlists, likes and profiles into an auditionable library, then find the safest way to download or buy each track.";
+  "Free, open-source app for DJs: import SoundCloud playlists and likes, audition them, then buy each track on Bandcamp or Beatport or get it through its download gate.";
 const loop = [
   {
     name: "Collect",
@@ -38,12 +38,11 @@ const loop = [
 ];
 ---
 
-<Base title="dj-digger: crate digging for DJs" description={description}>
+<Base title="dj-digger: free SoundCloud crate-digging app for DJs" description={description}>
   <section class="hero" id="start" aria-labelledby="start-title">
     <h1 id="start-title">From a SoundCloud playlist to <span class="grad">files on your decks</span></h1>
     <p class="lede">
-      <strong>dj-digger</strong> collects whole playlists, remembers what you decided and finds a way to buy or
-      download each track.
+      <strong>dj-digger</strong> is a free, open-source app for DJs. It collects whole SoundCloud playlists, remembers what you decided and finds a way to buy or download each track.
     </p>
     <div class="cta">
       <a class="button primary" href="/download/"><Icon name="download-simple" />Download</a>

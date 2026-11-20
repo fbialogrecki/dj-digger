@@ -9,16 +9,16 @@ import BrowserFlow from "../components/about/BrowserFlow.astro";
 import { author, repo, version } from "../../site.config.mjs";
 
 const description =
-  "How dj-digger works, how the app and its browser extension handle downloads and carts, where your data goes, and the credits.";
+  `dj-digger is a free, open-source crate-digging app with a browser extension, made by ${author.name}. How it works, where your data goes, and the credits.`;
 // Sources at the released tag, so they describe what has shipped.
 const release = `${repo}/blob/v${version}`;
 ---
 
-<Base title="About · dj-digger" description={description} label="about">
+<Base title="About dj-digger: how it works and where your data goes" description={description} label="about">
   <Track id="about" title="About" hero sub>
     <Fragment slot="heading">About <span class="grad">dj-digger</span></Fragment>
     <p class="lede">
-      A free, open-source desktop app for crate digging, with a browser extension. Made by {author.name}.
+      dj-digger is a free, open-source desktop app for crate digging, with a browser extension. Made by {author.name}.
     </p>
   </Track>
 

@@ -9,16 +9,16 @@ import BrowserFlow from "../../components/about/BrowserFlow.astro";
 import { author, repo, version } from "../../../site.config.mjs";
 
 const description =
-  "Wie dj-digger funktioniert, wie die App und ihre Browser-Erweiterung Downloads und Warenkörbe erledigen, wohin deine Daten gehen, und die Credits.";
+  `dj-digger ist eine kostenlose Open-Source-App fürs Crate Digging mit Browser-Erweiterung, gemacht von ${author.name}. Wie sie funktioniert, wohin deine Daten gehen, Credits.`;
 // Sources at the released tag, so they describe what has shipped.
 const release = `${repo}/blob/v${version}`;
 ---
 
-<Base title="Über · dj-digger" description={description} label="about">
+<Base title="Über dj-digger: so funktioniert es, dorthin gehen deine Daten" description={description} label="about">
   <Track id="about" title="Über" hero sub>
     <Fragment slot="heading">Über <span class="grad">dj-digger</span></Fragment>
     <p class="lede">
-      Eine kostenlose Open-Source-Desktop-App fürs Crate Digging, mit Browser-Erweiterung. Gemacht von {author.name}.
+      dj-digger ist eine kostenlose Open-Source-Desktop-App fürs Crate Digging, mit Browser-Erweiterung. Gemacht von {author.name}.
     </p>
   </Track>
 
