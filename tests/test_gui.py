@@ -1133,6 +1133,7 @@ def test_play_loading_is_announced_before_preparation_and_cleared_by_the_current
     from dj_digger.rows import Row
 
     worker, events = backend
+    wait_event(events, 'account')  # Startup publishes the account asynchronously after ready.
     first, second = Track('First', '', id=101), Track('Second', '', id=102)
     worker.rows = [Row(0, first, []), Row(1, second, [])]
     release = threading.Event()
@@ -1208,6 +1209,7 @@ def test_stopped_local_waveform_is_cancelled_and_cannot_restore_audio(backend, t
     from dj_digger.services.playback import Stream
 
     worker, events = backend
+    wait_event(events, 'account')  # Startup publishes the account asynchronously after ready.
     path = tmp_path / 'synthetic.wav'
     path.write_bytes(b'audio')
     loaded = Loaded(Track('Old local', '', local_path=str(path)), Stream(str(path), duration=10))
