@@ -12,7 +12,7 @@ const intel = asset("macos-x86_64-test.dmg");
 const guide = `${repo}/blob/main/docs/installation.md`;
 const script = new URL("install.sh", Astro.site).href;
 
-const description = `Скачайте dj-digger ${version} для Windows 10 и 11 или macOS 15 и новее либо установите на Linux одной командой. У каждого файла есть контрольная сумма SHA-256.`;
+const description = `Скачай dj-digger ${version} для Windows 10 и 11 или macOS 15 и новее либо установи на Linux одной командой. У каждого файла есть контрольная сумма SHA-256.`;
 ---
 
 <Base title={`Скачать dj-digger ${version}`} description={description} label="download">
@@ -43,7 +43,7 @@ const description = `Скачайте dj-digger ${version} для Windows 10 и 
           <Icon name="info" />
           <span>
             Неподписанная предварительная сборка: если SmartScreen пишет <strong>Система Windows защитила ваш компьютер</strong>,
-            нажмите <strong>Подробнее</strong>, затем <strong>Выполнить в любом случае</strong>.
+            нажми <strong>Подробнее</strong>, затем <strong>Выполнить в любом случае</strong>.
           </span>
         </p>
         <div class="cta">
@@ -61,8 +61,8 @@ const description = `Скачайте dj-digger ${version} для Windows 10 и 
         <p class="note">
           <Icon name="info" />
           <span>
-            Неподписанная предварительная сборка: если macOS не может проверить приложение, откройте
-            <strong>Системные настройки, Конфиденциальность и безопасность</strong> и нажмите <strong>Всё равно открыть</strong>.
+            Неподписанная предварительная сборка: если macOS не может проверить приложение, открой
+            <strong>Системные настройки, Конфиденциальность и безопасность</strong> и нажми <strong>Всё равно открыть</strong>.
           </span>
         </p>
         <div class="cta">
@@ -74,7 +74,7 @@ const description = `Скачайте dj-digger ${version} для Windows 10 и 
         <h2><Icon name="linux-logo" />Linux</h2>
         <Code code={`wget -qO- ${script} | sh`} />
         <p class="copy">
-          Вставьте эту команду в терминал: она установит dj-digger со всем необходимым, спросит перед всем, что требует
+          Вставь эту команду в терминал: она установит dj-digger со всем необходимым, спросит перед всем, что требует
           <code>sudo</code>, и обновит его при повторном запуске.
         </p>
         <div class="cta">
@@ -84,8 +84,8 @@ const description = `Скачайте dj-digger ${version} для Windows 10 и 
     </div>
   </Track>
 
-  <Track id="verify" title="Проверьте загрузку">
-    <p class="copy">Сравните результат с файлом <code>.sha256</code> рядом с вашим файлом на странице релиза.</p>
+  <Track id="verify" title="Проверь загрузку">
+    <p class="copy">Сравни результат с файлом <code>.sha256</code> рядом с твоим файлом на странице релиза.</p>
     <Code label="Windows, PowerShell" code={`Get-FileHash .\\${fileName(windows)} -Algorithm SHA256`} />
     <Code label="macOS, Терминал" code={`shasum -a 256 dj-digger-${version}-macos-*.dmg`} />
     <div class="cta">
@@ -93,8 +93,8 @@ const description = `Скачайте dj-digger ${version} для Windows 10 и 
     </div>
   </Track>
 
-  <Track id="next" title="После установки" heading="Затем подключите браузер">
-    <p class="copy">Гейты скачивания и корзины магазинов работают через расширение dj-digger в Chrome, Edge и Brave.</p>
+  <Track id="next" title="После установки" heading="Затем подключи браузер">
+    <p class="copy">Страницы скачивания и корзины магазинов работают через расширение dj-digger в Chrome, Edge и Brave.</p>
     <div class="cta">
       <a class="button" href="/ru/extension/"><Icon name="puzzle-piece" />Установить расширение</a>
     </div>
