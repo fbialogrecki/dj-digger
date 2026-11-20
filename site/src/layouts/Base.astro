@@ -72,24 +72,17 @@ const project = [
         <img src={appIcon.src} width="28" height="28" alt="" />
         dj-digger
       </a>
-      <nav class="links" aria-label={t.primary}>
-        <ul>
-          {
-            pages.map((page) => (
-              <li>
-                <a href={page.href} aria-current={here === page.href ? "page" : undefined}>
-                  <Icon name={page.icon} />
-                  {page.label}
-                </a>
-              </li>
-            ))
-          }
-        </ul>
-      </nav>
-      {/* Narrow screens: the same links behind a disclosure that needs no script. */}
-      <details class="menu" name="top">
-        <summary class="button compact"><Icon name="list" /><span class="menu-word">{t.menu}</span></summary>
-        <nav aria-label={t.primary}>
+      <button class="button compact menu-toggle" type="button" popovertarget="site-menu">
+        <Icon name="list" /><span class="menu-word">{t.menu}</span>
+      </button>
+      <div id="site-menu" popover>
+        <div class="menu-heading">
+          <strong>{t.menu}</strong>
+          <button class="button compact icon-only" type="button" popovertarget="site-menu" popovertargetaction="hide" aria-label={t.close}>
+            <Icon name="x" />
+          </button>
+        </div>
+        <nav class="links" aria-label={t.primary}>
           <ul>
             {
               pages.map((page) => (
@@ -103,31 +96,33 @@ const project = [
             }
           </ul>
         </nav>
-      </details>
-      {/* Works without a script; deck.js remembers the choice (boot.js then follows it). */}
-      <details class="lang" name="top">
-        <summary class="button compact">
-          <Icon name="translate" />
-          <span class="sr">{t.language}: {current.name}</span>
-          <span aria-hidden="true">{lang.toUpperCase()}</span>
-        </summary>
-        <ul>
-          {
-            alternates.map((language) => (
-              <li>
-                <a href={language.href} hreflang={language.code} lang={language.code} data-lang={language.code} aria-current={language.code === lang ? "true" : undefined}>
-                  {language.name}
-                </a>
-              </li>
-            ))
-          }
-        </ul>
-      </details>
-      {/* Shown by deck.js: without JavaScript the site follows the system's theme. */}
-      <button class="button compact icon-only theme" type="button" data-to-light={t.toLight} data-to-dark={t.toDark} hidden>
-        <Icon name="sun" class="sun" />
-        <Icon name="moon" class="moon" />
-      </button>
+        {/* Works without a script; deck.js remembers the choice (boot.js then follows it). */}
+        <details class="lang">
+          <summary class="button compact">
+            <Icon name="translate" />
+            <span class="sr">{t.language}: {current.name}</span>
+            <span class="lang-code" aria-hidden="true">{lang.toUpperCase()}</span>
+            <span class="lang-name" aria-hidden="true">{t.language} · {current.name}</span>
+          </summary>
+          <ul>
+            {
+              alternates.map((language) => (
+                <li>
+                  <a href={language.href} hreflang={language.code} lang={language.code} data-lang={language.code} aria-current={language.code === lang ? "true" : undefined}>
+                    {language.name}
+                  </a>
+                </li>
+              ))
+            }
+          </ul>
+        </details>
+        {/* Shown by deck.js: without JavaScript the site follows the system's theme. */}
+        <button class="button compact icon-only theme" type="button" data-to-light={t.toLight} data-to-dark={t.toDark} hidden>
+          <Icon name="sun" class="sun" />
+          <Icon name="moon" class="moon" />
+          <span class="theme-label"></span>
+        </button>
+      </div>
     </header>
 
     {measurementId && <aside id="consent" class="consent" data-ga={measurementId} data-version={version} data-page={noindex ? "/404/" : here} aria-labelledby="consent-title" hidden>

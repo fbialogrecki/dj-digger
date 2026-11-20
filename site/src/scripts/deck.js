@@ -81,13 +81,35 @@ for (const button of document.querySelectorAll("[data-copy]")) {
   });
 }
 
+// On desktop these same controls are always part of the header.
+const menu = document.querySelector("#site-menu");
+const wideHeader = matchMedia("(min-width: 53rem)");
+function layoutMenu() {
+  menu.toggleAttribute("popover", !wideHeader.matches);
+}
+layoutMenu();
+wideHeader.addEventListener("change", layoutMenu);
+menu.addEventListener("beforetoggle", (event) => {
+  const open = event.newState === "open";
+  for (const element of document.querySelectorAll(".skip, .top > :not(#site-menu), #consent, .page, .foot"))
+    element.inert = open;
+  if (!open) menu.querySelector(".lang").open = false;
+});
+menu.addEventListener("toggle", () => {
+  if (menu.matches(":popover-open")) menu.querySelector("[popovertargetaction=hide]").focus();
+});
+
 // Day or night follows the system. The button flips whatever is showing; flipping back
 // to the system's own theme drops the override, so the site follows the system again.
 const theme = document.querySelector(".theme");
 if (theme && CSS.supports("color", "light-dark(#000, #fff)")) {
   const system = matchMedia("(prefers-color-scheme: dark)");
   const dark = () => (root.dataset.theme ?? (system.matches ? "dark" : "light")) === "dark";
-  const label = () => theme.setAttribute("aria-label", (dark() ? theme.dataset.toLight : theme.dataset.toDark) ?? "");
+  const label = () => {
+    const action = dark() ? theme.dataset.toLight : theme.dataset.toDark;
+    theme.setAttribute("aria-label", action);
+    theme.querySelector(".theme-label").textContent = action;
+  };
   theme.hidden = false;
   label();
   system.addEventListener("change", label);

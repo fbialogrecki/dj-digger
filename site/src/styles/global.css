@@ -311,12 +311,12 @@ pre,
 .brand img {
   border-radius: 7px;
 }
-.links,
-.menu {
+.menu-toggle,
+#site-menu {
   margin-left: auto;
 }
-.links {
-  display: none;
+#site-menu {
+  color: var(--fg);
 }
 .links ul {
   display: flex;
@@ -337,46 +337,34 @@ pre,
 .top nav a[aria-current] {
   color: var(--fg);
 }
-.menu {
-  position: relative;
-}
-.menu summary,
 .lang summary {
   list-style: none;
 }
-.menu summary::-webkit-details-marker,
 .lang summary::-webkit-details-marker {
   display: none;
 }
-.menu nav,
 .lang ul {
   position: absolute;
   right: 0;
   top: calc(100% + 0.6rem);
-  min-width: 13rem;
+  min-width: 10rem;
   padding: 0.5rem;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 6px;
   box-shadow: 0 24px 60px -20px var(--shadow);
 }
-.menu nav a,
 .lang a {
   padding: 0.75rem 0.9rem;
   border-radius: 4px;
   color: var(--fg);
 }
-.menu nav a:hover,
 .lang a:hover {
   background: var(--raise);
 }
-/* Language: the same disclosure as the menu, at every width. */
 .lang {
   position: relative;
   flex: none;
-}
-.lang ul {
-  min-width: 10rem;
 }
 .lang a {
   display: block;
@@ -400,23 +388,79 @@ pre,
 .theme .moon {
   fill: light-dark(currentColor, transparent);
 }
-/* The links' icons only where the longest labels (Russian) still fit beside them. */
-.links .icon {
-  display: none;
-}
-@media (min-width: 76rem) {
-  .links .icon {
-    display: block;
+@media (width < 53rem) {
+  html:has(#site-menu:popover-open) { overflow: hidden; }
+  #site-menu {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100dvh;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    border: 0;
+    padding: max(1rem, env(safe-area-inset-top)) max(1.25rem, env(safe-area-inset-right))
+      max(1.5rem, env(safe-area-inset-bottom)) max(1.25rem, env(safe-area-inset-left));
+    background: var(--bg);
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
+  .menu-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 1.3rem;
+  }
+  .links { margin: 1.5rem 0; }
+  .links ul { display: block; }
+  .links li { border-bottom: 1px solid var(--line); }
+  .top .links a {
+    gap: .8rem;
+    padding: .85rem .25rem;
+    font-size: 1.1rem;
+    white-space: normal;
+  }
+  .top .links a[aria-current] { color: var(--accent); }
+  .lang-code { display: none; }
+  .lang .button, .theme.button {
+    width: 100%;
+    min-height: 44px;
+    padding-inline: .8rem;
+    justify-content: start;
+    text-align: start;
+  }
+  .lang ul {
+    position: static;
+    margin-top: .4rem;
+    box-shadow: none;
+  }
+  .theme { margin-top: .6rem; }
+  .theme-label { grid-column: 2; }
+  .menu-heading .button, .menu-toggle.button { min-height: 44px; min-width: 44px; }
+}
+@media (width < 53rem) and (prefers-reduced-motion: no-preference) {
+  #site-menu:popover-open { animation: menu-slide-in .22s ease-out; }
+  @keyframes menu-slide-in { from { transform: translateX(100%); } }
 }
 /* Wide enough for the longest labels (Russian) beside the language and theme buttons. */
 @media (min-width: 53rem) {
-  .links {
-    display: block;
+  #site-menu {
+    display: flex;
+    position: static;
+    align-items: center;
+    gap: inherit;
+    padding: 0;
+    border: 0;
+    margin-block: 0;
+    margin-right: 0;
+    background: transparent;
+    overflow: visible;
   }
-  .menu {
-    display: none;
-  }
+  .menu-toggle, .menu-heading, .lang-name, .theme-label { display: none; }
+  .links .icon { display: none; }
+}
+@media (min-width: 76rem) {
+  .links .icon { display: block; }
 }
 
 /* ---------- page grid: liner text on the left, the deck on the right ---------- */
