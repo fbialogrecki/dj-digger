@@ -20,10 +20,10 @@ import library from "../../assets/screenshots/es/crops/library.png";
 import exportDialog from "../../assets/screenshots/es/crops/export.png";
 
 const description =
-  "La app de escritorio dj-digger: recopila playlists completas de SoundCloud, escúchalas, recuerda cada decisión, sigue los enlaces de Bandcamp y Beatport, resuelve gates de descarga, llena carritos y exporta archivos para tus decks.";
+  "Importa playlists, likes y perfiles completos de SoundCloud, escucha con BPM y tonalidad, marca lo que ya tienes, completa gates de Hypeddit y ToneDen y exporta para tus decks.";
 ---
 
-<Base title="La app de escritorio · dj-digger" description={description} label="app">
+<Base title="App de escritorio: de playlists de SoundCloud a tu biblioteca DJ · dj-digger" description={description} label="app">
   <Track hero sub id="overview" title="Todo el ciclo">
     <Fragment slot="heading">Todo el ciclo del digging <span class="grad">en una sola ventana</span></Fragment>
     <p class="lede">Cada imagen de esta página es la app real, con datos de demostración.</p>
@@ -37,7 +37,7 @@ const description =
     />
   </Track>
 
-  <Track id="collect" title="Recopilar" heading="Playlists completas, no una página desplazada">
+  <Track id="collect" title="Recopilar" heading="Playlists completas de SoundCloud, no una página desplazada">
     <div class="beside">
       <div class="beside-grid">
         <div class="stack">
@@ -59,7 +59,7 @@ const description =
     </div>
   </Track>
 
-  <Track id="audition" title="Escuchar" heading="Una escucha que siente el bombo">
+  <Track id="audition" title="Escuchar" heading="Escucha sobre una forma de onda que siente el bombo">
     <p class="lede">Escucha desde SoundCloud, o reproduce el archivo del disco cuando lo tienes.</p>
     <Loop />
     <ul class="ticks">
@@ -71,7 +71,7 @@ const description =
     </ul>
   </Track>
 
-  <Track id="decide" title="Decidir" heading="Cajas que recuerdan">
+  <Track id="decide" title="Decidir" heading="Cajas que recuerdan lo que tienes y lo que descartaste">
     <p class="lede">La tengo, omitida, reproducida y abierta: cada pista conserva su estado.</p>
     <Shot
       src={decisions}
@@ -85,7 +85,7 @@ const description =
     </ul>
   </Track>
 
-  <Track id="acquire" title="Conseguir" heading="La forma más segura de llegar a cada pista">
+  <Track id="acquire" title="Conseguir" heading="Cómprala o descárgala gratis: la forma más segura de llegar a cada pista">
     <p class="lede">Tres caminos hasta el archivo. Cada uno dice qué queda en tus manos.</p>
 
     <div class="movement stack">
@@ -137,7 +137,7 @@ const description =
     </div>
   </Track>
 
-  <Track id="prepare" title="Preparar" heading="Lista para los decks">
+  <Track id="prepare" title="Preparar" heading="Lista para los decks: archivos que leen tus CDJ y XDJ">
     <p class="lede">Las carpetas del disco se abren en la misma tabla y salen de ella como copias que tus decks pueden leer.</p>
 
     <div class="movement stack">
@@ -175,7 +175,7 @@ const description =
     <p class="copy">Windows 10+, macOS 15+ y Linux.</p>
   </Track>
 
-  <Track id="end" title="Consíguela" heading="Ponla a sonar">
+  <Track id="end" title="Consíguela" heading="Descarga dj-digger">
     <p class="copy">Después conecta tu navegador: los gates de descarga y los carritos funcionan a través de la extensión.</p>
     <div class="cta">
       <a class="button primary" href="/es/download/"><Icon name="download-simple" />Descargar</a>

@@ -13,7 +13,7 @@ import decisionsWindow from "../../assets/screenshots/fr/desktop-crates-decision
 import { version } from "../../../site.config.mjs";
 
 const description =
-  "Une application de crate digging pour DJ, qui garde tout en local : transformez vos playlists, likes et profils SoundCloud en une bibliothèque à écouter, puis trouvez le moyen le plus sûr de télécharger ou d'acheter chaque morceau.";
+  "Application libre et gratuite pour DJ : importez vos playlists et likes SoundCloud, écoutez-les, puis achetez chaque morceau sur Bandcamp ou Beatport ou passez son gate.";
 const loop = [
   {
     name: "Collecter",
@@ -38,12 +38,11 @@ const loop = [
 ];
 ---
 
-<Base title="dj-digger : le crate digging pour DJ" description={description}>
+<Base title="dj-digger : appli gratuite de crate digging pour SoundCloud" description={description}>
   <section class="hero" id="start" aria-labelledby="start-title">
     <h1 id="start-title">D'une playlist SoundCloud <span class="grad">aux fichiers sur vos platines</span></h1>
     <p class="lede">
-      <strong>dj-digger</strong> récupère des playlists entières, retient vos décisions et trouve un moyen d'acheter ou
-      de télécharger chaque morceau.
+      <strong>dj-digger</strong> est une application libre et gratuite pour DJ. Elle récupère des playlists SoundCloud entières, retient vos décisions et trouve un moyen d'acheter ou de télécharger chaque morceau.
     </p>
     <div class="cta">
       <a class="button primary" href="/fr/download/"><Icon name="download-simple" />Télécharger</a>
@@ -111,7 +110,7 @@ const loop = [
     </ul>
   </Track>
 
-  <Track id="get" title="Télécharger" heading="Posez le disque">
+  <Track id="get" title="Télécharger" heading="Téléchargez dj-digger">
     <p class="copy">dj-digger {version}, gratuit pour Windows, macOS et Linux.</p>
     <div class="cta"><a class="button primary" href="/fr/download/"><Icon name="download-simple" />Télécharger</a></div>
   </Track>

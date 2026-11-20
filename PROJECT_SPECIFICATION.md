@@ -7,7 +7,7 @@
 | **Owner** | Filip Białogrecki |
 | **Last updated** | 2026-11-18 |
 | **Product version** | 1.6.0 (`pyproject.toml`); browser extension 1.4.5 (`dj_digger/webext/extension/manifest.json`) |
-| **Document lines** | <!-- SPEC TOTAL LINES -->2858<!-- END SPEC TOTAL LINES --> |
+| **Document lines** | <!-- SPEC TOTAL LINES -->2866<!-- END SPEC TOTAL LINES --> |
 | **Verified against** | `pyproject.toml`, `dj_digger/`, `dj_digger/webext/extension/manifest.json`, `scripts/`, `tests/`, `.github/workflows/`, `README.md`, `CHANGELOG.md` |
 
 ## Purpose of this file
@@ -107,13 +107,13 @@ text is never promoted into the map.
 | 13 | Failure behavior and current limitations | 2555–2670 |
 | 13.1 | ↳ Error isolation and reporting | 2557–2578 |
 | 13.2 | ↳ Confirmed limitations | 2579–2670 |
-| 14 | Verification, CI, and release | 2671–2820 |
+| 14 | Verification, CI, and release | 2671–2828 |
 | 14.1 | ↳ Offline and live test suites | 2673–2724 |
-| 14.2 | ↳ Continuous integration and publishing | 2725–2803 |
-| 14.3 | ↳ Specification-map verification | 2804–2820 |
-| 15 | References | 2821–2858 |
-| 15.1 | ↳ Primary implementation evidence | 2823–2844 |
-| 15.2 | ↳ User and historical documentation | 2845–2858 |
+| 14.2 | ↳ Continuous integration and publishing | 2725–2811 |
+| 14.3 | ↳ Specification-map verification | 2812–2828 |
+| 15 | References | 2829–2866 |
+| 15.1 | ↳ Primary implementation evidence | 2831–2852 |
+| 15.2 | ↳ User and historical documentation | 2853–2866 |
 <!-- END GENERATED SECTION MAP -->
 
 ---
@@ -2776,6 +2776,14 @@ also clears host-only and domain-scoped analytics cookies. The tag sets cookies 
 origin, installer clicks and successful copies of the Linux command. Hosting uses a strict-origin
 referrer policy. A single tag configuration records each consented page load. The website's GA4 tag
 does not run in the desktop app, extension, update checker or install script.
+
+Every indexed page carries schema.org JSON-LD (`site/src/layouts/Base.astro`): the site
+(`WebSite`) and its author (`Person`); on the home, app and download pages the desktop app as a
+free `SoftwareApplication` with the download version and its changelog date; on the extension page
+the extension, linked to the Chrome Web Store, without a version; and on every other page a
+two-level `BreadcrumbList`. `/llms.txt` is a plain-text summary of the product with links to the
+English pages and the project's source and distribution pages. Both are generated from
+`site/site.config.mjs`, so the version follows the download version.
 
 The site also serves `site/public/install.sh`, the Linux install script described
 in `docs/installation.md`: it installs uv into the home directory, shows the

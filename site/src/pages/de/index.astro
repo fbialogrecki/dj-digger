@@ -13,7 +13,7 @@ import decisionsWindow from "../../assets/screenshots/de/desktop-crates-decision
 import { version } from "../../../site.config.mjs";
 
 const description =
-  "Eine Local-first-App zum Crate Digging für DJs: Mach aus SoundCloud-Playlists, Likes und Profilen eine Bibliothek zum Vorhören und finde für jeden Track den sichersten Weg zum Download oder Kauf.";
+  "Kostenlose Open-Source-App für DJs: Importiere SoundCloud-Playlists und Likes, hör sie vor und kauf jeden Track bei Bandcamp oder Beatport oder hol ihn übers Download-Gate.";
 const loop = [
   {
     name: "Sammeln",
@@ -30,7 +30,7 @@ const loop = [
     alt: "Die Tracktabelle mit geöffnetem Statusfilter: Zeilen mit „Habe ich“, „Gespielt“, „Geöffnet“ und „Neu“ und ein Menü mit „Alle Status“, „Unerledigt“, „Neu“, „Geöffnet“, „Vorhanden“ und „Übersprungen“.",
   },
   {
-    name: "Kaufen oder laden",
+    name: "Kaufen oder herunterladen",
     text: "Ab hier erledigt die Browser-Erweiterung den Rest, in deinem eigenen Browser: Sie löst Download-Gates und füllt deine Shop-Warenkörbe. Den Checkout machst du selbst.",
     src: panelJob,
     alt: "Das Panel der dj-digger-Browser-Erweiterung: Drift Away von JMHBM bei 1:27 von 3:01, die Transporttasten und darunter „Adding to store carts“ mit einer Schaltfläche „Cancel“.",
@@ -38,12 +38,11 @@ const loop = [
 ];
 ---
 
-<Base title="dj-digger: Crate Digging für DJs" description={description}>
+<Base title="dj-digger: kostenlose SoundCloud-App fürs Crate Digging" description={description}>
   <section class="hero" id="start" aria-labelledby="start-title">
     <h1 id="start-title">Von der SoundCloud-Playlist zu <span class="grad">Dateien auf deinen Decks</span></h1>
     <p class="lede">
-      <strong>dj-digger</strong> sammelt ganze Playlists, merkt sich deine Entscheidungen und findet für jeden Track
-      einen Weg zum Kauf oder Download.
+      <strong>dj-digger</strong> ist eine kostenlose Open-Source-App für DJs. Sie sammelt ganze SoundCloud-Playlists, merkt sich deine Entscheidungen und findet für jeden Track einen Weg zum Kauf oder Download.
     </p>
     <div class="cta">
       <a class="button primary" href="/de/download/"><Icon name="download-simple" />Download</a>
@@ -103,7 +102,7 @@ const loop = [
     <div class="cta"><a class="button" href="/de/extension/"><Icon name="puzzle-piece" />Die Erweiterung ansehen</a></div>
   </Track>
 
-  <Track id="trust" title="Deins, und ehrlich" heading="Deins, und ehrlich zu seinen Grenzen">
+  <Track id="trust" title="Bei dir und ehrlich" heading="Läuft bei dir und sagt ehrlich, was es nicht kann">
     <ul class="ticks">
       <li>Deine Playlists und Entscheidungen bleiben auf deinem Computer.</li>
       <li>Es bezahlt nie für dich und geht nie für dich zur Kasse.</li>
@@ -111,7 +110,7 @@ const loop = [
     </ul>
   </Track>
 
-  <Track id="get" title="Download" heading="Leg sie auf">
+  <Track id="get" title="Download" heading="dj-digger herunterladen">
     <p class="copy">dj-digger {version}, kostenlos für Windows, macOS und Linux.</p>
     <div class="cta"><a class="button primary" href="/de/download/"><Icon name="download-simple" />Download</a></div>
   </Track>

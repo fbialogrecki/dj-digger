@@ -9,16 +9,16 @@ import BrowserFlow from "../../components/about/BrowserFlow.astro";
 import { author, repo, version } from "../../../site.config.mjs";
 
 const description =
-  "Jak działa dj-digger, jak aplikacja i jej rozszerzenie przeglądarki obsługują pobieranie i koszyki, dokąd trafiają Twoje dane oraz podziękowania.";
+  `dj-digger to darmowa, otwartoźródłowa aplikacja do digowania z rozszerzeniem przeglądarki. Autor: ${author.name}. Jak działa, dokąd trafiają Twoje dane, podziękowania.`;
 // Sources at the released tag, so they describe what has shipped.
 const release = `${repo}/blob/v${version}`;
 ---
 
-<Base title="O projekcie · dj-digger" description={description} label="about">
+<Base title="O dj-digger: jak działa i dokąd trafiają Twoje dane" description={description} label="about">
   <Track id="about" title="O projekcie" hero sub>
     <Fragment slot="heading">O <span class="grad">dj-digger</span></Fragment>
     <p class="lede">
-      Bezpłatna, otwartoźródłowa aplikacja desktopowa do digowania, z rozszerzeniem przeglądarki. Autor: {author.name}.
+      dj-digger to bezpłatna, otwartoźródłowa aplikacja desktopowa do digowania, z rozszerzeniem przeglądarki. Autor: {author.name}.
     </p>
   </Track>
 

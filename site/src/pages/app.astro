@@ -20,10 +20,10 @@ import library from "../assets/screenshots/crops/library.png";
 import exportDialog from "../assets/screenshots/crops/export.png";
 
 const description =
-  "The dj-digger desktop app: collect whole SoundCloud playlists, audition them, remember every decision, follow Bandcamp and Beatport links, resolve download gates, fill carts and export files for your decks.";
+  "Import whole SoundCloud playlists, likes and profiles, preview with BPM and key, mark what you own, finish Hypeddit and ToneDen gates and export files for your decks.";
 ---
 
-<Base title="The desktop app · dj-digger" description={description} label="app">
+<Base title="Desktop app: SoundCloud playlists to a DJ library · dj-digger" description={description} label="app">
   <Track hero sub id="overview" title="The whole loop">
     <Fragment slot="heading">The whole digging loop <span class="grad">in one window</span></Fragment>
     <p class="lede">Every picture on this page is the real app, running on demo data.</p>
@@ -37,7 +37,7 @@ const description =
     />
   </Track>
 
-  <Track id="collect" title="Collect" heading="Whole playlists, not a scrolled page">
+  <Track id="collect" title="Collect" heading="Whole SoundCloud playlists, not a scrolled page">
     <div class="beside">
       <div class="beside-grid">
         <div class="stack">
@@ -59,7 +59,7 @@ const description =
     </div>
   </Track>
 
-  <Track id="audition" title="Audition" heading="Preview that feels the kick">
+  <Track id="audition" title="Audition" heading="Preview on a waveform that feels the kick">
     <p class="lede">Stream a SoundCloud preview, or play the file on disk when you have one.</p>
     <Loop />
     <ul class="ticks">
@@ -71,7 +71,7 @@ const description =
     </ul>
   </Track>
 
-  <Track id="decide" title="Decide" heading="Crates that remember">
+  <Track id="decide" title="Decide" heading="Crates that remember what you got and skipped">
     <p class="lede">Got, skipped, played and opened: every track keeps its status.</p>
     <Shot
       src={decisions}
@@ -85,7 +85,7 @@ const description =
     </ul>
   </Track>
 
-  <Track id="acquire" title="Acquire" heading="The safest way to each track">
+  <Track id="acquire" title="Acquire" heading="Buy it or get it free: the safest way to each track">
     <p class="lede">Three ways to the file. Each one says what stays with you.</p>
 
     <div class="movement stack">
@@ -135,7 +135,7 @@ const description =
     </div>
   </Track>
 
-  <Track id="prepare" title="Prepare" heading="Ready for the decks">
+  <Track id="prepare" title="Prepare" heading="Ready for the decks: files your CDJs and XDJs read">
     <p class="lede">Folders on disk open in the same table, and leave it as copies your decks can read.</p>
 
     <div class="movement stack">
@@ -172,7 +172,7 @@ const description =
     <p class="copy">Windows 10+, macOS 15+ and Linux.</p>
   </Track>
 
-  <Track id="end" title="Get it" heading="Put it on">
+  <Track id="end" title="Get it" heading="Download dj-digger">
     <p class="copy">Then connect your browser: download gates and store carts run through the extension.</p>
     <div class="cta">
       <a class="button primary" href="/download/"><Icon name="download-simple" />Download</a>
