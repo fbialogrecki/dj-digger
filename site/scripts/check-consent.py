@@ -69,7 +69,8 @@ def check(browser, origin):
     page.locator('[data-choice="allow"]').click()
     for tab in (page, other):
         wait_js(tab, "document.cookie.includes('_ga=test')")
-        assert tab.evaluate("dataLayer.filter(x => x[1] === 'page_view').length") == 1
+        assert tab.evaluate("dataLayer.filter(x => x[0] === 'config' && x[2].send_page_view !== false).length") == 1
+        assert tab.evaluate("dataLayer.every(x => x[1] !== 'page_view')")
     assert external == ["www.googletagmanager.com"] * 2
     page.locator("#tab-linux").click()
     page.locator("#linux [data-copy]").click()

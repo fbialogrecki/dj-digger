@@ -32,11 +32,11 @@ function setup(panel) {
     gtag("js", new Date());
     const referrer = document.referrer ? new URL(document.referrer).origin : "";
     gtag("config", id, {
-      send_page_view: false, allow_google_signals: false, allow_ad_personalization_signals: false,
+      allow_google_signals: false, allow_ad_personalization_signals: false,
       cookie_domain: "none", cookie_expires: 180 * 86400, cookie_update: false,
       page_location: location.origin + panel.dataset.page, page_referrer: referrer,
     });
-    gtag("event", "page_view");
+    // The config command records this page once when the tag loads.
     const tag = document.createElement("script");
     tag.async = true;
     tag.src = `https://www.googletagmanager.com/gtag/js?id=${id}`;

@@ -7,7 +7,7 @@
 | **Owner** | Filip Białogrecki |
 | **Last updated** | 2026-11-18 |
 | **Product version** | 1.6.0 (`pyproject.toml`); browser extension 1.4.5 (`dj_digger/webext/extension/manifest.json`) |
-| **Document lines** | <!-- SPEC TOTAL LINES -->2853<!-- END SPEC TOTAL LINES --> |
+| **Document lines** | <!-- SPEC TOTAL LINES -->2854<!-- END SPEC TOTAL LINES --> |
 | **Verified against** | `pyproject.toml`, `dj_digger/`, `dj_digger/webext/extension/manifest.json`, `scripts/`, `tests/`, `.github/workflows/`, `README.md`, `CHANGELOG.md` |
 
 ## Purpose of this file
@@ -107,13 +107,13 @@ text is never promoted into the map.
 | 13 | Failure behavior and current limitations | 2555–2670 |
 | 13.1 | ↳ Error isolation and reporting | 2557–2578 |
 | 13.2 | ↳ Confirmed limitations | 2579–2670 |
-| 14 | Verification, CI, and release | 2671–2815 |
+| 14 | Verification, CI, and release | 2671–2816 |
 | 14.1 | ↳ Offline and live test suites | 2673–2724 |
-| 14.2 | ↳ Continuous integration and publishing | 2725–2798 |
-| 14.3 | ↳ Specification-map verification | 2799–2815 |
-| 15 | References | 2816–2853 |
-| 15.1 | ↳ Primary implementation evidence | 2818–2839 |
-| 15.2 | ↳ User and historical documentation | 2840–2853 |
+| 14.2 | ↳ Continuous integration and publishing | 2725–2799 |
+| 14.3 | ↳ Specification-map verification | 2800–2816 |
+| 15 | References | 2817–2854 |
+| 15.1 | ↳ Primary implementation evidence | 2819–2840 |
+| 15.2 | ↳ User and historical documentation | 2841–2854 |
 <!-- END GENERATED SECTION MAP -->
 
 ---
@@ -2769,7 +2769,8 @@ and a versioned six-month analytics choice locally. In-page animation state is t
 The static site, downloads and install command work without JavaScript or analytics consent.
 Only an affirmative choice loads GA4. Refusal and withdrawal disable collection; withdrawal
 also clears the site's analytics cookies. The site measures sanitized page views, the referring
-origin, installer clicks and successful copies of the Linux command. The website's GA4 tag
+origin, installer clicks and successful copies of the Linux command. Hosting uses a strict-origin
+referrer policy. A single tag configuration records each consented page load. The website's GA4 tag
 does not run in the desktop app, extension, update checker or install script.
 
 The site also serves `site/public/install.sh`, the Linux install script described
