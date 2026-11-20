@@ -483,20 +483,18 @@ class SoundCloudClient:
         if not ids:
             return []
 
-        position = {track_id: index for index, track_id in enumerate(ids)}
         tracks: list[Track] = []
         for chunk in batched(ids, HYDRATE_BATCH):
             check_cancelled(cancel)
             payload = self._get("/tracks", ids=",".join(str(i) for i in chunk))
             if isinstance(payload, list):
-                tracks.extend(Track.from_api(item) for item in payload if isinstance(item, dict))
+                by_id = {item.get("id"): item for item in payload if isinstance(item, dict)}
+                tracks.extend(Track.from_api(by_id[track_id]) for track_id in chunk if track_id in by_id)
             if on_progress:
                 on_progress(len(tracks), len(ids))
             if on_batch:
-                on_batch(sorted(tracks, key=lambda track: position.get(track.id or -1, len(ids))))
+                on_batch(list(tracks))
 
-        # The endpoint neither preserves order nor returns deleted tracks.
-        tracks.sort(key=lambda track: position.get(track.id or -1, len(ids)))
         return tracks
 
     def _paginate(

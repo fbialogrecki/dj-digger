@@ -1,8 +1,10 @@
 """Run the desktop against an empty isolated profile; optional executable argument."""
+import json
 import os
 import subprocess
 import sys
 import tempfile
+import tomllib
 from pathlib import Path
 
 
@@ -23,7 +25,8 @@ def main():
             raise SystemExit(result.stderr or f'Desktop exit: {result.returncode}')
         if len(sys.argv) > 2 and sys.argv[2] == '--runtime':
             subprocess.run([*command, '--runtime-test', temporary], env=env, check=True, timeout=180)
-            assert (root / 'runtime-smoke.json').is_file()
+            expected = tomllib.loads((Path(__file__).resolve().parents[1] / 'pyproject.toml').read_text(encoding='utf-8'))['project']['version']
+            assert json.loads((root / 'runtime-smoke.json').read_text(encoding='utf-8'))['version'] == expected
         print('Desktop started and closed using an isolated profile.')
 
 

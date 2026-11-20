@@ -696,10 +696,6 @@
       <translation>Sprawdź aktualizacje</translation>
     </message>
     <message>
-      <source>Opens the releases page in your browser</source>
-      <translation>Otwiera stronę wydań w przeglądarce</translation>
-    </message>
-    <message>
       <source>About dj-digger…</source>
       <translation>O dj-digger…</translation>
     </message>
@@ -979,9 +975,21 @@
       <source>No local files in this playlist</source>
       <translation>Na tej playliście nie ma plików lokalnych</translation>
     </message>
+    <message>
+      <source>Check for a newer stable desktop version</source>
+      <translation>Sprawdź, czy jest nowsza stabilna wersja aplikacji</translation>
+    </message>
+    <message>
+      <source>Delete playlists…</source>
+      <translation>Usuń playlisty…</translation>
+    </message>
   </context>
   <context>
     <name>Bridge</name>
+    <message>
+      <source>Drag to position the cover</source>
+      <translation>Przeciągnij, aby ustawić kadr okładki</translation>
+    </message>
     <message>
       <source>Gates need you</source>
       <translation>Bramki czekają na Ciebie</translation>
@@ -1031,8 +1039,16 @@
       <translation>Domyślna okładka nie jest plikiem</translation>
     </message>
     <message>
-      <source>Choose the decks these files must play on; the best format they all play is picked for you.</source>
-      <translation>Wybierz decki, na których te pliki mają grać; najlepszy format obsługiwany przez wszystkie zostanie dobrany automatycznie.</translation>
+      <source>Auto chooses a format supported by every selected deck. Compatible MP3 and AAC files keep their original encoding.</source>
+      <translation>Tryb automatyczny wybiera format obsługiwany przez wszystkie wybrane odtwarzacze. Zgodne pliki MP3 i AAC zachowują oryginalne kodowanie.</translation>
+    </message>
+    <message>
+      <source>Output format</source>
+      <translation>Format wyjściowy</translation>
+    </message>
+    <message>
+      <source>Auto</source>
+      <translation>Automatyczny</translation>
     </message>
     <message>
       <source>Choose at least one deck</source>
@@ -2050,6 +2066,70 @@
       <source>Start previews at 30 %</source>
       <translation>Zaczynaj odsłuch od 30 %</translation>
     </message>
+    <message>
+      <source>Delete playlists</source>
+      <translation>Usuń playlisty</translation>
+    </message>
+    <message>
+      <source>Selected playlists: {0}</source>
+      <translation>Zaznaczone playlisty: {0}</translation>
+    </message>
+    <message>
+      <source>Check for desktop updates daily</source>
+      <translation>Codziennie sprawdzaj aktualizacje aplikacji</translation>
+    </message>
+    <message>
+      <source>Desktop update available</source>
+      <translation>Dostępna aktualizacja aplikacji</translation>
+    </message>
+    <message>
+      <source>Close dj-digger and start the update?</source>
+      <translation>Zamknąć dj-digger i rozpocząć aktualizację?</translation>
+    </message>
+    <message>
+      <source>Update</source>
+      <translation>Aktualizuj</translation>
+    </message>
+    <message>
+      <source>Release</source>
+      <translation>Strona wydania</translation>
+    </message>
+    <message>
+      <source>You have the latest desktop version</source>
+      <translation>Masz najnowszą wersję aplikacji</translation>
+    </message>
+    <message>
+      <source>Downloading desktop update</source>
+      <translation>Pobieranie aktualizacji aplikacji</translation>
+    </message>
+    <message>
+      <source>Finish active operations and pause playback before updating</source>
+      <translation>Przed aktualizacją zakończ aktywne operacje i wstrzymaj odtwarzanie</translation>
+    </message>
+    <message>
+      <source>For pipx, run pipx upgrade dj-sc-digger. For a development checkout, update your checkout and run uv sync. Otherwise use your original installer.</source>
+      <translation>Dla pipx wykonaj pipx upgrade dj-sc-digger. W kopii deweloperskiej zaktualizuj kod i wykonaj uv sync. W pozostałych przypadkach użyj pierwotnego instalatora.</translation>
+    </message>
+    <message>
+      <source>Later</source>
+      <translation>Później</translation>
+    </message>
+    <message>
+      <source>This desktop version is not available on PyPI yet</source>
+      <translation>Ta wersja aplikacji nie jest jeszcze dostępna w PyPI</translation>
+    </message>
+    <message>
+      <source>Playlist selection changed. Select the playlists again.</source>
+      <translation>Zaznaczenie playlist uległo zmianie. Zaznacz playlisty ponownie.</translation>
+    </message>
+    <message>
+      <source>Updated to version {0}</source>
+      <translation>Zaktualizowano do wersji {0}</translation>
+    </message>
+    <message>
+      <source>The update to {0} did not finish. Running version {1}.</source>
+      <translation>Aktualizacja do wersji {0} nie została ukończona. Uruchomiona wersja to {1}.</translation>
+    </message>
   </context>
   <context>
     <name>TrackModel</name>
@@ -2148,6 +2228,10 @@
     <message>
       <source>Others</source>
       <translation>Inne</translation>
+    </message>
+    <message>
+      <source>#</source>
+      <translation>#</translation>
     </message>
   </context>
 </TS>

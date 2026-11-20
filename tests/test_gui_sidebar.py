@@ -367,6 +367,13 @@ def test_qml_sidebar_sections_filter_keyboard_menus_and_track_drop(app, tmp_path
         QTest.keyClick(window, Qt.Key_Up)
         QTest.keyClick(window, Qt.Key_Return)
         assert bridge.backend.calls[-1] == ('load', {'source': local})
+        mine = find_item(scene, 'playlist-' + local)
+        other = find_item(scene, 'playlist-' + remote)
+        QTest.mouseClick(window, Qt.LeftButton, pos=center(mine))
+        QTest.mouseClick(window, Qt.LeftButton, Qt.ControlModifier, center(other))
+        assert qml('root.selectedPlaylists.join("|")') == f'{local}|{remote}'
+        qml(f'root.playlistMenuAt("{local}"); playlistMenu.itemAt(7).triggered(); playlistMenu.close()')
+        assert bridge.backend.calls[-1] == ('delete_playlist', {'sources': [local, remote]})
         # A long press opens the menu without opening the playlist.
         calls = len(bridge.backend.calls)
         mine = find_item(scene, 'playlist-' + local)
@@ -468,3 +475,28 @@ def test_qml_sidebar_sections_filter_keyboard_menus_and_track_drop(app, tmp_path
         assert not errors
     finally:
         shiboken6.delete(engine)
+
+
+def test_batch_delete_confirms_once_and_preserves_source_numbers(backend):  # noqa: F811
+    from dj_digger.crate_models import CrateRecord
+    from dj_digger.models import Track
+
+    worker, events = backend
+    db = worker.services.state.db
+    tracks = [Track(str(i), '', id=i) for i in [1, 2, 3, 2]]
+    for source in ('a', 'b', 'c'):
+        db.save_crate(CrateRecord(source, source.upper(), tracks, removed_track_keys=['3'], new_track_keys=['2']).to_json())
+    worker.submit('load', {'source': 'a'})
+    values = wait_event(events, 'view')
+    assert [(r['key'], r['position']) for r in values['rows']] == [('2', 2), ('2', 4), ('1', 1)]
+    old = db.snapshot_generations()
+    for answer in (None, {}):
+        worker.submit('delete_playlist', {'sources': ['a', 'b', 'a', 'missing']})
+        question = wait_event(events, 'question')
+        assert question['body'] == 'A\nB'
+        assert db.load_crate('a') and db.load_crate('b')
+        worker.answer(question['id'], answer)
+        wait_event(events, 'dismiss')
+    assert [p['source'] for p in wait_event(events, 'sidebar')['items']] == ['c']
+    assert wait_event(events, 'view')['source'] == ''
+    assert db.remember_collection(CrateRecord('b', 'B', tracks).to_json(), old) is None

@@ -86,6 +86,11 @@ const clock = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStar
 const elapsed = (s) => Math.min(s.duration, s.position + (s.playing && s.at ? Math.max(0, Date.now() / 1000 - s.at) : 0));
 
 let state = null;
+let webTrack = null;
+let readingTabs = false;
+let coverRequest = null;
+let coverSource = "";
+let coverObject = "";
 let dragging = false; // the seek bar is in the person's hand: the clock leaves it alone
 let offer = null;
 let pageUrl = "";
@@ -95,11 +100,12 @@ const actionStatus = {
   accepted: "Importing in dj-digger…", sent: "Sent to dj-digger", busy: "dj-digger is busy. Try again.",
   update: "Update dj-digger to use this action.", "launch-failed": "Could not start dj-digger.",
   timeout: "dj-digger did not respond. Try again.", interrupted: "dj-digger restarted. Try again.",
+  attention: "dj-digger is open. Select its window in your taskbar or overview.",
   unavailable: "Could not send to dj-digger. Try again.", invalid: "This page could not be imported.",
 };
 let missing = false; // the background found no usable native host (djdStatus.missing): offer the app's download
 function tickSeek() {
-  const on = !!state?.title && state.duration > 0;
+  const on = !webTrack && !!state?.title && state.duration > 0;
   $("seek").disabled = !on;
   if (dragging) return;
   const t = on ? elapsed(state) : 0;
@@ -111,6 +117,10 @@ function tickSeek() {
 let drawn = "";
 function render(s) {
   state = s;
+  if (s?.playing && webTrack) {
+    webTrack = null;
+    updateWebCover("");
+  }
   // The cards: gates waiting for a person, the import this page offers, the running job.
   const needs = s?.needs ?? 0;
   $("gates").hidden = !needs;
@@ -136,7 +146,7 @@ function render(s) {
   }
   $("panel").classList.toggle("extra", ["install", "gates", "import", "job"].some((id) => !$(id).hidden));
   tickSeek();
-  const loaded = !!s?.title;
+  const loaded = !!s?.title && !webTrack;
   const dark = s ? s.dark : matchMedia("(prefers-color-scheme: dark)").matches;
   const pair = s?.colors ?? DEFAULT_PAIR[dark ? "dark" : "light"];
   const seed = loaded ? s.seed : EMPTY_SEED;
@@ -151,17 +161,17 @@ function render(s) {
     drawCode(seed);
   }
   const art = $("art");
-  const picture = loaded ? s.artwork : "";
+  const picture = loaded ? s.artwork : coverObject || (webTrack ? s?.defaultArtwork : "") || "";
   if (art.getAttribute("src") !== picture) {
     art.classList.remove("ready");
     if (picture) art.src = picture;
     else art.removeAttribute("src");
   }
-  $("panel").classList.toggle("idle", !loaded);
-  $("panel").classList.toggle("playing", loaded && s.playing);
-  $("title").textContent = loaded ? s.title : s ? "Nothing playing" : "Open dj-digger to control playback";
-  $("title").title = loaded ? s.title : "";
-  $("artist").textContent = loaded ? s.artist : "";
+  $("panel").classList.toggle("idle", !loaded && !webTrack);
+  $("panel").classList.toggle("playing", loaded ? s.playing : !!webTrack);
+  $("title").textContent = loaded ? s.title : webTrack?.title ?? (s ? "Nothing playing" : "Open dj-digger to control playback");
+  $("title").title = loaded ? s.title : webTrack?.title ?? "";
+  $("artist").textContent = loaded ? s.artist : webTrack ? [webTrack.artist, "SoundCloud"].filter(Boolean).join(" · ") : "";
   const verb = loaded && s.playing ? "Pause" : "Play";
   $("toggleIcon").setAttribute("d", verb === "Pause" ? PAUSE : PLAY);
   $("toggle").setAttribute("aria-label", verb);
@@ -170,6 +180,46 @@ function render(s) {
 }
 
 const ask = (m) => Promise.resolve(api.runtime.sendMessage(m)).catch(() => {});
+// Only the canonical small SoundCloud thumbnail is fetched, without credentials or redirects.
+async function updateWebCover(src) {
+  if (src === coverSource) return;
+  coverSource = src;
+  coverRequest?.abort();
+  if (coverObject) URL.revokeObjectURL(coverObject);
+  coverObject = "";
+  if (!src || !/^https:\/\/i1\.sndcdn\.com\/artworks-[a-zA-Z0-9_-]{1,200}-t200x200\.jpg$/.test(src)) return;
+  const controller = new AbortController();
+  coverRequest = controller;
+  const timer = setTimeout(() => controller.abort(), 4000);
+  try {
+    const response = await fetch(src, { credentials: "omit", cache: "no-store", referrerPolicy: "no-referrer", redirect: "error", signal: controller.signal });
+    if (!response.ok || response.headers.get("content-type")?.split(";")[0] !== "image/jpeg") return;
+    const reader = response.body.getReader(), chunks = [];
+    let size = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.length;
+      if (size > 48 * 1024) { controller.abort(); return; }
+      chunks.push(value);
+    }
+    if (controller.signal.aborted || state?.playing) return;
+    coverObject = URL.createObjectURL(new Blob(chunks, { type: "image/jpeg" }));
+    render(state);
+  } catch { /* A blocked or missing cover leaves the vinyl label visible. */ }
+  finally { clearTimeout(timer); }
+}
+async function refreshTabs() {
+  if (readingTabs || state?.playing) return;
+  readingTabs = true;
+  try {
+    const track = await ask({ op: "browser-playing" });
+    if (state?.playing) return;
+    webTrack = track?.title ? track : null;
+    updateWebCover(webTrack?.artwork || "");
+    render(state);
+  } finally { readingTabs = false; }
+}
 async function act(request) {
   waiting = true;
   result = "";
@@ -182,6 +232,13 @@ async function act(request) {
 $("launchButton").addEventListener("click", () => act({ op: "launch" }));
 $("importButton").addEventListener("click", () => act({ op: "import", url: pageUrl }));
 $("art").addEventListener("load", () => $("art").classList.add("ready"));
+$("art").addEventListener("error", () => {
+  if (coverObject && $("art").getAttribute("src") === coverObject) {
+    URL.revokeObjectURL(coverObject);
+    coverObject = "";
+    render(state);
+  }
+});
 for (const op of ["prev", "toggle", "next", "cancel"]) $(op).addEventListener("click", () => ask({ op }));
 $("gatesOpen").addEventListener("click", () => ask({ op: "gates", choice: "open" }));
 $("gatesSkip").addEventListener("click", () => ask({ op: "gates", choice: "skip" }));
@@ -196,6 +253,7 @@ $("seek").addEventListener("change", () => {
   ask({ op: "seek", fraction });
 });
 setInterval(tickSeek, 250);
+setInterval(refreshTabs, 2000);
 $("download").addEventListener("click", () => api.tabs.create({ url: DOWNLOAD }));
 api.storage.session.onChanged.addListener((changes) => {
   if (changes.djdStatus) missing = !!changes.djdStatus.newValue?.missing;
@@ -205,6 +263,7 @@ render(null);
 api.storage.session.get(["djdPlayer", "djdStatus"]).then(({ djdPlayer, djdStatus }) => {
   missing = !!djdStatus?.missing;
   render(djdPlayer);
+  refreshTabs();
 });
 
 // The page this panel was opened over: a SoundCloud playlist or profile can be imported. The URL is read only

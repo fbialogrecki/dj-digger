@@ -346,3 +346,14 @@ def test_wal_read_does_not_wait_for_external_writer(tmp_path):
         writer.execute("UPDATE track_states SET status='got'")
         assert db.all_track_statuses() == {'one': 'skip'}
         writer.rollback()
+
+
+def test_batch_delete_refuses_a_playlist_recreated_during_confirmation(tmp_path):
+    db = Database(tmp_path / 'library.db')
+    for source in ['first', 'second']:
+        db.save_crate({'source': source, 'title': source, 'tracks': []})
+    generations = db.snapshot_generations()
+    db.delete_crate('first')
+    db.save_crate({'source': 'first', 'title': 'Recreated', 'tracks': []})
+    assert not db.delete_crates(['first', 'second'], generations)
+    assert {p['title'] for p in db.list_crate_headers()} == {'Recreated', 'second'}

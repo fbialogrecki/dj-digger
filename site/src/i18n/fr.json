@@ -1,4 +1,65 @@
 {
+  "legal": {
+    "privacy": "Confidentialité et cookies",
+    "terms": "Conditions d’utilisation",
+    "settings": "Paramètres des cookies",
+    "bannerTitle": "Autoriser les statistiques de fréquentation ?",
+    "bannerText": "Avec votre accord, Google Analytics utilise des cookies pour compter les visites, les clics sur les programmes d’installation et les copies de la commande d’installation Linux. Vous pouvez utiliser tout le site en cas de refus et modifier votre choix en bas de page.",
+    "accept": "Autoriser les statistiques",
+    "reject": "Refuser les statistiques"
+  },
+  "legalPages": {
+    "sections": {
+      "controller": {
+        "heading": "Qui gère le site ?",
+        "body": "Filip Białogrecki gère dj-digger à titre personnel en Pologne. Il est responsable du traitement des données personnelles recueillies sur ce site. Pour toute question ou pour exercer vos droits, écrivez-lui à l’adresse ci-dessous. L’application et l’extension de navigateur disposent d’une notice de confidentialité distincte."
+      },
+      "hosting": {
+        "heading": "Hébergement et sécurité",
+        "body": "Google Ireland Limited fournit Firebase Hosting. Ce service reçoit l’adresse IP et les données techniques de chaque requête pour afficher les pages et détecter les abus. Ce traitement repose sur mon intérêt légitime à fournir un site fiable et sûr (article 6, paragraphe 1, point f du RGPD). Firebase conserve les adresses IP liées à l’hébergement pendant quelques mois."
+      },
+      "analytics": {
+        "heading": "Statistiques facultatives",
+        "body": "Uniquement avec votre consentement (article 6, paragraphe 1, point a du RGPD), Google Ireland Limited reçoit des données GA4 telles que la page consultée, les caractéristiques du navigateur et de l’appareil, le site d’origine, les clics sur les programmes d’installation, les copies de la commande d’installation Linux et un identifiant pseudonyme du navigateur. Ces données m’aident à comprendre l’usage du site. Les cookies _ga et _ga_* expirent au bout de 180 jours au plus. Une nouvelle visite ne prolonge pas ce délai. La durée de conservation des données relatives aux utilisateurs et aux événements est de deux mois. Les rapports agrégés standard peuvent couvrir de plus longues périodes."
+      },
+      "settings": {
+        "heading": "Vos choix dans le navigateur",
+        "body": "Le navigateur conserve la langue et le thème que vous choisissez expressément jusqu’à leur modification ou leur effacement. Il mémorise votre accord ou votre refus des statistiques pendant six mois calendaires. Vous pouvez retirer votre consentement à tout moment dans les paramètres des cookies en bas de page. Le retrait met fin à la collecte future sans remettre en cause la licéité du traitement antérieur. Vous pouvez utiliser le site sans consentir aux statistiques. Ces enregistrements sont nécessaires pour appliquer vos choix. Leur traitement repose sur mon intérêt légitime à mémoriser et respecter vos préférences (article 6, paragraphe 1, point f du RGPD)."
+      },
+      "email": {
+        "heading": "Correspondance",
+        "body": "Si vous m’écrivez, Google Ireland Limited traite votre adresse électronique, votre message et ses éventuelles pièces jointes dans Gmail. Mes intérêts légitimes (article 6, paragraphe 1, point f du RGPD) sont de répondre à votre demande et, si nécessaire, de faire valoir ou de défendre des droits en justice. Je conserve les échanges jusqu’au règlement de votre demande, puis uniquement aussi longtemps que l’exige une réclamation pertinente. Vous êtes libre de me contacter. Une adresse de retour est nécessaire pour recevoir une réponse."
+      },
+      "transfers": {
+        "heading": "Liens externes et transferts internationaux",
+        "body": "En suivant un lien vers GitHub, votre navigateur communique à GitHub votre adresse IP et les données de la requête, conformément à sa propre politique de confidentialité. Google et GitHub peuvent traiter des données hors de l’EEE, notamment aux États-Unis. Selon le destinataire, les transferts reposent sur le cadre UE–États-Unis de protection des données pour les organismes certifiés ou sur les clauses contractuelles types de la Commission européenne. Les prestataires décrivent leurs garanties dans les liens ci-dessous. Vous pouvez aussi m’en demander une copie."
+      },
+      "rights": {
+        "heading": "Vos droits",
+        "body": "Vous pouvez demander l’accès, la rectification, l’effacement, la limitation du traitement et, le cas échéant, la portabilité des données. Vous pouvez vous opposer au traitement fondé sur un intérêt légitime et introduire une réclamation auprès de l’autorité polonaise (UODO) ou de celle de votre lieu de résidence, de travail ou de l’infraction présumée. Le site ne prend aucune décision automatisée produisant des effets juridiques ou des effets significatifs similaires."
+      },
+      "project": {
+        "heading": "Utilisation du projet",
+        "body": "Filip Białogrecki entretient ce projet à titre personnel en Pologne. Le site propose de la documentation, des démonstrations et des liens de téléchargement du logiciel. Pour demander de l’aide, signaler une erreur ou faire valoir un droit, utilisez l’adresse électronique ci-dessous. Le site fonctionne dans un navigateur récent avec HTTPS. Les téléchargements fonctionnent aussi lorsque JavaScript est désactivé. La page de téléchargement indique le système et l’architecture de chaque programme d’installation."
+      },
+      "software": {
+        "heading": "Logiciel et services tiers",
+        "body": "Le logiciel du projet est distribué sous licence Apache 2.0, qui précise les conditions de redistribution, les mentions à conserver, les garanties et la responsabilité. Les dépendances, polices et icônes conservent leurs licences respectives. Respectez les conditions des sources, des boutiques et des téléchargements, ainsi que les droits applicables. Il vous appartient de confirmer vos achats et d’obtenir les droits nécessaires pour utiliser la musique."
+      },
+      "music": {
+        "heading": "Musique et illustrations",
+        "body": "Les captures d’écran présentent « Drift Away » de JMHBM (Johnathon M. Horner, Beat Mekanik), distribué sur Free Music Archive sous licence CC BY 4.0. L’illustration du lecteur utilise « Mathilde Fernandez - Temple Sourire (Strenx & Lezguy Edit) » avec l’accord des artistes. Les droits sur la musique et les illustrations restent à leurs titulaires. L’autorisation de présenter cette démonstration ne confère aux visiteurs aucun droit de réutilisation supplémentaire."
+      }
+    },
+    "links": {
+      "appPrivacy": "Confidentialité de l’application et de l’extension",
+      "transfers": "Garanties de transfert de Google",
+      "github": "Politique de confidentialité de GitHub",
+      "licences": "Licences des polices et des icônes",
+      "readme": "README du projet",
+      "artists": "Crédits artistiques"
+    }
+  },
   "skip": "Aller au contenu",
   "primary": "Principale",
   "nav": {

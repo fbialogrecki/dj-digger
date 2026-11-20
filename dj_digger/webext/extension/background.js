@@ -510,6 +510,7 @@ function playerState(a) {
     position: seconds(a.position, 1e6), duration: seconds(a.duration, 1e6), at: seconds(a.at, 1e11),
     seed: Number.isInteger(a.seed) && a.seed >= 0 && a.seed < 2 ** 32 ? a.seed : 7,
     artwork: typeof a.artwork === "string" && a.artwork.length <= MAX_ARTWORK && ARTWORK.test(a.artwork) ? a.artwork : "",
+    ...(typeof a.defaultArtwork === "string" && a.defaultArtwork.length <= MAX_ARTWORK && ARTWORK.test(a.defaultArtwork) ? { defaultArtwork: a.defaultArtwork } : {}),
     colors, dark: a.dark === true,
     jobs: { busy: j.busy === true, label: cut(j.label, 120), done: count(j.done, 1e9), total: count(j.total, 1e9) },
     needs: count(a.needs, 999),
@@ -587,7 +588,6 @@ function advanceDesktopAction() {
   const action = desktopAction;
   if (!action || !helloSent) return;
   if (desktop) {
-    if (!action.target && action.launched) return finishDesktopAction("opened");
     if (action.instance && action.instance !== desktop.instance) return finishDesktopAction("interrupted");
     if (!desktop.instance) {
       if (!action.target || action.target.kind === "system-set") return finishDesktopAction("update");
@@ -621,6 +621,40 @@ function beginDesktopAction(target, reply) {
   return true;
 }
 
+// Injected only into frame 0 of an audible SoundCloud tab while the popup is open.
+function soundCloudPlayer() {
+  if (window.top !== window || location.origin !== "https://soundcloud.com") return null;
+  const controls = document.querySelector(".playControls");
+  const media = navigator.mediaSession;
+  if (!controls?.querySelector(".playControl.playing") && media?.playbackState !== "playing") return null;
+  const metadata = media?.metadata;
+  const info = controls?.querySelector(".playbackSoundBadge");
+  const title = (metadata?.title || info?.querySelector(".playbackSoundBadge__titleLink")?.title || "").slice(0, 200);
+  const artist = (metadata?.artist || info?.querySelector(".playbackSoundBadge__lightLink")?.textContent || "").slice(0, 200);
+  const cover = info?.querySelector(".playbackSoundBadge__avatar .sc-artwork");
+  const css = cover && getComputedStyle(cover).backgroundImage;
+  const sources = [...(metadata?.artwork || []).slice(0, 6).map(a => a.src), css?.match(/^url\(["']?([^"')]+)["']?\)$/)?.[1]];
+  for (const src of sources) {
+    if (typeof src !== "string" || src.length > 256) continue;
+    const match = /^https:\/\/i[1-4]\.sndcdn\.com\/(artworks-[a-zA-Z0-9_-]+)-[a-zA-Z0-9]+\.(?:jpg|png)$/.exec(src);
+    if (match && title) return { title, artist, artwork: "https://i1.sndcdn.com/" + match[1] + "-t200x200.jpg" };
+  }
+  return title ? { title, artist, artwork: "" } : null;
+}
+async function browserPlaying() {
+  if (desktop?.playing) return null;
+  const tabs = await api.tabs.query({ url: "https://soundcloud.com/*", audible: true });
+  const [current] = await api.tabs.query({ active: true, lastFocusedWindow: true, url: "https://soundcloud.com/*" });
+  tabs.sort((a, b) => Number(b.id === current?.id) - Number(a.id === current?.id) || (b.lastAccessed || 0) - (a.lastAccessed || 0));
+  for (const tab of tabs.slice(0, 16)) {
+    try {
+      const [frame] = await api.scripting.executeScript({ target: { tabId: tab.id, frameIds: [0] }, func: soundCloudPlayer });
+      if (frame?.result) return frame.result;
+    } catch { /* The tab closed or navigated between query and inspection. */ }
+  }
+  return null;
+}
+
 // The top-frame content script checks each tile's own artwork anchor on the click.
 const fromSoundCloud = (sender) => !!sender.tab && sender.frameId === 0 && parse(sender.url)?.origin === "https://soundcloud.com";
 const isPlaylist = (target) => target?.kind === "set" || target?.kind === "system-set";
@@ -640,6 +674,10 @@ api.runtime.onMessage.addListener((m, sender, reply) => {
     if (m.op === "page") return void reply({ kind });
     if (kind) return beginDesktopAction(target, reply);
     return;
+  }
+  if (m.op === "browser-playing") {
+    browserPlaying().then(reply, () => reply(null));
+    return true;
   }
   if (m.op === "launch") return beginDesktopAction(null, reply);
   const c = command(m);
@@ -691,13 +729,13 @@ function onMessage(m) {
   if (m.event === "desktop.launch-failed") return finishDesktopAction("launch-failed");
   if (m.event === "import.result" || m.event === "activate.result") {
     const event = desktopAction?.target ? "import.result" : "activate.result";
-    const codes = event === "import.result" ? ["accepted", "busy", "invalid", "unavailable"] : ["opened", "unavailable"];
+    const codes = event === "import.result" ? ["accepted", "busy", "invalid", "unavailable"] : ["opened", "attention", "unavailable"];
     if (desktopAction?.request === m.request && m.event === event && codes.includes(m.code)) finishDesktopAction(m.code);
     return;
   }
   if (m.cmd === "player.state") {
     const instance = typeof m.importInstance === "string" && /^[a-f0-9]{32}$/.test(m.importInstance) ? m.importInstance : null;
-    desktop = { instance };
+    desktop = { instance, playing: m.args?.playing === true };
     setPlayer(playerState(m.args));
     advanceDesktopAction();
     return;

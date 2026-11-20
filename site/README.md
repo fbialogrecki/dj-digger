@@ -24,6 +24,7 @@ Node 22.23.4 or newer (Astro's minimum).
 | `/extension/` | `src/pages/extension.astro` | The browser extension (Chrome, Edge and Brave), permissions, privacy |
 | `/download/` | `src/pages/download.astro` | One box with a tab per system (the visitor's first), checksums, then the extension |
 | `/about/` | `src/pages/about.astro` | How it is built, and the credits (`#credits`). `/liner-notes/` redirects here (301, `firebase.json`) |
+| `/privacy/`, `/terms/` | `src/pages/[...policy].astro` | Website privacy, consent choices, terms of use and third-party licences in all seven languages |
 | 404 | `src/pages/404.astro` | One sentence and the way home |
 
 Every page but the 404 also exists in the app's other languages, under the language's
@@ -36,7 +37,7 @@ purpose. Only describe features that ship; `PROJECT_SPECIFICATION.md`, `README.m
 ## How it is put together
 
 - **`site.config.mjs`** holds the public address (`SITE_URL`), the repository links,
-  and the version read from `pyproject.toml`. Download links are composed from that
+  and the public release version supplied by CI (local preview defaults to `pyproject.toml`). Download links are composed from that
   version (`asset("windows-x64-test.exe")`), never typed by hand.
 - **`src/layouts/Base.astro`** is every page's shell: head and SEO, the one-line
   header (App, Extension, About, Download, GitHub, language, theme; a Menu disclosure
@@ -60,8 +61,7 @@ purpose. Only describe features that ship; `PROJECT_SPECIFICATION.md`, `README.m
   `lightbox.js` opens shots larger, `player.js` runs the player, `seeded.js` is the
   records' seeded generator (build time), and `src/scripts/boot.js` runs in the head.
 - **Content security policy.** Every page carries one (`security.csp` in
-  `astro.config.mjs`): scripts and styles are allowed by hash, everything else only
-  from this site, and `firebase.json` adds the header-only directives. So no `style="…"`
+  `astro.config.mjs`): bundled scripts and styles are allowed by hash; a measurement-enabled build also permits the Google tag script and analytics endpoints, and `firebase.json` adds the header-only directives. So no `style="…"`
   attributes and no `is:inline` scripts in pages; the one script that must run before
   first paint is `src/scripts/boot.js`, allowed by its own hash.
 - **Motion** is CSS first: `animation-timeline: scroll()` turns the disc; the spin-up on a first visit is keyframes. Going

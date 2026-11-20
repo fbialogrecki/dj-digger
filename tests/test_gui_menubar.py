@@ -1,6 +1,5 @@
 """The desktop menu bar: account state, Help entries, selection commands and the QML menus."""
 import os
-import threading
 from pathlib import Path
 
 import pytest
@@ -76,9 +75,9 @@ def test_sign_out_and_disconnect_refresh_the_menu_state(started, monkeypatch):
     assert state['browser'] == 'Chrome', 'the fake link does not forget a closed relay'
 
 
-def test_about_shows_version_licence_and_data_folder_and_updates_open_the_releases_page(backend, monkeypatch):
-    from dj_digger import __version__, browser
-    from dj_digger.gui.backend import RELEASES_URL
+def test_about_shows_version_licence_and_data_folder_and_manual_update_checks(backend, monkeypatch):
+    from dj_digger import __version__
+    from dj_digger.gui import updates
     from dj_digger.paths import data_dir
     worker, events = backend
     worker.submit('about', {})
@@ -87,10 +86,9 @@ def test_about_shows_version_licence_and_data_folder_and_updates_open_the_releas
     assert question['ok'] == 'Close'
     assert fields == {'version': ('note', __version__), 'licence': ('note', 'Apache License 2.0'), 'data': ('path', str(data_dir()))}
     worker.answer(question['id'], {})
-    opened, done = [], threading.Event()
-    monkeypatch.setattr(browser, 'open_url', lambda url, choice: opened.append(url) or done.set() or True)
+    monkeypatch.setattr(updates, 'latest', lambda installed: None)
     worker.submit('updates', {})
-    assert done.wait(10) and opened == [RELEASES_URL] and RELEASES_URL.startswith('https://github.com/')
+    assert wait_event(events, 'message')['text'] == 'You have the latest desktop version'
 
 
 def test_invert_selection_selects_the_other_visible_rows(app):
@@ -280,3 +278,49 @@ def test_qml_menu_bar(app, tmp_path, monkeypatch):
         assert not [w for w in warnings if 'Main.qml' in w], warnings
     finally:
         shiboken6.delete(engine)
+
+
+def test_update_needs_confirmation_and_idle_desktop(backend, monkeypatch):
+    from dj_digger.gui import updates
+    worker, events = backend
+    monkeypatch.setattr(updates, 'latest', lambda installed: ('2.0.0', []))
+    monkeypatch.setattr(updates, 'target', lambda version: ('uv', ['uv-fixture']))
+    monkeypatch.setattr(updates, 'check_pypi', lambda version: None)
+    worker.submit('updates')
+    worker.answer(wait_event(events, 'question')['id'], None)
+    wait_event(events, 'dismiss')
+    assert worker.pending_update is None
+    handle = worker.services.operations.start('Exporting')
+    worker.submit('updates')
+    worker.answer(wait_event(events, 'question')['id'], {})
+    assert 'Finish active operations' in next_of(events, 'error')[1]['text']
+    worker.services.operations.finish(handle)
+    worker.submit('updates')
+    worker.answer(wait_event(events, 'question')['id'], {})
+    wait_event(events, 'closeForUpdate')
+    assert worker.pending_update == ('uv', ['uv-fixture'])
+    assert updates.update_result('2.0.0') == ('message', {'text': 'Updated to version {0}', 'args': ['2.0.0']})
+
+
+def test_daily_checks_respect_opt_out_and_timestamp(backend, monkeypatch):
+    import asyncio
+
+    from dj_digger.gui import updates
+
+    worker, events = backend
+    worker.schedule_updates = True
+    config = worker.services.config
+    calls = []
+    monkeypatch.setattr(updates, 'latest', lambda version: calls.append(version))
+    def scheduled():
+        asyncio.run_coroutine_threadsafe(worker.action_scheduled_updates({}), worker.loop).result(5)
+    config.check_updates = False
+    scheduled()
+    assert not calls
+    config.check_updates = True
+    scheduled()
+    scheduled()
+    assert len(calls) == 1 and config.last_update_check > 0
+    config.last_update_check -= 86401
+    scheduled()
+    assert len(calls) == 2

@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — dj-digger
 
-> Last Updated: 2026-10-27
+> Draft for extension 1.4.5 (unreleased), updated 2026-11-20.
 >
 > Copy-paste source for the Chrome Developer Dashboard. Step-by-step upload
 > instructions (Polish): [docs/store/PUBLISHING-pl.md](docs/store/PUBLISHING-pl.md).
@@ -34,14 +34,14 @@ WHAT IT DOES
 • Free-download gates: when the desktop app cannot finish a Hypeddit or ToneDen download gate by itself, it finishes it here, in your browser, and the downloaded file goes to the app.
 • Store carts: the app adds the tracks you picked to your Bandcamp cart, or looks tracks up on Beatport, in your browser. It never checks out or pays: checkout and payment pages are closed, and buying stays your decision.
 • SoundCloud sign-in: the app can sign in to SoundCloud with the session your browser already has, so you do not have to paste anything.
-• Toolbar panel. Open or show dj-digger, control playback, see or cancel the running job, and answer the app when download gates need you.
+• Toolbar panel. Open or show dj-digger, control playback, see or cancel the running job, and answer the app when download gates need you. While desktop playback is paused or disconnected, the open panel can show the track playing in a SoundCloud tab.
 • SoundCloud import. Use the panel on a playlist or profile, or the import button in a playlist header or tile. Choosing Import opens the desktop app if it is closed.
 • SoundCloud playlist editing. When you confirm a create or add action in the desktop app, the extension completes SoundCloud's playlist form in a temporary tab.
 
 HOW TO USE
 1. Install and start the dj-digger desktop app. It connects itself to this browser.
 2. Install this extension. Its status page shows "Desktop app link" and "Site access". Installed the extension first? The status page and the panel link to the app's download.
-3. Use the app as usual. When it needs the browser it opens its own window or a background tab, and closes it when done. Your other tabs are never read or changed.
+3. Use the app as usual. When it needs the browser it opens its own window or a background tab, and closes it when done. The toolbar can read the current track from a playing SoundCloud tab.
 
 SOCIAL ACTIONS ON DOWNLOAD GATES
 Download gates ask for a follow, a like, a repost, a comment or your e-mail address in exchange for a free download. The desktop app setting "Allow social actions" decides whether the app may do these steps for you, on the accounts you are signed in to in this browser, and with the name, e-mail address and comment texts you entered in the app's Settings. Turn it off in the app to finish such gates yourself.
@@ -52,7 +52,7 @@ Nothing is sent to the developer or to any server of the developer. There are no
 PERMISSIONS
 • "Read and change your data on hypeddit.com, toneden.io, bandcamp.com, beatport.com, soundcloud.com": needed to fill in download gates and carts in the tabs the app opens; other sites are never accessed.
 • "Communicate with cooperating native applications": the link to the dj-digger desktop app.
-• "Read your browsing history" (shown for tab access): used only to follow the extension's own tabs; the address of your current tab is read only when you open the panel, to offer an import.
+• "Read your browsing history" (shown for tab access): used to follow the extension’s own tabs. Opening the toolbar also checks for a SoundCloud import and, when the desktop is idle, a playing SoundCloud track.
 • "Manage your downloads": to hand the files of download gates to the app.
 
 SUPPORT
@@ -101,8 +101,8 @@ share one field (text at the end of the table).
 | Permission | Type | Justification |
 |------------|------|---------------|
 | nativeMessaging | permissions | Connects to the native host `com.github.fbialogrecki.djdigger` on the same computer. The host starts the installed desktop app when the user selects Open or Import. The channel carries browser tasks and results, player commands, and the SoundCloud playlist link and date selected for import. |
-| tabs | permissions | Opens, navigates, mutes, focuses and closes the tabs and windows it creates for the desktop app, follows popups those tabs open (provider sign-in windows) to close them with the session, and reads the address and load state of these own tabs only. A finished cart tab is handed over to the user. Other tabs are never read or changed. Also takes a screenshot of an own store tab for the app's local cart diagnostics when an add-to-cart click cannot be verified. |
-| scripting | permissions | Runs bundled page functions in temporary tabs to complete download gates, store carts, and the SoundCloud Add to playlist form for changes you confirm in the app. While a hidden gate session runs, registers the bundled script for Hypeddit and ToneDen frames inside the extension's offscreen document. |
+| tabs | permissions | Opens, navigates, mutes, focuses and closes the tabs and windows it creates for the desktop app, follows popups those tabs open (provider sign-in windows) to close them with the session, and reads the address and load state of these own tabs only. A finished cart tab is handed over to the user. An open toolbar may also find an audible soundcloud.com tab for its read-only track display. Also takes a screenshot of an own store tab for the app's local cart diagnostics when an add-to-cart click cannot be verified. |
+| scripting | permissions | Runs bundled page functions in temporary tabs to complete download gates, store carts, and the SoundCloud Add to playlist form for changes you confirm in the app. For the open toolbar, reads current track metadata only from the top frame of a playing SoundCloud tab. While a hidden gate session runs, registers the bundled script for Hypeddit and ToneDen frames inside the extension's offscreen document. |
 | downloads | permissions | Recognises the file a download gate in an own tab starts, reports its location to the desktop app (which copies it into the user's crate folder), reports unsafe downloads or a "Save as" prompt as blocked instead of accepting them, and removes the browser's copy and history entry once the app has taken the file. Downloads not started by its own tabs are ignored. |
 | cookies | permissions | Exactly two hard-coded operations: reads SoundCloud's `oauth_token` cookie when the user signs the desktop app in to SoundCloud (the app then uses SoundCloud's API with it), and deletes Hypeddit's `filedownloading` cookie between gate downloads, because while it is set Hypeddit refuses the next download. No other cookie is read, written or deleted. |
 | webRequest | permissions | Observes only (no blocking, no modification) the responses and redirects of its own tabs on the allowed sites, to learn the HTTP status of a page it loaded and to match a starting download to the own tab that requested it. Requests of other tabs are ignored. |
@@ -116,7 +116,7 @@ share one field (text at the end of the table).
 **Host permissions justification** (one field):
 
 ```
-Each host is a site the dj-digger desktop app works with, and the extension acts only in tabs it opened itself on these hosts:
+Each host is a site the dj-digger desktop app works with, and the extension uses these hosts for the following tasks:
 - hypeddit.com, www.hypeddit.com, hypd.it, www.hypd.it, toneden.io, www.toneden.io: free-download gates. The extension opens the gate, completes its steps (e-mail form, follow/like/repost/comment steps when the user allows social actions in the app) and starts the download.
 - bandcamp.com and *.bandcamp.com (artist pages are subdomains): adds the tracks the user picked in the app to the user's own Bandcamp cart. Checkout and payment pages are never opened; buttons named like checkout, pay or buy now are never clicked (except Bandcamp's "Buy Digital Track/Album", which only opens the price and add-to-cart panel).
 - beatport.com and *.beatport.com: looks up tracks and adds them to the user's Beatport cart; checkout, payment and billing pages are never opened.
@@ -144,7 +144,7 @@ handles:
 | Authentication info | Yes | No | SoundCloud `oauth_token` cookie handed to the local desktop app for its SoundCloud sign-in | No |
 | Personal communications | Yes | Only to the gate site | The comment text a gate asks for, picked from the comment list the user configured in the app, is filled into the gate (only with "Allow social actions") | The gate site, which posts it with the user's account |
 | Location | No | | | |
-| Web history | No | | Only the address of the extension's own tabs, and the current tab's address once when the user opens the panel (an import is sent to the app only for a SoundCloud playlist/profile, as a clean link) | |
+| Web history | No | | The panel checks the current tab for an import and can read track metadata from a playing SoundCloud tab. It does not retain browsing or listening history. | |
 | User activity | No | | No clicks, keystrokes or browsing are monitored | |
 | Website content | Yes | No | Text and HTML of own tabs on the allowed sites, read to complete gates and carts; page copies and screenshots for cart diagnostics are saved by the desktop app locally (e-mail addresses removed) | No |
 
@@ -195,6 +195,7 @@ justifications are still edited by hand in the dashboard.
 | 1.4.2 | — | Update: an aborted navigation with no further event asks the tab (loaded, still loading, or retried once from a blank tab); popups of own tabs are also recognised by webNavigation's source tab (Firefox popups have no opener) and closed with the session. No permission changes | Superseded by 1.4.3 |
 | 1.4.3 | — | Update: the status page and the toolbar panel tell a missing (or too old) desktop app from a stopped one and offer a Download button to the app's latest GitHub release; on soundcloud.com an "Import to DJ digger" button (track and playlist pages, ⋯ menus, track and playlist rows) sends that track or playlist to the running app, and single tracks can be imported. New content script on soundcloud.com, an already declared host; no permission changes | Submitted for review 2026-10-27 |
 | 1.4.4 | — | Update: the "Import to DJ digger" icon also appears on each track row of a playlist or station track list (SoundCloud's `.trackItem` rows). No permission changes | To upload |
+| 1.4.5 | — | SoundCloud playback artwork and read-only metadata in the open toolbar, and confirmed desktop activation. Existing permissions. | Unreleased |
 
 ## Review Notes
 
@@ -226,8 +227,8 @@ justifications are still edited by hand in the dashboard.
   features; they are presented as one purpose (the companion that lets the
   desktop app act in the browser and be controlled from it). A reviewer may still
   ask for a narrower statement.
-- **Minimum functionality.** Without the desktop app the extension only shows its
-  status page and panel, both saying the app is not installed with a Download
+- **Minimum functionality.** Without the desktop app the extension can show SoundCloud browser playback in its
+  panel. The status page and panel indicate a missing app with a Download
   button to the app's latest GitHub release (the welcome page opens once on
   install; nothing else opens on its own). The description says so in its first
   lines and the test instructions tell the reviewer how to get the app.
@@ -239,10 +240,7 @@ justifications are still edited by hand in the dashboard.
   `CHROME_STORE_ID` in `dj_digger/webext/register.py` is set and that app version
   is released and started once; until then the store install shows "not
   connected".
-- **Status page wording.** `welcome.html` says the app "opens its own window and
-  never touches your other tabs"; carts and the SoundCloud cookie read use
-  background tabs in the user's current window. Not misleading about data, but a
-  reviewer comparing text and behaviour could note it.
+
 
 ### Known Issues / Limitations
 

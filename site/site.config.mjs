@@ -10,5 +10,8 @@ export const author = { name: "Filip Białogrecki", url: "https://github.com/fbi
 
 // Download links follow the released version instead of naming one by hand.
 // Read from the working directory (npm runs in site/): the bundled copy of this module lives elsewhere.
-export const version = /^version = "(.+)"$/m.exec(readFileSync("../pyproject.toml", "utf8"))[1];
+export const version = process.env.DOWNLOAD_VERSION ?? /^version = "(.+)"$/m.exec(readFileSync("../pyproject.toml", "utf8"))[1];
+if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error("Invalid stable download version");
+export const measurementId = process.env.GA4_MEASUREMENT_ID ?? "";
+if (measurementId && !/^G-[A-Z0-9]+$/.test(measurementId)) throw new Error("Invalid GA4 measurement ID");
 export const asset = (name) => `${repo}/releases/download/v${version}/dj-digger-${version}-${name}`;

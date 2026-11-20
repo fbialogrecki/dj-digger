@@ -5,7 +5,7 @@ import Record from "../components/Record.astro";
 import appIcon from "../../../dj_digger/gui/qml/icons/app.png";
 import archivo from "../assets/fonts/archivo-latin.woff2?url";
 import boot from "../scripts/boot.js?raw";
-import { author, repo } from "../../site.config.mjs";
+import { author, measurementId, repo, version } from "../../site.config.mjs";
 import { baseOf, langOf, languages, pathIn, ui } from "../i18n/index.mjs";
 
 // `label` picks the record label's colours for this page (global.css: [data-label]).
@@ -27,7 +27,8 @@ const pages = [
   { href: repo, label: t.nav.github, icon: "github-logo" },
 ];
 const project = [
-  { href: `${repo}/blob/main/PRIVACY.md`, label: t.footer.privacy, icon: "shield-check" },
+  { href: local("/privacy/"), label: t.legal.privacy, icon: "shield-check" },
+  { href: local("/terms/"), label: t.legal.terms, icon: "scales" },
   { href: `${repo}/blob/main/LICENSE`, label: t.footer.license, icon: "scales" },
   { href: repo, label: t.nav.github, icon: "github-logo" },
   { href: `${local("/about/")}#credits`, label: t.footer.credits, icon: "heart" },
@@ -129,6 +130,14 @@ const project = [
       </button>
     </header>
 
+    {measurementId && <aside id="consent" class="consent" data-ga={measurementId} data-version={version} data-page={noindex ? "/404/" : here} aria-labelledby="consent-title" hidden>
+      <h2 id="consent-title" tabindex="-1">{t.legal.bannerTitle}</h2>
+      <p>{t.legal.bannerText} <a href={local("/privacy/")}>{t.legal.privacy}</a></p>
+      <div class="cta">
+        <button type="button" class="button compact" data-choice="allow">{t.legal.accept}</button>
+        <button type="button" class="button compact" data-choice="deny">{t.legal.reject}</button>
+      </div>
+    </aside>}
     <div class="page">
       {/* The record rides beside the text; it ends where the page's text ends, above the footer. */}
       <div class="deck">
@@ -171,6 +180,7 @@ const project = [
             {t.footer.madeBy} <a href={author.url}>{author.name}</a>, 2026
           </p>
           <ul aria-label={t.footer.project}>
+            {measurementId && <li><button type="button" class="cookie-settings" data-settings hidden>{t.legal.settings}</button></li>}
             {
               project.map((link) => (
                 <li>
@@ -193,6 +203,7 @@ const project = [
     </dialog>
     <script>
       import "../scripts/deck.js";
+      import "../scripts/consent.js";
       import "../scripts/lightbox.js";
     </script>
   </body>

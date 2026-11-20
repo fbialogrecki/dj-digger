@@ -416,9 +416,9 @@ def test_hydrate_restores_playlist_order(monkeypatch):
         return [track_payload(track_id) for track_id in reversed(ids)]
 
     monkeypatch.setattr(client, "_get", fake_get)
-    tracks = client.hydrate_tracks([9, 4, 7, 1])
+    tracks = client.hydrate_tracks([9, 4, 7, 4, 1])
 
-    assert [track.id for track in tracks] == [9, 4, 7, 1]
+    assert [track.id for track in tracks] == [9, 4, 7, 4, 1]
 
 
 def test_hydrate_tolerates_tracks_the_api_drops(monkeypatch):

@@ -31,4 +31,4 @@ def run(directory):
     extension_ids = register.extension_ids(register.read_extension_manifest())
     assert all(extension_ids) and (register.EXTENSION_SOURCE / 'allowlist.json').is_file()
     assert callable(host.main) and link.PROTOCOL
-    (root / 'runtime-smoke.json').write_text(json.dumps({'probe': True, 'decode': True, 'analysis': True, 'extension': True}), encoding='utf-8')
+    (root / 'runtime-smoke.json').write_text(json.dumps({'version': __version__, 'probe': True, 'decode': True, 'analysis': True, 'extension': True}), encoding='utf-8')

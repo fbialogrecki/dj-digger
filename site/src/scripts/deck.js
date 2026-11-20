@@ -69,6 +69,9 @@ for (const button of document.querySelectorAll("[data-copy]")) {
   const label = text.textContent;
   button.addEventListener("click", async () => {
     await navigator.clipboard.writeText(button.dataset.copy);
+    if (button.closest("#linux") && button.dataset.copy.includes("/install.sh")) {
+      document.dispatchEvent(new Event("djd:linux-command-copied"));
+    }
     text.textContent = button.dataset.copied ?? "";
     button.classList.add("copied");
     setTimeout(() => {

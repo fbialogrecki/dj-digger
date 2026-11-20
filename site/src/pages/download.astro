@@ -37,7 +37,7 @@ const description = `Download dj-digger ${version} for Windows 10 and 11 or macO
         <h2><Icon name="windows-logo" />Windows</h2>
         <p class="copy">Windows 10 (version 1809 or newer) or Windows 11, 64-bit.</p>
         <div class="cta">
-          <a class="button primary" href={windows}><Icon name="download-simple" />Download for Windows</a>
+          <a class="button primary" href={windows} data-installer="windows-x64"><Icon name="download-simple" />Download for Windows</a>
         </div>
         <p class="note">
           <Icon name="info" />
@@ -55,8 +55,8 @@ const description = `Download dj-digger ${version} for Windows 10 and 11 or macO
         <h2><Icon name="apple-logo" />macOS</h2>
         <p class="copy">macOS 15 or newer. <strong>About This Mac</strong> shows an Apple chip or an Intel processor.</p>
         <div class="cta">
-          <a class="button" href={arm}><Icon name="download-simple" />Apple Silicon</a>
-          <a class="button" href={intel}><Icon name="download-simple" />Intel</a>
+          <a class="button" href={arm} data-installer="macos-arm64"><Icon name="download-simple" />Apple Silicon</a>
+          <a class="button" href={intel} data-installer="macos-x86_64"><Icon name="download-simple" />Intel</a>
         </div>
         <p class="note">
           <Icon name="info" />

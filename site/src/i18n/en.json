@@ -1,4 +1,65 @@
 {
+  "legal": {
+    "privacy": "Privacy and cookies",
+    "terms": "Terms of use",
+    "settings": "Cookie settings",
+    "bannerTitle": "Allow visitor statistics?",
+    "bannerText": "With your permission, Google Analytics uses cookies to measure page visits, installer clicks and copies of the Linux install command. You can use the whole site if you decline and change your choice in the footer.",
+    "accept": "Allow analytics",
+    "reject": "Decline analytics"
+  },
+  "legalPages": {
+    "sections": {
+      "controller": {
+        "heading": "Who runs this site?",
+        "body": "Filip Białogrecki runs dj-digger as a hobby project in Poland and is the controller of personal data collected through this website. For questions or to exercise your rights, email him at the address below. The desktop app and browser extension have their own privacy notice."
+      },
+      "hosting": {
+        "heading": "Delivering and securing the site",
+        "body": "Google Ireland Limited provides Firebase Hosting. It receives the IP address and technical details of each request to deliver pages and detect abuse. The legal basis is my legitimate interest in providing a reliable and secure website (GDPR Article 6(1)(f)). Firebase retains hosting IP data for a few months."
+      },
+      "analytics": {
+        "heading": "Optional visitor statistics",
+        "body": "Only with your consent (Article 6(1)(a)) does Google Ireland Limited receive GA4 data such as the page visited, browser and device information, referring site, installer clicks, copies of the Linux install command and a pseudonymous browser identifier. I use this to understand how visitors use the site. The _ga and _ga_* cookies last up to 180 days; subsequent visits do not renew their expiry. The retention setting for user- and event-level data is two months. Standard aggregated reports are separate and can cover longer periods."
+      },
+      "settings": {
+        "heading": "Your browser choices",
+        "body": "Your browser stores the language and theme you expressly choose until you clear or change them. It remembers an acceptance or refusal of analytics for six calendar months. You can withdraw consent at any time in Cookie settings in the footer. Withdrawal stops future collection and does not affect the lawfulness of earlier processing. You can browse without consenting. These records are necessary to apply your choices. I rely on my legitimate interest in respecting and remembering them (Article 6(1)(f))."
+      },
+      "email": {
+        "heading": "Email",
+        "body": "If you write to me, Google Ireland Limited processes your email address, message and any attachments through Gmail. My legitimate interests (Article 6(1)(f)) are responding to your request and, where necessary, establishing or defending claims. I keep correspondence until your request is resolved, and only as long afterwards as a relevant claim requires. Providing contact details is voluntary; I need a return address to reply."
+      },
+      "transfers": {
+        "heading": "External links and international transfers",
+        "body": "Following a GitHub link connects your browser to GitHub, which receives your IP address and request details under its own privacy statement. Google and GitHub may process data outside the EEA, including in the US. Where applicable, transfers rely on the EU–US Data Privacy Framework for certified recipients or on the European Commission’s standard contractual clauses. The providers describe their safeguards below; you can also ask me for a copy."
+      },
+      "rights": {
+        "heading": "Your rights",
+        "body": "You may request access, correction, erasure or restriction, object to processing based on legitimate interests and request portability where applicable. You may complain to the Polish supervisory authority (UODO) or the authority where you live, work or believe an infringement occurred. This site makes no automated decisions with legal or similarly significant effects."
+      },
+      "project": {
+        "heading": "Using the project",
+        "body": "Filip Białogrecki maintains this hobby project in Poland. This website provides documentation, demonstrations and links to software downloads. For support, corrections or a rights concern, use the email address below. The site works in a modern web browser over HTTPS. Downloads also work with JavaScript turned off. The download page lists the operating system and architecture for each installer."
+      },
+      "software": {
+        "heading": "Software and third-party services",
+        "body": "The project software is available under the Apache License 2.0, including its conditions on redistribution, notices, warranties and liability. Dependencies, fonts and icons retain their respective licences. Use sources, stores and downloads only as their terms and applicable rights permit. You are responsible for confirming purchases and for having permission to use the music."
+      },
+      "music": {
+        "heading": "Music and artwork",
+        "body": "The screenshots feature “Drift Away” by JMHBM (Johnathon M. Horner, Beat Mekanik), via Free Music Archive, under CC BY 4.0. The player illustration uses “Mathilde Fernandez - Temple Sourire (Strenx & Lezguy Edit)” with the artists’ permission. Rights to the music and artwork remain with their holders. Permission to display the demo grants visitors no additional reuse rights."
+      }
+    },
+    "links": {
+      "appPrivacy": "App and extension privacy notice",
+      "transfers": "Google transfer safeguards",
+      "github": "GitHub privacy statement",
+      "licences": "Licences for fonts and icons",
+      "readme": "Project README",
+      "artists": "Artist credits"
+    }
+  },
   "skip": "Skip to content",
   "primary": "Primary",
   "nav": {

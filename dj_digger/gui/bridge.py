@@ -12,6 +12,7 @@ from PySide6.QtCore import (
     QObject,
     QStandardPaths,
     Qt,
+    QTimer,
     QTranslator,
     Signal,
     Slot,
@@ -273,14 +274,31 @@ class Bridge(QObject):
         elif kind == 'presentation':
             self.presentationChanged.emit(values)
             return
+        elif kind == 'closeForUpdate':
+            if self.engine and (windows := self.engine.rootObjects()):
+                windows[0].close()
+            return
         elif kind == 'activate':
+            done = values.get('done', lambda code: None)
             if self._close_timer is None and self.engine is not None and (windows := self.engine.rootObjects()):
                 window = windows[0]
                 state = window.windowStates()
                 if state & Qt.WindowMinimized:
                     window.setWindowStates(state & ~Qt.WindowMinimized)
+                window.show()
                 window.raise_()
                 window.requestActivate()
+                def report():
+                    if self._close_timer or not window.isVisible():
+                        done('unavailable')
+                    elif window.isActive():
+                        done('opened')
+                    else:
+                        window.alert(0)
+                        done('attention')
+                QTimer.singleShot(350, window, report)
+            else:
+                done('unavailable')
             return
         elif kind == 'dismiss':
             self.dismiss.emit(values['id'])
@@ -337,9 +355,9 @@ class Bridge(QObject):
         """Edit a local file's name (renamed on disk) or artist from the table."""
         self.backend.submit('rename', dict(keys=[key], field=field, value=value, generation=self._view['generation']))
 
-    @Slot(str)
-    def deletePlaylist(self, source):
-        self.backend.submit('delete_playlist', {'source': source})
+    @Slot('QVariantList')
+    def deletePlaylists(self, sources):
+        self.backend.submit('delete_playlist', {'sources': sources})
 
     @Slot(str)
     def expandDirectory(self, path):
@@ -410,6 +428,17 @@ class Bridge(QObject):
         """
         from ..waveform import column_levels
         return column_levels(self._waveform, width)
+
+    @Slot(str, result=str)
+    def coverFileUrl(self, value):
+        from PySide6.QtCore import QUrl
+        try:
+            path = Path(value).expanduser()
+        except RuntimeError:
+            return ''
+        if value and path.is_absolute() and not str(path).startswith(('//', chr(92) * 2)):
+            return QUrl.fromLocalFile(str(path)).toString()
+        return ''
 
     @Slot(str, result=str)
     def localPath(self, value):

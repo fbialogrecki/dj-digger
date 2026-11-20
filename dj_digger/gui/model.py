@@ -3,8 +3,8 @@ from itertools import groupby
 
 from PySide6.QtCore import Property, QAbstractTableModel, QModelIndex, Qt, Signal, Slot
 
-COLUMNS = ('status', 'artist', 'title', 'genre', 'bpm', 'keySignature', 'year', 'label', 'duration', 'stores', 'format', 'comment')
-HEADERS = ('Status', 'Artist', 'Track name', 'Genre', 'BPM', 'Key', 'Year', 'Label', 'Time', 'Stores', 'Format', 'Comment')
+COLUMNS = ('status', 'artist', 'title', 'genre', 'bpm', 'keySignature', 'year', 'label', 'duration', 'stores', 'format', 'comment', 'position')
+HEADERS = ('Status', 'Artist', 'Track name', 'Genre', 'BPM', 'Key', 'Year', 'Label', 'Time', 'Stores', 'Format', 'Comment', '#')
 # Bulk status changes skip the row flash: a hundred rows lighting up is noise, not feedback.
 FLASH_LIMIT = 100
 # A played track is not decided on yet; the view mutes it, so the listening history still shows.
@@ -198,7 +198,7 @@ class TrackModel(QAbstractTableModel):
         visible = [r for r in self.rows if self.keep(r, tokens)]
         if self.sort_column >= 0:
             name = COLUMNS[self.sort_column]
-            numeric = name in {'bpm', 'duration', 'year'}
+            numeric = name in {'bpm', 'duration', 'year', 'position'}
             order = camelot_order if name == 'keySignature' else (lambda r: float(r.get(name) or 0)) if numeric \
                 else (lambda r: str(r.get(name, '')).casefold())
             # Ties keep artist, then title order in either direction (Python's sort is stable).

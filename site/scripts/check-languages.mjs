@@ -3,9 +3,9 @@
 import { readFileSync } from "node:fs";
 
 const languages = ["en", "de", "es", "fr", "it", "pl", "ru"];
-const bases = ["/", "/app/", "/extension/", "/download/", "/about/"];
+const bases = ["/", "/app/", "/extension/", "/download/", "/about/", "/privacy/", "/terms/"];
 // Served once for every language: build output, the script and the preview card.
-const shared = /^\/(_astro\/|install\.sh$|og\.png$|sitemap\.xml$|robots\.txt$)/;
+const shared = /^\/(_astro\/|install\.sh$|licenses\.txt$|og\.png$|sitemap\.xml$|robots\.txt$)/;
 const problems = [];
 
 const shape = (html) => ({
@@ -29,6 +29,16 @@ for (const base of bases) {
     for (const key of Object.keys(page))
       if (page[key] !== english[key]) problems.push(`${path}: ${key} differ from English\n  ${page[key]}\n  ${english[key]}`);
     if (!html.includes(`<html lang="${lang}"`)) problems.push(`${path}: not marked lang="${lang}"`);
+    const prefix = lang === "en" ? "" : "/" + lang;
+    const { legal } = JSON.parse(readFileSync(`src/i18n/${lang}.json`, "utf8"));
+    for (const policy of ["privacy", "terms"]) {
+      if (!html.includes(`href="${prefix}/${policy}/"`) || !html.includes(legal[policy]))
+        problems.push(`${path}: missing localized ${policy} link`);
+    }
+    if (process.env.GA4_MEASUREMENT_ID) {
+      for (const key of ["bannerTitle", "accept", "reject", "settings"])
+        if (!legal[key] || !html.includes(legal[key])) problems.push(`${path}: missing ${key}`);
+    }
     for (const [anchor] of html.matchAll(/<a\b[^>]*>/g)) {
       const href = /href="([^"]*)"/.exec(anchor)?.[1] ?? "";
       if (!href.startsWith("/") || shared.test(href) || anchor.includes("hreflang=")) continue;

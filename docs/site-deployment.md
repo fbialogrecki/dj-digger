@@ -1,67 +1,53 @@
-# Deploying the website
+# Deploying djdigger.app
 
-The project website lives in `site/` and is served by Firebase Hosting
-(`firebase.json`). Nothing is deployed until the steps below are done once; until
-then the `Website` workflow ends green with a notice.
+The Website workflow builds the public site from main for a published stable
+GitHub release or a manual dispatch on main. To deploy just the website:
 
-## One-time setup
-
-1. **Create the Firebase project.** Sign in to the [Firebase console](https://console.firebase.google.com/)
-   with the Google account that should own the site, create a project and open
-   **Build → Hosting → Get started**. Note the **project ID** (not the display name).
-2. **Choose the address.** The site is available at `https://<project-id>.web.app`
-   straight away. For your own domain, use **Hosting → Add custom domain** and add
-   the DNS records it shows.
-3. **Create a deploy key.** In the [Google Cloud console](https://console.cloud.google.com/iam-admin/serviceaccounts)
-   of the same project, create a service account (for example `github-site-deploy`)
-   with the role **Firebase Hosting Admin**, then **Keys → Add key → JSON**. Keep the
-   downloaded file out of the repository.
-4. **Tell GitHub.** In the repository, open **Settings → Environments → New
-   environment**, name it `website`, and add:
-   - secret `FIREBASE_SERVICE_ACCOUNT`: the whole content of the JSON key file;
-   - variable `FIREBASE_PROJECT_ID`: the project ID;
-   - variable `SITE_URL`: the public address without a trailing slash, for example
-     `https://<project-id>.web.app`.
-
-   Add yourself as a required reviewer of the environment if a deploy should wait
-   for your approval. Delete the local copy of the key file.
-5. **Deploy.** Run **Actions → Website → Run workflow**. From then on the site is
-   also deployed whenever a stable release is published.
-
-`SITE_URL` is the only place the address is set: canonical URLs, Open Graph tags,
-`sitemap.xml`, `robots.txt` and the Linux one-liner on the download page are built
-from it. After the address is final, you may point the one-liner in `README.md` and
-`docs/installation.md` at `https://<address>/install.sh` instead of the GitHub copy.
-
-## What the workflow checks
-
-Download links on the site carry the version from `pyproject.toml`. Before building,
-the workflow asks GitHub for the three installers of that version
-(`windows-x64-test.exe`, `macos-arm64-test.dmg`, `macos-x86_64-test.dmg`) and stops
-if one is missing, so the site never links to a file that does not exist. If a
-release is published before its installers are attached, run the workflow again by
-hand once they are there.
-
-## Deploying by hand
-
-The `firebase` command on a workstation may be signed in to a different Google
-account. Add the right one without removing the other, and select it for this
-directory only:
-
-```bash
-firebase login:add you@example.com
-firebase login:use you@example.com
+```sh
+gh workflow run site.yml --ref main
 ```
 
-Then build with the public address and deploy:
+The environment `website` contains the following GitHub Actions variables:
 
-```bash
+| Variable | Production value |
+| --- | --- |
+| SITE_URL | https://djdigger.app |
+| FIREBASE_PROJECT_ID | dj-digger-a9664 |
+| GA4_MEASUREMENT_ID | G-YCNWMX1PQL |
+| FIREBASE_IDENTITY_PROVIDER | projects/931896217000/locations/global/workloadIdentityPools/github-website/providers/actions |
+| FIREBASE_DEPLOY_ACCOUNT | website-deploy@dj-digger-a9664.iam.gserviceaccount.com |
+
+GitHub requests a short-lived Google credential through Workload Identity
+Federation. The provider checks the repository and owner IDs, environment, and
+workflow ref. The deploy service account has Firebase Hosting Admin on this
+project. No JSON service-account key is needed.
+
+The build checks for the newest stable release's installers and checksums, then waits for
+the PyPI wheel while its independent publish job runs. It verifies the tag and main commit again before deployment. Downloads
+on the site, including the generated Linux install script, then target that
+release. Publishing the website does not submit an application package or tag.
+
+Record the previous Hosting version before deployment. If a production check
+fails, use the prior version's rollback action in the Firebase Hosting release
+history. The deploy message records the main SHA and public application version.
+
+## Local verification
+
+From the repository root:
+
+```sh
+export DOWNLOAD_VERSION="$(python3 scripts/site_release.py | cut -d= -f2)"
 cd site
 npm ci
-SITE_URL=https://<project-id>.web.app npm run build
-cd ..
-firebase deploy --only hosting --project <project-id>
+npm run build
 ```
 
-`firebase hosting:channel:deploy preview --project <project-id>` publishes the same
-build to a temporary preview address instead of the live site.
+Leave GA4_MEASUREMENT_ID unset for a preview without measurement. To exercise
+consent in a test browser, use a test ID and intercept Google requests. The
+production tag sends one page view per accepted page, installer events named
+`download_windows_x64`, `download_macos_arm64`, `download_macos_x86_64`, and
+`copy_linux_command`. In Analytics use Reports → Engagement → Events, or a
+funnel exploration with the download page and these events. These events measure
+actions on the website, while GitHub release asset counts measure file requests.
+The website privacy text describes the two-month user/event retention setting
+and 180-day cookie lifetime. Keep the property and consent text aligned.

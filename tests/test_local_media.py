@@ -324,10 +324,15 @@ def test_changed_source_refused_and_lossy_32khz_shows_actual_compatibility(tmp_p
     assert execute(plan, db)['status'] == 'partial'
     mp3 = audio(tmp_path, '32.mp3', 'libmp3lame', 32000)
     # Kept as it is only for decks that all play it; a CDJ-3000 does not play 32 kHz MP3,
-    # and a lossy file is never transcoded, so it becomes a listed exception.
+    # so its export copy uses PCM at a supported rate.
     assert plan_export([mp3], tmp_path / 'out2', decks=['CDJ-2000NXS2', 'CDJ-350']).items[0].action == 'copy'
-    item = plan_export([mp3], tmp_path / 'out3', decks=['CDJ-3000', 'CDJ-350']).items[0]
-    assert item.action == 'exception' and 'every chosen deck' in item.reason
+    plan = plan_export([mp3], tmp_path / 'out3', decks=['CDJ-3000', 'CDJ-350'], requested_format='mp3')
+    item = plan.items[0]
+    assert (item.action, item.output_format, item.rate) == ('convert', 'wav', 48000)
+    assert set(plan.compatibility().values()) == {'compatible'}
+    assert execute(plan, db)['status'] == 'complete'
+    assert Path(item.destination).suffix == '.wav' and mp3.is_file()
+    assert plan_export([mp3], tmp_path, mode='replace').items[0].action == 'exception'
     states = compatibility([probe(mp3)])
     assert states['CDJ-3000'] == 'incompatible'
 
@@ -621,3 +626,68 @@ def test_the_label_is_the_picture_cut_to_a_circle_with_its_colours_untouched():
     assert small.startswith('data:image/jpeg;base64,') and len(small) < MAX_ARTWORK
     square = QImage.fromData(base64.b64decode(small.split(',', 1)[1]))
     assert (square.width(), square.height()) == (BROWSER_PIXELS, BROWSER_PIXELS)
+
+
+@pytest.mark.parametrize('fmt,codec', [('wav', 'pcm_s16le'), ('aiff', 'pcm_s16be'),
+                                       ('flac', 'flac'), ('mp3', 'mp3')])
+def test_explicit_format_keeps_playable_lossy_and_converts_lossless(tmp_path, db, fmt, codec):
+    from dataclasses import asdict
+
+    from dj_digger.export import resume_plan
+
+    source = audio(tmp_path, 'source.aiff', 'pcm_s16be', 44100)
+    mp3 = audio(tmp_path, 'original.mp3', 'libmp3lame', 44100)
+    aac = audio(tmp_path, 'original.m4a', 'aac', 44100)
+    plan = plan_export([source, mp3, aac], tmp_path, decks=['CDJ-3000'], requested_format=fmt)
+    assert resume_plan({'plan': asdict(plan)}) == plan
+    assert [i.action for i in plan.items] == ['copy' if fmt == 'aiff' else 'convert', 'copy', 'copy']
+    assert set(plan.compatibility().values()) == {'compatible'}
+    report = execute(plan, db)
+    assert report['status'] == 'complete', report['results']
+    target = probe(Path(plan.items[0].destination))
+    assert (target['codec'], target['rate']) == (codec, 44100)
+    for item in plan.items[1:]:
+        assert Path(item.destination).read_bytes() == Path(item.source).read_bytes()
+    if fmt == 'mp3':
+        assert target['bit_rate'] == 320000
+        assert plan_export([source], tmp_path, requested_format=fmt, mode='replace').items[0].action == 'exception'
+    with pytest.raises(ValueError, match='CDJ-2000'):
+        plan_export([source], tmp_path, decks=['CDJ-2000'], requested_format='flac')
+
+
+def test_resuming_old_copy_journal_survives_repeat_cancellation(tmp_path, db):
+    from threading import Event
+
+    from dj_digger.export import resume_plan
+
+    paths = [audio(tmp_path, name, 'pcm_s16le', 44100) for name in ('one.wav', 'two.wav')]
+    plan = plan_export(paths, tmp_path)
+    cancel = Event()
+    execute(plan, db, cancel=cancel, progress=lambda done, total: cancel.set())
+    record = db.media_operations()[plan.id]
+    del record['plan']['requested_format']
+    for item in record['plan']['items']:
+        del item['output_format']
+    db.record_media_operation(plan.id, record)
+    legacy_plan = resume_plan(record)
+    report = execute(legacy_plan, db, resume=True, cancel=cancel)
+    assert report['status'] == 'cancelled' and report['missing'] == [str(paths[1])]
+    assert execute(legacy_plan, db, resume=True)['status'] == 'complete'
+
+
+@pytest.mark.parametrize(('fmt', 'codec', 'bits'), [('aiff', 'pcm_s24be', 24), ('mp3', 'flac', 24)])
+def test_incompatible_mpeg2_copy_keeps_sample_count_after_upsampling(tmp_path, db, fmt, codec, bits):
+    from dj_digger.export import pcm_summary
+
+    source = audio(tmp_path, 'mpeg2.mp3', 'libmp3lame', 22050)
+    original = source.read_bytes()
+    assert plan_export([source], tmp_path, decks=['CDJ-2000']).items[0].action == 'copy'
+    plan = plan_export([source], tmp_path, decks=['CDJ-3000'], requested_format=fmt)
+    assert plan.compatibility() == {'CDJ-3000': 'compatible'}
+    report = execute(plan, db)
+    assert report['status'] == 'complete', report['results']
+    out = Path(plan.items[0].destination)
+    params = probe(out)
+    assert (params['codec'], params['rate'], params['bits']) == (codec, 44100, bits)
+    assert pcm_summary(out)[1] == 2 * pcm_summary(source)[1]
+    assert source.read_bytes() == original

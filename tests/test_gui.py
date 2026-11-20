@@ -79,7 +79,7 @@ def test_table_longest_visible_text_and_header_names(app):
     model.filter('short', {})
     assert model.longestText(2) == 'Short'
     assert model.longestText(42) == '' and model.longestText(-1) == ''
-    assert model.headerName(9) == 'Stores' and model.headerName(11) == 'Comment' and model.headerName(12) == ''
+    assert model.headerName(9) == 'Stores' and model.headerName(11) == 'Comment' and model.headerName(12) == '#' and model.headerName(13) == ''
     assert model.headerName(2) == 'Track name'
     assert TrackModel().longestText(2) == ''
 
@@ -764,7 +764,8 @@ def test_replace_export_needs_no_destination_folder(backend, tmp_path, monkeypat
     assert decks['kind'] == 'checks'
     assert [label for _, label in decks['options']] == [', '.join(group) for group in DECK_GROUPS]
     assert {name for index in answer['decks'] for name in DECK_GROUPS[int(index)]} >= set(DEFAULT_DECKS)
-    assert not {'format', 'bits', 'rate'} & set(answer)
+    assert answer['format'] == 'auto'
+    assert not {'bits', 'rate'} & set(answer)
     newest = str(next(i for i, group in enumerate(DECK_GROUPS) if 'CDJ-3000' in group))
     worker.answer(question['id'], dict(answer, folder=' '))
     retry = wait_event(events, 'question')
@@ -775,6 +776,9 @@ def test_replace_export_needs_no_destination_folder(backend, tmp_path, monkeypat
     worker.answer(retry['id'], none)
     retry = wait_event(events, 'question')
     assert retry['error'] == 'Choose at least one deck'
+    worker.answer(retry['id'], dict(answer, mode='replace', format='flac'))
+    retry = wait_event(events, 'question')
+    assert 'CDJ-2000' in retry['error']
     worker.answer(retry['id'], dict(none, decks=[newest]))
     review = wait_event(events, 'question')
     assert review['title'] == 'Review export'
@@ -1294,9 +1298,11 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
         # Moving bars are rectangles; the canvas waits for a settled waveform.
         assert named('noiseBars').isVisible() and not named('unplayedBars').isVisible()
         # Preparing the source moves the backdrop even before an audio snapshot.
+        from PySide6.QtCore import SIGNAL
+        advanced = QSignalSpy(backdrop, SIGNAL('phaseChanged()'))
         window.setProperty('animations', True)
         bridge.receive('playLoading', {'key': 'w'})
-        QTest.qWait(80)
+        assert backdrop.property('phase') > 0 or advanced.wait(3000)
         assert backdrop.property('opacity') == 1 and backdrop.property('phase') > 0
         window.setProperty('animations', False)
         phase = backdrop.property('phase')
@@ -1695,6 +1701,9 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
     try:
         window = engine.rootObjects()[0]
         # Geometry and colours are asserted as they settle, without transitions in between.
+        # This section checks the expanded toolbar; offscreen Windows can start at 800 px.
+        # The explicit compact-width assertions below resize it again.
+        window.setWidth(1400)
         window.setProperty('animations', False)
         def settle():
             painted = QSignalSpy(window.frameSwapped)
@@ -1870,12 +1879,12 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
         # Columns can be reordered; the order is tracked for persistence and can be reset.
         qml('table.moveColumn(0, 2)')
         settle()
-        assert window.property('columnOrder').toVariant() == [1, 2, 0, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+        assert window.property('columnOrder').toVariant() == [1, 2, 0, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
         cells = qml('(function(){ let out = []; for (let c of table.contentItem.children) if (c.column !== undefined && c.row === 0 && c.visible) out.push([Math.round(c.x), c.column]); out.sort((a, b) => a[0] - b[0]); return JSON.stringify(out.slice(0, 3).map(c => c[1])) })()')
         assert json.loads(cells) == [1, 2, 0]
         qml('resetColumnOrder()')
         settle()
-        assert window.property('columnOrder').toVariant() == list(range(12))
+        assert window.property('columnOrder').toVariant() == list(range(13))
         # The status bar spans the whole window and the dialog buttons are localized and compact.
         status = window.findChild(QQuickItem, 'statusBar')
         assert status.width() == window.width()
@@ -1970,6 +1979,8 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
         window.setProperty('animations', False)
         assert not warnings
     finally:
+        app.removeTranslator(bridge._translator)
+        app.removeTranslator(bridge._qt_translator)
         shiboken6.delete(engine)
 
 

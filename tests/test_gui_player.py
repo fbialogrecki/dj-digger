@@ -414,9 +414,12 @@ def test_pasting_a_system_playlist_in_the_desktop_captures_the_local_date(backen
 def test_browser_show_command_reaches_the_ui(backend):  # noqa: F811
     worker, events = backend
     replies = []
-    asyncio.run_coroutine_threadsafe(worker.action_remote({'op': 'activate', 'reply': replies.append}), worker.loop).result(timeout=5)
-    assert wait_event(events, 'activate') == {}
-    assert replies == ['opened']
+    request = asyncio.run_coroutine_threadsafe(worker.action_remote({'op': 'activate', 'reply': replies.append}), worker.loop)
+    activation = wait_event(events, 'activate')
+    assert not replies
+    activation['done']('attention')
+    request.result(timeout=5)
+    assert replies == ['attention']
 
 
 def test_browser_show_restores_the_minimized_window(window):
@@ -441,3 +444,59 @@ def test_the_window_tells_the_browser_panel_its_colours(window):
     assert [c[1] for c in bridge.backend.calls if c[0] == 'look'][-1] == {
         'colors': ['#069d3e', '#a18606', '#00c43e', '#c1a900'] if dark else ['#1a8f45', '#a88d0a', '#2bff6e', '#ffe000'],
         'dark': not dark}
+
+
+def test_cover_crop_uses_same_side_for_each_output():
+    import base64
+
+    from PySide6.QtCore import QBuffer, QByteArray
+    from PySide6.QtGui import QColor, QImage
+
+    from dj_digger.gui.artwork import label_image
+
+    image = QImage(80, 20, QImage.Format_RGB32)
+    image.fill(QColor('red'))
+    for x in range(40, 80):
+        for y in range(20):
+            image.setPixelColor(x, y, QColor('blue'))
+    data = QByteArray()
+    buffer = QBuffer(data)
+    buffer.open(QBuffer.WriteOnly)
+    image.save(buffer, 'PNG')
+    for circle, jpeg in ((True, False), (False, False), (False, True)):
+        for offset, color in ((0, 'red'), (1, 'blue')):
+            url = label_image(bytes(data), 16, circle, jpeg, offset)
+            pixel = QImage.fromData(base64.b64decode(url.split(',')[1])).pixelColor(8, 8)
+            assert (pixel.red() > pixel.blue()) == (color == 'red')
+
+
+def test_preferences_cover_can_be_dragged(window, tmp_path):
+    from PySide6.QtCore import QPoint, QPointF, Qt
+    from PySide6.QtGui import QImage
+    from PySide6.QtTest import QTest
+
+    from dj_digger.gui.backend import field
+
+    root, bridge = window
+    path = tmp_path / 'album #1.jpg'
+    image = QImage(192, 96, QImage.Format_RGB32)
+    image.fill(Qt.red)
+    assert image.save(str(path))
+    bridge.receive('question', dict(id='prefs', title='Preferences', ok='Save', fields=[
+        field('default_artwork', 'Cover', str(path), 'image'),
+        field('artwork_crop', 'Drag to position the cover', .5, 'crop'),
+    ]))
+    preview = find(root.contentItem(), 'coverCropPreview')
+    for _ in range(20):
+        settle(root)
+        if preview.childItems()[0].width() > preview.width():
+            break
+    assert preview.childItems()[0].width() > preview.width()
+    center = preview.mapToScene(QPointF(64, 64)).toPoint()
+    QTest.mousePress(root, Qt.LeftButton, pos=center)
+    QTest.mouseMove(root, center + QPoint(45, 0))
+    QTest.mouseRelease(root, Qt.LeftButton, pos=center + QPoint(45, 0))
+    after = qml(root, 'dialog.values.artwork_crop')
+    assert 0 < after < .5
+    QTest.keyClick(root, Qt.Key_Right)
+    assert qml(root, 'dialog.values.artwork_crop') > after

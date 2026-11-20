@@ -42,8 +42,11 @@ PERSISTED_FIELDS = (
     "volume",
     "export_decks",
     "default_artwork",
+    "artwork_crop",
     "nyp_price",
     "onboarded",
+    "check_updates",
+    "last_update_check",
 )
 # What a Bandcamp "name your price" item goes into the cart at: its minimum, or the price the
 # artist suggests (owner's decision 2026-10-07: minimum unless changed in Settings).
@@ -94,12 +97,15 @@ class AppConfig:
         self.export_decks: list[str] = list(DEFAULT_DECKS)
         # A picture for the record label of tracks without artwork; empty for a blank label.
         self.default_artwork: str = ""
+        self.artwork_crop = 0.5
         self.nyp_price: str = NYP_PRICES[0]
         # True when there was no config file to read, i.e. this is the first
         # launch. The desktop uses it to ask for the settings before anything needs
         # them - gates submit the name and email without asking again.
         self.first_run: bool = False
         # The desktop's Welcome steps were finished or skipped; they are not shown again.
+        self.check_updates = True
+        self.last_update_check = 0
         self.onboarded: bool = False
         self.load()
 
@@ -135,8 +141,14 @@ class AppConfig:
                 if isinstance(decks, list):
                     self.export_decks = [name for name in DECK_NAMES if name in {str(d) for d in decks}] or list(DEFAULT_DECKS)
                 self.default_artwork = str(raw.get("default_artwork") or "").strip()
+                crop = raw.get("artwork_crop")
+                if type(crop) in (float, int) and 0 <= crop <= 1:
+                    self.artwork_crop = crop
                 if raw.get("nyp_price") in NYP_PRICES:
                     self.nyp_price = raw["nyp_price"]
+                self.check_updates = raw.get("check_updates") is not False
+                if type(raw.get("last_update_check")) is int:
+                    self.last_update_check = raw["last_update_check"]
                 self.onboarded = raw.get("onboarded") is True
         except FileNotFoundError:
             self.first_run = True

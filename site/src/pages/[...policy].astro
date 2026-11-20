@@ -1,0 +1,59 @@
+---
+import Base from "../layouts/Base.astro";
+import Track from "../components/Track.astro";
+import { languages, pathIn, ui } from "../i18n/index.mjs";
+import { repo } from "../../site.config.mjs";
+
+export function getStaticPaths() {
+  return languages.flatMap(({ code }) => ["privacy", "terms"].map((page) => ({
+    params: { policy: pathIn(code, "/" + page).slice(1) },
+    props: { page, lang: code },
+  })));
+}
+
+const { page, lang } = Astro.props;
+const t = ui(Astro.url.pathname);
+const { sections, links } = t.legalPages;
+const ids = page === "privacy"
+  ? ["controller", "hosting", "analytics", "settings", "email", "transfers", "rights"]
+  : ["project", "software", "music"];
+const mail = ["mailto:fbialogrecki@gmail.com", "fbialogrecki@gmail.com"];
+const references = {
+  controller: [mail, [`${repo}/blob/main/PRIVACY.md`, links.appPrivacy]],
+  hosting: [["https://firebase.google.com/support/privacy", "Firebase Hosting"]],
+  analytics: [[`https://support.google.com/analytics/answer/7667196?hl=${lang}`, "Google Analytics 4"]],
+  transfers: [
+    [`https://policies.google.com/privacy/frameworks?hl=${lang}`, links.transfers],
+    ["https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement", links.github],
+  ],
+  rights: [["https://uodo.gov.pl/", "UODO"], [`https://eur-lex.europa.eu/eli/reg/2016/679/oj`, "EU 2016/679"]],
+  project: [mail, [`${repo}/blob/main/README.md`, links.readme]],
+  software: [[`${repo}/blob/main/LICENSE`, "Apache License 2.0"], ["/licenses.txt", links.licences]],
+  music: [
+    ["https://freemusicarchive.org/music/beat-mekanik/single/drift-away/", "Drift Away · Free Music Archive"],
+    ["https://creativecommons.org/licenses/by/4.0/", "CC BY 4.0"],
+    [`${repo}/blob/main/site/README.md`, links.artists],
+  ],
+};
+---
+<Base title={`${t.legal[page]} · dj-digger`} description={sections[ids[0]].body} label="about">
+  <article class="policy">
+    <Track id={page} hero sub title={t.legal[page]} />
+    {ids.map((id) => (
+      <section id={id} aria-labelledby={`${id}-title`}>
+        <h2 id={`${id}-title`}>{sections[id].heading}</h2>
+        <p>{sections[id].body}</p>
+        {references[id] && <ul>{references[id].map(([href, title]) => <li><a href={href}>{title}</a></li>)}</ul>}
+      </section>
+    ))}
+  </article>
+</Base>
+
+<style>
+  .policy { max-width: 72ch; padding-bottom: 3rem; }
+  .policy section + section { margin-top: 2.5rem; }
+  .policy h2 { margin: 0 0 .65rem; }
+  .policy p { line-height: 1.65; }
+  .policy ul { display: flex; flex-wrap: wrap; gap: .4rem 1.4rem; list-style: none; padding: 0; }
+  .policy a { text-decoration: underline; text-underline-offset: .2em; }
+</style>

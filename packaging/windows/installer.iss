@@ -35,3 +35,6 @@ Source: "..\..\dist\dj-digger\*"; DestDir: "{app}"; Flags: ignoreversion recurse
 [Icons]
 Name: "{group}\dj-digger"; Filename: "{app}\dj-digger-gui.exe"
 Name: "{autodesktop}\dj-digger"; Filename: "{app}\dj-digger-gui.exe"; Tasks: desktopicon
+
+[Run]
+Filename: "{app}\dj-digger-gui.exe"; Description: "{cm:LaunchProgram,dj-digger}"; Flags: postinstall nowait skipifsilent

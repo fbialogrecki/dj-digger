@@ -1,4 +1,65 @@
 {
+  "legal": {
+    "privacy": "Privacy e cookie",
+    "terms": "Condizioni d’uso",
+    "settings": "Impostazioni dei cookie",
+    "bannerTitle": "Consentire le statistiche sulle visite?",
+    "bannerText": "Con il tuo consenso Google Analytics usa i cookie per contare visite, clic sui programmi di installazione e copie del comando di installazione Linux. Puoi usare tutto il sito anche se rifiuti e modificare la scelta nel piè di pagina.",
+    "accept": "Consenti le statistiche",
+    "reject": "Rifiuta le statistiche"
+  },
+  "legalPages": {
+    "sections": {
+      "controller": {
+        "heading": "Chi gestisce il sito?",
+        "body": "Filip Białogrecki gestisce dj-digger come progetto amatoriale in Polonia ed è il titolare del trattamento dei dati personali raccolti attraverso questo sito. Per domande o per esercitare i tuoi diritti, scrivigli all’indirizzo indicato sotto. L’applicazione e l’estensione del browser hanno un’informativa separata."
+      },
+      "hosting": {
+        "heading": "Hosting e sicurezza",
+        "body": "Google Ireland Limited fornisce Firebase Hosting. Il servizio riceve l’indirizzo IP e i dati tecnici di ogni richiesta per fornire le pagine e rilevare abusi. La base giuridica è il mio legittimo interesse a offrire un sito affidabile e sicuro (art. 6, par. 1, lett. f del GDPR). Firebase conserva per alcuni mesi i dati IP relativi all’hosting."
+      },
+      "analytics": {
+        "heading": "Statistiche facoltative",
+        "body": "Solo con il tuo consenso (art. 6, par. 1, lett. a del GDPR), Google Ireland Limited riceve dati GA4 quali la pagina visitata, informazioni su browser e dispositivo, il sito di provenienza, i clic sui programmi di installazione, le copie del comando di installazione Linux e un identificativo pseudonimo del browser. Li uso per capire come viene utilizzato il sito. I cookie _ga e _ga_* durano al massimo 180 giorni. Le visite successive non ne rinnovano la scadenza. I dati relativi a utenti ed eventi hanno un periodo di conservazione di due mesi. I rapporti aggregati standard sono separati e possono coprire periodi più lunghi."
+      },
+      "settings": {
+        "heading": "Scelte nel browser",
+        "body": "Il browser memorizza la lingua e il tema che scegli espressamente finché non li cambi o cancelli. Conserva per sei mesi di calendario il consenso o il rifiuto delle statistiche. Puoi revocare il consenso in qualsiasi momento dalle impostazioni dei cookie nel piè di pagina. La revoca interrompe la raccolta futura e non pregiudica la liceità del trattamento precedente. Puoi navigare anche senza acconsentire. Queste informazioni servono ad applicare le tue preferenze. La base giuridica è il mio legittimo interesse a ricordare e rispettare le tue decisioni (art. 6, par. 1, lett. f del GDPR)."
+      },
+      "email": {
+        "heading": "Posta elettronica",
+        "body": "Se mi scrivi, Google Ireland Limited tratta in Gmail il tuo indirizzo e-mail, il messaggio e gli eventuali allegati. I miei legittimi interessi (art. 6, par. 1, lett. f del GDPR) sono rispondere alla richiesta e, se necessario, far valere o difendere un diritto. Conservo la corrispondenza fino alla soluzione della richiesta e in seguito solo per il tempo necessario per eventuali controversie pertinenti. Fornire i dati è facoltativo. Per risponderti mi serve un recapito."
+      },
+      "transfers": {
+        "heading": "Collegamenti esterni e trasferimenti internazionali",
+        "body": "Se segui un collegamento a GitHub, il browser trasmette a GitHub il tuo indirizzo IP e i dati della richiesta, secondo la sua informativa sulla privacy. Google e GitHub possono trattare dati al di fuori del SEE, anche negli Stati Uniti. A seconda del destinatario, i trasferimenti si basano sul quadro UE–USA per la protezione dei dati per gli organismi certificati o sulle clausole contrattuali tipo della Commissione europea. Trovi le garanzie ai collegamenti dei fornitori qui sotto. Puoi anche chiedermene una copia."
+      },
+      "rights": {
+        "heading": "I tuoi diritti",
+        "body": "Puoi chiedere accesso, rettifica, cancellazione o limitazione, opporti al trattamento basato sul legittimo interesse e chiedere la portabilità quando applicabile. Puoi presentare reclamo all’autorità polacca (UODO) o a quella del luogo in cui risiedi, lavori o ritieni che sia avvenuta la violazione. Il sito non prende decisioni automatizzate con effetti giuridici o analogamente significativi."
+      },
+      "project": {
+        "heading": "Uso del progetto",
+        "body": "Filip Białogrecki mantiene questo progetto amatoriale in Polonia. Il sito offre documentazione, dimostrazioni e collegamenti per scaricare il software. Per assistenza, correzioni o segnalazioni sui diritti, usa l’indirizzo e-mail indicato sotto. Il sito funziona in un browser moderno con HTTPS. I download funzionano anche con JavaScript disattivato. La pagina dei download indica il sistema operativo e l’architettura di ogni pacchetto."
+      },
+      "software": {
+        "heading": "Software e servizi di terzi",
+        "body": "Il software del progetto è distribuito con licenza Apache 2.0, che disciplina ridistribuzione, avvisi da conservare, garanzie e responsabilità. Dipendenze, caratteri e icone mantengono le rispettive licenze. Utilizza fonti, negozi e download nel rispetto delle loro condizioni e dei diritti applicabili. Spetta a te confermare gli acquisti e avere i permessi necessari per usare la musica."
+      },
+      "music": {
+        "heading": "Musica e immagini",
+        "body": "Le schermate mostrano «Drift Away» di JMHBM (Johnathon M. Horner, Beat Mekanik), da Free Music Archive, con licenza CC BY 4.0. L’illustrazione del lettore utilizza «Mathilde Fernandez - Temple Sourire (Strenx & Lezguy Edit)» con il permesso degli artisti. I diritti sulla musica e sulle immagini rimangono ai rispettivi titolari. Il permesso di mostrare la demo non concede ai visitatori ulteriori diritti di riutilizzo."
+      }
+    },
+    "links": {
+      "appPrivacy": "Privacy dell’app e dell’estensione",
+      "transfers": "Garanzie di Google sui trasferimenti",
+      "github": "Informativa sulla privacy di GitHub",
+      "licences": "Licenze di caratteri e icone",
+      "readme": "README del progetto",
+      "artists": "Crediti artistici"
+    }
+  },
   "skip": "Vai al contenuto",
   "primary": "Principale",
   "nav": {

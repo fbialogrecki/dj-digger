@@ -580,8 +580,9 @@ class Listener:
         ``MAX_ARTWORK`` is left out, so the frame stays far below the 1 MB relay limit.
         """
 
-        if len(str(state.get("artwork", ""))) > MAX_ARTWORK:
-            state = dict(state, artwork="")
+        for name in ("artwork", "defaultArtwork"):
+            if len(str(state.get(name, ""))) > MAX_ARTWORK:
+                state = {**state, name: ""}
         frame = {"cmd": "player.state", "args": state}
         if self.on_desktop_request is not None:
             frame["importInstance"] = self._import_instance

@@ -53,6 +53,7 @@ class Item:
     rate: int
     metadata_json: str
     reason: str = ''
+    output_format: str = ''
 
 
 @dataclass(frozen=True)
@@ -67,6 +68,7 @@ class ExportPlan:
     decks: tuple[str, ...] = DEFAULT_DECKS
     # Warnings about the destination drive that do not stop the export.
     notes: tuple[str, ...] = ()
+    requested_format: str = 'auto'
 
     def compatibility(self):
         media = []
@@ -76,7 +78,7 @@ class ExportPlan:
             elif item.action == 'copy':
                 media.append(json.loads(item.metadata_json))
             else:
-                media.append(self.profile.media(rate=item.rate, bits=item.bits))
+                media.append(Profile(item.output_format or self.profile.format).media(rate=item.rate, bits=item.bits))
         return compatibility(media, self.decks)
 
 
@@ -111,7 +113,7 @@ def common_root(paths):
         return None
 
 
-def _transformation(path, meta, profile, mode, cancel, decks=DEFAULT_DECKS):
+def _transformation(path, meta, profile, mode, cancel, decks=DEFAULT_DECKS, explicit=False):
     """Choose the minimal allowed audio change, retaining explicit exceptions.
 
     A file is kept as it is only when every chosen deck plays it."""
@@ -120,20 +122,38 @@ def _transformation(path, meta, profile, mode, cancel, decks=DEFAULT_DECKS):
     try:
         if meta['channels'] not in (1, 2):
             raise MediaError('Multichannel audio requires an explicit downmix decision')
-        if meta['codec'] in ('mp3', 'aac'):
-            if not plays_everywhere:
-                raise MediaError('Lossy file does not play on every chosen deck; no automatic lossy transcode')
-        else:
+        lossy = meta['codec'] in ('mp3', 'aac')
+        if profile.format == 'mp3' and not (lossy or meta['codec'] in ('alac', 'flac')
+                                            or meta['codec'].startswith('pcm_')):
+            raise MediaError('Cannot verify a lossless source for MP3 encoding')
+        if lossy and not plays_everywhere:
+            if mode == 'replace':
+                raise MediaError('Choose Copy to keep the lossy original and create a compatible file')
+            if profile.format == 'mp3':
+                profile = best_profile(decks)
+            # Legacy MPEG sampling rates below 44.1 kHz need upsampling for deck PCM.
+            if rate in (8000, 12000, 16000, 24000, 32000):
+                rate = min(48000, profile.rate)
+            elif rate in (11025, 22050):
+                rate = 44100
+            else:
+                rate = target_rate(rate, profile.rate)
+            bits, action = profile.bits, 'convert'
+            reason = f'Compatible {profile.format.upper()} copy at {rate / 1000:g} kHz; original kept'
+        elif not lossy:
             rate = target_rate(meta['rate'], profile.rate)
             bits = min(meta['bits'] or profile.bits, profile.bits)
             if bits not in (16, 24):
                 bits = profile.bits
-            accepted_codecs = {'pcm_s16le', 'pcm_s24le', 'pcm_s16be', 'pcm_s24be'}
-            if profile.format == 'flac':
-                accepted_codecs |= {'flac', 'alac'}
-            if (meta['codec'] not in accepted_codecs or rate != meta['rate'] or bits != meta['bits']
-                    or not plays_everywhere):
+            if explicit:
+                same_format = meta['container'] == profile.format
+            else:
+                same_format = meta['codec'].startswith('pcm_') or (
+                    profile.format == 'flac' and meta['codec'] in ('flac', 'alac'))
+            if not (same_format and plays_everywhere and rate == meta['rate'] and bits == meta['bits']):
                 action = 'convert'
+            if profile.format == 'mp3' and mode == 'replace':
+                raise MediaError('Choose Copy to keep the original when encoding MP3')
             if path.suffix.lower() == '.wav' and action == 'copy':
                 try:
                     if wav.inspect(path)['code'] != 1:
@@ -155,7 +175,7 @@ def _transformation(path, meta, profile, mode, cancel, decks=DEFAULT_DECKS):
                     raise MediaError('Resampling would clip; automatic normalization is disabled')
     except MediaError as exc:
         action, reason = 'exception', str(exc)
-    return action, reason, bits, rate
+    return action, reason, bits, rate, profile.format
 
 
 def _portable_parts(relative, directory_owners):
@@ -240,13 +260,18 @@ def drive_notes(folder: Path, targets, decks):
     return tuple(notes)
 
 
-def plan_export(paths, folder: Path, profile=None, *, decks=None, mode='copy', cancel=None) -> ExportPlan:
-    """``decks`` names the target decks (the default set when omitted); without an explicit
-    ``profile`` the best one every target deck plays is used."""
+def plan_export(paths, folder: Path, profile=None, *, decks=None, requested_format='auto', mode='copy', cancel=None) -> ExportPlan:
+    """Freeze the output format, per-file actions and deck compatibility for review."""
     if mode not in ('copy', 'replace'):
         raise ValueError('Unknown export mode')
     decks = tuple(deck.name for deck in chosen(DEFAULT_DECKS if decks is None else decks))
-    profile = profile or best_profile(decks)
+    if profile is not None:
+        requested_format = profile.format
+        cap = best_profile(decks, requested_format)
+        if profile.rate > cap.rate or profile.bits > cap.bits:
+            raise ValueError('Export profile exceeds the limits of the chosen decks')
+    else:
+        profile = best_profile(decks, requested_format)
     operation = uuid.uuid4().hex
     source_paths = tuple(dict.fromkeys(Path(path).expanduser().absolute().parent.resolve(strict=True) / Path(path).name for path in paths))
     if not source_paths:
@@ -264,12 +289,12 @@ def plan_export(paths, folder: Path, profile=None, *, decks=None, mode='copy', c
         except MediaError as exc:
             items.append(Item(str(path), before, sha, str(destination_root / portable(path.name)), 'exception', 0, 0, '{}', str(exc)))
             continue
-        action, reason, bits, rate = _transformation(path, meta, profile, mode, cancel, decks)
+        action, reason, bits, rate, fmt = _transformation(path, meta, profile, mode, cancel, decks, requested_format != 'auto')
         relative = path.relative_to(root) if root is not None else Path(portable(path.anchor), *path.parts[1:])
         parts = _portable_parts(relative, directory_owners)
         target = destination_root.joinpath(*parts) if mode == 'copy' else path
         if action == 'convert':
-            target = target.with_suffix('.' + profile.format)
+            target = target.with_suffix('.' + fmt)
         normalized = unicodedata.normalize('NFC', str(target)).casefold()
         if normalized in used:
             if mode == 'replace':
@@ -279,9 +304,9 @@ def plan_export(paths, folder: Path, profile=None, *, decks=None, mode='copy', c
         used.add(unicodedata.normalize('NFC', str(target)).casefold())
         if mode == 'replace' and target != path and target.exists():
             action, reason = 'exception', 'Destination already exists'
-        items.append(Item(str(path), before, sha, str(target), action, bits, rate, json.dumps(meta), reason))
+        items.append(Item(str(path), before, sha, str(target), action, bits, rate, json.dumps(meta), reason, fmt if action == 'convert' else ''))
     notes = drive_notes(destination_root, [item.destination for item in items if item.action != 'exception'], decks)
-    return ExportPlan(operation, tuple(items), profile, mode, str(destination_root), decks=decks, notes=notes)
+    return ExportPlan(operation, tuple(items), profile, mode, str(destination_root), decks=decks, notes=notes, requested_format=requested_format)
 
 
 def pcm_summary(path: Path, *, rate=None, cancel=None):
@@ -327,6 +352,8 @@ def prepare(item: Item, profile: Profile, target: Path, *, cancel=None) -> dict:
         raise MediaError('Source changed since export was reviewed')
     if item.action == 'copy':
         return _prepare_copy(item, source, target, cancel)
+    profile = Profile(item.output_format or profile.format, profile.bits, profile.rate)
+    mp3 = profile.format == 'mp3'
     old_hash, old_samples, old_peak = metadata.get('source_pcm') or pcm_summary(source, cancel=cancel)
     if old_peak > 1:
         raise MediaError('Source clips; choose an explicit level adjustment before export')
@@ -340,6 +367,9 @@ def prepare(item: Item, profile: Profile, target: Path, *, cancel=None) -> dict:
         if resampled_peak > 1:
             raise MediaError('Resampling would clip; automatic normalization is disabled')
     codec = profile.codec(item.bits)
+    if mp3:
+        resampler = f'aresample={item.rate}'
+    encoder_args = ['-b:a', '320k'] if mp3 else ['-sample_fmt', 's16' if item.bits == 16 else 's32']
     encoded = target.with_name(target.name + '.encoded') if profile.format == 'wav' else target
     safe_tags = {'title', 'artist', 'album', 'date', 'genre', 'track', 'comment', 'copyright'}
     tag_args = [part for key, value in metadata.get('tags', {}).items() if key in safe_tags and len(str(value)) <= 65536 for part in ('-metadata', f'{key}={value}')]
@@ -349,20 +379,22 @@ def prepare(item: Item, profile: Profile, target: Path, *, cancel=None) -> dict:
     try:
         run([binary('ffmpeg'), '-v', 'error', '-xerror', '-nostdin', '-n', *input_args(source),
              '-map', '0:a:0', *cover_args, '-map_metadata', '-1', *tag_args, '-af', resampler, '-c:a', codec,
-             '-sample_fmt', 's16' if item.bits == 16 else 's32', '-f', profile.format,
+             *encoder_args, '-f', profile.format,
              *(['-rf64', 'never'] if profile.format == 'wav' else []), str(encoded)], cancel=cancel,
             timeout=max(300, metadata['duration'] * 5))
         skipped = wav.canonicalise(encoded, target) if profile.format == 'wav' else []
         if target.stat().st_size > 0xffffffff:
             raise MediaError('File exceeds FAT32 file size limit')
         result = probe(target, cancel)
-        if (result['bits'], result['rate'], result['channels']) != (item.bits, item.rate, metadata['channels']):
+        codec_ok = (result['codec'] == 'mp3' and result['bit_rate'] == 320000 if mp3
+                    else result['codec'] == codec and result['bits'] == item.bits)
+        if not codec_ok or (result['rate'], result['channels']) != (item.rate, metadata['channels']):
             raise MediaError('Converted audio does not match the reviewed parameters')
         new_hash, new_samples, _ = pcm_summary(target, cancel=cancel)
         expected = round(old_samples / metadata['channels'] * item.rate / metadata['rate']) * metadata['channels']
         if abs(new_samples - expected) > 2 * metadata['channels']:
             raise MediaError('Converted audio length verification failed')
-        if not quantize and (old_hash != new_hash or old_samples != new_samples):
+        if not mp3 and not quantize and (old_hash != new_hash or old_samples != new_samples):
             raise MediaError('Lossless conversion changed audio samples')
         with target.open('r+b') as stream:
             os.fsync(stream.fileno())
@@ -459,7 +491,10 @@ def recover(db) -> list[str]:
     return messages
 
 
-def _checkpoint_copy(plan, db, report):
+def _checkpoint_copy(plan, db, report, pending=None):
+    if pending:
+        # Preserve earlier completed files until this pass has verified each one.
+        report = {**report, 'results': [*report['results'], *pending.values()]}
     _save_report(Path(plan.folder) / 'dj-digger-report.json', report)
     stage = 'done' if report['status'] == 'complete' else 'copy'
     db.record_media_operation(plan.id, {**report, 'kind': 'copy', 'stage': stage})
@@ -471,14 +506,14 @@ def _open_copy_journal(plan: ExportPlan, db, report, resume) -> dict:
     completed = {}
     if resume:
         previous = db.media_operations().get(plan.id, {})
-        if previous.get('kind') != 'copy' or json.dumps(previous.get('plan'), sort_keys=True) != json.dumps(asdict(plan), sort_keys=True):
+        if previous.get('kind') != 'copy' or resume_plan(previous) != plan:
             raise MediaError('No matching trusted journal for this export')
         completed = {result['source']: result for result in previous.get('results', []) if result.get('status') == 'complete'}
         if not folder.is_dir():
             raise MediaError('Export folder is unavailable; reconnect its volume')
     else:
         folder.mkdir(parents=True, exist_ok=False)
-    db.record_media_operation(plan.id, {**report, 'kind': 'copy', 'stage': 'copy'})
+        db.record_media_operation(plan.id, {**report, 'kind': 'copy', 'stage': 'copy'})
     return completed
 
 
@@ -493,7 +528,7 @@ def _export_item(plan: ExportPlan, db, index, item: Item, report, completed, can
             previous = completed[item.source]
             if digest(Path(item.destination), cancel) != previous.get('sha256'):
                 raise MediaError('Previously exported file changed; preserved for inspection')
-            report['results'].append(previous)
+            report['results'].append(completed.pop(item.source))
             return True
         if item.action == 'exception':
             raise MediaError(item.reason)
@@ -530,6 +565,7 @@ def _export_item(plan: ExportPlan, db, index, item: Item, report, completed, can
         report['status'] = 'cancelled'
         return False
     except Exception as exc:
+        completed.pop(item.source, None)
         report['results'].append({'source': item.source, 'status': 'failed', 'error': str(exc)})
     finally:
         # A replacement journal may own this path after a failed commit.
@@ -537,7 +573,7 @@ def _export_item(plan: ExportPlan, db, index, item: Item, report, completed, can
             shutil.rmtree(working_directory)
         progress(index + 1, len(plan.items))
         if plan.mode == 'copy':
-            _checkpoint_copy(plan, db, report)
+            _checkpoint_copy(plan, db, report, completed)
     return True
 
 
@@ -551,6 +587,7 @@ def execute(plan: ExportPlan, db, *, resume=False, cancel=None, protected=lambda
             break
     if report['status'] != 'cancelled':
         report['status'] = 'partial' if any(item['status'] == 'failed' for item in report['results']) else 'complete'
+    report['results'].extend(completed.values())
     completed_sources = {result['source'] for result in report['results']
                          if result['status'] in ('complete', 'unchanged')}
     report['missing'] = [item.source for item in plan.items if item.source not in completed_sources]
@@ -564,4 +601,4 @@ def resume_plan(record):
     raw = record['plan']
     return ExportPlan(raw['id'], tuple(Item(**item) for item in raw['items']), Profile(**raw['profile']),
                       raw['mode'], raw['folder'], raw['rules'], tuple(raw.get('decks') or DEFAULT_DECKS),
-                      tuple(raw.get('notes', ())))
+                      tuple(raw.get('notes', ())), raw.get('requested_format', 'auto'))

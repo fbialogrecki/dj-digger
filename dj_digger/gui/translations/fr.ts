@@ -696,10 +696,6 @@
       <translation>Rechercher des mises à jour</translation>
     </message>
     <message>
-      <source>Opens the releases page in your browser</source>
-      <translation>Ouvre la page des versions dans votre navigateur</translation>
-    </message>
-    <message>
       <source>About dj-digger…</source>
       <translation>À propos de dj-digger…</translation>
     </message>
@@ -975,9 +971,21 @@
       <source>No local files in this playlist</source>
       <translation>Cette liste de lecture ne contient aucun fichier local</translation>
     </message>
+    <message>
+      <source>Check for a newer stable desktop version</source>
+      <translation>Rechercher une version stable plus récente</translation>
+    </message>
+    <message>
+      <source>Delete playlists…</source>
+      <translation>Supprimer les playlists…</translation>
+    </message>
   </context>
   <context>
     <name>Bridge</name>
+    <message>
+      <source>Drag to position the cover</source>
+      <translation>Faites glisser pour cadrer la pochette</translation>
+    </message>
     <message>
       <source>Gates need you</source>
       <translation>Des gates ont besoin de vous</translation>
@@ -1027,8 +1035,16 @@
       <translation>La pochette par défaut n'est pas un fichier</translation>
     </message>
     <message>
-      <source>Choose the decks these files must play on; the best format they all play is picked for you.</source>
-      <translation>Choisissez les platines sur lesquelles ces fichiers doivent être lus ; le meilleur format compatible avec toutes est choisi pour vous.</translation>
+      <source>Auto chooses a format supported by every selected deck. Compatible MP3 and AAC files keep their original encoding.</source>
+      <translation>Le mode automatique choisit un format pris en charge par tous les lecteurs sélectionnés. Les fichiers MP3 et AAC compatibles conservent leur encodage d’origine.</translation>
+    </message>
+    <message>
+      <source>Output format</source>
+      <translation>Format de sortie</translation>
+    </message>
+    <message>
+      <source>Auto</source>
+      <translation>Automatique</translation>
     </message>
     <message>
       <source>Choose at least one deck</source>
@@ -2046,6 +2062,70 @@
       <source>Start previews at 30 %</source>
       <translation>Démarrer les aperçus à 30 %</translation>
     </message>
+    <message>
+      <source>Delete playlists</source>
+      <translation>Supprimer les playlists</translation>
+    </message>
+    <message>
+      <source>Selected playlists: {0}</source>
+      <translation>Playlists sélectionnées : {0}</translation>
+    </message>
+    <message>
+      <source>Check for desktop updates daily</source>
+      <translation>Vérifier les mises à jour chaque jour</translation>
+    </message>
+    <message>
+      <source>Desktop update available</source>
+      <translation>Mise à jour disponible</translation>
+    </message>
+    <message>
+      <source>Close dj-digger and start the update?</source>
+      <translation>Fermer dj-digger et lancer la mise à jour ?</translation>
+    </message>
+    <message>
+      <source>Update</source>
+      <translation>Mettre à jour</translation>
+    </message>
+    <message>
+      <source>Release</source>
+      <translation>Page de la version</translation>
+    </message>
+    <message>
+      <source>You have the latest desktop version</source>
+      <translation>Vous utilisez la dernière version</translation>
+    </message>
+    <message>
+      <source>Downloading desktop update</source>
+      <translation>Téléchargement de la mise à jour</translation>
+    </message>
+    <message>
+      <source>Finish active operations and pause playback before updating</source>
+      <translation>Terminez les opérations et mettez la lecture en pause avant la mise à jour</translation>
+    </message>
+    <message>
+      <source>For pipx, run pipx upgrade dj-sc-digger. For a development checkout, update your checkout and run uv sync. Otherwise use your original installer.</source>
+      <translation>Avec pipx, lancez pipx upgrade dj-sc-digger. Pour une copie de développement, mettez le code à jour puis lancez uv sync. Sinon, utilisez votre installeur d’origine.</translation>
+    </message>
+    <message>
+      <source>Later</source>
+      <translation>Plus tard</translation>
+    </message>
+    <message>
+      <source>This desktop version is not available on PyPI yet</source>
+      <translation>Cette version n’est pas encore disponible sur PyPI</translation>
+    </message>
+    <message>
+      <source>Playlist selection changed. Select the playlists again.</source>
+      <translation>La sélection a changé. Sélectionnez à nouveau les playlists.</translation>
+    </message>
+    <message>
+      <source>Updated to version {0}</source>
+      <translation>Mise à jour vers la version {0} effectuée</translation>
+    </message>
+    <message>
+      <source>The update to {0} did not finish. Running version {1}.</source>
+      <translation>La mise à jour vers {0} n’a pas abouti. La version {1} est en cours d’exécution.</translation>
+    </message>
   </context>
   <context>
     <name>TrackModel</name>
@@ -2144,6 +2224,10 @@
     <message>
       <source>Others</source>
       <translation>Autres</translation>
+    </message>
+    <message>
+      <source>#</source>
+      <translation>#</translation>
     </message>
   </context>
 </TS>

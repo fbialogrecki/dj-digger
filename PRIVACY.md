@@ -1,6 +1,8 @@
 # Privacy Policy for the dj-digger browser extension
 
-Last updated: 2026-10-27
+Last updated: 2026-11-20
+
+The SoundCloud playback preview described below applies to extension 1.4.5 (unreleased).
 
 The dj-digger browser extension (Chrome, Chromium, Brave, Edge, Firefox) is the
 companion of the dj-digger desktop app. It lets the app complete browser steps
@@ -23,7 +25,7 @@ The extension exchanges data only with:
    pages you open also get an "Import to DJ digger" button when their playlist
    link can be verified.
 
-The extension itself makes no network request of its own. It does not work on
+The toolbar can request a small public track thumbnail from SoundCloud’s artwork CDN (i1.sndcdn.com), without cookies, a referring page, or redirects. It does not work on
 any other website. When the desktop app is not installed, the status page and the
 toolbar panel show a Download button; it only opens the app's releases page on
 GitHub (https://github.com/fbialogrecki/dj-digger/releases/latest) in a new tab,
@@ -65,11 +67,12 @@ like any link you click, and sends nothing with it.
   account matches the app's account. It operates SoundCloud's Add to playlist
   form for the chosen track and playlist or uses the name and visibility you
   selected to create a playlist. The tab closes after the operation.
+- **SoundCloud playback in your browser**: while the toolbar is open and the desktop is paused or disconnected, it checks audible top-level soundcloud.com tabs for the current track title, artist, and artwork. It prefers your current playing tab, then the most recently active playing tab. This information stays in the popup, is never sent to the desktop, and creates no listening history.
 - **Player state from the app** (track title, artist, position, a small cover
   picture, colours, the running job and how many gates need you): shown in the
   toolbar panel.
 
-The extension never reads or changes your other tabs, never opens checkout or
+Apart from these SoundCloud checks, the extension never reads or changes your other tabs, never opens checkout or
 payment pages, and never fills password or payment fields.
 
 ## How data is stored
@@ -101,5 +104,4 @@ new "Last updated" date; the extension's version history notes them.
 
 ## Contact
 
-Questions about privacy: open an issue at
-https://github.com/fbialogrecki/dj-digger/issues
+Send privacy questions and data requests to [fbialogrecki@gmail.com](mailto:fbialogrecki@gmail.com).

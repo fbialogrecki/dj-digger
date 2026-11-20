@@ -1384,3 +1384,18 @@ a.card:hover {
     width: 36px;
   }
 }
+
+/* In the document flow: the download buttons stay reachable even on small screens. */
+.consent {
+  margin: 1rem auto;
+  width: min(92%, 57rem);
+  padding: 1.15rem 1.4rem;
+  border: 1px solid var(--edge);
+  border-inline-start: .25rem solid var(--accent-2);
+  background: var(--panel);
+  border-radius: .5rem;
+}
+.consent h2 { font-size: 1.2rem; }
+.consent p { margin-block: .4rem .8rem; }
+.consent a, .cookie-settings { text-decoration: underline; }
+.cookie-settings { font: inherit; color: inherit; background: transparent; border: 0; cursor: pointer; }

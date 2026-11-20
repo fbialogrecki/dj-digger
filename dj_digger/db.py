@@ -365,10 +365,19 @@ class Database:
 
     @owned
     def delete_crate(self, source: str) -> None:
+        self.delete_crates([source])
+
+    @owned
+    def delete_crates(self, sources: list[str], generations: dict[str, str] | None = None) -> bool:
+        if generations is not None and any(
+                self.crate_generation(s) != generations.get(s, "initial") for s in sources):
+            return False
         with self.connection(write=True) as conn:
-            conn.execute("DELETE FROM crates WHERE source = ?", (source,))
+            conn.executemany("DELETE FROM crates WHERE source = ?", ((source,) for source in sources))
         with self._generation_lock:
-            self._generations[source] = uuid4().hex
+            for source in sources:
+                self._generations[source] = uuid4().hex
+        return True
 
     # --- Local File Cache API ---
     @owned

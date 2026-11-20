@@ -6,8 +6,8 @@
 | **Version** | 1.2.0 |
 | **Owner** | Filip Białogrecki |
 | **Last updated** | 2026-11-18 |
-| **Product version** | 1.6.0 (`pyproject.toml`); browser extension 1.4.4 (`dj_digger/webext/extension/manifest.json`) |
-| **Document lines** | <!-- SPEC TOTAL LINES -->2799<!-- END SPEC TOTAL LINES --> |
+| **Product version** | 1.6.0 (`pyproject.toml`); browser extension 1.4.5 (`dj_digger/webext/extension/manifest.json`) |
+| **Document lines** | <!-- SPEC TOTAL LINES -->2853<!-- END SPEC TOTAL LINES --> |
 | **Verified against** | `pyproject.toml`, `dj_digger/`, `dj_digger/webext/extension/manifest.json`, `scripts/`, `tests/`, `.github/workflows/`, `README.md`, `CHANGELOG.md` |
 
 ## Purpose of this file
@@ -54,66 +54,66 @@ text is never promoted into the map.
 | 2 | Product purpose and execution modes | 162–209 |
 | 2.1 | ↳ Problem and product boundary | 164–177 |
 | 2.2 | ↳ Execution modes | 178–209 |
-| 3 | User-visible capabilities | 210–1236 |
+| 3 | User-visible capabilities | 210–1270 |
 | 3.1 | ↳ Track collection | 212–244 |
 | 3.2 | ↳ Link classification and exports | 245–263 |
 | 3.3 | ↳ Track statuses | 264–274 |
 | 3.4 | ↳ Audio preview | 275–447 |
 | 3.5 | ↳ Downloads and local-file matching | 448–509 |
 | 3.6 | ↳ Store purchase assistance | 510–633 |
-| 3.7 | ↳ Local library, analysis and audio export | 634–821 |
-| 3.8 | ↳ Qt Quick desktop | 822–1236 |
-| 4 | System context and data flow | 1237–1283 |
-| 4.1 | ↳ Context diagram | 1239–1265 |
-| 4.2 | ↳ Collection-to-library flow | 1266–1283 |
-| 5 | Repository layout and component ownership | 1284–1373 |
-| 5.1 | ↳ Entry, orchestration, and models | 1286–1297 |
-| 5.2 | ↳ Network and external-system adapters | 1298–1330 |
-| 5.3 | ↳ Persistence, local media, and UI | 1331–1373 |
-| 6 | Runtime architecture and environments | 1374–1519 |
-| 6.1 | ↳ Runtime and dependencies | 1376–1404 |
-| 6.2 | ↳ Concurrency and lifecycle | 1405–1482 |
-| 6.3 | ↳ Local paths and environment variables | 1483–1519 |
-| 7 | Data model and persistence | 1520–1650 |
-| 7.1 | ↳ Domain objects and identity | 1522–1536 |
-| 7.2 | ↳ SQLite schema and invariants | 1537–1598 |
-| 7.3 | ↳ Crate persistence and deletion | 1599–1614 |
-| 7.4 | ↳ Configuration and credential stores | 1615–1650 |
-| 8 | Public interfaces and contracts | 1651–1714 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1653–1684 |
-| 8.2 | ↳ JSON and CSV summary input | 1685–1700 |
-| 8.3 | ↳ URL-opening contract | 1701–1714 |
-| 9 | Authentication and authorization | 1715–1792 |
-| 9.1 | ↳ SoundCloud authentication | 1717–1757 |
-| 9.2 | ↳ Gate action consent | 1758–1792 |
-| 10 | External integrations | 1793–2228 |
-| 10.1 | ↳ SoundCloud API and media | 1795–1806 |
-| 10.2 | ↳ Link hubs and download gates | 1807–1953 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1815–1910 |
-| 10.2 · block | ↳ ↳ ToneDen | 1912–1936 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1938–1946 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1948–1953 |
-| 10.3 | ↳ Browsers and clipboard | 1954–2173 |
-| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 2174–2228 |
-| 11 | Security requirements and threat model | 2229–2449 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2231–2249 |
-| 11.2 | ↳ Secret and personal-data handling | 2250–2265 |
-| 11.3 | ↳ File and mutation safety | 2266–2287 |
-| 11.4 | ↳ Browser-extension trust boundary | 2288–2449 |
-| 12 | Privacy, lifecycle, and retention | 2450–2509 |
-| 12.1 | ↳ Data stored locally | 2452–2476 |
-| 12.2 | ↳ Data sent to third parties | 2477–2494 |
-| 12.3 | ↳ User-controlled deletion | 2495–2509 |
-| 13 | Failure behavior and current limitations | 2510–2625 |
-| 13.1 | ↳ Error isolation and reporting | 2512–2533 |
-| 13.2 | ↳ Confirmed limitations | 2534–2625 |
-| 14 | Verification, CI, and release | 2626–2761 |
-| 14.1 | ↳ Offline and live test suites | 2628–2679 |
-| 14.2 | ↳ Continuous integration and publishing | 2680–2744 |
-| 14.3 | ↳ Specification-map verification | 2745–2761 |
-| 15 | References | 2762–2799 |
-| 15.1 | ↳ Primary implementation evidence | 2764–2785 |
-| 15.2 | ↳ User and historical documentation | 2786–2799 |
+| 3.7 | ↳ Local library, analysis and audio export | 634–830 |
+| 3.8 | ↳ Qt Quick desktop | 831–1270 |
+| 4 | System context and data flow | 1271–1317 |
+| 4.1 | ↳ Context diagram | 1273–1299 |
+| 4.2 | ↳ Collection-to-library flow | 1300–1317 |
+| 5 | Repository layout and component ownership | 1318–1407 |
+| 5.1 | ↳ Entry, orchestration, and models | 1320–1331 |
+| 5.2 | ↳ Network and external-system adapters | 1332–1364 |
+| 5.3 | ↳ Persistence, local media, and UI | 1365–1407 |
+| 6 | Runtime architecture and environments | 1408–1553 |
+| 6.1 | ↳ Runtime and dependencies | 1410–1438 |
+| 6.2 | ↳ Concurrency and lifecycle | 1439–1516 |
+| 6.3 | ↳ Local paths and environment variables | 1517–1553 |
+| 7 | Data model and persistence | 1554–1684 |
+| 7.1 | ↳ Domain objects and identity | 1556–1570 |
+| 7.2 | ↳ SQLite schema and invariants | 1571–1632 |
+| 7.3 | ↳ Crate persistence and deletion | 1633–1648 |
+| 7.4 | ↳ Configuration and credential stores | 1649–1684 |
+| 8 | Public interfaces and contracts | 1685–1748 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1687–1718 |
+| 8.2 | ↳ JSON and CSV summary input | 1719–1734 |
+| 8.3 | ↳ URL-opening contract | 1735–1748 |
+| 9 | Authentication and authorization | 1749–1826 |
+| 9.1 | ↳ SoundCloud authentication | 1751–1791 |
+| 9.2 | ↳ Gate action consent | 1792–1826 |
+| 10 | External integrations | 1827–2274 |
+| 10.1 | ↳ SoundCloud API and media | 1829–1840 |
+| 10.2 | ↳ Link hubs and download gates | 1841–1987 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1849–1944 |
+| 10.2 · block | ↳ ↳ ToneDen | 1946–1970 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1972–1980 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 1982–1987 |
+| 10.3 | ↳ Browsers and clipboard | 1988–2219 |
+| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 2220–2274 |
+| 11 | Security requirements and threat model | 2275–2494 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2277–2295 |
+| 11.2 | ↳ Secret and personal-data handling | 2296–2311 |
+| 11.3 | ↳ File and mutation safety | 2312–2333 |
+| 11.4 | ↳ Browser-extension trust boundary | 2334–2494 |
+| 12 | Privacy, lifecycle, and retention | 2495–2554 |
+| 12.1 | ↳ Data stored locally | 2497–2521 |
+| 12.2 | ↳ Data sent to third parties | 2522–2539 |
+| 12.3 | ↳ User-controlled deletion | 2540–2554 |
+| 13 | Failure behavior and current limitations | 2555–2670 |
+| 13.1 | ↳ Error isolation and reporting | 2557–2578 |
+| 13.2 | ↳ Confirmed limitations | 2579–2670 |
+| 14 | Verification, CI, and release | 2671–2815 |
+| 14.1 | ↳ Offline and live test suites | 2673–2724 |
+| 14.2 | ↳ Continuous integration and publishing | 2725–2798 |
+| 14.3 | ↳ Specification-map verification | 2799–2815 |
+| 15 | References | 2816–2853 |
+| 15.1 | ↳ Primary implementation evidence | 2818–2839 |
+| 15.2 | ↳ User and historical documentation | 2840–2853 |
 <!-- END GENERATED SECTION MAP -->
 
 ---
@@ -725,8 +725,8 @@ unlink is reported explicitly; filesystem and database updates are not atomic.
 In saved playlists, Remove retains its existing playlist-only, undoable behavior.
 
 Convert (`ctrl+e`) asks which decks the files must play on, plus the destination,
-then constructs a frozen export plan and shows a review before execution. The
-format is not chosen by hand: `decks.best_profile()` picks FLAC when every chosen
+then constructs a frozen export plan and shows a review before execution. In default
+Auto mode, `decks.best_profile()` picks FLAC when every chosen
 deck reads FLAC and WAV otherwise, capped at the highest bit depth and sampling
 rate all chosen decks list for PCM (for example FLAC up to 24 bit/96 kHz for
 CDJ-3000 with OPUS-QUAD, FLAC up to 48 kHz once an XDJ-XZ joins, WAV up to 16
@@ -734,8 +734,7 @@ bit/44.1 kHz with an XDJ-AERO). Decks that play exactly the same files (the
 same MP3, AAC and PCM rates, bit depths, lossless codecs and MPEG-2 AAC rule;
 file systems may differ) share one box, `decks.DECK_GROUPS`, ten groups laid
 out two to a row; ticking one chooses all its decks, and a group starts ticked
-when any of its decks was chosen before. The dialog shows the resulting format
-as groups are ticked and needs at least one. The chosen decks are remembered as
+when any of its decks was chosen before. At least one group is required. The review shows the resulting format. The chosen decks are remembered as
 `export_decks` in the shared configuration and saved in the plan, so resumed
 plans and their reports keep them; before a choice is saved, and for plans saved
 before this, the set is CDJ-350, 850/850-K, 2000, 2000NXS, 2000NXS2, 3000 and
@@ -745,13 +744,21 @@ covers all matching pages; recursion is explicit. Export audio… in the sidebar
 of a local playlist (`local-playlist:` sources only) exports the active local file
 members in playlist order without opening the playlist. If it contains SoundCloud
 members, the label gives the local file count. With zero local files the action is
-disabled. The files are read from `local_playlist_media` off the UI thread. A file is kept as it is only
-when every chosen deck plays it according to the rules below; PCM and, for a FLAC
-target, FLAC/ALAC otherwise convert to the target, while a lossy file some chosen
-deck cannot play is listed as an exception rather than transcoded. Only necessary
-conversions run.
-No automatic upsampling, downmix or normalization is performed. Nonstandard
-sample rates, ambiguous streams, clipping and unsupported parameters are reported
+disabled. The files are read from `local_playlist_media` off the UI thread.
+Alongside Auto, the form offers WAV, AIFF, FLAC and MPEG-1 MP3 (320 kb/s CBR).
+Explicit formats convert lossless sources to the chosen format within the decks'
+shared limits. FLAC selection requires every selected deck to support FLAC.
+A documented-compatible MP3 or AAC is copied byte-for-byte under every choice.
+An incompatible MP3/AAC can produce a lossless-format playback copy, using Auto's
+lossless format when MP3 is selected. The plan names the actual destination for
+each file and shows its resulting deck compatibility. Standard low MPEG sample
+rates are raised to 44.1 or 48 kHz only when needed for such a playback copy.
+Encoding MP3 from lossless or converting incompatible MP3/AAC requires Copy mode.
+The source is retained. MP3 output is fully decoded and checked for codec,
+bitrate, channels, sample rate and decoded length. The journal persists the
+requested format and per-item output; older plans use their recorded profile.
+No automatic downmix or normalization is performed. Nonstandard sample rates,
+ambiguous streams, clipping and unsupported parameters are reported
 as exceptions. Known text metadata is preserved where the output muxer supports
 it; supported FLAC artwork is copied, other omitted metadata is reported.
 
@@ -765,7 +772,8 @@ deck they hold the MP3 and AAC LC sampling rates (MPEG-2 Layer-3 at 16-24 kHz wi
 generation and the newest all-in-ones; 44.1 kHz only on the XDJ-AERO), the PCM
 rates and bit depths, and which of FLAC and ALAC are read. The CDJ-350, 850, 900,
 2000 and XDJ-AERO list MPEG-4 AAC LC only, so a raw ADTS `.aac` file, which may be
-MPEG-2 AAC, is unverified on them. A file outside a table is incompatible because
+MPEG-2 AAC, is unverified on them. MP3/AAC also require a documented container;
+for example, an MP3 stream inside WAV needs a playback copy. A file outside a table is incompatible because
 it is not documented, not because it was tested. The rules also hold each deck's
 USB file systems (FAT16/FAT32 on all, HFS+ on all but the XDJ-RX, exFAT only on
 the CDJ-3000X, XDJ-RX3, OPUS-QUAD, XDJ-AZ, OMNIS-DUO and XDJ-AN, NTFS on none) and
@@ -799,7 +807,8 @@ restores unambiguous states and preserves ambiguous ones. Successful replacement
 leaves no lasting backup. Directory fsync is used where supported; this is not a
 cross-filesystem transaction or guarantee against storage power loss. New-folder
 exports keep partial results and a complete report; `ctrl+u` resumes the most
-recent unfinished operation from the application's trusted SQLite journal.
+recent unfinished operation from the application's trusted SQLite journal. Repeated
+cancellation during resume retains earlier completed files and their verification hashes.
 
 `i` imports playlists created by a SoundCloud profile independently of
 profile-track digging. The profile link is normalised by `profile_url()`: a scheme
@@ -897,7 +906,7 @@ canvas with the same layout in the peak colours. The record is a flat near-black
 pulses. The label carries the track's artwork when there is one (SoundCloud
 artwork, or a local file's embedded or folder picture), else the default cover
 chosen in Settings, else stays the plain tone. The backend cuts the picture's
-centre square to a 256 px circle (`gui/artwork.py`, QImage on the worker, no
+square to a 256 px circle (`gui/artwork.py`, QImage on the worker, no
 shader) and sends it as a PNG data URL in an `artwork` event (key, image, square) after
 playback has started, with the same picture's centre square uncut at 384 px; its colours are not altered and nothing is drawn over it.
 Preferences → Vinyl artwork (on by default) turned off shows that square picture, still, over the
@@ -1032,9 +1041,34 @@ a playlist icon, “Start digging”, a line pointing at the sidebar, Import pla
 playlists… buttons, and the shortcuts beneath. Esc clears the selection, then the search, then every filter. Opening another view (another source or title, not another page or a refresh) clears the search, store, BPM, key and genre filters and keeps the status filter. For a loaded view the quick actions are Download, Mark owned and Skip for remote tracks, and Analyze and Skip for files.
 On narrow layouts these commands move into More actions. A right click, Menu, Shift+F10 and More actions open the same selection menu.
 Mixed selections disable commands that require all files or all SoundCloud tracks. A status bar spans the whole window below the sidebar and the table with visible/total/owned/skipped counts on the left, the busy indicator, a Cancel button during operations and the last message; during a playlist import the message shows the stage with done / total counts beside a progress bar, at most ten updates a second. Import playlist from link asks to paste a link to a SoundCloud playlist and re-opens with an error until the text is a soundcloud.com link. The import is listed at the top of the playlist sidebar at once, with a spinner and the link as its name until SoundCloud reports the title, and cannot be opened from there; the table opens on it and fills batch by batch in playlist order. These provisional rows are not saved: when the import succeeds they are replaced by the saved playlist, and when it fails, is cancelled or finds nothing the view is withdrawn and the sidebar entry disappears. Refresh keeps the current rows until the new ones are saved. Library holds source import, opening recent items, refresh, scanning, export recovery and Quit.
+The playlist sidebar supports Ctrl/Cmd toggling and Shift range selection in visible
+order. Delete lists the chosen saved playlists in one confirmation and removes their
+local records, aliases and memberships atomically. An open view closes only when its
+playlist was deleted. Track states, files and provider playlists survive.
+The sortable numeric `#` column identifies a track occurrence in the last saved
+source order, before NEW tracks are promoted or removed tracks hidden. Older
+playlists use their existing ordered data. Filters retain the original numbers.
+Tracks omitted by SoundCloud are absent from the stored order.
+
 Tracks holds Select all and Invert selection at every window width, alongside Select none and status undo.
 Bulk open, download and cart commands show the number of tracks visible after filtering. The two link export choices show their selected or visible track count.
 Playback holds transport, seeking and volume. View controls sidebar, fullscreen, columns, layout reset and compact rows.
+The desktop checks the public GitHub Releases API for a newer stable version once
+per day unless disabled in Preferences. Help can check on demand. An available
+version asks before installation. A registry-based uv tool installation must match
+the running Python environment and retains its GUI/analysis extras when upgrading
+to the displayed version after confirming a non-yanked wheel is published on PyPI.
+The uv installation reopens after a successful or failed upgrade. A packaged Windows x64 or macOS arm64/Intel app downloads
+its exact release asset, verifies the published SHA-256 and size, closes the app
+and opens the native installer or disk image. The interactive Windows installer
+offers to launch the installed app on its completion page. Silent installs and
+cancelled wizards skip that launch. The old desktop releases its data-directory
+lock and Windows app mutex before invoking Setup. At the next desktop startup
+a private one-use version record is compared with the running distribution;
+a cancelled or failed upgrade reports both the target and the actual version.
+Other installations show manual
+instructions. Active operations and playback block update handoff.
+
 Settings opens Preferences, also available through Shift+S or Ctrl+,. Appearance, playback, downloads, gates and carts,
 folders, account and browser controls are grouped in the preferences dialog. Help retains shortcuts, messages, diagnostics,
 data/log folders, update checking and About. Account changes use the existing sign-in, sign-out and connection flows. Space is the shortcut of the Play / pause action. Single-key shortcuts (add, refresh, open, download, got/skip/reset, undo, remove, search, hide handled, seek, percentage jumps, next/previous, stop, volume, mute, sidebar) and Shift+S for Preferences are listed in a generated Help dialog; they are suppressed while text fields or modal dialogs have focus. Actions that need a selection are disabled without one;
@@ -1225,7 +1259,7 @@ resolve inside `Contents/Resources`; the analysis helper and `dj-digger-host` li
 `Contents/MacOS`. Missing bundled tools fail without searching system paths.
 The DMG contains an Applications shortcut and bilingual installation instructions.
 It requires macOS 15 or newer and uses only ad-hoc code signatures, without a
-Developer ID certificate, notarization, credentials, or automatic updates.
+Developer ID certificate, notarization, or credentials.
 The CI acceptance check mounts the image read-only, copies the app into a path
 with spaces, ejects the image, rejects external build-machine dylib references,
 and runs the packaged GUI/media/analysis/extension checks with an isolated user
@@ -1621,7 +1655,7 @@ the desktop's folder tree leaves out) and
 `export_decks`, the decks of the last audio export in deck order (unknown names
 dropped, every deck when none remain), and `default_artwork`, the path of a
 picture for the record label of tracks without artwork (empty for none; Settings
-requires an existing file), and `nyp_price`, `minimum` (default) or `suggested`: the
+requires an existing file, read up to 16 MiB). The optional `artwork_crop` is a fraction from 0 to 1 along the longer side, default 0.5. The Settings preview supports dragging and arrow keys. The same crop applies to all default cover renditions. Config also stores `nyp_price`, `minimum` (default) or `suggested`: the
 price a Bandcamp name-your-price item goes into the cart at (§3.6; any other value
 reads as `minimum`).
 The default email uses the reserved `.invalid` domain. A first missing config is
@@ -2002,6 +2036,15 @@ colours) and `dark`. The panel draws the desktop's record from them: the backdro
 barcode and the label colour come from the seed, the artwork sits on the label, and the
 record turns while playing (still under `prefers-reduced-motion`); a seek bar runs its
 own clock from `position` + (now − `at`) while playing and shows elapsed / total time.
+While the desktop is paused, empty, or disconnected, an open popup checks up to 16 audible
+top-level soundcloud.com tabs per poll. It displays the current playing tab first, otherwise
+the most recently active playing tab, with a SoundCloud source label and disabled
+desktop transport. Desktop playback takes precedence as soon as it resumes.
+A tab's small public artwork is read from a canonical SoundCloud CDN JPEG
+without credentials, redirects or referrer, up to 48 KiB. The toolbar displays
+it on the vinyl label, falling back to the desktop's optional checked
+`defaultArtwork` thumbnail when connected. Browser playback metadata lives
+only in the popup and never goes into desktop IPC or a listening history.
 A busy job shows its label (with "done / total" and a progress bar when `total` > 0)
 and Cancel; `needs` > 0 shows "N gates need you" with Open them / Skip them and is the
 action's badge text (in the pair's neon foot colour; cleared at 0 and when the app is
@@ -2051,7 +2094,10 @@ may be pending per extension background. Repeating the same Open action or
 canonical import shares its reply. Other requests get a busy result. The popup
 can close while it waits. Show sends an `activate.request` with a request UUID
 and waits for the matching `activate.result` after the desktop dispatches the
-window action. A CLI connection provides neither desktop state nor an
+window action. Cold startup also waits for this activation. Hidden or minimized windows
+are shown before Qt requests foreground focus. The reply reports `opened` for an active window,
+`attention` if the window is visible and the compositor kept focus elsewhere, or `unavailable` if no window can be presented.
+A CLI connection provides neither desktop state nor an
 activation reply.
 A host without launch support prompts the user to update. A running older
 desktop can receive an ordinary import through the legacy
@@ -2347,7 +2393,7 @@ Python caller, enforces its own limits, whatever the application sends:
   window.
 - **Own tabs only.** Commands act on tabs the extension created and on popups of
   those, and on the work windows it created (never on a window id it did not
-  create); the user's other tabs and windows are never touched. Reading or clicking
+  create). Automation never changes the user's other tabs or windows. Reading or clicking
   (`dom.*`, `tab.html`, `tab.capture`) also needs the tab's current URL on the
   allowlist, so provider popups are only closed and reported, never read or
   clicked. URLs outside the allowlist are reduced to `https://<host>/` in events,
@@ -2401,15 +2447,14 @@ Python caller, enforces its own limits, whatever the application sends:
   Daily Drops and Weekly Wave add the two dedicated system-set URL shapes in
   §10.3. The canonical `https://soundcloud.com/...` link without query or
   fragment goes to the desktop, which validates it again. The `tabs` permission the extension
-  already holds would expose other tabs' URLs; the code reads none but its own work
-  tabs'. The menu entries are created idempotently on install, update and browser start,
+  also permits the popup's read-only playing-track lookup (§10.3). Its fixed script runs in frame zero and rechecks the exact SoundCloud origin at execution. The menu entries are created idempotently on install, update and browser start,
   their match patterns are the three SoundCloud origins (no new host permission: the
   `contextMenus` patterns grant no access), and they are visible only while the app's
   state is there. Nothing here touches a tab or opens a page. What the app sends
   (`player.state`) is checked in the background (strings cut to 300 characters, the job
   label to 120, `playing`/`dark`/`jobs.busy` booleans, `position`/`duration` 0 to
   10⁶ s, `at` a non-negative number, `seed` a non-negative 32-bit integer,
-  `jobs.done`/`jobs.total` non-negative integers, `needs` 0–999, `artwork` only a
+  `jobs.done`/`jobs.total` non-negative integers, `needs` 0–999, `artwork` and optional `defaultArtwork` only a
   `data:image/jpeg` or `png` base64 URL up to 48 KB, `colors` four `#rrggbb`; anything
   else falls back to empty), kept in `storage.session` as `djdPlayer` (set to `null` on
   `app-offline` and when the native port drops, which also clears the badge and hides
@@ -2441,7 +2486,7 @@ Python caller, enforces its own limits, whatever the application sends:
   the browser's file only after copying a download it was told about.
 - **Channel.** The socket directory is private to the user (§6.3), peers
   authenticate with the key in `webext.json` (0600), and a web page has no route to
-  either. The extension makes no network request of its own.
+  either. The panel's only external fetch is the bounded, unauthenticated SoundCloud CDN artwork described in §10.3.
 - **Logs and diagnostics** contain no query strings or cookie values; saved cart
   pages also lose e-mail addresses, because they now come from a signed-in session.
 
@@ -2710,14 +2755,23 @@ publisher OIDC for `dj-sc-digger`. The publish job has `id-token: write`; other 
 default to read-only contents. GitHub prereleases skip both jobs, allowing test
 installers to be shared without a PyPI upload.
 
-`.github/workflows/site.yml` builds the static project website in `site/` (Astro,
-Node; not part of the Python package) and deploys it to Firebase Hosting
-(`firebase.json`) for the same stable releases and by manual dispatch, in the
-`website` environment with read-only contents. Without the
-`FIREBASE_SERVICE_ACCOUNT` secret or the `FIREBASE_PROJECT_ID` and `SITE_URL`
-variables it ends green with a notice. The site's download links are composed from
-the version in `pyproject.toml`, so the workflow first checks that the release of
-that version carries the three desktop installers and stops if one is missing.
+The Website workflow builds the Astro site from main and deploys to Firebase Hosting on a
+published stable release or a manual dispatch from main. CI resolves the latest public stable
+GitHub release, requires all three desktop installers and their checksums and a matching PyPI
+wheel, and uses that version for all seven localized download pages and the hosted Linux
+installer. The deploy checks the release tag and main SHA again. Missing production settings
+fail the job. The website environment uses a short-lived GitHub OIDC identity restricted to
+this repository's Website workflow, with Firebase Hosting Admin access to its project.
+
+The site serves localized privacy and cookie information and terms in English, Polish, German,
+Spanish, French, Italian and Russian. It stores explicitly chosen theme/language preferences
+and a versioned six-month analytics choice locally. In-page animation state is transient.
+The static site, downloads and install command work without JavaScript or analytics consent.
+Only an affirmative choice loads GA4. Refusal and withdrawal disable collection; withdrawal
+also clears the site's analytics cookies. The site measures sanitized page views, the referring
+origin, installer clicks and successful copies of the Linux command. The website's GA4 tag
+does not run in the desktop app, extension, update checker or install script.
+
 The site also serves `site/public/install.sh`, the Linux install script described
 in `docs/installation.md`: it installs uv into the home directory, shows the
 package-manager command for FFmpeg and the system libraries Qt needs and runs it

@@ -1,4 +1,65 @@
 {
+  "legal": {
+    "privacy": "Datenschutz und Cookies",
+    "terms": "Nutzungsbedingungen",
+    "settings": "Cookie-Einstellungen",
+    "bannerTitle": "Besuchsstatistiken erlauben?",
+    "bannerText": "Mit deiner Einwilligung verwendet Google Analytics Cookies, um Seitenaufrufe, Klicks auf Installer und das Kopieren des Linux-Installationsbefehls zu zählen. Du kannst die gesamte Website auch bei Ablehnung nutzen und deine Wahl in der Fußzeile ändern.",
+    "accept": "Statistiken erlauben",
+    "reject": "Statistiken ablehnen"
+  },
+  "legalPages": {
+    "sections": {
+      "controller": {
+        "heading": "Wer betreibt diese Website?",
+        "body": "Filip Białogrecki betreibt dj-digger als Hobbyprojekt in Polen. Er ist für die Verarbeitung personenbezogener Daten auf dieser Website verantwortlich. Fragen und Anträge zu deinen Rechten kannst du an die unten angegebene E-Mail-Adresse senden. Für die Desktop-App und die Browser-Erweiterung gibt es gesonderte Datenschutzhinweise."
+      },
+      "hosting": {
+        "heading": "Bereitstellung und Sicherheit",
+        "body": "Google Ireland Limited stellt Firebase Hosting bereit. Der Dienst erhält mit jeder Anfrage die IP-Adresse und technische Angaben, um Seiten auszuliefern und Missbrauch zu erkennen. Rechtsgrundlage ist mein berechtigtes Interesse an einer verlässlichen und sicheren Website (Art. 6 Abs. 1 Buchst. f DSGVO). Firebase speichert IP-Daten aus dem Hosting für einige Monate."
+      },
+      "analytics": {
+        "heading": "Freiwillige Besuchsstatistiken",
+        "body": "Erst mit deiner Einwilligung (Art. 6 Abs. 1 Buchst. a DSGVO) erhält Google Ireland Limited GA4-Daten, darunter die aufgerufene Seite, Angaben zu Browser und Gerät, die verweisende Website, Klicks auf Installer, das Kopieren des Linux-Installationsbefehls und eine pseudonyme Browserkennung. Damit untersuche ich die Nutzung der Website. Die Cookies _ga und _ga_* bleiben höchstens 180 Tage gültig. Weitere Besuche verlängern diese Frist nicht. Für Nutzer- und Ereignisdaten gilt eine Aufbewahrungsdauer von zwei Monaten. Standardberichte mit zusammengefassten Daten können längere Zeiträume abdecken."
+      },
+      "settings": {
+        "heading": "Deine Einstellungen im Browser",
+        "body": "Der Browser speichert die ausdrücklich gewählte Sprache und das Farbschema, bis du sie änderst oder löschst. Die Zustimmung zu Statistiken oder die Ablehnung bleibt sechs Kalendermonate gespeichert. Du kannst deine Einwilligung jederzeit über die Cookie-Einstellungen in der Fußzeile widerrufen. Der Widerruf beendet die weitere Erhebung und berührt die Rechtmäßigkeit der bisherigen Verarbeitung nicht. Die Website ist ohne Einwilligung nutzbar. Diese Einträge sind erforderlich, um deine Einstellungen anzuwenden. Rechtsgrundlage ist mein berechtigtes Interesse, deine Auswahl zu speichern und zu beachten (Art. 6 Abs. 1 Buchst. f DSGVO)."
+      },
+      "email": {
+        "heading": "E-Mail-Kontakt",
+        "body": "Wenn du mir schreibst, verarbeitet Google Ireland Limited in Gmail deine E-Mail-Adresse, Nachricht und etwaige Anhänge. Meine berechtigten Interessen (Art. 6 Abs. 1 Buchst. f DSGVO) sind die Beantwortung deiner Anfrage und gegebenenfalls die Geltendmachung oder Abwehr von Ansprüchen. Ich bewahre den Schriftwechsel bis zur Erledigung deiner Anfrage und danach nur so lange auf, wie ein konkreter Anspruch es erfordert. Deine Angaben sind freiwillig. Für eine Antwort brauche ich eine Rückadresse."
+      },
+      "transfers": {
+        "heading": "Externe Links und internationale Übermittlungen",
+        "body": "Wenn du einem GitHub-Link folgst, erhält GitHub die IP-Adresse deines Browsers und Anfragedaten nach seiner eigenen Datenschutzerklärung. Google und GitHub können Daten außerhalb des EWR, auch in den USA, verarbeiten. Je nach Empfänger stützt sich die Übermittlung auf das EU–US Data Privacy Framework für zertifizierte Unternehmen oder die Standardvertragsklauseln der Europäischen Kommission. Einzelheiten findest du bei den unten verlinkten Anbietern. Eine Kopie der Garantien kannst du auch bei mir anfordern."
+      },
+      "rights": {
+        "heading": "Deine Rechte",
+        "body": "Du kannst Auskunft, Berichtigung, Löschung oder Einschränkung verlangen, der Verarbeitung aufgrund berechtigter Interessen widersprechen und gegebenenfalls Datenübertragbarkeit verlangen. Du kannst dich bei der polnischen Aufsichtsbehörde UODO oder der Aufsichtsbehörde an deinem Wohnort, Arbeitsort oder dem Ort des mutmaßlichen Verstoßes beschweren. Die Website trifft keine automatisierten Entscheidungen mit rechtlicher oder ähnlich erheblich beeinträchtigender Wirkung."
+      },
+      "project": {
+        "heading": "Nutzung des Projekts",
+        "body": "Filip Białogrecki betreut dieses Hobbyprojekt in Polen. Die Website bietet Dokumentation, Demonstrationen und Links zum Herunterladen der Software. Fragen, Korrekturen und Hinweise zu Rechten kannst du an die unten angegebene E-Mail-Adresse senden. Die Website funktioniert über HTTPS in einem aktuellen Browser. Downloads sind auch ohne JavaScript möglich. Auf der Downloadseite stehen Betriebssystem und Architektur jedes Installationspakets."
+      },
+      "software": {
+        "heading": "Software und Dienste Dritter",
+        "body": "Die Projektsoftware steht unter der Apache-Lizenz 2.0. Sie regelt unter anderem Weitergabe, Lizenzhinweise, Gewährleistung und Haftung. Für Bibliotheken, Schriften und Symbole gelten die jeweiligen Lizenzen. Nutze Quellen, Shops und Downloads im Rahmen ihrer Bedingungen und der geltenden Rechte. Du bist für die Bestätigung von Käufen und die erforderlichen Musiknutzungsrechte verantwortlich."
+      },
+      "music": {
+        "heading": "Musik und Bildmaterial",
+        "body": "Die Bildschirmfotos zeigen „Drift Away“ von JMHBM (Johnathon M. Horner, Beat Mekanik), über das Free Music Archive unter CC BY 4.0 veröffentlicht. Die Player-Darstellung verwendet „Mathilde Fernandez - Temple Sourire (Strenx & Lezguy Edit)“ mit Erlaubnis der Künstler. Die Rechte an Musik und Bildmaterial verbleiben bei ihren Inhabern. Die Erlaubnis zur Darstellung räumt Besuchern keine weiteren Nutzungsrechte ein."
+      }
+    },
+    "links": {
+      "appPrivacy": "Datenschutz für App und Erweiterung",
+      "transfers": "Garantien für Datenübermittlungen bei Google",
+      "github": "Datenschutzerklärung von GitHub",
+      "licences": "Lizenzen für Schriften und Symbole",
+      "readme": "README des Projekts",
+      "artists": "Mitwirkende Künstler"
+    }
+  },
   "skip": "Zum Inhalt springen",
   "primary": "Hauptmenü",
   "nav": {

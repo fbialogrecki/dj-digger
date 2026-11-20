@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { defineConfig } from "astro/config";
-import { siteUrl } from "./site.config.mjs";
+import { measurementId, siteUrl } from "./site.config.mjs";
 
 // The one script written into the page as it is (Base.astro); Astro hashes the bundled ones itself.
 const boot = createHash("sha256").update(readFileSync("./src/scripts/boot.js")).digest("base64");
@@ -15,8 +15,8 @@ export default defineConfig({
   // everything else only from this site. firebase.json adds the header-only directives.
   security: {
     csp: {
-      directives: ["default-src 'self'", "img-src 'self' data:", "object-src 'none'", "base-uri 'self'", "form-action 'none'"],
-      scriptDirective: { hashes: [`sha256-${boot}`] },
+      directives: ["default-src 'self'", "img-src 'self' data:", ...(measurementId ? ["connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com"] : []), "object-src 'none'", "base-uri 'self'", "form-action 'none'"],
+      scriptDirective: { resources: ["'self'", ...(measurementId ? ["https://www.googletagmanager.com/gtag/js"] : [])], hashes: [`sha256-${boot}`] },
     },
   },
   // Screenshots and the app icon are imported from the repository itself, one level up.

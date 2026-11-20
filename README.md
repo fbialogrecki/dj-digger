@@ -512,7 +512,7 @@ and M4A/MP4 audio are supported, subject to successful decoder inspection.
 To convert or prepare a club folder:
 
 1. Open a directory and optionally select tracks. With no selection in a folder, export includes all matching files across every page.
-2. Choose the audio export action, the target format and maximum bit depth/sample rate, and enter the destination directory. A new folder with copies is the default.
+2. Choose the audio export action, the target decks and output format, and enter the destination directory. A new folder with copies is the default.
 3. Inspect files and review the plan, check each action and the actual deck compatibility, then execute the plan.
 
 To find BPM and key, use the analyze action. With no selection this analyzes
@@ -538,17 +538,21 @@ process only when requested. Results are estimates; ambiguous rhythm/key and
 silence can return no value. Manual values take precedence, followed by current
 analysis, then tags. Analysis never writes audio tags or rekordbox data.
 
-Audio export defaults to **WAV, maximum 24-bit / 48 kHz, a NEW folder**. The
-format applies to files requiring conversion. Compatible MP3/AAC and compatible
-lossless files are kept rather than unnecessarily transcoded. All selected files
+Audio export defaults to **Auto** and a new folder. Auto picks FLAC when all
+selected decks support it, or WAV otherwise. Choose WAV, AIFF, FLAC or 320 kb/s
+CBR MP3 to export lossless sources in a specific format. The selected decks
+set the rate and bit-depth limits. Compatible MP3 and AAC keep their original
+bytes under every format choice. All selected files
 are copied, including unchanged files; original directories are preserved. With
 no explicit selection, an open folder exports all matching files, including pages
 not currently displayed. Recursive inclusion is an explicit checkbox.
 
 The dialog shows manufacturer-documented profile compatibility and then the
 compatibility of the actual planned set, including retained MP3/AAC parameters.
-For example, 32 kHz MP3 can remain untouched but excludes CDJ-3000/3000X from the
-actual compatible list. Unverified parameters are never shown as compatible.
+For example, a 32 kHz MP3 is copied unchanged for a CDJ-2000. Adding a CDJ-3000
+requires a lossless-format playback copy at a supported rate. The review shows
+its format and rate. Creating a playback copy from incompatible MP3/AAC or
+encoding MP3 from lossless audio requires Copy mode to preserve the original. Unverified parameters are never shown as compatible.
 This is **audio-file compatibility**, not hardware testing, a rekordbox export,
 or approval of any USB filesystem. You can choose a mounted USB directory as
 the destination; the app never formats a drive.
@@ -557,8 +561,7 @@ Replacement is optional and must be selected afresh for every operation. It
 keeps a temporary original until the new file is verified and SQLite is updated,
 then removes that original. Recovery preserves ambiguous files. Successful
 replacement leaves no permanent backup. Symbolic/hard links and playing or
-prefetched files cannot be replaced. Conversion never silently upsamples,
-downmixes, normalizes, or converts a lossy file to improve its supposed quality.
+prefetched files cannot be replaced. The exporter never downmixes or normalizes audio.
 Exceptions and omitted metadata are listed in the operation report.
 
 Profile playlist import is separate from the existing profile-track dig. Public

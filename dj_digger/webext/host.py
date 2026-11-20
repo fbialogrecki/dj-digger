@@ -65,7 +65,14 @@ def _control_frame(frame: bytes) -> dict:
 def launch_desktop():
     """Start the matching GUI from this install, independent of the browser's pipes."""
     name = "dj-digger-gui.exe" if os.name == "nt" else "dj-digger-gui"
-    directory = Path(sys.executable).parent if getattr(sys, "frozen", False) else Path(sysconfig.get_path("scripts"))
+    entry = Path(sys.argv[0])
+    if getattr(sys, "frozen", False):
+        directory = Path(sys.executable).parent
+    elif entry.is_absolute() and entry.name in {"dj-digger-host", "dj-digger-host.exe"}:
+        # pip --user can put both launchers outside the interpreter's scripts directory.
+        directory = entry.resolve().parent
+    else:
+        directory = Path(sysconfig.get_path("scripts"))
     executable = directory / name
     if not executable.is_file():
         raise FileNotFoundError(executable)

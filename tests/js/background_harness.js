@@ -1111,6 +1111,35 @@ async function testPlaylistWrite() {
   x.port.onMessage.fire({ event: "activate.result", request: activation.request, code: "opened" });
   assert.deepEqual(await showing, { ok: true, code: "opened" });
   assert.equal(x.events("desktop.launch").length, launches);
+  x.port.onMessage.fire({ event: "app-offline", canLaunch: true });
+  const cold = ask({ op: "launch" });
+  x.port.onMessage.fire(ready);
+  const coldActivation = x.events("activate.request").at(-1);
+  assert.notEqual(coldActivation.request, activation.request);
+  x.port.onMessage.fire({ event: "activate.result", request: coldActivation.request, code: "attention" });
+  assert.deepEqual(await cold, { ok: false, code: "attention" });
+  const checked = [];
+  let activeTab = 1;
+  const queryTabs = x.api.tabs.query;
+  x.api.tabs.query = async (q) => {
+    assert.equal(q.url, "https://soundcloud.com/*");
+    return q.audible ? [{id: 1, lastAccessed: 12}, {id: 2, lastAccessed: 19}] : [{id: activeTab}];
+  };
+  x.api.scripting.executeScript = async ({target, func}) => {
+    checked.push(target.tabId);
+    assert.deepEqual(Array.from(target.frameIds), [0]);
+    const scope = { window: {}, location: {origin: "https://soundcloud.com"}, document: {querySelector: () => null},
+      navigator: {mediaSession: {playbackState: "playing", metadata: {title: "Track " + target.tabId, artist: "DJ",
+        artwork: [{src: "https://evil.example/art.jpg"}, {src: "https://i1.sndcdn.com/artworks-abc-large.jpg"}]}}} };
+    scope.window.top = scope.window;
+    return [{result: vm.runInNewContext("(" + func.toString() + ")()", scope)}];
+  };
+  assert.deepEqual(await ask({op: "browser-playing"}), {title: "Track 1", artist: "DJ", artwork: "https://i1.sndcdn.com/artworks-abc-t200x200.jpg"});
+  activeTab = 9;
+  assert.equal((await ask({op: "browser-playing"})).title, "Track 2");
+  assert.deepEqual(checked, [1, 2]);
+  assert.equal(await content({op: "browser-playing"}, {}), "unanswered");
+  x.api.tabs.query = queryTabs;
   const tileImport = content({ op: "import", url: SYSTEM, tilePage: "/discover" }, { url: "https://soundcloud.com/discover" });
   const tileRequest = x.events("import.request").at(-1);
   assert.equal(tileRequest.url, SYSTEM);

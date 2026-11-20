@@ -217,10 +217,10 @@ ApplicationWindow {
     // Space and the Play button only pause or resume the loaded track; Enter starts the selected one.
     readonly property bool pauseTarget: desktop.playing
     // Format (10) and Comment (11) came later: appended, so saved widths, order and hidden columns keep their meaning.
-    readonly property var allColumns: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
-    readonly property var defaultColumnWidths: [110, 150, 280, 85, 64, 64, 58, 95, 70, 140, 110, 180]
+    readonly property var allColumns: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    readonly property var defaultColumnWidths: [110, 150, 280, 85, 64, 64, 58, 95, 70, 140, 110, 180, 52]
     // Statuses, numbers and times are never cut short, whatever width was saved or dragged.
-    readonly property var minimumColumnWidths: [104, 0, 0, 0, 56, 56, 58, 0, 70, 0, 0, 0]
+    readonly property var minimumColumnWidths: [104, 0, 0, 0, 56, 56, 58, 0, 70, 0, 0, 0, 40]
     property var columnWidths: defaultColumnWidths.slice()
     property var hiddenColumns: [10, 11]
     // Logical column per visual position; TableView keeps delegates and widths logical.
@@ -245,7 +245,7 @@ ApplicationWindow {
         let close = target.standardButton(Dialog.Close); if (close) close.text = qsTr("Close")
     }
     // BPM, key, format and comment come from local files; genre, year and label from SoundCloud or a file's tags.
-    function columnAvailable(column) { return (column !== 4 && column !== 5 && column < 10) || !!desktop.view.local }
+    function columnAvailable(column) { return column === 12 || (column !== 4 && column !== 5 && column < 10) || !!desktop.view.local }
     // The outermost visible columns, in on-screen order, close the keyboard row's outline.
     readonly property int firstVisibleColumn: columnOrder.find(c => columnVisible(c)) ?? 0
     readonly property int lastVisibleColumn: columnOrder.slice().reverse().find(c => columnVisible(c)) ?? 0
@@ -510,12 +510,12 @@ ApplicationWindow {
         let widths = list(s.columnWidths), hidden = list(s.hiddenColumns), saved = list(s.columnOrder)
         // Settings saved with ten columns get Format and Comment appended, hidden.
         let legacy = !!saved && saved.length === 10
-        if (widths && (widths.length === 10 || widths.length === allColumns.length))
+        if (widths && ([10, 12].includes(widths.length) || widths.length === allColumns.length))
             columnWidths = widths.concat(defaultColumnWidths.slice(widths.length)).map(v => Math.max(40, Math.min(600, Number(v) || 100)))
         if (hidden)
             hiddenColumns = hidden.map(Number).filter(v => Number.isInteger(v) && v >= 0 && v < allColumns.length && v !== titleColumn)
                 .concat(legacy ? [10, 11] : [])
-        let order = saved ? saved.map(Number).concat(legacy ? [10, 11] : []) : []
+        let order = saved ? saved.map(Number).concat(allColumns.slice(saved.length)) : []
         if (order.length === allColumns.length && allColumns.every(i => order.indexOf(i) >= 0))
             applyColumnOrder(order)
         if (Number.isInteger(s.sortColumn)) desktop.model.setSort(s.sortColumn, s.sortReverse === true)
@@ -665,7 +665,7 @@ ApplicationWindow {
     Shortcut { sequence: "Alt+4"; enabled: root.seekKeys; onActivated: root.jumpCue(3) }
     Action { id: addPlaylistAction; text: qsTr("Import playlist from link…"); shortcut: "A"; onTriggered: desktop.action("dig") }
     Action { id: addFolderAction; text: qsTr("Add folder…"); shortcut: "Ctrl+O"; onTriggered: folderDialog.open() }
-    Action { id: deletePlaylistAction; text: qsTr("Delete playlist…"); shortcut: "Shift+X"; enabled: !!desktop.view.source; onTriggered: desktop.deletePlaylist(desktop.view.source) }
+    Action { id: deletePlaylistAction; text: root.deleteSources.length > 1 ? qsTr("Delete playlists…") : qsTr("Delete playlist…"); shortcut: "Shift+X"; enabled: root.deleteSources.length > 0; onTriggered: desktop.deletePlaylists(root.deleteSources) }
     Action { id: searchAction; text: qsTr("Search"); shortcut: "Ctrl+F"; onTriggered: { search.forceActiveFocus(); search.selectAll() } }
     // H switches the status filter between every track and the unhandled ones.
     Action { id: hideAction; text: qsTr("Hide handled"); shortcut: "H"; onTriggered: root.setStatusFilter(root.statusFilter === "unhandled" ? "" : "unhandled") }
@@ -708,7 +708,7 @@ ApplicationWindow {
         }
         AppMenu {
             title: qsTr("Tracks")
-            Action { text: qsTr("Select all"); shortcut: "Ctrl+A"; onTriggered: desktop.model.selectAll() }
+            Action { text: qsTr("Select all"); shortcut: "Ctrl+A"; onTriggered: { if (playlistList.activeFocus) root.selectedPlaylists = playlistList.model.filter(p => !p.pending).map(p => p.source); else desktop.model.selectAll() } }
             Action { text: qsTr("Select none"); shortcut: "Ctrl+Shift+A"; enabled: root.hasSelection; onTriggered: desktop.model.clearSelection() }
             Action { text: qsTr("Invert selection"); shortcut: "Ctrl+I"; enabled: root.hasRows; onTriggered: desktop.model.invertSelection() }
             Action { text: qsTr("Undo status change"); shortcut: "Ctrl+Z"; onTriggered: desktop.action("undo") }
@@ -780,7 +780,7 @@ ApplicationWindow {
             AppSeparator {}
             Action { text: qsTr("Open data folder"); property string tip: qsTr("The library database and import reports"); onTriggered: desktop.revealFolder("data") }
             Action { text: qsTr("Open log folder"); property string tip: qsTr("Attach the log to a bug report"); onTriggered: desktop.revealFolder("logs") }
-            Action { text: qsTr("Check for updates"); property string tip: qsTr("Opens the releases page in your browser"); onTriggered: desktop.action("updates") }
+            Action { text: qsTr("Check for updates"); property string tip: qsTr("Check for a newer stable desktop version"); onTriggered: desktop.action("updates") }
             AppSeparator {}
             Action { text: qsTr("About dj-digger…"); onTriggered: desktop.action("about") }
         }
@@ -1299,9 +1299,19 @@ ApplicationWindow {
                             clip: true; keyNavigationEnabled: true; activeFocusOnTab: true
                             currentIndex: -1
                             model: desktop.playlists.filter(p => root.sidebarMatch(p.title))
+                            onModelChanged: root.selectedPlaylists = root.selectedPlaylists.filter(s => model.some(p => p.source === s && !p.pending))
                             ScrollBar.vertical: ScrollBar {}
                             Keys.onReturnPressed: if (currentItem) currentItem.open()
                             Keys.onEnterPressed: if (currentItem) currentItem.open()
+                            Keys.onSpacePressed: if (currentItem) root.selectPlaylist(currentItem.modelData.source, Qt.ControlModifier)
+                            Keys.onPressed: event => {
+                                if (!(event.modifiers & Qt.ShiftModifier) || ![Qt.Key_Up, Qt.Key_Down].includes(event.key)) return
+                                const start = Math.max(0, currentIndex)
+                                if (!root.playlistAnchor && model[start]) root.playlistAnchor = model[start].source
+                                currentIndex = Math.max(0, Math.min(count - 1, start + (event.key === Qt.Key_Up ? -1 : 1)))
+                                if (currentItem) root.selectPlaylist(currentItem.modelData.source, event.modifiers)
+                                event.accepted = true
+                            }
                             Keys.onMenuPressed: if (currentItem) root.playlistMenuAt(currentItem.modelData.source)
                             delegate: ItemDelegate {
                                 id: playlistItem
@@ -1315,7 +1325,7 @@ ApplicationWindow {
                                 property bool held: false
                                 width: ListView.view.width; height: 28
                                 padding: 0; leftPadding: 10; rightPadding: 8
-                                highlighted: modelData.source === desktop.view.source
+                                highlighted: root.selectedPlaylists.length ? root.selectedPlaylists.includes(modelData.source) : modelData.source === desktop.view.source
                                 background: Rectangle {
                                     color: playlistItem.highlighted ? root.selection : playlistItem.hovered ? root.hoverSurface : "transparent"
                                     border.width: playlistDrop.containsDrag || (playlistItem.ListView.isCurrentItem && playlistList.activeFocus) ? 2 : 0
@@ -1345,13 +1355,17 @@ ApplicationWindow {
                                     }
                                 }
                                 Accessible.name: modelData.title
-                                function open() { if (!pending) desktop.load(modelData.source) }
+                                function open() { if (!pending) root.selectPlaylist(modelData.source, 0) }
+                                property int modifiers: 0
+                                TapHandler {
+                                    onPressedChanged: if (pressed) playlistItem.modifiers = point.modifiers
+                                }
                                 onPressed: held = false
                                 onClicked: {
                                     playlistList.currentIndex = index
                                     playlistList.forceActiveFocus()
                                     if (held) held = false
-                                    else open()
+                                    else if (!pending) root.selectPlaylist(modelData.source, modifiers)
                                 }
                                 onPressAndHold: { held = true; root.playlistMenuAt(modelData.source) }
                                 TapHandler { acceptedButtons: Qt.RightButton; onTapped: root.playlistMenuAt(playlistItem.modelData.source) }
@@ -2750,7 +2764,28 @@ ApplicationWindow {
         // Brought back from the Folders menu, Hidden folders.
         AppMenuItem { text: qsTr("Hide folder"); onTriggered: desktop.folderAction("hide_folder", folderMenu.path) }
     }
+    property var selectedPlaylists: []
+    readonly property var deleteSources: playlistList.activeFocus ? selectedPlaylists : (desktop.view.source ? [desktop.view.source] : [])
+    property string playlistAnchor: ""
+    function selectPlaylist(source, modifiers) {
+        const sources = playlistList.model.filter(p => !p.pending).map(p => p.source)
+        if (!sources.includes(source)) return
+        const toggle = !!(modifiers & (Qt.ControlModifier | Qt.MetaModifier))
+        if ((modifiers & Qt.ShiftModifier) && sources.includes(playlistAnchor)) {
+            const a = sources.indexOf(playlistAnchor), b = sources.indexOf(source)
+            selectedPlaylists = sources.slice(Math.min(a, b), Math.max(a, b) + 1)
+        } else {
+            playlistAnchor = source
+            selectedPlaylists = toggle ? (selectedPlaylists.includes(source)
+                ? selectedPlaylists.filter(s => s !== source) : selectedPlaylists.concat(source)) : [source]
+            if (!toggle) desktop.load(source)
+        }
+    }
     function playlistMenuAt(source) {
+        if (!selectedPlaylists.includes(source)) {
+            selectedPlaylists = [source]
+            playlistAnchor = source
+        }
         playlistMenu.source = source
         playlistMenu.local = source.startsWith("local-playlist:")
         playlistMenu.pending = desktop.playlists.some(p => p.source === source && p.pending)
@@ -2784,7 +2819,7 @@ ApplicationWindow {
             onTriggered: desktop.playlistAction("export", playlistMenu.source)
         }
         AppSeparator {}
-        AppMenuItem { text: qsTr("Delete playlist…"); enabled: !playlistMenu.pending; onTriggered: desktop.deletePlaylist(playlistMenu.source) }
+        AppMenuItem { text: root.selectedPlaylists.length > 1 ? qsTr("Delete playlists…") : qsTr("Delete playlist…"); enabled: !playlistMenu.pending; onTriggered: desktop.deletePlaylists(root.selectedPlaylists) }
     }
     AppMenu {
         id: playlistsSectionMenu
@@ -2942,6 +2977,7 @@ ApplicationWindow {
         onAccepted: {
             let updated = Object.assign({}, dialog.values)
             updated[targetName] = desktop.localPath(selectedFile.toString())
+            if (targetName === "default_artwork" && updated[targetName] !== dialog.values[targetName]) updated.artwork_crop = 0.5
             dialog.values = updated
         }
     }
@@ -3077,7 +3113,7 @@ ApplicationWindow {
                                 dialog.collapsed = folded
                             }
                         }
-                        Label { text: modelData.label; textFormat: Text.PlainText; color: root.muted; visible: text.length > 0 && ["bool", "section", "buttons"].indexOf(modelData.kind) < 0 }
+                        Label { text: modelData.label; textFormat: Text.PlainText; color: root.muted; visible: text.length > 0 && (modelData.kind !== "crop" || !!dialog.values.default_artwork) && ["bool", "section", "buttons"].indexOf(modelData.kind) < 0 }
                         RowLayout {
                             Layout.fillWidth: true
                             visible: ["text", "folder", "file", "savefile", "image", "number"].indexOf(fieldItem.modelData.kind) >= 0
@@ -3085,7 +3121,10 @@ ApplicationWindow {
                                 id: fieldInput
                                 Layout.fillWidth: true
                                 text: String(dialog.values[fieldItem.modelData.name] ?? fieldItem.modelData.value)
-                                onTextEdited: dialog.values[fieldItem.modelData.name] = text
+                                onTextEdited: {
+                                    if (fieldItem.modelData.kind === "image") dialog.values = Object.assign({}, dialog.values, {default_artwork: text, artwork_crop: 0.5})
+                                    else dialog.values[fieldItem.modelData.name] = text
+                                }
                                 validator: fieldItem.modelData.kind === "number" ? numberValidator : null
                                 inputMethodHints: fieldItem.modelData.kind === "number" ? Qt.ImhFormattedNumbersOnly : Qt.ImhNone
                                 Accessible.name: fieldItem.modelData.label
@@ -3106,6 +3145,52 @@ ApplicationWindow {
                                                                                                       : ["JSON (*.json)", qsTr("All files") + " (*)"]
                                         fieldFile.open()
                                     }
+                                }
+                            }
+                        }
+                        Rectangle {
+                            id: cropPreview
+                            objectName: fieldItem.modelData.kind === "crop" ? "coverCropPreview" : ""
+                            visible: fieldItem.modelData.kind === "crop" && !!dialog.values.default_artwork
+                            Layout.preferredWidth: 128; Layout.preferredHeight: 128
+                            clip: true; color: root.bg
+                            activeFocusOnTab: visible
+                            Accessible.name: fieldItem.modelData.label
+                            readonly property real offset: Number(dialog.values.artwork_crop ?? 0.5)
+                            function moveTo(value) {
+                                dialog.values = Object.assign({}, dialog.values, {artwork_crop: Math.max(0, Math.min(1, value))})
+                            }
+                            Keys.onLeftPressed: moveTo(offset - 0.05)
+                            Keys.onRightPressed: moveTo(offset + 0.05)
+                            Keys.onUpPressed: moveTo(offset - 0.05)
+                            Keys.onDownPressed: moveTo(offset + 0.05)
+                            Image {
+                                id: cropImage
+                                source: cropPreview.visible ? desktop.coverFileUrl(dialog.values.default_artwork) : ""
+                                asynchronous: true; sourceSize: Qt.size(512, 512)
+                                readonly property real ratio: implicitHeight > 0 ? implicitWidth / implicitHeight : 1
+                                width: parent.width * Math.max(1, ratio)
+                                height: parent.height / Math.min(1, ratio)
+                                x: (parent.width - width) * cropPreview.offset
+                                y: (parent.height - height) * cropPreview.offset
+                            }
+                            Rectangle {
+                                anchors.fill: parent; color: "transparent"; radius: width / 2
+                                border.width: cropPreview.activeFocus ? 3 : 1; border.color: "white"
+                            }
+                            MouseArea {
+                                anchors.fill: parent; preventStealing: true
+                                property real start
+                                property real initial
+                                readonly property bool horizontal: cropImage.width > width
+                                onPressed: mouse => {
+                                    cropPreview.forceActiveFocus()
+                                    start = horizontal ? mouse.x : mouse.y
+                                    initial = cropPreview.offset
+                                }
+                                onPositionChanged: mouse => {
+                                    let span = horizontal ? cropImage.width - width : cropImage.height - height
+                                    if (pressed && span > 0) cropPreview.moveTo(initial - ((horizontal ? mouse.x : mouse.y) - start) / span)
                                 }
                             }
                         }

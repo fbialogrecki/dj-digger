@@ -67,20 +67,20 @@ class Deck:
         if channels not in (1, 2):
             return 'incompatible'
         bitrate = media.get('bit_rate', 0)
+        container = media.get('container')
         if codec == 'mp3':
-            if rate not in self.mp3_rates:
+            if rate not in self.mp3_rates or (container and container != 'mp3'):
                 return 'incompatible'
             # MPEG-2 Layer-3 runs 8-160 kbps; MPEG-1 Layer-3 32-320 kbps.
             low, high = (8000, 160000) if rate < 32000 else (32000, 320000)
             return 'compatible' if low <= bitrate <= high else 'unverified'
         if codec == 'aac':
-            if rate not in self.aac_rates:
+            if rate not in self.aac_rates or (container and container not in ('aac', 'mov')):
                 return 'incompatible'
             # ffprobe's codec name alone does not distinguish HE-AAC from LC.
             if media.get('profile') != 'LC' or (media.get('container') == 'aac' and not self.mpeg2_aac):
                 return 'unverified'
             return 'compatible' if 16000 <= bitrate <= 320000 else 'unverified'
-        container = media.get('container')
         if container == 'aiff' and codec not in ('pcm_s16be', 'pcm_s24be'):
             return 'incompatible'
         if container == 'mov' and codec == 'alac' and media.get('extension', '.m4a') != '.m4a':
@@ -150,19 +150,24 @@ def chosen(names=None) -> tuple[Deck, ...]:
     return picked
 
 
-def best_profile(names=None) -> 'Profile':
+def best_profile(names=None, output_format='auto') -> 'Profile':
     """The best export every chosen deck plays, according to its documentation.
 
-    FLAC when every chosen deck reads it (lossless, smaller than PCM, carrying
-    tags and artwork), WAV otherwise; the highest bit depth and sampling rate the
-    chosen decks share. These are upper limits; nothing is upsampled.
+    Auto prefers FLAC when every deck supports it. An explicit format uses the
+    documented limits shared by the selected decks.
     """
 
     picked = chosen(names)
     rates = set.intersection(*(set(deck.pcm_rates) for deck in picked))
     bits = set.intersection(*(set(deck.pcm_bits) for deck in picked))
-    flac = all('flac' in deck.lossless for deck in picked)
-    return Profile('flac' if flac else 'wav', max(bits), max(rates))
+    missing_flac = [deck.name for deck in picked if 'flac' not in deck.lossless]
+    if output_format == 'auto':
+        output_format = 'wav' if missing_flac else 'flac'
+    elif output_format == 'flac' and missing_flac:
+        raise ValueError('FLAC is unsupported on: ' + ', '.join(missing_flac))
+    if output_format == 'mp3':
+        rates &= set.intersection(*(set(deck.mp3_rates) for deck in picked)) & set(STANDARD)
+    return Profile(output_format, max(bits), max(rates))
 
 
 def compatibility(media_files, names=None) -> dict[str, str]:
@@ -181,17 +186,23 @@ class Profile:
     rate: int = 48000
 
     def __post_init__(self):
-        if self.format not in ('wav', 'aiff', 'flac') or self.bits not in (16, 24) or self.rate not in (44100, 48000, 88200, 96000):
+        if self.format not in ('wav', 'aiff', 'flac', 'mp3') or self.bits not in (16, 24) or self.rate not in (44100, 48000, 88200, 96000):
             raise ValueError('Unsupported export profile')
 
     def label(self) -> str:
+        if self.format == 'mp3':
+            return f'MP3, 320 kb/s CBR, up to {self.rate / 1000:g} kHz'
         return f'{self.format.upper()}, up to {self.bits}-bit / {self.rate / 1000:g} kHz'
 
     def codec(self, bits=None):
         bits = self.bits if bits is None else bits
+        if self.format == 'mp3':
+            return 'libmp3lame'
         return 'flac' if self.format == 'flac' else f'pcm_s{bits}' + ('be' if self.format == 'aiff' else 'le')
 
     def media(self, *, bits=None, rate=None):
+        if self.format == 'mp3':
+            return dict(container='mp3', codec='mp3', bit_rate=320000, rate=rate or self.rate, channels=2)
         return dict(container=self.format, codec=self.codec(bits),
                     bits=self.bits if bits is None else bits,
                     rate=self.rate if rate is None else rate, channels=2)

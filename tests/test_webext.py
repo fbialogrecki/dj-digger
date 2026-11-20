@@ -98,7 +98,10 @@ def test_host_starts_only_its_installed_desktop_once_per_live_child(tmp_path, mo
     name = "dj-digger-gui.exe" if os.name == "nt" else "dj-digger-gui"
     launcher = tmp_path / name
     launcher.touch()
-    monkeypatch.setattr(host.sysconfig, "get_path", lambda key: str(tmp_path))
+    entry = launcher.with_name(name.replace("-gui", "-host"))
+    entry.touch()
+    monkeypatch.setattr(host.sys, "argv", [str(entry), "chrome-extension://example/"])
+    monkeypatch.setattr(host.sysconfig, "get_path", lambda key: str(tmp_path / "system-bin"))
     started = []
 
     class Running:

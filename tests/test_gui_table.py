@@ -98,6 +98,18 @@ def test_sort_cycles_back_to_source_order_with_stable_ties(app):
     assert model.sortColumn == -1 and not model.sortReverse
 
 
+def test_position_column_sorts_numbers_without_renumbering_filtered_rows(app):
+    model = TrackModel()
+    model.replace([dict(row('last', 'Title Z'), position=10), dict(row('early', 'Title A'), position=2)])
+    column = COLUMNS.index('position')
+    model.sortBy(column)
+    assert [r['position'] for r in model.visible] == [2, 10]
+    model.sortBy(column)
+    assert [r['position'] for r in model.visible] == [10, 2]
+    model.filter('Title A', {})
+    assert model.data(model.index(0, column)) == '2'
+
+
 def test_selection_repaints_only_the_rows_that_changed(app):
     model = TrackModel()
     model.replace([row(str(i), f'T{i}') for i in range(10)])
@@ -185,7 +197,7 @@ def test_qml_table_keyboard_drag_density_and_now_playing(app, tmp_path, monkeypa
         def qml(expression):
             return QQmlExpression(QQmlEngine.contextForObject(window), window, expression).evaluate()[0]
         assert window.property('hiddenColumns').toVariant() == [3, 10, 11]
-        assert window.property('columnOrder').toVariant() == list(range(12))
+        assert window.property('columnOrder').toVariant() == list(range(13))
         assert bridge.table.sort_column == 2 and bridge.table.reverse
         qml('desktop.model.setSort(-1, false)')
         bridge.receive('ready', {})

@@ -7,6 +7,7 @@ import re
 import stat
 import threading
 import time
+from collections import defaultdict, deque
 from contextlib import asynccontextmanager, suppress
 from copy import deepcopy
 from dataclasses import replace
@@ -28,7 +29,6 @@ from ..services.runtime import ApplicationServices
 from ..soundcloud import is_soundcloud_url
 
 LOGGER = logging.getLogger(__name__)
-RELEASES_URL = 'https://github.com/fbialogrecki/dj-digger/releases'
 # Opening or downloading more tracks than this asks first.
 CONFIRM_ABOVE = 10
 # How long a browser opened for the SoundCloud sign-in gets to start and connect its extension.
@@ -62,7 +62,7 @@ class Dismissed(Cancelled):
 
 
 class Backend:
-    def __init__(self, emit, services_factory=ApplicationServices, connect_browser=False):
+    def __init__(self, emit, services_factory=ApplicationServices, connect_browser=False, check_updates=False):
         self.emit = emit
         self.factory = services_factory
         # Only the desktop, holding the instance lock, opens the extension channel.
@@ -72,6 +72,10 @@ class Backend:
         self.ready = threading.Event()
         self.closing = False
         self.tasks = set()
+        self.update_timer = None
+        self.schedule_updates = check_updates
+        self.checking_update = False
+        self.pending_update = None
         self.questions = {}
         self.login_expired_asked = False
         self.rows = []
@@ -104,6 +108,7 @@ class Backend:
         self.browser_look = {}
         self.now_playing = {}
         self.browser_artwork = ('', '')
+        self.browser_default_art = ''
         self.browser_state = None
         self.browser_timer = None
         # What changed the panel last (its state with no position, the seeks served) and when it went.
@@ -142,7 +147,7 @@ class Backend:
         self.loop.call_soon_threadsafe(self._start, action, deepcopy(values or {}))
 
     def _start(self, action, values):
-        if self.closing:
+        if self.closing or self.pending_update:
             return
         task = self.loop.create_task(self.dispatch(action, values))
         self.tasks.add(task)
@@ -222,6 +227,7 @@ class Backend:
                     self.send('message', {'text': '\n'.join(messages)})
                 config = self.services.config
                 # The window asks for Welcome (action_welcome) once it is up: first start, or nothing imported yet.
+                await self.refresh_default_art()
                 self.send('ready', {'volume': config.volume,
                                     'welcome': not config.onboarded and (config.first_run or not self.saved_playlists)})
                 if self.connect_browser_link and getattr(self.services, 'browser_link', None) is not None:
@@ -230,6 +236,11 @@ class Backend:
                     self.browser_ready = True
                     self.publish_browser()
                 await self.action_account({})
+                from .. import __version__
+                from .updates import update_result
+                if outcome := await self.io(update_result, __version__):
+                    self.send(*outcome)
+                self.plan_update_check()
                 return
             if not hasattr(self, 'services'):
                 return
@@ -274,7 +285,12 @@ class Backend:
         from ..rows import Row
         if generation != self.generation:
             return
-        self.rows = [Row(i, t, links.categorise(t)) for i, t in enumerate(tracks)]
+        positions = defaultdict(deque)
+        if self.record:
+            for i, track in enumerate(self.record.tracks):
+                positions[track.key].append(i)
+        self.rows = [Row(positions[t.key].popleft() if positions.get(t.key) else i, t, links.categorise(t))
+                     for i, t in enumerate(tracks)]
         source = self.record.source if self.record else ''
         local_playlist = source.startswith('local-playlist:')
         has_streams = any(not track.local_id for track in tracks)
@@ -287,7 +303,7 @@ class Backend:
     def row_value(self, row):
         t = row.track
         classic, camelot = key_names(t.key_signature) or ('', '')
-        return dict(key=t.key, title=t.title, artist=t.artist, genre=t.genre_label,
+        return dict(key=t.key, position=row.position + 1, title=t.title, artist=t.artist, genre=t.genre_label,
                     bpm=t.bpm or '', keySignature=t.key_signature, classicKey=classic, camelot=camelot, year=t.release_year or '',
                     label=t.label_name, duration=t.duration, status=self.services.state.get(t.key),
                     format=t.audio_format, comment=t.comment,
@@ -894,7 +910,7 @@ class Backend:
             # A replacement plan only falls back to this folder when the sources share no root.
             destination = (Path(answer['folder']).expanduser() if answer['folder']
                            else paths[0].parent if paths else Path())
-            plan = await self.io(plan_export, paths, destination, decks=answer['decks'], mode=answer['mode'], cancel=handle.cancel)
+            plan = await self.io(plan_export, paths, destination, decks=answer['decks'], requested_format=answer['format'], mode=answer['mode'], cancel=handle.cancel)
             summary = [*(f'Warning: {note}' for note in plan.notes), f'{plan.profile.label()}, for files that need converting',
                        *(f'{deck}: {state}' for deck, state in plan.compatibility().items()), '']
             await self.ask('Review export', 'Replacing originals permanently removes them after verification.' if plan.mode == 'replace' else '',
@@ -915,7 +931,7 @@ class Backend:
         await self.job('Exporting audio', work)
 
     async def export_form(self, config):
-        from ..decks import DECK_GROUPS
+        from ..decks import DECK_GROUPS, best_profile
         def validate(answer):
             # Replacing works in place, so only a copy needs somewhere to go.
             answer['folder'] = str(answer['folder']).strip()
@@ -925,12 +941,15 @@ class Backend:
             decks = [name for index, group in enumerate(DECK_GROUPS) if str(index) in picked for name in group]
             if not decks:
                 raise ValueError('Choose at least one deck')
+            best_profile(decks, answer['format'])
             # A copy: a retry re-opens the dialog with the ticked groups, not deck names.
             return dict(answer, decks=decks)
         return await self.form(
-            'Export audio', 'Choose the decks these files must play on; the best format they all play is picked for you.',
+            'Export audio', 'Auto chooses a format supported by every selected deck. Compatible MP3 and AAC files keep their original encoding.',
             [field('decks', 'Decks', [str(index) for index, group in enumerate(DECK_GROUPS) if set(group) & set(config.export_decks)],
                    'checks', [(str(index), ', '.join(group)) for index, group in enumerate(DECK_GROUPS)]),
+             field('format', 'Output format', 'auto', 'choice',
+                   [[fmt, fmt.upper() if fmt != 'auto' else 'Auto'] for fmt in ('auto', 'wav', 'aiff', 'flac', 'mp3')]),
              field('folder', 'Destination folder (Copy only)', kind='folder'),
              field('mode', 'Mode', 'copy', 'choice', [['copy', 'Copy'], ['replace', 'Replace originals']]),
              field('recursive', 'Include subfolders', False, 'bool')], validate, ok='Export')
@@ -1046,12 +1065,20 @@ class Backend:
             await self.action_load({'source': record.source})
 
     async def action_delete_playlist(self, values):
-        source = values['source']
-        headers = await self.io(self.services.library.headers)
-        await self.ask('Delete playlist', next((h.title for h in headers if h.source == source), source), ok='Delete')
-        await self.io(self.services.library.delete, source)
+        selected = set(values.get('sources') or [values.get('source')])
+        db = self.services.state.db
+        generations = db.snapshot_generations()
+        headers = [h for h in await self.io(self.services.library.headers) if h.source in selected]
+        if not headers:
+            return
+        sources = [h.source for h in headers]
+        counts = [dict(field('count', '', 'Selected playlists: {0}', 'note'), args=[len(headers)])] if len(headers) > 1 else []
+        await self.ask('Delete playlist' if len(headers) == 1 else 'Delete playlists',
+                       '\n'.join(h.title for h in headers), counts, ok='Delete')
+        if not await self.io(db.delete_crates, sources, generations):
+            raise ValueError('Playlist selection changed. Select the playlists again.')
         await self.sidebar()
-        if self.record and self.record.source == source:
+        if self.record and self.record.source in sources:
             self.record = None
             self.generation += 1
             await self.publish([], '', self.generation)
@@ -1109,6 +1136,8 @@ class Backend:
             answer['default_artwork'] = answer['default_artwork'].strip()
             if answer['default_artwork'] and not Path(answer['default_artwork']).expanduser().is_file():
                 raise ValueError('The default cover is not a file')
+            crop = answer.get('artwork_crop', .5)
+            answer['artwork_crop'] = crop if type(crop) in (float, int) and 0 <= crop <= 1 else .5
             for name in ('scan_directories', 'pinned_directories', 'hidden_directories', 'custom_comments'):
                 answer[name] = [line.strip() for line in answer[name].splitlines() if line.strip()]
             return answer
@@ -1121,7 +1150,9 @@ class Backend:
         fields = [
             *([section('section_appearance', 'Appearance', collapsed=True), *appearance] if appearance else []),
             section('section_player', 'Playback', collapsed=True),
+            field('check_updates', 'Check for desktop updates daily', config.check_updates, 'bool'),
             field('default_artwork', 'Default cover (tracks without artwork)', config.default_artwork, 'image'),
+            field('artwork_crop', 'Drag to position the cover', config.artwork_crop, 'crop'),
             field('previewThirty', 'Start previews at 30 %', values.get('previewThirty') is True, 'bool'),
             accounts_section,
             field('connections', '', kind='connections'),
@@ -1171,7 +1202,13 @@ class Backend:
                         if item['name'] in presentation_names and item['name'] in answer}
         service_preferences = {item['name']: answer[item['name']] for item in fields
                                if item['name'] not in presentation_names and item['name'] in answer and item['kind'] not in DISPLAY_KINDS}
+        changed_cover = (config.default_artwork, config.artwork_crop) != (service_preferences.get('default_artwork'), service_preferences.get('artwork_crop'))
         await self.io(self.services.accounts.save_preferences, service_preferences)
+        if changed_cover:
+            await self.refresh_default_art()
+            if loaded := self.services.player.loaded:
+                await self.load_artwork(loaded, self.waveform_cancel)
+            self.publish_browser()
         self.send('presentation', presentation)
         self.services.config.first_run = False
         await self.sidebar()
@@ -1265,9 +1302,87 @@ class Backend:
                         field('data', 'Data folder', str(data_dir()), 'path')], ok='Close')
 
     async def action_updates(self, values):
-        # The releases page in the browser; the app itself never checks over the network.
-        from ..browser import open_url
-        await self.io(open_url, RELEASES_URL, self.services.config.browser)
+        from .. import __version__
+        from . import updates
+        if self.checking_update:
+            return
+        self.checking_update = True
+        automatic = values.get('automatic', False)
+        try:
+            await self.io(self.services.accounts.save_preferences, {'last_update_check': int(time.time())})
+            try:
+                release = await self.io(updates.latest, __version__)
+            except Exception:
+                if automatic:
+                    return
+                raise
+            if automatic and not self.services.config.check_updates:
+                return
+            if not release:
+                if not automatic:
+                    self.send('message', {'text': 'You have the latest desktop version'})
+                return
+            version, assets = release
+            mode, target = await self.io(updates.target, version)
+            if mode == 'installer':
+                try:
+                    asset = updates.installer_asset(version, target, assets)
+                except ValueError:
+                    if automatic:
+                        return
+                    raise
+            version_note = field('version', 'Version', version, 'note')
+            if mode == 'manual':
+                await self.ask('Desktop update available',
+                               'For pipx, run pipx upgrade dj-sc-digger. For a development checkout, update your checkout and run uv sync. Otherwise use your original installer.',
+                               [version_note, field('release', 'Release', target, 'note')], ok='Close')
+                return
+            await self.ask('Desktop update available', 'Close dj-digger and start the update?', [version_note], ok='Update', dismiss='Later')
+            self.require_idle_update()
+            if mode == 'uv':
+                await self.io(updates.check_pypi, version)
+            else:
+                async def download(handle):
+                    return await self.io(updates.installer, target, asset, handle.cancel)
+                target = await self.job('Downloading desktop update', download)
+            self.require_idle_update()
+            self.pending_update = (mode, target)
+            try:
+                await self.io(updates.record_expected_version, version)
+            except BaseException:
+                self.pending_update = None
+                raise
+            self.send('closeForUpdate', {})
+        finally:
+            self.checking_update = False
+            self.plan_update_check()
+
+    def require_idle_update(self):
+        if self.closing:
+            raise Cancelled()
+        player = getattr(self.services, '_player', None)
+        if (self.services.operations.visible or self.questions or any(
+                task is not asyncio.current_task() and not task.done() for task in self.tasks)
+                or (player and player.playing)):
+            raise ValueError('Finish active operations and pause playback before updating')
+
+    def plan_update_check(self):
+        if self.update_timer:
+            self.update_timer.cancel()
+            self.update_timer = None
+        config = self.services.config
+        if self.schedule_updates and config.check_updates and not self.closing and not self.pending_update:
+            elapsed = time.time() - config.last_update_check
+            delay = max(0, 86400 - elapsed) if elapsed >= 0 else 0
+            self.update_timer = self.loop.call_later(delay, self._start, 'scheduled_updates', {})
+
+    async def action_scheduled_updates(self, values):
+        config = self.services.config
+        elapsed = time.time() - config.last_update_check
+        if self.schedule_updates and config.check_updates and (elapsed < 0 or elapsed >= 86400):
+            await self.action_updates({'automatic': True})
+        else:
+            self.plan_update_check()
 
     async def player_call(self, function, *args):
         async with self.player_lock:
@@ -1354,12 +1469,23 @@ class Backend:
             if not cancel.is_set() and self.services.player.loaded is loaded:
                 self.send('waveform', dict(key=loaded.track.key, samples=samples), copy=False)
 
+    async def refresh_default_art(self):
+        from .artwork import BROWSER_PIXELS, default_picture, label_image
+        config = self.services.config
+        if config.default_artwork:
+            self.browser_default_art = await self.io(lambda: label_image(default_picture(config.default_artwork), BROWSER_PIXELS,
+                                                                        circle=False, jpeg=True, crop=config.artwork_crop))
+        else:
+            self.browser_default_art = ''
+
     async def load_artwork(self, loaded, cancel):
         """The label picture: the track's own artwork, else the default cover from Settings."""
         from ..local_audio import artwork
         from ..services.playback import remote_artwork
-        from .artwork import BROWSER_PIXELS, SQUARE_PIXELS, label_image
+        from .artwork import BROWSER_PIXELS, SQUARE_PIXELS, default_picture, label_image
         track, url = loaded.track, loaded.stream.artwork_url
+        config = self.services.config
+        fallback = (config.default_artwork, config.artwork_crop)
         def picture():
             data = None
             try:
@@ -1370,20 +1496,18 @@ class Backend:
             except Exception as exc:
                 LOGGER.debug('Artwork unavailable: %s', log_safe_text(exc))
             label = label_image(data) if data else ''
-            fallback = self.services.config.default_artwork
-            if not label and fallback:
-                try:
-                    data = Path(fallback).read_bytes()
-                    label = label_image(data)
-                except OSError as exc:
-                    LOGGER.debug('Default cover unavailable: %s', log_safe_text(exc))
+            crop = .5
+            if not label and fallback[0]:
+                path, crop = fallback
+                data = default_picture(path)
+                label = label_image(data, crop=crop)
             # The record label's circle, the same picture as a plain square, and a small one for the browser.
             if not label:
                 return '', '', ''
-            return label, label_image(data, SQUARE_PIXELS, circle=False), label_image(data, BROWSER_PIXELS, circle=False, jpeg=True)
+            return label, label_image(data, SQUARE_PIXELS, circle=False, crop=crop), label_image(data, BROWSER_PIXELS, circle=False, jpeg=True, crop=crop)
         label, square, browser = await self.io(picture)
         async with self.player_lock:
-            if not cancel.is_set() and self.services.player.loaded is loaded:
+            if not cancel.is_set() and self.services.player.loaded is loaded and fallback == (config.default_artwork, config.artwork_crop):
                 self.send('artwork', dict(key=track.key, image=label, square=square), copy=False)
                 self.browser_artwork = (track.key, browser)
                 self.publish_browser()
@@ -1414,6 +1538,8 @@ class Backend:
                     done=int(progress.get('done') or 0), total=int(progress.get('total') or 0))
         state = dict(title='', artist='', playing=False, position=0.0, duration=0.0, seed=cover_hash(''), artwork='',
                      jobs=jobs, needs=self.gates_waiting[1] if self.gates_waiting else 0, **self.browser_look)
+        if self.browser_default_art:
+            state['defaultArtwork'] = self.browser_default_art
         if p.loaded:
             track, key = p.loaded.track, p.loaded.track.key
             shown = self.now_playing if self.now_playing.get('key') == key else {}
@@ -1460,9 +1586,17 @@ class Backend:
         ``link.player_command``), each the same step as the window's own."""
         op, player = values.get('op'), self.services.player
         if op == 'activate':
-            self.send('activate', {})
+            result = self.loop.create_future()
+            def complete(code):
+                if not result.done():
+                    result.set_result(code)
+            self.send('activate', {'done': lambda code: self.loop.call_soon_threadsafe(complete, code)}, copy=False)
+            try:
+                code = await asyncio.wait_for(result, timeout=3)
+            except TimeoutError:
+                code = 'unavailable'
             if reply := values.get('reply'):
-                await self.io(reply, 'opened')
+                await self.io(reply, code)
         elif op == 'cancel':
             await self.dispatch('cancel', {})  # the status bar's Cancel
         elif op == 'gates':
@@ -2061,6 +2195,8 @@ class Backend:
 
     async def _close(self):
         self.closing = True
+        if self.update_timer:
+            self.update_timer.cancel()
         self.waveform_cancel.set()
         self.play_generation += 1
         if hasattr(self, 'services'):

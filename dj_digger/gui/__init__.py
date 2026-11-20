@@ -49,7 +49,8 @@ def main():
     configure_logging('INFO')
     engine = QQmlApplicationEngine()
     # CI smoke uses isolated HOME/XDG and never opens sockets or registers browsers.
-    bridge = Bridge(engine, backend_factory=partial(Backend, connect_browser='--smoke-test' not in sys.argv))
+    interactive = '--smoke-test' not in sys.argv
+    bridge = Bridge(engine, backend_factory=partial(Backend, connect_browser=interactive, check_updates=interactive))
     engine.rootContext().setContextProperty('desktop', bridge)
     language = QLocale.system().name()[:2]
     engine.rootContext().setContextProperty('systemLanguage', language if language in LANGUAGES else 'en')
@@ -83,7 +84,7 @@ def main():
     if '--smoke-test' in sys.argv:
         QTimer.singleShot(1000, window.close)
     try:
-        return app.exec()
+        result = app.exec()
     finally:
         bridge.backend.thread.join(timeout=5)
         import shiboken6
@@ -93,3 +94,7 @@ def main():
         if install_guard:
             import ctypes
             ctypes.windll.kernel32.CloseHandle(ctypes.c_void_p(install_guard))
+    if bridge.backend.pending_update:
+        from .updates import launch_update
+        launch_update(*bridge.backend.pending_update)
+    return result

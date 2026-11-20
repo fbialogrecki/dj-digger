@@ -57,3 +57,7 @@ def test_raw_aac_and_file_systems_follow_the_manuals():
     assert 'exfat' not in by_name['CDJ-3000'].filesystems and 'exfat' in by_name['CDJ-3000X'].filesystems
     assert by_name['XDJ-RX'].filesystems == {'fat'}
     assert all('ntfs' not in deck.filesystems and 'fat' in deck.filesystems for deck in DECKS)
+
+
+def test_mp3_stream_in_wav_is_not_a_playable_mp3_file():
+    assert verdict('CDJ-3000', container='wav', **mp3(44100)) == 'incompatible'

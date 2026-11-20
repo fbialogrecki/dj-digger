@@ -6,6 +6,12 @@ Linux takes one terminal command.
 
 **Choose your computer:** [Windows](#windows) · [Mac](#mac) · [Linux](#linux)
 
+### Updating an installed desktop app
+
+Open **Help → Check for updates** to check now. Daily checks are enabled by default and can be switched off in **Settings → Preferences**. Choose **Update** to install or **Later** to keep working. Finish running operations and pause playback first.
+
+On Windows the app opens the verified installer after closing. Leave **Launch dj-digger** checked on the final page to reopen it. If you cancel, open dj-digger from Start. At the next launch the app reports whether it reached the requested version. On Mac it opens the verified disk image, where you can drag the app to Applications. The Linux installer’s uv environment updates to the displayed version and reopens. If you installed with pipx or from a development checkout, the app displays instructions for that installation.
+
 > **Before you start**
 >
 > dj-digger is a free, open-source hobby project. Its desktop downloads are
