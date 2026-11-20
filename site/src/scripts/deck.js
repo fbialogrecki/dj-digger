@@ -100,17 +100,23 @@ menu.addEventListener("toggle", () => {
 });
 
 let swipeStart;
+function rightwardDistance(point) {
+  if (!swipeStart) return 0;
+  const dx = point.clientX - swipeStart.clientX;
+  return dx > 1.5 * Math.abs(point.clientY - swipeStart.clientY) ? dx : 0;
+}
 menu.addEventListener("touchstart", (event) => {
   swipeStart = menu.matches(":popover-open") && event.touches.length === 1 ? event.touches[0] : null;
 }, { passive: true });
 menu.addEventListener("touchcancel", () => { swipeStart = null; });
+menu.addEventListener("touchmove", (event) => {
+  // Let vertical scrolling continue, but keep a horizontal swipe out of the browser's scroll gesture.
+  if (event.cancelable && rightwardDistance(event.touches[0]) >= 6) event.preventDefault();
+}, { passive: false });
 menu.addEventListener("touchend", (event) => {
-  if (!swipeStart) return;
-  const end = event.changedTouches[0];
-  const dx = end.clientX - swipeStart.clientX;
-  const dy = end.clientY - swipeStart.clientY;
+  const distance = rightwardDistance(event.changedTouches[0]);
   swipeStart = null;
-  if (!event.touches.length && dx >= 48 && dx > 1.5 * Math.abs(dy) && menu.matches(":popover-open")) {
+  if (!event.touches.length && distance >= 48 && menu.matches(":popover-open")) {
     event.preventDefault(); // A swipe starting on a link must not follow it.
     menu.hidePopover();
   }
