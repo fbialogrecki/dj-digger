@@ -1,10 +1,10 @@
-# Navigating the local Graphify graph
+# Navigating the Graphify graph
 
-The 2026-11-20 refresh covers the working tree based on `7362077`, including uncommitted documentation and screenshot changes. The generated files live in the Git-ignored `graphify-out/` directory. Open `graph.html` locally to explore communities, or read `graph.json` to follow individual nodes and edges. `GRAPH_REPORT.md` records the corpus and extraction scope, and `GRAPH_HEALTH.md` records extraction limitations.
+[Explore the public graph](https://djdigger.app/graph/) or [download its JSON](https://djdigger.app/graph/graph.json). The website serves a snapshot of [source commit `4bed67a`](https://github.com/fbialogrecki/dj-digger/commit/4bed67ac6cb465a743254edbf5e692883db8066c). Use it to find related modules and follow references, then check the source and tests for behavior.
 
-For the user-facing workflow, start at `README.md` and follow its links to `docs/workflows.md` and the two desktop screenshots. The installation guide covers released builds. The workflow guide covers the desktop and browser commands on main. Check a local graph’s build commit before using it to navigate another checkout.
+Local Graphify runs write separate artifacts to the Git-ignored `graphify-out/` directory. Those artifacts can include uncommitted work. Check the recorded build commit before using a local graph to navigate another checkout.
 
-The entries below record earlier builds. Their counts, interface descriptions and command examples refer to the dates shown.
+For how to use the app, see the [README](../README.md), the [installation guide](installation.md) and the [workflow guide](workflows.md). The entries below describe earlier local builds.
 
 # Desktop usability correction — 2026-09-09
 
@@ -50,14 +50,9 @@ payloads and this generated commentary. Query-memory files added independently
 by the detector were removed from this scan so prior answers do not become
 architecture evidence.
 
-Local generated artifacts remain ignored by Git:
-
-- [Interactive graph](../graphify-out/graph.html).
-- [Graph report](../graphify-out/GRAPH_REPORT.md), including cohesion scores.
-- [Navigation JSON](../graphify-out/graph.json) and
-  [raw extraction](../graphify-out/extraction.json).
-- [Extraction health](../graphify-out/GRAPH_HEALTH.md) and
-  [diagnostic JSON](../graphify-out/diagnostics.json).
+In that local build, `graph.html` and `graph.json` supported navigation.
+`GRAPH_REPORT.md` recorded cohesion scores, and `GRAPH_HEALTH.md`,
+`extraction.json` and `diagnostics.json` recorded extraction details.
 
 Changed-document semantic nodes were replaced by current structural extraction
 and six narrowly anchored contract links labelled INFERRED. This is less rich

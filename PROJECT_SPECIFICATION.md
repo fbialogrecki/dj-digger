@@ -7,7 +7,7 @@
 | **Owner** | Filip Białogrecki |
 | **Last updated** | 2026-11-21 |
 | **Product version** | 1.6.0 (`pyproject.toml`); browser extension 1.4.5 (`dj_digger/webext/extension/manifest.json`) |
-| **Document lines** | <!-- SPEC TOTAL LINES -->2879<!-- END SPEC TOTAL LINES --> |
+| **Document lines** | <!-- SPEC TOTAL LINES -->2882<!-- END SPEC TOTAL LINES --> |
 | **Verified against** | `pyproject.toml`, `dj_digger/`, `dj_digger/webext/extension/manifest.json`, `scripts/`, `tests/`, `.github/workflows/`, `README.md`, `CHANGELOG.md` |
 
 ## Purpose of this file
@@ -107,13 +107,13 @@ text is never promoted into the map.
 | 13 | Failure behavior and current limitations | 2558–2673 |
 | 13.1 | ↳ Error isolation and reporting | 2560–2581 |
 | 13.2 | ↳ Confirmed limitations | 2582–2673 |
-| 14 | Verification, CI, and release | 2674–2840 |
+| 14 | Verification, CI, and release | 2674–2843 |
 | 14.1 | ↳ Offline and live test suites | 2676–2727 |
-| 14.2 | ↳ Continuous integration and publishing | 2728–2823 |
-| 14.3 | ↳ Specification-map verification | 2824–2840 |
-| 15 | References | 2841–2879 |
-| 15.1 | ↳ Primary implementation evidence | 2843–2864 |
-| 15.2 | ↳ User and historical documentation | 2865–2879 |
+| 14.2 | ↳ Continuous integration and publishing | 2728–2826 |
+| 14.3 | ↳ Specification-map verification | 2827–2843 |
+| 15 | References | 2844–2882 |
+| 15.1 | ↳ Primary implementation evidence | 2846–2867 |
+| 15.2 | ↳ User and historical documentation | 2868–2882 |
 <!-- END GENERATED SECTION MAP -->
 
 ---
@@ -2766,7 +2766,10 @@ installer. The deploy checks the release tag and main SHA again. Missing product
 fail the job. The website environment uses a short-lived GitHub OIDC identity restricted to
 this repository's Website workflow, with Firebase Hosting Admin access to its project.
 `.firebaserc` sets the default project to `dj-digger-a9664`, and the production
-site is `https://djdigger.app/`.
+site is `https://djdigger.app/`. The static `/graph/` page serves a browsable
+Graphify snapshot of a named public main commit. The full graph is available at
+`/graph/graph.json`. The generated files in `site/public/graph/` are excluded from
+subsequent graph extraction.
 
 On narrow screens the icon-only header menu opens a right-side panel sized to its links, language selector and theme switch. The page remains visible beside it. A tap outside, a rightward swipe in the panel or Escape closes it. On wide screens those controls appear directly in the header.
 
