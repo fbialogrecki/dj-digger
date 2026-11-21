@@ -1396,14 +1396,17 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
         staged.mkdir()
         (staged / 'new.flac').write_bytes(b'')
         child = staged.rename(only_audio / staged.name)
+        # QTest.qWait holds the GIL. Let Qt deliver events and the Python scanner run.
         deadline = time.monotonic() + 10
         while not bridge.directoryHasChildren(str(only_audio)) and time.monotonic() < deadline:
-            QTest.qWait(10)
+            app.processEvents()
+            time.sleep(.01)
         assert bridge.directoryHasChildren(str(only_audio))
         child.rename(staged)
         deadline = time.monotonic() + 10
         while bridge.directoryHasChildren(str(only_audio)) and time.monotonic() < deadline:
-            QTest.qWait(10)
+            app.processEvents()
+            time.sleep(.01)
         assert not bridge.directoryHasChildren(str(only_audio))
 
         # The native model must see an empty child while the music filter excludes it.
@@ -1413,7 +1416,8 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
         empty.mkdir()
         deadline = time.monotonic() + 10
         while bridge._folders.music(str(empty)) != NONE and time.monotonic() < deadline:
-            QTest.qWait(10)
+            app.processEvents()
+            time.sleep(.01)
         assert bridge._folders.music(str(empty)) == NONE
         assert not bridge.directoryHasChildren(str(only_audio))
         painted = QSignalSpy(window.frameSwapped)
