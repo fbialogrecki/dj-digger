@@ -1851,6 +1851,31 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
         settle()
         qml('table.setColumnWidth(1, 222); table.forceLayout()')
         assert qml('table.columnWidth(1)') == 222
+        window.setWidth(1400)
+        settle()
+        short_title_width = qml('contentWidth(2)')
+        bridge.table.update_rows([row('a', 'A much longer track title that needs a wider column')])
+        assert qml('contentWidth(2)') > short_title_width
+        settle()
+        artist_header = qml('header.itemAtCell(Qt.point(1, 0))')
+        edge = artist_header.mapToScene(QPointF(artist_header.width() - 3, artist_header.height() / 2)).toPoint()
+        QTest.mouseDClick(window, Qt.LeftButton, pos=edge)
+        settle()
+        assert qml('table.columnWidth(1)') == qml('contentWidth(1)') != 222
+        assert bridge.table.sort_column == -1
+        middle = artist_header.mapToScene(QPointF(40, artist_header.height() / 2)).toPoint()
+        QTest.mouseClick(window, Qt.RightButton, pos=middle)
+        settle()
+        assert qml('columnMenu.visible') is True and qml('columnMenu.column') == 1
+        stores = window.findChild(QObject, 'column-9')
+        assert stores.property('text') == 'Sklepy' and stores.property('checked') is True
+        assert window.findChild(QObject, 'column-2').property('enabled') is False
+        # Genre, year and label show in folder views too, filled from the files' tags.
+        assert window.findChild(QObject, 'column-3').property('enabled') is True
+        qml('columnMenu.close()')
+        bridge.table.update_rows([row('a', 'A track title that pushes the last column offscreen ' * 8)])
+        settle()
+
         # TableView reports -1 for unloaded columns, including visible ones outside the viewport.
         def rendered_width(slot):
             qml(f'table.positionViewAtColumn({slot}, TableView.Contain)')
@@ -1861,33 +1886,14 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
         assert rendered_width(9) == qml('contentWidth(9)') > 40
         qml('table.positionViewAtColumn(0, TableView.AlignLeft)')
         settle()
-        short_title_width = qml('contentWidth(2)')
-        bridge.table.update_rows([row('a', 'A track title that pushes the last column offscreen ' * 8)])
-        assert qml('contentWidth(2)') > short_title_width
-        settle()
-        edge = qml('header.mapToItem(null, table.columnWidth(0) + table.columnWidth(1) - 3, 16)').toPoint()
-        QTest.mouseDClick(window, Qt.LeftButton, pos=edge)
-        settle()
-        assert qml('table.columnWidth(1)') == qml('contentWidth(1)') != 222
-        assert bridge.table.sort_column == -1
-        middle = qml('header.mapToItem(null, table.columnWidth(0) + 40, 16)').toPoint()
-        QTest.mouseClick(window, Qt.RightButton, pos=middle)
-        settle()
-        assert qml('columnMenu.visible') is True and qml('columnMenu.column') == 1
-        stores = window.findChild(QObject, 'column-9')
-        assert stores.property('text') == 'Sklepy' and stores.property('checked') is True
-        assert window.findChild(QObject, 'column-2').property('enabled') is False
-        # Genre, year and label show in folder views too, filled from the files' tags.
-        assert window.findChild(QObject, 'column-3').property('enabled') is True
-        qml('columnMenu.close()')
         qml('toggleColumn(9)')
         # Unloaded (zero-width) columns report -1 from TableView.
         assert qml('table.columnWidth(9)') <= 0 and stores.property('checked') is False
         assert window.property('hiddenColumns').toVariant() == [10, 11, 9]
         qml('toggleColumn(9); resetColumnWidths()')
         assert stores.property('checked') is True
-        assert rendered_width(9) == qml('contentWidth(9)')
         assert rendered_width(1) == qml('contentWidth(1)')
+        assert rendered_width(9) == qml('contentWidth(9)')
         # A narrower width saved by an older version never cuts statuses or times short.
         qml('table.setColumnWidth(0, 60); table.setColumnWidth(8, 40); table.forceLayout()')
         assert rendered_width(8) == 70
