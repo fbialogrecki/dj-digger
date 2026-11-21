@@ -29,11 +29,12 @@ starts during shutdown, before asyncio can wait on an uninterruptible thread.
 
 ## UI ownership
 
-`gui/backend.py` orchestrates desktop services and holds the view state (rows,
-filters, sort, selection); `gui/bridge.py` owns the Qt signal boundary;
-`gui/model.py` owns the table model; `gui/qml/Main.qml` owns rendering and input.
-None of these does blocking network or disk work on the UI thread; results are
-delivered back to it. Network/disk effects belong to services.
+`gui/backend.py` orchestrates desktop services and sends view snapshots and
+row updates through the Qt signal boundary in `gui/bridge.py`. `gui/model.py` owns the
+table rows, filtering, sorting and selection by track key. `gui/qml/Main.qml`
+owns rendering and input, including the filter controls that drive the model.
+Blocking network and disk work runs off the UI thread. The bridge applies
+results on the UI thread.
 
 - `player.py` owns the engine; `services/playback.py` owns prepared streams
   independently of row objects.
@@ -49,8 +50,11 @@ session generation changes when a playlist is deleted, so a completed old task
 cannot write into a new playlist with the same source.
 
 `crate_models.py` keeps crate values and serialization independent of SQLite.
-`LibraryService` owns listing, loading, reset/deletion and reconciliation. Sidebar
-reads use request/view generations so an old load cannot replace a newer choice.
+`LibraryService` owns listing, loading, reset/deletion and reconciliation. The
+sidebar uses crate headers and request/view generations so an old load cannot
+replace a newer choice. Local playlist loads batch metadata and analysis reads via
+`Database.media_many()`. The folder view opens from the media index and updates
+its rows after probing files without a stored duration.
 
 SQLite has one owning thread and explicit short transactions. Repositories read
 current records when applying metadata, removal and refresh changes; no network,
@@ -58,19 +62,23 @@ browser or dialog occurs inside a transaction. Status and file provenance commit
 together, and status mirrors change after commit. The scanner writes batches;
 missing-file observations compare a per-key revision before clearing provenance,
 so a stale scan cannot erase a completed transfer or later manual decision.
-Rendering reads the mirrors rather than issuing a query per row.
+Rendering reads the mirrors to avoid queries per row.
 
-`schema.py` recognizes existing schema read-only. It registers the unchanged 1.0
-schema as version 1 only after a private, integrity-checked SQLite API backup
-(including WAL), then rechecks under `BEGIN IMMEDIATE`. Unknown/older/newer shapes
-fail without repair. Reopening version 1 creates no new backup. Backups are
-retained; restoration is a user decision.
+`schema.py` checks existing schemas read-only and rechecks under
+`BEGIN IMMEDIATE`. The current schema is version 4. Upgrades from versions
+0 and 1 take a private, integrity-checked SQLite API backup from a separate
+committed reader, including committed WAL data. Later upgrades add tables in
+the same transaction.
+Unsupported shapes fail without repair. Reopening the current version needs no
+new backup. Backups are retained for manual restoration.
 
 HTTP, browser-extension downloads and local copies share validated temporary-file publication and
 a filename lock. Publication and SQLite are separate effects:
 `PublishedFileUnrecorded` identifies a completed file whose status write failed.
 The file remains, transfer retry is forbidden, and other completed batch files
-are still settled. There is no durable job journal or process-crash resumption.
+are still settled. Download batches have no durable queue. Audio exports in copy
+mode persist the plan and per-file checkpoints in SQLite, so an interrupted
+export can verify existing outputs and resume after restart.
 
 `DownloadWorkflow` owns the single/batch shared attempt, HTTP pool, browser pass
 and approved prerequisite retries. It receives copied tracks, a `DownloadRequest`,
@@ -89,9 +97,9 @@ in-flight profile save; old dialogs retain their originating cancellation event.
   transfers have separate sessions; parallel gates have separate cookie jars.
 - `gates/hubs.py`, `providers.py`, `browser.py`: inspection, HTTP protocols,
   Hypeddit browser completion. `gate_models.py` contains shared typed outcomes.
-- `stores/bandcamp.py`: recorded selectors and adapter behavior.
-  `services/purchases.py`: batch flow and Soundiiz handoff. Pure store models,
-  URL rules, matching and parsing retain their existing modules.
+- `stores/bandcamp.py` and `stores/beatport.py`: store-specific selectors,
+  cart actions and verification through the browser extension.
+  `services/purchases.py` coordinates the batch, manual fallback and Soundiiz handoff.
 - `http.py`: URL/redirect rules; `browser.py`: OS handoff; `clipboard.py`:
   clipboard processes; `private_json.py`: private JSON publication.
 - `diagnostics.py`: bounded external messages and credential/URL redaction.

@@ -1,3 +1,11 @@
+# Navigating the local Graphify graph
+
+The 2026-11-20 refresh covers the working tree based on `7362077`, including uncommitted documentation and screenshot changes. The generated files live in the Git-ignored `graphify-out/` directory. Open `graph.html` locally to explore communities, or read `graph.json` to follow individual nodes and edges. `GRAPH_REPORT.md` records the corpus and extraction scope, and `GRAPH_HEALTH.md` records extraction limitations.
+
+For the user-facing workflow, start at `README.md` and follow its links to `docs/workflows.md` and the two desktop screenshots. The installation guide covers released builds. The workflow guide covers the desktop and browser commands on main. Check a local graph’s build commit before using it to navigate another checkout.
+
+The entries below record earlier builds. Their counts, interface descriptions and command examples refer to the dates shown.
+
 # Desktop usability correction — 2026-09-09
 
 `graphify update .` re-extracted the eight changed GUI/test files: 3,723 nodes,

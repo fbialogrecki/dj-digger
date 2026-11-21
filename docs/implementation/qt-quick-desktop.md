@@ -1,20 +1,37 @@
 # Qt Quick desktop and Windows packaging
 
-Implementation branch: `feat/qt-quick-windows`, based on `9d86d56`.
-This record describes implementation and acceptance status; it is not a release
-announcement or a claim that an installer has passed Windows acceptance.
-
 ## Run from the checkout
 
 ```bash
-uv run --extra gui --extra play --extra analyze dj-digger-gui
+uv run --extra gui --extra analyze dj-digger-gui
 ```
 
-Source execution needs FFmpeg/ffprobe on PATH. GUI is optional; CLI/TUI retain
-existing commands and configuration/data locations. `gui.json` stores only GUI
-presentation preferences. The desktop uses QML and a Python backend, without
-Qt WebEngine. Playwright's separate Chromium is started on demand by account,
-store and download-gate flows, so those operations still carry browser RAM cost.
+Source execution needs FFmpeg and ffprobe on PATH. The desktop uses QML and a
+Python backend. SoundCloud login, store carts and download-gate automation use
+the dj-digger extension in your browser. See the [installation guide](../installation.md#connect-your-browser).
+
+## Build desktop previews
+
+Use Windows x64 for the EXE or a matching macOS 15+ machine for the DMG. Install
+FFmpeg with Homebrew on the Mac build machine. The desktop CI workflow uses
+these commands.
+
+```powershell
+uv run --frozen --extra gui --extra analyze --group desktop-build --python 3.12 python packaging/windows/build.py
+```
+
+```bash
+uv run --frozen --extra gui --extra analyze --group desktop-build --python 3.12 python packaging/macos/build.py
+```
+
+Build outputs are in `dist/installer/`. See the [desktop workflow](../../.github/workflows/desktop.yml)
+for the bundled runtime and installer checks.
+
+## Implementation history
+
+The record below starts with branch `feat/qt-quick-windows` based on `9d86d56`.
+Its original build commands, TUI references and managed Chromium describe earlier
+versions. The benchmark entry dated 2026-11-18 records a later checkout.
 
 ## Implementation coverage
 

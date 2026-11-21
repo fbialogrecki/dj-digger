@@ -31,6 +31,9 @@ Record the previous Hosting version before deployment. If a production check
 fails, use the prior version's rollback action in the Firebase Hosting release
 history. The deploy message records the main SHA and public application version.
 
+The project default in `.firebaserc` is `dj-digger-a9664`. The Linux
+installation guide uses the generated [install script](https://djdigger.app/install.sh).
+
 ## Local verification
 
 From the repository root:
@@ -41,6 +44,9 @@ cd site
 npm ci
 npm run build
 ```
+
+The build checks the versions listed in `site/src/i18n/pages.mjs`, including
+section IDs, images, copyable code, language tags and localized links.
 
 Leave GA4_MEASUREMENT_ID unset for a preview without measurement. To exercise
 consent in a test browser, use a test ID and intercept Google requests. The
