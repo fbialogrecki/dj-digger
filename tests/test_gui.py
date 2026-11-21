@@ -1273,6 +1273,8 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
     (home / 'hidden-from-folder-tree.wav').write_bytes(b'')
     engine = QQmlApplicationEngine()
     bridge = Bridge(engine, backend_factory=PassiveBackend, home_path=home)
+    loaded = set()
+    bridge._directories.directoryLoaded.connect(lambda path: loaded.add(Path(path)))
     engine.rootContext().setContextProperty('desktop', bridge)
     engine.rootContext().setContextProperty('systemLanguage', 'en')
     engine.load(QUrl.fromLocalFile(str(Path('dj_digger/gui/qml/Main.qml').resolve())))
@@ -1362,6 +1364,7 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
         QTest.mouseClick(window, Qt.LeftButton, pos=point)
         assert any(call[0] == 'folder' and Path(call[1]['path']) == home / 'Music' and call[1]['offset'] == 0
                    for call in bridge.backend.calls)
+        only_audio = home / 'Music' / 'Only audio'
         expand = find_item(scene, 'expand-music')
         deadline = time.monotonic() + 5
         while not expand.isEnabled() and time.monotonic() < deadline:
@@ -1381,34 +1384,38 @@ def test_qml_folder_roots_leaves_and_one_sided_waveform(app, tmp_path, monkeypat
         leaf = find_item(tree, folder_row('Only audio'))
         assert leaf is not None and not leaf.property('hasChildren')
         assert not leaf.property('indicator').isVisible()
-        # A folder arriving with music in it shows up; an empty one never does.
-        (home / 'Music' / 'Only audio' / 'Empty').mkdir()
-        # One change at a time: Windows can fold two quick changes into one notification,
-        # and Qt may read the folder between them.
-        empty = bridge._directories.index(str(home / 'Music' / 'Only audio' / 'Empty'))
+        # Wait for the native model to enumerate the leaf and start watching it.
         deadline = time.monotonic() + 10
-        while not empty.isValid() and time.monotonic() < deadline:
+        while only_audio not in loaded and time.monotonic() < deadline:
             QTest.qWait(10)
-            empty = bridge._directories.index(str(home / 'Music' / 'Only audio' / 'Empty'))
-        assert empty.isValid() and not bridge.directoryHasChildren(str(home / 'Music' / 'Only audio'))
-        QTest.qWait(500)  # Let that change's notification and re-read finish before the next one.
+        assert only_audio in loaded
+
+        # Move a populated directory in and back out. Each move is one change to the
+        # watched parent, and the test waits for automatic detection before the next move.
         staged = tmp_path / 'New folder'
         staged.mkdir()
         (staged / 'new.flac').write_bytes(b'')
-        child = staged.rename(home / 'Music' / 'Only audio' / 'New folder')
-        # Asked of the model: filtering can rebuild the tree's delegates while this waits.
-        only_audio = str(home / 'Music' / 'Only audio')
+        child = staged.rename(only_audio / staged.name)
         deadline = time.monotonic() + 10
-        while not bridge.directoryHasChildren(only_audio) and time.monotonic() < deadline:
+        while not bridge.directoryHasChildren(str(only_audio)) and time.monotonic() < deadline:
             QTest.qWait(10)
-        assert bridge.directoryHasChildren(only_audio)
-        (home / 'Music' / 'Only audio' / 'Empty').rmdir()
-        (child / 'new.flac').unlink()
-        child.rmdir()
-        deadline = time.monotonic() + 5
-        while bridge.directoryHasChildren(only_audio) and time.monotonic() < deadline:
+        assert bridge.directoryHasChildren(str(only_audio))
+        child.rename(staged)
+        deadline = time.monotonic() + 10
+        while bridge.directoryHasChildren(str(only_audio)) and time.monotonic() < deadline:
             QTest.qWait(10)
-        assert not bridge.directoryHasChildren(only_audio)
+        assert not bridge.directoryHasChildren(str(only_audio))
+
+        # The native model must see an empty child while the music filter excludes it.
+        from dj_digger.gui.directories import NONE
+
+        empty = only_audio / 'Empty'
+        empty.mkdir()
+        deadline = time.monotonic() + 10
+        while bridge._folders.music(str(empty)) != NONE and time.monotonic() < deadline:
+            QTest.qWait(10)
+        assert bridge._folders.music(str(empty)) == NONE
+        assert not bridge.directoryHasChildren(str(only_audio))
         painted = QSignalSpy(window.frameSwapped)
         window.update()
         assert painted.wait(3000)  # Use the settled delegate geometry for the next click.
@@ -1844,12 +1851,18 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
         settle()
         qml('table.setColumnWidth(1, 222); table.forceLayout()')
         assert qml('table.columnWidth(1)') == 222
-        window.setWidth(1400)
-        settle()
+        # TableView reports -1 for unloaded columns, including visible ones outside the viewport.
+        def rendered_width(slot):
+            qml(f'table.positionViewAtColumn({slot}, TableView.Contain)')
+            settle()
+            return qml(f'table.columnWidth({slot})')
+
         qml('fitColumn(9)')
-        assert qml('table.columnWidth(9)') == qml('contentWidth(9)') > 40
+        assert rendered_width(9) == qml('contentWidth(9)') > 40
+        qml('table.positionViewAtColumn(0, TableView.AlignLeft)')
+        settle()
         short_title_width = qml('contentWidth(2)')
-        bridge.table.update_rows([row('a', 'A much longer track title that needs a wider column')])
+        bridge.table.update_rows([row('a', 'A track title that pushes the last column offscreen ' * 8)])
         assert qml('contentWidth(2)') > short_title_width
         settle()
         edge = qml('header.mapToItem(null, table.columnWidth(0) + table.columnWidth(1) - 3, 16)').toPoint()
@@ -1872,12 +1885,18 @@ def test_qml_compact_controls_play_target_and_error_banner(app, tmp_path, monkey
         assert qml('table.columnWidth(9)') <= 0 and stores.property('checked') is False
         assert window.property('hiddenColumns').toVariant() == [10, 11, 9]
         qml('toggleColumn(9); resetColumnWidths()')
-        assert qml('table.columnWidth(9)') == qml('contentWidth(9)') and qml('table.columnWidth(1)') == qml('contentWidth(1)')
+        assert stores.property('checked') is True
+        assert rendered_width(9) == qml('contentWidth(9)')
+        assert rendered_width(1) == qml('contentWidth(1)')
         # A narrower width saved by an older version never cuts statuses or times short.
         qml('table.setColumnWidth(0, 60); table.setColumnWidth(8, 40); table.forceLayout()')
-        assert qml('table.columnWidth(0)') == 104 and qml('table.columnWidth(8)') == 70
+        assert rendered_width(8) == 70
+        assert rendered_width(0) == 104
         qml('resetColumnWidths()')
         assert window.property('hiddenColumns').toVariant() == [10, 11]
+        # Use a short title again so the first three delegates fit after reordering.
+        bridge.table.update_rows([row('a', 'Alpha')])
+        settle()
         # Columns can be reordered; the order is tracked for persistence and can be reset.
         qml('table.moveColumn(0, 2)')
         settle()
