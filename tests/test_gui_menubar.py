@@ -118,10 +118,12 @@ def test_reveal_opens_the_data_and_log_folders(app, monkeypatch, tmp_path):
 
 def test_qml_menu_bar(app, tmp_path, monkeypatch):
     import shiboken6
-    from PySide6.QtCore import QUrl
+    from PySide6.QtCore import QPointF, Qt, QUrl
+    from PySide6.QtGui import QAccessible
     from PySide6.QtQml import QQmlApplicationEngine, QQmlEngine, QQmlExpression
-    from PySide6.QtTest import QSignalSpy
+    from PySide6.QtTest import QSignalSpy, QTest
 
+    from dj_digger import __version__
     from dj_digger.gui.bridge import Bridge
 
     class PassiveBackend:
@@ -260,6 +262,32 @@ def test_qml_menu_bar(app, tmp_path, monkeypatch):
         assert texts('recentMenu')[:2] == ['House', 'Peak time']
         bridge.receive('sidebar', {'items': []})
         assert [e['kind'] for e in window.property('recentEntries').toVariant()] == ['folder']
+        footer = find(window.contentItem(), 'statusBar')
+        version = find(footer, 'statusVersion')
+        update = find(footer, 'statusUpdate')
+        message = find(footer, 'statusMessage')
+        assert version.property('text') == __version__ and not update.isVisible()
+        bridge.receive('updateAvailable', {'version': '2.0.0'})
+        assert update.isVisible()
+        assert QAccessible.queryAccessibleInterface(update).text(QAccessible.Text.Name) == 'Desktop update available · 2.0.0'
+        assert update.focusPolicy() == Qt.StrongFocus
+        bridge.receive('importProgress', {'stage': 'Collecting' * 30, 'done': 1, 'total': 2})
+        bridge.receive('busy', {'value': True, 'text': ''})
+        for width in (1200, window.minimumWidth()):
+            window.setWidth(width)
+            settle()
+            edge = version.mapToScene(QPointF(version.width(), 0)).x()
+            assert 0 < window.width() - edge <= 12
+            assert message.mapToScene(QPointF(message.width(), 0)).x() < update.mapToScene(QPointF()).x()
+        point = update.mapToScene(QPointF(update.width() / 2, update.height() / 2)).toPoint()
+        QTest.mouseClick(window, Qt.LeftButton, pos=point)
+        assert bridge.backend.calls[-1] == ('updates',)
+        update.forceActiveFocus(Qt.TabFocusReason)
+        before = len(bridge.backend.calls)
+        QTest.keyClick(window, Qt.Key_Return)
+        assert bridge.backend.calls[before:] == [('updates',)]
+        bridge.receive('updateAvailable', {'version': ''})
+        assert not update.isVisible()
         assert not [w for w in warnings if 'Main.qml' in w], warnings
     finally:
         shiboken6.delete(engine)
@@ -309,3 +337,55 @@ def test_daily_checks_respect_opt_out_and_timestamp(backend, monkeypatch):
     config.last_update_check -= 86401
     scheduled()
     assert len(calls) == 2
+
+
+@pytest.mark.parametrize(('saved', 'visible'), [('2.0.0', '2.0.0'), ('1.2.3', ''), ('2.0.0-rc.1', '')])
+def test_footer_restores_only_newer_stable_version(monkeypatch, tmp_path, request, saved, visible):
+    import dj_digger
+    from dj_digger.config import AppConfig
+
+    monkeypatch.setattr(dj_digger, '__version__', '1.2.3')
+    config = AppConfig(tmp_path / 'config.json')
+    config.available_update_version = saved
+    config.save()
+    _, events = request.getfixturevalue('backend')
+    assert wait_event(events, 'updateAvailable') == {'version': visible}
+
+
+def test_footer_rechecks_latest_and_preserves_advertised_version_offline(backend, monkeypatch, tmp_path):
+    from dj_digger.config import AppConfig
+    from dj_digger.gui import updates
+
+    worker, events = backend
+    assert wait_event(events, 'updateAvailable') == {'version': ''}
+    calls = []
+    def latest(installed):
+        calls.append(installed)
+        return ('2.0.0', [])
+    monkeypatch.setattr(updates, 'latest', latest)
+    monkeypatch.setattr(updates, 'target', lambda version: ('manual', 'fixture'))
+    worker.submit('updates', {'automatic': True})
+    assert wait_event(events, 'updateAvailable') == {'version': '2.0.0'}
+    question = wait_event(events, 'question')
+    assert question['title'] == 'Desktop update available'
+    worker.answer(question['id'], None)
+    wait_event(events, 'dismiss')
+    assert AppConfig(tmp_path / 'config.json').available_update_version == '2.0.0'
+    worker.submit('updates')
+    assert wait_event(events, 'updateAvailable') == {'version': '2.0.0'}
+    question = wait_event(events, 'question')
+    assert len(calls) == 2
+    worker.answer(question['id'], None)
+    wait_event(events, 'dismiss')
+
+    def offline(installed):
+        raise OSError('Release service offline')
+    monkeypatch.setattr(updates, 'latest', offline)
+    worker.submit('updates')
+    assert next_of(events, 'error')[1]['text'] == 'Release service offline'
+    assert AppConfig(tmp_path / 'config.json').available_update_version == '2.0.0'
+    monkeypatch.setattr(updates, 'latest', lambda installed: None)
+    worker.submit('updates')
+    assert wait_event(events, 'updateAvailable') == {'version': ''}
+    assert wait_event(events, 'message')['text'] == 'You have the latest desktop version'
+    assert AppConfig(tmp_path / 'config.json').available_update_version == ''

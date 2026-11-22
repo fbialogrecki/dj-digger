@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.7.0 — 2026-11-23
+
+### Added
+
+- Create a local playlist from a selection of SoundCloud tracks and files. Drag tracks or use **Send to** to add them to saved playlists. For playlists you own on SoundCloud, choose automatic sync, a prompt each time, or local additions. Create a private or public SoundCloud playlist from eligible tracks through the connected browser.
+- Import Daily Drops and Weekly Wave as dated snapshots. Importing the same mix on the same day opens the saved copy. Use **Find in** to search for a selected track by artist and title, or open its known SoundCloud permalink.
+- **Help → Check for updates** checks for stable desktop releases. The status bar shows the installed version and offers an update button when a newer release is available. Windows and macOS open verified installers. Supported Linux uv installations can update and reopen from the app.
+- Choose **Auto**, WAV, AIFF, FLAC or 320 kb/s MP3 when exporting for decks. Review playback compatibility and conversions before writing. Creating a copy from incompatible MP3 or AAC, or encoding a lossless source as MP3, requires **Copy** mode.
+
+### Changed
+
+- Track columns fit filtered values, including offscreen rows. Manual widths persist across column moves and restarts. Dragging a header previews the new order before committing it.
+- Local folders reuse indexed metadata and show tags as they arrive. Switching views cancels the earlier folder probe. Local playback, artwork and waveform generation reuse valid metadata. Marking tracks and undoing a mark update the affected rows without disturbing unrelated download progress.
+- Audio exports to a new folder save per-file checkpoints. Resume verifies earlier copies and preserves files that conflict with the plan. The final report includes completed copies from earlier attempts. Existing libraries upgrade to SQLite schema 5 with a backup.
+
+### Fixed
+
+- A partial SoundCloud import or a limited collection no longer replaces a complete saved playlist. A later manual file or status decision takes precedence over stale scan results.
+- SoundCloud sign-out reports keyring or file cleanup errors and tells you when an environment token is still active.
+- Downloads avoid overwriting existing files and keep the browser copy until the desktop publishes a validated file. CSV export preserves the previous file when writing fails.
+
+### Website
+
+- [djdigger.app](https://djdigger.app/) offers localized desktop and extension tours, downloads, DJ guides and a [browsable architecture graph](https://djdigger.app/graph/).
+
+### Browser extension 1.4.5
+
+- The extension has its own version. Its panel can open or restore the desktop after it has been registered once. Import from supported SoundCloud playlist headers, tiles or the panel, including Daily Drops and Weekly Wave. The panel also offers to import all playlists created by the profile you are viewing. Creating or appending to SoundCloud playlists uses the signed-in browser and requires an eligible destination.
+
 ## 1.6.0 — 2026-11-18
 
 ### Changed

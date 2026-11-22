@@ -48,6 +48,7 @@ PERSISTED_FIELDS = (
     "playlist_sync",
     "check_updates",
     "last_update_check",
+    "available_update_version",
 )
 # What a Bandcamp "name your price" item goes into the cart at: its minimum, or the price the
 # artist suggests (owner's decision 2026-10-07: minimum unless changed in Settings).
@@ -108,6 +109,7 @@ class AppConfig:
         self.playlist_sync = ""  # No choice yet: prompt before the first SoundCloud addition.
         self.check_updates = True
         self.last_update_check = 0
+        self.available_update_version = ""
         # The desktop's Welcome steps were finished or skipped; they are not shown again.
         self.onboarded: bool = False
         self.load()
@@ -155,6 +157,8 @@ class AppConfig:
                 self.check_updates = raw.get("check_updates") is not False
                 if type(raw.get("last_update_check")) is int:
                     self.last_update_check = raw["last_update_check"]
+                if isinstance(raw.get("available_update_version"), str):
+                    self.available_update_version = raw["available_update_version"]
                 self.onboarded = raw.get("onboarded") is True
         except FileNotFoundError:
             self.first_run = True

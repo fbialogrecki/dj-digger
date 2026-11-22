@@ -19,6 +19,7 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import QGuiApplication
 
+from .. import __version__
 from ..paths import config_dir
 from ..private_json import write_private_json
 from .backend import Backend
@@ -61,6 +62,7 @@ class Bridge(QObject):
     importChanged = Signal()
     rootsChanged = Signal()
     accountChanged = Signal()
+    updateVersionChanged = Signal()
     presentationChanged = Signal('QVariantMap')
     question = Signal('QVariantMap')
     dismiss = Signal(str)
@@ -98,6 +100,7 @@ class Bridge(QObject):
         self._kicks = {}
         self._import = {}
         self._account = {}
+        self._update_version = ''
         self._busy = False
         self._message = ''
         self._busy_message = ''
@@ -111,6 +114,8 @@ class Bridge(QObject):
         self.backend = backend_factory(self.event.emit)
         self.backend.submit('start')
 
+    version = Property(str, lambda self: __version__, constant=True)
+    updateVersion = Property(str, lambda self: self._update_version, notify=updateVersionChanged)
     model = Property(QObject, lambda self: self.table, constant=True)
     view = Property('QVariantMap', lambda self: self._view, notify=changed)
     playlists = Property('QVariantList', lambda self: self._sidebar, notify=playlistsChanged)
@@ -234,6 +239,11 @@ class Bridge(QObject):
             self._import = dict(values, stage=self.tr(values['stage'])) if values else {}
             self.importChanged.emit()
             return
+        elif kind == 'updateAvailable':
+            if values['version'] != self._update_version:
+                self._update_version = values['version']
+                self.updateVersionChanged.emit()
+            return
         elif kind == 'account':
             if values != self._account:
                 self._account = values
@@ -337,6 +347,10 @@ class Bridge(QObject):
             keys = [row['key'] for row in self.table.visible]
         self.backend.submit(name, dict(keys=keys, order=[r['key'] for r in self.table.visible], selected=selected, search=self.table.search,
                                        statuses=sorted(self.table.statuses), stores=sorted(self.table.store_filter), generation=self._view['generation']))
+
+    @Slot()
+    def checkForUpdates(self):
+        self.backend.submit('updates')
 
     @Slot('QVariantMap')
     def preferences(self, values):

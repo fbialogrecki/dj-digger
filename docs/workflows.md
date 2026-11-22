@@ -2,11 +2,11 @@
 
 ## Import and organize playlists
 
-Press `A` in the desktop app to import a SoundCloud link. In the 1.6.0 installer the command is **Add playlist…**. In this checkout it is **Import playlist from link…**. Opening a profile this way collects that artist’s uploaded tracks. Choose **Import profile playlists…** to collect the sets they created. You can import public sets without signing in. To include your private sets, sign in as their owner.
+Press `A` in the desktop app to import a SoundCloud link. The command is **Import playlist from link…** in 1.7.0 and **Add playlist…** in 1.6.0. Opening a profile this way collects that artist’s uploaded tracks. Choose **Import profile playlists…** to collect the sets they created. You can import public sets without signing in. To include your private sets, sign in as their owner.
 
 During import, tracks appear in playlist order. The playlist is saved when collection succeeds. Refresh a saved SoundCloud playlist to bring new tracks to the top with a **NEW** marker. A refresh preserves your decisions and the tracks you removed locally.
 
-The source checkout also supports these playlist workflows:
+dj-digger 1.7.0 supports these playlist workflows:
 
 - **Keep a recommendation mix.** Import Daily Drops or Weekly Wave from its SoundCloud page or paste its playlist link. Reopening the same day’s import returns that copy. Importing on a different day creates another dated entry.
 - **Save a shortlist.** Select tracks in the table, right-click and choose **Send to → Create playlist from selection…**. A local playlist keeps the selected order and accepts both SoundCloud tracks and files. Drag a selection onto an editable playlist, or choose it under **Send to**, to append tracks. Existing entries are skipped.
@@ -27,7 +27,7 @@ Double-click a row or press `Enter` to play the selected track. When a local fil
 
 Use the search field, store filters and status filter to narrow the table. A right-click or **More actions** opens commands for the selection. Bulk commands under **Tracks** show how many visible tracks they cover. **Help → Keyboard shortcuts** lists the controls for the running version.
 
-In the source checkout, columns fit the filtered tracks, including rows outside the viewport. Drag a divider to keep a custom width across moves and restarts. Choose **Reset column widths** in the header menu to restore automatic sizing.
+Columns fit the filtered tracks, including rows outside the viewport. Drag a divider to keep a custom width across moves and restarts. Choose **Reset column widths** in the header menu to restore automatic sizing.
 
 ## Downloads and gates
 
@@ -72,7 +72,7 @@ Open a folder to browse its files. Names appear first and audio tags fill in aft
 To prepare files for a gig:
 
 1. Select local files and choose **Export audio…**. For a whole local playlist, use its sidebar menu. From a folder with no selection, the export can include files beyond the current page. Choose **Include subfolders** if needed.
-2. Choose your decks and a destination, leaving **Copy** selected to preserve the originals. The **Auto** format picks FLAC when all selected decks support it and WAV otherwise. The source checkout also offers WAV, AIFF, FLAC or 320 kb/s MP3 for lossless source files. Creating a playback copy from incompatible MP3 or AAC, or encoding lossless audio as MP3, requires **Copy** mode.
+2. Choose your decks and a destination, leaving **Copy** selected to preserve the originals. The **Auto** format picks FLAC when all selected decks support it and WAV otherwise. You can also choose WAV, AIFF, FLAC or 320 kb/s MP3 for lossless source files. Creating a playback copy from incompatible MP3 or AAC, or encoding lossless audio as MP3, requires **Copy** mode.
 3. Review the planned copies, conversions, exceptions and drive warnings before executing. The compatibility rules come from player manuals. A copied folder contains audio files. To create a rekordbox library on a USB device, import those files into rekordbox and use its export workflow. [SoundCloud to rekordbox guide](https://djdigger.app/guides/soundcloud-to-rekordbox/)
 4. If a copy is interrupted, make sure the destination folder is available and choose **Library → Resume interrupted export…**. The app verifies previously written files and reports conflicts with any files that have changed. The report includes copies completed on earlier attempts.
 

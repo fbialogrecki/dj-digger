@@ -798,7 +798,7 @@ ApplicationWindow {
             AppSeparator {}
             Action { text: qsTr("Open data folder"); property string tip: qsTr("The library database and import reports"); onTriggered: desktop.revealFolder("data") }
             Action { text: qsTr("Open log folder"); property string tip: qsTr("Attach the log to a bug report"); onTriggered: desktop.revealFolder("logs") }
-            Action { text: qsTr("Check for updates"); property string tip: qsTr("Check for a newer stable desktop version"); onTriggered: desktop.action("updates") }
+            Action { text: qsTr("Check for updates"); property string tip: qsTr("Check for a newer stable desktop version"); onTriggered: desktop.checkForUpdates() }
             AppSeparator {}
             Action { text: qsTr("About dj-digger…"); onTriggered: desktop.action("about") }
         }
@@ -2733,6 +2733,25 @@ ApplicationWindow {
                     property bool hovered: messageHover.hovered
                     TapHandler { onTapped: messageLog.open() }
                     Accessible.name: text
+                }
+                FlatButton {
+                    objectName: "statusUpdate"
+                    visible: desktop.updateVersion.length > 0
+                    enabled: desktop.ready && !root.shuttingDown
+                    focusPolicy: Qt.StrongFocus
+                    implicitWidth: 26; implicitHeight: 24
+                    icon.source: "icons/download.svg"; icon.color: enabled ? root.accent : root.disabledFg
+                    text: qsTranslate("Bridge", "Desktop update available") + " · " + desktop.updateVersion
+                    onClicked: desktop.checkForUpdates()
+                    Keys.onReturnPressed: clicked()
+                    Keys.onEnterPressed: clicked()
+                }
+                Label {
+                    objectName: "statusVersion"
+                    text: desktop.version
+                    color: root.muted
+                    font.features: root.tabular
+                    Accessible.name: qsTranslate("Bridge", "Version") + " " + text
                 }
             }
         }

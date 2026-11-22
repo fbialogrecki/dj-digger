@@ -241,7 +241,9 @@ class Backend:
                     self.publish_browser()
                 await self.action_account({})
                 from .. import __version__
-                from .updates import update_result
+                from .updates import newer_stable, update_result
+                available = config.available_update_version
+                self.send('updateAvailable', {'version': available if newer_stable(available, __version__) else ''})
                 if outcome := await self.io(update_result, __version__):
                     self.send(*outcome)
                 self.plan_update_check()
@@ -1417,6 +1419,10 @@ class Backend:
                 raise
             if automatic and not self.services.config.check_updates:
                 return
+            available = release[0] if release else ''
+            if available != self.services.config.available_update_version:
+                await self.io(self.services.accounts.save_preferences, {'available_update_version': available})
+            self.send('updateAvailable', {'version': available})
             if not release:
                 if not automatic:
                     self.send('message', {'text': 'You have the latest desktop version'})

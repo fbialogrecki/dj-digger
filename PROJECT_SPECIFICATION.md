@@ -5,9 +5,9 @@
 | **Status** | Accepted — describes shipped behavior |
 | **Version** | 1.2.0 |
 | **Owner** | Filip Białogrecki |
-| **Last updated** | 2026-11-21 |
-| **Product version** | 1.6.0 (`pyproject.toml`); browser extension 1.4.5 (`dj_digger/webext/extension/manifest.json`) |
-| **Document lines** | <!-- SPEC TOTAL LINES -->2916<!-- END SPEC TOTAL LINES --> |
+| **Last updated** | 2026-11-23 |
+| **Product version** | 1.7.0 (`pyproject.toml`); browser extension 1.4.5 (`dj_digger/webext/extension/manifest.json`) |
+| **Document lines** | <!-- SPEC TOTAL LINES -->2923<!-- END SPEC TOTAL LINES --> |
 | **Verified against** | `pyproject.toml`, `dj_digger/`, `dj_digger/webext/extension/manifest.json`, `scripts/`, `tests/`, `.github/workflows/`, `README.md`, `CHANGELOG.md` |
 
 ## Purpose of this file
@@ -54,7 +54,7 @@ text is never promoted into the map.
 | 2 | Product purpose and execution modes | 162–209 |
 | 2.1 | ↳ Problem and product boundary | 164–177 |
 | 2.2 | ↳ Execution modes | 178–209 |
-| 3 | User-visible capabilities | 210–1283 |
+| 3 | User-visible capabilities | 210–1290 |
 | 3.1 | ↳ Track collection | 212–244 |
 | 3.2 | ↳ Link classification and exports | 245–263 |
 | 3.3 | ↳ Track statuses | 264–274 |
@@ -62,58 +62,58 @@ text is never promoted into the map.
 | 3.5 | ↳ Downloads and local-file matching | 448–509 |
 | 3.6 | ↳ Store purchase assistance | 510–633 |
 | 3.7 | ↳ Local library, analysis and audio export | 634–841 |
-| 3.8 | ↳ Qt Quick desktop | 842–1283 |
-| 4 | System context and data flow | 1284–1330 |
-| 4.1 | ↳ Context diagram | 1286–1312 |
-| 4.2 | ↳ Collection-to-library flow | 1313–1330 |
-| 5 | Repository layout and component ownership | 1331–1420 |
-| 5.1 | ↳ Entry, orchestration, and models | 1333–1344 |
-| 5.2 | ↳ Network and external-system adapters | 1345–1377 |
-| 5.3 | ↳ Persistence, local media, and UI | 1378–1420 |
-| 6 | Runtime architecture and environments | 1421–1566 |
-| 6.1 | ↳ Runtime and dependencies | 1423–1451 |
-| 6.2 | ↳ Concurrency and lifecycle | 1452–1529 |
-| 6.3 | ↳ Local paths and environment variables | 1530–1566 |
-| 7 | Data model and persistence | 1567–1706 |
-| 7.1 | ↳ Domain objects and identity | 1569–1583 |
-| 7.2 | ↳ SQLite schema and invariants | 1584–1647 |
-| 7.3 | ↳ Crate persistence and deletion | 1648–1670 |
-| 7.4 | ↳ Configuration and credential stores | 1671–1706 |
-| 8 | Public interfaces and contracts | 1707–1772 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1709–1740 |
-| 8.2 | ↳ JSON and CSV summary input | 1741–1758 |
-| 8.3 | ↳ URL-opening contract | 1759–1772 |
-| 9 | Authentication and authorization | 1773–1851 |
-| 9.1 | ↳ SoundCloud authentication | 1775–1816 |
-| 9.2 | ↳ Gate action consent | 1817–1851 |
-| 10 | External integrations | 1852–2303 |
-| 10.1 | ↳ SoundCloud API and media | 1854–1865 |
-| 10.2 | ↳ Link hubs and download gates | 1866–2012 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1874–1969 |
-| 10.2 · block | ↳ ↳ ToneDen | 1971–1995 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1997–2005 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 2007–2012 |
-| 10.3 | ↳ Browsers and clipboard | 2013–2248 |
-| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 2249–2303 |
-| 11 | Security requirements and threat model | 2304–2523 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2306–2324 |
-| 11.2 | ↳ Secret and personal-data handling | 2325–2340 |
-| 11.3 | ↳ File and mutation safety | 2341–2362 |
-| 11.4 | ↳ Browser-extension trust boundary | 2363–2523 |
-| 12 | Privacy, lifecycle, and retention | 2524–2585 |
-| 12.1 | ↳ Data stored locally | 2526–2550 |
-| 12.2 | ↳ Data sent to third parties | 2551–2568 |
-| 12.3 | ↳ User-controlled deletion | 2569–2585 |
-| 13 | Failure behavior and current limitations | 2586–2701 |
-| 13.1 | ↳ Error isolation and reporting | 2588–2609 |
-| 13.2 | ↳ Confirmed limitations | 2610–2701 |
-| 14 | Verification, CI, and release | 2702–2877 |
-| 14.1 | ↳ Offline and live test suites | 2704–2755 |
-| 14.2 | ↳ Continuous integration and publishing | 2756–2860 |
-| 14.3 | ↳ Specification-map verification | 2861–2877 |
-| 15 | References | 2878–2916 |
-| 15.1 | ↳ Primary implementation evidence | 2880–2901 |
-| 15.2 | ↳ User and historical documentation | 2902–2916 |
+| 3.8 | ↳ Qt Quick desktop | 842–1290 |
+| 4 | System context and data flow | 1291–1337 |
+| 4.1 | ↳ Context diagram | 1293–1319 |
+| 4.2 | ↳ Collection-to-library flow | 1320–1337 |
+| 5 | Repository layout and component ownership | 1338–1427 |
+| 5.1 | ↳ Entry, orchestration, and models | 1340–1351 |
+| 5.2 | ↳ Network and external-system adapters | 1352–1384 |
+| 5.3 | ↳ Persistence, local media, and UI | 1385–1427 |
+| 6 | Runtime architecture and environments | 1428–1573 |
+| 6.1 | ↳ Runtime and dependencies | 1430–1458 |
+| 6.2 | ↳ Concurrency and lifecycle | 1459–1536 |
+| 6.3 | ↳ Local paths and environment variables | 1537–1573 |
+| 7 | Data model and persistence | 1574–1713 |
+| 7.1 | ↳ Domain objects and identity | 1576–1590 |
+| 7.2 | ↳ SQLite schema and invariants | 1591–1654 |
+| 7.3 | ↳ Crate persistence and deletion | 1655–1677 |
+| 7.4 | ↳ Configuration and credential stores | 1678–1713 |
+| 8 | Public interfaces and contracts | 1714–1779 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1716–1747 |
+| 8.2 | ↳ JSON and CSV summary input | 1748–1765 |
+| 8.3 | ↳ URL-opening contract | 1766–1779 |
+| 9 | Authentication and authorization | 1780–1858 |
+| 9.1 | ↳ SoundCloud authentication | 1782–1823 |
+| 9.2 | ↳ Gate action consent | 1824–1858 |
+| 10 | External integrations | 1859–2310 |
+| 10.1 | ↳ SoundCloud API and media | 1861–1872 |
+| 10.2 | ↳ Link hubs and download gates | 1873–2019 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1881–1976 |
+| 10.2 · block | ↳ ↳ ToneDen | 1978–2002 |
+| 10.2 · block | ↳ ↳ Other resolvers | 2004–2012 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 2014–2019 |
+| 10.3 | ↳ Browsers and clipboard | 2020–2255 |
+| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 2256–2310 |
+| 11 | Security requirements and threat model | 2311–2530 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2313–2331 |
+| 11.2 | ↳ Secret and personal-data handling | 2332–2347 |
+| 11.3 | ↳ File and mutation safety | 2348–2369 |
+| 11.4 | ↳ Browser-extension trust boundary | 2370–2530 |
+| 12 | Privacy, lifecycle, and retention | 2531–2592 |
+| 12.1 | ↳ Data stored locally | 2533–2557 |
+| 12.2 | ↳ Data sent to third parties | 2558–2575 |
+| 12.3 | ↳ User-controlled deletion | 2576–2592 |
+| 13 | Failure behavior and current limitations | 2593–2708 |
+| 13.1 | ↳ Error isolation and reporting | 2595–2616 |
+| 13.2 | ↳ Confirmed limitations | 2617–2708 |
+| 14 | Verification, CI, and release | 2709–2884 |
+| 14.1 | ↳ Offline and live test suites | 2711–2762 |
+| 14.2 | ↳ Continuous integration and publishing | 2763–2867 |
+| 14.3 | ↳ Specification-map verification | 2868–2884 |
+| 15 | References | 2885–2923 |
+| 15.1 | ↳ Primary implementation evidence | 2887–2908 |
+| 15.2 | ↳ User and historical documentation | 2909–2923 |
 <!-- END GENERATED SECTION MAP -->
 
 ---
@@ -1053,7 +1053,7 @@ both themes. The player card, search field, toolbar and table share one 8 px rig
 a playlist icon, “Start digging”, a line pointing at the sidebar, Import playlist from link…, Add folder… and Import profile
 playlists… buttons, and the shortcuts beneath. Esc clears the selection, then the search, then every filter. Opening another view (another source or title, not another page or a refresh) clears the search, store, BPM, key and genre filters and keeps the status filter. For a loaded view the quick actions are Download, Mark owned and Skip for remote tracks, and Analyze and Skip for files.
 On narrow layouts these commands move into More actions. A right click, Menu, Shift+F10 and More actions open the same selection menu.
-Mixed selections disable commands that require all files or all SoundCloud tracks. A status bar spans the whole window below the sidebar and the table with visible/total/owned/skipped counts on the left, the busy indicator, a Cancel button during operations and the last message; during a playlist import the message shows the stage with done / total counts beside a progress bar, at most ten updates a second. Import playlist from link asks to paste a link to a SoundCloud playlist and re-opens with an error until the text is a soundcloud.com link. The import is listed at the top of the playlist sidebar at once, with a spinner and the link as its name until SoundCloud reports the title, and cannot be opened from there; the table opens on it and fills batch by batch in playlist order. These provisional rows are not saved: when the import succeeds they are replaced by the saved playlist, and when it fails, is cancelled or finds nothing the view is withdrawn and the sidebar entry disappears. Refresh keeps the current rows until the new ones are saved. Library holds source import, opening recent items, refresh, scanning, export recovery and Quit.
+Mixed selections disable commands that require all files or all SoundCloud tracks. A status bar spans the whole window below the sidebar and the table with visible/total/owned/skipped counts on the left, the busy indicator, a Cancel button during operations, the last message and the installed desktop version at the far right. An update button appears immediately to the left of the version when a newer stable release is available; during a playlist import the message shows the stage with done / total counts beside a progress bar, at most ten updates a second. Import playlist from link asks to paste a link to a SoundCloud playlist and re-opens with an error until the text is a soundcloud.com link. The import is listed at the top of the playlist sidebar at once, with a spinner and the link as its name until SoundCloud reports the title, and cannot be opened from there; the table opens on it and fills batch by batch in playlist order. These provisional rows are not saved: when the import succeeds they are replaced by the saved playlist, and when it fails, is cancelled or finds nothing the view is withdrawn and the sidebar entry disappears. Refresh keeps the current rows until the new ones are saved. Library holds source import, opening recent items, refresh, scanning, export recovery and Quit.
 The playlist sidebar supports Ctrl/Cmd toggling and Shift range selection in visible
 order. Delete lists the chosen saved playlists in one confirmation and removes their
 local records, aliases and memberships atomically. An open view closes only when its
@@ -1068,7 +1068,14 @@ Bulk open, download and cart commands show the number of tracks visible after fi
 Playback holds transport, seeking and volume. View controls sidebar, fullscreen, columns, layout reset and compact rows.
 The desktop checks the public GitHub Releases API for a newer stable version once
 per day unless disabled in Preferences. Help can check on demand. An available
-version asks before installation. A registry-based uv tool installation must match
+version asks before installation. The status bar button exposes “Desktop update
+available” and the target version to keyboard and assistive-technology users. It
+checks the latest stable release on each click before offering an update.
+Preferences keep only the last available version string. Startup shows it only
+if it is a valid stable version newer than the installed version. A successful
+check that finds no newer release clears it. A failed check keeps the last known
+available version and the next button click rechecks. A registry-based uv tool
+installation must match
 the running Python environment and retains its GUI/analysis extras when upgrading
 to the displayed version after confirming a non-yanked wheel is published on PyPI.
 The uv installation reopens after a successful or failed upgrade. A packaged Windows x64 or macOS arm64/Intel app downloads

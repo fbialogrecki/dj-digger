@@ -50,6 +50,11 @@ def chunks(url, limit, cancel=None):
         raise ValueError('Too many release redirects')
 
 
+def newer_stable(version, installed):
+    return (bool(VERSION.fullmatch(version) and VERSION.fullmatch(installed))
+            and tuple(map(int, version.split('.'))) > tuple(map(int, installed.split('.'))))
+
+
 def latest(installed):
     release = json.loads(b''.join(chunks(LATEST, 1024 * 1024)))
     version = str(release.get('tag_name', '')).removeprefix('v')
@@ -57,7 +62,7 @@ def latest(installed):
         raise ValueError('Invalid stable release')
     if not VERSION.fullmatch(installed):
         raise ValueError('This development version must be updated from its checkout')
-    if tuple(map(int, version.split('.'))) <= tuple(map(int, installed.split('.'))):
+    if not newer_stable(version, installed):
         return None
     return version, release.get('assets', [])
 
