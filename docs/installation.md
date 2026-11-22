@@ -1,8 +1,7 @@
 # Install dj-digger on Windows, Mac or Linux
 
-Get the desktop app running without Python, a terminal, or programming knowledge.
-The Windows and Mac downloads include the components needed to run the app.
-Linux takes one terminal command.
+Windows and Mac installers include the components needed to run the app.
+On Linux, one terminal command installs the desktop and its dependencies.
 
 **Choose your computer:** [Windows](#windows) · [Mac](#mac) · [Linux](#linux)
 
@@ -23,11 +22,10 @@ Linux takes one terminal command.
 
 ## Find the right download
 
-1. Open the [official dj-digger downloads](https://github.com/fbialogrecki/dj-digger/releases).
-2. Find the newest release that includes a **desktop preview** for your computer.
-   Windows and Mac downloads may be in different releases, so scroll down if
-   necessary. The release marked **Latest** may only contain the terminal version.
-3. Expand **Assets** beneath that release and choose the file listed below.
+1. Open the [official dj-digger downloads](https://djdigger.app/download/).
+   For older builds, see [GitHub Releases](https://github.com/fbialogrecki/dj-digger/releases).
+2. Choose the installer for your computer. On GitHub, find a release with
+   **desktop preview** downloads and expand **Assets**.
 
 | Your computer | What to download |
 | --- | --- |
@@ -154,12 +152,14 @@ everything it needs, and running it again later updates the app.
 ### 1. Run the install script
 
 ```bash
-wget -qO- https://raw.githubusercontent.com/fbialogrecki/dj-digger/main/site/public/install.sh | sh
+wget -qO- https://djdigger.app/install.sh | sh
 ```
 
-No `wget`? Use `curl -fsSL https://raw.githubusercontent.com/fbialogrecki/dj-digger/main/site/public/install.sh | sh` instead.
-You can [read the script](https://github.com/fbialogrecki/dj-digger/blob/main/site/public/install.sh)
-before you run it. This is what it does:
+No `wget`? Use `curl -fsSL https://djdigger.app/install.sh | sh` instead.
+You can read the [hosted script](https://djdigger.app/install.sh) before running
+it. The [source is on GitHub](https://github.com/fbialogrecki/dj-digger/blob/main/site/public/install.sh).
+
+The script performs these steps.
 
 - Installs [uv](https://docs.astral.sh/uv/) into your home folder. uv brings its
   own Python, so the Python of your system is not used or changed.
@@ -175,8 +175,8 @@ Apart from that one package command, nothing outside your home folder is changed
 To see what the script would do without changing anything, or to skip its question:
 
 ```bash
-wget -qO- https://raw.githubusercontent.com/fbialogrecki/dj-digger/main/site/public/install.sh | sh -s -- --dry-run
-wget -qO- https://raw.githubusercontent.com/fbialogrecki/dj-digger/main/site/public/install.sh | sh -s -- --yes
+wget -qO- https://djdigger.app/install.sh | sh -s -- --dry-run
+wget -qO- https://djdigger.app/install.sh | sh -s -- --yes
 ```
 
 The script is tested on clean installations of Ubuntu 24.04, Debian 12, Fedora 45,
@@ -201,30 +201,17 @@ pipx install 'dj-sc-digger[gui,analyze]'
 
 ## Connect your browser
 
-Download gates, store carts and the SoundCloud login work through the dj-digger
-extension in your own browser; the app downloads no browser of its own. The first
-time one of those features needs it, the app shows the steps. In short:
+Download gates, store carts and SoundCloud sign-in can use the dj-digger extension in your own browser.
 
-1. Open dj-digger: the desktop registers itself with your browsers at every start,
-   and its **Settings → Preferences → Connect browser…** dialog has **Open Chrome Web Store**,
-   **Check connection** and the extension folder with a **Copy path** button. Without
-   the desktop, run `dj-digger browser register` in a terminal (it cannot run while
-   the desktop is open).
-2. **Chrome, Edge, Brave:** install
-   [dj-digger from the Chrome Web Store](https://chromewebstore.google.com/detail/dj-digger/ndimmdooibgcajgnoncdnckolhlmnnkb). Edge asks to allow extensions from
-   other stores: allow it. Developer install: `chrome://extensions` → **Developer
-   mode** → **Load unpacked** → the `browser-extension` folder inside the dj-digger
-   data folder (the app and the command both print its exact location).
-3. **Firefox:** install the signed extension file when the release provides one, or
-   for a trial use `about:debugging#/runtime/this-firefox` → **Load Temporary
-   Add-on** → `manifest.json` from that folder (removed when Firefox restarts).
+1. Start dj-digger once to register its native messaging host. In the **1.6.0 installer**, open **Settings → Connect browser…**. In the **source checkout**, open **Settings → Preferences… → Accounts and browser → Connect browser…**. The dialog includes the extension folder and a **Check connection** button. With the desktop closed you can also register the host and print the folder path with `dj-digger browser register`.
+2. In Chrome, Edge, Brave or Chromium, install [dj-digger from the Chrome Web Store](https://chromewebstore.google.com/detail/dj-digger/ndimmdooibgcajgnoncdnckolhlmnnkb). Edge may ask you to allow extensions from other stores. For an unpacked install, open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked** and select the extension folder. For Firefox, use the signed extension if provided in the release, or choose **Load Temporary Add-on** in `about:debugging#/runtime/this-firefox` and select the folder’s `manifest.json`. Firefox removes the temporary add-on at restart.
+3. Grant the site permissions requested on the extension’s welcome page, then choose **Check connection** in the app. On Linux the native host requires a browser that can start it. Flatpak and Snap browser installations are unsupported.
 
-After registration, **Open dj-digger** in the extension panel starts the desktop.
-Clicking **Import to DJ digger** on a SoundCloud playlist also starts it and hands
-over the playlist. **Show dj-digger** restores the desktop window while it is running.
+With the desktop running, use **Import to DJ digger** on supported SoundCloud pages, or choose **Import this playlist into dj-digger** in the extension panel. The source checkout also lets the panel start or restore the desktop and import Daily Drops or Weekly Wave as dated snapshots. See [playlist workflows](workflows.md#import-and-organize-playlists).
 
-To disconnect, run `dj-digger browser unregister` or use **Disconnect browsers…** in
-**Settings → Preferences**. The desktop registers again at its next start.
+For your own private playlists and account-only artist downloads, choose **Sign in to SoundCloud…** under **Settings** in 1.6.0, or **Accounts and browser** in the source checkout. If SoundCloud rejects a saved login, the app offers **Refresh login**.
+
+To disconnect, use the connected browser’s **Disconnect…** action in the same settings, or close the desktop and run `dj-digger browser unregister`. The desktop registers the host again at its next start. To remove the extension itself, use the browser’s extensions page.
 
 ### Old browser profiles
 
@@ -249,7 +236,7 @@ variables, never in the repository or on the command line.
 ## Updating or removing the app
 
 **Updates are manual for these previews.** Close dj-digger before updating.
-Visit the official downloads page and read the notes for the new version.
+Read the notes for the new version on the [official downloads page](https://djdigger.app/download/).
 
 - **Windows:** download and run the new installer, using the same installation
   folder as before.

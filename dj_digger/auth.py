@@ -157,16 +157,21 @@ def clear_token() -> None:
     """Delete saved authentication info, from the keyring and from ``auth.json``."""
     global _keyring_cache
     with _keyring_lock:
-        try:
-            _keyring_call("delete_password")
-        except Exception as exc:  # nothing stored there, or no keyring at all
-            LOGGER.debug("No keyring entry removed: %s", type(exc).__name__)
         _keyring_cache = None
-        if AUTH_FILE.exists():
+        info = _read_auth_file()
+        backend = _keyring()
+        if backend is None and info.get("keyring"):
+            raise SoundCloudAuthError("Unlock the system keyring and retry signing out")
+        if backend is not None:
             try:
-                AUTH_FILE.unlink()
-            except OSError as exc:
-                LOGGER.debug("Could not remove auth.json: %s", exc)
+                if backend.get_password(KEYRING_SERVICE, KEYRING_ENTRY) is not None:
+                    backend.delete_password(KEYRING_SERVICE, KEYRING_ENTRY)
+            except Exception:
+                raise SoundCloudAuthError("Could not clear the system keyring; retry signing out") from None
+        try:
+            AUTH_FILE.unlink(missing_ok=True)
+        except OSError as exc:
+            raise SoundCloudAuthError("Could not remove the SoundCloud login file; retry signing out") from exc
 
 
 def verify_token(token: str, client_id: str, timeout: float = 10.0) -> dict[str, Any] | None:
@@ -218,7 +223,7 @@ def _extract_sqlite_cookies(db_path: str) -> list[str]:
                 try:
                     rows = conn.execute(
                         "SELECT name, value FROM moz_cookies "
-                        "WHERE host LIKE '%soundcloud%' AND name = 'oauth_token'"
+                        "WHERE (lower(host) = 'soundcloud.com' OR lower(host) LIKE '%.soundcloud.com') AND name = 'oauth_token'"
                     ).fetchall()
                 except sqlite3.OperationalError as exc:
                     # Not a Firefox store, or a schema we do not know.

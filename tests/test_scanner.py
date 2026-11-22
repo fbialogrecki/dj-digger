@@ -43,11 +43,11 @@ def test_a_title_on_its_own_matches_but_is_not_confident(tmp_path: Path) -> None
 
     local = scanner_over(tmp_path, "Nightdrive.mp3")
 
-    match = local.match_track(Track(title="Nightdrive", artist="Someone", permalink_url="http://sc/2"))
-
-    assert match is not None
-    assert "Nightdrive.mp3" in match.path
-    assert match.confident is False
+    for artist in ("Someone", "", " / "):
+        match = local.match_track(Track(title="Nightdrive", artist=artist, permalink_url="http://sc/2"))
+        assert match is not None
+        assert "Nightdrive.mp3" in match.path
+        assert match.confident is False
 
 
 def test_a_short_title_is_not_evidence_of_anything(tmp_path: Path) -> None:

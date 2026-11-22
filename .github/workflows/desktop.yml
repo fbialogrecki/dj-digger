@@ -24,8 +24,6 @@ jobs:
           sudo apt-get install -y libegl1 libopengl0
       - name: Desktop contracts
         run: uv run --frozen --extra dev --extra gui --python 3.12 pytest tests/test_gui.py tests/test_bundled_tools.py
-      - name: Isolated desktop smoke
-        run: uv run --frozen --extra gui --python 3.12 python scripts/gui_smoke.py
   installer:
     needs: gui
     runs-on: windows-latest

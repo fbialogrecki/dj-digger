@@ -4,6 +4,8 @@ from helpers import a_crate
 
 from dj_digger import crate_models
 from dj_digger.db import database
+from dj_digger.services.library import LibraryService
+from dj_digger.state import TrackState
 
 
 def test_a_crate_survives_a_round_trip():
@@ -26,17 +28,13 @@ def test_the_same_source_overwrites_instead_of_duplicating():
     assert len(crates[0].tracks) == 5
 
 
-def test_crates_are_listed_by_title():
-    library.save(crate_models.CrateRecord.from_crate(a_crate(1, source="s://z", title="Zulu")))
-    library.save(crate_models.CrateRecord.from_crate(a_crate(1, source="s://a", title="alpha")))
-    assert [record.title for record in library.list_crates()] == ["alpha", "Zulu"]
-
-
 def test_headers_are_listed_by_title():
-    library.save(crate_models.CrateRecord.from_crate(a_crate(1, source="s://z", title="Zulu"), partial=True))
+    zulu = crate_models.CrateRecord.from_crate(a_crate(1, source="s://z", title="Zulu"), partial=True)
+    zulu.refreshed_at = "2099-01-01T00:00:00+00:00"  # SQLite returns the most recently updated first.
+    library.save(zulu)
     library.save(crate_models.CrateRecord.from_crate(a_crate(1, source="s://a", title="alpha")))
 
-    headers = library.list_crate_headers()
+    headers = LibraryService(TrackState()).headers()
 
     assert [header.title for header in headers] == ["alpha", "Zulu"]
     assert headers[1].partial is True
@@ -60,32 +58,15 @@ def test_removing_the_same_track_twice_is_harmless():
     assert record.removed_track_keys == ["100"]
 
 
-def test_delete_removes_the_crate():
+def test_delete_by_source_is_idempotent():
+    service = LibraryService(TrackState())
     record = crate_models.CrateRecord.from_crate(a_crate())
     library.save(record)
-    library.delete(record.source)
-    assert library.list_crates() == []
-
-
-def test_deleting_something_that_is_not_there_is_harmless():
-    library.delete("no-such-crate")
-
-
-def test_delete_finds_the_crate_by_its_source_with_no_file_involved():
-    """Delete used to happen entirely inside `if the JSON file exists`.
-
-    A crate whose row outlived its file could not be removed at all: the sidebar
-    drew it, X ran and changed nothing, and it was back on the next reload. Since
-    0.9 there is no file - the source is the primary key of the stored records.
-    """
-
-    record = crate_models.CrateRecord.from_crate(a_crate())
-    library.save(record)
-    assert [rec.source for rec in library.list_crates()] == [record.source]
-
-    library.delete(record.source)
-
-    assert library.list_crates() == []
+    assert [header.source for header in service.headers()] == [record.source]
+    service.delete(record.source)
+    assert service.headers() == []
+    service.delete(record.source)
+    assert service.headers() == []
 
 
 def test_new_track_fields_survive_a_round_trip():

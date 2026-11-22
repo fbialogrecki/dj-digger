@@ -132,17 +132,23 @@ class TrackState:
             self._load()
             return FileObservation(self._files.get(str(key)), self._revisions.get(str(key), 0))
 
-    def apply_file_matches(self, matches: list[FileMatch]) -> None:
+    def apply_file_matches(self, matches: list[FileMatch], *, previews=None) -> dict[str, str | None]:
         """Commit one scanner batch, then publish its status/provenance mirrors."""
         with self._lock:
             self._load()
             updates = []
+            paths = {}
             for match in matches:
                 key, path = match.key, match.path
                 confident, stale = match.confident, match.stale
+                if match.revision != self._revisions.get(key, 0):
+                    paths[key] = self._files.get(key)
+                    continue
+                if path or stale:
+                    paths[key] = path
                 if path and confident:
                     updates.append((key, GOT, path))
-                elif stale and match.revision == self._revisions.get(key, 0) and (key in self._files or self.get(key) == GOT):
+                elif stale and (key in self._files or self.get(key) == GOT):
                     status = NEW if self.get(key) == GOT else self.get(key)
                     updates.append((key, status, None))
             self.db.set_track_states(updates)
@@ -152,6 +158,12 @@ class TrackState:
                     self._files.pop(key, None)
                 else:
                     self._files[key] = path
+
+            if previews is not None:
+                for match in matches:
+                    if match.path and not match.confident and paths.get(match.key) == match.path and match.key not in self._files:
+                        previews[match.key] = match.path, self._revisions.get(match.key, 0)
+            return paths
 
     def reload_file_paths(self):
         """Refresh the mirror after a journaled replacement, invalidating old scans."""

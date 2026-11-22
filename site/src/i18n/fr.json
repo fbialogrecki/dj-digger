@@ -1,0 +1,50 @@
+{
+  "skip": "Aller au contenu",
+  "primary": "Principale",
+  "nav": {
+    "app": "Application",
+    "extension": "Extension",
+    "notes": "Livret",
+    "download": "Télécharger",
+    "github": "GitHub"
+  },
+  "menu": "Menu",
+  "tracklist": "Tracklist",
+  "language": "Langue",
+  "toLight": "Passer au thème clair",
+  "toDark": "Passer au thème sombre",
+  "ogAlt": "dj-digger : d'une playlist SoundCloud aux fichiers sur vos platines. L'icône de l'application, un disque vu de dessus.",
+  "footer": {
+    "free": "Libre et gratuit, sous licence Apache 2.0.",
+    "site": "Site",
+    "project": "Projet",
+    "legal": "Mentions",
+    "privacy": "Politique de confidentialité",
+    "license": "Licence",
+    "madeBy": "Créé par",
+    "colophon": "Ce site ne dépose aucun cookie, n'utilise aucun outil d'analyse et ne charge rien depuis d'autres serveurs."
+  },
+  "copy": "Copier",
+  "copied": "Copié",
+  "play": "Lire",
+  "pause": "Pause",
+  "openFull": "Ouvrir la capture de la fenêtre entière",
+  "opensFull": "Ouvre la fenêtre entière",
+  "loopAlt": "Le lecteur de dj-digger joue Glasshouse Dub de Sable Fern, 120 BPM en 7A, à 1:04 sur 3:20 : un disque à pochette générée, une forme d'onde dont la partie lue s'allume en magenta, et les boutons de lecture.",
+  "flow": {
+    "title": "Où vont les données de l'extension",
+    "desc": "Un cadre, votre ordinateur, contient l'application de bureau dj-digger et votre navigateur avec l'extension dj-digger. L'application et l'extension sont reliées par la messagerie native, leur seul canal. Les seules flèches qui sortent du cadre partent des onglets que l'extension a ouverts pour l'application vers cinq sites : Hypeddit, ToneDen, Bandcamp, Beatport et SoundCloud. Un cadre pour le développeur se trouve à l'extérieur, sans flèche : rien ne lui est envoyé.",
+    "computer": "Votre ordinateur",
+    "app": "Appli dj-digger",
+    "appNote": "pilote le navigateur",
+    "native": "Messagerie native",
+    "nativeNote": "le seul canal",
+    "browser": "Votre navigateur",
+    "extension": "Extension dj-digger",
+    "tabs": "Onglets ouverts",
+    "tabsNote": "pour l'appli",
+    "developer": "Développeur",
+    "developerNote": "rien d'envoyé",
+    "sites": "Sites"
+  }
+}

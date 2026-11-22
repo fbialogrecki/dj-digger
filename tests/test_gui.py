@@ -133,7 +133,6 @@ def test_a_folder_row_is_renamed_on_disk_and_its_artist_set_in_place(backend, tm
     view = wait_event(events, 'view')
     [first] = view['rows']
     assert (first['title'], first['artist'], first['status'], first['local']) == ('Song - Artist', 'Song', 'new', True)
-    wait_event(events, 'rows')  # The folder's metadata pass, which must not undo the edits below.
     target = dict(keys=[first['key']], generation=view['generation'])
     worker.submit('rename', dict(target, field='title', value='Artist - Song'))
     [renamed] = wait_event(events, 'rows')['rows']
@@ -171,7 +170,7 @@ def test_added_folder_is_opened_and_saved_without_duplicates(backend, tmp_path):
 def test_stale_folder_results_do_not_replace_new_view(backend, tmp_path):
     worker, events = backend
     entered, release = threading.Event(), threading.Event()
-    def page(folder, offset):
+    def page(folder, offset, *, cancel):
         if folder.name == 'old':
             entered.set()
             assert release.wait(5)
@@ -209,8 +208,8 @@ def test_gui_starts_and_closes_without_real_user_state(tmp_path):
     command = [sys.executable, '-c', 'from dj_digger.gui import main; raise SystemExit(main())', '--smoke-test']
     result = subprocess.run(command, env=env, text=True, capture_output=True, timeout=20)
     assert result.returncode == 0, result.stderr
-    assert 'TypeError' not in result.stderr
-    assert 'ReferenceError' not in result.stderr
+    for error in ('TypeError', 'ReferenceError', 'failed to load'):
+        assert error not in result.stderr, result.stderr
     assert json.loads((Path(env['XDG_CONFIG_HOME']) / 'dj-digger/gui.json').read_text())['theme'] == 'system'
 
 
@@ -270,10 +269,10 @@ def test_mark_and_undo_update_statuses_without_reloading_the_crate(backend):
     worker.rows = online_rows(3)
     worker.services.library.load = lambda source: pytest.fail('a mark must not reload the crate')
     worker.submit('mark', {'keys': ['1', '3'], 'generation': 0, 'status': 'got'})
-    marked = wait_event(events, 'rows')['rows']
-    assert [row['status'] for row in marked] == ['got', 'new', 'got']
+    marked = wait_event(events, 'rowPatch')['patches']
+    assert marked == {'1': {'status': 'got'}, '3': {'status': 'got'}}
     worker.submit('undo', {})
-    assert [row['status'] for row in wait_event(events, 'rows')['rows']] == ['new'] * 3
+    assert wait_event(events, 'rowPatch')['patches'] == {'1': {'status': 'new'}, '3': {'status': 'new'}}
 
 
 def test_cancel_bulk_open_has_no_browser_side_effect(backend):
@@ -841,8 +840,11 @@ def test_title_only_scan_match_is_a_local_preview_only(backend, tmp_path, monkey
     loose.write_bytes(b'audio')
     worker.rows = [Row(0, Track('Maybe', 'https://soundcloud.com/a/maybe', id=7), [])]
     library = worker.services.library
-    monkeypatch.setattr(library, 'scanner', lambda directories: type('Scanner', (), {'scan': lambda self, cancel=None: None})())
-    monkeypatch.setattr(library, 'match_tracks', lambda tracks, scanner: {'7': str(loose)})
+    from dj_digger.scanner import LocalMatch
+    scanner = type('Scanner', (), {'scan': lambda self, cancel=None: None,
+                                   'match_track': lambda self, track: LocalMatch(str(loose), False),
+                                   'had_stale_match': lambda self, track: False})()
+    monkeypatch.setattr(library, 'scanner', lambda directories: scanner)
     worker.submit('scan', {})
     row = wait_event(events, 'rows')['rows'][0]
     assert row['path'] == str(loose) and row['status'] != 'got'
@@ -856,6 +858,9 @@ def test_title_only_scan_match_is_a_local_preview_only(backend, tmp_path, monkey
     while events.get(timeout=10)[0] != 'error':
         pass
     assert prepared == [str(loose)]
+    worker.submit('mark', {'keys': ['7'], 'status': 'skip', 'generation': worker.generation})
+    assert wait_event(events, 'rowPatch')['patches']['7'] == {'status': 'skip', 'path': ''}
+    assert worker.playable(worker.rows[0].track).local_path is None
 
 
 def test_a_track_without_an_id_says_there_is_nothing_to_stream(backend):
@@ -1037,8 +1042,12 @@ def test_presentation_settings_keep_only_known_keys(app, tmp_path):
             pass
 
     bridge = Bridge(None, backend_factory=PassiveBackend, home_path=tmp_path)
-    bridge.saveSettings({'keyNotation': 'classic', 'animations': False, 'pulseOffset': 140, 'theme': 'dark', 'colors': 'green-yellow', 'token': 'secret'})
-    assert bridge._settings == {'keyNotation': 'classic', 'animations': False, 'theme': 'dark', 'colors': 'green-yellow'}
+    settings = {
+        'keyNotation': 'classic', 'animations': False, 'theme': 'dark', 'colors': 'green-yellow',
+        'previewStart': '30', 'vinyl': False, 'sortColumn': 4, 'sortReverse': True, 'compactRows': True,
+    }
+    bridge.saveSettings(dict(settings, pulseOffset=140, token='secret', other=1))
+    assert bridge._settings == settings
 
 
 def test_summary_overwrite_needs_separate_confirmation(backend, tmp_path):
@@ -1098,7 +1107,7 @@ def test_local_waveform_arrives_after_pause_without_blocking_play(backend, tmp_p
     entered, release = threading.Event(), threading.Event()
     original = local_audio.waveform
 
-    def delayed(source, cancel):
+    def delayed(source, cancel, *, metadata=None):
         entered.set()
         assert release.wait(5)
         return original(source, cancel)
@@ -1210,7 +1219,7 @@ def test_stopped_local_waveform_is_cancelled_and_cannot_restore_audio(backend, t
     worker.services.player._loaded = loaded
     entered, release = threading.Event(), threading.Event()
     cancel = worker.waveform_cancel
-    def delayed(path, stop):
+    def delayed(path, stop, *, metadata=None):
         assert stop is cancel
         entered.set()
         assert release.wait(5)
@@ -2015,3 +2024,43 @@ def test_cart_runs_without_review_and_offers_the_links_it_could_not_add(backend)
     while wait_event(events, 'busy')['value']:
         pass
     assert opened == [bare.permalink_url, 'https://beatport.com/track/1']
+
+
+def test_status_patch_preserves_progress_and_updates_hidden_duplicates(app):
+    model = TrackModel()
+    model.replace([row('a', 'First'), row('b', 'Other'), row('a', 'Second')])
+    model.progress['b'] = .4
+    model.filter('', {'statuses': ['new']})
+    model.patch_rows({'a': {'status': 'got'}})
+    assert [r['key'] for r in model.visible] == ['b'] and model.progress['b'] == .4
+    model.patch_rows({'a': {'status': 'new'}})
+    assert [r['key'] for r in model.visible] == ['a', 'b', 'a']
+
+
+def test_folder_tags_arrive_before_the_last_probe_and_stop_on_navigation(backend, tmp_path, monkeypatch):
+    from dataclasses import replace
+
+    from dj_digger.models import Track
+
+    worker, events = backend
+    old, new = tmp_path / 'old', tmp_path / 'new'
+    tracks = [Track(str(i), '', local_id=str(i), local_path=str(old / f'{i}.wav')) for i in (1, 2, 3)]
+    def page(folder, offset, *, cancel):
+        return (tracks if folder == old else []), [], 0, []
+    entered, stopped = threading.Event(), threading.Event()
+    def inspect(path, *, inspect, cancel):
+        if path.stem == '2':
+            entered.set()
+            assert cancel.wait(5)
+            stopped.set()
+        return replace(tracks[int(path.stem) - 1], duration=1200, artist='Tagged')
+    monkeypatch.setattr(worker.local, 'page', page)
+    monkeypatch.setattr(worker.local, 'register', inspect)
+    worker.submit('folder', {'path': str(old)})
+    first = wait_event(events, 'view')
+    patch = wait_event(events, 'rowPatch')
+    assert patch['generation'] == first['generation'] and patch['patches'][tracks[0].key]['artist'] == 'Tagged'
+    assert entered.wait(2)
+    worker.submit('folder', {'path': str(new)})
+    assert wait_event(events, 'view')['title'] == str(new)
+    assert stopped.wait(2)

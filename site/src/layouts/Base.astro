@@ -5,24 +5,31 @@ import appIcon from "../../../dj_digger/gui/qml/icons/app.png";
 import archivo from "../assets/fonts/archivo-latin.woff2?url";
 import boot from "../scripts/boot.js?raw";
 import { author, chromeStore, repo } from "../../site.config.mjs";
+import { baseOf, langOf, languages, pathIn, ui } from "../i18n/index.mjs";
 
 // `tracks` are the page's sections in order: { id, no, title }. They feed the tracklist
 // and the record's bands; each must match a <section id data-track data-title>.
 // `label` picks the record label's colours for this page (global.css: [data-label]).
 const { title, description, label = "home", tracks = [], noindex = false } = Astro.props;
 const here = Astro.url.pathname;
+const lang = langOf(here);
+const t = ui(here);
+const local = (base) => pathIn(lang, base);
+// The same page in every language; a page that is not indexed (404) offers each language's start.
+const alternates = languages.map((language) => ({ ...language, href: pathIn(language.code, noindex ? "/" : baseOf(here)) }));
+const current = languages.find((language) => language.code === lang);
 const canonical = new URL(here, Astro.site);
 const pages = [
-  { href: "/app/", label: "App" },
-  { href: "/extension/", label: "Extension" },
-  { href: "/liner-notes/", label: "Liner notes" },
-  { href: "/download/", label: "Download" },
-  { href: repo, label: "GitHub" },
+  { href: local("/app/"), label: t.nav.app },
+  { href: local("/extension/"), label: t.nav.extension },
+  { href: local("/liner-notes/"), label: t.nav.notes },
+  { href: local("/download/"), label: t.nav.download },
+  { href: repo, label: t.nav.github },
 ];
 ---
 
 <!doctype html>
-<html lang="en" data-label={label}>
+<html lang={lang} data-label={label}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -32,29 +39,33 @@ const pages = [
     <title>{title}</title>
     <meta name="description" content={description} />
     {!noindex && <link rel="canonical" href={canonical} />}
+    {/* boot.js reads these to send a first visit to the visitor's language. */}
+    {!noindex && alternates.map((language) => <link rel="alternate" hreflang={language.code} href={new URL(language.href, Astro.site)} />)}
+    {!noindex && <link rel="alternate" hreflang="x-default" href={new URL(baseOf(here), Astro.site)} />}
     <link rel="icon" type="image/png" href={appIcon.src} />
     <link rel="preload" as="font" type="font/woff2" href={archivo} crossorigin />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="dj-digger" />
+    <meta property="og:locale" content={current.locale} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     {!noindex && <meta property="og:url" content={canonical} />}
     <meta property="og:image" content={new URL("/og.png", Astro.site)} />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="dj-digger: from a SoundCloud playlist to files on your decks. The app icon, a record seen from above." />
+    <meta property="og:image:alt" content={t.ogAlt} />
     <meta name="twitter:card" content="summary_large_image" />
     {noindex && <meta name="robots" content="noindex" />}
     <script is:inline set:html={boot} />
   </head>
   <body>
-    <a class="skip" href="#content">Skip to content</a>
+    <a class="skip" href="#content">{t.skip}</a>
     <header class="top">
-      <a class="brand" href="/" aria-current={here === "/" ? "page" : undefined}>
+      <a class="brand" href={local("/")} aria-current={here === local("/") ? "page" : undefined}>
         <img src={appIcon.src} width="28" height="28" alt="" />
         dj-digger
       </a>
-      <nav class="links" aria-label="Primary">
+      <nav class="links" aria-label={t.primary}>
         <ul>
           {
             pages.map((page) => (
@@ -68,9 +79,9 @@ const pages = [
         </ul>
       </nav>
       {/* Narrow screens: the same links behind a disclosure that needs no script. */}
-      <details class="menu">
-        <summary>Menu</summary>
-        <nav aria-label="Primary">
+      <details class="menu" name="top">
+        <summary>{t.menu}</summary>
+        <nav aria-label={t.primary}>
           <ul>
             {
               pages.map((page) => (
@@ -84,8 +95,26 @@ const pages = [
           </ul>
         </nav>
       </details>
+      {/* Works without a script; deck.js remembers the choice (boot.js then follows it). */}
+      <details class="lang" name="top">
+        <summary>
+          <span class="sr">{t.language}: {current.name}</span>
+          <span aria-hidden="true">{lang.toUpperCase()}</span>
+        </summary>
+        <ul>
+          {
+            alternates.map((language) => (
+              <li>
+                <a href={language.href} hreflang={language.code} lang={language.code} data-lang={language.code} aria-current={language.code === lang ? "true" : undefined}>
+                  {language.name}
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      </details>
       {/* Shown by deck.js: without JavaScript the site follows the system's theme. */}
-      <button class="theme" type="button" hidden>
+      <button class="theme" type="button" data-to-light={t.toLight} data-to-dark={t.toDark} hidden>
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <g class="sun">
             <circle cx="12" cy="12" r="4" />
@@ -103,7 +132,7 @@ const pages = [
             <div class="platter">
               <Record />
             </div>
-            <nav class="tracks" aria-label="Tracklist">
+            <nav class="tracks" aria-label={t.tracklist}>
               <ol>
                 {tracks.map((track) => (
                   <li>
@@ -129,28 +158,27 @@ const pages = [
               <img src={appIcon.src} width="40" height="40" alt="" loading="lazy" />
               <span>
                 <strong>dj-digger</strong>
-                Free and open source, Apache 2.0.
+                {t.footer.free}
               </span>
             </p>
-            <ul aria-label="Site">
-              <li><a href="/app/">App</a></li>
-              <li><a href="/extension/">Extension</a></li>
-              <li><a href="/download/">Download</a></li>
-              <li><a href="/liner-notes/">Liner notes</a></li>
+            <ul aria-label={t.footer.site}>
+              <li><a href={local("/app/")}>{t.nav.app}</a></li>
+              <li><a href={local("/extension/")}>{t.nav.extension}</a></li>
+              <li><a href={local("/download/")}>{t.nav.download}</a></li>
+              <li><a href={local("/liner-notes/")}>{t.nav.notes}</a></li>
             </ul>
-            <ul aria-label="Project">
+            <ul aria-label={t.footer.project}>
               <li><a href={repo}>GitHub</a></li>
               <li><a href="https://pypi.org/project/dj-sc-digger/">PyPI</a></li>
               <li><a href={chromeStore}>Chrome Web Store</a></li>
             </ul>
-            <ul aria-label="Legal">
-              <li><a href={`${repo}/blob/main/PRIVACY.md`}>Privacy policy</a></li>
-              <li><a href={`${repo}/blob/main/LICENSE`}>License</a></li>
+            <ul aria-label={t.footer.legal}>
+              <li><a href={`${repo}/blob/main/PRIVACY.md`}>{t.footer.privacy}</a></li>
+              <li><a href={`${repo}/blob/main/LICENSE`}>{t.footer.license}</a></li>
             </ul>
           </div>
           <p class="colophon">
-            Made by <a href={author.url}>{author.name}</a>. This site sets no cookies, runs no analytics and loads nothing
-            from other servers.
+            {t.footer.madeBy} <a href={author.url}>{author.name}</a>. {t.footer.colophon}
           </p>
         </footer>
       </div>
@@ -161,10 +189,10 @@ const pages = [
         <details class="mini">
           <summary>
             <span class="mini-disc" />
-            <span class="mini-now">Tracklist</span>
+            <span class="mini-now">{t.tracklist}</span>
             <span class="mini-bar" />
           </summary>
-          <nav class="tracks" aria-label="Tracklist">
+          <nav class="tracks" aria-label={t.tracklist}>
             <ol>
               {tracks.map((track) => (
                 <li>

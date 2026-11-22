@@ -1,10 +1,13 @@
 ---
 // A command or snippet with a Copy button. The button appears only when scripts run.
+import { ui } from "../i18n/index.mjs";
+
 const { code, label } = Astro.props;
+const t = ui(Astro.url.pathname);
 ---
 
 <div class="code">
   {label && <p class="code-label">{label}</p>}
   <pre tabindex="0"><code>{code}</code></pre>
-  <button type="button" data-copy={code} aria-live="polite" hidden>Copy</button>
+  <button type="button" data-copy={code} data-copied={t.copied} aria-live="polite" hidden>{t.copy}</button>
 </div>

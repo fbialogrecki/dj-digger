@@ -93,21 +93,6 @@ def test_about_shows_version_licence_and_data_folder_and_updates_open_the_releas
     assert done.wait(10) and opened == [RELEASES_URL] and RELEASES_URL.startswith('https://github.com/')
 
 
-def test_invert_selection_selects_the_other_visible_rows(app):
-    from dj_digger.gui.model import TrackModel
-    model = TrackModel()
-    model.replace([row('a', 'Alpha'), row('b', 'Beta'), row('c', 'Gamma')])
-    model.select(0)
-    model.invertSelection()
-    assert model.keys() == ['b', 'c']
-    model.filter('Beta', {})
-    model.invertSelection()
-    assert model.keys() == [] and model.selected == set(), 'hidden rows drop out of the selection'
-    model.filter('', {})
-    model.invertSelection()
-    assert model.keys() == ['a', 'b', 'c']
-
-
 def test_reveal_opens_the_data_and_log_folders(app, monkeypatch, tmp_path):
     from PySide6.QtGui import QDesktopServices
 

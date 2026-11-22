@@ -507,14 +507,15 @@ class SoundCloudClient:
         on_progress: ProgressCallback | None = None,
         cancel: threading.Event | None = None,
         on_batch: Callable[[list[Track]], None] | None = None,
-    ) -> list[Track]:
+    ) -> tuple[list[Track], bool]:
+        partial = False
         tracks: list[Track] = []
         visited: set[str] = set()
         check_cancelled(cancel)
         payload = self._get(path, limit=PAGE_SIZE)
         while True:
-            if not isinstance(payload, dict):
-                break
+            if not isinstance(payload, dict) or not isinstance(payload.get("collection"), list):
+                raise SoundCloudError("Incomplete SoundCloud collection page")
             for item in payload.get("collection") or []:
                 if not isinstance(item, dict):
                     continue
@@ -527,6 +528,7 @@ class SoundCloudClient:
             if on_batch:
                 on_batch(tracks[:limit] if limit is not None else list(tracks))
             if limit is not None and len(tracks) >= limit:
+                partial = len(tracks) > limit or "next_href" not in payload or bool(payload["next_href"])
                 break
             next_href = payload.get("next_href")
             if not next_href:
@@ -537,7 +539,7 @@ class SoundCloudClient:
             visited.add(next_href)
             payload = self._request(next_href)
 
-        return tracks[:limit] if limit is not None else tracks
+        return (tracks[:limit] if limit is not None else tracks), partial
 
     def _collect_user(self, url, base_url, collection, payload, limit, on_progress, cancel, on_tracks) -> Crate:
         username = payload.get("username") or base_url
@@ -546,7 +548,7 @@ class SoundCloudClient:
             raise SoundCloudError(f"Resolved {base_url} to a user without an id")
         endpoint = collection or "tracks"
         title = f"{username} - {endpoint}"
-        tracks = self._paginate(
+        tracks, partial = self._paginate(
             (f"/stream/users/{user_id}/reposts" if endpoint == "reposts"
              else f"/users/{user_id}/{endpoint}"),
             limit=limit,
@@ -558,7 +560,7 @@ class SoundCloudClient:
             source=url,
             tracks=tracks,
             title=title,
-            declared_count=len(tracks),
+            declared_count=len(tracks), partial=partial,
         )
 
     def _collect_track(self, url, payload) -> Crate:
@@ -576,6 +578,7 @@ class SoundCloudClient:
             if isinstance(item, dict) and isinstance(item.get("id"), int)
         ]
         declared = payload.get("track_count") or len(track_ids)
+        partial = len(track_ids) < declared or (limit is not None and limit < len(track_ids))
         if limit is not None:
             track_ids = track_ids[:limit]
         title = payload.get("title") or url
@@ -588,6 +591,7 @@ class SoundCloudClient:
             tracks=tracks,
             title=title,
             declared_count=declared,
+            partial=partial or (limit is not None and len(tracks) < declared),
             provider_id=payload.get("id"),
             owner_id=(payload.get("user_id") or (payload.get("user") or {}).get("id"))
             if payload.get("kind") == "playlist" else None,

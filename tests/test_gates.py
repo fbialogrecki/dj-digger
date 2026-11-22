@@ -653,6 +653,9 @@ def test_hypeddit_browser_batch_uses_one_context_and_maps_each_tab_download(
             self.suggested_filename = name
             self.body = body
 
+        def discard(self):
+            pass
+
         def save_as(self, destination):
             Path(destination).write_bytes(self.body)
 
@@ -1029,6 +1032,9 @@ def _gate_browser(monkeypatch, page_factory, *, offscreen=False):
 def _download(name, body):
     class Download:
         suggested_filename = name
+
+        def discard(self):
+            pass
 
         def save_as(self, destination):
             Path(destination).write_bytes(body)

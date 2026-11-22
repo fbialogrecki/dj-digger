@@ -19,7 +19,7 @@ from urllib.parse import urlparse, urlunparse
 
 from .http import is_fetchable, is_openable
 from .models import LinkRecord, Track
-from .private_json import write_json_atomic
+from .private_json import atomic_csv, write_json_atomic
 
 # Domains grouped by where a link actually takes you. The membership here comes
 # from surveying purchase_url across 53 playlists / 3497 tracks rather than from
@@ -386,7 +386,7 @@ def export_records(
         path.parent.mkdir(parents=True, exist_ok=True)
 
     if export_format == "csv":
-        with path.open("w", encoding="utf-8", newline="") as handle:
+        with atomic_csv(path) as handle:
             writer = csv.writer(handle)
             # New columns go on the end: a script reading this by position
             # still finds what it read before.

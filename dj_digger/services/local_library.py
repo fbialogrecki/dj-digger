@@ -190,7 +190,7 @@ class LocalLibrary:
         record = self.db.register_media(str(path), current_signature)
         if inspect and record['metadata_json'] == '{}':
             metadata = probe(path, cancel)
-            if not self.db.update_media_metadata(record['id'], record['signature'], metadata):
+            if metadata['signature'] != current_signature or not self.db.update_media_metadata(record['id'], record['signature'], metadata):
                 raise MediaError('File changed during inspection')
             record = self.db.media(record['id'])
         track = media_track(self.db, record)
@@ -203,22 +203,25 @@ class LocalLibrary:
         Sorting names uses O(directory entries) memory, but probing/rows are paged.
         No recursion, hashing or decoding is triggered by opening a directory.
         """
-        names, directories = [], []
+        names, directories, failures = [], [], []
         with os.scandir(folder) as entries:
             for entry in entries:
                 check_cancelled(cancel)
-                if entry.is_dir(follow_symlinks=False):
-                    directories.append(entry.name)
-                elif _is_audio_entry(entry):
-                    names.append(entry.name)
+                try:
+                    if entry.is_dir(follow_symlinks=False):
+                        directories.append(entry.name)
+                    elif _is_audio_entry(entry):
+                        names.append(entry.name)
+                except OSError as exc:
+                    failures.append(f'{entry.name}: {exc}')
         check_cancelled(cancel)
         folder = folder.resolve(strict=True)
         folder_stat = folder.stat()
-        if self.db.observe_root(str(folder), folder_stat.st_dev, folder_stat.st_ino):
+        if not failures and self.db.observe_root(str(folder), folder_stat.st_dev, folder_stat.st_ino):
             self.db.mark_directory_missing(str(folder), {str(folder / name) for name in names}, folder_stat.st_dev)
         names.sort(key=str.casefold)
         directories.sort(key=str.casefold)
-        tracks, failures, rows = [], [], {}
+        tracks, rows = [], {}
         page = [folder / name for name in names[offset:offset + PAGE_SIZE]]
         cached = self.db.media_many(map(str, page), by_path=True)
         for path in page:

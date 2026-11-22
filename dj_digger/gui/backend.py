@@ -79,6 +79,8 @@ class Backend:
         self.folder = None
         self.offset = 0
         self.generation = 0
+        self.folder_cancel = threading.Event()
+        self.folder_probe_lock = asyncio.Lock()
         self.play_generation = 0
         self.play_order = []
         self.prepared = None
@@ -292,7 +294,7 @@ class Backend:
                     label=t.label_name, duration=t.duration, status=self.services.state.get(t.key),
                     format=t.audio_format, comment=t.comment,
                     stores=', '.join(row.categories), storeNames=', '.join(row.names), url=t.permalink_url,
-                    media=bool(t.local_id), publishable=soundcloud_playlist_track(t), local=bool(t.local_path), path=t.local_path or self.preview_paths.get(t.key, ''),
+                    media=bool(t.local_id), publishable=soundcloud_playlist_track(t), local=bool(t.local_path), path=t.local_path or self.preview_path(t.key),
                     search=row.haystack)
 
     async def refresh_rows(self):
@@ -304,7 +306,7 @@ class Backend:
             if row.track.key in by_key:
                 row.track = by_key[row.track.key]
                 row.records = links.categorise(row.track)
-        local_ids = [row.track.local_id for row in rows if row.track.local_id]
+        local_ids = [row.track.local_id for row in rows if row.track.local_id and row.track.key not in by_key]
         local = await self.io(media_tracks, self.services.state.db, local_ids) if local_ids else {}
         for row in rows:
             if row.track.local_id:
@@ -325,8 +327,13 @@ class Backend:
         keys = set(values.get('keys', []))
         return deepcopy([row for row in self.rows if row.track.key in keys])
 
-    async def action_load(self, values):
+    def new_view(self):
+        self.folder_cancel.set()
+        self.folder_cancel = threading.Event()
         self.generation += 1
+
+    async def action_load(self, values):
+        self.new_view()
         generation = self.generation
         record = await self.io(self.services.library.load, values['source'])
         if generation != self.generation or record is None:
@@ -335,11 +342,17 @@ class Backend:
         await self.publish(record.active_tracks, record.title, generation)
 
     async def action_folder(self, values):
-        self.generation += 1
+        self.new_view()
         generation = self.generation
         folder = Path(values['path']).expanduser()
         offset = max(0, int(values.get('offset', 0)))
-        tracks, directories, total, failures = await self.io(self.local.page, folder, offset)
+        cancel = self.folder_cancel
+        try:
+            tracks, directories, total, failures = await self.io(self.local.page, folder, offset, cancel=cancel)
+        except Cancelled:
+            if cancel.is_set():
+                return
+            raise
         if generation != self.generation:
             return
         self.record, self.folder, self.offset = None, folder, offset
@@ -351,28 +364,58 @@ class Backend:
         # ponytail: duration 0 stands for "never probed"; a file ffprobe reads as 0 s is retried per visit.
         if not any(track.duration == 0 for track in tracks):
             return
-        hydrated = []
-        shown = {track.key: (track.local_path, track.title, track.artist) for track in tracks}
-        for track in tracks:
-            if generation != self.generation:
-                return
-            if track.duration == 0:
-                try:
-                    track = await self.io(self.local.register, Path(track.local_path), inspect=True)
-                except Exception as exc:
-                    LOGGER.info('Metadata unavailable: %s', log_safe_text(exc))
-            hydrated.append(track)
-        from ..rows import Row
-        if generation == self.generation:
-            # A row renamed or given an artist meanwhile keeps that edit over this older reading.
-            current = {row.track.key: row.track for row in self.rows}
-            def newest(track):
-                now = current.get(track.key)
-                return now if now and (now.local_path, now.title, now.artist) != shown[track.key] else track
-            hydrated = [newest(track) for track in hydrated]
-            # Same files in the same order: an update, not a new view, so the table keeps its state.
-            self.rows = [Row(i, t, links.categorise(t)) for i, t in enumerate(hydrated)]
-            self.send_rows(generation)
+        # One decoder for folder tags, even when the user switches pages mid-probe.
+        pending = {}
+        last_flush = 0.0
+        def flush():
+            nonlocal last_flush
+            if generation == self.generation and pending:
+                patches = {track.key: fields for index, (track, fields) in pending.items()
+                           if index < len(self.rows) and self.rows[index].track is track}
+                if patches:
+                    self.send('rowPatch', dict(generation=generation, patches=patches), copy=False)
+            pending.clear()
+            last_flush = time.monotonic()
+
+        async with self.folder_probe_lock:
+            timer = None
+            try:
+                for index, original in enumerate(tracks):
+                    if cancel.is_set() or generation != self.generation:
+                        return
+                    if original.duration:
+                        continue
+                    try:
+                        track = await self.io(self.local.register, Path(original.local_path), inspect=True, cancel=cancel)
+                    except Cancelled:
+                        return
+                    except (OSError, ValueError, RuntimeError) as exc:
+                        LOGGER.info('Metadata unavailable: %s', log_safe_text(exc))
+                        continue
+                    if generation != self.generation or cancel.is_set():
+                        return
+                    if index >= len(self.rows):
+                        continue
+                    row = self.rows[index]
+                    if row.track is not original or track.local_id != original.local_id:
+                        continue  # A newer edit, refresh or replacement owns the row.
+                    row.track = track
+                    fields = self.row_value(row)
+                    pending[index] = track, {k: fields[k] for k in (
+                        'artist', 'genre', 'bpm', 'keySignature', 'classicKey', 'camelot', 'year',
+                        'label', 'duration', 'format', 'comment', 'search')}
+                    if time.monotonic() - last_flush >= .1:
+                        if timer:
+                            timer.cancel()
+                        flush()
+                    else:
+                        if timer:
+                            timer.cancel()
+                        timer = self.loop.call_at(self.loop.time() + max(0, .1 - (time.monotonic() - last_flush)), flush)
+            finally:
+                if timer:
+                    timer.cancel()
+                flush()
 
     async def job(self, name, work, lane='main'):
         handle = self.services.operations.start(name, lane=lane)
@@ -410,7 +453,7 @@ class Backend:
             if accepted := values.get('accepted'):
                 await accepted()
             if adding:
-                self.generation += 1
+                self.new_view()
                 self.record, self.folder = None, None
                 self.importing = dict(title=target, source=target, pending=True)
                 self.show_import(Crate(source=target, tracks=[], title=target), self.generation)
@@ -432,12 +475,12 @@ class Backend:
                                        handle.cancel, progress, arrived, **snapshot)
                 if result.record and generation == self.generation:
                     self.record, self.folder = result.record, None
-                    self.generation += 1
+                    self.new_view()
                     await self.publish(result.record.active_tracks, result.record.title, self.generation)
             finally:
                 if adding and generation == self.generation:
                     # Nothing was saved (failed, cancelled or empty): withdraw the half-filled view.
-                    self.generation += 1
+                    self.new_view()
                     self.rows = []
                     self.send('view', {'generation': self.generation, 'title': '', 'source': '', 'local': False, 'rows': []})
                 self.importing = None
@@ -477,16 +520,23 @@ class Backend:
         if status not in {NEW, GOT, SKIP}:
             raise ValueError('Invalid status')
         previous = [(r.track.key, self.services.state.get(r.track.key)) for r in rows]
-        generation = self.generation
         await self.io(self.services.state.set_many, [(key, status) for key, _ in previous])
         self.undo.append(previous)
-        self.send_rows(generation)
+        self.send_statuses(key for key, _ in previous)
 
     async def action_undo(self, values):
         if self.undo:
-            generation = self.generation
-            await self.io(self.services.state.set_many, self.undo.pop())
-            self.send_rows(generation)
+            previous = self.undo.pop()
+            await self.io(self.services.state.set_many, previous)
+            self.send_statuses(key for key, _ in previous)
+
+    def send_statuses(self, keys):
+        patches = {key: {'status': self.services.state.get(key)} for key in keys}
+        for key in patches.keys() & self.preview_paths.keys():
+            if not self.preview_path(key):
+                self.preview_paths.pop(key)
+                patches[key]['path'] = self.services.state.local_file(key) or ''
+        self.send('rowPatch', dict(generation=self.generation, patches=patches), copy=False)
 
     def send_rows(self, generation):
         """Statuses changed but the crate did not: rebuild the row values from memory."""
@@ -818,7 +868,7 @@ class Backend:
         if len(rows) != 1 or not rows[0].track.local_id:
             return
         track = rows[0].track
-        self.generation += 1
+        self.new_view()
         await self.publish([r.track for r in self.rows], self.record.title if self.record else str(self.folder or ''), self.generation)
         from ..services.local_library import media_analysis_values
         record = await self.io(self.services.state.db.media, track.local_id)
@@ -1053,7 +1103,7 @@ class Backend:
         await self.sidebar()
         if self.record and self.record.source == source:
             self.record = None
-            self.generation += 1
+            self.new_view()
             await self.publish([], '', self.generation)
 
     async def action_profile(self, values):
@@ -1236,6 +1286,8 @@ class Backend:
         await self.io(clear_token)
         self.services.adopt_login(None)
         await self.action_account({})
+        if os.environ.get('SOUNDCLOUD_OAUTH_TOKEN', '').strip():
+            self.send('message', {'text': 'Saved login removed. SOUNDCLOUD_OAUTH_TOKEN is still active.'})
 
     def soundcloud_account(self):
         """Only the current account matching the stored login has a known owner ID."""
@@ -1294,7 +1346,7 @@ class Backend:
                 self.send('playLoading', {})
         # Heard once, a track is no longer new.
         if await self.io(self.services.state.mark_played, track.key):
-            self.send_rows(self.generation)
+            self.send_statuses([track.key])
         if not hasattr(self, 'ticker') or self.ticker.done():
             self.ticker = self.loop.create_task(self.tick())
 
@@ -1324,7 +1376,7 @@ class Backend:
                 if generation != self.play_generation or self.closing:
                     return
                 # Playback starts now; the waveform and artwork follow once read or computed.
-                for work in (self.load_waveform(loaded, source, waveform_cancel), self.load_artwork(loaded, waveform_cancel)):
+                for work in (self.load_waveform(loaded, source, waveform_cancel), self.load_artwork(loaded, waveform_cancel, getattr(source, "metadata", None))):
                     task = self.loop.create_task(work)
                     self.tasks.add(task)
                     task.add_done_callback(self.tasks.discard)
@@ -1354,7 +1406,7 @@ class Backend:
             if not cancel.is_set() and self.services.player.loaded is loaded:
                 self.send('waveform', dict(key=loaded.track.key, samples=samples), copy=False)
 
-    async def load_artwork(self, loaded, cancel):
+    async def load_artwork(self, loaded, cancel, metadata=None):
         """The label picture: the track's own artwork, else the default cover from Settings."""
         from ..local_audio import artwork
         from ..services.playback import remote_artwork
@@ -1364,7 +1416,7 @@ class Backend:
             data = None
             try:
                 if track.local_path:
-                    data = artwork(track.local_path, cancel)
+                    data = artwork(track.local_path, cancel, metadata=metadata)
                 elif url:
                     data = remote_artwork(self.services.client.session, url)
             except Exception as exc:
@@ -1525,15 +1577,26 @@ class Backend:
         self.send('nowPlaying', self.now_playing)
         self.publish_browser()
 
+    def preview_path(self, key):
+        preview = self.preview_paths.get(key)
+        if preview and self.services.state.observe_file(key).revision == preview[1]:
+            return preview[0]
+        return ''
+
     def playable(self, track):
-        if track.local_path or track.key not in self.preview_paths:
-            return track
-        return replace(track, local_path=self.preview_paths[track.key])
+        path = self.preview_path(track.key)
+        return replace(track, local_path=path) if path and not track.local_path else track
 
     async def prepare_track(self, track):
         from ..services.playback import Prepared, resolve_stream
         if track.local_path:
             from ..local_audio import prepare_local
+            if track.local_id:
+                def prepare_file():
+                    record = self.services.state.db.media(track.local_id)
+                    cached = json.loads(record['metadata_json']) if record else None
+                    return prepare_local(track, cached)
+                return await self.io(prepare_file)
             return await self.io(prepare_local, track)
         if not track.id:
             raise ValueError('No track id, so there is nothing to stream')
@@ -1693,7 +1756,7 @@ class Backend:
 
     async def action_import_summary(self, values):
         answer = await self.form('Import saved summary', '', [field('path', 'JSON file', kind='file')], required('path'), ok='Import')
-        self.generation += 1
+        self.new_view()
         generation = self.generation
         records = await self.io(links.load_summary, Path(answer['path']).expanduser())
         if generation != self.generation:
@@ -1770,18 +1833,17 @@ class Backend:
             scanner = self.services.library.scanner(self.services.config.scan_directories)
             await self.io(scanner.scan, cancel=handle.cancel)
             check_cancelled(handle.cancel)
-            paths = await self.io(self.services.library.match_tracks, tracks, scanner)
-            for key, path in paths.items():
-                if path and not self.services.state.local_file(key):
-                    self.preview_paths[key] = path
-                else:
-                    self.preview_paths.pop(key, None)
+            previews = {}
+            await self.io(self.services.library.match_tracks, tracks, scanner, previews=previews)
+            for track in tracks:
+                self.preview_paths.pop(track.key, None)
+            self.preview_paths.update(previews)
             await self.refresh_rows()
         await self.job('Scanning', work, lane='scan')
 
     async def action_resume(self, values):
         from ..export import execute, resume_plan
-        records = await self.io(self.services.state.db.media_operations)
+        records = await self.io(self.services.state.db.media_operations, unfinished=True)
         plans = [resume_plan(r) for r in records.values() if r.get('kind') == 'copy' and r['stage'] != 'done']
         if not plans:
             self.send('message', {'text': 'No unfinished folder exports'})
@@ -2060,6 +2122,7 @@ class Backend:
         self.loop.call_soon_threadsafe(lambda: self.loop.create_task(self._close()))
 
     async def _close(self):
+        self.folder_cancel.set()
         self.closing = True
         self.waveform_cancel.set()
         self.play_generation += 1

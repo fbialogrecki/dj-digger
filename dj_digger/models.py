@@ -179,6 +179,7 @@ class Crate:
     declared_count: int | None = None
     provider_id: int | None = None
     owner_id: int | None = None
+    partial: bool = False
 
 
 @dataclass

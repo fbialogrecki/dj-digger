@@ -9,9 +9,11 @@ null device); only the browser cart and the gate pass are replaced by the fakes 
 since those need a live browser. The panel is the real popup.html with a stubbed chrome.*,
 fed the state the backend publishes for it, shot with headless Chromium.
 
-    uv run --extra gui --extra analyze python scripts/site_screenshots.py
+    uv run --extra gui --extra analyze python scripts/site_screenshots.py [de|es|fr|it|pl|ru]
 
-Writes, dark theme throughout:
+With a language, the app runs in it and only the window shots and crops are written, under
+screenshots/<language>/; the panel (the extension has no translations) and the loop are shared.
+Without one (English), writes, dark theme throughout:
 - site/src/assets/screenshots/*.png: eight whole windows at 2x (1280x800 logical) and the panel;
 - site/src/assets/screenshots/crops/*.png: parts of those same frames at 2x, cut along the scene
   rectangles of the QML items they show (player, stores, decisions, cart, gates, library,
@@ -32,7 +34,11 @@ import wave
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
+LANGUAGE = sys.argv[1] if len(sys.argv) > 1 else 'en'
+if LANGUAGE not in ('en', 'de', 'es', 'fr', 'it', 'pl', 'ru'):
+    raise SystemExit(f'Unknown language {LANGUAGE!r}')
 OUT = REPO / 'site' / 'src' / 'assets' / 'screenshots'
+OUT = OUT if LANGUAGE == 'en' else OUT / LANGUAGE
 CROPS, VIDEO = OUT / 'crops', REPO / 'site' / 'src' / 'assets' / 'video'
 # A fixed, neutral path: folders shown in the dialogs read /tmp/dj-digger-demo/..., never a real home.
 DEMO = Path('/tmp/dj-digger-demo')
@@ -87,6 +93,7 @@ from dj_digger.crate_models import CrateRecord  # noqa: E402
 from dj_digger.gate_models import GateCaptchaRequired  # noqa: E402
 from dj_digger.gui.backend import Backend  # noqa: E402
 from dj_digger.gui.bridge import Bridge  # noqa: E402
+from dj_digger.gui.model import HEADERS  # noqa: E402
 from dj_digger.models import Track  # noqa: E402
 from dj_digger.services.downloads import FileBatchResult  # noqa: E402
 from dj_digger.state import TrackState  # noqa: E402
@@ -270,13 +277,13 @@ class Panel:
 def desktop(files):
     source, tracks = seed(files)
     (HOME / '.config/dj-digger').mkdir(parents=True, exist_ok=True)
-    (HOME / '.config/dj-digger/gui.json').write_text(json.dumps(dict(width=WIDTH, height=HEIGHT, theme='dark', animations=False)))
+    (HOME / '.config/dj-digger/gui.json').write_text(json.dumps(dict(width=WIDTH, height=HEIGHT, theme='dark', animations=False, language=LANGUAGE)))
     engine = QQmlApplicationEngine()
     questions = []
     bridge = Bridge(engine, backend_factory=lambda emit: Backend(emit, connect_browser=False))
     bridge.question.connect(lambda values: questions.append(values['title']))
     engine.rootContext().setContextProperty('desktop', bridge)
-    engine.rootContext().setContextProperty('systemLanguage', 'en')
+    engine.rootContext().setContextProperty('systemLanguage', LANGUAGE)
     engine.load(QUrl.fromLocalFile(str(REPO / 'dj_digger/gui/qml/Main.qml')))
     window = engine.rootObjects()[0]
     window.show()
@@ -287,6 +294,9 @@ def desktop(files):
 
     def box(margin, *rects):
         """The union of QML rectangles in window coordinates (logical px), grown by margin, within the window."""
+        # Columns are named in English here and found by the header the language shows.
+        rects = [re.sub(r'column\("([^"]+)"\)', lambda m: f'column({json.dumps(model.headerName(HEADERS.index(m[1])))})', r)
+                 for r in rects]
         found = qml(f'(() => {{ {GEOMETRY}; return [{", ".join(rects)}] }})()').toVariant()
         left, top = (min(r[k] for r in found) - margin for k in (0, 1))
         right, bottom = (max(r[k] for r in found) + margin for k in (2, 3))
@@ -313,7 +323,7 @@ def desktop(files):
     def ask(title, action, *args):
         del questions[:]
         action(*args)
-        wait(lambda: title in questions, title)
+        wait(lambda: bridge.tr(title) in questions, title)  # the bridge translates the question it shows
 
     def dismiss():
         qml('dialog.reject()')
@@ -387,6 +397,9 @@ def desktop(files):
     shoot('desktop-browser-connect', connect=(8, 'rect(dialog.background)'))
     dismiss()
 
+    if LANGUAGE != 'en':
+        return close(window, backend, engine)
+
     # The kick light: motion on, as the app ships, and a 120 BPM track, so eight seconds are four whole bars.
     qml('root.animations = true')
     select('Sable Fern - Glasshouse Dub')
@@ -400,12 +413,15 @@ def desktop(files):
     model.clearSelection()
     QTest.qWait(1500)  # the record's reveal and the waveform's blend, on the real clock
     loop(window, bridge, qml, item, files[2], box(4, 'rect(player)'))
+    close(window, backend, engine)
+    return panel
 
+
+def close(window, backend, engine):
     window.close()
     wait(lambda: not backend.thread.is_alive(), 'shutdown', 15)
     import shiboken6
     shiboken6.delete(engine)  # before the bridge goes, as the app does, so no binding reads a dead `desktop`
-    return panel
 
 
 class Paced:
@@ -528,7 +544,8 @@ def main():
     VIDEO.mkdir(parents=True, exist_ok=True)
     files = library()
     panel = desktop(files)
-    extension(panel)
+    if LANGUAGE == 'en':
+        extension(panel)
     shutil.rmtree(DEMO)
 
 

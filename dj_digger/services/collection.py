@@ -294,7 +294,7 @@ class CollectionService:
         return CrateRecord.from_json(raw) if raw is not None else None
 
     def persist(self, crate, generation, export_format, export_path):
-        record = self.remember(crate, generation=generation)
+        record = self.remember(crate, generation=generation, partial=crate.partial)
         if record is None:
             return CollectionResult(None, None)
         records = links.categorise_all(record.active_tracks)

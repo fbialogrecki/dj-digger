@@ -184,6 +184,9 @@ class Database:
             elif generation is not None and self.crate_generation(source) != generation:
                 return None
             current = self.load_crate(source)
+            if current is not None and incoming.get("partial"):
+                # Return the requested slice for export while retaining the saved collection.
+                return dict(incoming, removed_track_keys=current.get("removed_track_keys", []))
             if current is None:
                 current = incoming
             else:
@@ -603,9 +606,42 @@ class Database:
             conn.execute('INSERT OR REPLACE INTO media_operations VALUES(?,?)', (operation_id, json.dumps(record)))
 
     @owned
-    def media_operations(self):
+    def copy_results(self, operation, *, migrate=False):
+        with self.connection(write=migrate) as conn:
+            if migrate:
+                row = conn.execute("SELECT json_extract(record_json, '$.results') FROM media_operations WHERE id=?", (operation,)).fetchone()
+                if row and row[0] is not None:
+                    for result in json.loads(row[0]):
+                        self.record_copy_result(operation, result)
+                    conn.execute("UPDATE media_operations SET record_json=json_remove(record_json,'$.results','$.missing') WHERE id=?", (operation,))
+            return {row['source']: json.loads(row['result_json']) for row in conn.execute(
+                'SELECT source,result_json FROM copy_results WHERE operation=?', (operation,))}
+
+    @owned
+    def record_copy_result(self, operation, result):
+        with self.connection(write=True) as conn:
+            conn.execute('INSERT OR REPLACE INTO copy_results VALUES(?,?,?)',
+                         (operation, result['source'], json.dumps(result)))
+
+    @owned
+    def finish_copy_item(self, operation, result, target, signature):
+        with self.connection(write=True):
+            self.register_media(target, signature, parent_id=result['parent_id'])
+            complete = {k: v for k, v in result.items() if k not in ('temporary', 'parent_id')}
+            complete['status'] = 'complete'
+            self.record_copy_result(operation, complete)
+
+    @owned
+    def finish_copy_report(self, operation):
+        with self.connection(write=True) as conn:
+            conn.execute("UPDATE media_operations SET record_json=json_set(record_json,'$.stage','done') WHERE id=?", (operation,))
+
+    @owned
+    def media_operations(self, *, unfinished=False):
         with self.connection() as conn:
-            return {row['id']: json.loads(row['record_json']) for row in conn.execute('SELECT * FROM media_operations')}
+            return {row['id']: json.loads(row['record_json']) for row in conn.execute(
+                "SELECT * FROM media_operations WHERE json_extract(record_json,'$.stage') != 'done' ORDER BY rowid"
+                if unfinished else 'SELECT * FROM media_operations ORDER BY rowid')}
 
     @owned
     def commit_media_replacement(self, media_id, old_path, new_path, signature, metadata):

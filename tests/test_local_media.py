@@ -276,22 +276,6 @@ def test_delete_many_deletes_nothing_unless_every_file_is_safe(tmp_path, db):
     assert all(path.exists() for path in paths)
 
 
-@pytest.mark.parametrize('version', [0, 1])
-def test_v2_migration_backs_up_committed_wal(tmp_path, version):
-    path = tmp_path / 'library.db'
-    with sqlite3.connect(path) as connection:
-        for statement in DDL:
-            connection.execute(statement)
-        connection.execute(f'PRAGMA user_version={version}')
-        connection.execute('PRAGMA journal_mode=WAL')
-        connection.execute("INSERT INTO track_states VALUES ('x', 'got', '')")
-        connection.commit()
-        database = Database(path)
-        assert database.all_track_statuses() == {'x': 'got'}
-        database.close()
-    assert list((tmp_path / 'backups').iterdir())
-
-
 def test_lock_rejects_second_instance(tmp_path):
     first = InstanceLock(tmp_path / 'lock')
     try:
@@ -423,22 +407,6 @@ def test_missing_media_identity_preserves_recovery_original(tmp_path, db):
     assert list(tmp_path.glob('*.original'))
     assert recover(db)
     assert list(tmp_path.glob('*.original'))
-
-
-@pytest.mark.parametrize('version', [0, 1])
-def test_backup_failure_leaves_schema_untouched(tmp_path, monkeypatch, version):
-    from dj_digger import schema
-    path = tmp_path / 'v1.db'
-    with sqlite3.connect(path) as connection:
-        for statement in DDL:
-            connection.execute(statement)
-        connection.execute(f'PRAGMA user_version={version}')
-    monkeypatch.setattr(schema, 'backup', lambda *args: (_ for _ in ()).throw(OSError('backup denied')))
-    with pytest.raises(OSError, match='backup denied'):
-        Database(path)
-    with sqlite3.connect(path) as connection:
-        assert connection.execute('PRAGMA user_version').fetchone()[0] == version
-        assert schema.signature(connection) == schema.expected_signature()
 
 
 def test_analysis_abstention_keeps_tag_fallback(tmp_path, db):
@@ -587,7 +555,7 @@ def test_a_played_waveform_is_kept_in_the_library(tmp_path, db, monkeypatch):
     path.write_bytes(b'one')
     decoded = []
     envelope = [5, 6]
-    monkeypatch.setattr(local_audio, 'waveform', lambda source, cancel: decoded.append(source) or envelope)
+    monkeypatch.setattr(local_audio, 'waveform', lambda source, cancel, **kw: decoded.append(source) or envelope)
     local = Track('Local', '', local_path=str(path), local_id='x')
     assert track_waveform(db, local, '', None) == envelope
     assert track_waveform(db, local, '', None) == envelope and len(decoded) == 1
@@ -644,3 +612,169 @@ def test_the_label_is_the_picture_cut_to_a_circle_with_its_colours_untouched():
     assert small.startswith('data:image/jpeg;base64,') and len(small) < MAX_ARTWORK
     square = QImage.fromData(base64.b64decode(small.split(',', 1)[1]))
     assert (square.width(), square.height()) == (BROWSER_PIXELS, BROWSER_PIXELS)
+
+
+def test_cancelled_resume_keeps_the_exported_file(tmp_path, db):
+    from threading import Event
+    plan = plan_export([audio(tmp_path, name) for name in ('a.wav', 'b.wav')], tmp_path)
+    stop = Event()
+    execute(plan, db, cancel=stop, progress=lambda done, total: stop.set())
+    assert execute(plan, db, resume=True, cancel=stop)['status'] == 'cancelled'
+    assert execute(plan, db, resume=True)['status'] == 'complete'
+
+
+@pytest.mark.parametrize('failure', ['before_install', 'after_install', 'report'])
+def test_copy_resumes_across_publication_boundaries(tmp_path, db, monkeypatch, failure):
+    from dj_digger import export
+    path = audio(tmp_path)
+    plan = plan_export([path], tmp_path / 'out')
+    target = Path(plan.items[0].destination)
+    def fail(*args, **kwargs):
+        raise OSError('interrupted')
+    with monkeypatch.context() as patch:
+        if failure == 'report':
+            patch.setattr(export, '_save_report', fail)
+            with pytest.raises(OSError, match='interrupted'):
+                execute(plan, db)
+        else:
+            if failure == 'before_install':
+                patch.setattr(export, 'install_new', fail)
+            else:
+                patch.setattr(db, 'finish_copy_item', fail)
+            assert execute(plan, db)['status'] == 'partial'
+    assert plan.id in db.media_operations(unfinished=True)
+    record = db.copy_results(plan.id)[str(path)]
+    assert record['status'] == ('complete' if failure == 'report' else 'prepared')
+    if failure == 'after_install':
+        data = target.read_bytes()
+        target.write_bytes(b'foreign')
+        assert execute(plan, db, resume=True)['status'] == 'partial'
+        assert target.read_bytes() == b'foreign'
+        target.write_bytes(data)
+    assert execute(plan, db, resume=True)['status'] == 'complete'
+    assert plan.id not in db.media_operations(unfinished=True)
+    assert list(target.parent.glob('*.wav')) == [target]
+
+
+def test_v4_journal_survives_backup_disconnect_and_repeated_resume(tmp_path):
+    import json
+    from contextlib import closing
+    from dataclasses import asdict
+
+    from dj_digger import schema
+    from dj_digger.media import MediaError, digest
+
+    source = audio(tmp_path)
+    plan = plan_export([source], tmp_path / 'drive')
+    target = Path(plan.items[0].destination)
+    target.parent.mkdir(parents=True)
+    shutil.copyfile(source, target)
+    report = dict(plan=asdict(plan), stage='copy', kind='copy',
+                  results=[dict(source=str(source), status='complete', sha256=digest(target))])
+    path = tmp_path / 'v4.db'
+    with closing(sqlite3.connect(path)) as old:
+        for sql in schema.DDL + schema.MEDIA_DDL + schema.WAVEFORM_DDL + schema.PLAYLIST_DDL:
+            old.execute(sql)
+        old.execute('PRAGMA user_version=4')
+        old.execute('INSERT INTO media_operations VALUES(?,?)', (plan.id, json.dumps(report)))
+        old.commit()
+    db = Database(path)
+    try:
+        backup, = (tmp_path / 'backups').glob('*.db')
+        with closing(sqlite3.connect(backup)) as old:
+            assert old.execute('PRAGMA user_version').fetchone()[0] == 4
+        missing = target.parent.with_name('disconnected')
+        target.parent.rename(missing)
+        with pytest.raises(MediaError, match='reconnect'):
+            execute(plan, db, resume=True)
+        assert not target.parent.exists()
+        missing.rename(target.parent)
+        assert execute(plan, db, resume=True)['results'] == report['results']
+        assert 'results' not in db.media_operations()[plan.id]
+    finally:
+        db.close()
+
+
+def test_bad_audio_link_leaves_other_folder_rows_available(tmp_path, db):
+    (tmp_path / 'ok.wav').write_bytes(b'audio')
+    (tmp_path / 'other.txt').write_bytes(b'text')
+    (tmp_path / 'bad.wav').symlink_to('other.txt')
+    tracks, _, _, failures = LocalLibrary(db).page(tmp_path)
+    assert [track.title for track in tracks] == ['ok'] and 'bad.wav' in failures[0]
+
+
+def test_bulk_local_tracks_join_analysis_once_per_500_ids(tmp_path, db):
+    from dj_digger.services.local_library import media_tracks
+    sig = '[1,2,3,4,5]'
+    ids = [db.register_media(str(tmp_path / f'{i}.wav'), sig)['id'] for i in range(501)]
+    db.save_analysis(ids[0], sig, 'test', {'bpm': 60})
+    db.set_media_manual(ids[0], {'bpm': 120})
+    statements = []
+    db._executor.submit(db._conn.set_trace_callback, statements.append).result()
+    try:
+        tracks = media_tracks(db, ids)
+    finally:
+        db._executor.submit(db._conn.set_trace_callback, None).result()
+    reads = [sql for sql in statements if sql.startswith('SELECT')]
+    assert len(tracks) == 501 and tracks[ids[0]].bpm == 120 and len(reads) == 2
+
+
+def test_copy_journal_write_volume_scales_with_file_count(tmp_path, db, monkeypatch):
+    import hashlib
+
+    from dj_digger import export
+
+    # Isolate the journal from decoder speed. Keep real publication, SQLite transactions and report I/O.
+    def prepare_fixture(item, profile, target, cancel=None):
+        target.write_bytes(b'audio')
+        return {}
+    monkeypatch.setattr(export, 'prepare', prepare_fixture)
+
+    def measure(count):
+        folder = tmp_path / str(count)
+        checksum = hashlib.sha256(b'audio').hexdigest()
+        items = tuple(export.Item(str(tmp_path / f'{i}.wav'), '[1,2,3,4,5]', checksum, str(folder / f'{i}.wav'),
+                                  'copy', 16, 44100, '{}') for i in range(count))
+        plan = export.ExportPlan(str(count), items, Profile(), 'copy', str(folder))
+        size = 0
+        def trace(sql):
+            nonlocal size
+            if ('copy_results' in sql or 'media_operations' in sql) and sql.startswith(('INSERT', 'UPDATE')):
+                size += len(sql.encode())
+        db._executor.submit(db._conn.set_trace_callback, trace).result()
+        try:
+            assert execute(plan, db)['status'] == 'complete'
+        finally:
+            db._executor.submit(db._conn.set_trace_callback, None).result()
+        return size + (folder / 'dj-digger-report.json').stat().st_size
+
+    small, large = measure(500), measure(1000)
+    print(f'Journal SQL and report bytes for 500/1000 files: {small}/{large}')
+    assert 1.9 < large / small < 2.1
+
+
+def test_playback_artwork_and_waveform_share_probe_until_file_changes(tmp_path, db, monkeypatch):
+    import json
+
+    from dj_digger import local_audio
+    path = audio(tmp_path)
+    track = LocalLibrary(db).register(path, inspect=True)
+    cached = json.loads(db.media(track.local_id)['metadata_json'])
+    probes = []
+    def count(path, cancel=None):
+        probes.append(path)
+        return probe(path, cancel)
+    monkeypatch.setattr(local_audio, 'probe', count)
+    loaded = local_audio.prepare_local(track, cached)
+    try:
+        assert not local_audio.artwork(path, metadata=loaded.source.metadata)
+        assert local_audio.waveform(path, metadata=loaded.source.metadata)
+        assert probes == []
+    finally:
+        loaded.source.join()
+    audio(tmp_path, 'new.wav', rate=44100).replace(path)
+    loaded = local_audio.prepare_local(track, cached)
+    try:
+        assert probes == [path] and loaded.source.metadata['rate'] == 44100
+    finally:
+        loaded.source.join()

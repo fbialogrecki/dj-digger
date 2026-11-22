@@ -1,0 +1,366 @@
+---
+import Base from "../../layouts/Base.astro";
+import Track from "../../components/Track.astro";
+import Code from "../../components/Code.astro";
+import { asset, repo, version } from "../../../site.config.mjs";
+
+const tracks = [
+  { id: "pressing", no: "01", title: "Выберите издание" },
+  { id: "unsigned", no: "02", title: "О неподписанных сборках" },
+  { id: "linux", no: "03", title: "Установка на Linux" },
+  { id: "manual", no: "04", title: "Ручная установка" },
+  { id: "verify", no: "05", title: "Проверка загрузки" },
+  { id: "next", no: "06", title: "После установки" },
+];
+
+const fileName = (url) => url.split("/").pop();
+const windows = asset("windows-x64-test.exe");
+const arm = asset("macos-arm64-test.dmg");
+const intel = asset("macos-x86_64-test.dmg");
+const release = `${repo}/releases/tag/v${version}`;
+const sums = `${repo}/releases/download/v${version}/SHA256SUMS`;
+const guide = `${repo}/blob/main/docs/installation.md`;
+const script = new URL("install.sh", Astro.site).href;
+const checks = [
+  ["установщик для Windows", windows],
+  ["образ диска macOS для Apple Silicon", arm],
+  ["образ диска macOS для Intel", intel],
+];
+
+const description = `Скачайте dj-digger ${version} для Windows 10 и 11 или macOS 15 и новее либо установите на Linux одной командой. У каждого файла есть контрольная сумма SHA-256.`;
+---
+
+<Base title={`Скачать dj-digger ${version}`} description={description} label="download" tracks={tracks}>
+  <Track id="pressing" no="01" title="Выберите издание" label="Скачать" heading="Выберите издание" hero sub>
+    <p class="lede"><strong>dj-digger {version}</strong> — бесплатно и с открытым кодом. Выберите конверт для своего компьютера.</p>
+
+    <div class="pressings">
+    <ul class="sleeves" aria-label="Загрузки по системам" data-sleeves>
+      <li class="sleeve" data-for="windows">
+        <span class="disc" aria-hidden="true"></span>
+        <div class="jacket">
+          <p class="mine">Ваша система</p>
+          <h2>Windows</h2>
+          <p>Windows 10 (версия 1809 или новее) и Windows 11, 64-битный Intel или AMD. Один установщик.</p>
+          <div class="get">
+            <a class="button" href={windows} data-main>Скачать установщик для Windows (.exe)</a>
+            <code class="file">{fileName(windows)}</code>
+          </div>
+        </div>
+      </li>
+      <li class="sleeve" data-for="macos">
+        <span class="disc" aria-hidden="true"></span>
+        <div class="jacket">
+          <p class="mine">Ваша система</p>
+          <h2>macOS</h2>
+          <p>macOS 15 или новее. Два образа диска, по одному на тип процессора.</p>
+          <p class="hint">
+            В меню Apple пункт «Об этом Mac» показывает <strong>Чип: Apple M1</strong> (или новее) на Apple Silicon и <strong>Процессор: Intel</strong>{" "}
+            на компьютерах Mac с Intel.
+          </p>
+          <div class="get">
+            <a class="button" href={arm}>Скачать для Apple Silicon (.dmg)</a>
+            <code class="file">{fileName(arm)}</code>
+            <a class="button" href={intel}>Скачать для Intel (.dmg)</a>
+            <code class="file">{fileName(intel)}</code>
+          </div>
+        </div>
+      </li>
+      <li class="sleeve" data-for="linux">
+        <span class="disc" aria-hidden="true"></span>
+        <div class="jacket">
+          <p class="mine">Ваша система</p>
+          <h2>Linux</h2>
+          <p>
+            Без файла установщика: одна команда в терминале устанавливает dj-digger и всё, что ему нужно. Проверено на
+            Ubuntu, Debian, Fedora, Arch и openSUSE.
+          </p>
+          <div class="get">
+            <a class="button" href="#linux" data-main>Команда установки для Linux</a>
+            <code class="file">install.sh</code>
+          </div>
+        </div>
+      </li>
+    </ul>
+    </div>
+
+    <p><a class="quiet" href={release}>Релиз {version} на GitHub: примечания и все файлы</a></p>
+  </Track>
+
+  <Track id="unsigned" no="02" title="О неподписанных сборках" label="Перед скачиванием" heading="Это неподписанные предварительные сборки">
+    <div class="notice stack">
+      <p>
+        dj-digger — бесплатный любительский проект. Установщик для Windows и образы диска для macOS —
+        <strong>предварительные версии</strong>: в них могут быть ошибки, у них нет проверенной подписи издателя, а
+        приложение для Mac не нотариально заверено Apple. Поэтому Windows SmartScreen или macOS Gatekeeper могут
+        предупредить, что приложение не распознано или его не удаётся проверить, и могут не дать его открыть.
+      </p>
+      <p>
+        Руководство по установке объясняет, почему так происходит и как разрешить именно это приложение, не отключая
+        защиту системы. Открытый код означает, что его можно проверить, а не что любая загрузка безопасна: продолжайте,
+        только если доверяете проекту и источнику своего файла.
+      </p>
+      <p><a class="quiet" href={guide}>Прочитать руководство по установке</a></p>
+    </div>
+  </Track>
+
+  <Track id="linux" no="03" title="Установка на Linux" heading="Linux: одна команда">
+    <p class="copy">
+      Для Linux нет файла установщика. Одна команда устанавливает dj-digger со всем необходимым, а повторный запуск
+      позже обновляет его.
+    </p>
+    <Code label="Через wget" code={`wget -qO- ${script} | sh`} />
+    <Code label="Или через curl" code={`curl -fsSL ${script} | sh`} />
+    <div class="cta">
+      <a class="button" href="/install.sh">Прочитайте скрипт перед запуском</a>
+      <a class="quiet" href={`${repo}/blob/main/site/public/install.sh`}>Тот же файл на GitHub</a>
+    </div>
+
+    <h3>Что он делает</h3>
+    <ul class="ticks">
+      <li>Устанавливает <a href="https://docs.astral.sh/uv/">uv</a> в ваш домашний каталог собственным установщиком uv с astral.sh.</li>
+      <li>
+        Проверяет наличие FFmpeg и системных библиотек, нужных Qt. Если чего-то не хватает, показывает точную команду{" "}
+        <code>apt-get</code>, <code>dnf</code>, <code>pacman</code> или <code>zypper</code> и спрашивает разрешения,
+        прежде чем запустить её через <code>sudo</code>.
+      </li>
+      <li>
+        Устанавливает <code>dj-sc-digger[gui,analyze]</code> из PyPI командой <code>uv tool install --upgrade</code>,
+        поэтому повторный запуск обновляет dj-digger.
+      </li>
+      <li>Добавляет пункт в меню и при необходимости прописывает папку приложения в PATH в профиле вашей оболочки.</li>
+      <li>В конце выводит список того, что сделал и чего не делал.</li>
+    </ul>
+    <p class="copy">Кроме этой одной команды пакетного менеджера, ничего за пределами домашнего каталога не меняется.</p>
+
+    <h3>Сначала посмотреть или не отвечать на вопрос</h3>
+    <Code label="--dry-run: показать, что будет сделано, ничего не меняя" code={`wget -qO- ${script} | sh -s -- --dry-run`} />
+    <Code label="--yes: запустить команду пакетного менеджера без вопроса" code={`wget -qO- ${script} | sh -s -- --yes`} />
+    <p class="copy">
+      Проверено на чистых установках Ubuntu 24.04, Debian 12, Fedora 45, Arch Linux и openSUSE Tumbleweed (64-битный
+      Intel или AMD). На другом дистрибутиве скрипт всё равно установит dj-digger и сообщит, что не смог проверить
+      системные пакеты. На Arch Linux сначала обновите систему (<code>sudo pacman -Syu</code>).
+    </p>
+  </Track>
+
+  <Track id="manual" no="04" title="Ручная установка" heading="Или установите сами">
+    <p class="copy">
+      Для любой системы с терминалом, если вы не хотите передавать скрипт в оболочку через конвейер. Сначала установите
+      FFmpeg, чтобы <code>ffprobe</code> был в PATH. Для pipx нужен Python 3.12 или новее; uv приносит свой Python, если
+      ваш старше.
+    </p>
+    <Code label="Через uv" code="uv tool install 'dj-sc-digger[gui,analyze]'" />
+    <Code label="Или через pipx" code="pipx install 'dj-sc-digger[gui,analyze]'" />
+    <p class="copy">Затем запустите приложение командой <code>dj-digger-gui</code>.</p>
+    <p><a class="quiet" href="https://pypi.org/project/dj-sc-digger/">dj-sc-digger на PyPI</a></p>
+  </Track>
+
+  <Track id="verify" no="05" title="Проверка загрузки" heading="Проверьте загруженный файл">
+    <p class="copy">
+      В каждом релизе есть файл <a href={sums}><code>SHA256SUMS</code></a> и файл <code>.sha256</code> рядом с каждым
+      установщиком. Выполните команду в папке, где лежит файл; вывод должен в точности совпасть с его контрольной суммой.
+    </p>
+    <Code label="Windows, в PowerShell" code={`Get-FileHash .\\${fileName(windows)} -Algorithm SHA256`} />
+    <Code label="macOS, в Терминале (образ для Apple Silicon)" code={`shasum -a 256 ${fileName(arm)}`} />
+    <Code label="macOS, в Терминале (образ для Intel)" code={`shasum -a 256 ${fileName(intel)}`} />
+    <Code label="Linux, для файла, скачанного там" code={`sha256sum ${fileName(windows)}`} />
+    <ul class="ticks sums" aria-label={`Контрольные суммы релиза ${version}`}>
+      <li><a href={sums}>SHA256SUMS</a> — все файлы релиза {version}</li>
+      {
+        checks.map(([what, url]) => (
+          <li>
+            <a href={`${url}.sha256`}>{`${fileName(url)}.sha256`}</a> — {what}
+          </li>
+        ))
+      }
+    </ul>
+    <p class="copy">Скачивайте только с github.com/fbialogrecki/dj-digger или с этого сайта.</p>
+    <p><a class="quiet" href={`${repo}/releases`}>Все релизы и их контрольные суммы</a></p>
+  </Track>
+
+  <Track id="next" no="06" title="После установки" label="Дальше" heading="Установили? Подключите браузер.">
+    <p class="copy">
+      Гейты скачивания, корзины магазинов и вход в SoundCloud работают через расширение dj-digger в вашем собственном
+      браузере.
+    </p>
+    <p><a class="button primary" href="/ru/extension/">Установить расширение</a></p>
+  </Track>
+</Base>
+
+<script>
+  // Puts this computer's sleeve first and makes its link the primary button.
+  // Phones, tablets and unknown systems keep all three equal.
+  const box = document.querySelector("[data-sleeves]");
+  const ua = navigator.userAgent;
+  const name = (navigator as any).userAgentData?.platform || navigator.platform || ua;
+  const mobile = /android|iphone|ipad|ipod|cros|chrome os/i.test(`${name} ${ua}`);
+  const ipad = /mac/i.test(name) && navigator.maxTouchPoints > 1; // iPadOS reports itself as a Mac
+  const os = mobile || ipad ? "" : /win/i.test(name) ? "windows" : /mac/i.test(name) ? "macos" : /linux/i.test(name) ? "linux" : "";
+  const sleeve = os && box?.querySelector(`[data-for="${os}"]`);
+  if (box && sleeve) {
+    box.setAttribute("data-os", os);
+    box.prepend(sleeve); // in the DOM, not only with CSS order, so focus and reading order follow
+    sleeve.querySelector("[data-main]")?.classList.add("primary");
+  }
+</script>
+
+<style>
+  /* Three record sleeves: a square-ish jacket with the record peeking out of its top edge. */
+  .pressings {
+    container-type: inline-size;
+  }
+  /* One column when narrow; then the first sleeve across the top and two under it;
+     three in a row once there is room. A lone third sleeve on its own row never happens. */
+  .sleeves {
+    display: grid;
+    gap: 1rem;
+  }
+  @container (min-width: 27rem) {
+    .sleeves {
+      grid-template-columns: 1fr 1fr;
+    }
+    .sleeves > :first-child {
+      grid-column: 1 / -1;
+    }
+    .sleeves > :not(:first-child) .jacket {
+      aspect-ratio: 1;
+    }
+  }
+  @container (min-width: 52rem) {
+    .sleeves {
+      grid-template-columns: repeat(3, 1fr);
+    }
+    .sleeves > :first-child {
+      grid-column: auto;
+    }
+    .sleeves > :first-child .jacket {
+      aspect-ratio: 1;
+    }
+  }
+  .sleeve {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    padding-top: 2.6rem;
+  }
+  .disc {
+    position: absolute;
+    top: 0;
+    right: 1.2rem;
+    width: 5.2rem;
+    aspect-ratio: 1;
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    background: repeating-radial-gradient(circle, var(--bg) 0 2px, var(--panel) 2px 3px);
+  }
+  .disc::after {
+    content: "";
+    position: absolute;
+    inset: 31%;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle, var(--bg) 0 16%, transparent 18%),
+      linear-gradient(135deg, var(--label-from), var(--label-to));
+  }
+  [data-for="macos"] .disc {
+    rotate: 120deg;
+  }
+  [data-for="linux"] .disc {
+    rotate: 240deg;
+  }
+  .jacket {
+    position: relative;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+    padding: 1.4rem;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    /* Ring wear: the outline a record leaves on its sleeve. */
+    background:
+      radial-gradient(circle closest-side, transparent 86%, color-mix(in srgb, var(--line) 50%, transparent) 87% 88%, transparent 89%) padding-box,
+      var(--panel);
+    color: var(--muted);
+  }
+  .jacket h2 {
+    font-size: 2.2rem;
+    color: var(--fg);
+  }
+  .hint {
+    font-size: 0.9rem;
+  }
+  .hint strong {
+    color: var(--fg);
+    font-weight: 600;
+  }
+  .get {
+    display: grid;
+    gap: 0.45rem;
+    margin-top: auto;
+    padding-top: 0.5rem;
+  }
+  .get .button {
+    padding-inline: 1rem;
+    line-height: 1.25;
+    text-align: center;
+    text-wrap: balance;
+  }
+  .get .button + .file + .button {
+    margin-top: 0.5rem;
+  }
+  .file {
+    padding: 0;
+    background: none;
+    font-size: 0.74rem;
+    line-height: 1.4;
+    color: var(--muted);
+    text-align: center;
+    overflow-wrap: anywhere;
+  }
+  .mine {
+    display: none;
+    font-stretch: 125%;
+    font-weight: 700;
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--fg);
+  }
+  .mine::before {
+    content: "";
+    display: inline-block;
+    width: 0.45rem;
+    height: 0.45rem;
+    margin-right: 0.55rem;
+    border-radius: 50%;
+    background: var(--neon-foot);
+    vertical-align: 0.1em;
+  }
+
+  /* The detected system: its sleeve comes first (moved by the script), pulled further out,
+     with a label and a stronger edge, so the highlight never rests on colour alone. */
+  .sleeves[data-os] > :first-child .mine {
+    display: block;
+  }
+  .sleeves[data-os] > :first-child .disc {
+    translate: 0 -0.9rem;
+  }
+  .sleeves[data-os] > :first-child .jacket {
+    padding: calc(1.4rem - 1px);
+    border: 2px solid transparent;
+    background:
+      radial-gradient(circle closest-side, transparent 86%, color-mix(in srgb, var(--line) 50%, transparent) 87% 88%, transparent 89%) padding-box,
+      linear-gradient(var(--panel), var(--panel)) padding-box,
+      linear-gradient(100deg, var(--neon-foot), var(--neon-top)) border-box;
+  }
+
+  #linux h3,
+  #verify .sums {
+    padding-top: 0.6rem;
+  }
+  .sums a {
+    overflow-wrap: anywhere;
+  }
+</style>

@@ -26,6 +26,9 @@ Node 22.23.4 or newer (Astro's minimum).
 | `/liner-notes/` | `src/pages/liner-notes.astro` | How it is built |
 | 404 | `src/pages/404.astro` | Empty groove |
 
+Every page but the 404 also exists in the app's other languages, under the language's
+code: `src/pages/de/app.astro` is `/de/app/`, and so on for `es`, `fr`, `it`, `pl`, `ru`.
+
 `blueprint/blueprint.md` is the agreed structure: pages, sections, their order and
 purpose. Only describe features that ship; `PROJECT_SPECIFICATION.md`, `README.md` and
 `CHANGELOG.md` at the released commit are the source of truth.
@@ -61,6 +64,28 @@ purpose. Only describe features that ship; `PROJECT_SPECIFICATION.md`, `README.m
   lifts off, the disc flips, the arm comes back down. Everything is off under
   `prefers-reduced-motion`, and the page is complete without JavaScript.
 
+## Languages
+
+The site speaks the app's seven languages, English at the root. `src/i18n/index.mjs`
+lists them and maps paths between them; `src/i18n/<code>.json` holds the layout's and
+components' strings (header, footer, Copy, the extension's data-flow diagram). A
+language's page is a copy of the English one with its text translated: imports one
+folder deeper, internal links under `/<code>/`, its own screenshots from
+`src/assets/screenshots/<code>/` (the extension panel and the player loop are shared;
+the extension has no translations). Name the app's buttons and dialogs as the app's
+catalog does (`dj_digger/gui/translations/<code>.ts`).
+
+`npm run build` ends with `scripts/check-languages.mjs`: every page must exist in every
+language with the English page's tracks, pictures and commands, the same `<style>` and
+`<script>`, the right `lang` and links that stay in its language. So a change to an
+English page is a change to all seven.
+
+The header's language switcher works without a script. Each page names its other
+languages in `hreflang` links, and the sitemap lists them too. On an English page,
+`boot.js` sends a visitor to the first of the browser's languages that the site
+speaks, or to the language picked with the switcher once there is one
+(`localStorage.djdLang`). Pages in other languages never redirect.
+
 ## Page kit
 
 Shared pieces live in `src/styles/global.css` and `src/components/`. Use them before
@@ -86,7 +111,8 @@ writing page-specific CSS; put what is truly page-specific in the page's own `<s
 
 Colours are the app's dark and light themes and its magenta-blue waveform pair. The
 site follows the system's theme; the header button switches it and remembers the
-choice (`localStorage`, restored by `boot.js` before first paint). Every colour token
+choice (`localStorage`, restored by `boot.js` before first paint). Switching back to the
+system's own theme forgets the choice, so the site follows the system again. Every colour token
 is one `light-dark()` value in `global.css`, so a new colour needs both sides there.
 Text uses `--fg`, `--muted` and `--accent` only, which keep WCAG AA contrast on `--bg`
 and `--panel` in both themes; `--neon-foot` and `--neon-top` are decoration, never text.
@@ -95,8 +121,9 @@ and `--panel` in both themes; `--neon-foot` and `--neon-top` are decoration, nev
 
 `uv run --extra gui --extra analyze python scripts/site_screenshots.py` (from the
 repository root) regenerates everything under `src/assets/screenshots/` and
-`src/assets/video/` from an isolated demo profile: eight full-window shots, nine crops
-and the player loop. Nothing there is drawn by hand. Run it on the released commit, so
+`src/assets/video/` from an isolated demo profile: eight full-window shots, nine crops,
+the extension panel and the player loop. Add a language code (`… site_screenshots.py pl`)
+for the app in that language: its window shots and crops, in `screenshots/<code>/`. Nothing there is drawn by hand. Run it on the released commit, so
 the site never shows an interface that has not shipped.
 
 `uv run --extra gui --with fonttools --with brotli python scripts/site_og.py` redraws

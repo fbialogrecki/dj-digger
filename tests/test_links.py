@@ -304,19 +304,21 @@ def test_export_json_roundtrips(tmp_path, tracks):
     assert path is not None
 
     written = json.loads(path.read_text(encoding="utf-8"))
-    assert sum(len(items) for items in written.values()) == len(records)
+    entries = [item for items in written.values() for item in items]
+    assert len(entries) == len(records)
+    assert all({"title", "track_url", "shop_link"} <= item.keys() for item in entries)
+    track_url = next(track.permalink_url for track in tracks if track.bpm)
+    entry = next(item for item in entries if item["track_url"] == track_url)
+    metadata = (128.0, "F#m", 2024, "Fixture Records")
+    assert (entry["bpm"], entry["key"], entry["release_year"], entry["label"]) == metadata
 
     reloaded = links.load_summary(path)
     assert len(reloaded) == len(records)
+    track = next(r.track for r in reloaded if r.track.permalink_url == track_url)
+    assert (track.bpm, track.key_signature, track.release_year, track.label_name) == metadata
     assert {record.link_url for record in reloaded} == {
         record.link_url for record in records
     }
-
-
-def test_export_json_keeps_the_v01_keys(tmp_path, tracks):
-    path = links.export_records(links.categorise_all(tracks), "json", tmp_path / "out.json")
-    entry = next(item for items in json.loads(path.read_text()).values() for item in items)
-    assert {"title", "track_url", "shop_link"} <= set(entry)
 
 
 def test_export_csv_is_flat(tmp_path, tracks):
@@ -329,21 +331,6 @@ def test_export_csv_is_flat(tmp_path, tracks):
     assert rows[0]["category"] in links.CATEGORY_NAMES
     assert reader.fieldnames[:5] == ["category", "artist", "title", "track_url", "shop_link"]
     assert reader.fieldnames[5:] == ["bpm", "key", "release_year", "label"]
-
-
-def test_export_json_carries_bpm_key_year_label(tmp_path, tracks):
-    with_fields = next(track for track in tracks if track.bpm)
-    records = links.categorise_all([with_fields])
-    path = links.export_records(records, "json", tmp_path / "out.json")
-    entry = next(item for items in json.loads(path.read_text()).values() for item in items)
-    assert (entry["bpm"], entry["key"], entry["release_year"], entry["label"]) == (
-        128.0, "F#m", 2024, "Fixture Records"
-    )
-
-    reloaded = links.load_summary(path)[0].track
-    assert (reloaded.bpm, reloaded.key_signature, reloaded.release_year, reloaded.label_name) == (
-        128.0, "F#m", 2024, "Fixture Records"
-    )
 
 
 def test_export_none_writes_nothing(tmp_path, tracks):

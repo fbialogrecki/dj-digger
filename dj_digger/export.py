@@ -39,6 +39,7 @@ from .media import (
     signature,
 )
 from .models import Cancelled, check_cancelled
+from .paths import portable_stem
 from .private_json import write_json_atomic
 
 
@@ -82,12 +83,7 @@ class ExportPlan:
 
 def portable(name: str) -> str:
     name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', unicodedata.normalize('NFC', name)).rstrip(' .')
-    if name.split('.')[0].upper() in {'CON', 'PRN', 'AUX', 'NUL', *(f'COM{i}' for i in range(1, 10)), *(f'LPT{i}' for i in range(1, 10))}:
-        name = '_' + name
-    # Leave ample room for collision suffixes and filesystem byte limits.
-    while len(name.encode('utf-8')) > 180:
-        name = name[:-1]
-    return name or '_'
+    return portable_stem(name, 180)
 
 
 def target_rate(rate: int, cap: int) -> int:
@@ -432,7 +428,7 @@ def replace_one(db, media_id, item, result, *, protected=lambda: (), failpoint=l
 def recover(db) -> list[str]:
     """Finish only states proved by hashes; preserve all ambiguous files."""
     messages = []
-    for operation, record in db.media_operations().items():
+    for operation, record in db.media_operations(unfinished=True).items():
         if record.get('kind') == 'copy' or record['stage'] == 'done':
             continue
         source, target, original = (Path(record[key]) for key in ('source', 'target', 'original'))
@@ -459,27 +455,49 @@ def recover(db) -> list[str]:
     return messages
 
 
-def _checkpoint_copy(plan, db, report):
-    _save_report(Path(plan.folder) / 'dj-digger-report.json', report)
-    stage = 'done' if report['status'] == 'complete' else 'copy'
-    db.record_media_operation(plan.id, {**report, 'kind': 'copy', 'stage': stage})
-
-
-def _open_copy_journal(plan: ExportPlan, db, report, resume) -> dict:
-    """Start or reopen the copy journal; return the already completed results by source."""
+def _open_copy_journal(plan, db, resume):
     folder = Path(plan.folder)
-    completed = {}
     if resume:
-        previous = db.media_operations().get(plan.id, {})
-        if previous.get('kind') != 'copy' or json.dumps(previous.get('plan'), sort_keys=True) != json.dumps(asdict(plan), sort_keys=True):
+        previous = db.media_operations(unfinished=True).get(plan.id, {})
+        if previous.get('kind') != 'copy' or resume_plan(previous) != plan:
             raise MediaError('No matching trusted journal for this export')
-        completed = {result['source']: result for result in previous.get('results', []) if result.get('status') == 'complete'}
-        if not folder.is_dir():
+        if folder.is_symlink() or not folder.is_dir():
             raise MediaError('Export folder is unavailable; reconnect its volume')
-    else:
-        folder.mkdir(parents=True, exist_ok=False)
-    db.record_media_operation(plan.id, {**report, 'kind': 'copy', 'stage': 'copy'})
-    return completed
+        return db.copy_results(plan.id, migrate=True)
+    folder.mkdir(parents=True, exist_ok=False)
+    fsync_directory(folder.parent)
+    db.record_media_operation(plan.id, dict(kind='copy', stage='copy', plan=asdict(plan)))
+    return {}
+
+
+def _published_copy(plan, db, item, previous, cancel):
+    """Reconcile an exclusive rename that may have happened before the database commit."""
+    target = Path(item.destination)
+    if previous['status'] == 'prepared':
+        staged = Path(previous['temporary']) if previous.get('temporary') else None
+        if staged and (staged.parent.parent != target.parent or staged.name != target.name
+                       or not staged.parent.name.startswith(f'.dj-digger-{plan.id}-')
+                       or staged.parent.is_symlink() or staged.is_symlink()):
+            raise MediaError('Staging path changed; files preserved for inspection')
+        if staged and staged.exists() and os.path.lexists(target):
+            raise MediaError('Destination appeared before installation; both files preserved')
+        if not os.path.lexists(target):
+            if not staged or not staged.is_file():
+                return None
+            if digest(staged, cancel) != previous['sha256']:
+                raise MediaError('Staged file changed; preserved for inspection')
+            install_new(staged, target)
+        if staged and staged.parent.exists() and not any(staged.parent.iterdir()):
+            staged.parent.rmdir()
+    if target.is_symlink() or not target.is_file():
+        raise MediaError('Previously exported file is missing or no longer regular')
+    observed = signature(target)
+    if digest(target, cancel) != previous['sha256'] or signature(target) != observed:
+        raise MediaError('Previously exported file changed; preserved for inspection')
+    if previous['status'] == 'prepared':
+        fsync_directory(target.parent)
+        db.finish_copy_item(plan.id, previous, str(target), observed)
+    return {key: value for key, value in dict(previous, status='complete').items() if key not in ('parent_id', 'temporary')}
 
 
 def _export_item(plan: ExportPlan, db, index, item: Item, report, completed, cancel, protected, progress) -> bool:
@@ -489,22 +507,34 @@ def _export_item(plan: ExportPlan, db, index, item: Item, report, completed, can
     commit_started = False
     try:
         check_cancelled(cancel)
-        if item.source in completed:
-            previous = completed[item.source]
-            if digest(Path(item.destination), cancel) != previous.get('sha256'):
-                raise MediaError('Previously exported file changed; preserved for inspection')
-            report['results'].append(previous)
-            return True
         if item.action == 'exception':
             raise MediaError(item.reason)
         target = Path(item.destination)
+        if plan.mode == 'copy':
+            # Create only descendants: unplugging a drive must never recreate its export root.
+            folder = Path(plan.folder)
+            if folder.is_symlink() or not folder.is_dir():
+                raise MediaError('Export folder is unavailable; reconnect its volume')
+            parent = folder
+            for part in target.parent.relative_to(folder).parts:
+                parent = parent / part
+                if parent.is_symlink():
+                    raise MediaError('Export directory changed; reconnect its original volume')
+                parent.mkdir(exist_ok=True)
+        previous = completed.get(item.source, {})
+        if previous.get('status') in ('complete', 'prepared'):
+            result = _published_copy(plan, db, item, previous, cancel)
+            if result is not None:
+                report['results'].append(result)
+                return True
         if plan.mode == 'replace' and item.action == 'copy':
             if signature(Path(item.source)) != item.signature or digest(Path(item.source), cancel) != item.sha256:
                 raise MediaError('Source changed since review')
             pcm_summary(Path(item.source), cancel=cancel)
             report['results'].append({'source': item.source, 'status': 'unchanged'})
             return True
-        target.parent.mkdir(parents=True, exist_ok=True)
+        if plan.mode == 'replace':
+            target.parent.mkdir(parents=True, exist_ok=True)
         working_directory = Path(tempfile.mkdtemp(prefix=f'.dj-digger-{plan.id}-', dir=target.parent))
         temporary = working_directory / target.name
         operation_id = uuid.uuid4().hex
@@ -521,23 +551,32 @@ def _export_item(plan: ExportPlan, db, index, item: Item, report, completed, can
         else:
             if target.exists():
                 raise MediaError('Destination already exists')
+            parent = db.register_media(str(Path(item.source).resolve()), item.signature)
+            checksum = item.sha256 if item.action == 'copy' else digest(temporary, cancel)
+            result = dict(source=item.source, status='prepared', sha256=checksum,
+                          parent_id=parent['id'], temporary=str(temporary), **details)
+            db.record_copy_result(plan.id, result)
+            completed[item.source] = result
+            check_cancelled(cancel)
             install_new(temporary, target)
             fsync_directory(target.parent)
-            source_record = db.register_media(str(Path(item.source).resolve()), item.signature)
-            db.register_media(str(target), signature(target), parent_id=source_record['id'])
+            db.finish_copy_item(plan.id, result, str(target), signature(target))
+            report['results'].append(dict(source=item.source, status='complete', sha256=result['sha256'], **details))
+            return True
         report['results'].append({'source': item.source, 'status': 'complete', 'sha256': digest(target), **details})
     except Cancelled:
         report['status'] = 'cancelled'
         return False
     except Exception as exc:
-        report['results'].append({'source': item.source, 'status': 'failed', 'error': str(exc)})
+        failure = {'source': item.source, 'status': 'failed', 'error': str(exc)}
+        report['results'].append(failure)
+        if plan.mode == 'copy' and completed.get(item.source, {}).get('status') not in ('prepared', 'complete'):
+            db.record_copy_result(plan.id, failure)
     finally:
         # A replacement journal may own this path after a failed commit.
         if working_directory and (not commit_started or not temporary.exists()):
             shutil.rmtree(working_directory)
         progress(index + 1, len(plan.items))
-        if plan.mode == 'copy':
-            _checkpoint_copy(plan, db, report)
     return True
 
 
@@ -545,17 +584,24 @@ def execute(plan: ExportPlan, db, *, resume=False, cancel=None, protected=lambda
     if plan.rules != RULE_VERSION:
         raise MediaError('Export rules changed; prepare a new plan')
     report = {'plan': asdict(plan), 'status': 'running', 'results': [], 'compatibility': plan.compatibility()}
-    completed = _open_copy_journal(plan, db, report, resume) if plan.mode == 'copy' else {}
+    completed = _open_copy_journal(plan, db, resume) if plan.mode == 'copy' else {}
     for index, item in enumerate(plan.items):
         if not _export_item(plan, db, index, item, report, completed, cancel, protected, progress):
             break
     if report['status'] != 'cancelled':
         report['status'] = 'partial' if any(item['status'] == 'failed' for item in report['results']) else 'complete'
+    if report['status'] == 'cancelled' and resume:
+        seen = {result['source'] for result in report['results']}
+        report['results'].extend({k: v for k, v in record.items() if k not in ('parent_id', 'temporary')}
+                                 for source, record in completed.items()
+                                 if source not in seen and record['status'] == 'complete')
     completed_sources = {result['source'] for result in report['results']
                          if result['status'] in ('complete', 'unchanged')}
     report['missing'] = [item.source for item in plan.items if item.source not in completed_sources]
     if plan.mode == 'copy':
-        _checkpoint_copy(plan, db, report)
+        _save_report(Path(plan.folder) / 'dj-digger-report.json', report)
+        if report['status'] == 'complete':
+            db.finish_copy_report(plan.id)
     return report
 
 

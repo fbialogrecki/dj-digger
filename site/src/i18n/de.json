@@ -1,0 +1,50 @@
+{
+  "skip": "Zum Inhalt springen",
+  "primary": "Hauptmenü",
+  "nav": {
+    "app": "App",
+    "extension": "Erweiterung",
+    "notes": "Liner Notes",
+    "download": "Download",
+    "github": "GitHub"
+  },
+  "menu": "Menü",
+  "tracklist": "Trackliste",
+  "language": "Sprache",
+  "toLight": "Zum hellen Design wechseln",
+  "toDark": "Zum dunklen Design wechseln",
+  "ogAlt": "dj-digger: von der SoundCloud-Playlist zu Dateien auf deinen Decks. Das App-Icon, eine Schallplatte von oben gesehen.",
+  "footer": {
+    "free": "Kostenlos und Open Source, Apache 2.0.",
+    "site": "Website",
+    "project": "Projekt",
+    "legal": "Rechtliches",
+    "privacy": "Datenschutzerklärung",
+    "license": "Lizenz",
+    "madeBy": "Gemacht von",
+    "colophon": "Diese Website setzt keine Cookies, nutzt keine Analyse-Tools und lädt nichts von anderen Servern."
+  },
+  "copy": "Kopieren",
+  "copied": "Kopiert",
+  "play": "Abspielen",
+  "pause": "Pause",
+  "openFull": "Screenshot des ganzen Fensters öffnen",
+  "opensFull": "Öffnet das ganze Fenster",
+  "loopAlt": "Der dj-digger-Player spielt Glasshouse Dub von Sable Fern, 120 BPM in 7A, bei 1:04 von 3:20: eine Schallplatte mit generiertem Artwork, eine Wellenform, deren gespielter Teil magenta leuchtet, und Transporttasten.",
+  "flow": {
+    "title": "Wohin die Daten der Erweiterung gehen",
+    "desc": "Ein Kasten, dein Computer, enthält die dj-digger-Desktop-App und deinen Browser mit der dj-digger-Erweiterung. App und Erweiterung sind über Native Messaging verbunden, ihren einzigen Kanal. Die einzigen Pfeile, die den Kasten verlassen, führen von den Tabs, die die Erweiterung für die App geöffnet hat, zu fünf Websites: Hypeddit, ToneDen, Bandcamp, Beatport und SoundCloud. Ein Kasten für den Entwickler steht ohne Pfeil außerhalb: Dorthin wird nichts gesendet.",
+    "computer": "Dein Computer",
+    "app": "dj-digger-App",
+    "appNote": "sendet die Browserschritte",
+    "native": "Native Messaging",
+    "nativeNote": "der einzige Kanal",
+    "browser": "Dein Browser",
+    "extension": "dj-digger-Erweiterung",
+    "tabs": "Geöffnete Tabs",
+    "tabsNote": "für die App",
+    "developer": "Entwickler",
+    "developerNote": "nichts gesendet",
+    "sites": "Websites"
+  }
+}

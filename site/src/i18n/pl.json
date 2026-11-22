@@ -1,0 +1,50 @@
+{
+  "skip": "Przejdź do treści",
+  "primary": "Główna nawigacja",
+  "nav": {
+    "app": "Aplikacja",
+    "extension": "Rozszerzenie",
+    "notes": "Tył okładki",
+    "download": "Pobierz",
+    "github": "GitHub"
+  },
+  "menu": "Menu",
+  "tracklist": "Lista utworów",
+  "language": "Język",
+  "toLight": "Przełącz na jasny motyw",
+  "toDark": "Przełącz na ciemny motyw",
+  "ogAlt": "dj-digger: od playlisty w SoundCloud do plików na Twoich deckach. Ikona aplikacji, płyta widziana z góry.",
+  "footer": {
+    "free": "Bezpłatny i otwartoźródłowy, Apache 2.0.",
+    "site": "Strona",
+    "project": "Projekt",
+    "legal": "Informacje prawne",
+    "privacy": "Polityka prywatności",
+    "license": "Licencja",
+    "madeBy": "Autor:",
+    "colophon": "Ta strona nie ustawia ciasteczek, nie zbiera statystyk i nie wczytuje niczego z innych serwerów."
+  },
+  "copy": "Kopiuj",
+  "copied": "Skopiowano",
+  "play": "Odtwórz",
+  "pause": "Pauza",
+  "openFull": "Otwórz zrzut całego okna",
+  "opensFull": "Otwiera całe okno",
+  "loopAlt": "Odtwarzacz dj-digger gra Glasshouse Dub w wykonaniu Sable Fern, 120 BPM w 7A, na 1:04 z 3:20: płyta z wygenerowaną okładką, przebieg dźwięku z odegraną częścią podświetloną na magentowo i przyciski sterowania.",
+  "flow": {
+    "title": "Dokąd trafiają dane rozszerzenia",
+    "desc": "Jedna ramka, Twój komputer, mieści aplikację desktopową dj-digger i Twoją przeglądarkę z rozszerzeniem dj-digger. Aplikację i rozszerzenie łączy native messaging, ich jedyny kanał. Jedyne strzałki wychodzące poza ramkę prowadzą z kart, które rozszerzenie otworzyło dla aplikacji, do pięciu serwisów: Hypeddit, ToneDen, Bandcamp, Beatport i SoundCloud. Ramka twórcy stoi na zewnątrz bez żadnej strzałki: nic tam nie trafia.",
+    "computer": "Twój komputer",
+    "app": "Aplikacja dj-digger",
+    "appNote": "wysyła kroki przeglądarce",
+    "native": "Native messaging",
+    "nativeNote": "jedyny kanał",
+    "browser": "Przeglądarka",
+    "extension": "Rozszerzenie dj-digger",
+    "tabs": "Otwarte karty",
+    "tabsNote": "dla aplikacji",
+    "developer": "Twórca",
+    "developerNote": "nic nie trafia",
+    "sites": "Serwisy"
+  }
+}

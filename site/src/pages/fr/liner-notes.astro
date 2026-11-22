@@ -1,0 +1,544 @@
+---
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { Picture } from "astro:assets";
+import Base from "../../layouts/Base.astro";
+import Loop from "../../components/Loop.astro";
+import Track from "../../components/Track.astro";
+import { author, repo } from "../../../site.config.mjs";
+
+const description =
+  "Comment dj-digger est construit : l'architecture, la frontière de confiance de l'extension de navigateur, les protections contre les entrées non fiables, la lumière du kick et sa validation, les tests et les versions, et ce site web.";
+const tracks = [
+  { id: "notes", no: "01", title: "Livret" },
+  { id: "architecture", no: "02", title: "Architecture" },
+  { id: "browser", no: "03", title: "La frontière du navigateur" },
+  { id: "untrusted", no: "04", title: "Non fiable par défaut" },
+  { id: "kick", no: "05", title: "La pulsation du kick" },
+  { id: "releases", no: "06", title: "Tests et versions" },
+  { id: "website", no: "07", title: "Ce site web" },
+  { id: "credits", no: "08", title: "Crédits et sources" },
+];
+
+// Figures are counted from the repository at build time, never typed.
+// Paths are relative to the working directory (npm runs in site/), as in site.config.mjs.
+const testFunctions = readdirSync("../tests", { recursive: true })
+  .filter((file) => String(file).endsWith(".py"))
+  .reduce((sum, file) => sum + (readFileSync(`../tests/${file}`, "utf8").match(/def test_/g) ?? []).length, 0);
+const workflows = readdirSync("../.github/workflows").filter((file) => /\.ya?ml$/.test(file)).length;
+const ci = readFileSync("../.github/workflows/ci.yml", "utf8");
+const list = (key) => {
+  const found = new RegExp(`^\\s*${key}:\\s*\\[([^\\]]+)\\]`, "m").exec(ci);
+  if (!found) throw new Error(`ci.yml: no ${key} matrix`); // fail the build rather than print a wrong figure
+  return found[1].split(",").map((item) => item.trim().replace(/^["']|["']$/g, ""));
+};
+const osName = { "ubuntu-latest": "Ubuntu", "macos-latest": "macOS", "windows-latest": "Windows" };
+const ciOs = list("os").map((os) => osName[os] ?? os);
+const ciPython = list("python-version");
+const scriptBytes = statSync("src/scripts/deck.js").size + statSync("src/scripts/geometry.js").size;
+const scriptKb = (scriptBytes / 1000).toLocaleString("fr", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const count = new Intl.NumberFormat("fr");
+const join = (items) => (items.length > 1 ? `${items.slice(0, -1).join(", ")} et ${items.at(-1)}` : items[0]);
+
+const spec = `${repo}/blob/main/PROJECT_SPECIFICATION.md`;
+const guide = `${repo}/blob/main/docs/architecture.md`;
+const validation = `${repo}/blob/main/docs/kick-pulse-validation.md`;
+const workflowsUrl = `${repo}/tree/main/.github/workflows`;
+// Anchors are GitHub's slugs of the specification's headings (github-slugger).
+const section = {
+  urls: { href: `${spec}#111-untrusted-urls-and-ssrf-boundary`, label: "§11.1 URL non fiables et frontière SSRF" },
+  secrets: { href: `${spec}#112-secret-and-personal-data-handling`, label: "§11.2 Traitement des secrets et des données personnelles" },
+  files: { href: `${spec}#113-file-and-mutation-safety`, label: "§11.3 Sûreté des fichiers et des modifications" },
+};
+
+const guards = [
+  ["Schémas d'URL", "Les champs des morceaux, les descriptions, les fichiers de résumé, les redirections et les réponses des gates ne sont pas fiables, et seules les URL HTTP(S) avec un hôte sont transmises au navigateur.", section.urls],
+  ["Limites de domaine", "Les contrôles d'appartenance aux boutiques et à SoundCloud comparent l'hôte exact ou une limite de sous-domaine, jamais une sous-chaîne, si bien qu'un hôte qui ressemble à une boutique n'en est pas une.", section.urls],
+  ["Protection SSRF", "Avant toute requête automatique, les identifiants dans l'URL, les noms localhost et les adresses IP littérales non globales sont rejetés, et chaque redirection validée est bornée ; les noms DNS ne sont pas résolus au préalable, une limite que la spécification énonce.", section.urls],
+  ["Limites de téléchargement", "Les tailles déclarées et observées sont plafonnées à 2 Gio, les corps HTML sont rejetés, et les noms de fichiers sont réduits à leur nom de base, les caractères invalides remplacés et les noms réservés de Windows préfixés.", section.files],
+  ["Remplacement atomique", "Les téléchargements HTTP et ceux du navigateur sont écrits dans des fichiers temporaires puis publiés par renommage atomique sous un verrou de nom partagé, et les fichiers partiels sont supprimés en cas d'échec ou d'annulation.", section.files],
+  ["Revalidation du panier", "Les écritures dans les paniers exigent une vérification préalable de l'article exact et une revalidation immédiate, et les écritures réseau qui pourraient dupliquer une modification sur un autre site ne sont jamais relancées automatiquement.", section.files],
+  ["Secrets", "Les mots de passe ne sont saisis que sur les pages du service lui-même, la connexion SoundCloud ne conserve que le oauth_token vérifié dans le trousseau du système, les fichiers de jetons sont écrits en privé avant un remplacement atomique, et les journaux de la CLI masquent les paramètres des URL et les champs d'identifiants.", section.secrets],
+];
+
+// The architecture diagram: boxes in the SVG's own units (320 wide), drawn in a column that holds at 328px.
+const LINE = 13;
+const box = (x, y, w, h, lines, kind = "") => ({ x, y, w, h, lines, kind });
+const nodes = [
+  box(1, 18, 154, 36, ["CLI"], "ctl"),
+  box(165, 18, 154, 36, ["Bureau Qt Quick"], "ctl"),
+  box(1, 82, 318, 46, ["ApplicationServices", "différé : sans Qt, n'ouvre rien avant usage"], "named"),
+  box(1, 154, 110, 62, ["Services :", "collecte, achat,", "téléchargement,", "comptes"]),
+  box(119, 154, 96, 62, ["Service", "bibliothèque"]),
+  box(223, 154, 96, 62, ["Service", "lecture"]),
+  box(1, 242, 110, 50, ["Adaptateurs", "SoundCloud,", "gates, boutiques"]),
+  box(119, 242, 96, 50, ["Dépôts"]),
+  box(223, 242, 96, 50, ["Moteur audio", "en mémoire"]),
+  box(119, 318, 96, 44, ["SQLite :", "un seul thread"], "owner"),
+  box(1, 378, 318, 58, ["OperationCoordinator", "un slot principal, un de scan : admet le travail", "et suit l'annulation jusqu'à la fin des workers"], "named coord"),
+];
+const wires = [[78, 54, 80], [242, 54, 80], [56, 128, 152], [167, 128, 152], [271, 128, 152], [56, 216, 240], [167, 216, 240], [271, 216, 240], [167, 292, 316]];
+const baseline = (node, i) => node.y + node.h / 2 - ((node.lines.length - 1) * LINE) / 2 + 4 + i * LINE;
+---
+
+<Base title="Livret : comment dj-digger est construit" description={description} label="notes" tracks={tracks}>
+  <Track id="notes" no="01" title="Livret" hero sub>
+    <Fragment slot="heading">Livret : <span class="grad">comment dj-digger est construit</span></Fragment>
+    <p class="lede">
+      Le dos de la pochette : comment l'application est assemblée, où elle trace ses frontières et comment elle est
+      vérifiée. Chaque affirmation renvoie au document ou au fichier dont elle vient.
+    </p>
+    <p class="copy">
+      Écrit, réalisé et pressé par <a href={author.url}>{author.name}</a>.
+    </p>
+    <ul class="facts">
+      <li>Python 3.12+</li>
+      <li>Qt Quick</li>
+      <li>Extension Manifest V3</li>
+      <li>SQLite</li>
+      <li>Aucun serveur dj-digger</li>
+    </ul>
+  </Track>
+
+  <Track id="architecture" no="02" title="Architecture" heading="Les contrôleurs présentent, les services portent les effets">
+    <p class="lede">
+      La CLI et le bureau Qt sont des contrôleurs posés sur les mêmes services applicatifs. Les contrôleurs gèrent la
+      présentation ; les services portent les effets accomplis et le cycle de vie des ressources ; un coordinateur
+      unique admet le travail et suit l'annulation jusqu'à ce que les workers aient fini.
+    </p>
+    <figure class="diagram">
+      <svg class="arch" viewBox="0 0 320 438" role="img" aria-labelledby="arch-title arch-desc">
+        <title id="arch-title">Comment dj-digger est composé</title>
+        <desc id="arch-desc">
+          La CLI et le bureau Qt Quick sont des contrôleurs posés sur ApplicationServices, qui compose les services
+          applicatifs de façon différée et n'importe pas Qt. Les services de collecte, de téléchargement, d'achat et de
+          compte utilisent les adaptateurs SoundCloud, de gates et de boutiques. Le service de bibliothèque passe par
+          des dépôts sur le thread propriétaire de SQLite. Le service de lecture pilote le moteur audio en mémoire.
+          L'OperationCoordinator, avec un slot principal et un slot de scan, admet le travail et suit l'annulation
+          jusqu'à ce que les workers aient fini.
+        </desc>
+        <defs>
+          <marker id="arch-tip" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+            <path class="tip" d="M0 0L8 4L0 8z"></path>
+          </marker>
+        </defs>
+        <text class="group" x="1" y="10">CONTRÔLEURS</text>
+        {wires.map(([x, from, to]) => <path class="wire" d={`M${x} ${from}V${to}`} marker-end="url(#arch-tip)" />)}
+        {
+          nodes.map((node) => (
+            <g class={node.kind}>
+              <rect x={node.x} y={node.y} width={node.w} height={node.h} rx="6" />
+              {node.lines.map((line, i) => (
+                <text x={node.x + node.w / 2} y={baseline(node, i)} class={node.kind.includes("named") && i > 0 ? "sub" : undefined}>
+                  {line}
+                </text>
+              ))}
+            </g>
+          ))
+        }
+      </svg>
+    </figure>
+    <ul class="ticks rules">
+      <li>
+        <strong>Aucun travail bloquant sur le thread de l'interface.</strong> Le backend, le pont de signaux Qt, le
+        modèle de tableau et la fenêtre QML se répartissent orchestration, signaux, lignes et rendu ; aucun d'eux ne
+        fait de travail réseau ou disque bloquant sur le thread de l'interface, et les résultats lui sont renvoyés
+        (<a href={`${guide}#ui-ownership`}>UI ownership</a>).
+      </li>
+      <li>
+        <strong>Un seul thread possède SQLite.</strong> Les transactions sont explicites et courtes, aucun accès réseau,
+        navigateur ou boîte de dialogue n'a lieu à l'intérieur, le statut et la provenance des fichiers sont validés
+        ensemble, et les copies en mémoire ne changent qu'après la validation
+        (<a href={`${guide}#persistent-effects-and-identity`}>Persistent effects and identity</a>).
+      </li>
+      <li>
+        <strong>La composition n'importe pas Qt.</strong> Construire <code>ApplicationServices</code> n'importe pas Qt
+        et n'ouvre ni base de données, ni périphérique, ni connexion au navigateur ; la CLI et le bureau en obtiennent
+        le même service de collecte différé
+        (<a href={`${guide}#composition-and-execution`}>Composition and execution</a>).
+      </li>
+    </ul>
+    <p class="copy">
+      Le guide dit aussi ce que la conception ne prétend pas : pas d'épinglage DNS, pas d'audit de sécurité, et aucune
+      transaction qui couvre à la fois le système de fichiers et SQLite.
+    </p>
+    <p><a class="quiet" href={guide}>Lire le guide d'architecture</a></p>
+  </Track>
+
+  <Track id="browser" no="03" title="La frontière du navigateur" heading="Piloter votre navigateur sans se l'approprier">
+    <p class="lede">
+      Les gates et les paniers tournent dans le vrai navigateur de l'utilisateur, où il est connecté : l'extension
+      applique donc ses propres limites, quoi que lui envoie l'application de bureau.
+    </p>
+    <div class="movement">
+      <h3>Un seul canal, aucun code distant</h3>
+      <p class="copy">
+        La seule entrée de commandes est le port de messagerie native de l'application sur le même ordinateur : le
+        manifeste n'a ni <code>externally_connectable</code> ni <code>web_accessible_resources</code>, et aucun script
+        de page n'écoute <code>window.postMessage</code>. Il n'y a pas d'<code>eval</code> ; les seules fonctions
+        exécutées dans une page sont des fonctions nommées, en lecture seule, livrées avec l'extension. Côté
+        application, le dossier du socket est privé à l'utilisateur et les pairs s'authentifient avec une clé dans un
+        fichier 0600.
+      </p>
+    </div>
+    <div class="movement">
+      <h3>Une liste de sites fixe</h3>
+      <p class="copy">
+        Un seul <code>allowlist.json</code> pilote le script d'arrière-plan, et un test le compare aux listes d'hôtes
+        Python et aux autorisations d'hôte du manifeste : HTTPS sur le port par défaut, sans identifiants, vers
+        Hypeddit, ToneDen, Bandcamp et Beatport, et la page de connexion de SoundCloud. Toute navigation ailleurs est
+        refusée.
+      </p>
+    </div>
+    <div class="movement">
+      <h3>Seulement ses propres onglets</h3>
+      <p class="copy">
+        Les commandes agissent sur les onglets et les fenêtres de travail que l'extension a créés et sur leurs popups,
+        jamais sur les autres onglets de l'utilisateur. Lire ou cliquer exige aussi que l'adresse actuelle de l'onglet
+        figure dans la liste autorisée ; toute autre adresse est réduite à <code>https://&lt;host&gt;/</code> avant
+        d'être signalée, et les paramètres OAuth sont retirés. Chaque onglet possédé est muet.
+      </p>
+    </div>
+    <div class="movement">
+      <h3>Un arrêt net avant l'argent</h3>
+      <p class="copy">
+        Un onglet Bandcamp ou Beatport possédé qui navigue ou est redirigé vers un chemin de commande, de validation du
+        panier, de paiement ou de facturation est fermé et signalé. Les clics sur des éléments nommés check out, pay,
+        purchase, place order, buy now ou complete order sont refusés, et le remplissage de formulaires refuse les
+        champs de mot de passe et de carte de paiement.
+      </p>
+    </div>
+    <div class="cta">
+      <a class="quiet" href={`${spec}#114-browser-extension-trust-boundary`}>§11.4 Frontière de confiance de l'extension</a>
+      <a class="quiet" href={`${repo}/blob/main/CHROMEWEBSTORE.md`}>Justification des autorisations</a>
+      <a class="quiet" href="/fr/extension/">La page de l'extension</a>
+    </div>
+  </Track>
+
+  <Track id="untrusted" no="04" title="Non fiable par défaut" heading="Aucun lien n'est digne de confiance">
+    <p class="lede">
+      Les liens d'artistes, les redirections, les réponses des services et les noms de fichiers sont traités comme des
+      entrées hostiles. Ces protections existent dans le code ; chacune renvoie à la partie de la spécification qui
+      l'énonce.
+    </p>
+    <ul class="guards">
+      {
+        guards.map(([name, text, source]) => (
+          <li>
+            <h3>{name}</h3>
+            <p>{text}</p>
+            <a href={source.href}>{source.label}</a>
+          </li>
+        ))
+      }
+    </ul>
+  </Track>
+
+  <Track id="kick" no="05" title="La pulsation du kick" heading="Une lumière qui suit le kick, pas la basse">
+    <p class="lede">
+      La lumière du lecteur suit un niveau de kick continu, calculé à partir de l'audio avant qu'il n'atteigne le
+      haut-parleur, plutôt que des décisions de battement par oui ou non : une décision manquée ne peut donc jamais
+      l'arrêter.
+    </p>
+    <Loop>Capturé dans la vraie application avec un morceau de démo synthétique. Le rendu logiciel utilisé pour la capture ne dessine pas la lueur GPU : la vraie lumière est plus forte.</Loop>
+    <div class="movement">
+      <h3>Ce que suit la lumière</h3>
+      <p class="copy">
+        <code>beats.py</code> compare chaque bande basse fréquence de l'audio décodé à sa propre médiane récente : une
+        basse tenue, une remontée de sidechain ou une nappe devient la référence, et seul ce qui la dépasse compte. Ce
+        dépassement est pondéré selon sa ressemblance avec un kick. Le kick propre à un morceau n'est appris qu'à partir
+        de frappes dont la hauteur descend, si bien qu'une note de basse répétée ne le devient jamais
+        (<a href={`${spec}#34-audio-preview`}>§3.4 Pré-écoute audio</a>).
+      </p>
+    </div>
+    <div class="movement">
+      <h3>En avance sur le haut-parleur</h3>
+      <p class="copy">
+        Le lecteur décode en avance sur le périphérique audio, si bien que chaque niveau existe avant que son son ne
+        soit entendu, et la fenêtre le lit par rapport au temps qui atteint réellement le haut-parleur, mesuré d'après ce
+        que le périphérique a pris. Le 1er octobre 2026, en lisant un morceau à partir de 60 s sur la machine de
+        développement (PipeWire, périodes de 50 ms), les niveaux avaient 184 à 189 ms d'avance sur la position du
+        périphérique, alors que la file mesurée du périphérique était de 46 à 71 ms ; l'analyse a pris environ
+        0,57 % du temps réel.
+      </p>
+    </div>
+    <div class="movement">
+      <h3>La forme de la lumière</h3>
+      <p class="copy">
+        La lumière est analogique : elle bondit aussitôt au niveau du kick et s'éteint de façon exponentielle, comme une
+        lampe, si bien qu'un kick plein est retombé dans le noir avant le suivant et que les frappes graves plus douces
+        apparaissent plus faibles et plus courtes (<a href={`${spec}#38-qt-quick-desktop`}>§3.8 Bureau Qt Quick</a>).
+        Une couleur de repos pastel plus claire faisait autrefois passer un kick pour une lumière qui s'éteint ; dans
+        les couleurs saturées mesurées le 1er octobre 2026, le néon est 2,1 à 2,2 fois plus lumineux que le repos.
+      </p>
+    </div>
+    <div class="movement">
+      <h3>Vérifié dans la vraie fenêtre</h3>
+      <p class="copy">
+        Les mesures hors ligne disaient que deux morceaux signalés allaient bien ; le 1er octobre 2026, la vraie pile a
+        donc été lancée (fenêtre, pont, backend, lecteur et périphérique audio ; son coupé, hors écran, sur un état
+        d'application isolé) en journalisant la lumière, l'horloge et les niveaux de la fenêtre à chaque image. Cela a
+        révélé deux bugs en dehors de l'analyse. Les niveaux entre 0 et 1 étaient des flottants numpy, que Qt transmet à
+        QML comme des objets opaques et non comme des nombres : seuls les niveaux valant exactement 0 ou 1 allumaient
+        quoi que ce soit ; les niveaux sont désormais de simples flottants. Et après un démarrage, le périphérique prenait
+        ses 50 premières ms d'un coup et les suivantes seulement plus tard, si bien que le temps entendu était bloqué sur
+        la position transmise et avançait d'environ 70 ms par paliers de 50 ms ; la file n'est désormais jamais
+        considérée comme inférieure à ce que le dernier callback a transmis.
+      </p>
+      <div class="table">
+        <table>
+          <caption>Kalipo – Captain, 45–105 s, en direct dans la vraie fenêtre, 1er octobre 2026</caption>
+          <thead>
+            <tr><th scope="col">Mesure</th><th scope="col">Avant</th><th scope="col">Après</th></tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row">Kicks sous 0,3 de luminosité</th><td>20 sur 114</td><td>0</td></tr>
+            <tr><th scope="row">Kick le plus faible</th><td>0,00</td><td>0,95</td></tr>
+            <tr><th scope="row">Images avec l'horloge bloquée sur la position de l'instantané</th><td>54 %</td><td>0 %</td></tr>
+            <tr><th scope="row">Sauts de plus de 20 ms dans le temps entendu</th><td>1199</td><td>0</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="copy">
+        Sur un second morceau après le correctif, 62 kicks avaient une luminosité médiane de 0,94 et aucun n'est
+        descendu sous 0,3, avec la fenêtre à 63 images par seconde et aucun écart entre images de plus de 28 ms.
+      </p>
+    </div>
+    <p><a class="quiet" href={validation}>Lire les notes de validation</a></p>
+  </Track>
+
+  <Track id="releases" no="06" title="Tests et versions" heading="Du commit à l'installateur">
+    <p class="lede">
+      {workflows} fichiers de workflow mènent une modification d'un commit jusqu'aux installateurs et aux stores. Chaque
+      étape ci-dessous est ce que le workflow exécute, tel que la spécification le consigne.
+    </p>
+    <ol class="steps">
+      <li>
+        <span class="no">01</span>
+        <h3>Suite hors ligne</h3>
+        <p>
+          {count.format(testFunctions)} fonctions de test dans <code>tests/</code>. Par défaut, les marqueurs live sont
+          exclus, une fixture autouse déplace la configuration, l'authentification, la base de données et les dossiers à
+          scanner vers un dossier temporaire, et le transport HTTP par défaut est bloqué : aucun test n'atteint un service
+          en ligne, des données utilisateur ou des dossiers de musique. La CI l'exécute à chaque push et pull request sur
+          {join(ciOs)} avec Python {join(ciPython)} ({ciOs.length * ciPython.length} jobs), après la vérification de
+          la carte de la spécification et Ruff, et construit et vérifie dans chaque job une installation isolée du wheel.
+        </p>
+      </li>
+      <li>
+        <span class="no">02</span>
+        <h3>Contrôles de contrat en direct</h3>
+        <p>
+          Un workflow hebdomadaire lance la suite live, marquée à part, contre l'API de SoundCloud : découverte du client
+          ID, longues collections, hydratation, disponibilité des médias et décodage des sockets. C'est une surveillance,
+          pas une condition de publication. Les contrôles des boutiques et des gates se lancent à la main : des pages
+          publiques de boutiques lues via l'extension sans se connecter ni toucher à un panier, et une inspection des
+          gates en GET uniquement.
+        </p>
+      </li>
+      <li>
+        <span class="no">03</span>
+        <h3>Installateurs</h3>
+        <p>
+          Les contrats du bureau et un démarrage isolé tournent sous Linux, Windows et macOS. La CI construit ensuite
+          l'installateur Windows x64 et des images disque macOS natives arm64 et x86_64, vérifie le runtime intégré et
+          l'installation de chacun, et téléverse chacun comme artefact de test, accompagné d'un fichier SHA-256. Ce sont
+          des préversions non signées ; les tests sur des appareils physiques restent séparés.
+        </p>
+      </li>
+      <li>
+        <span class="no">04</span>
+        <h3>Publication</h3>
+        <p>
+          Une version stable publiée lance sa propre matrice de tests, puis s'envoie sur PyPI par publication de
+          confiance (OIDC) ; seul ce job peut demander un jeton d'identité, et les actions tierces sont épinglées à des
+          commits. La même version empaquette l'extension et la soumet au Chrome Web Store via son API, authentifiée
+          comme compte de service. Les préversions sautent ces deux étapes.
+        </p>
+      </li>
+    </ol>
+    <div class="cta">
+      <a class="quiet" href={`${spec}#14-verification-ci-and-release`}>§14 Vérification, CI et publication</a>
+      <a class="quiet" href={workflowsUrl}>Les workflows</a>
+    </div>
+  </Track>
+
+  <Track id="website" no="07" title="Ce site web" heading="Ce site web">
+    <p class="lede">Le colophon. Les chiffres sont calculés au moment où le site est construit.</p>
+    <dl class="spec">
+      <dt>Pile</dt>
+      <dd>Pages Astro statiques et CSS simple. Aucun framework d'interface ni aucune dépendance à l'exécution : Astro ne tourne qu'à la construction.</dd>
+      <dt>Le disque</dt>
+      <dd>
+        Du SVG intégré, issu du même générateur à graine que l'icône de l'application (<code>scripts/app_icon.py</code>).
+        Des animations CSS pilotées par le défilement le font tourner et déplacent le bras ; un petit script prend le
+        relais là où elles manquent.
+      </dd>
+      <dt>Poids du script</dt>
+      <dd>
+        {scriptKb} ko pour le script du disque (<code>deck.js</code> et <code>geometry.js</code>) : le source, avant
+        minification et compression.
+      </dd>
+      <dt>Requêtes tierces</dt>
+      <dd>Aucune. Pas d'outil d'analyse, pas de cookies, des polices hébergées sur le site.</dd>
+      <dt>Captures d'écran</dt>
+      <dd>
+        La vraie interface avec des données de démo, régénérée avec la boucle du lecteur ci-dessus
+        par <code>scripts/site_screenshots.py</code>.
+      </dd>
+      <dt>Accessibilité</dt>
+      <dd>Utilisable entièrement au clavier, une tracklist en texte à côté du disque, pas d'animation quand les mouvements sont réduits, complet sans JavaScript.</dd>
+      <dt>Source</dt>
+      <dd><a href={`${repo}/tree/main/site`}>Le dossier du site dans le dépôt</a></dd>
+    </dl>
+  </Track>
+
+  <Track id="credits" no="08" title="Crédits et sources" heading="Crédits et sources">
+    <ul class="sources">
+      <li><a href={repo}>Code source</a> sur GitHub. Issues et pull requests bienvenues.</li>
+      <li><a href={spec}>Spécification</a> : chaque comportement livré et chaque frontière de sécurité et de confidentialité.</li>
+      <li><a href={`${repo}/blob/main/CHANGELOG.md`}>Journal des modifications</a> : ce qui a changé à chaque version.</li>
+      <li><a href={guide}>Guide d'architecture</a> : où doit se placer une modification d'implémentation.</li>
+      <li><a href={`${repo}/blob/main/LICENSE`}>Licence</a> : Apache 2.0.</li>
+    </ul>
+    <p class="signature">
+      Créé par <a href={author.url}>{author.name}</a> : design, développement et tout le reste.
+    </p>
+  </Track>
+</Base>
+
+<style>
+  .diagram {
+    max-width: 28rem;
+  }
+  .arch {
+    width: 100%;
+    font-family: var(--sans);
+  }
+  .arch rect {
+    fill: var(--panel);
+    stroke: var(--edge);
+    stroke-width: 1;
+  }
+  .arch .ctl rect {
+    stroke: var(--neon-foot);
+  }
+  .arch .owner rect {
+    stroke: var(--neon-top);
+  }
+  .arch .coord rect {
+    stroke-dasharray: 4 3;
+  }
+  .arch text {
+    fill: var(--fg);
+    font-size: 11px;
+    text-anchor: middle;
+  }
+  .arch .named text:first-of-type {
+    font-family: var(--mono);
+    font-weight: 700;
+  }
+  .arch .sub {
+    fill: var(--muted);
+    font-size: 10.5px;
+  }
+  .arch .group {
+    fill: var(--muted);
+    font: 600 8.5px var(--mono);
+    letter-spacing: 0.12em;
+    text-anchor: start;
+  }
+  .arch .wire {
+    fill: none;
+    stroke: var(--edge);
+    stroke-width: 1.2;
+  }
+  .arch .tip {
+    fill: var(--edge);
+  }
+  .rules strong,
+  .guards h3,
+  .steps h3 {
+    color: var(--fg);
+  }
+  .rules li + li {
+    margin-top: 1rem;
+  }
+  .rules,
+  .guards,
+  .steps,
+  .sources {
+    max-width: 44rem;
+  }
+  .guards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: 1.6rem 2rem;
+  }
+  .guards li {
+    display: grid;
+    align-content: start;
+    gap: 0.4rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+  }
+  .guards h3 {
+    font-size: 1rem;
+  }
+  .guards a {
+    font-size: 0.86rem;
+    color: var(--fg);
+  }
+  .steps {
+    display: grid;
+    gap: 2rem;
+  }
+  .steps li {
+    display: grid;
+    grid-template-columns: 2.5rem minmax(0, 1fr);
+    gap: 0.2rem 1rem;
+  }
+  .steps .no {
+    grid-row: span 2;
+    color: var(--accent);
+    font-size: 0.8rem;
+    padding-top: 0.3rem;
+  }
+  .steps p {
+    color: var(--muted);
+  }
+  .table caption {
+    padding: 0.8rem 1rem 0.2rem;
+    text-align: left;
+    font: 500 0.78rem var(--mono);
+    color: var(--muted);
+  }
+  .table tbody th {
+    white-space: normal;
+  }
+  .table td {
+    white-space: nowrap;
+  }
+  .sources li {
+    padding: 0.7rem 0;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+  }
+  .sources a,
+  .signature a {
+    font-weight: 600;
+    color: var(--fg);
+  }
+  .signature {
+    color: var(--muted);
+  }
+  @media (max-width: 30rem) {
+    .spec {
+      grid-template-columns: 1fr;
+    }
+    .spec dd {
+      padding-top: 0;
+      border-top: 0;
+    }
+  }
+</style>

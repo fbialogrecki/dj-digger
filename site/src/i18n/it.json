@@ -1,0 +1,50 @@
+{
+  "skip": "Vai al contenuto",
+  "primary": "Principale",
+  "nav": {
+    "app": "App",
+    "extension": "Estensione",
+    "notes": "Libretto",
+    "download": "Scarica",
+    "github": "GitHub"
+  },
+  "menu": "Menu",
+  "tracklist": "Tracklist",
+  "language": "Lingua",
+  "toLight": "Passa al tema chiaro",
+  "toDark": "Passa al tema scuro",
+  "ogAlt": "dj-digger: da una playlist SoundCloud ai file sui tuoi deck. L'icona dell'app, un disco visto dall'alto.",
+  "footer": {
+    "free": "Gratuito e open source, Apache 2.0.",
+    "site": "Sito",
+    "project": "Progetto",
+    "legal": "Note legali",
+    "privacy": "Informativa sulla privacy",
+    "license": "Licenza",
+    "madeBy": "Fatto da",
+    "colophon": "Questo sito non imposta cookie, non usa analytics e non carica nulla da altri server."
+  },
+  "copy": "Copia",
+  "copied": "Copiato",
+  "play": "Riproduci",
+  "pause": "Pausa",
+  "openFull": "Apri lo screenshot della finestra intera",
+  "opensFull": "Apre la finestra intera",
+  "loopAlt": "Il player di dj-digger che riproduce Glasshouse Dub di Sable Fern, 120 BPM in 7A, a 1:04 di 3:20: un disco con copertina generata, una forma d'onda con la parte suonata accesa di magenta e i pulsanti di trasporto.",
+  "flow": {
+    "title": "Dove vanno i dati dell'estensione",
+    "desc": "Un riquadro, il tuo computer, contiene l'app desktop dj-digger e il tuo browser con l'estensione dj-digger. App ed estensione sono unite dal native messaging, il loro unico canale. Le uniche frecce che escono dal riquadro vanno dalle schede che l'estensione ha aperto per l'app a cinque siti: Hypeddit, ToneDen, Bandcamp, Beatport e SoundCloud. Fuori c'è un riquadro per lo sviluppatore, senza frecce: lì non viene inviato nulla.",
+    "computer": "Il tuo computer",
+    "app": "app dj-digger",
+    "appNote": "invia i passi al browser",
+    "native": "Native messaging",
+    "nativeNote": "l'unico canale",
+    "browser": "Il tuo browser",
+    "extension": "estensione dj-digger",
+    "tabs": "Schede aperte",
+    "tabsNote": "per l'app",
+    "developer": "Sviluppatore",
+    "developerNote": "nulla inviato",
+    "sites": "Siti"
+  }
+}

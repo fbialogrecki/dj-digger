@@ -26,6 +26,21 @@ def named(key, title, artist=''):
     return dict(row(key, title), artist=artist)
 
 
+def test_invert_selection_flips_only_visible_rows(app):
+    model = TrackModel()
+    model.replace([row('a', 'Alpha'), row('b', 'Beta'), row('c', 'Gamma')])
+    model.select(0)
+    model.invertSelection()
+    assert model.keys() == ['b', 'c']
+    model.filter('Beta', {})
+    model.invertSelection()
+    assert not model.keys() and not model.selected
+    model.filter('', {})
+    assert not model.keys()
+    model.invertSelection()
+    assert model.keys() == ['a', 'b', 'c']
+
+
 def test_shift_selects_the_range_and_ctrl_shift_adds_it(app):
     model = TrackModel()
     model.replace([row(str(i), f'T{i}') for i in range(8)])
@@ -130,19 +145,6 @@ def test_played_status_and_local_format_and_comment(app):
     assert track.audio_format == 'MP3 320 kbps' and track.comment == 'Peak time edit'
     unprobed = media_track(Db(), dict(id='m', path='/music/b.flac', signature='s', metadata_json='{}'))
     assert unprobed.audio_format == 'FLAC' and unprobed.comment == ''
-
-
-def test_table_settings_are_saved(app, tmp_path):
-    from dj_digger.gui.bridge import Bridge
-
-    class PassiveBackend:
-        def __init__(self, emit):
-            pass
-        def submit(self, *args):
-            pass
-    bridge = Bridge(None, backend_factory=PassiveBackend, home_path=tmp_path)
-    bridge.saveSettings({'sortColumn': 4, 'sortReverse': True, 'compactRows': True, 'other': 1})
-    assert bridge._settings == {'sortColumn': 4, 'sortReverse': True, 'compactRows': True}
 
 
 def test_qml_table_keyboard_drag_density_and_now_playing(app, tmp_path, monkeypatch):

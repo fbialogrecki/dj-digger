@@ -1,0 +1,50 @@
+{
+  "skip": "Saltar al contenido",
+  "primary": "Principal",
+  "nav": {
+    "app": "App",
+    "extension": "Extensión",
+    "notes": "Notas del disco",
+    "download": "Descargar",
+    "github": "GitHub"
+  },
+  "menu": "Menú",
+  "tracklist": "Lista de temas",
+  "language": "Idioma",
+  "toLight": "Cambiar al tema claro",
+  "toDark": "Cambiar al tema oscuro",
+  "ogAlt": "dj-digger: de una playlist de SoundCloud a archivos en tus decks. El icono de la app, un disco visto desde arriba.",
+  "footer": {
+    "free": "Gratis y de código abierto, Apache 2.0.",
+    "site": "Sitio",
+    "project": "Proyecto",
+    "legal": "Legal",
+    "privacy": "Política de privacidad",
+    "license": "Licencia",
+    "madeBy": "Hecho por",
+    "colophon": "Este sitio no instala cookies, no usa analítica y no carga nada de otros servidores."
+  },
+  "copy": "Copiar",
+  "copied": "Copiado",
+  "play": "Reproducir",
+  "pause": "Pausa",
+  "openFull": "Abrir la captura de la ventana completa",
+  "opensFull": "Abre la ventana completa",
+  "loopAlt": "El reproductor de dj-digger con Glasshouse Dub de Sable Fern, 120 BPM en 7A, en 1:04 de 3:20: un disco con portada generada, una forma de onda con la parte reproducida iluminada en magenta y los botones de transporte.",
+  "flow": {
+    "title": "Adónde van los datos de la extensión",
+    "desc": "Un recuadro, tu equipo, contiene la app de escritorio dj-digger y tu navegador con la extensión dj-digger. La app y la extensión se comunican por mensajería nativa, su único canal. Las únicas flechas que salen del recuadro van desde las pestañas que la extensión abrió para la app hasta cinco sitios: Hypeddit, ToneDen, Bandcamp, Beatport y SoundCloud. Fuera hay un recuadro para el desarrollador sin ninguna flecha: no se le envía nada.",
+    "computer": "Tu equipo",
+    "app": "App dj-digger",
+    "appNote": "envía pasos al navegador",
+    "native": "Mensajería nativa",
+    "nativeNote": "el único canal",
+    "browser": "Tu navegador",
+    "extension": "Extensión dj-digger",
+    "tabs": "Pestañas que abrió",
+    "tabsNote": "para la app",
+    "developer": "Desarrollador",
+    "developerNote": "no se envía nada",
+    "sites": "Sitios"
+  }
+}

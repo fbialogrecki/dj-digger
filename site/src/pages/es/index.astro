@@ -1,0 +1,454 @@
+---
+import { Picture } from "astro:assets";
+import Base from "../../layouts/Base.astro";
+import Loop from "../../components/Loop.astro";
+import Shot from "../../components/Shot.astro";
+import Track from "../../components/Track.astro";
+import sidebar from "../../assets/screenshots/es/crops/sidebar.png";
+import playerCrop from "../../assets/screenshots/es/crops/player.png";
+import decisions from "../../assets/screenshots/es/crops/decisions.png";
+import cart from "../../assets/screenshots/es/crops/cart.png";
+import libraryWindow from "../../assets/screenshots/es/desktop-local-library.png";
+import playerWindow from "../../assets/screenshots/es/desktop-player.png";
+import decisionsWindow from "../../assets/screenshots/es/desktop-crates-decisions.png";
+import cartWindow from "../../assets/screenshots/es/desktop-cart.png";
+import panel from "../../assets/screenshots/extension-panel.png";
+import { repo, version } from "../../../site.config.mjs";
+
+const description =
+  "Una app de crate digging para DJs que trabaja en local: convierte playlists, likes y perfiles de SoundCloud en una biblioteca que puedes escuchar y luego encuentra la forma más segura de descargar o comprar cada pista.";
+const tracks = [
+  { id: "start", no: "01", title: "De la playlist a los decks" },
+  { id: "loop", no: "02", title: "El ciclo del digging" },
+  { id: "app", no: "03", title: "La app de escritorio" },
+  { id: "extension", no: "04", title: "La extensión del navegador" },
+  { id: "trust", no: "05", title: "Tuyo, y honesto" },
+  { id: "get", no: "06", title: "Elige tu prensado" },
+];
+const loop = [
+  {
+    name: "Recopilar",
+    text: "Pega un enlace de una playlist, likes, reposts, un perfil o una pista. La lista completa llega a través de la API de SoundCloud, no solo las filas que una página llegó a mostrar.",
+    src: sidebar,
+    full: libraryWindow,
+    alt: "La barra lateral de dj-digger: tres playlists de SoundCloud, Late Night Selects con 14 pistas, Sunday Balcony con 4 y Warehouse Warmups con 6, y debajo las carpetas Descargas y Música con Digging 2026 abierta.",
+  },
+  {
+    name: "Escuchar",
+    text: "Escucha, salta a cualquier punto, busca, filtra y ordena sin salir de la playlist. La parte reproducida de la forma de onda se ilumina con cada bombo.",
+    src: playerCrop,
+    full: playerWindow,
+    alt: "El reproductor de dj-digger: Slow Orbit de Nightglass en 1:04 de 3:20, su portada generada, una forma de onda iluminada en magenta hasta el cabezal, los botones de transporte y un control de volumen.",
+  },
+  {
+    name: "Decidir",
+    text: "Marca pistas como conseguidas u omítelas. La decisión acompaña a la pista en todas las playlists en las que aparece.",
+    src: decisions,
+    full: decisionsWindow,
+    alt: "La tabla de pistas con el filtro de estado abierto: filas marcadas La tengo, Reproducida, Abierta y Nueva, y un menú con Todos los estados, Sin gestionar, Nueva, Abiertas, Conseguidas y Omitidas.",
+  },
+  {
+    name: "Comprar o descargar",
+    text: "Sigue los enlaces de tiendas ya clasificados, resuelve gates de descarga y llena tus carritos de Bandcamp y Beatport. El pago sigue siendo cosa tuya.",
+    src: cart,
+    full: cartWindow,
+    alt: "El diálogo Resultados del carrito: añadidos a los carritos 4, no añadidos 1. Cuatro pistas figuran como añadidas al carrito de Bandcamp o ya en él y una fue a una playlist, con botones para enviar la lista a Soundiiz, abrir los enlaces no añadidos, mostrar los carritos o cerrar.",
+  },
+];
+---
+
+<Base title="dj-digger: crate digging para DJs" description={description} tracks={tracks}>
+  <section class="hero" id="start" data-track="01" data-title="De la playlist a los decks" aria-labelledby="start-title">
+    <p class="eyebrow"><span class="no">01</span>Crate digging para DJs</p>
+    <h1 id="start-title">De una playlist de SoundCloud a <span class="grad">archivos en tus decks</span></h1>
+    <p class="lede">
+      <strong>dj-digger</strong> es una app de escritorio que trabaja en local. Reúne playlists completas, te deja
+      escucharlas, recuerda lo que decidiste y encuentra la forma más segura de comprar o descargar cada pista.
+    </p>
+    <div class="cta">
+      <a class="button primary" href="/es/download/">Descargar</a>
+      <a class="quiet" href="#loop">Mira cómo transcurre una sesión</a>
+    </div>
+    <ul class="facts">
+      <li>Gratis y de código abierto</li>
+      <li>Windows, macOS, Linux</li>
+      <li>Sin cuenta, sin backend</li>
+    </ul>
+    <Loop eager>Grabado en la app real, con pistas de demostración y portadas generadas</Loop>
+  </section>
+
+  {/* Wide screens with scroll-driven animations: a tall section whose stage pins and plays the four steps
+      one at a time. Everywhere else, and without the CSS below, four stacked steps. */}
+  <section id="loop" class="loop" data-track="02" data-title="El ciclo del digging" aria-labelledby="loop-title">
+    <div class="stage stack">
+      <p class="eyebrow"><span class="no">02</span>Cómo transcurre una sesión</p>
+      <h2 id="loop-title">Un ciclo, de principio a fin</h2>
+      <ol class="meter" aria-hidden="true">
+        {loop.map((step) => <li>{step.name}</li>)}
+      </ol>
+      <ol class="steps">
+        {
+          loop.map((step, i) => (
+            <li class="movement">
+              <div class="text">
+                <h3>
+                  <span class="no">{`0${i + 1}`}</span>{" "}{step.name}
+                </h3>
+                <p class="copy">{step.text}</p>
+              </div>
+              <div class="media">
+                <Shot src={step.src} alt={step.alt} full={step.full} />
+              </div>
+            </li>
+          ))
+        }
+      </ol>
+    </div>
+  </section>
+
+  <Track id="app" no="03" title="La app de escritorio" label="En tu equipo" heading="La app de escritorio">
+    <p class="copy">
+      Una app de escritorio pensada para el teclado: playlists en la barra lateral, una tabla de pistas con distintivos
+      de tiendas y un reproductor con forma de onda.
+    </p>
+    <Shot
+      src={playerWindow}
+      caption="La ventana principal"
+      alt="La ventana principal de dj-digger: la barra lateral con tres playlists de SoundCloud y las carpetas de música, el reproductor con Slow Orbit de Nightglass en 1:04 de 3:20, y la tabla de Late Night Selects con estado, artista, pista, género, año, sello, duración y distintivos de tiendas como Bandcamp, Beatport y Hypeddit."
+    />
+    <ul class="ticks">
+      <li>Sabe lo que ya tienes: escanea tus carpetas y reproduce desde el disco</li>
+      <li>Estima BPM y tonalidad, y exporta copias comprobadas con los perfiles de audio documentados de cada deck</li>
+      <li>Una CLI sin interfaz gráfica para tus propios scripts</li>
+    </ul>
+    <div class="cta"><a class="button" href="/es/app/">Explora la app</a></div>
+  </Track>
+
+  <Track id="extension" no="04" title="La extensión del navegador" label="En tu navegador" heading="La extensión del navegador">
+    <div class="split">
+      <div class="stack">
+        <p class="copy">
+          Solo funciona mientras la app de escritorio está abierta en el mismo equipo: es la mano de la app en tu propio
+          navegador. Completa los gates de descarga, llena tus carritos de Bandcamp y Beatport en pestañas en segundo
+          plano y pone el reproductor de la app en tu barra de herramientas.
+        </p>
+        <ul class="ticks">
+          <li>Funciona en el navegador y con las cuentas que ya usas</li>
+          <li>Solo habla con dj-digger en tu equipo</li>
+          <li>Chrome, Edge, Brave, Chromium; Firefox por separado</li>
+        </ul>
+        <div class="cta"><a class="button" href="/es/extension/">Explora la extensión</a></div>
+      </div>
+      <div class="panel">
+        <Shot
+          src={panel}
+          sizes="(min-width: 46rem) 13rem, 18rem"
+          alt="El panel de dj-digger en la barra de herramientas: la portada de Slow Orbit de Nightglass, una barra de progreso en 1:08 de 3:20 y los botones anterior, pausa y siguiente."
+        />
+      </div>
+    </div>
+  </Track>
+
+  <Track id="trust" no="05" title="Tuyo, y honesto" label="Local ante todo" heading="Tuyo, y honesto con sus límites">
+    <div class="columns">
+      <div class="stack">
+        <h3>Lo que se queda contigo</h3>
+        <ul class="ticks">
+          <li>Sin cuenta de dj-digger y sin servidor de dj-digger.</li>
+          <li>Las playlists, las decisiones y los ajustes viven en una base de datos local en tu equipo.</li>
+          <li>La sesión de SoundCloud se guarda en el llavero del sistema; las contraseñas nunca se leen.</li>
+          <li>Este sitio no instala cookies ni carga nada de otros servidores.</li>
+        </ul>
+      </div>
+      <div class="stack">
+        <h3>Lo que no hará</h3>
+        <ul class="ticks">
+          <li>Pagar ni finalizar la compra: se cierra la pestaña que se dirija a una página de pago.</li>
+          <li>Resolver CAPTCHAs ni iniciar sesión por ti.</li>
+          <li>Adivinar: los títulos ambiguos, los precios cambiados y las pistas que solo se venden con el álbum se detienen y se notifican.</li>
+          <li>Formatear unidades ni escribir en tu biblioteca de rekordbox.</li>
+        </ul>
+      </div>
+    </div>
+    <p><a class="quiet" href={`${repo}/blob/main/PRIVACY.md`}>Lee la política de privacidad</a></p>
+  </Track>
+
+  <Track id="get" no="06" title="Elige tu prensado" label="Surco final" heading="Elige tu prensado">
+    <p class="copy">dj-digger {version} es gratis y de código abierto, sin registro.</p>
+    <div class="press stack">
+      <div class="cta"><a class="button primary" href="/es/download/">Descargar</a></div>
+      <ul class="facts" aria-label="Plataformas">
+        <li>Windows 10 (1809 o posterior) y 11</li>
+        <li>macOS 15 o posterior</li>
+        <li>Linux</li>
+      </ul>
+    </div>
+    <p><a class="quiet" href="/es/liner-notes/">¿Te pica la curiosidad por cómo está hecho? Lee las notas del disco</a></p>
+  </Track>
+</Base>
+
+<style>
+  /* ---------- 02 the digging loop: four stacked steps by default ---------- */
+  .meter {
+    display: none;
+  }
+  .steps h3 {
+    display: flex;
+    align-items: baseline;
+    gap: 0.8rem;
+  }
+  .steps h3 .no {
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--muted);
+  }
+  .text > * + * {
+    margin-top: 0.5rem;
+  }
+  .media {
+    margin-top: 1.2rem;
+    container-type: inline-size;
+  }
+  /* Each crop keeps its own shape; the frame sits on the image so it hugs narrow and wide crops alike.
+     --ar is the crop's width / height (crops/*.png), so the width can be capped without knowing the height. */
+  .steps > li:nth-child(1) {
+    --ar: 0.6509;
+  }
+  .steps > li:nth-child(2) {
+    --ar: 4.25;
+  }
+  .steps > li:nth-child(3) {
+    --ar: 3.4048;
+  }
+  .steps > li:nth-child(4) {
+    --ar: 2.1152;
+  }
+  .media :global(.shot) {
+    border: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    overflow: visible;
+  }
+  .media :global(.shot a) {
+    width: fit-content;
+    border-radius: 12px;
+  }
+  .media :global(.shot img) {
+    width: min(100cqw, 26rem * var(--ar));
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel);
+    box-shadow: 0 30px 70px -40px var(--shadow);
+  }
+  .media :global(.shot figcaption) {
+    justify-content: flex-start;
+    padding-inline: 0;
+    border-top: 0;
+  }
+
+  /* The pinned scene: one step at a time, driven by the section's own view timeline. */
+  @media (min-width: 68rem) and (min-height: 36rem) and (prefers-reduced-motion: no-preference) {
+    @supports (animation-timeline: view()) and (grid-template-rows: subgrid) {
+      .loop {
+        height: 400svh;
+        padding-block: 0;
+      }
+      .stage {
+        position: sticky;
+        top: calc(var(--top) + 1rem);
+        display: grid;
+        grid-template-rows: auto auto auto minmax(0, 1fr);
+        height: calc(100svh - var(--top) - 2rem);
+        padding-top: clamp(1rem, 5vh, 3rem);
+      }
+      .meter {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 0.6rem;
+        font: 500 0.72rem var(--mono);
+        color: var(--muted);
+      }
+      .meter li {
+        position: relative;
+        padding-top: 0.7rem;
+        animation: loop-now 1ms linear both;
+      }
+      .meter li::before,
+      .meter li::after {
+        content: "";
+        position: absolute;
+        inset: 0 0 auto;
+        height: 2px;
+        background: var(--line);
+      }
+      .meter li::after {
+        background: linear-gradient(90deg, var(--neon-foot), var(--neon-top));
+        transform-origin: left;
+        scale: 0 1;
+        animation: loop-fill 1ms linear both;
+      }
+      .steps {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        row-gap: 1.2rem;
+      }
+      /* All four share one cell; subgrid gives every step the tallest text, so the images never jump. */
+      .steps > li {
+        position: relative;
+        grid-area: 1 / 1 / 3 / 2;
+        display: grid;
+        grid-template-rows: subgrid;
+        padding-top: 0;
+        border-top: 0;
+        animation: loop-step 1ms linear both;
+      }
+      .steps > li:first-child {
+        animation-name: loop-first;
+      }
+      .steps > li:last-child {
+        animation-name: loop-last;
+      }
+      .steps h3 {
+        font-size: 1.5rem;
+      }
+      .media {
+        margin-top: 0;
+        container-type: size;
+      }
+      .media :global(.shot img) {
+        width: min(100cqw, (100cqh - 2px) * var(--ar));
+      }
+      .media :global(.shot figcaption) {
+        display: none;
+      }
+      /* A keyboard user tabbing to a step that is not showing gets that step, on top. */
+      .steps > li:has(:focus-visible) {
+        z-index: 2 !important;
+        opacity: 1 !important;
+        translate: none !important;
+        background: var(--bg);
+      }
+
+      /* Their own rules, with an id, on purpose: the CSS minifier folds animation-timeline and
+         animation-range into the animation shorthand of the same rule, and browsers then drop them. */
+      #loop {
+        view-timeline-name: --loop;
+        view-timeline-inset: calc(var(--top) + 1rem) 0;
+      }
+      #loop .steps > li,
+      #loop .meter li,
+      #loop .meter li::after {
+        animation-timeline: --loop;
+      }
+      #loop .steps > li:nth-child(1),
+      #loop .meter li:nth-child(1),
+      #loop .meter li:nth-child(1)::after {
+        animation-range: contain 0% contain 25%;
+      }
+      #loop .steps > li:nth-child(2),
+      #loop .meter li:nth-child(2),
+      #loop .meter li:nth-child(2)::after {
+        animation-range: contain 25% contain 50%;
+      }
+      #loop .steps > li:nth-child(3),
+      #loop .meter li:nth-child(3),
+      #loop .meter li:nth-child(3)::after {
+        animation-range: contain 50% contain 75%;
+      }
+      #loop .steps > li:nth-child(4),
+      #loop .meter li:nth-child(4),
+      #loop .meter li:nth-child(4)::after {
+        animation-range: contain 75% contain 100%;
+      }
+    }
+  }
+  /* z-index follows opacity so the step on show is also the one that takes the click. */
+  @keyframes loop-step {
+    0% {
+      opacity: 0;
+      translate: 0 1rem;
+      z-index: 0;
+    }
+    20%,
+    80% {
+      opacity: 1;
+      translate: none;
+      z-index: 1;
+    }
+    100% {
+      opacity: 0;
+      translate: 0 -1rem;
+      z-index: 0;
+    }
+  }
+  @keyframes loop-first {
+    0%,
+    80% {
+      opacity: 1;
+      translate: none;
+      z-index: 1;
+    }
+    100% {
+      opacity: 0;
+      translate: 0 -1rem;
+      z-index: 0;
+    }
+  }
+  @keyframes loop-last {
+    0% {
+      opacity: 0;
+      translate: 0 1rem;
+      z-index: 0;
+    }
+    20%,
+    100% {
+      opacity: 1;
+      translate: none;
+      z-index: 1;
+    }
+  }
+  @keyframes loop-fill {
+    to {
+      scale: 1 1;
+    }
+  }
+  @keyframes loop-now {
+    0%,
+    100% {
+      color: var(--muted);
+    }
+    10%,
+    90% {
+      color: var(--fg);
+    }
+  }
+
+  /* ---------- 04 the extension: the portrait panel beside the text, under it on narrow screens ---------- */
+  .split {
+    display: grid;
+    gap: 2rem;
+  }
+  .panel {
+    max-width: 18rem;
+  }
+  @media (min-width: 46rem) {
+    .split {
+      grid-template-columns: minmax(0, 1fr) 13rem;
+      align-items: start;
+      gap: 2.5rem;
+    }
+  }
+
+  /* ---------- 05 trust: two plain columns ---------- */
+  .columns {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: 2rem 2.5rem;
+  }
+
+  /* ---------- 06 the run-out groove ---------- */
+  .press .facts {
+    margin-top: 0.9rem;
+  }
+</style>

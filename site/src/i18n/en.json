@@ -1,0 +1,50 @@
+{
+  "skip": "Skip to content",
+  "primary": "Primary",
+  "nav": {
+    "app": "App",
+    "extension": "Extension",
+    "notes": "Liner notes",
+    "download": "Download",
+    "github": "GitHub"
+  },
+  "menu": "Menu",
+  "tracklist": "Tracklist",
+  "language": "Language",
+  "toLight": "Switch to light theme",
+  "toDark": "Switch to dark theme",
+  "ogAlt": "dj-digger: from a SoundCloud playlist to files on your decks. The app icon, a record seen from above.",
+  "footer": {
+    "free": "Free and open source, Apache 2.0.",
+    "site": "Site",
+    "project": "Project",
+    "legal": "Legal",
+    "privacy": "Privacy policy",
+    "license": "License",
+    "madeBy": "Made by",
+    "colophon": "This site sets no cookies, runs no analytics and loads nothing from other servers."
+  },
+  "copy": "Copy",
+  "copied": "Copied",
+  "play": "Play",
+  "pause": "Pause",
+  "openFull": "Open the full window screenshot",
+  "opensFull": "Opens the full window",
+  "loopAlt": "The dj-digger player playing Glasshouse Dub by Sable Fern, 120 BPM in 7A, at 1:04 of 3:20: a record with generated artwork, a waveform with the played part lit in magenta, and transport buttons.",
+  "flow": {
+    "title": "Where the extension's data goes",
+    "desc": "One box, your computer, holds the dj-digger desktop app and your browser with the dj-digger extension. App and extension are joined by native messaging, their only channel. The only arrows that leave the box run from the tabs the extension opened for the app to five sites: Hypeddit, ToneDen, Bandcamp, Beatport and SoundCloud. A box for the developer stands outside with no arrow: nothing is sent there.",
+    "computer": "Your computer",
+    "app": "dj-digger app",
+    "appNote": "sends the browser steps",
+    "native": "Native messaging",
+    "nativeNote": "the only channel",
+    "browser": "Your browser",
+    "extension": "dj-digger extension",
+    "tabs": "Tabs it opened",
+    "tabsNote": "for the app",
+    "developer": "Developer",
+    "developerNote": "nothing sent",
+    "sites": "Sites"
+  }
+}

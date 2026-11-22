@@ -158,7 +158,8 @@ class LocalScanner:
         if not track.title:
             return None
 
-        both = self._existing_match(
+        artist_stem = normalize_string(track.artist)
+        both = artist_stem and self._existing_match(
             normalize_string(f"{track.artist}{track.title}")
         )
         if both:
@@ -173,7 +174,6 @@ class LocalScanner:
             if loose:
                 return LocalMatch(loose, confident=False)
 
-            artist_stem = normalize_string(track.artist)
             if artist_stem:
                 decorated = self._existing_match(
                     title_stem, self.db.find_unique_local_match, artist_stem

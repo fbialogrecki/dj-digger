@@ -10,6 +10,18 @@ import re
 import sys
 from pathlib import Path
 
+WINDOWS_RESERVED = frozenset(
+    {"CON", "PRN", "AUX", "NUL"}
+    | {f"COM{number}" for number in range(1, 10)}
+    | {f"LPT{number}" for number in range(1, 10)}
+)
+
+def portable_stem(value: str, budget: int) -> str:
+    if value.partition('.')[0].upper() in WINDOWS_RESERVED:
+        value = '_' + value
+    stem = value.encode('utf-8')[:budget].decode('utf-8', errors='ignore').rstrip(' .') or '_'
+    return stem
+
 
 def data_dir() -> Path:
     return Path(os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share")) / "dj-digger"
@@ -34,7 +46,7 @@ def playlist_download_directory(directory: str | Path, title: str) -> Path:
         return base
     cleaned = re.sub(r'[<>:"/\\|?*\x00-\x1f]', ' ', title)
     cleaned = re.sub(r'\s+', ' ', cleaned).strip(' .')
-    folder = cleaned[:120].rstrip(' .') or 'playlist'
+    folder = portable_stem(cleaned or 'playlist', 120)
     return base if base.name.casefold() == folder.casefold() else base / folder
 
 
@@ -45,9 +57,10 @@ def unique_target(directory: Path, stem: str, suffix: str) -> Path:
     given, and holds whatever lock it needs against a neighbour doing the same.
     """
 
-    target = directory / f"{stem}{suffix}"
+    target = directory / f"{portable_stem(stem, 255 - len(suffix.encode()))}{suffix}"
     counter = 1
-    while target.exists():
-        target = directory / f"{stem} ({counter}){suffix}"
+    while os.path.lexists(target):
+        ending = f" ({counter}){suffix}"
+        target = directory / (portable_stem(stem, 255 - len(ending.encode())) + ending)
         counter += 1
     return target

@@ -460,6 +460,8 @@ def test_only_an_announced_download_reaches_the_page_and_can_be_saved(world, tmp
 
         target = tmp_path / "out.part"
         got[0].save_as(target)
+        assert not ext.commands("download.discard")
+        got[0].discard()
         assert target.read_bytes() == source.read_bytes()
         assert ext.commands("download.discard")[0]["args"] == {"downloadId": 7}
 
@@ -558,6 +560,8 @@ def test_async_download_save_as(world, tmp_path):
                     break
                 await asyncio.sleep(0.02)
             await got[0].save_as(tmp_path / "copy")
+            assert not ext.commands("download.discard")
+            await got[0].discard()
             assert (tmp_path / "copy").read_bytes() == b"ID3xyz"
             assert ext.commands("download.discard")
 

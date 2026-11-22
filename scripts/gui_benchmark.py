@@ -17,16 +17,17 @@ def main():
                  bpm=100+i % 50, keySignature='8A', year=2026, label='', duration=180000,
                  status='new', stores='bandcamp', search=f'House track {i:05}') for i in range(10000)]
     timings = {'replace_ms': [], 'sort_ms': [], 'filter_ms': []}
-    for _ in range(7):
+    for _ in range(21):
         for name, action in [('replace_ms', lambda: model.replace(rows)),
                              ('sort_ms', lambda: model.sortBy(3)),
-                             ('filter_ms', lambda: model.filter('track 001', '', False))]:
+                             ('filter_ms', lambda: model.filter('track 001', {}))]:
             start = time.perf_counter()
             action()
             timings[name].append((time.perf_counter() - start) * 1000)
-        model.filter('', '', False)
+        model.filter('', {})
         app.processEvents()
     print(json.dumps({'rows': len(rows), 'median': {k: round(statistics.median(v), 2) for k, v in timings.items()},
+                      'p95': {k: round(statistics.quantiles(v, n=100, method='inclusive')[94], 2) for k, v in timings.items()},
                       'scope': 'Qt table model only; excludes QML rendering, audio and browser RAM'}, indent=2))
 
 

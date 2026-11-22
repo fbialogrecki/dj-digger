@@ -31,7 +31,6 @@ import contextlib
 import logging
 import os
 import re
-import shutil
 import stat
 import threading
 import time
@@ -204,12 +203,17 @@ def _copy_validated(source: str, target: str) -> None:
         os.close(descriptor)
         raise
     with os.fdopen(descriptor, "rb") as incoming, open(target, "wb") as outgoing:
-        shutil.copyfileobj(incoming, outgoing)
+        count = 0
+        while chunk := incoming.read(128 * 1024):
+            count += len(chunk)
+            if count > MAX_DOWNLOAD_BYTES:
+                raise AutomationError("Download exceeded the size limit")
+            outgoing.write(chunk)
 
 
 class _Download:
     """A finished, attributed download (``download.done``). The file is the browser's
-    own; ``save_as`` copies it away and asks the extension to delete the original."""
+    own until the caller publishes the copy and explicitly discards the original."""
 
     def __init__(self, ctx: _Context, page: _Page, frame: dict):
         self._ctx = ctx
@@ -230,18 +234,22 @@ class _Download:
 class Download(_Download):
     def save_as(self, path: str | os.PathLike) -> None:
         _copy_validated(self.path, os.fspath(path))
+
+    def discard(self) -> None:
         try:
             self._ctx._run(self._discard())
-        except (PageError, AutomationError) as exc:  # the copy is kept either way
+        except Exception as exc:  # Cleanup cannot turn a published file into a failed transfer.
             LOGGER.debug("webext download not discarded: %s", type(exc).__name__)
 
 
 class AsyncDownload(_Download):
     async def save_as(self, path: str | os.PathLike) -> None:
         await asyncio.to_thread(_copy_validated, self.path, os.fspath(path))
+
+    async def discard(self) -> None:
         try:
             await self._ctx._run(self._discard())
-        except (PageError, AutomationError) as exc:
+        except Exception as exc:
             LOGGER.debug("webext download not discarded: %s", type(exc).__name__)
 
 
