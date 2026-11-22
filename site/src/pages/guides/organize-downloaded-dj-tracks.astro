@@ -1,0 +1,29 @@
+---
+import Base from "../../layouts/Base.astro";
+import Track from "../../components/Track.astro";
+import Shot from "../../components/Shot.astro";
+import library from "../../assets/screenshots/desktop-local-library.png";
+---
+<Base title="How to organize downloaded DJ tracks into a playable crate" description="Sort a batch of DJ downloads, tell edits apart, store originals and build set playlists without making a new copy for every gig." label="app" article={{ published: "2026-11-22" }}>
+  <Track id="guide" title="Organize your downloaded DJ tracks" hero sub>
+    <p class="lede">You bought an EP, downloaded two artist edits and found the same tune in last month’s folder. Before you drag everything into a set playlist, give each recording a permanent home. You should be able to find the right mix again even when the gig playlist is gone.</p>
+  </Track>
+  <Track id="intake" title="Work through one batch">
+    <ol class="ticks">
+      <li><strong>Use an inbox.</strong> Unpack the release in a temporary folder. Keep the original download and purchase receipt while you check the files. A SoundCloud bookmark belongs on your listening list until you have the audio.</li>
+      <li><strong>Identify the version.</strong> Compare artist, mix credit, runtime and the first and last phrases. An extended mix with a 32-bar intro and a radio edit with the same title serve different jobs. Keep the version name in the filename.</li>
+      <li><strong>Choose a stable location.</strong> For example, put the EP in <code>Music/Library/Artist/Release/</code>. Move files here before importing them into your DJ software so its saved paths point to their final location.</li>
+      <li><strong>Listen before filing.</strong> Check the intro, breakdown and ending. A clipped intro or an unexpected spoken outro is worth catching before the track joins your set.</li>
+    </ol>
+  </Track>
+  <Track id="playlists" title="Let one file belong to several sets">
+    <p class="copy">Keep the original in that release folder. Put references to it in playlists such as “Friday warm-up” and “Long blends”. When the gig is over, retire the playlist and keep the recording. In dj-digger, open the local folder, select the tracks and use <strong>Send to</strong> to build a local playlist.</p>
+    <Shot src={library} alt="Local tracks in the Digging 2026 folder, with filenames, tempo and key beside each row." />
+    <p class="copy">Try a short rehearsal in playlist order. If two tracks both show 128 BPM but their accents fight in the mix, change their order. BPM and key estimates help you find candidates. Listening tells you which transition works.</p>
+  </Track>
+  <Track id="repair" title="When two files look identical">
+    <p class="copy">Start with the mix credit and duration, then audition both. A matching title alone is too little evidence to delete a file. If an existing playlist reports a missing track, locate its original file before importing another copy. Back up the library and your DJ software’s playlist data before a large reorganization.</p>
+    <p class="copy">Keep a separate folder for playback copies made for a particular booth. For the next step, see <a href="/guides/flac-vs-wav-for-djs/">how to choose FLAC or WAV for your decks</a>.</p>
+    <div class="cta"><a class="button" href="/app/">Explore local folders and playlists in dj-digger</a></div>
+  </Track>
+</Base>

@@ -3,8 +3,10 @@
     "privacy": "Privacy e cookie",
     "terms": "Condizioni d’uso",
     "settings": "Impostazioni dei cookie",
+    "privacyDescription": "Quali cookie e statistiche facoltative usa dj-digger, quanto dura la tua scelta e come revocare il consenso.",
+    "termsDescription": "Condizioni di utilizzo del sito dj-digger, dei programmi scaricabili, degli esempi musicali e delle immagini.",
     "bannerTitle": "Consentire le statistiche sulle visite?",
-    "bannerText": "Con il tuo consenso Google Analytics usa i cookie per contare visite, clic sui programmi di installazione e copie del comando di installazione Linux. Puoi usare tutto il sito anche se rifiuti e modificare la scelta nel piè di pagina.",
+    "bannerText": "Con il tuo consenso Google Analytics conta le visite, i clic sui programmi di installazione, le copie del comando Linux e i clic verso lo store dell’estensione, GitHub e le pagine del prodotto raggiunte dalle guide. Puoi usare tutto il sito anche se rifiuti e modificare la scelta nel piè di pagina.",
     "accept": "Consenti le statistiche",
     "reject": "Rifiuta le statistiche"
   },
@@ -20,7 +22,7 @@
       },
       "analytics": {
         "heading": "Statistiche facoltative",
-        "body": "Solo con il tuo consenso (art. 6, par. 1, lett. a del GDPR), Google Ireland Limited riceve dati GA4 quali la pagina visitata, informazioni su browser e dispositivo, il sito di provenienza, i clic sui programmi di installazione, le copie del comando di installazione Linux e un identificativo pseudonimo del browser. Li uso per capire come viene utilizzato il sito. I cookie _ga e _ga_* durano al massimo 180 giorni. Le visite successive non ne rinnovano la scadenza. I dati relativi a utenti ed eventi hanno un periodo di conservazione di due mesi. I rapporti aggregati standard sono separati e possono coprire periodi più lunghi."
+        "body": "Solo con il tuo consenso (art. 6, par. 1, lett. a del GDPR), Google Ireland Limited riceve dati GA4 quali la pagina visitata, informazioni su browser e dispositivo, il sito di provenienza, i clic sui programmi di installazione, le copie del comando di installazione Linux e un identificativo pseudonimo del browser. Li uso per capire come viene utilizzato il sito. I cookie _ga e _ga_* durano al massimo 180 giorni. Le visite successive non ne rinnovano la scadenza. I dati relativi a utenti ed eventi hanno un periodo di conservazione di due mesi. I rapporti aggregati standard sono separati e possono coprire periodi più lunghi. Vengono contati anche i clic verso lo store dell’estensione, il repository GitHub e le pagine del prodotto raggiunte dalle guide."
       },
       "settings": {
         "heading": "Scelte nel browser",

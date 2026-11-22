@@ -28,7 +28,7 @@ const alternates = languages.map((language) => ({
 }));
 const current = languages.find((language) => language.code === lang);
 const canonical = new URL(here, Astro.site);
-const pages = [
+const pages: { href: string; label: string; icon: string; hreflang?: string }[] = [
   { href: local("/app/"), label: t.nav.app, icon: "desktop" },
   { href: local("/extension/"), label: t.nav.extension, icon: "puzzle-piece" },
   { href: local("/about/"), label: t.nav.about, icon: "info" },
@@ -73,7 +73,6 @@ const graph = [
     downloadUrl: site(local("/download/")),
     releaseNotes: `${repo}/blob/v${version}/CHANGELOG.md`,
     image: site(appIcon.src),
-    screenshot: site("/og.png"),
     isAccessibleForFree: true,
     license,
     offers: free,
@@ -88,7 +87,7 @@ const graph = [
     description,
     url: site(local("/extension/")),
     applicationCategory: "BrowserApplication",
-    operatingSystem: "Chrome, Microsoft Edge, Brave",
+    softwareRequirements: "Chrome, Microsoft Edge or Brave",
     downloadUrl: chromeStore,
     isAccessibleForFree: true,
     license,
@@ -102,6 +101,7 @@ const graph = [
     inLanguage: lang,
     datePublished: article.published,
     dateModified: article.modified ?? article.published,
+    url: canonical.href,
     mainEntityOfPage: canonical.href,
     author: { "@id": id("author") },
     publisher: { "@id": id("author") },
@@ -129,12 +129,12 @@ const structured = JSON.stringify({ "@context": "https://schema.org", "@graph": 
     <title>{title}</title>
     <meta name="description" content={description} />
     {!noindex && <link rel="canonical" href={canonical} />}
-    {/* boot.js reads these to send a first visit to the visitor's language. */}
+
     {alternates.filter((language) => language.exists).map((language) => <link rel="alternate" hreflang={language.code} href={new URL(language.href, Astro.site)} />)}
     {!noindex && <link rel="alternate" hreflang="x-default" href={new URL(baseOf(here), Astro.site)} />}
     <link rel="icon" type="image/png" href={appIcon.src} />
     <link rel="preload" as="font" type="font/woff2" href={archivo} crossorigin />
-    <meta property="og:type" content="website" />
+    <meta property="og:type" content={article ? "article" : "website"} />
     <meta property="og:site_name" content="dj-digger" />
     <meta property="og:locale" content={current.locale} />
     <meta property="og:title" content={title} />
@@ -144,6 +144,8 @@ const structured = JSON.stringify({ "@context": "https://schema.org", "@graph": 
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content={t.ogAlt} />
+    {article && <meta property="article:published_time" content={article.published} />}
+    {article && <meta property="article:modified_time" content={article.modified ?? article.published} />}
     <meta name="twitter:card" content="summary_large_image" />
     {noindex && <meta name="robots" content="noindex" />}
     {!noindex && <script is:inline type="application/ld+json" set:html={structured} />}
@@ -174,7 +176,7 @@ const structured = JSON.stringify({ "@context": "https://schema.org", "@graph": 
             }
           </ul>
         </nav>
-        {/* Works without a script; deck.js remembers the choice (boot.js then follows it). */}
+        {/* Every language choice is a crawlable link, including without JavaScript. */}
         <details class="lang">
           <summary class="button compact">
             <Icon name="translate" />
@@ -204,7 +206,7 @@ const structured = JSON.stringify({ "@context": "https://schema.org", "@graph": 
       </div>
     </header>
 
-    {measurementId && <aside id="consent" class="consent" data-ga={measurementId} data-version={version} data-page={noindex ? "/404/" : here} aria-labelledby="consent-title" hidden>
+    {measurementId && <aside id="consent" class="consent" data-ga={measurementId} data-version={version} data-repo={repo} data-store={chromeStore} data-category={article ? "guide" : base.split("/")[1] || "home"} data-page={noindex ? "/404/" : here} aria-labelledby="consent-title" hidden>
       <h2 id="consent-title" tabindex="-1">{t.legal.bannerTitle}</h2>
       <p>{t.legal.bannerText} <a href={local("/privacy/")}>{t.legal.privacy}</a></p>
       <div class="cta">
@@ -221,6 +223,7 @@ const structured = JSON.stringify({ "@context": "https://schema.org", "@graph": 
       </div>
       <div class="sheet">
         <main id="content" tabindex="-1">
+          {article && <p class="guide-path"><a href={local("/")}>dj-digger</a> <span aria-hidden="true"> / </span> {pageName}</p>}
           <slot />
         </main>
       </div>

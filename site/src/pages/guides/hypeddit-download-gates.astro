@@ -4,37 +4,30 @@ import Icon from "../../components/Icon.astro";
 import Track from "../../components/Track.astro";
 
 const description =
-  "In June 2026 Hypeddit's SoundCloud steps stopped being enforced. What was reported to have changed, what a gate still asks, and how dj-digger handles Hypeddit and ToneDen gates.";
-const report = "https://www.bckstg.co/playback/hypeddit-soundcloud-download-gate-api-paused";
-const coverage = "https://weraveyou.com/2026/06/soundcloud-hypeddit-api-cut-free-download-campaigns-producers-2026/";
+  "Follow an artist’s Hypeddit download link, check what the gate asks for, and troubleshoot missing files or sign-in prompts before you try again.";
 ---
 
-<Base title="Hypeddit download gates in 2026: what changed" description={description} label="extension" article={{ published: "2026-11-20" }}>
-  <Track id="guide" title="Hypeddit download gates in 2026" hero sub>
-    <Fragment slot="heading">Hypeddit download gates <span class="grad">in 2026</span></Fragment>
-    <p class="lede">
-      A download gate gives you an artist's track for free in return for a follow, a like or an email address. In June
-      2026 the SoundCloud part of Hypeddit's gates stopped being enforced. Here is what was reported, and how dj-digger
-      handles gates.
-    </p>
+<Base title="How to use a Hypeddit download gate and find your track" description={description} label="extension" article={{ published: "2026-11-20", modified: "2026-11-22" }}>
+  <Track id="guide" title="How Hypeddit download gates work" hero sub>
+    <p class="lede">An artist has shared a free download, but the link opens a page asking you to follow a profile or leave an email. The artist chooses the steps. Read the offer on that specific gate before connecting an account.</p>
   </Track>
-
-  <Track id="changed" title="What changed">
-    <ul class="ticks">
-      <li>SoundCloud paused its API connection with Hypeddit in June 2026: on 11 June, <a href={report}>according to BCKSTG</a>; <a href={coverage}>We Rave You</a> reported it too.</li>
-      <li>The gate page still loads and the file still downloads; the SoundCloud follow is now optional.</li>
-      <li>Hypeddit said it hopes to restore the connection and is working with SoundCloud, with no date given.</li>
-    </ul>
-    <p class="copy">
-      This page records what was reported in June 2026. A gate can ask for something else today, such as an email
-      address or a step on another service: the gate page shows its current steps.
-    </p>
+  <Track id="steps" title="Follow the artist’s download link">
+    <ol class="ticks">
+      <li>Open the link from the artist’s track or release page. Compare the track title, mix and artwork with what you intended to download.</li>
+      <li>Read the required steps. Some gates offer alternatives. Pick one you are comfortable with, or leave the gate and look for a store release.</li>
+      <li>If you proceed, complete the requested provider sign-in or approval yourself. Check which account is active before agreeing to a follow.</li>
+      <li>Use the final download button and check the browser’s Downloads list. Play the file and verify the mix before filing it.</li>
+    </ol>
+    <p class="copy">The artist can change the steps or the availability of a release. <a href="https://hypeddit.zendesk.com/hc/en-us/articles/11803413280663-Create-Download-Gates">How artists configure a Hypeddit gate</a></p>
   </Track>
-
+  <Track id="trouble" title="When the download does not appear">
+    <p class="copy">A gate that loops back to sign-in may be waiting for you to finish a provider approval. Open the original link in your normal browser and check its current step. If the gate shows a missing release, check the artist’s latest link. For a completed gate with no file, check the browser’s download history before repeating social actions.</p>
+    <p class="copy"><a href="https://hypeddit.zendesk.com/hc/en-us/articles/1500008666302-Can-t-download-music-from-a-Download-Gate">Hypeddit download troubleshooting</a> · <a href="/guides/where-to-buy-soundcloud-tracks/">Find a store copy of a SoundCloud track</a></p>
+  </Track>
   <Track id="dj-digger" title="How dj-digger handles gates">
     <p class="copy">
-      dj-digger completes gates on Hypeddit, ToneDen, GateRush and Droploud through their own download flows, for a
-      whole playlist at once. When a gate needs the browser, the dj-digger extension walks its steps in a tab of your
+      For a playlist with artist-provided gates, dj-digger can process supported Hypeddit, ToneDen, GateRush and
+      Droploud links in a batch. Review the result for each track. When a gate needs the browser, the dj-digger extension walks its steps in a tab of your
       own browser and the file arrives in the app.
     </p>
     <ul class="ticks">

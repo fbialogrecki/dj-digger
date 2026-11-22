@@ -106,7 +106,7 @@ const released = new Date(releaseDate).toLocaleDateString("ru", { dateStyle: "lo
 <script>
   // Turns the stacked systems into tabs (WAI-ARIA tabs pattern), this computer's system first
   // and selected. Detected here only, nothing is sent. Phones, tablets and unknown systems keep the given order.
-  const list = document.querySelector("[data-systems] [role=tablist]");
+  const list = document.querySelector<HTMLElement>("[data-systems] [role=tablist]");
   if (list) {
     const ua = navigator.userAgent;
     const name = (navigator as any).userAgentData?.platform || navigator.platform || ua;

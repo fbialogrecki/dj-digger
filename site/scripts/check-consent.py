@@ -61,7 +61,20 @@ def check(browser, origin):
     page.reload()
     expect(page.locator("[data-settings]")).to_be_visible()
     expect(panel).to_be_hidden()
+    page.evaluate("document.addEventListener('click', e => e.preventDefault(), {capture:true, once:true})")
+    page.locator('[data-installer="windows-x64"]').dispatch_event("click", {"cancelable": True})
+    assert not page.evaluate("window.dataLayer") and not external
+    # A change in purposes preserves an old refusal and prompts again after an old opt-in.
+    page.evaluate("""const key = 'djdAnalyticsConsent';
+        localStorage.setItem(key, JSON.stringify({...JSON.parse(localStorage.getItem(key)), revision:2}))""")
+    page.reload()
+    expect(panel).to_be_hidden()
+    page.evaluate("""const key = 'djdAnalyticsConsent';
+        localStorage.setItem(key, JSON.stringify({...JSON.parse(localStorage.getItem(key)), choice:'allow'}))""")
+    page.reload()
+    expect(panel).to_be_visible()
     assert not external
+    page.locator('[data-choice="deny"]').click()
     other = context.new_page()
     other.goto(origin + "/de/privacy/")
     expect(other.locator("#consent")).to_be_hidden()
@@ -78,10 +91,27 @@ def check(browser, origin):
     assert external == ["www.googletagmanager.com"] * 2
     page.locator("#tab-linux").click()
     page.locator("#linux [data-copy]").click()
-    wait_js(page, "dataLayer.some(x => x[1] === 'copy_linux_command')")
+    wait_js(page, "dataLayer.filter(x => x[1] === 'copy_linux_command').length === 1")
     page.locator("#tab-windows").click()
     page.locator('[data-installer="windows-x64"]').click()
     assert page.evaluate("dataLayer.filter(x => x[1] === 'download_windows_x64').length") == 1
+    # Prevent navigation while exercising real links. Keep the site's bubbling listener active.
+    def click_event(path, selector, event, category):
+        page.goto(origin + path + "?private_query=example#fragment")
+        page.evaluate("document.addEventListener('click', e => e.preventDefault(), true)")
+        page.locator(selector).first.click()
+        assert page.evaluate("""([name, category]) => {
+            const events = dataLayer.filter(x => x[0] === 'event');
+            const config = dataLayer.find(x => x[0] === 'set')[1];
+            return events.length === 1 && events[0][1] === name
+              && events[0][2].content_category === category
+              && !JSON.stringify(events).includes('private_query')
+              && config.page_location === location.origin + location.pathname;
+        }""", [event, category])
+
+    click_event("/extension/", 'main a[href^="https://chromewebstore.google.com/"]', "extension_install_click", "extension")
+    click_event("/guides/flac-vs-wav-for-djs/", "main .cta a", "guide_cta_click", "guide")
+    click_event("/de/app/", 'footer a[href="https://github.com/fbialogrecki/dj-digger"]', "github_click", "app")
     page.locator("[data-settings]").click()
     page.locator('[data-choice="deny"]').click()
     for tab in (page, other):

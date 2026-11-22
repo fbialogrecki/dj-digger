@@ -6,7 +6,12 @@
     "trailingSlash": true,
     "redirects": [
       { "regex": "^/liner-notes/?$", "destination": "/about/", "type": 301 },
-      { "regex": "^/(?P<lang>de|es|fr|it|pl|ru)/liner-notes/?$", "destination": "/:lang/about/", "type": 301 }
+      { "regex": "^/de/liner-notes/?$", "destination": "/de/about/", "type": 301 },
+      { "regex": "^/es/liner-notes/?$", "destination": "/es/about/", "type": 301 },
+      { "regex": "^/fr/liner-notes/?$", "destination": "/fr/about/", "type": 301 },
+      { "regex": "^/it/liner-notes/?$", "destination": "/it/about/", "type": 301 },
+      { "regex": "^/pl/liner-notes/?$", "destination": "/pl/about/", "type": 301 },
+      { "regex": "^/ru/liner-notes/?$", "destination": "/ru/about/", "type": 301 }
     ],
     "headers": [
       {
@@ -25,6 +30,14 @@
       {
         "source": "/_astro/**",
         "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+      },
+      {
+        "source": "/graph{,/**}",
+        "headers": [{ "key": "X-Robots-Tag", "value": "noindex" }]
+      },
+      {
+        "source": "/{install.sh,licenses.txt,llms.txt}",
+        "headers": [{ "key": "X-Robots-Tag", "value": "noindex" }]
       },
       {
         "source": "/install.sh",

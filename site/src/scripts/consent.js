@@ -4,7 +4,7 @@ if (panel && !document.documentElement.dataset.redirecting) setup(panel);
 
 function setup(panel) {
   const key = "djdAnalyticsConsent";
-  const revision = 2;
+  const revision = 3;
   const id = panel.dataset.ga;
   const settings = document.querySelector("[data-settings]");
   const disable = `ga-disable-${id}`;
@@ -14,8 +14,9 @@ function setup(panel) {
   function decision() {
     try {
       const value = JSON.parse(localStorage.getItem(key));
-      if (value?.revision === revision && Number.isFinite(value.until) && value.until > Date.now()
-          && ["allow", "deny"].includes(value.choice)) return value;
+      const validChoice = (value?.revision === revision && ["allow", "deny"].includes(value.choice))
+        || (value?.revision === 2 && value.choice === "deny");
+      if (validChoice && Number.isFinite(value.until) && value.until > Date.now()) return value;
     } catch { /* Storage blocked or cleared. */ }
     return null;
   }
@@ -83,10 +84,11 @@ function setup(panel) {
 
   function measure(event, parameters) {
     if (started && decision()?.choice === "allow") {
-      gtag("event", event, { ...parameters, release_version: panel.dataset.version, language: document.documentElement.lang });
+      gtag("event", event, { ...parameters, content_category: panel.dataset.category, release_version: panel.dataset.version, language: document.documentElement.lang });
     }
   }
 
+  delete document.documentElement.dataset.firstVisit;
   settings.hidden = false;
   settings.addEventListener("click", () => {
     panel.hidden = false;
@@ -121,10 +123,22 @@ function setup(panel) {
     });
   }
   document.addEventListener("click", (event) => {
-    const target = event.target.closest?.("[data-installer]")?.dataset.installer;
+    const link = event.target.closest?.("a[href]");
+    if (!link) return;
+    const target = link.dataset.installer;
     if (["windows-x64", "macos-arm64", "macos-x86_64"].includes(target)) {
       const [platform, architecture] = target.split("-");
       measure("download_" + target.replace("-", "_"), { platform_name: platform, architecture });
+    } else if (link.href === panel.dataset.store) {
+      measure("extension_install_click", {});
+    } else if (link.href === panel.dataset.repo) {
+      measure("github_click", {});
+    } else if (panel.dataset.category === "guide" && link.closest("main .cta")) {
+      const destination = new URL(link.href);
+      const section = destination.pathname.split("/").filter(Boolean).at(-1);
+      if (destination.origin === location.origin && ["download", "app", "extension"].includes(section)) {
+        measure("guide_cta_click", { destination: section });
+      }
     }
   });
   document.addEventListener("djd:linux-command-copied", () => measure("copy_linux_command", { platform_name: "linux" }));

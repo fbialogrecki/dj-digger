@@ -7,7 +7,7 @@
 | **Owner** | Filip Białogrecki |
 | **Last updated** | 2026-11-21 |
 | **Product version** | 1.6.0 (`pyproject.toml`); browser extension 1.4.5 (`dj_digger/webext/extension/manifest.json`) |
-| **Document lines** | <!-- SPEC TOTAL LINES -->2882<!-- END SPEC TOTAL LINES --> |
+| **Document lines** | <!-- SPEC TOTAL LINES -->2888<!-- END SPEC TOTAL LINES --> |
 | **Verified against** | `pyproject.toml`, `dj_digger/`, `dj_digger/webext/extension/manifest.json`, `scripts/`, `tests/`, `.github/workflows/`, `README.md`, `CHANGELOG.md` |
 
 ## Purpose of this file
@@ -107,13 +107,13 @@ text is never promoted into the map.
 | 13 | Failure behavior and current limitations | 2558–2673 |
 | 13.1 | ↳ Error isolation and reporting | 2560–2581 |
 | 13.2 | ↳ Confirmed limitations | 2582–2673 |
-| 14 | Verification, CI, and release | 2674–2843 |
+| 14 | Verification, CI, and release | 2674–2849 |
 | 14.1 | ↳ Offline and live test suites | 2676–2727 |
-| 14.2 | ↳ Continuous integration and publishing | 2728–2826 |
-| 14.3 | ↳ Specification-map verification | 2827–2843 |
-| 15 | References | 2844–2882 |
-| 15.1 | ↳ Primary implementation evidence | 2846–2867 |
-| 15.2 | ↳ User and historical documentation | 2868–2882 |
+| 14.2 | ↳ Continuous integration and publishing | 2728–2832 |
+| 14.3 | ↳ Specification-map verification | 2833–2849 |
+| 15 | References | 2850–2888 |
+| 15.1 | ↳ Primary implementation evidence | 2852–2873 |
+| 15.2 | ↳ User and historical documentation | 2874–2888 |
 <!-- END GENERATED SECTION MAP -->
 
 ---
@@ -2781,7 +2781,9 @@ and a versioned six-month analytics choice locally. In-page animation state is t
 The static site, downloads and install command work without JavaScript or analytics consent.
 Only an affirmative choice loads GA4. Refusal and withdrawal disable collection; withdrawal
 also clears host-only and domain-scoped analytics cookies. The tag sets cookies for at most 180 days from first use. The site measures sanitized page views, the referring
-origin, installer clicks and successful copies of the Linux command. Hosting uses a strict-origin
+origin, installer clicks, successful copies of the Linux command, Chrome Web Store and project
+repository clicks, and guide calls to action leading to product or download pages. Click parameters
+use predefined categories and destinations. Updated analytics purposes require a fresh opt-in. Hosting uses a strict-origin
 referrer policy. A single tag configuration records each consented page load. The website's GA4 tag
 does not run in the desktop app, extension, update checker or install script.
 
@@ -2792,10 +2794,14 @@ the extension, linked to the Chrome Web Store, without a version; and on every o
 two-level `BreadcrumbList`; guides add an `Article` with their dates. Besides the seven pages in
 all seven languages, the site has questions and answers (`/faq/`) and guides on getting a SoundCloud
 playlist into rekordbox as files and on where to buy a SoundCloud track, in English, German and
-Polish, and a guide to Hypeddit download gates in 2026 in English. `site/src/i18n/pages.mjs` lists
+Polish, plus English guides to Hypeddit gates, organizing downloaded tracks and choosing FLAC or WAV
+for specific DJ players. `site/src/i18n/pages.mjs` lists
 each page's languages: hreflang links and the sitemap name only existing versions, the language
-switcher offers a language's home page where a page is missing, and the footer links a guide in
-English where the reader's language has none. The download page states the offered version's release
+switcher offers a language's home page where a page is missing, direct URLs retain their language
+except when the bare homepage honors an explicit saved preference, and the footer links a guide in
+English where the reader's language has none. The architecture graph and text utilities carry a
+Hosting noindex header. Build checks compare sitemap and HTML alternates, metadata, article data,
+internal links and reachability across the generated editorial pages. The download page states the offered version's release
 date from its dated `CHANGELOG.md` heading, which the build requires. `/llms.txt` is a plain-text summary of the product with links to the
 English pages and the project's source and distribution pages. Both are generated from
 `site/site.config.mjs`, so the version follows the download version.

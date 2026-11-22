@@ -13,7 +13,7 @@ import decisionsWindow from "../assets/screenshots/desktop-crates-decisions.png"
 import { version } from "../../site.config.mjs";
 
 const description =
-  "Free, open-source app for DJs: import SoundCloud playlists and likes, audition them, then buy each track on Bandcamp or Beatport or get it through its download gate.";
+  "Collect SoundCloud playlists and likes, audition tracks and remember which ones you own. Follow artist download links or buy tracks for your next DJ set.";
 const loop = [
   {
     name: "Collect",
@@ -31,7 +31,7 @@ const loop = [
   },
   {
     name: "Buy or download",
-    text: "From here the browser extension does the rest, in your own browser: it clears download gates and fills your store carts. Checkout stays yours.",
+    text: "Follow an artist’s download link or add a matched release to your store cart. You choose which gate actions to allow and complete checkout yourself.",
     src: panelJob,
     alt: "The dj-digger browser extension's panel: Drift Away by JMHBM at 1:27 of 3:01, the transport buttons, and below them “Adding to store carts” with a Cancel button.",
   },
@@ -42,7 +42,7 @@ const loop = [
   <section class="hero" id="start" aria-labelledby="start-title">
     <h1 id="start-title">From a SoundCloud playlist to <span class="grad">files on your decks</span></h1>
     <p class="lede">
-      <strong>dj-digger</strong> is a free, open-source app for DJs. It collects whole SoundCloud playlists, remembers what you decided and finds a way to buy or download each track.
+      <strong>dj-digger</strong> is a free, open-source app for DJs. Bring in a playlist or your likes, preview each track and mark what you already own. When an artist offers a shop link or a free download, open it from the same crate.
     </p>
     <div class="cta">
       <a class="button primary" href="/download/"><Icon name="download-simple" />Download</a>
@@ -92,6 +92,7 @@ const loop = [
       <li>Exports for your decks</li>
     </ul>
     <div class="cta"><a class="button" href="/app/"><Icon name="desktop" />Explore the app</a></div>
+    <p class="copy"><a href="/guides/soundcloud-to-rekordbox/">Turn a SoundCloud playlist into a rekordbox set</a></p>
   </Track>
 
   <Track id="extension" title="The browser extension">

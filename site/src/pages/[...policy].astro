@@ -36,7 +36,7 @@ const references = {
   ],
 };
 ---
-<Base title={`${t.legal[page]} · dj-digger`} description={sections[ids[0]].body} label="about">
+<Base title={`${t.legal[page]} · dj-digger`} description={page === "privacy" ? t.legal.privacyDescription : t.legal.termsDescription} label="about">
   <article class="policy">
     <Track id={page} hero sub title={t.legal[page]} />
     {ids.map((id) => (

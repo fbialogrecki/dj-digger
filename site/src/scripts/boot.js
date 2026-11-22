@@ -6,17 +6,18 @@ try {
   if (localStorage.djdTheme) root.dataset.theme = localStorage.djdTheme;
 } catch {}
 
-// English pages go to the language picked in the header or, until one is picked, the
-// first of the browser's languages that the site speaks (the hreflang links in the head).
+// Honor a saved language on the bare home URL. Direct links retain their page and language.
 try {
-  if (root.lang === "en") {
-    const offered = new Map([...document.querySelectorAll("link[hreflang]")].map((link) => [link.hreflang, link.href]));
-    const wanted = localStorage.djdLang || navigator.languages.map((tag) => tag.slice(0, 2).toLowerCase()).find((code) => offered.has(code));
-    if (wanted && wanted !== "en" && offered.has(wanted)) {
+  if (location.pathname === "/" && !location.search && !location.hash && localStorage.djdLang) {
+    const alternate = [...document.querySelectorAll('link[rel="alternate"]')]
+      .find(link => link.hreflang === localStorage.djdLang && link.hreflang !== "en");
+    if (alternate) {
       root.dataset.redirecting = "true";
-      location.replace(new URL(offered.get(wanted)).pathname + location.hash);
+      location.replace(new URL(alternate.href).pathname);
     }
   }
+  // Reserve the in-flow banner on a first visit before the consent module runs.
+  if (!localStorage.getItem("djdAnalyticsConsent")) root.dataset.firstVisit = "";
 } catch {}
 
 // Animate navigation with the current document's position, without persisting scroll history.

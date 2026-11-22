@@ -16,7 +16,9 @@ export const partial = {
     de: "Wo man SoundCloud-Tracks kauft",
     pl: "Gdzie kupić utwór z SoundCloud",
   },
-  "/guides/hypeddit-download-gates/": { en: "Hypeddit download gates in 2026" },
+  "/guides/organize-downloaded-dj-tracks/": { en: "Organize downloaded DJ tracks" },
+  "/guides/flac-vs-wav-for-djs/": { en: "FLAC or WAV for your decks?" },
+  "/guides/hypeddit-download-gates/": { en: "How Hypeddit download gates work" },
 };
 
 export const bases = ["/", "/app/", "/extension/", "/download/", "/about/", "/privacy/", "/terms/", ...Object.keys(partial)];

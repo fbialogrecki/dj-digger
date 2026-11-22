@@ -52,6 +52,7 @@ jobs:
         run: |
           npm ci
           npm run build
+          python3 scripts/check-seo.py
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
       - name: Check consent in isolated Chromium
         run: uv run --script site/scripts/check-consent.py

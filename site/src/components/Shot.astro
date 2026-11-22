@@ -8,7 +8,6 @@ import { ui } from "../i18n/index.mjs";
 
 // `eager` is for the one image at the top of a page; it is also fetched with high priority.
 const { src, alt, caption, full, eager = false, sizes = "(min-width: 68rem) 50vw, 92vw", class: className } = Astro.props;
-const picture = { src, alt, sizes, formats: ["avif", "webp"], loading: eager ? "eager" : "lazy", fetchpriority: eager ? "high" : undefined };
 const t = ui(Astro.url.pathname);
 const widths = [640, 960, 1280, src.width].filter((width, i, all) => width <= src.width && all.indexOf(width) === i);
 const large = full ?? src;
@@ -17,7 +16,7 @@ const zoom = await getImage({ src: large, width: Math.min(2560, large.width), fo
 
 <figure class:list={["shot", className]}>
   <a href={zoom.src} data-zoom data-width={zoom.attributes.width} data-height={zoom.attributes.height}>
-    <Picture {...picture} widths={widths} />
+    <Picture src={src} alt={alt} sizes={sizes} widths={widths} formats={["avif", "webp"]} loading={eager ? "eager" : "lazy"} fetchpriority={eager ? "high" : undefined} />
     <span class="sr">{full ? t.openFull : t.lightbox.zoom}</span>
   </a>
   {caption && <figcaption>{caption}</figcaption>}

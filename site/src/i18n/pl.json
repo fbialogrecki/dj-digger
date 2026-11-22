@@ -3,8 +3,10 @@
     "privacy": "Prywatność i cookies",
     "terms": "Warunki korzystania",
     "settings": "Ustawienia cookies",
+    "privacyDescription": "Sprawdź, jak dj-digger korzysta z opcjonalnej analityki i plików cookie, jak długo pamięta wybór i jak wycofać zgodę.",
+    "termsDescription": "Zasady korzystania ze strony dj-digger, instalatorów, przykładów muzycznych i grafik.",
     "bannerTitle": "Zezwolić na statystyki odwiedzin?",
-    "bannerText": "Za Twoją zgodą Google Analytics używa plików cookie do pomiaru odwiedzin stron, kliknięć w instalatory i skopiowań polecenia instalacji dla Linuksa. Po odmowie możesz nadal korzystać z całej witryny, a swój wybór zmienić w stopce.",
+    "bannerText": "Za Twoją zgodą Google Analytics zlicza odwiedziny, kliknięcia instalatorów, skopiowania polecenia dla Linuksa oraz przejścia do sklepu z rozszerzeniem, na GitHub i z poradników na strony produktu. Po odmowie możesz nadal korzystać z całej witryny, a swój wybór zmienić w stopce.",
     "accept": "Zezwalam na statystyki",
     "reject": "Odrzucam statystyki"
   },
@@ -20,7 +22,7 @@
       },
       "analytics": {
         "heading": "Dobrowolne statystyki odwiedzin",
-        "body": "Dopiero po wyrażeniu zgody (art. 6 ust. 1 lit. a RODO) Google Ireland Limited otrzymuje dane GA4, takie jak odwiedzana strona, informacje o przeglądarce i urządzeniu, witryna odsyłająca, kliknięcia w instalatory, skopiowania polecenia instalacji dla Linuksa oraz pseudonimowy identyfikator przeglądarki. Dzięki nim poznaję sposób korzystania z witryny. Pliki cookie _ga i _ga_* są ważne do 180 dni. Kolejne odwiedziny nie przedłużają tego czasu. Okres przechowywania danych o użytkownikach i zdarzeniach wynosi dwa miesiące. Standardowe raporty zbiorcze mogą obejmować dłuższe okresy."
+        "body": "Dopiero po wyrażeniu zgody (art. 6 ust. 1 lit. a RODO) Google Ireland Limited otrzymuje dane GA4, takie jak odwiedzana strona, informacje o przeglądarce i urządzeniu, witryna odsyłająca, kliknięcia w instalatory, skopiowania polecenia instalacji dla Linuksa oraz pseudonimowy identyfikator przeglądarki. Dzięki nim poznaję sposób korzystania z witryny. Pliki cookie _ga i _ga_* są ważne do 180 dni. Kolejne odwiedziny nie przedłużają tego czasu. Okres przechowywania danych o użytkownikach i zdarzeniach wynosi dwa miesiące. Standardowe raporty zbiorcze mogą obejmować dłuższe okresy. Zliczane są również przejścia do sklepu z rozszerzeniem, do repozytorium na GitHubie oraz z poradników na strony produktu."
       },
       "settings": {
         "heading": "Wybory zapisane w przeglądarce",

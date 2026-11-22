@@ -3,8 +3,10 @@
     "privacy": "Datenschutz und Cookies",
     "terms": "Nutzungsbedingungen",
     "settings": "Cookie-Einstellungen",
+    "privacyDescription": "Welche Cookies und Statistiken dj-digger nutzt, wie lange deine Auswahl gilt und wie du deine Einwilligung widerrufst.",
+    "termsDescription": "Nutzungsbedingungen für die Website, Softwaredownloads, Musikbeispiele und Grafiken von dj-digger.",
     "bannerTitle": "Besuchsstatistiken erlauben?",
-    "bannerText": "Mit deiner Einwilligung verwendet Google Analytics Cookies, um Seitenaufrufe, Klicks auf Installer und das Kopieren des Linux-Installationsbefehls zu zählen. Du kannst die gesamte Website auch bei Ablehnung nutzen und deine Wahl in der Fußzeile ändern.",
+    "bannerText": "Mit deiner Einwilligung zählt Google Analytics Besuche, Installer-Klicks, Kopien des Linux-Befehls und Klicks auf Links zum Erweiterungsstore, zu GitHub und von Anleitungen zu Produktseiten. Du kannst die gesamte Website auch bei Ablehnung nutzen und deine Wahl in der Fußzeile ändern.",
     "accept": "Statistiken erlauben",
     "reject": "Statistiken ablehnen"
   },
@@ -20,7 +22,7 @@
       },
       "analytics": {
         "heading": "Freiwillige Besuchsstatistiken",
-        "body": "Erst mit deiner Einwilligung (Art. 6 Abs. 1 Buchst. a DSGVO) erhält Google Ireland Limited GA4-Daten, darunter die aufgerufene Seite, Angaben zu Browser und Gerät, die verweisende Website, Klicks auf Installer, das Kopieren des Linux-Installationsbefehls und eine pseudonyme Browserkennung. Damit untersuche ich die Nutzung der Website. Die Cookies _ga und _ga_* bleiben höchstens 180 Tage gültig. Weitere Besuche verlängern diese Frist nicht. Für Nutzer- und Ereignisdaten gilt eine Aufbewahrungsdauer von zwei Monaten. Standardberichte mit zusammengefassten Daten können längere Zeiträume abdecken."
+        "body": "Erst mit deiner Einwilligung (Art. 6 Abs. 1 Buchst. a DSGVO) erhält Google Ireland Limited GA4-Daten, darunter die aufgerufene Seite, Angaben zu Browser und Gerät, die verweisende Website, Klicks auf Installer, das Kopieren des Linux-Installationsbefehls und eine pseudonyme Browserkennung. Damit untersuche ich die Nutzung der Website. Die Cookies _ga und _ga_* bleiben höchstens 180 Tage gültig. Weitere Besuche verlängern diese Frist nicht. Für Nutzer- und Ereignisdaten gilt eine Aufbewahrungsdauer von zwei Monaten. Standardberichte mit zusammengefassten Daten können längere Zeiträume abdecken. Auch Klicks zum Erweiterungsstore, zum GitHub-Projekt und von Anleitungen zu Produktseiten werden gezählt."
       },
       "settings": {
         "heading": "Deine Einstellungen im Browser",

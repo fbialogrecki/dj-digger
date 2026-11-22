@@ -149,7 +149,7 @@ if (theme && CSS.supports("color", "light-dark(#000, #fff)")) {
   });
 }
 
-// A language picked in the header is remembered: boot.js sends English pages to it.
+// A language picked in the header is remembered: boot.js honors it on the bare home URL.
 for (const link of document.querySelectorAll("[data-lang]"))
   link.addEventListener("click", () => {
     try {

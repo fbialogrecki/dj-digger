@@ -8,7 +8,7 @@ const description =
 const faq = "https://rekordbox.com/en/support/faq/streaming-7/";
 ---
 
-<Base title="How to get a SoundCloud playlist into rekordbox as files" description={description} label="app" article={{ published: "2026-11-20" }}>
+<Base title="How to get a SoundCloud playlist into rekordbox as files" description={description} label="app" article={{ published: "2026-11-20", modified: "2026-11-22" }}>
   <Track id="guide" title="SoundCloud to rekordbox" hero sub>
     <Fragment slot="heading">From a SoundCloud playlist <span class="grad">to rekordbox</span></Fragment>
     <p class="lede">
@@ -59,6 +59,12 @@ const faq = "https://rekordbox.com/en/support/faq/streaming-7/";
       <li>It never saves SoundCloud streams: previews are decoded in memory only.</li>
       <li>Deck compatibility comes from each deck's manual, not from hardware testing.</li>
     </ul>
+  </Track>
+
+  <Track id="usb" title="Check the file on the USB">
+    <p class="copy">Import the local files into the rekordbox Collection, make a playlist and analyse it. Check the beatgrid on one track you know well. Export the playlist to the USB in rekordbox and safely eject it.</p>
+    <p class="copy">If the playlist streams on your laptop but is missing on the player, check that each entry points to a purchased or artist-provided file. If just one file fails, compare its format with the player’s manual.</p>
+    <p class="copy"><a href="https://rekordbox.com/en/support/usb-export/">rekordbox USB export and library formats</a></p>
   </Track>
 
   <Track id="get" title="Download" heading="Download dj-digger">

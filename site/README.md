@@ -26,7 +26,7 @@ Node 22.23.4 or newer (Astro's minimum).
 | `/about/` | `src/pages/about.astro` | How it is built, and the credits (`#credits`). `/liner-notes/` redirects here (301, `firebase.json`) |
 | `/privacy/`, `/terms/` | `src/pages/[...policy].astro` | Website privacy, consent choices, terms of use and third-party licences in all seven languages |
 | `/faq/` | `src/pages/faq.astro` | Questions and answers (English, German, Polish) |
-| `/guides/…/` | `src/pages/guides/*.astro` | SoundCloud to rekordbox and where to buy a SoundCloud track (English, German, Polish); Hypeddit download gates in 2026 (English) |
+| `/guides/…/` | `src/pages/guides/*.astro` | SoundCloud to rekordbox and where to buy a SoundCloud track (English, German, Polish); Hypeddit gates, organizing downloads and FLAC vs WAV for DJs (English) |
 | `/llms.txt` | `src/pages/llms.txt.js` | A plain-text map of the site for language models |
 | 404 | `src/pages/404.astro` | One sentence and the way home |
 
@@ -87,16 +87,16 @@ folder deeper, internal links under `/<code>/`, its own screenshots from
 the extension has no translations). Name the app's buttons and dialogs as the app's
 catalog does (`dj_digger/gui/translations/<code>.ts`).
 
-`npm run build` ends with `scripts/check-languages.mjs`: every page must exist in every
-language with the English page's section ids (in order), pictures and commands, the same
-`<style>` and `<script>`, the right `lang` and links that stay in its language. So a change to an
-English page is a change to all seven.
+`npm run build` runs `scripts/check-languages.mjs`: every translation listed in the route registry must have
+the English page's section ids (in order), pictures and commands, the same
+`<style>` and `<script>`, the right `lang` and links that stay in its language. So a change to a
+fully translated English page requires corresponding changes in all seven versions. After building,
+run `python3 scripts/check-seo.py` from this directory to verify canonical URLs, the sitemap,
+language clusters, metadata, structured data and internal links. The Hosting workflow runs this check before deployment.
 
 The header's language switcher works without a script. Each page names its other
-languages in `hreflang` links, and the sitemap lists them too. On an English page,
-`boot.js` sends a visitor to the first of the browser's languages that the site
-speaks, or to the language picked with the switcher once there is one
-(`localStorage.djdLang`). Pages in other languages never redirect.
+languages in `hreflang` links, and the sitemap lists them too. Direct links retain their language. Only the bare homepage honors a previously
+selected language (`localStorage.djdLang`). A first visit always keeps the requested URL.
 
 ## Page kit
 

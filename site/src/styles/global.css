@@ -956,9 +956,6 @@ a.card:hover {
   stroke-linecap: round;
   pointer-events: none;
 }
-.record .code circle {
-  stroke: none;
-}
 .record .neon {
   fill: url(#neon);
   stroke: url(#neon);
@@ -1386,6 +1383,8 @@ a.card:hover {
    out of sight. --disc is its diameter; the drawing (232 x 208) puts the disc's right edge
    32 units in from the drawing's right edge, out of a 192-unit diameter. */
 @media (min-width: 68rem) {
+  /* Size the record's viewport-based gutter inside a classic desktop scrollbar. */
+  html { scrollbar-gutter: stable; }
   .page {
     --disc: min(100svh - var(--top) - 3rem, 60vw, 58rem);
     --hidden: 0.42; /* share of the disc past the window's edge */
@@ -1443,7 +1442,11 @@ a.card:hover {
   background: var(--panel);
   border-radius: .5rem;
 }
+html[data-first-visit] .consent[hidden] { display: block; visibility: hidden; }
 .consent h2 { font-size: 1.2rem; }
 .consent p { margin-block: .4rem .8rem; }
 .consent a, .cookie-settings { text-decoration: underline; }
 .cookie-settings { font: inherit; color: inherit; background: transparent; border: 0; cursor: pointer; }
+
+.guide-path { margin-block: 1.5rem 0; color: var(--muted); font-size: .875rem; }
+.guide-path a { text-underline-offset: .2em; }

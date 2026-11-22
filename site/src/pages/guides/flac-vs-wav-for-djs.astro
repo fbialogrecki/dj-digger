@@ -1,0 +1,26 @@
+---
+import Base from "../../layouts/Base.astro";
+import Track from "../../components/Track.astro";
+---
+<Base title="FLAC vs WAV for DJs: choosing files for your CDJs" description="Compare FLAC and PCM WAV, check the exact CDJ model in the booth, and make a playback copy while preserving your original download." label="app" article={{ published: "2026-11-22" }}>
+  <Track id="guide" title="FLAC or WAV for your next DJ set?" hero sub>
+    <p class="lede">If a shop offers the same master as FLAC and PCM WAV at the same bit depth and sample rate, both can carry the same audio samples. FLAC compresses those samples losslessly and usually takes less space. The decision for a gig comes down to which files the players can read. <a href="https://xiph.org/flac/faq.html">FLAC project FAQ</a></p>
+  </Track>
+  <Track id="booth" title="Start with the exact player model">
+    <p class="copy">Ask the venue for the full model number. A CDJ-3000X lists FLAC among its playable formats. A CDJ-2000NXS lists MP3, AAC, WAV and AIFF. If you rehearse on the newer player and perform on the older one, a successful FLAC load at home answers only half the question. Check the codec, bit depth and sample rate against both manuals.</p>
+    <p class="copy"><a href="https://downloads.support.alphatheta.com/manuals/dj-players/CDJ-3000X/html/en/000_CDJ-3000X_IM_01_EN_DRI1956-A_en/Product_overview/Product_overview.htm">CDJ-3000X playable files</a> · <a href="https://downloads.support.alphatheta.com/manuals/CDJ_2000NXS_DRI1052_manual.pdf">CDJ-2000NXS operating instructions (PDF)</a></p>
+  </Track>
+  <Track id="copies" title="Make a playback copy for a mixed booth">
+    <ol class="ticks">
+      <li><strong>Keep the purchased master.</strong> Work in a separate export folder. If the file already fits every chosen player, copy it as it is.</li>
+      <li><strong>Convert the files that need it.</strong> For example, for a stereo 44.1 kHz, 16-bit FLAC and a CDJ-2000NXS, make a 44.1 kHz, 16-bit PCM WAV copy. Changing the filename extension leaves the encoded audio untouched.</li>
+      <li><strong>Listen back.</strong> Check the start, loudest section and ending. Converting a lossy MP3 to WAV uses more space and cannot recover the discarded audio.</li>
+      <li><strong>Test your export.</strong> Import the playback copy into your DJ software and test the USB on the intended player if possible. Audio compatibility, USB filesystem support and the rekordbox device library are three separate checks.</li>
+    </ol>
+  </Track>
+  <Track id="diagnose" title="The drive mounts, but one track will not load">
+    <p class="copy">Try another track on the same drive. If it loads, compare the failing file’s actual codec and sample rate with the working file and the deck’s table. If the whole drive is missing, check the player’s supported USB filesystems and the library format first. Converting every track would leave a drive-format problem untouched.</p>
+    <p class="copy">In dj-digger, select the decks and review the proposed copies, conversions and exceptions before exporting to a new folder. Then follow the <a href="/guides/soundcloud-to-rekordbox/">rekordbox file and USB workflow</a>. For library compatibility across generations, see <a href="https://rekordbox.com/en/support/usb-export/">rekordbox USB Export</a>.</p>
+    <div class="cta"><a class="button" href="/app/">See the desktop app’s deck export</a></div>
+  </Track>
+</Base>

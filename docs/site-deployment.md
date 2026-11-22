@@ -46,13 +46,14 @@ npm run build
 ```
 
 The build checks the versions listed in `site/src/i18n/pages.mjs`, including
-section IDs, images, copyable code, language tags and localized links.
+section IDs, images, copyable code, language tags and localized links. The SEO check also validates every built canonical page against the sitemap.
 
 Leave GA4_MEASUREMENT_ID unset for a preview without measurement. To exercise
 consent in a test browser, use a test ID and intercept Google requests. The
 production tag sends one page view per accepted page, installer events named
 `download_windows_x64`, `download_macos_arm64`, `download_macos_x86_64`, and
-`copy_linux_command`. In Analytics use Reports → Engagement → Events, or a
+`copy_linux_command`. It also measures `extension_install_click`, `github_click` and
+`guide_cta_click`. See [SEO monitoring](seo/monitoring.md) for the key events and validation. In Analytics use Reports → Engagement → Events, or a
 funnel exploration with the download page and these events. These events measure
 actions on the website, while GitHub release asset counts measure file requests.
 The website privacy text describes the two-month user/event retention setting

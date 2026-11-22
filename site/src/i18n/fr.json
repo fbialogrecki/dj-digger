@@ -3,8 +3,10 @@
     "privacy": "Confidentialité et cookies",
     "terms": "Conditions d’utilisation",
     "settings": "Paramètres des cookies",
+    "privacyDescription": "Quels cookies et statistiques facultatives utilise dj-digger, combien de temps votre choix est conservé et comment retirer votre consentement.",
+    "termsDescription": "Conditions d’utilisation du site dj-digger, des logiciels proposés au téléchargement, des extraits musicaux et des illustrations.",
     "bannerTitle": "Autoriser les statistiques de fréquentation ?",
-    "bannerText": "Avec votre accord, Google Analytics utilise des cookies pour compter les visites, les clics sur les programmes d’installation et les copies de la commande d’installation Linux. Vous pouvez utiliser tout le site en cas de refus et modifier votre choix en bas de page.",
+    "bannerText": "Avec votre accord, Google Analytics compte les visites, les clics sur les programmes d’installation, les copies de la commande Linux et les clics vers la boutique de l’extension, GitHub et les pages produit depuis les guides. Vous pouvez utiliser tout le site en cas de refus et modifier votre choix en bas de page.",
     "accept": "Autoriser les statistiques",
     "reject": "Refuser les statistiques"
   },
@@ -20,7 +22,7 @@
       },
       "analytics": {
         "heading": "Statistiques facultatives",
-        "body": "Uniquement avec votre consentement (article 6, paragraphe 1, point a du RGPD), Google Ireland Limited reçoit des données GA4 telles que la page consultée, les caractéristiques du navigateur et de l’appareil, le site d’origine, les clics sur les programmes d’installation, les copies de la commande d’installation Linux et un identifiant pseudonyme du navigateur. Ces données m’aident à comprendre l’usage du site. Les cookies _ga et _ga_* expirent au bout de 180 jours au plus. Une nouvelle visite ne prolonge pas ce délai. La durée de conservation des données relatives aux utilisateurs et aux événements est de deux mois. Les rapports agrégés standard peuvent couvrir de plus longues périodes."
+        "body": "Uniquement avec votre consentement (article 6, paragraphe 1, point a du RGPD), Google Ireland Limited reçoit des données GA4 telles que la page consultée, les caractéristiques du navigateur et de l’appareil, le site d’origine, les clics sur les programmes d’installation, les copies de la commande d’installation Linux et un identifiant pseudonyme du navigateur. Ces données m’aident à comprendre l’usage du site. Les cookies _ga et _ga_* expirent au bout de 180 jours au plus. Une nouvelle visite ne prolonge pas ce délai. La durée de conservation des données relatives aux utilisateurs et aux événements est de deux mois. Les rapports agrégés standard peuvent couvrir de plus longues périodes. Les clics vers la boutique de l’extension, le dépôt GitHub et les pages produit depuis les guides sont également comptés."
       },
       "settings": {
         "heading": "Vos choix dans le navigateur",

@@ -3,8 +3,10 @@
     "privacy": "Privacy and cookies",
     "terms": "Terms of use",
     "settings": "Cookie settings",
+    "privacyDescription": "How dj-digger uses optional analytics and cookies, how long choices last, and how to withdraw consent.",
+    "termsDescription": "Read the terms for using the dj-digger website, its software downloads, music examples and artwork.",
     "bannerTitle": "Allow visitor statistics?",
-    "bannerText": "With your permission, Google Analytics uses cookies to measure page visits, installer clicks and copies of the Linux install command. You can use the whole site if you decline and change your choice in the footer.",
+    "bannerText": "With your permission, Google Analytics counts visits, installer clicks, Linux command copies and clicks on links to the extension, GitHub and product pages in guides. You can use the whole site if you decline and change your choice in the footer.",
     "accept": "Allow analytics",
     "reject": "Decline analytics"
   },
@@ -20,7 +22,7 @@
       },
       "analytics": {
         "heading": "Optional visitor statistics",
-        "body": "Only with your consent (Article 6(1)(a)) does Google Ireland Limited receive GA4 data such as the page visited, browser and device information, referring site, installer clicks, copies of the Linux install command and a pseudonymous browser identifier. I use this to understand how visitors use the site. The _ga and _ga_* cookies last up to 180 days; subsequent visits do not renew their expiry. The retention setting for user- and event-level data is two months. Standard aggregated reports are separate and can cover longer periods."
+        "body": "Only with your consent (Article 6(1)(a)) does Google Ireland Limited receive GA4 data such as the page visited, browser and device information, referring site, installer clicks, copies of the Linux install command and a pseudonymous browser identifier. I use this to understand how visitors use the site. The _ga and _ga_* cookies last up to 180 days; subsequent visits do not renew their expiry. The retention setting for user- and event-level data is two months. Standard aggregated reports are separate and can cover longer periods. It also counts visits from guides to product pages and clicks on the extension store and project repository links."
       },
       "settings": {
         "heading": "Your browser choices",

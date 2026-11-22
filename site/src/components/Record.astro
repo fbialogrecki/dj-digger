@@ -31,6 +31,10 @@ if (!css.includes(angles)) throw new Error(`global.css must define on .record:\n
       <stop offset="0.5" stop-color="#fff" stop-opacity="0"></stop>
       <stop offset="1" stop-color="#fff" stop-opacity="0.06"></stop>
     </linearGradient>
+    <g id="record-code">
+      <path d={strokes}></path>
+      {dots.map(([x, y]) => <circle cx={x} cy={y} r="2.1" stroke="none" />)}
+    </g>
     <path id="label-arc" d="M-22.5 0a22.5 22.5 0 1 1 45 0a22.5 22.5 0 1 1-45 0"></path>
   </defs>
 
@@ -38,12 +42,10 @@ if (!css.includes(angles)) throw new Error(`global.css must define on .record:\n
   <g class="spin-up">
     <g class="disc">
       <g class="code">
-        <path d={strokes}></path>
-        {dots.map(([x, y]) => <circle cx={x} cy={y} r="2.1" />)}
+        <use href="#record-code" />
       </g>
       <g class="code neon">
-        <path d={strokes}></path>
-        {dots.map(([x, y]) => <circle cx={x} cy={y} r="2.1" />)}
+        <use href="#record-code" />
       </g>
       <circle class="label" r="32.6"></circle>
       <text class="label-text"><textPath href="#label-arc" textLength="139" lengthAdjust="spacing">DJ-DIGGER &#183; CRATE DIGGING &#183; 33 RPM &#183; STEREO &#183;</textPath></text>

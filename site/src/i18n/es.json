@@ -3,8 +3,10 @@
     "privacy": "Privacidad y cookies",
     "terms": "Condiciones de uso",
     "settings": "Ajustes de cookies",
+    "privacyDescription": "Qué cookies y estadísticas opcionales usa dj-digger, cuánto dura tu elección y cómo retirar el consentimiento.",
+    "termsDescription": "Condiciones de uso del sitio dj-digger, las descargas de software, los ejemplos musicales y las imágenes.",
     "bannerTitle": "¿Permites las estadísticas de visitas?",
-    "bannerText": "Con tu permiso, Google Analytics usa cookies para contar visitas, clics en instaladores y copias del comando de instalación de Linux. Si las rechazas, puedes seguir usando todo el sitio y cambiar de opinión en el pie de página.",
+    "bannerText": "Con tu permiso, Google Analytics cuenta las visitas, los clics en instaladores, las copias del comando de Linux y los clics hacia la tienda de la extensión, GitHub y las páginas de producto enlazadas en las guías. Si las rechazas, puedes seguir usando todo el sitio y cambiar de opinión en el pie de página.",
     "accept": "Permitir estadísticas",
     "reject": "Rechazar estadísticas"
   },
@@ -20,7 +22,7 @@
       },
       "analytics": {
         "heading": "Estadísticas opcionales",
-        "body": "Solo con tu consentimiento (artículo 6.1.a del RGPD), Google Ireland Limited recibe datos de GA4 como la página visitada, información del navegador y del dispositivo, el sitio de procedencia, clics en instaladores, copias del comando de instalación de Linux y un identificador seudónimo del navegador. Los utilizo para entender cómo se usa el sitio. Las cookies _ga y _ga_* duran como máximo 180 días. Las visitas posteriores no amplían ese plazo. Los datos de usuarios y eventos tienen un plazo de conservación de dos meses. Los informes agregados estándar son independientes y pueden abarcar periodos más largos."
+        "body": "Solo con tu consentimiento (artículo 6.1.a del RGPD), Google Ireland Limited recibe datos de GA4 como la página visitada, información del navegador y del dispositivo, el sitio de procedencia, clics en instaladores, copias del comando de instalación de Linux y un identificador seudónimo del navegador. Los utilizo para entender cómo se usa el sitio. Las cookies _ga y _ga_* duran como máximo 180 días. Las visitas posteriores no amplían ese plazo. Los datos de usuarios y eventos tienen un plazo de conservación de dos meses. Los informes agregados estándar son independientes y pueden abarcar periodos más largos. También cuenta los clics hacia la tienda de la extensión, el repositorio de GitHub y las páginas de producto enlazadas en las guías."
       },
       "settings": {
         "heading": "Tus preferencias en el navegador",
