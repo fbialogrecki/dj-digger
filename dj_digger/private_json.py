@@ -4,10 +4,31 @@ import json
 import logging
 import os
 import tempfile
+from contextlib import contextmanager
 from pathlib import Path
+from stat import S_IMODE
 from typing import Any
+from uuid import uuid4
 
 LOGGER = logging.getLogger(__name__)
+
+@contextmanager
+def atomic_csv(path: Path):
+    temporary = path.with_name(f".dj-digger-{uuid4().hex}.tmp")
+    try:
+        mode = S_IMODE(path.stat().st_mode) & 0o777
+    except FileNotFoundError:
+        mode = None
+    descriptor = os.open(temporary, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o666 if mode is None else 0o600)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="") as stream:
+            yield stream
+        if mode is not None:
+            os.chmod(temporary, mode)
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
 
 def write_private_json(
     path: Path, payload: Any, *, ensure_ascii: bool = True, durable: bool = False

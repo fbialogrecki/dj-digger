@@ -30,7 +30,7 @@ starts during shutdown, before asyncio can wait on an uninterruptible thread.
 ## UI ownership
 
 `gui/backend.py` orchestrates desktop services and sends view snapshots and
-row updates through the Qt signal boundary in `gui/bridge.py`. `gui/model.py` owns the
+patches through the Qt signal boundary in `gui/bridge.py`. `gui/model.py` owns the
 table rows, filtering, sorting and selection by track key. `gui/qml/Main.qml`
 owns rendering and input, including the filter controls that drive the model.
 Blocking network and disk work runs off the UI thread. The bridge applies
@@ -52,9 +52,9 @@ cannot write into a new playlist with the same source.
 `crate_models.py` keeps crate values and serialization independent of SQLite.
 `LibraryService` owns listing, loading, reset/deletion and reconciliation. The
 sidebar uses crate headers and request/view generations so an old load cannot
-replace a newer choice. Local playlist loads batch metadata and analysis reads via
-`Database.media_many()`. The folder view opens from the media index and updates
-its rows after probing files without a stored duration.
+replace a newer choice. Local playlist and folder page loads batch metadata and
+analysis reads via `Database.media_many()`. Folder pages reuse indexed metadata
+while the file signature matches and apply delayed probe results in batches.
 
 SQLite has one owning thread and explicit short transactions. Repositories read
 current records when applying metadata, removal and refresh changes; no network,
@@ -62,13 +62,13 @@ browser or dialog occurs inside a transaction. Status and file provenance commit
 together, and status mirrors change after commit. The scanner writes batches;
 missing-file observations compare a per-key revision before clearing provenance,
 so a stale scan cannot erase a completed transfer or later manual decision.
-Rendering reads the mirrors to avoid queries per row.
+Rendering reads the mirrors. Status changes patch rows by track key, preserving
+unrelated download progress.
 
 `schema.py` checks existing schemas read-only and rechecks under
-`BEGIN IMMEDIATE`. The current schema is version 4. Upgrades from versions
-0 and 1 take a private, integrity-checked SQLite API backup from a separate
-committed reader, including committed WAL data. Later upgrades add tables in
-the same transaction.
+`BEGIN IMMEDIATE`. The current schema is version 5, which adds `copy_results`.
+Upgrades take a private, integrity-checked SQLite API backup from a separate
+committed reader, including committed WAL data, before applying changes.
 Unsupported shapes fail without repair. Reopening the current version needs no
 new backup. Backups are retained for manual restoration.
 

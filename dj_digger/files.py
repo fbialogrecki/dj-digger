@@ -11,19 +11,11 @@ from pathlib import Path
 from typing import Any
 
 from .gates import providers as gates
+from .media import install_new
 from .models import Cancelled, Track, check_cancelled
-from .paths import unique_target
+from .paths import portable_stem, unique_target
 from .soundcloud_errors import SoundCloudError
 
-# Windows refuses these as a filename whatever the extension - CON.mp3 is as
-# reserved as CON - and says so with an OSError at the moment of writing, which
-# is after the whole file has already been fetched. A track called "Aux" is not
-# a hypothetical.
-WINDOWS_RESERVED = frozenset(
-    {"CON", "PRN", "AUX", "NUL"}
-    | {f"COM{number}" for number in range(1, 10)}
-    | {f"LPT{number}" for number in range(1, 10)}
-)
 # A ceiling on what one track may write to disk. A gate hands over whatever it
 # likes and Content-Length is only a claim, so without this the write loop ends
 # when the server decides it does. Two gigabytes clears any real DJ file - a
@@ -54,8 +46,7 @@ def _download_stem(track: Track) -> str:
     raw = " - ".join(part for part in (track.artist, track.title) if part).strip()
     raw = re.sub(r"[^\w .-]+", "", raw, flags=re.UNICODE).strip(" .")
     raw = re.sub(r"\s+", " ", raw)
-    stem = (raw or f"track-{track.id or 'soundcloud'}")[:180].strip(" .")
-    return f"_{stem}" if stem.upper() in WINDOWS_RESERVED else stem
+    return portable_stem(raw or f"track-{track.id or 'soundcloud'}", 180)
 
 
 def _looks_like_html(prefix: bytes) -> bool:
@@ -137,9 +128,13 @@ def _claim_target(directory: Path, track: Track, suffix: str, temporary: Path, c
 def publish(temporary: Path, directory: Path, stem: str, suffix: str, cancel=None) -> Path:
     with _DOWNLOAD_NAME_LOCK:
         check_cancelled(cancel)
-        target = unique_target(directory, stem, suffix)
-        os.replace(temporary, target)
-    return target
+        while True:
+            target = unique_target(directory, stem, suffix)
+            try:
+                install_new(temporary, target)
+                return target
+            except FileExistsError:
+                continue
 
 
 def _save_stream(
@@ -168,7 +163,10 @@ def _keep_download(temporary: Path, track: Track, directory: Path, suffix: str, 
     """Check a finished temp file and move it to its final name; remove it otherwise."""
 
     try:
-        if temporary.stat().st_size > MAX_DOWNLOAD_BYTES:
+        size = temporary.stat().st_size
+        if not size:
+            raise SoundCloudError("The downloaded file is empty")
+        if size > MAX_DOWNLOAD_BYTES:
             raise SoundCloudError(
                 f"Download exceeded {MAX_DOWNLOAD_BYTES // (1024 * 1024)} MB"
             )
@@ -197,14 +195,17 @@ def save_browser_download(download: Any, track: Track, directory: Path, cancel=N
         with suppress(OSError):
             temporary.unlink(missing_ok=True)
         raise
-    return _keep_download(temporary, track, directory, suffix, cancel)
-
+    path = _keep_download(temporary, track, directory, suffix, cancel)
+    download.discard()
+    return path
 
 
 def copy_local_file(source: Path, directory: Path, cancel=None) -> Path:
     source = source.resolve(strict=True)
     directory.mkdir(parents=True, exist_ok=True)
     directory = directory.resolve()
+    if not source.stat().st_size:
+        raise SoundCloudError("The local file is empty")
     if source.is_relative_to(directory):
         return source
     temporary = _part_file(directory, ".dj-digger-copy-")
@@ -219,6 +220,8 @@ def copy_local_file(source: Path, directory: Path, cancel=None) -> Path:
                 if total == len(chunk) and _looks_like_html(chunk[:512]):
                     raise _WebPageNotFile()
                 outgoing.write(chunk)
+        if not total:
+            raise SoundCloudError("The local file is empty")
         shutil.copystat(source, temporary)
         return publish(temporary, directory, source.stem, source.suffix, cancel)
     finally:

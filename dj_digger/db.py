@@ -67,6 +67,8 @@ class Database:
         self._owner = None
         self._closed = False
         self._generations: dict[str, str] = {}
+        self._last_stem_miss_version = None
+        self._searchable_stems = None
         self._generation_lock = threading.Lock()
         try:
             self._executor.submit(self._open).result()
@@ -182,6 +184,9 @@ class Database:
             elif generation is not None and self.crate_generation(source) != generation:
                 return None
             current = self.load_crate(source)
+            if current is not None and incoming.get("partial"):
+                # Return the requested slice for export while retaining the saved collection.
+                return dict(incoming, removed_track_keys=current.get("removed_track_keys", []))
             if current is None:
                 current = incoming
             else:
@@ -433,14 +438,30 @@ class Database:
         if also_containing:
             condition += " AND instr(normalized_stem, ?) > 0"
             values.append(also_containing)
+        nested = self._conn.in_transaction
         with self.connection() as conn:
+            if not nested:
+                # Repeated misses can search the names contiguously. SQLite still decides
+                # uniqueness for every possible hit. Only reuse a committed snapshot.
+                version = (conn.total_changes, conn.execute("PRAGMA data_version").fetchone()[0])
+                if version == self._last_stem_miss_version:
+                    if self._searchable_stems is None:
+                        self._searchable_stems = b"\n".join(
+                            row[0].encode() for row in conn.execute("SELECT DISTINCT normalized_stem FROM local_files")
+                        )
+                    if containing.encode() not in self._searchable_stems:
+                        return None
+                else:
+                    self._searchable_stems = None
             row = conn.execute(
                 f"""SELECT MIN(path) AS path,
                            COUNT(DISTINCT normalized_stem) AS variants
                     FROM local_files WHERE {condition}""",
                 values,
             ).fetchone()
-            return row["path"] if row and row["variants"] == 1 else None
+            if not nested and row["variants"] == 0:
+                self._last_stem_miss_version = version
+            return row["path"] if row["variants"] == 1 else None
 
     @owned
     def register_media(self, path: str, signature: str, *, parent_id=None) -> dict:
@@ -466,15 +487,18 @@ class Database:
             return dict(row) if row is not None else None
 
     @owned
-    def media_many(self, media_ids) -> dict[str, dict]:
-        ids = list(dict.fromkeys(media_ids))
+    def media_many(self, keys, *, by_path=False) -> dict[str, dict]:
+        column = 'path' if by_path else 'id'
+        keys = list(dict.fromkeys(keys))
         with self.connection() as conn:
             rows = []
             # SQLite caps bound parameters; 500 per query stays well under every build's limit.
-            for start in range(0, len(ids), 500):
-                chunk = ids[start:start + 500]
-                rows += conn.execute(f"SELECT * FROM media_files WHERE id IN ({','.join('?' * len(chunk))})", chunk).fetchall()
-            return {row['id']: dict(row) for row in rows}
+            for start in range(0, len(keys), 500):
+                chunk = keys[start:start + 500]
+                rows += conn.execute(f"""SELECT m.*, a.manual_json, a.result_json, a.signature AS analysis_signature
+                    FROM media_files m LEFT JOIN media_analysis a ON a.media_id=m.id
+                    WHERE m.{column} IN ({','.join('?' * len(chunk))})""", chunk).fetchall()
+            return {row[column]: dict(row) for row in rows}
 
     @owned
     def update_media_metadata(self, media_id, signature, metadata) -> bool:
@@ -574,8 +598,10 @@ class Database:
             return added, skipped
 
     @owned
-    def load_local_playlist(self, source):
+    def load_local_playlist(self, source, *, as_record=False):
         """Load the provider record plus ordered local additions, resolving current file identities."""
+        from .crate_models import CrateRecord, track_from_json
+
         with self.connection() as conn:
             record = self.load_crate(source)
             if record is None:
@@ -599,12 +625,17 @@ class Database:
                         track['local_path'] = added_paths[key]
                 for member in members:
                     if member['media_id'] is not None:
-                        tracks.append(asdict(media_track(self, media[member['media_id']])))
+                        track = media_track(self, media[member['media_id']])
+                        tracks.append(track if as_record else asdict(track))
                     else:
                         track = json.loads(member['track_json'])
                         if track_key(track) not in provider_keys:
                             track['local_path'] = member['path']
                             tracks.append(track)
+            if as_record:
+                tracks = [track_from_json(track) if isinstance(track, dict) else track
+                          for track in record.get('tracks') or ()]
+                return CrateRecord.from_json(record, tracks=tracks)
             return record
 
     @owned
@@ -622,9 +653,42 @@ class Database:
             conn.execute('INSERT OR REPLACE INTO media_operations VALUES(?,?)', (operation_id, json.dumps(record)))
 
     @owned
-    def media_operations(self):
+    def copy_results(self, operation, *, migrate=False):
+        with self.connection(write=migrate) as conn:
+            if migrate:
+                row = conn.execute("SELECT json_extract(record_json, '$.results') FROM media_operations WHERE id=?", (operation,)).fetchone()
+                if row and row[0] is not None:
+                    for result in json.loads(row[0]):
+                        self.record_copy_result(operation, result)
+                    conn.execute("UPDATE media_operations SET record_json=json_remove(record_json,'$.results','$.missing') WHERE id=?", (operation,))
+            return {row['source']: json.loads(row['result_json']) for row in conn.execute(
+                'SELECT source,result_json FROM copy_results WHERE operation=?', (operation,))}
+
+    @owned
+    def record_copy_result(self, operation, result):
+        with self.connection(write=True) as conn:
+            conn.execute('INSERT OR REPLACE INTO copy_results VALUES(?,?,?)',
+                         (operation, result['source'], json.dumps(result)))
+
+    @owned
+    def finish_copy_item(self, operation, result, target, signature):
+        with self.connection(write=True):
+            self.register_media(target, signature, parent_id=result['parent_id'])
+            complete = {k: v for k, v in result.items() if k not in ('temporary', 'parent_id')}
+            complete['status'] = 'complete'
+            self.record_copy_result(operation, complete)
+
+    @owned
+    def finish_copy_report(self, operation):
+        with self.connection(write=True) as conn:
+            conn.execute("UPDATE media_operations SET record_json=json_set(record_json,'$.stage','done') WHERE id=?", (operation,))
+
+    @owned
+    def media_operations(self, *, unfinished=False):
         with self.connection() as conn:
-            return {row['id']: json.loads(row['record_json']) for row in conn.execute('SELECT * FROM media_operations')}
+            return {row['id']: json.loads(row['record_json']) for row in conn.execute(
+                "SELECT * FROM media_operations WHERE json_extract(record_json,'$.stage') != 'done' ORDER BY rowid"
+                if unfinished else 'SELECT * FROM media_operations ORDER BY rowid')}
 
     @owned
     def commit_media_replacement(self, media_id, old_path, new_path, signature, metadata):

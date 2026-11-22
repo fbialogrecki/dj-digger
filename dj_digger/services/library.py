@@ -17,20 +17,13 @@ class LibraryService:
         return sorted(headers, key=lambda header: header.title.lower())
 
     def load(self, source):
-        raw = self.state.db.load_local_playlist(source.strip())
-        return CrateRecord.from_json(raw) if raw is not None else None
+        return self.state.db.load_local_playlist(source.strip(), as_record=True)
 
     def reset(self, keys):
-        for key in keys:
-            self.state.set(key, NEW)
+        self.state.set_many([(key, NEW) for key in keys])
 
     def delete(self, source):
-        source = source.strip()
-        if not source.startswith(('local-playlist:', 'sc-snapshot:')):
-            raw = self.state.db.load_crate(source)
-            if raw:
-                self.reset([track.key for track in CrateRecord.from_json(raw).tracks])
-        self.state.db.delete_crate(source)
+        self.state.db.delete_crate(source.strip())
 
     def remember_beatport(self, source, generation, outcome):
         raw = self.state.db.remember_beatport(source, generation, outcome)
@@ -71,7 +64,7 @@ class LibraryService:
     def scanner(self, directories):
         return LocalScanner([Path(d).expanduser() for d in directories], db=self.state.db)
 
-    def match_tracks(self, tracks, scanner):
+    def match_tracks(self, tracks, scanner, *, previews=None):
         """Resolve paths outside transactions; persist certain matches in short batches."""
         paths = {}
         pending = []
@@ -87,12 +80,9 @@ class LibraryService:
                 match = scanner.match_track(track)
                 path, confident = (match.path, match.confident) if match else (None, False)
                 stale = stale or scanner.had_stale_match(track)
-            if path is not None or stale or track.local_path is not None:
-                paths[track.key] = path
             pending.append(FileMatch(track.key, path, confident, stale, observed.revision))
             if len(pending) == SCAN_BATCH:
-                self.state.apply_file_matches(pending)
+                paths.update(self.state.apply_file_matches(pending, previews=previews))
                 pending.clear()
-        self.state.apply_file_matches(pending)
-        # A newer completed transfer can supersede a missing-file observation.
-        return {key: self.state.local_file(key) or path for key, path in paths.items()}
+        paths.update(self.state.apply_file_matches(pending, previews=previews))
+        return paths

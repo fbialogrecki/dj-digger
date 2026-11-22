@@ -7,7 +7,7 @@
 | **Owner** | Filip Białogrecki |
 | **Last updated** | 2026-11-21 |
 | **Product version** | 1.6.0 (`pyproject.toml`); browser extension 1.4.5 (`dj_digger/webext/extension/manifest.json`) |
-| **Document lines** | <!-- SPEC TOTAL LINES -->2888<!-- END SPEC TOTAL LINES --> |
+| **Document lines** | <!-- SPEC TOTAL LINES -->2916<!-- END SPEC TOTAL LINES --> |
 | **Verified against** | `pyproject.toml`, `dj_digger/`, `dj_digger/webext/extension/manifest.json`, `scripts/`, `tests/`, `.github/workflows/`, `README.md`, `CHANGELOG.md` |
 
 ## Purpose of this file
@@ -54,66 +54,66 @@ text is never promoted into the map.
 | 2 | Product purpose and execution modes | 162–209 |
 | 2.1 | ↳ Problem and product boundary | 164–177 |
 | 2.2 | ↳ Execution modes | 178–209 |
-| 3 | User-visible capabilities | 210–1269 |
+| 3 | User-visible capabilities | 210–1283 |
 | 3.1 | ↳ Track collection | 212–244 |
 | 3.2 | ↳ Link classification and exports | 245–263 |
 | 3.3 | ↳ Track statuses | 264–274 |
 | 3.4 | ↳ Audio preview | 275–447 |
 | 3.5 | ↳ Downloads and local-file matching | 448–509 |
 | 3.6 | ↳ Store purchase assistance | 510–633 |
-| 3.7 | ↳ Local library, analysis and audio export | 634–830 |
-| 3.8 | ↳ Qt Quick desktop | 831–1269 |
-| 4 | System context and data flow | 1270–1316 |
-| 4.1 | ↳ Context diagram | 1272–1298 |
-| 4.2 | ↳ Collection-to-library flow | 1299–1316 |
-| 5 | Repository layout and component ownership | 1317–1406 |
-| 5.1 | ↳ Entry, orchestration, and models | 1319–1330 |
-| 5.2 | ↳ Network and external-system adapters | 1331–1363 |
-| 5.3 | ↳ Persistence, local media, and UI | 1364–1406 |
-| 6 | Runtime architecture and environments | 1407–1552 |
-| 6.1 | ↳ Runtime and dependencies | 1409–1437 |
-| 6.2 | ↳ Concurrency and lifecycle | 1438–1515 |
-| 6.3 | ↳ Local paths and environment variables | 1516–1552 |
-| 7 | Data model and persistence | 1553–1683 |
-| 7.1 | ↳ Domain objects and identity | 1555–1569 |
-| 7.2 | ↳ SQLite schema and invariants | 1570–1631 |
-| 7.3 | ↳ Crate persistence and deletion | 1632–1647 |
-| 7.4 | ↳ Configuration and credential stores | 1648–1683 |
-| 8 | Public interfaces and contracts | 1684–1747 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1686–1717 |
-| 8.2 | ↳ JSON and CSV summary input | 1718–1733 |
-| 8.3 | ↳ URL-opening contract | 1734–1747 |
-| 9 | Authentication and authorization | 1748–1825 |
-| 9.1 | ↳ SoundCloud authentication | 1750–1790 |
-| 9.2 | ↳ Gate action consent | 1791–1825 |
-| 10 | External integrations | 1826–2277 |
-| 10.1 | ↳ SoundCloud API and media | 1828–1839 |
-| 10.2 | ↳ Link hubs and download gates | 1840–1986 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1848–1943 |
-| 10.2 · block | ↳ ↳ ToneDen | 1945–1969 |
-| 10.2 · block | ↳ ↳ Other resolvers | 1971–1979 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 1981–1986 |
-| 10.3 | ↳ Browsers and clipboard | 1987–2222 |
-| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 2223–2277 |
-| 11 | Security requirements and threat model | 2278–2497 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2280–2298 |
-| 11.2 | ↳ Secret and personal-data handling | 2299–2314 |
-| 11.3 | ↳ File and mutation safety | 2315–2336 |
-| 11.4 | ↳ Browser-extension trust boundary | 2337–2497 |
-| 12 | Privacy, lifecycle, and retention | 2498–2557 |
-| 12.1 | ↳ Data stored locally | 2500–2524 |
-| 12.2 | ↳ Data sent to third parties | 2525–2542 |
-| 12.3 | ↳ User-controlled deletion | 2543–2557 |
-| 13 | Failure behavior and current limitations | 2558–2673 |
-| 13.1 | ↳ Error isolation and reporting | 2560–2581 |
-| 13.2 | ↳ Confirmed limitations | 2582–2673 |
-| 14 | Verification, CI, and release | 2674–2849 |
-| 14.1 | ↳ Offline and live test suites | 2676–2727 |
-| 14.2 | ↳ Continuous integration and publishing | 2728–2832 |
-| 14.3 | ↳ Specification-map verification | 2833–2849 |
-| 15 | References | 2850–2888 |
-| 15.1 | ↳ Primary implementation evidence | 2852–2873 |
-| 15.2 | ↳ User and historical documentation | 2874–2888 |
+| 3.7 | ↳ Local library, analysis and audio export | 634–841 |
+| 3.8 | ↳ Qt Quick desktop | 842–1283 |
+| 4 | System context and data flow | 1284–1330 |
+| 4.1 | ↳ Context diagram | 1286–1312 |
+| 4.2 | ↳ Collection-to-library flow | 1313–1330 |
+| 5 | Repository layout and component ownership | 1331–1420 |
+| 5.1 | ↳ Entry, orchestration, and models | 1333–1344 |
+| 5.2 | ↳ Network and external-system adapters | 1345–1377 |
+| 5.3 | ↳ Persistence, local media, and UI | 1378–1420 |
+| 6 | Runtime architecture and environments | 1421–1566 |
+| 6.1 | ↳ Runtime and dependencies | 1423–1451 |
+| 6.2 | ↳ Concurrency and lifecycle | 1452–1529 |
+| 6.3 | ↳ Local paths and environment variables | 1530–1566 |
+| 7 | Data model and persistence | 1567–1706 |
+| 7.1 | ↳ Domain objects and identity | 1569–1583 |
+| 7.2 | ↳ SQLite schema and invariants | 1584–1647 |
+| 7.3 | ↳ Crate persistence and deletion | 1648–1670 |
+| 7.4 | ↳ Configuration and credential stores | 1671–1706 |
+| 8 | Public interfaces and contracts | 1707–1772 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1709–1740 |
+| 8.2 | ↳ JSON and CSV summary input | 1741–1758 |
+| 8.3 | ↳ URL-opening contract | 1759–1772 |
+| 9 | Authentication and authorization | 1773–1851 |
+| 9.1 | ↳ SoundCloud authentication | 1775–1816 |
+| 9.2 | ↳ Gate action consent | 1817–1851 |
+| 10 | External integrations | 1852–2303 |
+| 10.1 | ↳ SoundCloud API and media | 1854–1865 |
+| 10.2 | ↳ Link hubs and download gates | 1866–2012 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1874–1969 |
+| 10.2 · block | ↳ ↳ ToneDen | 1971–1995 |
+| 10.2 · block | ↳ ↳ Other resolvers | 1997–2005 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 2007–2012 |
+| 10.3 | ↳ Browsers and clipboard | 2013–2248 |
+| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 2249–2303 |
+| 11 | Security requirements and threat model | 2304–2523 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2306–2324 |
+| 11.2 | ↳ Secret and personal-data handling | 2325–2340 |
+| 11.3 | ↳ File and mutation safety | 2341–2362 |
+| 11.4 | ↳ Browser-extension trust boundary | 2363–2523 |
+| 12 | Privacy, lifecycle, and retention | 2524–2585 |
+| 12.1 | ↳ Data stored locally | 2526–2550 |
+| 12.2 | ↳ Data sent to third parties | 2551–2568 |
+| 12.3 | ↳ User-controlled deletion | 2569–2585 |
+| 13 | Failure behavior and current limitations | 2586–2701 |
+| 13.1 | ↳ Error isolation and reporting | 2588–2609 |
+| 13.2 | ↳ Confirmed limitations | 2610–2701 |
+| 14 | Verification, CI, and release | 2702–2877 |
+| 14.1 | ↳ Offline and live test suites | 2704–2755 |
+| 14.2 | ↳ Continuous integration and publishing | 2756–2860 |
+| 14.3 | ↳ Specification-map verification | 2861–2877 |
+| 15 | References | 2878–2916 |
+| 15.1 | ↳ Primary implementation evidence | 2880–2901 |
+| 15.2 | ↳ User and historical documentation | 2902–2916 |
 <!-- END GENERATED SECTION MAP -->
 
 ---
@@ -451,7 +451,7 @@ The selected track or all eligible visible tracks download into a playlist-named
 subfolder of the configured directory in the desktop. It uses
 `paths.playlist_download_directory`: expand `~`, replace invalid filename
 characters, collapse whitespace, trim dots/spaces, and limit the
-folder name to 120 characters. A blank title uses the configured directory;
+folder name to 120 UTF-8 bytes. Track download stems are limited to 180 UTF-8 bytes. A blank title uses the configured directory;
 an already matching final directory name is reused case-insensitively. The
 destination is captured for the operation, including gate completion and copies
 of existing local files. Resolution priority is a selected gate, an explicit
@@ -465,8 +465,8 @@ Batch downloads use at most eight worker threads. Each gate flow uses its own HT
 session because cookies are flow state. Prerequisites such as a real profile,
 SoundCloud login, or Hypeddit and ToneDen browser completion are collected and retried
 at most once by the desktop flow. A file finished in the user's browser is copied
-out of the browser's download folder through the same validation and then deleted
-there (§10.2). Completed downloads store their local path and mark
+to a temporary file and validated. Only after exclusive publication of a nonempty final file
+does the app ask the extension to discard the browser copy. A failed cleanup leaves the published file usable (§10.2). Completed downloads store their local path and mark
 the track `got`. While a batch runs, each row shows its own state in the desktop:
 the transfer's progress, a half bar while it is handed to the browser pass or a
 prerequisite, a full bar once its file is in, and no bar with "✗ Failed" in its Status cell when it failed;
@@ -716,7 +716,12 @@ paths (or the highlighted file) and permanently deletes those files from disk.
 A folder page shows one row per file: a symbolic link to a file on the same page
 folds into that file's row. The page shows at once from the media index; only files
 never probed (no stored duration) are then inspected with ffprobe, and their tags
-update the existing rows in place. A selected symbolic link is refused before confirmation;
+update the existing rows in place. The first result is sent immediately and further results
+are batched at roughly 100 ms, with a final flush. Local playlist and folder page
+reads fetch central metadata and analysis together in batches of up to 500
+distinct media IDs or paths. Changing view cancels the previous
+folder probe. Inaccessible entries are skipped independently. Local playback, artwork
+and waveform reuse probe metadata while the file signature matches. A selected symbolic link is refused before confirmation;
 every confirmed file is revalidated before any is deleted, so a changed file or
 loaded/prefetched audio stops the batch with nothing removed. Deletion
 marks central media records unavailable and clears cached file mappings, while
@@ -807,8 +812,14 @@ restores unambiguous states and preserves ambiguous ones. Successful replacement
 leaves no lasting backup. Directory fsync is used where supported; this is not a
 cross-filesystem transaction or guarantee against storage power loss. New-folder
 exports keep partial results and a complete report; `ctrl+u` resumes the most
-recent unfinished operation from the application's trusted SQLite journal. Repeated
-cancellation during resume retains earlier completed files and their verification hashes.
+recent unfinished operation from the application's trusted SQLite journal. Copy exports store the
+reviewed plan once and checkpoint each file separately. Its SHA-256 is recorded before
+exclusive installation. Registration of the published copy and its completed checkpoint
+share one transaction. Resume verifies existing outputs, retains conflicting files and
+requires the original export folder to be present. It imports older inline checkpoints on
+first resume. Each invocation writes its report once, including any completed items from
+earlier attempts. Repeated cancellation retains previously verified copies. A
+complete operation closes only after the report is saved.
 
 `i` imports playlists created by a SoundCloud profile independently of
 profile-track digging. The profile link is normalised by `profile_url()`: a scheme
@@ -1024,7 +1035,10 @@ folders with only files or hidden subfolders remain selectable leaves.
 Selecting a folder opens its tracks in the paged table, and the page range appears only for folders above one page. Root and tree rows highlight only the folder whose tracks are loaded (paths compared after normalization), so opening a playlist clears the folder highlight. It provides
 search, multi-select store filtering with per-store counts derived from the loaded view,
 status, BPM, key and genre filtering, stable-key selection, numeric sorting with a header
-arrow (a click sorts ascending, a second descending, a third returns to source order; ties fall back to artist, then title, ascending; the sort persists across restarts), resizable columns, keyboard navigation and native clipboard copying. Each column fits the pixel width of its translated header and the widest displayed value across the filtered rows, including offscreen rows, badges and space for icons. Track name takes any spare width, and the table scrolls horizontally when the columns need more space. Dragging a divider overrides the automatic width for that field across moves and restarts. Reset column widths restores automatic sizing. Older saved arrays mixed calculated sizes with unloaded columns, so they return to automatic sizing on upgrade. Double-clicking a divider fits the column to its widest visible value or header; the divider strip does not sort. Right-clicking a header opens a column menu with Fit column to contents, Fit all columns, Reset column widths, Reset column order and a checkable entry per column; the title column cannot be hidden and BPM/key stay unavailable outside local views. Two more columns, Format (the file's extension plus its bitrate once probed, e.g. `MP3 320 kbps`) and Comment (the file's comment tag on one line), exist for local views only and are hidden by default, also for settings saved before they existed; date added, last played, rating and energy are not shown because no per-track value for them is stored. Dragging a header previews its position by moving and shading the entire column. Release commits the order and Escape restores the previous position. Delegates, widths and sorting keep their logical column, and the visual order is restored at startup. Rows are never reordered: every model reset drops the row mapping that Qt 6.11 freezes when a column moves, which otherwise aborted the app when a larger view loaded, while the column order stays. Status cells read `New`, a muted `Played`, `○ Opened`, `✓ Got` and `✗ Skipped`,
+arrow (a click sorts ascending, a second descending, a third returns to source order; ties fall back to artist, then title, ascending; the sort persists across restarts), resizable columns, keyboard navigation and native clipboard copying. Each column fits the pixel width of its translated header and the widest displayed value across the filtered rows, including offscreen rows, badges and space for icons. Track name takes any spare width, and the table scrolls horizontally when the columns need more space. Dragging a divider overrides the automatic width for that field across moves and restarts. Reset column widths restores automatic sizing. Older saved arrays mixed calculated sizes with unloaded columns, so they return to automatic sizing on upgrade. Double-clicking a divider fits the column to its widest visible value or header; the divider strip does not sort. Right-clicking a header opens a column menu with Fit column to contents, Fit all columns, Reset column widths, Reset column order and a checkable entry per column; the title column cannot be hidden and BPM/key stay unavailable outside local views. Two more columns, Format (the file's extension plus its bitrate once probed, e.g. `MP3 320 kbps`) and Comment (the file's comment tag on one line), exist for local views only and are hidden by default, also for settings saved before they existed; date added, last played, rating and energy are not shown because no per-track value for them is stored. Dragging a header previews its position by moving and shading the entire column. Release commits the order and Escape restores the previous position. Delegates, widths and sorting keep their logical column, and the visual order is restored at startup. Rows are never reordered: every model reset drops the row mapping that Qt 6.11 freezes when a column moves, which otherwise aborted the app when a larger view loaded, while the column order stays.
+Mark, undo and first playback send the changed track keys to the model. All occurrences
+share the status, including filtered rows, and unrelated download progress is preserved.
+Status cells read `New`, a muted `Played`, `○ Opened`, `✓ Got` and `✗ Skipped`,
 coloured in the text colour for new, muted for played and skipped, success for owned and warning for opened.
 Durations read m:ss, or h:mm:ss from an hour, in the table and the transport. Store cells render one badge style
 for every store, with download gates in the warning colour; a gate badge names its site (Hypeddit, ToneDen, GateRush, …, or Gate for a site without a name) and every other category reads by its display name (SoundCloud, Bandcamp, Beatport, Traxsource, Juno Download, Apple Music, Shop, Smart link, Streaming, Others, No link; one table in `gui/model.py`, the generic words translated, store and site names not), and the store pills and their counts name them the same way; `no-link` leaves the cell empty. Outside local views a
@@ -1607,14 +1621,16 @@ storage forms. Media identity lookup uses the JSON index for candidates and
 compares exact Python integers before limiting results, preventing numeric
 rounding from conflating distinct IDs.
 
-New libraries use `PRAGMA user_version=4`. The additive v4 table
+New libraries use `PRAGMA user_version=5`. Version 5 adds
+`copy_results(operation, source, result_json)`, keyed by operation and source,
+for new-folder export checkpoints. The additive v4 table
 `local_playlist_soundcloud_items` holds the SoundCloud key and track metadata alongside a position
 in the same ordering as `local_playlist_items`. Existing file memberships, ordering and legacy duplicates
 stay in place. The SQLite transaction adds the table on v2/v3 upgrades. Playlist headers carry optional
 provider and owner IDs. Imported playlists also use these membership tables for local additions. A canonical set from an older import can have its owner verified when adding tracks. Schema 3 adds only
 `waveforms(key PRIMARY KEY, signature, samples_json)`, the envelope of each played
 track (`samples_json` holds a peak list, or `{peaks, bands}` in rows kept by 1.4.0-1.5.0) with the local file's signature (`''` for a stream); rows are not pruned. A
-v2 library gains it inside the opening `BEGIN IMMEDIATE` transaction, without a backup. Existing recognized v0/v1
+v2 library gains it inside the opening `BEGIN IMMEDIATE` transaction. Existing recognized v0/v1
 shapes are checked read-only first, then under `BEGIN IMMEDIATE`. A separate
 committed reader performs `Connection.backup()` while the writer is reserved.
 Every migration gets an integrity-checked backup including committed WAL data,
@@ -1636,14 +1652,21 @@ keys, newly arrived keys, import/refresh timestamps, a partial flag and a `renam
 flag (the user gave it its title) inside `record_json`. Unknown track fields are ignored when reading, while known fields
 are reconstructed. Stream URLs are not part of `Track` and are not persisted.
 
-The source string is the crate primary key. Full import saves a complete record;
+The source string is the crate primary key. A limited collection can be exported at its requested
+length. A partial result cannot overwrite an existing saved collection, including when a
+provider playlist ID resolves to a previously saved URL. A first partial import is marked
+as such. Paginated imports use the remaining page marker and unconsumed tracks to distinguish
+a limit from the true end of the collection. At the limit, a missing pagination field leaves the result partial. Full import saves a complete record;
 refresh, track removal and metadata updates read the current record in a short
 transaction and change their own fields. Later removed keys and unrelated NEW
 metadata survive link updates. Each deletion changes a session generation;
 results carrying the previous generation cannot update a recreated crate.
 Listing orders the database query by update time but returns records sorted by
 case-folded title. Deleting a crate deletes its database row and does not delete
-track states, credentials, downloads, or source media.
+track states, credentials, downloads, or source media. Scan decisions use the revision
+observed before checking the file. A later status or file decision takes precedence over
+an earlier scan, including speculative playback paths. A title-only match can suggest
+a preview but never automatically marks the track as owned.
 
 ### 7.4 Configuration and credential stores
 
@@ -1723,6 +1746,8 @@ list, every item must be a mapping with `track_url`, and both `track_url` and
 `shop_link` must be HTTP(S) URLs with a host. Unknown category names become
 `others`; absent `shop_link` falls back to `track_url`.
 
+CSV output uses a same-directory temporary and atomic replacement. An existing file
+keeps its access mode if replaced and its contents if generation fails.
 CSV is output-only in the current code: loading a `.csv` summary raises an explicit
 export-only error. Its header is `category, artist, title,
 track_url, shop_link, bpm, key, release_year, label`, with the four newer
@@ -1761,7 +1786,8 @@ Authenticated artist downloads use an OAuth token in the `Authorization: OAuth`
 header.
 
 Login first accepts a valid stored/environment token, then scans plaintext
-Firefox `moz_cookies` databases on Linux/macOS and mounted Windows profiles,
+Firefox `moz_cookies` databases on Linux/macOS and mounted Windows profiles
+for an OAuth cookie on soundcloud.com or a subdomain,
 then asks the browser extension (§10.3), with a hidden manual token fallback in
 the CLI. The extension reads the one `oauth_token` cookie of the user's own
 browser in a background session (`window.open {background: true}`, §10.3), so no
@@ -2486,7 +2512,7 @@ Python caller, enforces its own limits, whatever the application sends:
   `download.expect` right before pressing that gate's Download (gate downloads run one at
   a time, and the name is used once and expires after 60 s); an unattributable one is ignored, an unsafe or "where to
   save" one is reported as blocked and never accepted, and the application deletes
-  the browser's file only after copying a download it was told about.
+  the browser's file only after the desktop has validated and published its final copy.
 - **Channel.** The socket directory is private to the user (§6.3), peers
   authenticate with the key in `webext.json` (0600), and a web page has no route to
   either. The panel's only external fetch is the bounded, unauthenticated SoundCloud CDN artwork described in §10.3.
@@ -2543,7 +2569,9 @@ endpoint and opens the temporary review URL returned by Soundiiz.
 ### 12.3 User-controlled deletion
 
 `auth logout` deletes the saved SoundCloud keyring entry and `auth.json`; crate deletion removes a
-crate row. `dj-digger browser unregister` (and Disconnect browsers in the desktop)
+crate row. A keyring or file deletion error is reported and signing out can be retried.
+An active `SOUNDCLOUD_OAUTH_TOKEN` takes precedence and is reported separately.
+`dj-digger browser unregister` (and Disconnect browsers in the desktop)
 removes the host manifests and registry keys; the extension is removed by the user
 in the browser. A `spotify.json` left by a release before 1.0, and the
 `soundcloud-browser/` and `store-browser/` profiles left by releases before 1.4, are

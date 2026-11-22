@@ -392,3 +392,19 @@ def test_a_log_file_takes_the_log_off_the_screen(tmp_path):
     assert "INFO dj_digger.dig: Collected 484 tracks." in path.read_text(encoding="utf-8")
 
 
+
+
+def test_cli_limited_alias_exports_slice_and_keeps_full_library(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    original = 'https://soundcloud.com/a/sets/original'
+    alias = 'https://soundcloud.com/a/sets/renamed'
+    tracks = [Track(title=str(i), permalink_url=f'https://soundcloud.com/a/{i}', id=i) for i in range(1, 4)]
+    def collect(target, *, limit, **kwargs):
+        return Crate(target, tracks[:limit], 'Playlist', provider_id=42, partial=limit is not None)
+    monkeypatch.setattr('dj_digger.services.collection.dig', collect)
+    assert cli.main([original, '-f', 'none']) == 0
+    before = library.load(original)
+    assert cli.main([alias, '-n', '1', '-f', 'json', '-o', 'slice.json']) == 0
+    exported = json.loads((tmp_path / 'slice.json').read_text())
+    assert [item['title'] for group in exported.values() for item in group] == ['1']
+    assert library.load(original) == before and library.load(alias) is None

@@ -167,6 +167,30 @@ class TrackModel(QAbstractTableModel):
             if row['key'] in updates:
                 self.dataChanged.emit(self.index(i, 0), self.index(i, len(COLUMNS)-1))
 
+    def patch_rows(self, patches):
+        """Patch all occurrences of a key. The visible list refers to the same row dictionaries."""
+        fields = set()
+        flashed = {}
+        for row in self.rows:
+            patch = patches.get(row['key'])
+            if patch:
+                fields.update(patch)
+                if 'status' in patch and row['status'] != patch['status'] and patch['status'] != 'played':
+                    flashed[row['key']] = patch['status']
+                row.update(patch)
+        if not fields:
+            return
+        if (self.statuses and 'status' in fields or self.filtering() and fields != {'status'}
+                or self.sort_column >= 0 and fields.intersection((COLUMNS[self.sort_column], 'artist', 'title'))):
+            self.refilter()
+        else:
+            for index, row in enumerate(self.visible):
+                if row['key'] in patches:
+                    self.dataChanged.emit(self.index(index, 0), self.index(index, len(COLUMNS) - 1))
+            self._changed()
+        if 0 < len(flashed) <= FLASH_LIMIT:
+            self.statusFlashed.emit(flashed)
+
     def update_rows(self, rows):
         changed = set(self.progress)
         self.progress.clear()

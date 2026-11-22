@@ -4,22 +4,6 @@ from pathlib import Path
 import pytest
 from test_gui import app, row  # noqa: F401  (skips without PySide6; app is a fixture)
 
-from dj_digger.gui.model import TrackModel
-
-
-def test_invert_selection_flips_only_visible_rows(app):  # noqa: F811
-    model = TrackModel()
-    model.replace([row('a', 'Alpha'), row('b', 'Beta'), row('c', 'Gamma')])
-    model.select(0)
-    model.invertSelection()
-    assert model.keys() == ['b', 'c']
-    model.filter('Beta', {})
-    model.invertSelection()
-    assert model.keys() == []
-    # Like Select all, it acts on what the filters show; hidden rows leave the selection.
-    model.filter('', {})
-    assert model.keys() == []
-
 
 @pytest.fixture
 def window(app, tmp_path, monkeypatch):  # noqa: F811

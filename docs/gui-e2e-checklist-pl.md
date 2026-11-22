@@ -433,6 +433,6 @@ Nie umieszczaj w zgłoszeniu haseł, tokenów, cookies ani nieprzejrzanych danyc
 | Rozszerzenie, kanał i granice zaufania | Specyfikacja §10.3, §11.4, §13.2; `dj_digger/webext/`; `dj_digger/gui/backend.py` (`connect_browser`, `with_extension`) |
 | Preferences i logi | `dj_digger/gui/backend.py:525`, `:758`; `dj_digger/gui/bridge.py:270`; `dj_digger/paths.py:13` |
 | Dotychczasowe testy jako pomoc w doborze przypadków | [tests/test_gui.py](../tests/test_gui.py), [opis implementacji desktopu](implementation/qt-quick-desktop.md) — nie były uruchamiane w ramach przygotowania tej listy |
-| Ograniczenia grafu | [docs/graph-notes.md](graph-notes.md), [graf JSON](../graphify-out/graph.json) — graf nie jest dowodem zachowania QML |
+| Ograniczenia grafu | [docs/graph-notes.md](graph-notes.md), [publiczny graf JSON](https://djdigger.app/graph/graph.json) — graf nie jest dowodem zachowania QML |
 
 Źródłami nadrzędnymi dla tej listy są bieżący kod oraz właściwe sekcje specyfikacji. Aplikacja nie ma już interfejsu TUI; GUI jest jedynym interfejsem interaktywnym.

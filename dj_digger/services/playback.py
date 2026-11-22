@@ -137,7 +137,7 @@ def track_waveform(db, track: Track, source, cancel=None) -> list[int]:
     if cached:
         return cached
     if track.local_path:
-        samples = local_audio.waveform(Path(track.local_path), cancel)
+        samples = local_audio.waveform(Path(track.local_path), cancel, metadata=getattr(source, "metadata", None))
     else:
         data = source.whole(cancel) if hasattr(source, "whole") else None
         samples = local_audio.encoded_waveform(data) if data else []

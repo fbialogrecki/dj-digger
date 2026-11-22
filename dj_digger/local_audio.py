@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .media import MediaError, pcm_blocks, probe
+from .media import MediaError, pcm_blocks, probe, signature
 from .services.playback import Prepared, Stream
 
 # Protect loaded and prefetched media, including the short replacement commit.
@@ -159,11 +159,18 @@ class LocalSource:
         self._thread.join()
 
 
-def prepare_local(track):
+def _metadata(path, cached, cancel=None):
+    if cached and cached.get('signature') == signature(path) and 'duration' in cached and 'artwork' in cached:
+        return cached
+    return probe(path, cancel)
+
+
+def prepare_local(track, cached=None):
     path = Path(track.local_path)
     with LEASE_LOCK:
-        metadata = probe(path)
+        metadata = _metadata(path, cached)
         source = LocalSource(path)
+        source.metadata = metadata
     return Prepared(track, Stream(str(path), duration=metadata['duration']), source=source)
 
 
@@ -187,12 +194,11 @@ def _fold_peaks(peaks, block, frame, frames_per_bin):
     return frame + len(loudest)
 
 
-def waveform(path, cancel=None):
+def waveform(path, cancel=None, *, metadata=None):
     """Independent low-resolution envelope; never a playback gate. The library keeps it."""
-    from .media import signature
     path = Path(path)
     before = signature(path)
-    metadata = probe(path, cancel)
+    metadata = _metadata(path, metadata, cancel)
     frames_per_bin = max(1, round(metadata['duration'] * 4000 / 1024))
     peaks = np.zeros(1024, dtype=np.int32)
     frame = 0
@@ -221,11 +227,11 @@ ARTWORK_NAMES = ('cover', 'folder', 'front', 'albumart')
 MAX_ARTWORK_BYTES = 16 * 1024 * 1024
 
 
-def artwork(path, cancel=None):
+def artwork(path, cancel=None, *, metadata=None):
     """Picture embedded in the file, else a cover image beside it; None without one."""
     from .media import binary, input_args, run
     path = Path(path)
-    pictures = probe(path, cancel)['artwork']
+    pictures = _metadata(path, metadata, cancel)['artwork']
     if pictures:
         data = run([binary('ffmpeg'), '-v', 'error', *input_args(path), '-map', f"0:{pictures[0]['index']}",
                     '-c', 'copy', '-f', 'image2pipe', '-'], cancel=cancel, timeout=30, output_limit=MAX_ARTWORK_BYTES)

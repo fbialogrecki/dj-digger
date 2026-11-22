@@ -287,10 +287,17 @@ function fakeBrowser({ offscreen = true, failOffscreen = false } = {}) {
   return { api, e, port, sent, calls, tabs, wins, newTab, session, off, user, ui };
 }
 
+// Discard timers owned by the fake browser workers once the last scenario finishes.
+const workerTimers = new Set();
+
 async function start(fake = fakeBrowser(), desktopTimeout = 20000) {
   const sandbox = {
     browser: fake.api, console, URL, Promise, Date, clearTimeout, AbortController, JSON,
-    setTimeout: (fn, ms) => setTimeout(fn, ms === 20000 ? desktopTimeout : ms),
+    setTimeout(fn, ms) {
+      const timer = setTimeout(fn, ms === 20000 ? desktopTimeout : ms);
+      workerTimers.add(timer);
+      return timer;
+    },
     crypto: { randomUUID: ((n) => () => (n++ ? `nonce-${n}` : "instance"))(0) }, navigator: { userAgent: "Chrome/121.0" },
     fetch: async () => ({ json: async () => JSON.parse(read("allowlist.json")) }),
   };
@@ -1216,5 +1223,7 @@ async function testPlaylistWrite() {
   console.log("ok");
 })().catch((error) => {
   console.error(error);
-  process.exit(1);
+  process.exitCode = 1;
+}).finally(() => {
+  for (const timer of workerTimers) clearTimeout(timer);
 });

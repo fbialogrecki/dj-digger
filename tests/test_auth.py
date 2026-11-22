@@ -384,3 +384,29 @@ def test_browser_login_hides_unexpected_browser_text(monkeypatch, caplog):
         auth.login_with_browser("client")
     assert "page secret" not in str(caught.value) and "page secret" not in caplog.text
     assert "RuntimeError" in caplog.text
+
+
+def test_firefox_cookie_domain_must_end_at_soundcloud(tmp_path):
+    import sqlite3
+    from contextlib import closing
+    db = tmp_path / 'cookies.sqlite'
+    with closing(sqlite3.connect(db)) as conn:
+        conn.execute('CREATE TABLE moz_cookies(host,name,value)')
+        for host in ('.soundcloud.com', 'SOUNDCLOUD.COM', 'm.soundcloud.com', 'notsoundcloud.com', 'soundcloud.com.invalid'):
+            conn.execute('INSERT INTO moz_cookies VALUES(?,?,?)', (host, 'oauth_token', host))
+        conn.commit()
+    assert auth._extract_sqlite_cookies(str(db)) == ['.soundcloud.com', 'SOUNDCLOUD.COM', 'm.soundcloud.com']
+
+
+def test_keyring_error_preserves_login_for_retry(system_keyring, monkeypatch):
+    auth.save_token('private-value')
+    def fail(*args):
+        raise RuntimeError('private-value')
+    with monkeypatch.context() as patch:
+        patch.setattr(system_keyring, 'delete_password', fail)
+        with pytest.raises(auth.SoundCloudAuthError, match='retry') as error:
+            auth.clear_token()
+        assert 'private-value' not in str(error.value)
+    assert auth.get_stored_token() == 'private-value'
+    auth.clear_token()
+    assert auth.get_stored_token() is None

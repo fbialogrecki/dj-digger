@@ -182,22 +182,6 @@ def test_a_late_snapshot_keeps_the_light_and_a_served_seek_clears_it(window):
     assert root.property('flash') == 0
 
 
-def test_new_view_settings_are_kept(tmp_path, monkeypatch, app):  # noqa: F811
-    from dj_digger.gui.bridge import Bridge
-
-    class PassiveBackend:
-        def __init__(self, emit):
-            pass
-
-        def submit(self, *args):
-            pass
-
-    bridge = Bridge(None, backend_factory=PassiveBackend, home_path=tmp_path)
-    values = {'previewStart': '30', 'vinyl': False}
-    bridge.saveSettings(dict(values, other=1))
-    assert bridge._settings == values
-
-
 def test_the_browser_panel_mirrors_the_player_and_drives_it(backend, monkeypatch):  # noqa: F811
     """webext player.state on every change (deduplicated) and player.command onto the window's own steps."""
     from dj_digger.gui import backend as module

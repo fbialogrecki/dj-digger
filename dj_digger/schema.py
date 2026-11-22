@@ -34,6 +34,9 @@ WAVEFORM_DDL = (
 PLAYLIST_DDL = (
     "CREATE TABLE local_playlist_soundcloud_items (source TEXT NOT NULL REFERENCES crates(source) ON DELETE CASCADE, position INTEGER NOT NULL, track_key TEXT NOT NULL, track_json TEXT NOT NULL, PRIMARY KEY (source, position))",
 )
+COPY_DDL = (
+    "CREATE TABLE copy_results (operation TEXT NOT NULL REFERENCES media_operations(id), source TEXT NOT NULL, result_json TEXT NOT NULL, PRIMARY KEY(operation, source))",
+)
 BACKUP_TIMEOUT = 30.0
 
 
@@ -55,7 +58,7 @@ def signature(conn: sqlite3.Connection) -> tuple:
 def expected_signature(version=1, *, legacy_local_files=False) -> tuple:
     with closing(sqlite3.connect(':memory:')) as conn:
         for statement in (DDL + (MEDIA_DDL if version >= 2 else ()) + (WAVEFORM_DDL if version >= 3 else ())
-                          + (PLAYLIST_DDL if version >= 4 else ())):
+                          + (PLAYLIST_DDL if version >= 4 else ()) + (COPY_DDL if version >= 5 else ())):
             if legacy_local_files and statement == DDL[1]:
                 statement = LEGACY_LOCAL_FILES_DDL
             conn.execute(statement)
@@ -65,7 +68,7 @@ def expected_signature(version=1, *, legacy_local_files=False) -> tuple:
 def recognize(conn: sqlite3.Connection) -> tuple:
     version = conn.execute('PRAGMA user_version').fetchone()[0]
     shape = signature(conn)
-    supported = version in (0, 1, 2, 3, 4) and shape == expected_signature(max(1, version))
+    supported = version in (0, 1, 2, 3, 4, 5) and shape == expected_signature(max(1, version))
     if not supported and version in (0, 1):
         supported = shape == expected_signature(legacy_local_files=True)
     if not supported:
@@ -117,28 +120,31 @@ def open_database(path: Path) -> sqlite3.Connection:
         if observed is None:
             if signature(conn) or conn.execute('PRAGMA user_version').fetchone()[0]:
                 raise UnsupportedSchema('Library changed while opening it')
-            for statement in DDL + MEDIA_DDL + WAVEFORM_DDL + PLAYLIST_DDL:
+            for statement in DDL + MEDIA_DDL + WAVEFORM_DDL + PLAYLIST_DDL + COPY_DDL:
                 conn.execute(statement)
         else:
             current = recognize(conn)
             if current != observed:
                 raise UnsupportedSchema('Library schema changed while opening it')
-            if current[0] < 2:
+            if current[0] < 5:
                 with closing(sqlite3.connect(path.resolve().as_uri()+'?mode=ro', uri=True)) as reader:
                     backup(reader, path)
+            if current[0] < 2:
                 if current[1] == expected_signature(legacy_local_files=True):
                     for column in ('size', 'artist', 'title'):
                         conn.execute(f'ALTER TABLE local_files DROP COLUMN {column}')
                 for statement in MEDIA_DDL:
                     conn.execute(statement)
             if current[0] < 3:
-                # Additive only, so the transaction alone makes it safe; no backup.
                 for statement in WAVEFORM_DDL:
                     conn.execute(statement)
             if current[0] < 4:
                 for statement in PLAYLIST_DDL:
                     conn.execute(statement)
-        conn.execute('PRAGMA user_version=4')
+            if current[0] < 5:
+                for statement in COPY_DDL:
+                    conn.execute(statement)
+        conn.execute('PRAGMA user_version=5')
         conn.commit()
         conn.execute('PRAGMA journal_mode=WAL')
         conn.execute('PRAGMA foreign_keys=ON')

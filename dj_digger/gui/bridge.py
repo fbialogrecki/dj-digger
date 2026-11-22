@@ -174,6 +174,10 @@ class Bridge(QObject):
         if kind == 'view':
             self._view = {k: v for k, v in values.items() if k != 'rows'}
             self.table.replace(values['rows'])
+        elif kind == 'rowPatch':
+            if values['generation'] == self._view['generation']:
+                self.table.patch_rows(values['patches'])
+            return
         elif kind == 'rows':
             if values['generation'] == self._view['generation']:
                 self.table.update_rows(values['rows'])

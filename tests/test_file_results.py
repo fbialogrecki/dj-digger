@@ -202,3 +202,93 @@ def test_a_title_only_path_is_never_taken_as_an_owned_file(tmp_path):
     assert state.get("1") != GOT
     state.set_local_file("1", loose)
     assert LibraryService(state).mark_existing(track)
+
+
+def test_partial_provider_alias_and_deletion_preserve_shared_track(tmp_path):
+    from dj_digger.services.library import LibraryService
+    from dj_digger.state import TrackState
+    state = TrackState(tmp_path / 'library.db')
+    db = state.db
+    full = dict(source='original', title='full', partial=False, provider_id=22,
+                tracks=[dict(id=1), dict(id=2), dict(id=3)], removed_track_keys=['2'])
+    db.remember_collection(full)
+    db.save_crate(dict(full, source='another', provider_id=None, tracks=[dict(id=1)]))
+    state.set_local_file('1', tmp_path / 'library.wav')
+    state.set('3', 'skip')
+    saved = db.load_crate('original')
+    slice_ = db.remember_collection(dict(full, source='renamed-url', partial=True, tracks=[dict(id=1)]))
+    assert slice_['source'] == 'original' and slice_['tracks'] == [dict(id=1)]
+    assert db.load_crate('original') == saved and db.load_crate('renamed-url') is None
+    LibraryService(state).delete('original')
+    assert db.load_crate('original') is None and db.load_crate('another')
+    assert db.all_track_statuses() == {'1': 'got', '3': 'skip'}
+    assert db.all_track_local_files()['1'] == str(tmp_path / 'library.wav')
+
+
+def test_failed_csv_keeps_prior_contents_and_permissions(tmp_path):
+    import stat
+
+    from dj_digger.private_json import atomic_csv
+    tmp_path = tmp_path / 'output'
+    tmp_path.mkdir()
+    path = tmp_path / 'export.csv'
+    path.write_text('old')
+    path.chmod(0o600)
+    with pytest.raises(ValueError), atomic_csv(path) as stream:
+        stream.write('partial')
+        raise ValueError('bad row')
+    assert path.read_text() == 'old' and list(tmp_path.iterdir()) == [path]
+    mode = stat.S_IMODE(path.stat().st_mode)
+    with atomic_csv(path) as stream:
+        stream.write('new')
+    assert path.read_text() == 'new' and stat.S_IMODE(path.stat().st_mode) == mode
+
+
+def test_empty_browser_download_keeps_original_and_long_collision_fits(tmp_path):
+    from dj_digger.files import save_browser_download
+    from dj_digger.models import Track
+    from dj_digger.paths import unique_target
+    from dj_digger.soundcloud_errors import SoundCloudError
+    tmp_path = tmp_path / 'downloads'
+    tmp_path.mkdir()
+    discarded = []
+    class Download:
+        suggested_filename = 'file.wav'
+        def save_as(self, path):
+            Path(path).write_bytes(b'')
+        def discard(self):
+            discarded.append(True)
+    with pytest.raises(SoundCloudError, match='empty'):
+        save_browser_download(Download(), Track('one', ''), tmp_path)
+    assert not discarded and not list(tmp_path.iterdir())
+    stem = 'CON.' + '音' * 200
+    first = unique_target(tmp_path, stem, '.wav')
+    first.touch()
+    second = unique_target(tmp_path, stem, '.wav')
+    assert second != first and second.name.startswith('_CON.') and second.name.endswith(' (1).wav')
+    assert len(second.name.encode()) <= 255
+
+
+@pytest.mark.parametrize('confident', [True, False])
+def test_scan_suggestion_cannot_replace_a_later_manual_decision(tmp_path, confident):
+    from dj_digger.state import FileMatch, TrackState
+
+    state = TrackState(tmp_path / 'library.db')
+    observed = state.observe_file('one')
+    state.set('one', 'skip')
+    paths = state.apply_file_matches([FileMatch('one', '/stale.wav', confident, False, observed.revision)])
+    assert paths == {'one': None}
+    assert state.get('one') == 'skip' and state.db.all_track_local_files() == {}
+
+
+def test_preview_revision_follows_the_scanners_own_stale_path_cleanup(tmp_path):
+    from dj_digger.state import FileMatch, TrackState
+
+    state = TrackState(tmp_path / 'library.db')
+    state.set_local_file('one', tmp_path / 'missing.wav')
+    observed = state.observe_file('one')
+    previews = {}
+    state.apply_file_matches([FileMatch('one', 'maybe.wav', False, True, observed.revision)], previews=previews)
+    assert state.local_file('one') is None and previews['one'] == ('maybe.wav', state.observe_file('one').revision)
+    state.set('one', 'skip')
+    assert state.observe_file('one').revision != previews['one'][1]

@@ -36,7 +36,6 @@ def test_local_playlists_take_dropped_tracks_rename_and_duplicate(backend, tmp_p
         (folder / name).write_bytes(b'fixture')
     worker.submit('folder', {'path': str(folder)})
     view = wait_event(events, 'view')
-    wait_event(events, 'rows')
     first, second = (row['key'] for row in view['rows'])
     target = dict(generation=view['generation'])
 
@@ -74,7 +73,6 @@ def test_a_local_playlist_exports_exactly_its_files_from_the_sidebar(backend, tm
         (folder / name).write_bytes(b'fixture')
     worker.submit('folder', {'path': str(folder)})
     view = wait_event(events, 'view')
-    wait_event(events, 'rows')
     keys = {Path(row['path']).name: row['key'] for row in view['rows']}
     worker.submit('save_playlist', dict(generation=view['generation'], keys=[keys['One - A.wav'], keys['Three - C.wav']]))
     question = wait_event(events, 'question')

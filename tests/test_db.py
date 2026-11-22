@@ -135,7 +135,8 @@ def test_crate_headers_come_without_the_tracks(tmp_path: Path) -> None:
     ]
 
 
-def test_register_legacy_schema_backs_up_wal_once(tmp_path):
+@pytest.mark.parametrize('version', [0, 1])
+def test_register_legacy_schema_backs_up_wal_once(tmp_path, version):
     import sqlite3
     from contextlib import closing
 
@@ -146,13 +147,14 @@ def test_register_legacy_schema_backs_up_wal_once(tmp_path):
         writer.execute('PRAGMA journal_mode=WAL')
         for sql in DDL:
             writer.execute(sql)
+        writer.execute(f'PRAGMA user_version={version}')
         writer.execute("INSERT INTO track_states VALUES ('wal-track', 'skip', 'now')")
         db = Database(path)
         assert db.all_track_statuses() == {'wal-track': 'skip'}
         copies = list((tmp_path / 'backups').glob('*.db'))
         assert len(copies) == 1
         with closing(sqlite3.connect(copies[0])) as saved:
-            assert saved.execute('PRAGMA user_version').fetchone()[0] == 0
+            assert saved.execute('PRAGMA user_version').fetchone()[0] == version
             assert saved.execute('SELECT key FROM track_states').fetchone()[0] == 'wal-track'
         import os
         if os.name == 'posix':
@@ -162,7 +164,8 @@ def test_register_legacy_schema_backs_up_wal_once(tmp_path):
         assert list((tmp_path / 'backups').glob('*.db')) == copies
 
 
-def test_backup_failure_does_not_register_version(tmp_path, monkeypatch):
+@pytest.mark.parametrize('version', [0, 1])
+def test_backup_failure_leaves_schema_untouched(tmp_path, monkeypatch, version):
     import sqlite3
     from contextlib import closing
 
@@ -172,13 +175,15 @@ def test_backup_failure_does_not_register_version(tmp_path, monkeypatch):
     with closing(sqlite3.connect(path)) as conn:
         for sql in schema.DDL:
             conn.execute(sql)
+        conn.execute(f'PRAGMA user_version={version}')
     def fail(*args):
         raise OSError('full disk')
     monkeypatch.setattr(schema, 'backup', fail)
     with pytest.raises(OSError, match='full disk'):
         Database(path)
     with closing(sqlite3.connect(path)) as conn:
-        assert conn.execute('PRAGMA user_version').fetchone()[0] == 0
+        assert conn.execute('PRAGMA user_version').fetchone()[0] == version
+        assert schema.signature(conn) == schema.expected_signature()
 
 
 @pytest.fixture
@@ -224,8 +229,8 @@ def test_legacy_cache_migration_preserves_library_and_backup(legacy_cache_databa
     assert db.load_crate('playlist') == {'source': 'playlist', 'title': 'Saved', 'tracks': []}
     db.upsert_local_files([('C:/Music/two.mp3', 2.0, 'two')])
     db.close()
-    assert writer.execute('PRAGMA user_version').fetchone()[0] == 4
-    assert signature(writer) == expected_signature(4)
+    assert writer.execute('PRAGMA user_version').fetchone()[0] == 5
+    assert signature(writer) == expected_signature(5)
     copies = list((path.parent / 'backups').glob('*.db'))
     assert len(copies) == 1
     with closing(sqlite3.connect(copies[0])) as saved:

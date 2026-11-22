@@ -74,7 +74,7 @@ To prepare files for a gig:
 1. Select local files and choose **Export audio…**. For a whole local playlist, use its sidebar menu. From a folder with no selection, the export can include files beyond the current page. Choose **Include subfolders** if needed.
 2. Choose your decks and a destination, leaving **Copy** selected to preserve the originals. The **Auto** format picks FLAC when all selected decks support it and WAV otherwise. The source checkout also offers WAV, AIFF, FLAC or 320 kb/s MP3 for lossless source files. Creating a playback copy from incompatible MP3 or AAC, or encoding lossless audio as MP3, requires **Copy** mode.
 3. Review the planned copies, conversions, exceptions and drive warnings before executing. The compatibility rules come from player manuals. A copied folder contains audio files. To create a rekordbox library on a USB device, import those files into rekordbox and use its export workflow. [SoundCloud to rekordbox guide](https://djdigger.app/guides/soundcloud-to-rekordbox/)
-4. If a copy is interrupted, make sure the destination folder is available and choose **Library → Resume interrupted export…**. The app checks previously written files before resuming.
+4. If a copy is interrupted, make sure the destination folder is available and choose **Library → Resume interrupted export…**. The app verifies previously written files and reports conflicts with any files that have changed. The report includes copies completed on earlier attempts.
 
 **Replace originals** is a separate, in-place operation. After verification and a successful update it removes the temporary original. Select it only when you intend to replace the source file.
 

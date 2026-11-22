@@ -365,6 +365,9 @@ def handle_auth(args: argparse.Namespace) -> int:
         return _auth_login(args, console)
     if action == "logout":
         auth_module.clear_token()
+        if os.environ.get("SOUNDCLOUD_OAUTH_TOKEN", "").strip():
+            console.print("Saved login removed. SOUNDCLOUD_OAUTH_TOKEN is still active.")
+            return 0
         console.print("[green]Logged out. Saved SoundCloud credentials removed.[/green]")
         return 0
     return _auth_status(console)
@@ -462,13 +465,17 @@ def _login_interactively(console: Console) -> int:
 
 
 def _auth_status(console: Console) -> int:
-    info = auth_module.get_stored_auth_info()
-    token = info.get("oauth_token")
+    environment_token = os.environ.get("SOUNDCLOUD_OAUTH_TOKEN", "").strip()
+    info = {} if environment_token else auth_module.get_stored_auth_info()
+    token = environment_token or info.get("oauth_token")
     if not token:
         console.print("[yellow]Authentication status: Not logged in.[/yellow]")
         return 0
 
-    console.print(f"Stored user: [bold]{info.get('username') or 'Unknown'}[/bold]")
+    if environment_token:
+        console.print("Using SOUNDCLOUD_OAUTH_TOKEN.")
+    else:
+        console.print(f"Stored user: [bold]{info.get('username') or 'Unknown'}[/bold]")
     with soundcloud.SoundCloudClient(oauth_token=token) as client:
         user_data = auth_module.verify_token(token, client.client_id)
         if user_data:

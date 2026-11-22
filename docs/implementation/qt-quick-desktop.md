@@ -104,6 +104,30 @@ uv run --extra gui python scripts/gui_benchmark.py
 These are table-model timings, not rendering latency or whole-app memory
 measurements. No claim about RAM savings versus TUI or browser apps follows.
 
+On 2026-11-18 the desktop benchmark compared the original checkout
+(`c76eb1a`) and the updated application on the same Linux Wayland session.
+Each run opened a real Qt Quick window with a disposable database, a 10,000-track
+playlist and a generated local WAV. The first sample is separate from the P95 of
+the next 20 samples. The audio measurement ends at the first decoded PCM frames.
+
+| Operation | First run before → after (ms) | Repeated P95 before → after (ms) |
+| --- | ---: | ---: |
+| Open playlist to presented frame | 565 → 500 | 325 → 336 |
+| Mark one track to presented frame | 139 → 65 | 114 → 38 |
+| Open folder to first tagged row | 173 → 154 | 23 → 26 |
+| Prepare indexed WAV to first PCM frames | 306 → 175 | 246 → 121 |
+
+Run on a graphical session with FFmpeg and the desktop extra installed.
+
+```bash
+uv run --extra gui python scripts/desktop_benchmark.py
+```
+
+The offline suite also exercises export interruption before and after installation,
+v4 journal migration and report-write failure. The scaling check doubles the export
+from 500 to 1,000 files and compares the bytes of journal SQL and the final report.
+It measures logical writes. Actual storage traffic depends on SQLite and the filesystem.
+
 Before treating this as a supported desktop release, verify on real Windows 10 (1809+) and 11,
 Linux and macOS: audible playback/device changes, physical mouse/keyboard and
 screen-reader navigation, high-DPI/multiple monitors, large-library scrolling,

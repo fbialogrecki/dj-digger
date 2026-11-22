@@ -174,7 +174,8 @@ def test_a_track_named_after_a_windows_device_still_gets_a_filename(name):
     cleaned = files._download_stem(
         Track(title=name, permalink_url="https://soundcloud.com/a/t")
     )
-    assert cleaned.upper() not in files.WINDOWS_RESERVED
+    from dj_digger.paths import WINDOWS_RESERVED
+    assert cleaned.upper() not in WINDOWS_RESERVED
     assert name.lower() in cleaned.lower()
 
 
@@ -498,7 +499,7 @@ def test_collect_playlist_honours_limit(monkeypatch, playlist_payload):
     monkeypatch.setattr(client, "hydrate_tracks", lambda ids, on_progress=None, cancel=None, on_batch=None: list(ids))
 
     crate = client.collect("https://soundcloud.com/a/sets/b", limit=7)
-    assert len(crate.tracks) == 7
+    assert len(crate.tracks) == 7 and crate.partial
 
 
 def test_collect_single_track(monkeypatch):
@@ -737,4 +738,15 @@ def test_repeated_collection_page_fails_instead_of_returning_a_complete_crate(mo
     monkeypatch.setattr(client, '_request', lambda *a, **k: page)
     with pytest.raises(SoundCloudError, match='pagination repeated'):
         client._paginate('/users/7/likes')
-    assert len(client._paginate('/users/7/likes', limit=1)) == 1
+    assert len(client._paginate('/users/7/likes', limit=1)[0]) == 1
+
+
+@pytest.mark.parametrize(('count', 'next_href', 'partial'), [(2, None, False), (2, 'next', True), (3, None, True)])
+def test_limit_at_page_boundary(monkeypatch, count, next_href, partial):
+    client = make_client()
+    page = dict(collection=[track_payload(i) for i in range(1, count + 1)], next_href=next_href)
+    monkeypatch.setattr(client, '_get', lambda *args, **kwargs: page)
+    tracks, sliced = client._paginate('/users/1/tracks', limit=2)
+    assert [t.id for t in tracks] == [1, 2] and sliced == partial
+    del page['next_href']
+    assert client._paginate('/users/1/tracks', limit=2)[1]
