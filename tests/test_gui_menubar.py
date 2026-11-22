@@ -106,12 +106,12 @@ def test_reveal_opens_the_data_and_log_folders(app, monkeypatch, tmp_path):
             pass
 
     opened = []
-    monkeypatch.setattr(QDesktopServices, 'openUrl', lambda url: opened.append(url.toLocalFile()) or True)
+    monkeypatch.setattr(QDesktopServices, 'openUrl', lambda url: opened.append(Path(url.toLocalFile())) or True)
     monkeypatch.setattr(logging_setup, 'current_log_path', lambda: tmp_path / 'logs' / 'dj-digger.log')
     bridge = Bridge(None, backend_factory=PassiveBackend, home_path=tmp_path)
     bridge.revealFolder('data')
     bridge.revealFolder('logs')
-    assert opened == [str(data_dir()), str(tmp_path / 'logs')]
+    assert opened == [data_dir(), tmp_path / 'logs']
     bridge.saveSettings({'recent': [{'kind': 'folder', 'target': '/music'}], 'token': 'x'})
     assert bridge._settings == {'recent': [{'kind': 'folder', 'target': '/music'}]}
 
