@@ -6,7 +6,7 @@
 | **Version** | 1.2.0 |
 | **Owner** | Filip Białogrecki |
 | **Last updated** | 2026-11-23 |
-| **Product version** | 1.7.0 (`pyproject.toml`); browser extension 1.4.5 (`dj_digger/webext/extension/manifest.json`) |
+| **Product version** | 1.7.1 (`pyproject.toml`); browser extension 1.4.5 (`dj_digger/webext/extension/manifest.json`) |
 | **Document lines** | <!-- SPEC TOTAL LINES -->2925<!-- END SPEC TOTAL LINES --> |
 | **Verified against** | `pyproject.toml`, `dj_digger/`, `dj_digger/webext/extension/manifest.json`, `scripts/`, `tests/`, `.github/workflows/`, `README.md`, `CHANGELOG.md` |
 
@@ -1200,7 +1200,7 @@ browser's own pages), shows the extension folder as a read-only path with a Copy
 and lists registration notes such as unsupported Flatpak/Snap browsers. Check connection waits five seconds for a hello; without
 one the dialog comes back with "The extension still isn't answering…", and with one the
 status line says "Connected: <Browser> <major version>. SoundCloud sign-in, gates and carts
-will open there." A successful sign-in reports "Signed in as <user> in <Browser> <version>";
+will open there." After a successful sign-in, the account name appears in Preferences.
 Sign out says the browser stays signed in to SoundCloud.
 
 The generic form dialog renders field kinds `text`, `number`, `folder`, `file`,
@@ -1783,12 +1783,12 @@ opened. Successful handoff does not prove that the remote page loaded.
 
 Public collection discovers and uses a SoundCloud web `client_id` and does not
 require a user account. The ID is cached and rediscovered once after a 401/403.
-When a request carrying the OAuth token still gets 401 with the fresh ID, it is
-repeated once without the token; if that succeeds the token counts as expired: the
-client stops sending it (until a new login replaces the client), logs a warning and
-reports it once. The desktop then asks “SoundCloud login expired” (Refresh login /
-Not now, one question at a time); Refresh login runs the sign-in below. The stored
-login is left in place.
+After a 401 with the refreshed ID, a public resource request retries once without
+the OAuth token. That retry affects only this request and leaves the saved login
+available for private operations. Only a 401 on the authenticated account endpoint
+(`/me`) with the refreshed ID marks the token rejected for this client and offers
+“SoundCloud login expired” in the desktop. Refresh login starts the sign-in flow.
+The stored credential stays in place.
 Authenticated artist downloads use an OAuth token in the `Authorization: OAuth`
 header.
 

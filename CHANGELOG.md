@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.7.1 — 2026-11-23
+
+### Fixed
+
+- Playing a public SoundCloud track can fall back to anonymous playback without interrupting you or discarding your login. The desktop asks you to sign in again when SoundCloud rejects the saved login during an account check.
+- After signing in, you can see your SoundCloud account name in Preferences. The status bar clears when sign-in finishes.
+
 ## 1.7.0 — 2026-11-23
 
 ### Added

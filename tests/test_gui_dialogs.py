@@ -249,15 +249,25 @@ def test_connect_browser_opens_the_chrome_web_store_and_asks_again(extension, mo
     assert next_of(events, 'message', 'error')[1]['text'].startswith('Connected: ')
 
 
-def test_signing_in_names_the_account_and_the_browser(extension):
+def test_signing_in_updates_the_account_without_posting_a_message(extension, monkeypatch):
+    from dj_digger import auth
     from dj_digger.services.accounts import AuthenticationResult
+
     worker, events, *_ = extension
+    monkeypatch.delenv('SOUNDCLOUD_OAUTH_TOKEN', raising=False)
+    assert wait_event(events, 'account')['signedIn'] is False
     worker.services.browser_link = FakeLink(dict(browser='firefox', browserVersion='131.0', version='0.3.1', protocol=1))
-    worker.services.accounts.authenticate = lambda *args: AuthenticationResult(token='secret', username='digger')
-    worker.services.adopt_login = lambda token: True
+
+    def authenticate(*_args):
+        auth.save_token('secret', 'digger', 7)
+        return AuthenticationResult(token='secret', username='digger')
+
+    worker.services.accounts.authenticate = authenticate
     worker.submit('login', {})
-    message = next_of(events, 'message', 'error')[1]
-    assert message['text'].format(*message['args']) == 'Signed in as digger in Firefox 131'
+    assert wait_event(events, 'busy') == {'value': True, 'text': 'Signing in'}
+    assert next_of(events, 'account', 'message', 'error') == (
+        'account', {'signedIn': True, 'name': 'digger', 'browser': 'Firefox'})
+    assert next_of(events, 'busy', 'message', 'error') == ('busy', {'value': False, 'text': ''})
 
 
 def test_settings_keep_a_browser_this_computer_lacks_and_fold_the_folder_lists(backend, tmp_path):

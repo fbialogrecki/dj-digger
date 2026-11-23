@@ -2,11 +2,11 @@
 
 ## Import and organize playlists
 
-Press `A` in the desktop app to import a SoundCloud link. The command is **Import playlist from link…** in 1.7.0 and **Add playlist…** in 1.6.0. Opening a profile this way collects that artist’s uploaded tracks. Choose **Import profile playlists…** to collect the sets they created. You can import public sets without signing in. To include your private sets, sign in as their owner.
+Press `A` in the desktop app to import a SoundCloud link. The command is **Import playlist from link…** in 1.7.x and **Add playlist…** in 1.6.0. Opening a profile this way collects that artist’s uploaded tracks. Choose **Import profile playlists…** to collect the sets they created. You can import public sets without signing in. To include your private sets, sign in as their owner.
 
 During import, tracks appear in playlist order. The playlist is saved when collection succeeds. Refresh a saved SoundCloud playlist to bring new tracks to the top with a **NEW** marker. A refresh preserves your decisions and the tracks you removed locally.
 
-dj-digger 1.7.0 supports these playlist workflows:
+dj-digger 1.7.x supports these playlist workflows:
 
 - **Keep a recommendation mix.** Import Daily Drops or Weekly Wave from its SoundCloud page or paste its playlist link. Reopening the same day’s import returns that copy. Importing on a different day creates another dated entry.
 - **Save a shortlist.** Select tracks in the table, right-click and choose **Send to → Create playlist from selection…**. A local playlist keeps the selected order and accepts both SoundCloud tracks and files. Drag a selection onto an editable playlist, or choose it under **Send to**, to append tracks. Existing entries are skipped.

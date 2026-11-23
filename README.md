@@ -26,7 +26,7 @@ The [official download page](https://djdigger.app/download/) lists installers, c
 3. **Decide.** Press `G` on a SoundCloud track you own or `K` to skip it. Press `H` to hide handled tracks. Use `/` to search or pick a store filter to focus on one shop. A playlist refresh brings new arrivals to the top.
 4. **Get the file.** Press `O` to open a saved link or `D` for an available artist download. **Add to store carts…** can prepare exact Bandcamp and Beatport matches in your browser. You review the cart and complete checkout.
 
-In dj-digger 1.7.0, right-click selected tracks and choose **Send to → Create playlist from selection…** to keep a shortlist in table order. A local playlist can mix downloaded files with SoundCloud tracks. **Find in** searches a single track by artist and title. Import **Daily Drops** or **Weekly Wave** to keep a dated snapshot of a mix before SoundCloud changes it. The [workflow guide](docs/workflows.md) covers playlist sync, column sizing and export options.
+Right-click selected tracks and choose **Send to → Create playlist from selection…** to keep a shortlist in table order. A local playlist can mix downloaded files with SoundCloud tracks. **Find in** searches a single track by artist and title. Import **Daily Drops** or **Weekly Wave** to keep a dated snapshot of a mix before SoundCloud changes it. The [workflow guide](docs/workflows.md) covers playlist sync, column sizing and export options.
 
 ## Work with local music
 

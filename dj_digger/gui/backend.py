@@ -1336,13 +1336,6 @@ class Backend:
             raise ValueError(result.error)
         if result.token:
             self.services.adopt_login(result.token)
-            browser = self.connected_browser()
-            if result.username and browser:
-                self.send('message', {'text': 'Signed in as {0} in {1}', 'args': [result.username, browser]})
-            elif result.username:
-                self.send('message', {'text': 'Signed in as {0}', 'args': [result.username]})
-            else:
-                self.send('message', {'text': 'Signed in'})
             await self.action_account({})
         else:
             raise Cancelled()

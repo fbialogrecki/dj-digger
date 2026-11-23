@@ -208,7 +208,6 @@ class SoundCloudClient:
         if parsed.scheme != "https" or parsed.hostname != "api-v2.soundcloud.com" or parsed.username is not None or parsed.password is not None or parsed.port not in (None, 443):
             raise SoundCloudError("Refusing an untrusted SoundCloud API address")
         refreshed = anonymous = False
-        rejected = None
         while True:
             merged = dict(params or {})
             merged["client_id"] = self.client_id
@@ -228,12 +227,12 @@ class SoundCloudClient:
                     self._client_id = self._discover_client_id(force=True)
                     continue
                 if response.status_code == 401 and token:
-                    # A fresh client_id was refused too: try once without the login.
-                    anonymous, rejected = True, token
-                    continue
-                if rejected and response.status_code < 300:
-                    # Accepted without the login, so the login is what SoundCloud refused.
-                    self._reject_token(rejected)
+                    if parsed.path == "/me":
+                        self._reject_token(token)
+                    else:
+                        # Public resources can reject a signed-in request even while /me accepts it.
+                        anonymous = True
+                        continue
 
                 if 300 <= response.status_code < 400:
                     raise SoundCloudError("SoundCloud API redirected unexpectedly")

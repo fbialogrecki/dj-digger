@@ -209,13 +209,13 @@ pipx install 'dj-sc-digger[gui,analyze]'
 
 Download gates, store carts and SoundCloud sign-in can use the dj-digger extension in your own browser.
 
-1. Start dj-digger once to register its native messaging host. In **1.7.0**, open **Settings → Preferences… → Accounts and browser → Connect browser…**. In **1.6.0**, use **Settings → Connect browser…**. The dialog includes the extension folder and a **Check connection** button. With the desktop closed you can also register the host and print the folder path with `dj-digger browser register`.
+1. Start dj-digger once to register its native messaging host. In **1.7.x**, open **Settings → Preferences… → Accounts and browser → Connect browser…**. In **1.6.0**, use **Settings → Connect browser…**. The dialog includes the extension folder and a **Check connection** button. With the desktop closed you can also register the host and print the folder path with `dj-digger browser register`.
 2. In Chrome, Edge, Brave or Chromium, install [dj-digger from the Chrome Web Store](https://chromewebstore.google.com/detail/dj-digger/ndimmdooibgcajgnoncdnckolhlmnnkb). Edge may ask you to allow extensions from other stores. For an unpacked install, open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked** and select the extension folder. For Firefox, use the signed extension if provided in the release, or choose **Load Temporary Add-on** in `about:debugging#/runtime/this-firefox` and select the folder’s `manifest.json`. Firefox removes the temporary add-on at restart.
 3. Grant the site permissions requested on the extension’s welcome page, then choose **Check connection** in the app. On Linux the native host requires a browser that can start it. Flatpak and Snap browser installations are unsupported.
 
-With desktop 1.7.0 and extension 1.4.5, use **Import to DJ digger** on supported SoundCloud pages or **Import this playlist into dj-digger** in the extension panel. The panel can start or restore the desktop after registration. Daily Drops and Weekly Wave are imported as dated snapshots. See [playlist workflows](workflows.md#import-and-organize-playlists).
+With desktop 1.7.x and extension 1.4.5, use **Import to DJ digger** on supported SoundCloud pages or **Import this playlist into dj-digger** in the extension panel. The panel can start or restore the desktop after registration. Daily Drops and Weekly Wave are imported as dated snapshots. See [playlist workflows](workflows.md#import-and-organize-playlists).
 
-For your own private playlists and account-only artist downloads, choose **Sign in to SoundCloud…** under **Accounts and browser** in 1.7.0 or **Settings** in 1.6.0. If SoundCloud rejects a saved login, the app offers **Refresh login**.
+For your own private playlists and account-only artist downloads, choose **Sign in to SoundCloud…** under **Accounts and browser** in 1.7.x or **Settings** in 1.6.0. In 1.7.1, the app offers **Refresh login** when SoundCloud rejects the saved login during an account check. The signed-in account name appears in Preferences.
 
 To disconnect, use the connected browser’s **Disconnect…** action in the same settings, or close the desktop and run `dj-digger browser unregister`. The desktop registers the host again at its next start. To remove the extension itself, use the browser’s extensions page.
 

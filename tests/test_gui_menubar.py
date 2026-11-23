@@ -205,13 +205,15 @@ def test_qml_menu_bar(app, tmp_path, monkeypatch):
         ]))
         assert qml('dialog.visible && dialog.collapsed.section_appearance && dialog.collapsed.section_browser')
         qml('dialog.collapsed = {}')
+        bridge.receive('busy', {'value': True, 'text': 'Signing in'})
         bridge.receive('account', dict(signedIn=True, name='digger', browser='Chrome'))
         settle()
         account = find(window.contentItem(), 'soundCloudConnection')
+        status = find(window.contentItem(), 'statusMessage')
         assert account is not None and account.property('text') == 'Signed in as digger — Sign out…'
-        bridge.receive('busy', {'value': True, 'text': ''})
-        assert not account.isEnabled()
+        assert not account.isEnabled() and status.property('text') == 'Signing in'
         bridge.receive('busy', {'value': False, 'text': ''})
+        assert account.isEnabled() and status.property('text') == ''
         qml('dialog.connectionAction("logout")')
         assert bridge.backend.calls[-1][:2] == ('answer', 'prefs')
         assert bridge.backend.calls[-1][2]['_connectionAction'] == 'logout'

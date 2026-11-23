@@ -590,7 +590,7 @@ def test_login_without_the_extension_offers_to_connect_it_and_retries(extension,
 
     worker.services.accounts.authenticate = authenticate
     worker.services.adopt_login = lambda token: True
-    worker.submit('login', {})
+    login = run_in(worker, worker.action_login({}))
     assert next_of(events, 'message', 'error')[1]['text'] == 'Opening your browser for the SoundCloud sign-in…'
     question = next_of(events, 'question')[1]
     assert question['title'] == 'Connect browser'
@@ -598,7 +598,8 @@ def test_login_without_the_extension_offers_to_connect_it_and_retries(extension,
         'a closed browser is opened and given time to connect before Connect browser is shown'
     worker.answer(question['id'], {})
     assert next_of(events, 'message', 'error')[1]['text'].startswith('Connected: ')
-    assert next_of(events, 'message', 'error')[1]['text'] == 'Signed in' and calls == ['browser', 'browser']
+    login.result(timeout=10)
+    assert calls == ['browser', 'browser']
 
 
 def test_an_expired_login_asks_once_then_signs_in_again_through_the_connected_browser(extension):
@@ -612,7 +613,7 @@ def test_an_expired_login_asks_once_then_signs_in_again_through_the_connected_br
     question = next_of(events, 'question')[1]
     assert (question['title'], question['ok'], question['cancel']) == ('SoundCloud login expired', 'Refresh login', 'Not now')
     worker.answer(question['id'], {})
-    assert next_of(events, 'message', 'error')[1] == {'text': 'Signed in as {0} in {1}', 'args': ['dj', 'Firefox']}
+    assert next_of(events, 'account', 'message', 'error')[0] == 'account'
     assert worker.services.browser_link.waited == [], 'a connected browser is not reopened'
     assert not any(kind == 'question' for kind, _ in list(events.queue)), 'the second rejection asked nothing'
 
