@@ -2,13 +2,30 @@
 import Base from "../../layouts/Base.astro";
 import Track from "../../components/Track.astro";
 ---
-<Base title="FLAC vs WAV for DJs: choosing files for your CDJs" description="Compare FLAC and PCM WAV, check the exact CDJ model in the booth, and make a playback copy while preserving your original download." label="app" article={{ published: "2026-11-22" }}>
+<Base title="FLAC vs WAV for DJs: choosing files for your CDJs" description="Compare FLAC and PCM WAV, check the exact CDJ model in the booth, and make a playback copy while preserving your original download." label="app" article={{ published: "2026-11-22", modified: "2026-11-23" }}>
   <Track id="guide" title="FLAC or WAV for your next DJ set?" hero sub>
     <p class="lede">If a shop offers the same master as FLAC and PCM WAV at the same bit depth and sample rate, both can carry the same audio samples. FLAC compresses those samples losslessly and usually takes less space. The decision for a gig comes down to which files the players can read. <a href="https://xiph.org/flac/faq.html">FLAC project FAQ</a></p>
   </Track>
   <Track id="booth" title="Start with the exact player model">
-    <p class="copy">Ask the venue for the full model number. A CDJ-3000X lists FLAC among its playable formats. A CDJ-2000NXS lists MP3, AAC, WAV and AIFF. If you rehearse on the newer player and perform on the older one, a successful FLAC load at home answers only half the question. Check the codec, bit depth and sample rate against both manuals.</p>
-    <p class="copy"><a href="https://downloads.support.alphatheta.com/manuals/dj-players/CDJ-3000X/html/en/000_CDJ-3000X_IM_01_EN_DRI1956-A_en/Product_overview/Product_overview.htm">CDJ-3000X playable files</a> · <a href="https://downloads.support.alphatheta.com/manuals/CDJ_2000NXS_DRI1052_manual.pdf">CDJ-2000NXS operating instructions (PDF)</a></p>
+    <p class="copy">Ask the venue for the exact model number. If the booth has both players below, a 16- or 24-bit PCM WAV at 44.1 or 48 kHz fits both.</p>
+    <div class="table">
+      <table>
+        <caption>USB playback formats listed in each player’s manual.</caption>
+        <thead>
+          <tr><th scope="col">Player and manual</th><th scope="col">Which file to bring</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row"><a href="https://downloads.support.alphatheta.com/manuals/dj-players/CDJ-3000X/html/en/000_CDJ-3000X_IM_01_EN_DRI1956-A_en/Product_overview/Product_overview.htm">CDJ-3000X</a></th>
+            <td>FLAC or PCM WAV, 16 or 24 bit, at 44.1, 48, 88.2 or 96 kHz. Keep your FLAC if it fits.</td>
+          </tr>
+          <tr>
+            <th scope="row"><a href="https://downloads.support.alphatheta.com/manuals/CDJ_2000NXS_DRI1052_manual.pdf#page=7">CDJ-2000NXS (PDF)</a></th>
+            <td>PCM WAV, 16 or 24 bit, at 44.1 or 48 kHz. For a FLAC master, prepare a WAV playback copy.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </Track>
   <Track id="copies" title="Make a playback copy for a mixed booth">
     <ol class="ticks">

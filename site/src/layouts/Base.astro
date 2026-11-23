@@ -14,6 +14,7 @@ import { languagesOf, partial } from "../i18n/pages.mjs";
 // `crumb` names the page in its breadcrumb when it is not one of the pages named below.
 // `article` ({ published, modified? } as YYYY-MM-DD) marks a guide as an article with dates.
 const { title, description, label = "home", noindex = false, crumb, article } = Astro.props;
+const articleDate = article?.modified ?? article?.published;
 const here = Astro.url.pathname;
 const lang = langOf(here);
 const t = ui(here);
@@ -100,7 +101,7 @@ const graph = [
     description,
     inLanguage: lang,
     datePublished: article.published,
-    dateModified: article.modified ?? article.published,
+    dateModified: articleDate,
     url: canonical.href,
     mainEntityOfPage: canonical.href,
     author: { "@id": id("author") },
@@ -145,7 +146,7 @@ const structured = JSON.stringify({ "@context": "https://schema.org", "@graph": 
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content={t.ogAlt} />
     {article && <meta property="article:published_time" content={article.published} />}
-    {article && <meta property="article:modified_time" content={article.modified ?? article.published} />}
+    {article && <meta property="article:modified_time" content={articleDate} />}
     <meta name="twitter:card" content="summary_large_image" />
     {noindex && <meta name="robots" content="noindex" />}
     {!noindex && <script is:inline type="application/ld+json" set:html={structured} />}
@@ -223,7 +224,15 @@ const structured = JSON.stringify({ "@context": "https://schema.org", "@graph": 
       </div>
       <div class="sheet">
         <main id="content" tabindex="-1">
-          {article && <p class="guide-path"><a href={local("/")}>dj-digger</a> <span aria-hidden="true"> / </span> {pageName}</p>}
+          {article && (
+            <div class="guide-path">
+              <p><a href={local("/")}>dj-digger</a> <span aria-hidden="true"> / </span> {pageName}</p>
+              <p>
+                <a rel="author" href={local("/about/")}>{author.name}</a> · {t.guideUpdated}
+                {" "}<time datetime={articleDate}>{new Date(articleDate).toLocaleDateString(lang, { dateStyle: "long", timeZone: "UTC" })}</time>
+              </p>
+            </div>
+          )}
           <slot />
         </main>
       </div>

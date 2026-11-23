@@ -7,7 +7,7 @@
 | **Owner** | Filip Białogrecki |
 | **Last updated** | 2026-11-23 |
 | **Product version** | 1.7.0 (`pyproject.toml`); browser extension 1.4.5 (`dj_digger/webext/extension/manifest.json`) |
-| **Document lines** | <!-- SPEC TOTAL LINES -->2923<!-- END SPEC TOTAL LINES --> |
+| **Document lines** | <!-- SPEC TOTAL LINES -->2925<!-- END SPEC TOTAL LINES --> |
 | **Verified against** | `pyproject.toml`, `dj_digger/`, `dj_digger/webext/extension/manifest.json`, `scripts/`, `tests/`, `.github/workflows/`, `README.md`, `CHANGELOG.md` |
 
 ## Purpose of this file
@@ -107,13 +107,13 @@ text is never promoted into the map.
 | 13 | Failure behavior and current limitations | 2593–2708 |
 | 13.1 | ↳ Error isolation and reporting | 2595–2616 |
 | 13.2 | ↳ Confirmed limitations | 2617–2708 |
-| 14 | Verification, CI, and release | 2709–2884 |
+| 14 | Verification, CI, and release | 2709–2886 |
 | 14.1 | ↳ Offline and live test suites | 2711–2762 |
-| 14.2 | ↳ Continuous integration and publishing | 2763–2867 |
-| 14.3 | ↳ Specification-map verification | 2868–2884 |
-| 15 | References | 2885–2923 |
-| 15.1 | ↳ Primary implementation evidence | 2887–2908 |
-| 15.2 | ↳ User and historical documentation | 2909–2923 |
+| 14.2 | ↳ Continuous integration and publishing | 2763–2869 |
+| 14.3 | ↳ Specification-map verification | 2870–2886 |
+| 15 | References | 2887–2925 |
+| 15.1 | ↳ Primary implementation evidence | 2889–2910 |
+| 15.2 | ↳ User and historical documentation | 2911–2925 |
 <!-- END GENERATED SECTION MAP -->
 
 ---
@@ -2830,7 +2830,9 @@ two-level `BreadcrumbList`; guides add an `Article` with their dates. Besides th
 all seven languages, the site has questions and answers (`/faq/`) and guides on getting a SoundCloud
 playlist into rekordbox as files and on where to buy a SoundCloud track, in English, German and
 Polish, plus English guides to Hypeddit gates, organizing downloaded tracks and choosing FLAC or WAV
-for specific DJ players. `site/src/i18n/pages.mjs` lists
+for specific DJ players. Each guide shows the author, links to the localized About page and displays
+the date used for its Article modification date. The app’s library and deck-export sections link to
+the English guides on organizing downloads and choosing audio formats. `site/src/i18n/pages.mjs` lists
 each page's languages: hreflang links and the sitemap name only existing versions, the language
 switcher offers a language's home page where a page is missing, direct URLs retain their language
 except when the bare homepage honors an explicit saved preference, and the footer links a guide in
