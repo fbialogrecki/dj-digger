@@ -145,11 +145,6 @@ html {
   -webkit-text-size-adjust: 100%;
   scroll-padding-top: calc(var(--top) + 1.5rem);
 }
-@media (prefers-reduced-motion: no-preference) {
-  html {
-    scroll-behavior: smooth;
-  }
-}
 body {
   margin: 0;
   min-height: 100dvh;
@@ -295,8 +290,7 @@ pre,
   gap: clamp(0.5rem, 2.5vw, 1.25rem);
   height: var(--top);
   padding-inline: clamp(1rem, 4vw, 3rem);
-  background: color-mix(in srgb, var(--bg) 82%, transparent);
-  backdrop-filter: blur(14px);
+  background: var(--bg);
   border-bottom: 1px solid var(--line);
 }
 .brand {
@@ -506,12 +500,6 @@ h3 {
   font-stretch: 112%;
   line-height: 1.25;
 }
-.grad {
-  background: linear-gradient(100deg, var(--accent), var(--accent-2));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
 .lede {
   max-width: 37rem;
   font-size: clamp(1.08rem, 1.4vw, 1.22rem);
@@ -550,7 +538,7 @@ h3 {
   top: 0.62em;
   width: 0.7rem;
   height: 2px;
-  background: linear-gradient(90deg, var(--neon-foot), var(--neon-top));
+  background: var(--edge);
 }
 /* Numbered steps (the guides): the same list, counted. */
 ol.ticks {
@@ -582,18 +570,18 @@ ol.ticks li::before {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem 1.6rem;
-  font-size: 0.86rem;
+  overflow: clip; /* hides the slash of whichever fact starts a line */
+  font: 500 0.8rem var(--mono);
   color: var(--muted);
 }
+.facts li {
+  position: relative;
+}
 .facts li::before {
-  content: "";
-  display: inline-block;
-  width: 0.4rem;
-  height: 0.4rem;
-  margin-right: 0.6rem;
-  border-radius: 50%;
-  background: var(--neon-foot);
-  vertical-align: 0.1em;
+  content: "/" / "";
+  position: absolute;
+  right: calc(100% + 0.55rem);
+  color: var(--edge);
 }
 .shot {
   position: relative;
@@ -601,7 +589,6 @@ ol.ticks li::before {
   border-radius: 14px;
   overflow: hidden;
   background: var(--panel);
-  box-shadow: 0 30px 70px -40px var(--shadow);
 }
 .shot .frame {
   position: relative;
@@ -1060,14 +1047,16 @@ a.card:hover {
     rotate: var(--arm-rest);
   }
 }
+/* A whole turn: the first frame matches the disc as it was, so a reload spins it without a jump. */
 @keyframes spin-up {
   from {
-    rotate: -260deg;
+    rotate: -360deg;
   }
 }
 @media (prefers-reduced-motion: no-preference) {
-  /* Needle drop, once per session: the arm lands and the record spins up on three kicks.
-     After that the record only turns with the page. */
+  /* Needle drop on every load, reloads included: the arm lands and the record spins up on
+     three kicks, then turns only with the page. A page reached through the record-flip
+     view transition skips it (boot.js marks those .played). */
   html:not(.played) .tonearm .drop {
     animation: drop 0.6s cubic-bezier(0.3, 0.7, 0.2, 1) both;
   }
@@ -1232,7 +1221,6 @@ a.card:hover {
   border: 1px solid var(--line);
   border-radius: 6px;
   background: var(--panel);
-  box-shadow: 0 30px 70px -40px var(--shadow);
 }
 /* The whole panel pauses and plays the animation; the transport keys sit above it. */
 .player-toggle {

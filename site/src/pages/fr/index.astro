@@ -40,7 +40,7 @@ const loop = [
 
 <Base title="dj-digger : appli gratuite de crate digging pour SoundCloud" description={description}>
   <section class="hero" id="start" aria-labelledby="start-title">
-    <h1 id="start-title">D'une playlist SoundCloud <span class="grad">aux fichiers sur vos platines</span></h1>
+    <h1 id="start-title">D'une playlist SoundCloud aux fichiers sur vos platines</h1>
     <p class="lede">
       <strong>dj-digger</strong> est une application libre et gratuite pour DJ. Importez vos playlists ou vos favoris, écoutez les morceaux et marquez ceux que vous possédez déjà. Si l’artiste propose un achat ou un téléchargement gratuit, ouvrez son lien depuis la même liste.
     </p>
@@ -157,7 +157,6 @@ const loop = [
     border: 1px solid var(--line);
     border-radius: 12px;
     background: var(--panel);
-    box-shadow: 0 30px 70px -40px var(--shadow);
   }
 
   /* The pinned scene: one step at a time, driven by the section's own view timeline. */
@@ -196,7 +195,7 @@ const loop = [
         background: var(--line);
       }
       .meter li::after {
-        background: linear-gradient(90deg, var(--neon-foot), var(--neon-top));
+        background: var(--accent);
         transform-origin: left;
         scale: 0 1;
         animation: loop-fill 1ms linear both;
