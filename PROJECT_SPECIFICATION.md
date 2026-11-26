@@ -5,10 +5,10 @@
 | **Status** | Accepted — describes shipped behavior |
 | **Version** | 1.2.0 |
 | **Owner** | Filip Białogrecki |
-| **Last updated** | 2026-11-23 |
+| **Last updated** | 2026-11-26 |
 | **Product version** | 1.7.1 (`pyproject.toml`); browser extension 1.4.5 (`dj_digger/webext/extension/manifest.json`) |
-| **Document lines** | <!-- SPEC TOTAL LINES -->2925<!-- END SPEC TOTAL LINES --> |
-| **Verified against** | `pyproject.toml`, `dj_digger/`, `dj_digger/webext/extension/manifest.json`, `scripts/`, `tests/`, `.github/workflows/`, `README.md`, `CHANGELOG.md` |
+| **Document lines** | <!-- SPEC TOTAL LINES -->2959<!-- END SPEC TOTAL LINES --> |
+| **Verified against** | `pyproject.toml`, `dj_digger/`, `dj_digger/webext/extension/manifest.json`, `scripts/`, `tests/`, `.github/workflows/`, `site/`, `firebase.json` |
 
 ## Purpose of this file
 
@@ -17,11 +17,10 @@ dj-digger is, how it is built, which component owns which boundary, and what the
 shipped CLI, Qt Quick desktop, and browser extension do.
 
 It records **current shipped state only**. Roadmap items, target designs,
-implementation plans, open questions, acceptance checklists, and TODOs are
-deliberately absent; they belong in `docs/`. Two consequences follow:
-
-- Everything written here can be relied on as a description of what exists today.
-- If a behavior is not described here, it is not built. Absence is information.
+implementation plans, open questions, acceptance checklists, and TODOs belong
+in `docs/`. To determine what ships, check the implementation and its tests.
+When they show a behavior that this document omits or describes incorrectly,
+update the relevant section (§1.1).
 
 Within that scope it is the source of truth for product behavior, component
 boundaries, public interfaces, persistence, security, privacy, integrations, and
@@ -48,72 +47,72 @@ text is never promoted into the map.
 <!-- BEGIN GENERATED SECTION MAP -->
 | § | Section | Lines |
 | --- | --- | --- |
-| 1 | Specification governance | 121–161 |
-| 1.1 | ↳ Authority and scope | 123–140 |
-| 1.2 | ↳ Update contract | 141–161 |
-| 2 | Product purpose and execution modes | 162–209 |
-| 2.1 | ↳ Problem and product boundary | 164–177 |
-| 2.2 | ↳ Execution modes | 178–209 |
-| 3 | User-visible capabilities | 210–1290 |
-| 3.1 | ↳ Track collection | 212–244 |
-| 3.2 | ↳ Link classification and exports | 245–263 |
-| 3.3 | ↳ Track statuses | 264–274 |
-| 3.4 | ↳ Audio preview | 275–447 |
-| 3.5 | ↳ Downloads and local-file matching | 448–509 |
-| 3.6 | ↳ Store purchase assistance | 510–633 |
-| 3.7 | ↳ Local library, analysis and audio export | 634–841 |
-| 3.8 | ↳ Qt Quick desktop | 842–1290 |
-| 4 | System context and data flow | 1291–1337 |
-| 4.1 | ↳ Context diagram | 1293–1319 |
-| 4.2 | ↳ Collection-to-library flow | 1320–1337 |
-| 5 | Repository layout and component ownership | 1338–1427 |
-| 5.1 | ↳ Entry, orchestration, and models | 1340–1351 |
-| 5.2 | ↳ Network and external-system adapters | 1352–1384 |
-| 5.3 | ↳ Persistence, local media, and UI | 1385–1427 |
-| 6 | Runtime architecture and environments | 1428–1573 |
-| 6.1 | ↳ Runtime and dependencies | 1430–1458 |
-| 6.2 | ↳ Concurrency and lifecycle | 1459–1536 |
-| 6.3 | ↳ Local paths and environment variables | 1537–1573 |
-| 7 | Data model and persistence | 1574–1713 |
-| 7.1 | ↳ Domain objects and identity | 1576–1590 |
-| 7.2 | ↳ SQLite schema and invariants | 1591–1654 |
-| 7.3 | ↳ Crate persistence and deletion | 1655–1677 |
-| 7.4 | ↳ Configuration and credential stores | 1678–1713 |
-| 8 | Public interfaces and contracts | 1714–1779 |
-| 8.1 | ↳ CLI arguments and exit behavior | 1716–1747 |
-| 8.2 | ↳ JSON and CSV summary input | 1748–1765 |
-| 8.3 | ↳ URL-opening contract | 1766–1779 |
-| 9 | Authentication and authorization | 1780–1858 |
-| 9.1 | ↳ SoundCloud authentication | 1782–1823 |
-| 9.2 | ↳ Gate action consent | 1824–1858 |
-| 10 | External integrations | 1859–2310 |
-| 10.1 | ↳ SoundCloud API and media | 1861–1872 |
-| 10.2 | ↳ Link hubs and download gates | 1873–2019 |
-| 10.2 · block | ↳ ↳ Hypeddit | 1881–1976 |
-| 10.2 · block | ↳ ↳ ToneDen | 1978–2002 |
-| 10.2 · block | ↳ ↳ Other resolvers | 2004–2012 |
-| 10.2 · block | ↳ ↳ Network-write boundary | 2014–2019 |
-| 10.3 | ↳ Browsers and clipboard | 2020–2255 |
-| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 2256–2310 |
-| 11 | Security requirements and threat model | 2311–2530 |
-| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2313–2331 |
-| 11.2 | ↳ Secret and personal-data handling | 2332–2347 |
-| 11.3 | ↳ File and mutation safety | 2348–2369 |
-| 11.4 | ↳ Browser-extension trust boundary | 2370–2530 |
-| 12 | Privacy, lifecycle, and retention | 2531–2592 |
-| 12.1 | ↳ Data stored locally | 2533–2557 |
-| 12.2 | ↳ Data sent to third parties | 2558–2575 |
-| 12.3 | ↳ User-controlled deletion | 2576–2592 |
-| 13 | Failure behavior and current limitations | 2593–2708 |
-| 13.1 | ↳ Error isolation and reporting | 2595–2616 |
-| 13.2 | ↳ Confirmed limitations | 2617–2708 |
-| 14 | Verification, CI, and release | 2709–2886 |
-| 14.1 | ↳ Offline and live test suites | 2711–2762 |
-| 14.2 | ↳ Continuous integration and publishing | 2763–2869 |
-| 14.3 | ↳ Specification-map verification | 2870–2886 |
-| 15 | References | 2887–2925 |
-| 15.1 | ↳ Primary implementation evidence | 2889–2910 |
-| 15.2 | ↳ User and historical documentation | 2911–2925 |
+| 1 | Specification governance | 120–160 |
+| 1.1 | ↳ Authority and scope | 122–139 |
+| 1.2 | ↳ Update contract | 140–160 |
+| 2 | Product purpose and execution modes | 161–216 |
+| 2.1 | ↳ Problem and product boundary | 163–183 |
+| 2.2 | ↳ Execution modes | 184–216 |
+| 3 | User-visible capabilities | 217–1301 |
+| 3.1 | ↳ Track collection | 219–251 |
+| 3.2 | ↳ Link classification and exports | 252–270 |
+| 3.3 | ↳ Track statuses | 271–281 |
+| 3.4 | ↳ Audio preview | 282–458 |
+| 3.5 | ↳ Downloads and local-file matching | 459–520 |
+| 3.6 | ↳ Store purchase assistance | 521–644 |
+| 3.7 | ↳ Local library, analysis and audio export | 645–852 |
+| 3.8 | ↳ Qt Quick desktop | 853–1301 |
+| 4 | System context and data flow | 1302–1348 |
+| 4.1 | ↳ Context diagram | 1304–1330 |
+| 4.2 | ↳ Collection-to-library flow | 1331–1348 |
+| 5 | Repository layout and component ownership | 1349–1438 |
+| 5.1 | ↳ Entry, orchestration, and models | 1351–1362 |
+| 5.2 | ↳ Network and external-system adapters | 1363–1395 |
+| 5.3 | ↳ Persistence, local media, and UI | 1396–1438 |
+| 6 | Runtime architecture and environments | 1439–1586 |
+| 6.1 | ↳ Runtime and dependencies | 1441–1469 |
+| 6.2 | ↳ Concurrency and lifecycle | 1470–1549 |
+| 6.3 | ↳ Local paths and environment variables | 1550–1586 |
+| 7 | Data model and persistence | 1587–1726 |
+| 7.1 | ↳ Domain objects and identity | 1589–1603 |
+| 7.2 | ↳ SQLite schema and invariants | 1604–1667 |
+| 7.3 | ↳ Crate persistence and deletion | 1668–1690 |
+| 7.4 | ↳ Configuration and credential stores | 1691–1726 |
+| 8 | Public interfaces and contracts | 1727–1793 |
+| 8.1 | ↳ CLI arguments and exit behavior | 1729–1761 |
+| 8.2 | ↳ JSON and CSV summary input | 1762–1779 |
+| 8.3 | ↳ URL-opening contract | 1780–1793 |
+| 9 | Authentication and authorization | 1794–1872 |
+| 9.1 | ↳ SoundCloud authentication | 1796–1837 |
+| 9.2 | ↳ Gate action consent | 1838–1872 |
+| 10 | External integrations | 1873–2324 |
+| 10.1 | ↳ SoundCloud API and media | 1875–1886 |
+| 10.2 | ↳ Link hubs and download gates | 1887–2033 |
+| 10.2 · block | ↳ ↳ Hypeddit | 1895–1990 |
+| 10.2 · block | ↳ ↳ ToneDen | 1992–2016 |
+| 10.2 · block | ↳ ↳ Other resolvers | 2018–2026 |
+| 10.2 · block | ↳ ↳ Network-write boundary | 2028–2033 |
+| 10.3 | ↳ Browsers and clipboard | 2034–2269 |
+| 10.4 | ↳ Bandcamp and Beatport carts, Beatport playlists | 2270–2324 |
+| 11 | Security requirements and threat model | 2325–2544 |
+| 11.1 | ↳ Untrusted URLs and SSRF boundary | 2327–2345 |
+| 11.2 | ↳ Secret and personal-data handling | 2346–2361 |
+| 11.3 | ↳ File and mutation safety | 2362–2383 |
+| 11.4 | ↳ Browser-extension trust boundary | 2384–2544 |
+| 12 | Privacy, lifecycle, and retention | 2545–2613 |
+| 12.1 | ↳ Data stored locally | 2547–2571 |
+| 12.2 | ↳ Data sent to third parties | 2572–2596 |
+| 12.3 | ↳ User-controlled deletion | 2597–2613 |
+| 13 | Failure behavior and current limitations | 2614–2730 |
+| 13.1 | ↳ Error isolation and reporting | 2616–2637 |
+| 13.2 | ↳ Confirmed limitations | 2638–2730 |
+| 14 | Verification, CI, and release | 2731–2920 |
+| 14.1 | ↳ Offline and live test suites | 2733–2784 |
+| 14.2 | ↳ Continuous integration and publishing | 2785–2903 |
+| 14.3 | ↳ Specification-map verification | 2904–2920 |
+| 15 | References | 2921–2959 |
+| 15.1 | ↳ Primary implementation evidence | 2923–2944 |
+| 15.2 | ↳ User and historical documentation | 2945–2959 |
 <!-- END GENERATED SECTION MAP -->
 
 ---
@@ -163,7 +162,14 @@ to the last line of the map table whenever the map gains or loses rows.
 
 ### 2.1 Problem and product boundary
 
-`dj-digger` collects tracks behind SoundCloud playlist, user,
+DJs use dj-digger to select music for a set and spend less time acquiring it.
+They can listen through SoundCloud playlists, skip tracks, save selections in
+local playlists and follow the artist’s links to buy or download tracks. The
+browser extension helps fill Bandcamp and Beatport carts and complete supported
+download gates such as Hypeddit. The DJ reviews the cart and checks out.
+Matching tracks to files already on disk supports this workflow.
+
+The application collects tracks behind SoundCloud playlist, user,
 collection, and track links, extracts purchase and download destinations, and
 presents them as a local playlist. It avoids relying on the finite set of tracks
 rendered in a SoundCloud page by using SoundCloud API v2. Saved SoundCloud pages
@@ -186,9 +192,10 @@ modes are implemented:
   dj-digger-gui to browse."
 - `dj-digger dig [target]` accepts a SoundCloud HTTP(S) URL; anything else is
   rejected as not a soundcloud.com link.
-- `dj-digger open SUMMARY` reads an exported JSON summary, displays it, and
-  always batch-opens its links (prompting for a category unless `--category` is
-  given; `--skip`, `--limit` and `--no-open` apply).
+- `dj-digger open SUMMARY` displays the link counts from an exported JSON
+  summary. By default it opens links in a batch, prompting for a category
+  unless `--category` is given. `--skip` and `--limit` select a slice.
+  `--no-open` displays the summary and exits without prompting or opening links.
 - `dj-digger auth ...` manages SoundCloud credentials.
 - `dj-digger browser register|unregister` registers or removes the Native
   Messaging host of the browser extension and installs the extension files
@@ -199,8 +206,8 @@ modes are implemented:
 
 The desktop is a local process. Network, disk scan, download, playback preparation,
 cart, and batch browser work are process-local background workers rather than a
-durable job queue. The desktop and every CLI command hold the same exclusive
-data-directory lock (§6.2), so the CLI does not run while the desktop is open.
+durable job queue. While the desktop holds the data-directory lock, CLI
+operations on that directory cannot run. Help and version output are available (§6.2).
 Download gates, store carts and the SoundCloud browser login drive the user's own
 browser through the dj-digger extension (§10.3); the application ships and
 downloads no browser.
@@ -274,8 +281,8 @@ within each group.
 
 ### 3.4 Audio preview
 
-Any track with a file on disk (library media, a download or a title-only match)
-plays that file in both interfaces; only tracks without one stream from SoundCloud.
+The desktop player uses the local file when a track has one (library media, a
+download or a title-only match). Otherwise it resolves a SoundCloud stream.
 Local playback uses FFmpeg to produce 44.1 kHz stereo signed-16 PCM. Decoded
 audio is retained in memory, up to 64 MB per source (about six minutes); once
 that cap is reached the oldest audio more than 30 s behind the read head is
@@ -299,8 +306,9 @@ not a separate audio dependency install.
 over `streamable=true` and any transcodings: it reports a SoundCloud account/region
 restriction. No returned streams and unsupported stream formats are separate
 errors. Non-streamable tracks and snippet-only policy are also rejected.
-Resolution prefers a progressive MP3 transcoding and falls back to MP3
-HLS when progressive MP3 is absent. It authorizes the chosen transcoding and
+Resolution ranks available streams in order of preference: progressive MP3,
+MP3 HLS, then AAC HLS in fragmented MP4. Within a format it prefers the higher advertised quality. It
+authorizes the chosen transcoding and
 returns its protocol, signed URL, duration and artwork URL (SoundCloud's
 `-large` image name rewritten to its `-t500x500` size). SoundCloud's own
 waveform JSON is not used. Playback
@@ -312,9 +320,9 @@ track to the UI thread, so no connection is opened from the interface thread.
 The waveform is not fetched before playback: it follows in the background
 (§3.8).
 
-Audio is decoded from an HTTP source and is not persisted to disk. A declared
-source at or below 50 MiB is buffered progressively in memory; larger or
-undeclared sources stream directly. Range requests support seeking. A seek in
+Remote audio stays in memory. For progressive MP3, a declared source at or
+below 50 MiB is buffered as it arrives. Larger or undeclared progressive
+sources stream directly. Range requests support seeking. A seek in
 an MP3 of known size (a progressive source, or an HLS track once every segment
 arrived) opens the decoder at the byte proportional to the target after any
 ID3v2 tag, through a view of the source that starts there, instead of letting
@@ -407,9 +415,10 @@ On PipeWire with 50 ms periods the measured queue is about 50-70 ms.
 `services.playback.track_waveform()` returns a track's envelope from the library's
 `waveforms` table (§7.2) or computes it from the track's own audio and stores a
 non-empty result as a list of 1024 peaks. A row kept by 1.4.0-1.5.0 as
-`{peaks, bands}` gives its peaks without a new decode. A local file is decoded by FFmpeg at 4 kHz; a
-stream is decoded by `miniaudio` at 4 kHz from the whole file once its buffered
-progressive or HLS source reports it complete (`whole()`). A source that does
+`{peaks, bands}` gives its peaks without a new decode. Waveforms use 4 kHz
+PCM. FFmpeg decodes local files and buffered fragmented MP4. For a streamed
+MP3, `miniaudio` decodes the audio once the progressive or HLS source returns
+the complete file through `whole()`. A source that does
 not hold the whole file (an unbuffered or failed progressive download, a
 download restarted by a far seek, a closed source) yields no waveform and
 nothing is stored. A local file's row is valid only for its current file
@@ -422,13 +431,15 @@ session caching of user content, not persistent storage).
 (copied out by FFmpeg, at most 16 MiB) or else a `cover`, `folder`, `front` or
 `albumart` `.jpg`/`.jpeg`/`.png` file (any case) beside it.
 
-MP3 HLS VOD manifests and each redirect/segment are restricted to HTTPS
-SoundCloud CDN subdomains, without credentials in URLs or nonstandard ports.
-Segments are fetched in order on a background thread into a seekable in-memory
-MP3 buffer, capped at 50 MiB; oversized streams fail explicitly. Manifests are
-capped at 1 MiB and 10,000 segments. Incomplete, encrypted, master, byte-range
-and non-MP3 container playlists are refused. Transfer failures remain errors,
-not successful EOF; closing releases the response and stops further requests.
+HLS manifests, redirects and segments must use HTTPS on allowed SoundCloud
+CDN subdomains, without URL credentials or nonstandard ports. A background
+thread fetches segments in order into a buffer capped at 50 MiB. A single
+`EXT-X-MAP` with a plain URI supplies the initialization segment for fragmented
+MP4. FFmpeg decodes AAC from the buffer through a pipe and restarts decoding
+from the beginning when seeking. Miniaudio decodes MP3. A manifest is limited
+to 1 MiB and 10,000 media segments and must describe a complete track.
+Encryption, master playlists, byte ranges and discontinuities are rejected.
+A transfer failure surfaces as an error. Closing stops further requests.
 
 The next visible track is prepared during the last 20 seconds of playback. A
 filter change discards preparation that no longer matches the next row. Tracks
@@ -493,14 +504,14 @@ the Settings or sign-in step a prerequisite asks for skips only those rows, whic
 appear in the results with that reason; Stop download ends the whole download.
 
 The local scanner recursively indexes configured directories for MP3, WAV, FLAC,
-AIFF, M4A, AAC, OGG, and ALAC files, following symbolic links, and caches path,
-modification time, size, and normalized filename data in SQLite in batches of
+AIFF, M4A, AAC, OGG, and ALAC files, following symbolic links, and caches the path,
+modification time and normalized filename stem in SQLite in batches of
 200 rows per transaction. Automatic scans log inaccessible folders at DEBUG level
 without an error banner; explicit explorer access reports errors. Cancellation
 stops the walk between files while keeping what was already written. Artist-plus-title matches are confident and
 may set `got`; title-only matches require at least six normalized characters and
-only attach a path: both interfaces show it and preview that file locally, and
-Download never treats it as an owned file. A unique filename may contain extra text around the matched
+attach a path for local preview in the desktop. Download still treats the track
+as unowned. A unique filename may contain extra text around the matched
 artist/title, such as a mix label; ambiguous decorated matches are rejected.
 Missing files are removed only after a complete readable parent listing on the
 known volume; inaccessible or replaced roots retain their records. Directory
@@ -1409,7 +1420,7 @@ playback time and are not stored in the crate record.
   `logging_setup.py` owns private rotating logs and native-fault output rebinding;
   `analysis_report.py` owns the streamed last-analysis diagnostic file.
 - `player.py` owns buffering, decoding, byte-offset MP3 seeking and device
-  lifecycle; `beats.py` owns the kick level analysis, the track's learned kick and the bounded level history; `hls_audio.py` owns MP3 HLS buffering. `media.py` owns
+  lifecycle; `beats.py` owns the kick level analysis, the track's learned kick and the bounded level history; `hls_audio.py` owns HLS buffering and feeds MP3 to miniaudio or fragmented MP4 AAC to FFmpeg. `media.py` owns
   FFmpeg/ffprobe invocation and PCM decoding; `local_audio.py` owns local playback
   sources and the cached envelope; `analysis.py` owns BPM/key analysis and
   key-name parsing (`key_names`). Stream resolution
@@ -1436,10 +1447,10 @@ configuration directories keep their names. Users uninstall `dj-soundcloud-digge
 before installing `dj-sc-digger`, because both distributions own the same module
 and command.
 The package requires Python 3.12 or newer and is built with Hatchling. Runtime
-dependencies are `requests`, `beautifulsoup4`, `rich`, `miniaudio`, and NumPy 2.x (the streaming spectral detector). The `play` extra is an empty compatibility
-alias. `librosa` is optional in the
-`analyze` extra and imports only in analysis workers. FFmpeg/ffprobe are external
-executables required only by local media inspection/playback/conversion/analysis. The `gui` extra adds PySide6 6.x (minimum 6.10). Desktop build tooling is isolated
+dependencies are `requests`, `beautifulsoup4`, `rich`, `miniaudio`, NumPy 2.x
+and `keyring`. The `analyze` extra supplies `librosa` for analysis workers.
+Local media inspection, playback, conversion and analysis use FFmpeg tools.
+Remote fragmented MP4 AAC previews and their waveforms also require FFmpeg. The `gui` extra adds PySide6 6.x (minimum 6.10). Desktop build tooling is isolated
 in the `desktop-build` dependency group. The `dev` extra adds
 `pytest` and `ruff`. There is no runtime JavaScript build, database
 server, container image, or infrastructure-as-code layer in the repository.
@@ -1473,14 +1484,16 @@ their original sequence, including repeated-key undo and cursor advance. A
 queued mark captures the playlist view generation before waiting and is dropped
 if that view changes. Sidebar loads have a separate request generation so a
 slower previous selection cannot replace the latest selected playlist.
-Another process writing the same database is not reconciled. The desktop and every CLI command first take an exclusive `InstanceLock` on
+Another process writing the same database is not reconciled. Desktop startup and
+the CLI handlers for dig, open, auth and browser take an exclusive `InstanceLock` on
 `data_dir()/instance.lock`, which the operating system releases after a crash, so
 one process at a time owns the database. The extension socket is per account, not
 per data directory, so the application also refuses to start listening when
 another dj-digger answers on it (§6.3). A second desktop prints "Another dj-digger
 instance is using this data directory" and exits with status 1; a CLI command in
-that situation exits with status 2, so the CLI cannot run while the desktop is
-open. The runtime-test entry (`--runtime-test`) takes no lock.
+that situation exits with status 2. CLI argument parsing, including help and
+version output, finishes before lock acquisition. The desktop runtime-test entry
+(`--runtime-test`) takes no lock.
 
 `OperationCoordinator` admits one main operation (dig/refresh, download, local
 copy, cart or bulk opening) and one independent scan, with no task queue or
@@ -1736,10 +1749,11 @@ default). Open adds
 `--category`, `--skip`, `--limit`, `--no-open`, and a summary path.
 
 SoundCloud auth actions are `login [--token]`, `logout`, and `status`.
-`browser register` writes the host manifests, copies the extension and prints the
-folder to load (exit 1 when no supported browser was found); `browser unregister`
-removes the manifests and registry keys. Every command takes the instance lock
-first (§6.2).
+`browser register` writes host registrations, installs the extension copy and
+prints both the Chrome Web Store link and the directory for Firefox or a
+developer install. It returns 1 if no registration was written.
+`browser unregister` removes host registrations and returns 0 even if there were none.
+Both actions run under the instance lock (§6.2).
 
 Success returns 0. An empty dig returns 1. Caught file, value, and runtime errors
 return 2. Keyboard interruption returns 130; Invalid argparse input exits through
@@ -2562,7 +2576,8 @@ played track from its CDN) and, when configured, the OAuth token for authenticat
 hosts receive ordinary HTTP request metadata. A gate may receive the configured
 name, real email, and comment only in the provider flows described in §10.2.
 Store sites receive navigation from the user's own signed-in browser session and
-verified Bandcamp add-to-cart actions; gate providers see the browser's accounts
+add-to-cart actions for matched Bandcamp and Beatport products (§10.4).
+Gate providers see the browser's accounts
 (§9.2). Explicit SoundCloud playlist writes use the signed-in site's own form. The player panel's title,
 artist, position, small cover, colours, job label and gate count stay in the browser's session
 storage. A SoundCloud set, track or profile link the user imports from the panel, the context menu
@@ -2572,6 +2587,12 @@ Find in sends the selected artist and title to the chosen search provider when t
 until the user chooses the Beatport playlist result; the application then sends
 the playlist title plus accepted track titles and artists to its public import
 endpoint and opens the temporary review URL returned by Soundiiz.
+
+Desktop update checks request the latest public release from GitHub. After user
+confirmation, a supported Linux uv installation checks PyPI for the selected
+version. A supported packaged installation downloads its installer from GitHub. The release
+reader allows only the GitHub and PyPI hosts listed in `gui/updates.py` and
+disables environment-provided proxies and netrc credentials for these requests.
 
 ### 12.3 User-controlled deletion
 
@@ -2621,8 +2642,9 @@ as player events instead of escaping through Python-CFFI.
 - Browser-cookie auto-detection reads Firefox stores only; the extension reads the
   SoundCloud cookie of any browser it is installed in.
 - DNS names are not resolved and pinned by the automatic-fetch safety check.
-- SoundCloud playback supports progressive MP3 and MP3 HLS (up to 50 MiB).
-  AAC/Opus HLS, encrypted streams and snippet-only tracks are not full previews.
+- SoundCloud previews support progressive MP3, MP3 HLS and AAC HLS in
+  fragmented MP4. HLS audio is capped at 50 MiB. Opus HLS, encrypted streams
+  and snippet-only tracks cannot supply a full preview (§3.4).
 - The kick level weighs low hits by how much they sound like a kick, never
   below 0.4: fills, a filtered kick and bass hits glow dimmer, in proportion; a
   track with no kick at all glows on its low hits. A bass note hit together
@@ -2793,13 +2815,17 @@ publisher OIDC for `dj-sc-digger`. The publish job has `id-token: write`; other 
 default to read-only contents. GitHub prereleases skip both jobs, allowing test
 installers to be shared without a PyPI upload.
 
+The Website PR check builds Astro with Node 24 and validates the generated HTML,
+sitemap and internal links when a pull request changes the website or its build
+inputs. It uses read-only repository access and requires no deployment credentials.
+
 The Website workflow builds the Astro site from main and deploys to Firebase Hosting on a
 published stable release or a manual dispatch from main. CI resolves the latest public stable
 GitHub release, requires all three desktop installers and their checksums and a matching PyPI
 wheel, and uses that version for all seven localized download pages and the hosted Linux
 installer. The deploy checks the release tag and main SHA again. Missing production settings
-fail the job. The website environment uses a short-lived GitHub OIDC identity restricted to
-this repository's Website workflow, with Firebase Hosting Admin access to its project.
+fail the job. The deploy job requests a GitHub OIDC token and authenticates to Google Cloud
+using the identity provider and service account configured in the website environment.
 `.firebaserc` sets the default project to `dj-digger-a9664`, and the production
 site is `https://djdigger.app/`. The static `/graph/` page serves a browsable
 Graphify snapshot of a named public main commit. The full graph is available at
@@ -2822,11 +2848,12 @@ use predefined categories and destinations. Updated analytics purposes require a
 referrer policy. A single tag configuration records each consented page load. The website's GA4 tag
 does not run in the desktop app, extension, update checker or install script.
 
-Every indexed page carries schema.org JSON-LD (`site/src/layouts/Base.astro`): the site
+Every indexable editorial page carries schema.org JSON-LD (`site/src/layouts/Base.astro`): the site
 (`WebSite`) and its author (`Person`); on the home, app and download pages the desktop app as a
 free `SoftwareApplication` with the download version and its changelog date; on the extension page
-the extension, linked to the Chrome Web Store, without a version; and on every other page a
-two-level `BreadcrumbList`; guides add an `Article` with their dates. Besides the seven pages in
+the extension, linked to the Chrome Web Store, without a version. Each editorial page
+below its language’s homepage includes a two-level `BreadcrumbList`. Guides add
+an `Article` with their dates. Besides the seven pages in
 all seven languages, the site has questions and answers (`/faq/`) and guides on getting a SoundCloud
 playlist into rekordbox as files and on where to buy a SoundCloud track, in English, German and
 Polish, plus English guides to Hypeddit gates, organizing downloaded tracks and choosing FLAC or WAV
@@ -2837,7 +2864,13 @@ each page's languages: hreflang links and the sitemap name only existing version
 switcher offers a language's home page where a page is missing, direct URLs retain their language
 except when the bare homepage honors an explicit saved preference, and the footer links a guide in
 English where the reader's language has none. The architecture graph and text utilities carry a
-Hosting noindex header. Build checks compare sitemap and HTML alternates, metadata, article data,
+Hosting noindex header. Astro and Firebase Hosting use trailing slashes for
+editorial page URLs. Each page declares its own canonical URL, and
+`/robots.txt` allows crawling and advertises `/sitemap.xml`. The sitemap lists
+61 page URLs across seven languages and uses the English version of each page
+for `x-default`. The legacy `/liner-notes/` URLs redirect permanently to
+`/about/` in the same language.
+Build checks compare sitemap and HTML alternates, metadata, article data,
 internal links and reachability across the generated editorial pages. The download page states the offered version's release
 date from its dated `CHANGELOG.md` heading, which the build requires. `/llms.txt` is a plain-text summary of the product with links to the
 English pages and the project's source and distribution pages. Both are generated from
@@ -2847,7 +2880,8 @@ The site also serves `site/public/install.sh`, the Linux install script describe
 in `docs/installation.md`: it installs uv into the home directory, shows the
 package-manager command for FFmpeg and the system libraries Qt needs and runs it
 only after consent read from the terminal (or with `--yes`), installs
-`dj-sc-digger[gui,analyze]` with `uv tool install --upgrade`, and writes a
+`dj-sc-digger[gui,analyze]` with `uv tool install --upgrade`, pinned by the
+website build to the advertised download version, and writes a
 `dj-digger.desktop` menu entry and icon under the user's data directory. It changes
 nothing else outside the home directory and has a `--dry-run`.
 
