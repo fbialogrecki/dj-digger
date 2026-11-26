@@ -15,7 +15,6 @@ let queued = false;
 addEventListener(
   "scroll",
   () => {
-    root.classList.add("played");
     if (queued) return;
     queued = true;
     requestAnimationFrame(() => {
@@ -26,16 +25,30 @@ addEventListener(
   { passive: true },
 );
 addEventListener("resize", mark);
-// Any input ends the needle drop.
-for (const type of ["pointerdown", "keydown", "wheel", "touchstart"])
-  addEventListener(type, () => root.classList.add("played"), { once: true, passive: true });
+// The needle drop always plays out: cutting it short, or a reload restoring the scroll
+// position, would snap the disc back by however much of the spin-up was left.
 mark();
+
+// Same-page links glide. Set per click, not in CSS: a reload restoring its position must not
+// glide, and Safari never focuses a clicked link, so html:focus-within cannot carry it.
+const still = matchMedia("(prefers-reduced-motion: reduce)");
+addEventListener("click", (event) => {
+  const link = event.target instanceof Element ? event.target.closest("a[href*='#']") : null;
+  if (!link || event.defaultPrevented || still.matches || link.target) return;
+  if (event.button || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return; // opens elsewhere
+  if (link.origin !== location.origin || link.pathname !== location.pathname) return;
+  root.style.scrollBehavior = "smooth";
+  const settle = () => root.style.removeProperty("scroll-behavior");
+  addEventListener("scrollend", settle, { once: true });
+  setTimeout(settle, 1500); // where scrollend is missing, or the link is already in view
+});
 
 // Grab the record and turn it: the page scrolls by the same share of its length.
 // The spindle is fixed where it was grabbed: near the bottom the deck scrolls away with
 // the page, and measuring from where it moved to would turn the record by itself.
 if (record) {
   let last = null;
+  let held = [];
   let spindle = [0, 0];
   const angle = (event) => Math.atan2(event.clientY - spindle[1], event.clientX - spindle[0]);
   record.addEventListener("pointerdown", (event) => {
@@ -45,6 +58,13 @@ if (record) {
     spindle = [box.left + (box.width * 104) / 232, box.top + box.height / 2];
     record.setPointerCapture(event.pointerId);
     record.classList.add("grabbing");
+    // A grab mid needle drop holds it where it is (disc, arm and kicks); letting go finishes it.
+    // A second finger must not replace the list, or nothing would resume what the first one paused.
+    if (!held.length)
+      held = [...document.querySelectorAll(".record .spin-up, .record .neon, .tonearm .drop")]
+        .flatMap((element) => element.getAnimations())
+        .filter((animation) => animation.playState === "running");
+    for (const animation of held) animation.pause();
     last = angle(event);
     event.preventDefault();
   });
@@ -59,6 +79,8 @@ if (record) {
     record.addEventListener(type, () => {
       last = null;
       record.classList.remove("grabbing");
+      for (const animation of held) animation.play();
+      held = [];
     });
 }
 

@@ -71,7 +71,7 @@ purpose. Only describe features that ship; `PROJECT_SPECIFICATION.md`, `README.m
   `astro.config.mjs`): bundled scripts and styles are allowed by hash; a measurement-enabled build also permits the Google tag script and analytics endpoints, and `firebase.json` adds the header-only directives. So no `style="…"`
   attributes and no `is:inline` scripts in pages; the one script that must run before
   first paint is `src/scripts/boot.js`, allowed by its own hash.
-- **Motion** is CSS first: `animation-timeline: scroll()` turns the disc; the spin-up on a first visit is keyframes. Going
+- **Motion** is CSS first: `animation-timeline: scroll()` turns the disc; the spin-up on each load is keyframes. Going
   to another page turns the record over with a cross-document view transition: the disc
   flips over its spindle. Everything is off under
   `prefers-reduced-motion`, and the page is complete without JavaScript.
