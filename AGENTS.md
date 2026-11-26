@@ -8,6 +8,9 @@ crate-digging headless CLI and Qt Quick desktop (`dj-digger-gui`).
 - At the start of every new task, before analysis, planning, or edits, read
   `PROJECT_SPECIFICATION.md`: start with its section map and then the relevant
   sections, following this repository's specification-reading rules below.
+- Run `git status -sb` and `git worktree list` to confirm the task's branch,
+  working directory and existing edits. Keep `main` in the primary checkout
+  and use separate worktrees for parallel branches.
 - Always load the `graphify` skill and read the existing `graphify-out/graph.json`
   at task startup, including for simple tasks. Inspect its structure and retrieve
   task-relevant nodes and relationships; checking that the file exists is not
@@ -38,7 +41,8 @@ crate-digging headless CLI and Qt Quick desktop (`dj-digger-gui`).
 - Never read `PROJECT_SPECIFICATION.md` whole unless its "How to read this file" section says
   it is small enough. Start with the first read given there (header and section map), then
   read only the map entries your task touches, or grep when you already know the symbol.
-- That file records shipped behavior only. If it does not describe a behavior, that behavior is not built.
+- Verify missing or conflicting descriptions against the implementation and its tests.
+  Update the specification when it omits or misstates shipped behavior.
 
 ## Specification maintenance
 
@@ -58,7 +62,7 @@ crate-digging headless CLI and Qt Quick desktop (`dj-digger-gui`).
   in-memory audio preview, and the beat grid the desktop pulses with.
 - `dj_digger/db.py`, `schema.py`, `state.py`, `scanner.py`, `config.py`: SQLite
   state, crates, local-file matching, and preferences.
-- `dj_digger/auth.py`, `spotify.py`, `gates/`, `stores/`, `http.py`, `browser.py`: external
+- `dj_digger/auth.py`, `gates/`, `stores/`, `http.py`, `browser.py`: external
   authentication, gate/store integrations, URL handoff to the user's browser, and cart safety.
 - `dj_digger/webext/`: the browser extension (`extension/`), its native-host relay, the app-side
   socket `link.py`, and the Playwright-shaped page adapter that gates, login, and cart drive.
@@ -106,10 +110,20 @@ Minimum checks for a normal code change:
 
 ```bash
 python3 scripts/spec_section_map.py --check
-uv run --extra dev ruff check .
-uv run --extra dev pytest
+uv run --frozen --extra dev ruff check .
+uv run --frozen --extra dev pytest
 ```
 
-Run focused tests while iterating. The default pytest configuration excludes
+Choose focused checks from the repository root while iterating. Qt tests use
+PySide6 from the `gui` extra and skip on installations without it.
+
+| Changed area | Local check |
+| --- | --- |
+| Desktop playlists, status changes and preview controls | `uv run --frozen --extra dev --extra gui --python 3.12 pytest tests/test_gui.py tests/test_gui_table.py tests/test_gui_player.py tests/test_playlist_workflows.py` |
+| Audio decoding and seeking | `uv run --frozen --extra dev pytest tests/test_player.py tests/test_hls_audio.py tests/test_local_audio.py` (requires FFmpeg) |
+| Browser extension and native host | `uv run --frozen --extra dev pytest tests/test_webext*.py` (Node is required for the JavaScript checks). |
+| Website, translations and SEO | From `site/`, run `npm ci && npm run build && python3 scripts/check-seo.py` (CI uses Node 24). |
+
+The default pytest configuration excludes
 `live`, `shop_live`, and `hypeddit_live`; run those markers only when explicitly
 needed to validate an external contract. Preserve unrelated worktree changes.

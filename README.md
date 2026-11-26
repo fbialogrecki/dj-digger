@@ -1,6 +1,6 @@
 # dj-digger
 
-Turn a SoundCloud playlist into a shortlist for your next set. Listen through the tracks, mark what you own or want to skip, and follow the artist’s download or store links. The desktop app remembers those decisions across playlists and can match tracks to music you already have on disk. Your library stays on your computer.
+Spend less time tracking down the music you want to play. Listen through a SoundCloud playlist, skip the tracks that don't fit and choose which ones to buy or download. The desktop app gathers the artist’s links. Its browser extension helps you add selected tracks to Bandcamp and Beatport carts and work through download gates such as Hypeddit. You review your carts and complete checkout. Your playlists and listening decisions stay on your computer.
 
 [Download dj-digger](https://djdigger.app/download/) · [Desktop tour](https://djdigger.app/app/) · [Browser extension](https://djdigger.app/extension/) · [Polska strona](https://djdigger.app/pl/)
 
