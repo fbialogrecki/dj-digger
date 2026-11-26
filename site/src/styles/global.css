@@ -578,7 +578,8 @@ ol.ticks li::before {
   position: relative;
 }
 .facts li::before {
-  content: "/" / "";
+  content: "/";
+  content: "/" / ""; /* silent for screen readers where alt text is supported */
   position: absolute;
   right: calc(100% + 0.55rem);
   color: var(--edge);

@@ -34,7 +34,8 @@ mark();
 const still = matchMedia("(prefers-reduced-motion: reduce)");
 addEventListener("click", (event) => {
   const link = event.target instanceof Element ? event.target.closest("a[href*='#']") : null;
-  if (!link || event.defaultPrevented || still.matches) return;
+  if (!link || event.defaultPrevented || still.matches || link.target) return;
+  if (event.button || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return; // opens elsewhere
   if (link.origin !== location.origin || link.pathname !== location.pathname) return;
   root.style.scrollBehavior = "smooth";
   const settle = () => root.style.removeProperty("scroll-behavior");
@@ -57,8 +58,12 @@ if (record) {
     spindle = [box.left + (box.width * 104) / 232, box.top + box.height / 2];
     record.setPointerCapture(event.pointerId);
     record.classList.add("grabbing");
-    // A grab mid needle drop holds the spin-up where it is; letting go finishes it.
-    held = (record.querySelector(".spin-up")?.getAnimations() ?? []).filter((a) => a.playState === "running");
+    // A grab mid needle drop holds it where it is (disc, arm and kicks); letting go finishes it.
+    // A second finger must not replace the list, or nothing would resume what the first one paused.
+    if (!held.length)
+      held = [...document.querySelectorAll(".record .spin-up, .record .neon, .tonearm .drop")]
+        .flatMap((element) => element.getAnimations())
+        .filter((animation) => animation.playState === "running");
     for (const animation of held) animation.pause();
     last = angle(event);
     event.preventDefault();
